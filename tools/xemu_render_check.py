@@ -90,6 +90,7 @@ def main():
     parser.add_argument('--input', type=Path, help='Optional process-local replay; its length supplies the frame count')
     parser.add_argument('--setup-uid', type=int, nargs='+', default=[], help='Authored setup event at frame0, optionally another at frame60')
     parser.add_argument('--exit-start-uid', type=int, help='Stage once outside a real exit volume; replay must walk into it')
+    parser.add_argument('--trigger-approach-uid', type=int, help='Stage outside a trigger linked to this UID; replay may walk into it without a level transition')
     parser.add_argument('--trigger-start-uid', type=int, help='Place inside an authored trigger; normal eligibility and Use still apply')
     parser.add_argument('--exit-uid', type=int, help='Authored exit at frame60')
     parser.add_argument('--return-exit-uid', type=int, help='Authored return at frame180, restaging the initial pickup')
@@ -120,14 +121,14 @@ def main():
     if fighter:
         if not (args.dev_room and args.spawn and args.level=='ctf06.rfl' and args.archive=='levelsm.vpp'):
             parser.error('Fighter requires --vehicle-test --vehicle-class fighter --dev-room --spawn --level ctf06.rfl --archive levelsm.vpp')
-        if args.npc_rubble_test or args.npc_grenade_test or args.npc_rocket_test or args.npc_shield_test or args.player_shield_test or args.firearms_test or args.fusion_test or args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.goto_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
+        if args.npc_rubble_test or args.npc_grenade_test or args.npc_rocket_test or args.npc_shield_test or args.player_shield_test or args.firearms_test or args.fusion_test or args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.goto_uid or args.item_uid or args.exit_start_uid or args.trigger_approach_uid or args.trigger_start_uid:
             parser.error('Fighter DEV requires its enemy-free placement without other combat fixtures or campaign relocation')
     if submarine:
         if not (args.dev_room and args.spawn and args.level=='L5S3.rfl' and args.archive=='levels1.vpp'):
             parser.error('Submarine requires --vehicle-test --vehicle-class sub --dev-room --spawn --level L5S3.rfl --archive levels1.vpp')
         if args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out:
             parser.error('Submarine checkpoints are not supported yet')
-        if args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.goto_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
+        if args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.goto_uid or args.item_uid or args.exit_start_uid or args.trigger_approach_uid or args.trigger_start_uid:
             parser.error('Submarine DEV requires its enemy-free placement without campaign setup or relocation')
     elif args.vehicle_test and (not args.dev_room or args.level!='ctf06.rfl'):
         parser.error('--vehicle-test requires ctf06 DEV unless --vehicle-class sub')
@@ -216,8 +217,10 @@ def main():
         parser.error('Require positive exit UIDs and an outbound exit for a return')
     if not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63 or (args.goal_uid is not None and not 0<args.goal_uid<0xffffffff) or (args.goto_uid is not None and not 0<args.goto_uid<0xffffffff) or (args.spawn and args.item_uid):
         parser.error('Require a plain level filename, positive goal UID and one placement mode')
-    if args.exit_start_uid is not None and (not args.spawn or not 0<args.exit_start_uid<0xffffffff or args.exit_uid or args.return_exit_uid):
+    if args.exit_start_uid is not None and (not args.spawn or not 0<args.exit_start_uid<0xffffffff or args.exit_uid or args.return_exit_uid or args.trigger_approach_uid):
         parser.error('Exit-start requires --spawn, a positive UID and no forced exit options')
+    if args.trigger_approach_uid is not None and (not args.spawn or not 0<args.trigger_approach_uid<0xffffffff or args.trigger_start_uid or args.exit_start_uid or args.exit_uid or args.return_exit_uid):
+        parser.error('Trigger approach requires --spawn, a positive UID and no other trigger/exit placement')
     if any(v is not None and not 0<=v<args.frames for v in (args.quick_save_frame,args.quick_load_frame)):
         parser.error('Quick action frames must lie inside the replay')
     if (args.quick_save_frame is not None or args.quick_load_frame is not None) and (not args.spawn or args.dev_room or not args.world_hdd_persistent):
@@ -225,7 +228,7 @@ def main():
     if args.quick_load_save and (args.quick_load_frame is None or args.quick_load_save.name not in ('redfaction-save.0','redfaction-save.1') or not args.quick_load_save.is_file()):
         parser.error('Quick-load seed must be an existing redfaction-save.0/.1 with a quick-load frame')
     root = Path(__file__).resolve().parents[1]
-    if args.trigger_start_uid is not None and (not args.spawn or not 0<args.trigger_start_uid<0xffffffff or args.exit_start_uid):
+    if args.trigger_start_uid is not None and (not args.spawn or not 0<args.trigger_start_uid<0xffffffff or args.exit_start_uid or args.trigger_approach_uid):
         parser.error('Trigger-start requires --spawn, a positive UID and no exit-start placement')
     require_no_project_xemu(root)
     emulator = Path('C:/Games/Emulators/Xemu')
@@ -237,9 +240,10 @@ def main():
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
     report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, goto_uid=args.goto_uid, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
-        input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
-        scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
-              'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
+        input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, trigger_approach_uid=args.trigger_approach_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
+        scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, '
+              + ('native scene state without image capture' if args.no_images else 'native framebuffer')
+              + ', phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     report['fragment_contact_test']=args.fragment_contact_test
     report['npc_rubble_test']=args.npc_rubble_test
     report['npc_projectile_test']=args.npc_projectile_test
@@ -315,7 +319,7 @@ def main():
     if args.item_uid:
         env.pop('RF_REPLAY_ACTOR_UID')
         env['RF_REPLAY_ITEM_UID']=str(args.item_uid)
-    if args.exit_start_uid:env['RF_REPLAY_EXIT_START']=str(args.exit_start_uid)
+    if args.exit_start_uid or args.trigger_approach_uid:env['RF_REPLAY_EXIT_START']=str(args.exit_start_uid or args.trigger_approach_uid)
     if args.trigger_start_uid:env['RF_REPLAY_TRIGGER_UID']=str(args.trigger_start_uid)
     if args.exit_uid:env['RF_REPLAY_EXIT_UID']=str(args.exit_uid)
     if args.return_exit_uid:
@@ -453,7 +457,7 @@ def main():
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
         if args.goto_uid:(disc/'campaign-goto.bin').write_bytes(struct.pack('<I',args.goto_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
-        if args.exit_start_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid))
+        if args.exit_start_uid or args.trigger_approach_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid or args.trigger_approach_uid))
         if args.trigger_start_uid:(disc/'campaign-trigger-start.bin').write_bytes(struct.pack('<I',args.trigger_start_uid))
         if args.exit_uid:(disc/'campaign-exit.bin').write_bytes(struct.pack('<I',args.exit_uid))
         if args.return_exit_uid:(disc/'campaign-return.bin').write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid or 0))

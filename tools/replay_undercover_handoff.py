@@ -17,9 +17,9 @@ PLAYER = ROOT / "build/pc/Release/rf_pc_play.exe"
 
 
 def run_case(path, name, frames, level, archive, setup, exit_uid=None, return_uid=None,
-             walk_start_uid=None):
+             walk_start_uid=None, walk_from=30):
     replay = path / (name + ".bin")
-    inputs = (b"".join(struct.pack("<5f7I", 0, 0, float(frame >= 30), 0, 0,
+    inputs = (b"".join(struct.pack("<5f7I", 0, 0, float(frame >= walk_from), 0, 0,
                                    0, 0, 0, 0, 0, 0, 0)
                        for frame in range(frames)) if walk_start_uid else bytes(frames * 48))
     replay.write_bytes(b"RFI6" + struct.pack("<I", 48) + inputs)
@@ -53,6 +53,13 @@ def main():
         assert form == "PLAYER_FORM 0 0 0 1 1 4 1120403456 0", form
         assert one(off, "PLAYER_AMMO").split()[1] != "4", "normal weapon not restored"
         assert one(off, "PLAYER_MODEL") == "PLAYER_MODEL 0 88108 25 2"
+        natural_off = run_case(path, "natural-off", 300, "L6S3.rfl", "levels1.vpp",
+                               "6938", walk_start_uid=6939, walk_from=90)
+        assert one(natural_off, "PLAYER_FORM") == "PLAYER_FORM 0 0 0 1 1 4 1120403456 0"
+        assert one(natural_off, "PLAYER_MODEL") == "PLAYER_MODEL 0 88108 25 2"
+        assert one(natural_off, "PLAYER_AMMO") == "PLAYER_AMMO 3 125 16 0 0 0 448 0"
+        contacts = one(natural_off, "TRIGGER_CONTACTS").split()
+        assert int(contacts[2]) > 0 and contacts[3] == "6937", contacts
         entered = run_case(path, "entered", 90, "L8S1.rfl", "levels2.vpp", "6447")
         assert one(entered, "PLAYER_FORM") == "PLAYER_FORM 1 1 0 1 0 4 0 0"
         assert one(entered, "PLAYER_MODEL") == "PLAYER_MODEL 2 80555 25 1"
@@ -76,7 +83,7 @@ def main():
             "LEVEL_TRANSITION L6S2.rfl L6S3.rfl 1782 180"]
         assert one(suit, "PLAYER_FORM") == "PLAYER_FORM 1 0 0 0 0 4 0 0"
         assert one(suit, "PLAYER_MODEL") == "PLAYER_MODEL 1 77931 25 0"
-    print("PASS: live ON/OFF swaps authored rigs; both forms carry and scientist walks through an exit")
+    print("PASS: authored ON/OFF, natural suit removal, both forms carry, scientist walks through an exit")
 
 
 if __name__ == "__main__":
