@@ -301,19 +301,23 @@ static uint32_t campaign_crouched,campaign_jump_held;
 static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};
 uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
 static float campaign_position[3],campaign_orientation[9];
-/* First authored vehicle owner: L12S1's Jeep. Keep its source UID and pose
- * separate from the DEV selector so level transitions can release it. */
+/* One owned authored vehicle per supported campaign section. The source UID
+ * and pose remain separate from the DEV selector across level transitions. */
 static int32_t campaign_authored_vehicle_uid;
 static uint32_t campaign_authored_vehicle_handle;
 static float campaign_authored_vehicle_position[3],campaign_authored_vehicle_basis[9];
 uint32_t rf_scene_player_spawn_diagnostic[19];
 int rf_scene_set_campaign_spawn(const rf_level *level)
 {
+    static const struct {const char *level,*class_name;int32_t uid;uint32_t kind;} vehicles[]={
+        {"L1S2.rfl","Driller01",8122,1},
+        {"L1S3.rfl","APC",9627,2},
+        {"L12S1.rfl","Jeep01",7629,3}};
     unsigned i,j;rf_level_entity vehicle;int status;
     /* Original level setup 435aeb resets gravity independently of jump strength. */
     rf_physics_gravity_set(&scene_gravity,9.8f);
     if(campaign_authored_vehicle_uid){
-        if(rf_scene_vehicle_enabled==3)rf_scene_vehicle_enabled=0;
+        rf_scene_vehicle_enabled=0;
         campaign_authored_vehicle_uid=0;
         campaign_authored_vehicle_handle=0;
     }
@@ -323,18 +327,20 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
         for(j=0;j<3;++j)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
     }
     memcpy(campaign_position,level->player_position,12);memcpy(campaign_orientation,level->player_orientation,36);
-    if(!rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled && !strcmp(level->entry.name,"L12S1.rfl")){
-        status=rf_level_entity_find(level,7629,&vehicle);if(status)return status;
-        if(strcmp(vehicle.class_name,"Jeep01"))return RF_FORMAT;
-        for(i=0;i<3;++i){
-            if(!isfinite(vehicle.position[i]))return RF_FORMAT;
-            for(j=0;j<3;++j)if(!isfinite(vehicle.orientation[i][j]))return RF_FORMAT;
-        }
-        campaign_authored_vehicle_uid=vehicle.uid;
-        memcpy(campaign_authored_vehicle_position,vehicle.position,12);
-        memcpy(campaign_authored_vehicle_basis,vehicle.orientation,36);
-        rf_scene_vehicle_enabled=3;
-    }
+    if(!rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled)
+        for(i=0;i<sizeof(vehicles)/sizeof(vehicles[0]);++i)
+            if(!strcmp(level->entry.name,vehicles[i].level)){
+                status=rf_level_entity_find(level,vehicles[i].uid,&vehicle);if(status)return status;
+                if(strcmp(vehicle.class_name,vehicles[i].class_name))return RF_FORMAT;
+                for(j=0;j<3;++j){unsigned k;
+                    if(!isfinite(vehicle.position[j]))return RF_FORMAT;
+                    for(k=0;k<3;++k)if(!isfinite(vehicle.orientation[j][k]))return RF_FORMAT;
+                }
+                campaign_authored_vehicle_uid=vehicle.uid;
+                memcpy(campaign_authored_vehicle_position,vehicle.position,12);
+                memcpy(campaign_authored_vehicle_basis,vehicle.orientation,36);
+                rf_scene_vehicle_enabled=vehicles[i].kind;break;
+            }
     memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));
     rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
     memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;
@@ -17635,7 +17641,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status)status=scene_extra_pickups_machine_resources(stream,&motions);
              if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              if(!status && rf_scene_vehicle_enabled) {
-                 if(!rf_scene_dev_room_enabled && !(campaign_authored_vehicle_uid && rf_scene_vehicle_enabled==3))status=RF_RANGE;
+                 if(!rf_scene_dev_room_enabled && !campaign_authored_vehicle_uid)status=RF_RANGE;
                  else if(rf_scene_vehicle_enabled>=2)status=scene_vehicle_resources_open(tables_path,rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
                  if(status)printf("VEHICLE_RESOURCE_FAIL chassis %d\n",status);

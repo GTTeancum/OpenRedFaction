@@ -76,7 +76,7 @@ static int scene_driller_runtime_open(scene_stream *s)
     scene_driller_runtime *r;int status;uint32_t stage=0;
     if(!s->driller)return RF_OK;
     if(s->driller_runtime)return RF_OK;
-    if((!rf_scene_dev_room_enabled && !(campaign_authored_vehicle_uid && rf_scene_vehicle_enabled==3)) || rf_scene_dev_npc_enabled)return RF_RANGE;
+    if((!rf_scene_dev_room_enabled && !campaign_authored_vehicle_uid) || rf_scene_dev_npc_enabled)return RF_RANGE;
     r=calloc(1,sizeof(*r));if(!r)return RF_IO;r->last_frame=UINT32_MAX;
     if(rf_scene_vehicle_enabled==1){
 #ifdef RF_IMAGE_XBOX_NATIVE

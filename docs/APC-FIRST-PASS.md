@@ -10,7 +10,9 @@ Primary fire uses muzzle_1, 150 armor-piercing damage, speed 250, lifetime 0.5, 
 
 PC evidence: 420 frames, one entry/exit, seven launches and wall contacts, reserve 992 and health 5000. Seated cockpit and on-foot endpoint framebuffers inspected. Six focused resource, physics, material, scheduler/flight and rocket-resource tests pass. NXDK build passes. Native run `artifacts/xemu/render-20260918-150747` passes420 frames on64MiB with2904 free pages (11.34MiB), matching vehicle/damage/primary counters. Final on-foot native framebuffer inspected; seated native cockpit was subsequently verified by the combat run below; moving tracer visuals remain unverified. The harness closed its emulator and restored the disc.
 
-Not claimed: articulated exterior turret animation, live NPC damage, standalone shield silhouette collision, general campaign saves, campaign placement, other vehicle classes or final visual/audio fidelity. The live checkpoint dispatcher now handles the APC through its own validated class record.
+L1S3 now creates the authored APC UID 9627 at its level pose. A process-local 220-frame campaign replay boards, drives, launches three primary shots and exits with exact PC/Xbox vehicle and ammo state and 19.5 MiB free on stock XEMU (`artifacts/xemu/render-20260926-185319/report.json`). Other authored APC instances are not yet owned.
+
+Not claimed: articulated exterior turret animation, live NPC damage, standalone shield silhouette collision, general campaign saves, other APC placements or final visual/audio fidelity. The live checkpoint dispatcher now handles the APC through its own validated class record.
 
 ## Ballistic secondary and seated aiming
 

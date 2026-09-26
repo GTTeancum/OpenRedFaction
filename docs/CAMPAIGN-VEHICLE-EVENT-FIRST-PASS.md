@@ -59,9 +59,25 @@ height is unchanged. Focused vehicle collision checks pass. This correction
 is shared with other ground vehicles and still needs broader slope/step
 coverage.
 
-This is one authored Jeep owner, not general campaign vehicle creation. The
-remaining route nodes, other vehicle classes, and multiple instances need
-live coverage and ownership. The first-pass waypoint steering is a playable
+One authored static vehicle owner now loads in each of three campaign
+sections: L1S2 `Driller01` UID 8122, L1S3 `APC` UID 9627, and L12S1
+`Jeep01` UID 7629. Each uses its level record's position and orientation and
+registers its real UID before event links resolve. Staged 120-frame boarding
+replays match PC/Xbox vehicle state on stock XEMU. The L1S2 Driller has
+4,983 pages (19.46 MiB) free; the L1S3 APC has 4,993 pages (19.50 MiB) free.
+In separate 220-frame drive/fire/exit replays, both vehicles move and exit on
+PC/Xbox; the APC launches three primary shots with matching state. The Driller
+has no drill contact in that short campaign replay, so actual L1S2 excavation
+remains unverified. All runs used `--no-images`; reports are
+`artifacts/xemu/render-20260926-184928/report.json`,
+`artifacts/xemu/render-20260926-185103/report.json`,
+`artifacts/xemu/render-20260926-185319/report.json`, and
+`artifacts/xemu/render-20260926-185512/report.json`.
+
+This is one selected owner per section, not general campaign vehicle
+creation. L1S3 contains other APC instances, and other sections and vehicle
+classes still need ownership. The remaining Jeep route nodes, scripted
+interactions and NPC traffic need live coverage. The first-pass waypoint steering is a playable
 port policy, not an exact original AI driver reconstruction. The vehicle exit
 sweep does not yet account for nearby NPC bodies. L7S3's authored
 `Never_Leave_Vehicle` has no links, so no implicit current-vehicle lock is

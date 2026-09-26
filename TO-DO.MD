@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately91%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately93%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
@@ -23,7 +23,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicle events: L12S1's Jeep now boards, exits and follows the first two authored route nodes with exact PC/Xbox state; other vehicles, the full route, NPC traffic and active vehicle saves remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep now load and board on PC/Xbox; APC drive/fire/exit, Driller drive/exit and the Jeep's initial route match, while drilling in campaign, additional instances, full routes, NPC traffic and active saves remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
@@ -49,9 +49,9 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Jeep: Driver/gunner roles, parked seat switching, independent gunner camera and finite-ammo fire pass PC/Xbox; L12S1 boarding, exit and initial scripted driving match PC/Xbox with at least12.54MiB free, while live NPC combat, destruction coverage and other level placements remain (see docs/JEEP-FIRST-PASS.md).
 
-- APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, campaign persistence, campaign placement and articulated gun visuals remain.
+- APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD pass PC/Xbox; L1S3's authored APC now boards, drives, fires three primary shots and exits with exact PC/Xbox state and19.5MiB free, while other placements, live NPC damage, campaign persistence and articulated gun visuals remain.
 
-- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; parked vehicle checkpoint save/restore now passes PC/Xbox with identical saved bytes and11.75MiB free, with seated saves now passing PC/Xbox capture/restore/exit; remaining special-weapon coverage, other vehicle classes and campaign integration are open.
+- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling cuts DEV geometry with exact native state, and L1S2's authored Driller now boards, drives and exits with exact PC/Xbox state and19.46MiB free, while campaign drill contact, additional placements, special-weapon coverage and persistence remain.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
