@@ -15,9 +15,11 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
-- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L11S3/L14S3 active saves work on PC/Xbox; L6S3 active save/load now works on PC/Xbox, while bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L11S3/L14S3 active saves work on PC/Xbox; L6S3 active save/load now works on PC/Xbox and PC neutral replay reaches full cutscene completion, while bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
 
 - Scripted monitor events: Reconstruct Monitor_State and the rendered-image cache for visual parity; queued Force_Monitor_Update now survives L6S3 first-pass gameplay saves as a visual-only invalidation (docs/research/FORCE-MONITOR-UPDATE-20260925.md).
+
+- Campaign undercover: Implement Go_Undercover's player-form replacement, disguise hostility, weapon and inventory handoff, armor and model changes, and save continuity; five authored events use it, and binary-derived entry/exit contracts are recorded in docs/research/FUTURE-CAMPAIGN-AI-MODE-UNDERCOVER-20260915.md.
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

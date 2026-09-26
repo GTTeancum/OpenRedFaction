@@ -132,7 +132,21 @@ def main() -> None:
         direct = replay(folder, "L6S3.rfl", 180, 3696, {}, "levels1.vpp")
         assert body(resumed) == body(direct), "restored L6S3 player diverged from uninterrupted play"
         assert cutscene(resumed)[7] == cutscene(direct)[7] == 1
-        print("PASS L6S3: queued visual monitor refresh, clustered NPCs and active timeline reload")
+        completed = replay(folder, "L6S3.rfl", 3000, None,
+                           {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(path)}, "levels1.vpp")
+        full = replay(folder, "L6S3.rfl", 3060, 3696, {}, "levels1.vpp")
+        finished, expected = cutscene(completed), cutscene(full)
+        assert finished[3] == expected[3] == 3696 and finished[4] == expected[4] == 14
+        assert finished[6] == expected[6] == 1 and finished[7] == expected[7] == 0
+        assert finished[9] == expected[9] == 0
+        # Diagnostic counters restart on process launch; the saved first point
+        # must combine with the 13 post-load actions to equal the direct run.
+        assert cutscene(active)[5] + finished[5] == expected[5] == 14
+        event_state = lambda log: [line for line in log.splitlines()
+                                   if line.startswith("CAMPAIGN_EVENTS ")][-1]
+        assert event_state(completed) == event_state(full)
+        assert body(completed) == body(full)
+        print("PASS L6S3: queued monitor refresh and full active-cutscene continuation")
 
 
 if __name__ == "__main__":
