@@ -42,9 +42,9 @@ static int reset_loaded_weapon(void *user)
  * First-user cache ownership is still supplied by the diagnostic fixture.
  * 423bd0 model spheres and table overrides, with the existing eight-sphere
  * diagnostic limit. This does not implement the original no-model fallback. */
-/* Live Mines loads an unarmed miner1 NPC before player creation. Materialize
- * that verified neutral first-controller pose on separate playback storage.
- * A campaign-wide class registry must eventually own this first-use operation. */
+/* Materialize the neutral class first-controller pose on separate playback
+ * storage before creating/replacing the player body. A campaign-wide class
+ * registry must eventually own this first-use operation. */
 static int campaign_class_build(const rf_model_file *model,const rf_model_bone *bones,uint32_t bone_count,
     const rf_motion_file *const *handles,const rf_motion_playback_resource *resources,uint32_t resource_count,
     const int32_t motions[23],const rf_animation_placement *placement,const rf_model_attachment *eye,
@@ -69,6 +69,65 @@ static int campaign_class_build(const rf_model_file *model,const rf_model_bone *
         placement->physics_config,spheres,*sphere_count,placement->stance_cache,eye,eye_transform,placement->initial_eye_offsets,64*1024);
     free(matrices);return status;
 }
+/* Prepare the complete form replacement before touching the live body or pose.
+ * All three installed player rigs share bone names/parents, but their bind
+ * transforms, eye attachments, class spheres and motion maps are distinct. */
+typedef struct animation_player_swap {
+    rf_model_file model;rf_model_bone bones[256];float stored[256][12];
+    rf_model_attachment eye;float local[12],eye_offsets[6];int32_t eye_tag;
+    const rf_motion_file *handles[23];rf_motion_playback_resource resources[23];
+    int32_t motions[23];rf_physics_sphere spheres[8];rf_physics_stance_cache stance;
+    uint32_t count,resource_count,sphere_count;
+} animation_player_swap;
+static int animation_player_swap_prepare(rf_vpp *meshes,const rf_model_bone *current,
+    uint32_t current_count,uint32_t target,const rf_animation_placement *placement,
+    animation_player_swap **prepared)
+{
+    static const char *const names[3]={"miner.v3c","parker_suit.v3c","parker_sci.v3c"};
+    animation_player_swap *v;rf_animation_placement local_placement;void *payload=NULL;
+    const rf_entity_state_set *set;uint32_t i;int found=0,status;
+    if(!meshes || !current || !current_count || target>2 || !placement || !prepared ||
+       !placement->form_states[target] || !placement->form_configs[target] ||
+       !placement->stance_cache || !placement->initial_eye_offsets)return RF_RANGE;
+    set=placement->form_states[target];if(!set->count || set->count>23)return RF_RANGE;
+    v=calloc(1,sizeof(*v));if(!v)return RF_IO;
+    status=rf_model_file_open(&v->model,meshes,names[target]);if(status)goto fail;
+    for(i=0;i<v->model.section_count;++i)if(v->model.sections[i].type==0x424f4e45) {
+        uint32_t bytes=v->model.sections[i].size;
+        if(found || bytes>4+256*56){status=RF_FORMAT;goto fail;}
+        payload=malloc(bytes);if(!payload){status=RF_IO;goto fail;}
+        status=rf_vpp_read(meshes,&v->model.entry,v->model.sections[i].offset,payload,bytes);
+        if(!status)status=rf_model_decode_bones(payload,bytes,v->bones,256,&v->count);
+        free(payload);payload=NULL;if(status)goto fail;found=1;
+    }
+    if(!found || v->count!=current_count || !v->model.lod_count){status=RF_FORMAT;goto fail;}
+    for(i=0;i<v->count;++i) {
+        if(strcmp(v->bones[i].name,current[i].name) || v->bones[i].parent!=current[i].parent){status=RF_FORMAT;goto fail;}
+        status=rf_model_bone_transform(v->bones[i].rotation,v->bones[i].position,v->stored[i]);if(status)goto fail;
+    }
+    found=0;
+    for(i=0;i<v->model.lods[0].attachment_count;++i) {
+        status=rf_model_file_attachment(&v->model,0,i,&v->eye);if(status)goto fail;
+        if(!strcmp(v->eye.name,"eye")){v->eye_tag=(int32_t)i;found=1;break;}
+    }
+    if(!found || v->eye.parent<0 || (uint32_t)v->eye.parent>=v->count){status=RF_FORMAT;goto fail;}
+    status=rf_model_attachment_transform(v->eye.rotation,v->eye.position,v->local);if(status)goto fail;
+    v->resource_count=set->count;memcpy(v->motions,set->states,sizeof(v->motions));
+    for(i=0;i<v->resource_count;++i) {
+        rf_motion_track track;v->handles[i]=set->files+i;
+        if(v->handles[i]->header[6]!=v->count){status=RF_FORMAT;goto fail;}
+        status=rf_motion_file_track(v->handles[i],0,&track);if(status)goto fail;
+        v->resources[i].comparison=track.envelope;v->resources[i].looping=1;
+    }
+    local_placement=*placement;local_placement.physics_config=placement->form_configs[target];
+    local_placement.stance_cache=&v->stance;local_placement.initial_eye_offsets=v->eye_offsets;
+    status=campaign_class_build(&v->model,v->bones,v->count,v->handles,v->resources,
+        v->resource_count,v->motions,&local_placement,&v->eye,v->local,v->spheres,&v->sphere_count);
+    if(status)goto fail;
+    *prepared=v;return RF_OK;
+fail:
+    free(payload);free(v);return status;
+}
 static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement,const rf_entity_state_set *authored)
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
@@ -77,6 +136,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     const rf_motion_file *handles[23]={&files[0],&files[1],&files[2],&files[3]};
     rf_motion_playback_resource resources[23]={0}; rf_motion_playback_state state={0};
     uint32_t resource_count=authored?authored->count:4;
+    uint32_t player_model_class=placement && placement->player_model_state?placement->player_model_state[0]:0;
+    const rf_entity_physics_config *active_physics=placement?placement->physics_config:NULL;
     uint32_t motion_identities[4]={0};uint8_t motion_flags[4]={0};int32_t registered[4];
     rf_model_motion_registry registration={motion_identities,motion_flags,0,4};
     rf_motion_cache_record *motion_cache=NULL;
@@ -251,6 +312,39 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             status=placement->begin_frame(placement->frame_context,frame);
             if(status==RF_NOT_FOUND){status=RF_OK;goto done;}if(status)goto done;
         }
+        if(placement && placement->player_form && placement->player_model_state) {
+            uint32_t target=placement->player_form[0]?(placement->player_form[1]?2u:1u):0u;
+            if(target!=player_model_class) {
+                animation_player_swap *next=NULL;rf_physics_body *body=placement->physics_body;
+                if(!placement->campaign_player || !placement->suppress_mesh){status=RF_RANGE;goto done;}
+                status=animation_player_swap_prepare(&meshes,bones,count,target,placement,&next);
+                if(status)goto done;
+                if(body && body->allocated_bytes) {
+                    if(placement->stance_flags && (*placement->stance_flags&0x400u))
+                        for(i=0;i<next->sphere_count;++i)memcpy(next->spheres[i].center,next->stance.centers[1][i],12);
+                    status=rf_physics_body_replace_spheres(body,next->spheres,next->sphere_count,4096);
+                    if(status){free(next);goto done;}
+                }
+                model=next->model;memcpy(bones,next->bones,count*sizeof(*bones));
+                memcpy(stored,next->stored,count*sizeof(*stored));
+                eye=next->eye;memcpy(local,next->local,sizeof(local));
+                memcpy(handles,next->handles,sizeof(handles));memcpy(resources,next->resources,sizeof(resources));
+                memcpy(motions,next->motions,sizeof(motions));resource_count=next->resource_count;
+                rf_motion_playback_initialize(&state);controller=(rf_motion_controller){0,-1,0,0,0,0};
+                memset(generations,0,sizeof(generations));memset(prepared_generations,0,sizeof(prepared_generations));
+                *placement->stance_cache=next->stance;
+                memcpy(placement->initial_eye_offsets,next->eye_offsets,sizeof(next->eye_offsets));
+                if(placement->initial_eye_tag)*placement->initial_eye_tag=next->eye_tag;
+                active_physics=placement->form_configs[target];
+                if(placement->player_eye_flags)*placement->player_eye_flags=active_physics->authored.flags2;
+                if(placement->player_movement_flags)*placement->player_movement_flags=active_physics->authored.flags;
+                if(placement->player_material)*placement->player_material=active_physics->material.index;
+                placement->player_model_state[0]=player_model_class=target;
+                placement->player_model_state[1]=model.entry.size;
+                placement->player_model_state[2]=count;++placement->player_model_state[3];
+                free(next);
+            }
+        }
         if(sink){preview->count=0;preview->bytes=0;}
         rf_animation_progress[1]=2;
         if(authored) {
@@ -356,7 +450,9 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 rf_physics_sphere spheres[8];
                 uint32_t n=0;
                 if(placement->campaign_player) {
-                    status=campaign_class_build(&model,bones,count,handles,resources,resource_count,motions,placement,&eye,local,spheres,&n);
+                    rf_animation_placement active_placement=*placement;
+                    active_placement.physics_config=active_physics;
+                    status=campaign_class_build(&model,bones,count,handles,resources,resource_count,motions,&active_placement,&eye,local,spheres,&n);
                 } else status=rf_entity_class_spheres_build(&model,matrices,count,config,spheres,&n);
                 if(status)goto done;
                 if(placement->stance_cache && !placement->campaign_player) {
@@ -364,7 +460,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                         &eye,local,placement->initial_eye_offsets,64*1024);
                     if(status)goto done;
                 }
-                status=rf_entity_body_open(config,spheres,n,placement->position,placement->orientation,
+                status=rf_entity_body_open(active_physics?active_physics:config,spheres,n,placement->position,placement->orientation,
                     placement->campaign_player?1:0,4096,body);if(status)goto done;
             }
             if(placement->physics_diagnostic) {

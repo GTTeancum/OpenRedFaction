@@ -46,7 +46,10 @@ def main():
         form = one(off, "PLAYER_FORM")
         assert form == "PLAYER_FORM 0 0 0 1 1 4 1120403456 0", form
         assert one(off, "PLAYER_AMMO").split()[1] != "4", "normal weapon not restored"
-        assert one(off, "PLAYER_MODEL") == "PLAYER_MODEL 0 88108 25 0"
+        assert one(off, "PLAYER_MODEL") == "PLAYER_MODEL 0 88108 25 2"
+        entered = run_case(path, "entered", 90, "L8S1.rfl", "levels2.vpp", "6447")
+        assert one(entered, "PLAYER_FORM") == "PLAYER_FORM 1 1 0 1 0 4 0 0"
+        assert one(entered, "PLAYER_MODEL") == "PLAYER_MODEL 2 80555 25 1"
         carried = run_case(path, "carry", 240, "L8S1.rfl", "levels2.vpp", "6447", 5625, 5623)
         transitions = [line for line in carried if line.startswith("LEVEL_TRANSITION ")]
         assert transitions == ["LEVEL_TRANSITION L8S1.rfl L8S2.rfl 5625 61",
@@ -59,7 +62,7 @@ def main():
             "LEVEL_TRANSITION L6S2.rfl L6S3.rfl 1782 180"]
         assert one(suit, "PLAYER_FORM") == "PLAYER_FORM 1 0 0 0 0 4 0 0"
         assert one(suit, "PLAYER_MODEL") == "PLAYER_MODEL 1 77931 25 0"
-    print("PASS: authored OFF restores normal form; scientist and suit meshes load after section handoffs")
+    print("PASS: live ON/OFF swaps authored rigs; both carried forms load on section handoffs")
 
 
 if __name__ == "__main__":

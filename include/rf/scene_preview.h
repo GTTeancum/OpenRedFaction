@@ -32,7 +32,7 @@ extern uint32_t rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_machine_mode[8];
 extern uint32_t rf_scene_undercover[8];
 extern uint32_t rf_scene_player_form[8];
-extern uint32_t rf_scene_player_model[4]; /* class: miner/suit/scientist, compiled bytes, bones, reserved */
+extern uint32_t rf_scene_player_model[4]; /* class: miner/suit/scientist, compiled bytes, bones, live swaps */
 extern uint32_t rf_scene_player_impact[8];
 extern uint32_t rf_scene_moving_support_enabled,rf_scene_moving_support_test[10][16];
 /* Explicit same-level player + destruction checkpoint mode; legacy mode stays RFDS. */

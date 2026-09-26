@@ -33,6 +33,11 @@ typedef struct rf_animation_placement {
     const rf_animation_model_view **published_model; /* Empty on entry; cleared on return. */
     const char *model_name; /* Borrowed compiled mesh name; NULL keeps the miner diagnostic default. */
     uint32_t *model_bone_count; /* Optional owner telemetry, set after the selected skeleton is decoded. */
+    const uint32_t *player_form; /* Optional [active,variant] live form request. */
+    uint32_t *player_model_state; /* Optional [class,compiled bytes,bones,swaps] publication. */
+    const rf_entity_state_set *form_states[3]; /* Borrowed miner/suit/scientist motion sets. */
+    const rf_entity_physics_config *form_configs[3]; /* Borrowed class physics metadata. */
+    uint32_t *player_eye_flags,*player_movement_flags,*player_material;
     rf_model_projection world_view;
     float position[3],orientation[9];
     rf_model_clip_planes planes;
@@ -40,7 +45,7 @@ typedef struct rf_animation_placement {
     const rf_entity_physics_config *physics_config;
     rf_physics_body *physics_body; /* Open body's pose drives rendering each frame. */
     uint32_t suppress_mesh; /* Fixed for this call: retain pose/physics/callbacks; omit mesh/render allocations. Sink receives an empty mesh with NULL vertices. */
-    uint32_t campaign_player; /* Opt-in miner1 player fixture: retain the earlier NPC's neutral class pose independently of player playback. Not full class ownership. */
+    uint32_t campaign_player; /* Opt-in player fixture: sample neutral class pose independently of player playback. Not full actor ownership. */
     rf_physics_stance_cache *stance_cache; /* Optional cache from diagnostic initial pose. */
     int32_t *initial_eye_tag; /* Actual model attachment index. */
     float *initial_eye_offsets; /* Optional six floats: standing/crouching model-space eye, with class axis flags. Requires stance_cache. */

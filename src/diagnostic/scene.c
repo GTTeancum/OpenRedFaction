@@ -16919,7 +16919,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_scene_frame_sink sink,void *context,int state_mode,const rf_geometry_collision_world *collision,const rf_geometry *geometry)
 {
     rf_vpp archive,motions,terrain_ui={0};rf_model_file model;rf_level_actor_assets binding={0};rf_entity_physics_config physics_config;
-    rf_entity_state_set *states=NULL;int motions_opened=0;
+    rf_entity_state_set *states=NULL,*form_states[3]={0};rf_entity_physics_config *form_configs=NULL;int motions_opened=0;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
@@ -16934,6 +16934,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
     campaign_export_valid=0;memset(&campaign_player_form,0,sizeof(campaign_player_form));memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));memset(rf_scene_player_model,0,sizeof(rf_scene_player_model));
+    if(campaign_spawn && campaign_player_form_carry.active){rf_scene_player_form[0]=1;rf_scene_player_form[1]=campaign_player_form_carry.variant;}
     rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=0;
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=scene_flame_visual_ready=0;memset(rf_scene_flame_visual,0,sizeof(rf_scene_flame_visual));
     scene_remote_reset();
@@ -17356,6 +17357,26 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(state_mode) {
         states=malloc(sizeof(*states));if(!states) {status=RF_IO;goto done;}
         status=rf_entity_state_set_open(tables_path,binding.entity.class_name,"",&motions,512*1024,states);if(status)goto done;
+        if(campaign_spawn && stream->player_weapon[16]) {
+            static const char *const classes[3]={"miner1","parker_suit","parker_sci"};
+            rf_vpp tables;uint32_t selected=rf_scene_player_model[0],form;
+            form_configs=calloc(3,sizeof(*form_configs));if(!form_configs){status=RF_IO;goto done;}
+            status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+            for(form=0;form<3 && !status;++form) {
+                if(form==selected){form_configs[form]=physics_config;form_states[form]=states;}
+                else {
+                    status=rf_entity_physics_config_load(&tables,classes[form],512*1024,form_configs+form);
+                    if(!status){form_states[form]=malloc(sizeof(*states));if(!form_states[form])status=RF_IO;}
+                    if(!status)status=rf_entity_state_set_open(tables_path,classes[form],"",&motions,512*1024,form_states[form]);
+                }
+            }
+            rf_vpp_close(&tables);if(status)goto done;
+            placement.player_form=rf_scene_player_form;placement.player_model_state=rf_scene_player_model;
+            for(form=0;form<3;++form){placement.form_states[form]=form_states[form];placement.form_configs[form]=form_configs+form;}
+            placement.player_eye_flags=&stream->eye_flags;
+            placement.player_movement_flags=&rf_scene_actor_movement_config.flags;
+            placement.player_material=&campaign_player_material;
+        }
     } else {
         status=rf_animation_preview_placed(meshes_path,motions_path,&placement,0,&actor,1024*1024);if(status)goto done;
     }
@@ -17787,7 +17808,9 @@ done:
     rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);
     scene_terrain_sources_close(stream);rf_geomod_piece_registry_close(&stream->detached_pieces);
     free(stream->terrain_face_offsets);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
-    free(stream->liquid_rooms);free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
+    free(stream->liquid_rooms);free(stream->surface_indices);
+    for(i=0;i<3;++i)if(form_states[i]!=states)free(form_states[i]);
+    free(form_configs);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     free(stream->checkpoint_clutter);
     if(scene_actor_collision_owner==stream)scene_actor_collision_owner=NULL;
