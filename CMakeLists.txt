@@ -458,6 +458,13 @@ if(MSVC)
 endif()
 add_test(NAME scene_player_import COMMAND rf_scene_player_import_tests)
 
+add_executable(rf_scene_monitor_binding_tests tests/scene_monitor_binding_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_monitor_binding_tests PRIVATE rf_core)
+if(MSVC)
+    target_compile_definitions(rf_scene_monitor_binding_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+add_test(NAME scene_monitor_binding COMMAND rf_scene_monitor_binding_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
 target_sources(rf_core PRIVATE src/core/checkpoint_placement.c)
 add_executable(rf_checkpoint_placement_tests tests/checkpoint_placement_tests.c)
 target_link_libraries(rf_checkpoint_placement_tests PRIVATE rf_core)

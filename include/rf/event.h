@@ -389,6 +389,9 @@ typedef struct rf_runtime_triggers {
     /* Bolt_State43 uses authored bolt-emitter UIDs, not registry handles. */
     int (*bolt_state)(void *,const uint32_t *uids,uint32_t count,uint32_t on);
     void *bolt_context;
+    /* Monitor_State49 configures linked screens and their first linked camera on ON. */
+    int (*monitor_state)(void *,const rf_level_event *,const uint32_t *uids,uint32_t count);
+    void *monitor_context;
     /* Black_Out_Player; the scene owns the timed visual state. */
     int (*black_out_player)(void *,const rf_level_event *,int32_t,uint32_t);
     void *blackout_context;

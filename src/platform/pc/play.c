@@ -1083,6 +1083,7 @@ run_scene:
     printf("TERRAIN_SHADOWS");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_shadows[i]);puts("");
     printf("PISTOL_RULES");for(i=0;i<7;++i)printf(" %u",rf_scene_pistol_rules[i]);puts("");
     printf("WEAPON_SELECTION");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_selection[i]);puts("");
+    printf("MONITOR_BINDINGS");for(i=0;i<5;++i)printf(" %u",rf_scene_monitor_bindings[i]);puts("");
     printf("PLAYER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_player_weapon[i]);puts("");
     printf("RIOT_STICK");for(i=0;i<8;++i)printf(" %u",rf_scene_riot[i]);puts("");
     printf("WEAPON_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_weapon_audio[i]);puts("");

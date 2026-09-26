@@ -1300,7 +1300,8 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
         /* Process-local replay can force expiry or an authored player teleport
          * without waiting through the mission/cutscene. Shoot_At setup lets
          * the later authored Invert chain observe both delayed states. */
-        if(campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63)
+        if(campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
+           campaign_events.items[i].state.type==49)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47)return RF_FORMAT;
@@ -2261,6 +2262,55 @@ uint32_t rf_scene_npc_impact_groups[3]; /* classes,owned bytes,binding hash */
 uint32_t rf_scene_npc_pain_groups[3]; /* classes, resident bytes, binding hash */
 uint32_t rf_scene_foley[10]; /* groups,samples,missing,resident,peak,bank count,global hash,ID hash,classes,class hash */
 static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes);
+enum {SCENE_MONITOR_BINDING_LIMIT=64};
+typedef struct scene_monitor_binding {
+    uint32_t screen_uid,camera_uid,raw_value1,authored_header_byte;
+    float refresh_seconds;
+} scene_monitor_binding;
+static scene_monitor_binding campaign_monitor_bindings[SCENE_MONITOR_BINDING_LIMIT];
+static uint32_t campaign_monitor_count;
+uint32_t rf_scene_monitor_bindings[5]; /* screens,with camera,last event,hash,updates */
+static void campaign_monitor_reset(void)
+{
+    memset(campaign_monitor_bindings,0,sizeof(campaign_monitor_bindings));
+    campaign_monitor_count=0;memset(rf_scene_monitor_bindings,0,sizeof(rf_scene_monitor_bindings));
+    rf_scene_monitor_bindings[3]=2166136261u;
+}
+static int campaign_monitor_class(const char *name)
+{return !strcmp(name,"smallscreen") || !strcmp(name,"Mirror01") || !strcmp(name,"Screen03");}
+/* Original 4ba980 visits linked monitor props, then linked camera actors.
+ * 412600 updates mode/refresh and 4126a0 retains the first camera. The
+ * rendered-image cache and monitor texture remain separate, open work. */
+static int campaign_monitor_state(void *context,const rf_level_event *event,const uint32_t *uids,uint32_t count)
+{
+    uint32_t i,j,k,camera=0,raw_value1,hash=2166136261u;(void)context;
+    if(!event || (count && !uids) || !isfinite(event->values[0]) || count>256)return RF_RANGE;
+    memcpy(&raw_value1,event->values+1,4);
+    for(i=0;i<count && !camera;i++)for(j=0;j<campaign_seeds.records.count;j++)
+        if(campaign_seeds.records.items[j].record.uid==(int32_t)uids[i] &&
+           !strcmp(campaign_seeds.records.items[j].record.class_name,"camera2")){camera=uids[i];break;}
+    for(i=0;i<count;i++)for(j=0;j<campaign_clutter_records.count;j++) {
+        const rf_level_clutter *prop=campaign_clutter_records.items+j;
+        scene_monitor_binding *binding;
+        if(prop->uid!=uids[i] || !campaign_monitor_class(prop->class_name))continue;
+        for(k=0;k<campaign_monitor_count;k++)if(campaign_monitor_bindings[k].screen_uid==prop->uid)break;
+        if(k==campaign_monitor_count){if(k==SCENE_MONITOR_BINDING_LIMIT)return RF_RANGE;
+            memset(campaign_monitor_bindings+k,0,sizeof(*campaign_monitor_bindings));
+            campaign_monitor_bindings[k].screen_uid=prop->uid;++campaign_monitor_count;}
+        binding=campaign_monitor_bindings+k;
+        binding->raw_value1=raw_value1;binding->authored_header_byte=event->header_byte;
+        binding->refresh_seconds=event->values[0]>0?event->values[0]:8.0f;
+        if(!binding->camera_uid)binding->camera_uid=camera;
+        break;
+    }
+    rf_scene_monitor_bindings[0]=campaign_monitor_count;rf_scene_monitor_bindings[1]=0;
+    for(i=0;i<campaign_monitor_count;i++){
+        rf_scene_monitor_bindings[1]+=campaign_monitor_bindings[i].camera_uid!=0;
+        hash=npc_hash_bytes(hash,campaign_monitor_bindings+i,sizeof(*campaign_monitor_bindings));
+    }
+    rf_scene_monitor_bindings[2]=event->uid;rf_scene_monitor_bindings[3]=hash;
+    ++rf_scene_monitor_bindings[4];return RF_OK;
+}
 static rf_vpp campaign_audio_archive;
 /* Only lazily loaded ambient PCM is eligible; preload users cannot yet reload. */
 static uint8_t campaign_audio_evictable[2600];
@@ -4052,6 +4102,7 @@ static int scene_rocket_definitions_open(rf_vpp *tables)
 static int campaign_clutter_open(const char *tables_path,const rf_level *level)
 {
     rf_vpp tables;uint32_t i,j,peak=0,hash=2166136261u;int status;
+    campaign_monitor_reset();
     memset(rf_scene_clutter,0,sizeof(rf_scene_clutter));
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));
@@ -17311,6 +17362,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.bolt_state=campaign_bolt_state;
+            campaign_triggers.monitor_state=campaign_monitor_state;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
             campaign_triggers.clear_endgame_if_killed=campaign_clear_endgame_if_killed;

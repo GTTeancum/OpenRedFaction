@@ -613,6 +613,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             c->event->authored->links,c->event->authored->record.link_count,action==1);
         return;
     }
+    if(state->type==49) {
+        if(action!=1)return;
+        if(!c->triggers->monitor_state){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->monitor_state(c->triggers->monitor_context,
+            &c->event->authored->record,c->event->authored->links,c->event->authored->record.link_count);
+        return;
+    }
     if(state->type==61) {
         if(action==2)return;
         if(!c->triggers->black_out_player){++c->report->unsupported_actions;return;}
@@ -1286,6 +1293,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type==55 && triggers->start_cutscene) &&
            !(event->state.type==83) &&
+           !(event->state.type==49 && triggers->monitor_state) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
            !(event->state.type==63 && triggers->teleport_player) &&

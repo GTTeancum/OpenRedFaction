@@ -21,7 +21,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L11S3/L14S3 active saves work on PC/Xbox; L6S3 active save/load now works on PC/Xbox and PC neutral replay reaches full cutscene completion, while bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
 
-- Scripted monitor events: Reconstruct Monitor_State and the rendered-image cache for visual parity; queued Force_Monitor_Update now survives L6S3 first-pass gameplay saves as a visual-only invalidation (docs/research/FORCE-MONITOR-UPDATE-20260925.md).
+- Scripted monitor events: Monitor_State now binds authored screen/mirror props to their first camera in shared PC/Xbox code; camera side effects, rendered-image cache/materials and active saves remain, while queued Force_Monitor_Update already survives saves (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
