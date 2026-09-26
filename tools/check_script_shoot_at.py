@@ -38,6 +38,19 @@ def main() -> None:
                 raise RuntimeError(f"Authored Shoot_At did not assign its linked actor in {level}")
             if level != "L13S3.rfl" and (shoot[3] == 0 or combat[2] < shoot[3] or combat[3] != 0):
                 raise RuntimeError(f"Fixed-point fire or player isolation failed in {level}")
+        # Stage the player by the linked shooter. The authored L15S1 firing
+        # line crosses that position; the ordinary damage path must handle it.
+        env = {key: value for key, value in os.environ.items() if not key.startswith("RF_REPLAY_")}
+        env.update(RF_REPLAY_LEVEL="L15S1.rfl", RF_REPLAY_ARCHIVE="levels3.vpp",
+                   RF_REPLAY_ACTOR_UID="8278", RF_REPLAY_GOTO_UID="9489", RF_REPLAY_GOTO_FRAME="30")
+        run = subprocess.run((str(EXE), "--spawn-telemetry-replay", str(GAME), str(replay)),
+                             cwd=ROOT, env=env, text=True, capture_output=True, check=True)
+        shoot = words(run.stdout, "SCRIPT_SHOOT_AT")
+        combat = words(run.stdout, "ENEMY_COMBAT")
+        print("L15S1.rfl staged 8278", "script_shots", shoot[3],
+              "incidental_damage_hits", shoot[7], "all_damage_hits", combat[3])
+        if shoot[3] == 0 or shoot[7] == 0 or combat[3] < shoot[7]:
+            raise RuntimeError("Authored Shoot_At firing line missed the staged player")
 
 
 if __name__ == "__main__":

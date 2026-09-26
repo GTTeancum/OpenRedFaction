@@ -9752,7 +9752,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_burst_remaining=owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
 }
-uint32_t rf_scene_script_shoot_at[8]; /* on,off,linked,shots,last event,last actor,last target hash,status */
+uint32_t rf_scene_script_shoot_at[8]; /* on,off,linked,shots,last event,last actor,last target hash,incidental damage hits */
 static int campaign_script_shoot_at(void *context,const rf_level_event *event,
     const rf_level_link_target *links,uint32_t on)
 {
@@ -9885,7 +9885,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count;i++) {
-        campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
+        campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0;int status;
+        uint32_t point_spread_ready=0;
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
          if(!campaign_enemy_mode_admits(owner,speed2>.0001f,0)){campaign_pursuit_stop(owner);continue;}}
         /* First-pass disguise policy: unalerted ordinary guards do not acquire
@@ -10038,7 +10039,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
         if(weapon==campaign_grenade_id || weapon==campaign_rocket_id)goto enemy_shot_done;
-        if(point_target){
+        if(point_target && (melee || weapon==campaign_shotgun_id)){
             float ray[3],spread_ray[3],reach=fmaxf(attack_range,(float)sqrt(distance)+1.0f);
             float fraction=1.0f;uint32_t consumed=0;
             if(melee)goto enemy_shot_done;
@@ -10050,6 +10051,29 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(!consumed && !selected.penetrates_world){status=combat_enemy_fragment_shot(stream,
                 owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
             goto enemy_shot_done;
+        }
+        if(point_target){
+            /* A fixed-point order fires through the point. Resolve the nearest
+             * incidental actor on that ray, then use ordinary shield, prop,
+             * vehicle, world and damage handling below. */
+            float ray[3],nearest=1.0f,fraction,reach=fmaxf(attack_range,sqrtf(distance)+1.0f);
+            for(j=0;j<3;j++)ray[j]=delta[j]*(reach/sqrtf(distance));
+            status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,
+                &campaign_enemy_spread_random,point_spread_ray);if(status)return status;
+            point_spread_ready=1;
+            if(campaign_player_damage.state.effects.health>0 &&
+               combat_body(owner->eye_position,point_spread_ray,&scene_actor_body,nearest,&fraction)){
+                nearest=fraction;
+            }
+            for(j=0;j<campaign_npc_body_count;j++){
+                campaign_npc_body *candidate=campaign_npc_bodies+j;
+                if(candidate==owner || !candidate->registration.view ||
+                   (candidate->object_flags&(2|0x4000)) || candidate->damage.effects.health<=0 ||
+                   (candidate->view.flags_810&1))continue;
+                if(combat_body(owner->eye_position,point_spread_ray,&candidate->body,nearest,&fraction)){
+                    nearest=fraction;victim=candidate;victim_slot=j;
+                }
+            }
         }
         if(weapon==campaign_shotgun_id){
             status=campaign_enemy_shotgun_fire(stream,owner,victim,victim_slot,
@@ -10068,9 +10092,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             float ray[3],spread_ray[3],fraction,body_fraction,end[3];
             scene_ai_shield_ray_selection npc_shield={0};rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
             ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
-            for(j=0;j<3;j++)ray[j]=delta[j]*(attack_range/(float)sqrt(distance));
-            status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,&campaign_enemy_spread_random,spread_ray);
-            rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
+            if(point_spread_ready)memcpy(spread_ray,point_spread_ray,12);
+            else {
+                for(j=0;j<3;j++)ray[j]=delta[j]*(attack_range/(float)sqrt(distance));
+                status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,&campaign_enemy_spread_random,spread_ray);
+                rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
+            }
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
             /* Actor and fragment targets share the same authored base amount. */
@@ -10133,7 +10160,8 @@ enemy_shot_done:
             float health=victim?victim->damage.effects.health:campaign_player_damage.state.effects.health;
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
         }
-        if(amount>0){++rf_scene_enemy_combat[3];if(!victim)campaign_combat_event(frame,1,owner->registration.handle,amount,campaign_player_damage.state.effects.health);}
+        if(amount>0){++rf_scene_enemy_combat[3];if(point_target)++rf_scene_script_shoot_at[7];
+            if(!victim)campaign_combat_event(frame,1,owner->registration.handle,amount,campaign_player_damage.state.effects.health);}
     }
     memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
