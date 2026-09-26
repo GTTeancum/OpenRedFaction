@@ -9010,7 +9010,7 @@ static int campaign_cutscene_point_action(scene_stream *stream,uint32_t uid,int3
     }
     return RF_OK; /* Missing or unsupported point object is inert in 45b3f0. */
 }
-uint32_t rf_scene_cutscene_look[5]; /* aims, missing/degenerate, last target, orientation hash, errors */
+uint32_t rf_scene_cutscene_look[6]; /* aims, missing/degenerate, last target, orientation hash, errors, model-less authored targets */
 static void campaign_cutscene_look_at(void)
 {
     const rf_cutscene_descriptor *d;const rf_cutscene_point *point;
@@ -9029,6 +9029,13 @@ static void campaign_cutscene_look_at(void)
     if(!found)for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++)
         if(campaign_clutter_bodies[i] && campaign_clutter_bodies[i]->uid==uid){
             memcpy(target,campaign_clutter_bodies[i]->state.position,sizeof(target));found=1;break;
+        }
+    if(!found)for(i=0;campaign_clutter_model_slots && i<campaign_clutter_records.count;i++)
+        if(campaign_clutter_records.items[i].uid==uid && campaign_clutter_model_slots[i]==UINT32_MAX){
+            /* Effect-only clutter has no model/body owner, but retains its
+             * authored world placement. No moving effect pose is reconstructed. */
+            memcpy(target,campaign_clutter_records.items[i].position,sizeof(target));
+            found=1;++rf_scene_cutscene_look[5];break;
         }
     if(!found){++rf_scene_cutscene_look[1];return;}
     status=rf_cutscene_look_at(&campaign_cutscene_runtime,target);

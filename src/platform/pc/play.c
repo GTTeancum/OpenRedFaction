@@ -75,7 +75,7 @@ typedef struct player {
     rf_lightmaps lightmaps;
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
-    uint32_t frames,headless;
+    uint32_t frames,headless,telemetry_only;
     uint32_t aim_uid,aim_from,aim_until;
     rf_scene_input *replay;uint32_t trace_from,replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,goto_frame,setup_uid,setup_next_uid,return_exit_uid,return_item_uid,return_place;
     int quit,focused;
@@ -307,7 +307,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
      if(image_bytes>budget){fprintf(stderr,"Scene image budget %llu exceeds %u (world %u cap %u, materials %u, lightmaps %u)\n",(unsigned long long)image_bytes,budget,rf_scene_world_texture_budget[2],rf_scene_world_texture_budget[0],materials->count,p->lightmaps.count);return RF_RANGE;}}
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
-    if(p->replay && !capture && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
+    if(p->replay && !capture && (p->telemetry_only || p->frames+1<p->replay_count)){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
         status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_blackout(NULL,NULL);if(status)return status;
@@ -379,8 +379,10 @@ int main(int argc,char **argv)
         char *end;unsigned long value=strtoul(argv[3],&end,10);
         if(!argv[3][0] || *end || value<1 || value>60000)return 2;
         p.headless=1;limit=(uint32_t)value;directory=argv[2];
-    } else if(argc==5 && (!strcmp(argv[1],"--replay") || !strcmp(argv[1],"--spawn-replay") || !strcmp(argv[1],"--dev-room-replay"))) {
-        dev_room=!strcmp(argv[1],"--dev-room-replay");spawn_profile=dev_room || !strcmp(argv[1],"--spawn-replay");
+    } else if((argc==5 && (!strcmp(argv[1],"--replay") || !strcmp(argv[1],"--spawn-replay") || !strcmp(argv[1],"--dev-room-replay"))) ||
+              (argc==4 && !strcmp(argv[1],"--spawn-telemetry-replay"))) {
+        p.telemetry_only=argc==4;
+        dev_room=!strcmp(argv[1],"--dev-room-replay");spawn_profile=dev_room || p.telemetry_only || !strcmp(argv[1],"--spawn-replay");
         FILE *file=fopen(argv[3],"rb");uint32_t count,size;int read_failed=0;
         if(!file)return 2;
         if(rf_scene_replay_header(file,&count,&size)){fclose(file);return 2;}
@@ -391,8 +393,9 @@ int main(int argc,char **argv)
     } else if(argc==3 && !strcmp(argv[1],"--campaign")){spawn_profile=1;directory=argv[2];}
     else if(argc==3 && !strcmp(argv[1],"--dev-room")){dev_room=spawn_profile=1;directory=argv[2];}
     else if(argc==2)directory=argv[1];
-    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --dev-room <Installed_Game>\n       rf_pc_play --dev-room-replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
+    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --dev-room <Installed_Game>\n       rf_pc_play --dev-room-replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-telemetry-replay <Installed_Game> <inputs.bin>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
+    if(p.telemetry_only && (getenv("RF_REPLAY_CAPTURE_DIR") || getenv("RF_REPLAY_DEPTH_OUT") || getenv("RF_REPLAY_MESH_OUT")))CHECK(RF_FORMAT);
     /* Unsupported live vehicle saves reject before scene/state mutation. */
     if(p.headless && getenv("RF_REPLAY_VEHICLE") && !strcmp(getenv("RF_REPLAY_VEHICLE"),"sub") &&
        (getenv("RF_REPLAY_PLAYER_CHECKPOINT") || getenv("RF_REPLAY_GEOMOD_CHECKPOINT_IN") ||
@@ -859,6 +862,7 @@ run_scene:
             printf("SCRIPT_MUSIC");for(i=0;i<8;i++)printf(" %u",rf_scene_music[i]);puts("");
             printf("SCRIPT_NAVPOINT");for(i=0;i<8;i++)printf(" %u",rf_scene_navpoint[i]);puts("");
             printf("CUTSCENE");for(i=0;i<12;i++)printf(" %u",rf_scene_cutscene[i]);puts("");
+            {extern uint32_t rf_scene_cutscene_look[6];printf("CUTSCENE_LOOK");for(i=0;i<6;i++)printf(" %u",rf_scene_cutscene_look[i]);puts("");}
             printf("SCRIPT_EXPLODE_VISUAL");for(i=0;i<8;i++)printf(" %u",rf_scene_script_explode_visual[i]);puts("");
             printf("SCRIPT_LOOK_AT");for(i=0;i<9;i++)printf(" %u",rf_scene_script_look_at[i]);puts("");
             printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");
@@ -882,7 +886,7 @@ run_scene:
             printf("PLAYER_SPAWN");for(i=0;i<19;++i)printf(" %u",rf_scene_player_spawn_diagnostic[i]);puts("");
             for(j=0;j<7;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
         }
-        CHECK(rf_pc_raster_save(&p.raster,argv[4]));
+        if(!p.telemetry_only)CHECK(rf_pc_raster_save(&p.raster,argv[4]));
         if(p.headless && getenv("RF_REPLAY_DEPTH_OUT")) {
             FILE *depth_file=fopen(getenv("RF_REPLAY_DEPTH_OUT"),"wb");uint32_t dimensions[2]={p.raster.width,p.raster.height};int failed=0;
             if(!depth_file)CHECK(RF_IO);
