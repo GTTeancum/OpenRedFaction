@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately89%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately90%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - PRIORITY Ordinary saves: L1S1 inactive, L11S3/L14S3/L17S4 active-cutscene, L6S3 active-cutscene, and L6S3 active-undercover save/reload pass PC/Xbox; general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately93%).
@@ -19,7 +19,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Reconstruct Monitor_State and the rendered-image cache for visual parity; queued Force_Monitor_Update now survives L6S3 first-pass gameplay saves as a visual-only invalidation (docs/research/FORCE-MONITOR-UPDATE-20260925.md).
 
-- Campaign undercover: Both authored forms, active quick-save/load, linked OFF, and two section handoffs now work on PC/Xbox; finish player model/class recreation, naturally triggered exits and broader compromise/campaign coverage (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
+- Campaign undercover: Both authored forms, active quick-save/load, linked OFF, and section handoffs work on PC/Xbox; carried forms now select authored player assets on both platforms, while live model/camera switching, naturally triggered exits and broader compromise coverage remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

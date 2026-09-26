@@ -1006,6 +1006,7 @@ run_scene:
     printf("MACHINE_MODE");for(i=0;i<8;++i)printf(" %u",rf_scene_machine_mode[i]);puts("");
     printf("UNDERCOVER");for(i=0;i<8;++i)printf(" %u",rf_scene_undercover[i]);puts("");
     printf("PLAYER_FORM");for(i=0;i<8;++i)printf(" %u",rf_scene_player_form[i]);puts("");
+    printf("PLAYER_MODEL");for(i=0;i<4;++i)printf(" %u",rf_scene_player_model[i]);puts("");
     {extern uint32_t rf_scene_jeep_seats[8];printf("JEEP_SEATS");for(i=0;i<8;++i)printf(" %u",rf_scene_jeep_seats[i]);puts("");}
     {extern uint32_t rf_scene_apc_secondary[8];printf("APC_SECONDARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_secondary[i]);puts("");}
     {extern uint32_t rf_scene_apc_primary[8];printf("APC_PRIMARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_primary[i]);puts("");}

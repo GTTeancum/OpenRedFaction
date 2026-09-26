@@ -133,7 +133,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     bones=workspace->bones;matrices=workspace->matrices;
     status=rf_vpp_open(&meshes,meshes_path); if (status!=RF_OK) goto done;
     opened=1; status=rf_vpp_open(&archive,motions_path); if (status!=RF_OK) goto done;
-    opened=2; status=rf_model_file_open(&model,&meshes,"miner.v3c"); if (status!=RF_OK) goto done;
+    opened=2; status=rf_model_file_open(&model,&meshes,
+        placement && placement->model_name?placement->model_name:"miner.v3c"); if (status!=RF_OK) goto done;
     for (i=0;i<model.section_count;++i) if (model.sections[i].type==0x424f4e45) {
         if (model.sections[i].size>4+256*56) { status=RF_RANGE; goto done; }
         out[7]=model.sections[i].size; payload=malloc(out[7]);
@@ -143,6 +144,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         free(payload); payload=NULL; if (status!=RF_OK) goto done;
     }
     if (!count || !model.lod_count) { status=RF_FORMAT; goto done; }
+    if(placement && placement->model_bone_count)*placement->model_bone_count=count;
     stored=calloc(count*2,sizeof(*stored));if(!stored) { status=RF_RANGE;goto done; }
     prepared=stored+count;
     for(i=0;i<count;++i) {

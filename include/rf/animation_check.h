@@ -31,6 +31,8 @@ typedef struct rf_animation_model_view {
 } rf_animation_model_view;
 typedef struct rf_animation_placement {
     const rf_animation_model_view **published_model; /* Empty on entry; cleared on return. */
+    const char *model_name; /* Borrowed compiled mesh name; NULL keeps the miner diagnostic default. */
+    uint32_t *model_bone_count; /* Optional owner telemetry, set after the selected skeleton is decoded. */
     rf_model_projection world_view;
     float position[3],orientation[9];
     rf_model_clip_planes planes;

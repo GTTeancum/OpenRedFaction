@@ -2064,6 +2064,7 @@ typedef struct campaign_player_form_state {
 } campaign_player_form_state;
 static campaign_player_form_state campaign_player_form,campaign_player_form_carry;
 uint32_t rf_scene_player_form[8]; /* active,variant,compromised,entries,exits,weapon,armor bits,status */
+uint32_t rf_scene_player_model[4];
 static uint32_t campaign_explicit_unarmed,campaign_import_applied;
 #include "scene_machine_pistol_carry_gameplay.inc"
 #include "scene_undercover_carry.inc"
@@ -16932,7 +16933,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
-    campaign_export_valid=0;memset(&campaign_player_form,0,sizeof(campaign_player_form));memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));
+    campaign_export_valid=0;memset(&campaign_player_form,0,sizeof(campaign_player_form));memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));memset(rf_scene_player_model,0,sizeof(rf_scene_player_model));
     rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=0;
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=scene_flame_visual_ready=0;memset(rf_scene_flame_visual,0,sizeof(rf_scene_flame_visual));
     scene_remote_reset();
@@ -16952,11 +16953,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     stream->world=mesh->count;stream->base=materials->count;stream->geometry=geometry;
     status=campaign_swim_open(stream,geometry);if(status)goto done;
     if(campaign_spawn) {
+        const char *player_class=campaign_player_form_carry.active?
+            (campaign_player_form_carry.variant?"parker_sci":"parker_suit"):"miner1";
         rf_entity_skeletal_assets *assets=malloc(sizeof(*assets));
         if(!assets){status=RF_IO;goto done;}
-        status=rf_entity_skeletal_assets_load(tables_path,"miner1","",&archive,512*1024,assets);
+        status=rf_entity_skeletal_assets_load(tables_path,player_class,"",&archive,512*1024,assets);
         if(!status) {
-            memset(&binding,0,sizeof(binding));binding.entity.uid=-999;strcpy(binding.entity.class_name,"miner1");
+            memset(&binding,0,sizeof(binding));binding.entity.uid=-999;strcpy(binding.entity.class_name,player_class);
             memcpy(binding.entity.position,campaign_position,12);memcpy(binding.entity.orientation,campaign_orientation,36);
             binding.assets=assets->assets;binding.mesh=assets->mesh;
         }
@@ -16971,8 +16974,17 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         binding.entity.position[1]-=.5f;
     }
     memcpy(stream->actor_spawn,binding.entity.position,12);
-    if(strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
+    if(campaign_spawn ?
+       strcmp(binding.mesh.name,campaign_player_form_carry.active?
+           (campaign_player_form_carry.variant?"parker_sci.v3c":"parker_suit.v3c"):"miner.v3c") :
+       strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
     status=rf_animation_placement_from_level(level,&binding.entity,&placement);if(status)goto done;
+    placement.model_name=binding.mesh.name;
+    if(campaign_spawn) {
+        rf_scene_player_model[0]=campaign_player_form_carry.active?(campaign_player_form_carry.variant?2u:1u):0u;
+        rf_scene_player_model[1]=binding.mesh.size;
+        placement.model_bone_count=rf_scene_player_model+2;
+    }
     if(sink) {
         rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
         status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
