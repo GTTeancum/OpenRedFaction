@@ -19,6 +19,7 @@ typedef struct scene_l1s2_detail_bank {
     rf_collision_face_filter filters[SCENE_L1S2_DETAIL_FACES];
     rf_collision_face bound[SCENE_L1S2_DETAIL_FACES];
     float positions[SCENE_L1S2_DETAIL_VERTICES][3];
+    float colors[SCENE_L1S2_DETAIL_VERTICES][3];
     uint32_t ids[SCENE_L1S2_DETAIL_FACES];
     rf_geomod_mesh_view mesh;
 } scene_l1s2_detail_bank;
@@ -46,6 +47,7 @@ static int scene_l1s2_detail_open(scene_stream *s,scene_l1s2_detail_owner **out)
 {
     scene_l1s2_detail_owner *d;const rf_collision_tree *base;uint32_t i;int status;
     if(!scene_l1s2_detail_profile(s) || !s->geometry || !s->collision ||
+       !s->materials || !actor_follow_world || !actor_follow_world->slots ||
        s->collision->room_count<=121 || !out || *out)return RF_RANGE;
     d=calloc(1,sizeof(*d));if(!d)return RF_IO;
     status=rf_geomod_campaign_room_import(s->geometry,121,d->source_vertices,512,
@@ -55,6 +57,9 @@ static int scene_l1s2_detail_open(scene_stream *s,scene_l1s2_detail_owner **out)
         rf_geometry_face face;
         status=rf_geometry_get_face(s->geometry,d->replaced[i],&face);if(status)goto failed;
         if(face.flags!=8 || face.source_word!=d->source_faces[i].source_face){status=RF_FORMAT;goto failed;}
+        if(face.texture>=s->geometry->textures ||
+           actor_follow_world->slots[face.texture]>=s->materials->count){status=RF_FORMAT;goto failed;}
+        d->source_faces[i].material=actor_follow_world->slots[face.texture];
         d->source_origins[i]=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_RETAINED,
             9996,face.source_word,d->replaced[i]};
     }
@@ -74,7 +79,7 @@ static inline int scene_l1s2_detail_prepare(scene_l1s2_detail_owner *d,
     rf_geomod_publication_work *work,const rf_geometry *geometry,
     const rf_geomod_publication_cut *cuts,uint32_t count,uint32_t serial)
 {
-    scene_l1s2_detail_bank *b;uint32_t i;int status;
+    scene_l1s2_detail_bank *b;uint32_t i,j;int status;
     if(!d || !work || !geometry || !cuts || !count || count>RF_GEOMOD_CUT_LIMIT ||
        d->has_pending || serial==UINT32_MAX)return RF_RANGE;
     d->pending=d->active^1u;b=d->banks+d->pending;
@@ -83,10 +88,20 @@ static inline int scene_l1s2_detail_prepare(scene_l1s2_detail_owner *d,
         b->faces,SCENE_L1S2_DETAIL_FACES,b->origins,&b->mesh);if(status)return status;
     b->mesh.generation=serial;
     for(i=0;i<b->mesh.face_count;i++) {
+        if(b->origins[i].owner!=9996 ||
+           b->origins[i].kind!=RF_GEOMOD_PUBLICATION_RETAINED)return RF_FORMAT;
         b->ids[i]=b->origins[i].reference;
         if(b->ids[i]>=geometry->faces)return RF_FORMAT;
+        for(j=0;j<d->source.face_count && d->replaced[j]!=b->ids[i];j++);
+        if(j==d->source.face_count ||
+           b->faces[i].material!=d->source_faces[j].material)return RF_FORMAT;
+        /* Preview resolves the inherited lightmap through the compiled face,
+         * whereas the cutter's source_face token is the editor face word. */
+        b->faces[i].source_face=b->ids[i];
         status=rf_geometry_initial_collision_filter(geometry,b->ids[i],0,b->filters+i);if(status)return status;
     }
+    for(i=0;i<b->mesh.vertex_count;i++)
+        b->colors[i][0]=b->colors[i][1]=b->colors[i][2]=1.f;
     status=rf_geomod_collision_faces(&b->mesh,b->filters,b->positions,
         SCENE_L1S2_DETAIL_VERTICES,b->bound,SCENE_L1S2_DETAIL_FACES);if(status)return status;
     status=rf_collision_composition_prepare(d->composition,b->bound,b->ids,b->mesh.face_count);

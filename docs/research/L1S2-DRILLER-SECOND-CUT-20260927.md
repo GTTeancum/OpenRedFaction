@@ -103,3 +103,13 @@ publication cap. The three focused L1S2 checkpoint/paired checks pass, and
 the NXDK build completes. The live edit still fails its existing admission
 guard, deliberately: rendering, coordinated commit and second-cut save state
 are not ready for player-visible use. No Xbox runtime check was made here.
+
+Room-121 fragment preparation now remaps the original texture indices to the
+shared renderer slots and replaces each editor source-face word with its
+compiled face ID for inherited lightmap lookup. A source-identity check admits
+only retained UID9996 fragments whose IDs and materials match the 30 imported
+compiled faces. The focused PC projection emits 120 visible vertices from the
+candidate and all 120 carry authored lightmap bindings. Its enlarged owner
+raises the measured stage peak to 1,810,958 bytes, still below 4 MiB. The
+focused L1S2 checks and NXDK build pass; this is draw data only, not a rendered
+or visually reviewed gameplay frame. The normal second edit remains guarded.

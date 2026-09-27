@@ -147,6 +147,43 @@ int main(int argc,char **argv)
                         ray_start,ray_delta,1.f,&world_hit,&world_found));
                     if(world_found && world_hit.room==121 && world_hit.face==4972)return 1;
                 }
+                {
+                    rf_level camera={0};rf_preview_mesh projected={0};
+                    const scene_l1s2_detail_bank *draw_bank=detail->banks+detail->active;
+                    const rf_geomod_face *face=draw_bank->mesh.faces;
+                    const float *normal=draw_bank->bound[0].plane;
+                    float forward[3],right[3],up[3],length,seed[3];uint32_t corner,axis,mapped=0;
+                    projected.vertices=calloc(2048,sizeof(*projected.vertices));
+                    if(!projected.vertices)return 1;
+                    for(corner=0;corner<face->count;corner++)for(axis=0;axis<3;axis++)
+                        camera.player_position[axis]+=draw_bank->mesh.vertices[face->first+corner].position[axis]/face->count;
+                    for(axis=0;axis<3;axis++){
+                        camera.player_position[axis]+=normal[axis]*5.f;
+                        forward[axis]=-normal[axis];
+                    }
+                    seed[0]=0;seed[1]=fabsf(forward[1])<.9f?1.f:0.f;
+                    seed[2]=seed[1]?0.f:1.f;
+                    right[0]=seed[1]*forward[2]-seed[2]*forward[1];
+                    right[1]=seed[2]*forward[0]-seed[0]*forward[2];
+                    right[2]=seed[0]*forward[1]-seed[1]*forward[0];
+                    length=sqrtf(right[0]*right[0]+right[1]*right[1]+right[2]*right[2]);
+                    if(length<.01f)return 1;
+                    for(axis=0;axis<3;axis++)right[axis]/=length;
+                    up[0]=forward[1]*right[2]-forward[2]*right[1];
+                    up[1]=forward[2]*right[0]-forward[0]*right[2];
+                    up[2]=forward[0]*right[1]-forward[1]*right[0];
+                    memcpy(camera.player_orientation[0],right,12);
+                    memcpy(camera.player_orientation[1],up,12);
+                    memcpy(camera.player_orientation[2],forward,12);
+                    CHECK(rf_preview_geomod_world_lit(&projected,2048*sizeof(*projected.vertices),
+                        &draw_bank->mesh,draw_bank->bound,materials.count,&camera,
+                        draw_bank->colors,&geometry));
+                    if(!projected.count || projected.bytes!=projected.count*sizeof(*projected.vertices))return 1;
+                    for(i=0;i<projected.count;i++)if(projected.vertices[i].lightmap<RF_PREVIEW_VERTEX_LIT)mapped++;
+                    printf("PASS L1S2 room121 authored draw projection vertices%u mapped%u\n",
+                        projected.count,mapped);
+                    free(projected.vertices);
+                }
                 printf("PASS L1S2 paired collision overlay room8=%u room121=%u\n",
                     detail->overlay.world.rooms[8].tree.face_count,
                     detail->overlay.world.rooms[121].tree.face_count);
