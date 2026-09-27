@@ -2,7 +2,7 @@
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately95%; GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
-- PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms, permits PC/Xbox traversal and saves/reloads on both platforms; visual-content verification and onward campaign progression remain (docs/OPENING-MISSION-CHAIN.md).
+- PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
@@ -22,7 +22,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Opening scripted actors: Real-spawn PC/Xbox walking matches eight Play_Animation starts, four Look_At commands, two Slay actions and the Riot Stick handoff; exact choreography remains.
 
-- Opening onward combat: Real-spawn play defeats guards8462/9404/9406 and saves/reloads after the bridge fight on PC/Xbox; a PC/Xbox continuation defeats the next four corridor guards and saves/reloads, while PC alone defeats guard9732 and exit-bend guards9482/9483 and guard9484, Medical Kit9465 and exit9019 remain open.
+- Opening onward combat: Staged PC/Xbox play defeats the bridge, corridor and exit-bend guards and naturally transitions from L1S1 to L1S2 through exit9019; Medical Kit9465, uninterrupted spawn-to-exit validation and later campaign progress remain.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 

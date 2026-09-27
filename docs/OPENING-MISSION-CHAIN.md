@@ -535,10 +535,7 @@ brushing an unchanged authored prop by less than0.1 unit after a GeoMod cut
 elsewhere in the room. Restore now admits only these shallow, identity- and
 state-bounded contacts; focused tests still reject deeper contacts and moved
 props. The next encounter defeats guard9732 and progresses around the final
-bend. Guards9482 and9483 also fall to ordinary handgun fire, but guard9484
-still blocks the exit approach at about(105.64,18.85,-45.99). The current
-low-health player can land three hits before its second damaging shot; this
-is an open combat-route problem, not a completed exit transition. No images
+bend. Guards9482 and9483 also fall to ordinary handgun fire. No images
 were captured or inspected.
 
 Stock64MiB XEMU ran the same1412-frame bridge-save continuation in
@@ -550,3 +547,24 @@ player's17 health,25 armor and loaded handgun, and passed all106 checks with
 at least3881 pages free. This verifies the bounded close-contact restore
 changes in a fresh Xbox load; it does not verify visual content under the
 current no-images instruction.
+
+The final guard9484 initially blocked the straight approach. An ordinary
+handgun hit followed by an early retreat around the bend leaves the player
+alive and draws the guard toward cover. Waiting there, then firing at local
+frames2610,2640 and2670 defeats it without another player hit. The look
+inputs were recorded and baked into
+`artifacts/opening-exit/post-exit-9484-exit-walk.bin`; the subsequent run
+uses only normal replay input and no live aim helper. From the four-lower-
+guard save, that3301-frame PC continuation defeats guard9732 and bend
+guards9482/9483/9484, walks through the authored exit trigger9019 at
+frame3236, and arrives in L1S2 alive with the handgun. The transition is
+natural contact, not an injected exit event. Medical Kit9465 is still
+uncollected on this route. A first stock64MiB XEMU run reached transition
+frame3236 but exceeded the shorter harness time limit while L1S2 loaded.
+The extended no-images run in `artifacts/xemu/render-20260927-133824`
+completed all3301 frames: XEMU reported one transition through UID9019 at
+frame3236 to L1S2, all106 reported state checks passed, player vitals and
+handgun ammo matched PC, and at least3160 physical pages remained free.
+The result proves the staged ordinary-save continuation into the next
+section on Xbox; an uninterrupted spawn-to-exit run and visual content
+remain unverified.
