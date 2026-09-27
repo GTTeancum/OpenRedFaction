@@ -52,7 +52,7 @@ Current platform priority (user direction,2026-09-27): Xbox implementation and s
 
 - Submarine saves/guidance: Stock-64-MiB Xbox saves/reloads the occupied DEV submarine and guides a torpedo into a submerged guard; active-shot saves and wider pursuit remain open.
 
-- Submarine campaign placement: L5S3's authored UID3963 now boards and fires a torpedo on stock-64-MiB Xbox with23.03MiB free; the other eight scripted/placed submarine instances, underwater GeoMod and visual/audio refinement remain open (docs/SUBMARINE-FIRST-PASS.md).
+- Submarine campaign placement: Authored L5S3 UID3963, L5S4 UID3955 and L10S3 UID6794 each board/fire on stock-64-MiB Xbox; six other scripted/placed submarines, natural access, underwater GeoMod and visual/audio refinement remain open (docs/SUBMARINE-FIRST-PASS.md).
 
 - Submarine: Boarding, underwater movement/ascent, torpedo launch/direct NPC impact/blast, swimming exit and occupied ordinary save/reload pass Xbox DEV checks with20.03MiB free; active-shot saves and wider enemy pursuit remain open (docs/SUBMARINE-FIRST-PASS.md).
 

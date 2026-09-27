@@ -1,4 +1,4 @@
-"""Check one authored L5S3 submarine host on a stock-64-MiB Xbox guest.
+"""Check an authored campaign submarine host on a stock-64-MiB Xbox guest.
 
 The replay is neutral and bounded; it does not traverse the campaign or use
 the PC game, screenshots, or host input.
@@ -19,7 +19,11 @@ from xemu_session_guard import require_no_project_xemu
 ROOT = Path(__file__).resolve().parents[1]
 DISC = ROOT / 'build/xbox/disc'
 FRAMES = 80
-EXPECTED = (30.736595153808594, -16.48705291748047, 8.313613891601562)
+CASES = {
+    'L5S3': ('levels1.vpp', 3963, (30.736595153808594, -16.48705291748047, 8.313613891601562)),
+    'L5S4': ('levels1.vpp', 3955, (-27.5601806640625, -24.7811279296875, -14.7227783203125)),
+    'L10S3': ('levels2.vpp', 6794, (510.3700256347656, -129.85679626464844, 160.26577758789062)),
+}
 
 
 def replay(board):
@@ -41,30 +45,32 @@ def build(folder, phase):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--level', choices=CASES, default='L5S3')
     parser.add_argument('--board', action='store_true',
-                        help='Stage beside authored UID3963, board and launch one torpedo')
+                        help='Stage beside the authored host, board and launch one torpedo')
     args = parser.parse_args()
+    archive, uid, expected = CASES[args.level]
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / ('submarine-campaign-' +
+    folder = ROOT / 'artifacts/xemu' / ('submarine-campaign-' + args.level.lower() + '-' +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names.add('player-control.flag')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox L5S3 authored submarine host',
-              'board_fixture': args.board}
+    result = {'result': 'FAIL', 'scope': f'Stock-64-MiB Xbox {args.level} authored submarine host',
+              'board_fixture': args.board, 'uid': uid}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
-            b'levels1.vpp'.ljust(64, b'\0') + b'L5S3.rfl'.ljust(64, b'\0'))
+            archive.encode().ljust(64, b'\0') + f'{args.level}.rfl'.encode().ljust(64, b'\0'))
         if args.board:
-            (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 3963))
+            (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', uid))
         (DISC / 'player-control.flag').write_bytes(b'')
         (DISC / 'player-replay.bin').write_bytes(replay(args.board))
         build(folder, 'run')
@@ -89,7 +95,7 @@ def main():
         if enabled != 4 or vehicle[0] != FRAMES or not vehicle[12]:
             raise RuntimeError(f'Authored submarine was not registered: {enabled}, {vehicle}')
         if any(not math.isfinite(value) or abs(value - expected) > 1
-               for value, expected in zip(position, EXPECTED)):
+               for value, expected in zip(position, expected)):
             raise RuntimeError(f'Unexpected authored submarine position: {position}')
         if args.board:
             weapon = guest['extra']['rf_scene_submarine_weapon']
