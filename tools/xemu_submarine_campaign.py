@@ -26,9 +26,9 @@ CASES = {
 }
 
 
-def replay(board):
+def replay(board, frames):
     rows = []
-    for frame in range(FRAMES):
+    for frame in range(frames):
         rows.append(struct.pack('<5f7I', 0, 0, 0, 0, 0,
                                 0, 0, int(board and frame == 12),
                                 int(board and frame == 40), 0, 0, 0))
@@ -48,8 +48,17 @@ def main():
     parser.add_argument('--level', choices=CASES, default='L5S3')
     parser.add_argument('--board', action='store_true',
                         help='Stage beside the authored host, board and launch one torpedo')
+    parser.add_argument('--pursue', action='store_true',
+                        help='Fire L5S3 authored Goto_Player and check submarine movement')
+    parser.add_argument('--save', action='store_true',
+                        help='Quick-save/load the active authored pursuit during the Xbox run')
     args = parser.parse_args()
+    if args.pursue and (args.board or args.level != 'L5S3'):
+        parser.error('--pursue requires L5S3 and cannot be combined with --board')
+    if args.save and not args.pursue:
+        parser.error('--save requires --pursue')
     archive, uid, expected = CASES[args.level]
+    frames = 180 if args.pursue else FRAMES
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
@@ -62,7 +71,8 @@ def main():
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
     result = {'result': 'FAIL', 'scope': f'Stock-64-MiB Xbox {args.level} authored submarine host',
-              'board_fixture': args.board, 'uid': uid}
+              'board_fixture': args.board, 'pursue_fixture': args.pursue,
+              'save_fixture': args.save, 'uid': uid}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -71,12 +81,17 @@ def main():
             archive.encode().ljust(64, b'\0') + f'{args.level}.rfl'.encode().ljust(64, b'\0'))
         if args.board:
             (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', uid))
+        if args.pursue:
+            (DISC / 'campaign-goto.bin').write_bytes(struct.pack('<II', 4647, 1))
+        if args.save:
+            (DISC / 'campaign-quick-actions.bin').write_bytes(struct.pack('<II', 60, 100))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(replay(args.board))
+        (DISC / 'player-replay.bin').write_bytes(replay(args.board, frames))
         build(folder, 'run')
-        guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
+        guest = run_guest(folder, 'run', hdd, frames, 180, snapshot=True,
                           extra_symbols={'rf_scene_vehicle_enabled': 1,
                                          'rf_scene_vehicle_state': 16,
+                                         'rf_scene_vehicle_route_state': 8,
                                          'rf_scene_submarine_weapon': 8,
                                          'rf_scene_submarine_boarding': 8,
                                          'rf_scene_player_swim': 12},
@@ -92,11 +107,25 @@ def main():
         result['host_position'] = position
         result['boarding'] = guest['extra']['rf_scene_submarine_boarding']
         result['swim'] = guest['extra']['rf_scene_player_swim']
-        if enabled != 4 or vehicle[0] != FRAMES or not vehicle[12]:
+        if enabled != 4 or (not args.save and vehicle[0] != frames) or \
+                (args.save and not 0 < vehicle[0] < frames) or not vehicle[12]:
             raise RuntimeError(f'Authored submarine was not registered: {enabled}, {vehicle}')
-        if any(not math.isfinite(value) or abs(value - expected) > 1
+        if any(not math.isfinite(value) or (not args.pursue and abs(value - expected) > 1)
                for value, expected in zip(position, expected)):
             raise RuntimeError(f'Unexpected authored submarine position: {position}')
+        if args.pursue:
+            route = guest['extra']['rf_scene_vehicle_route_state']
+            displacement = math.dist(position, expected)
+            result['route'] = route
+            result['displacement'] = displacement
+            if route[3] < 1 or route[5] != 4647 or displacement < .05:
+                raise RuntimeError(f'Authored Goto_Player did not move submarine: '
+                                   f'{route}, displacement {displacement:.3f}')
+            if args.save:
+                state = guest['checkpoint_state']
+                if state[8] != 1 or state[0] != 0 or route[0] != 1:
+                    raise RuntimeError(f'Authored submarine pursuit did not resume after '
+                                       f'quick-load: checkpoint {state}, route {route}')
         if args.board:
             weapon = guest['extra']['rf_scene_submarine_weapon']
             if vehicle[1] != 1 or vehicle[3] != 1:

@@ -135,7 +135,8 @@ static void scene_driller_runtime_audio_start(scene_stream *s)
 static int scene_campaign_vehicle_route_command(const scene_driller_runtime *r,rf_vehicle_rigid_command *command)
 {
     uint32_t visited=0,node;const float *target;float dx,dz,distance,forward_x,forward_z,angle;
-    if(!campaign_vehicle_route.active || r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
+    if(!campaign_vehicle_route.active || campaign_vehicle_route.pursuit ||
+       r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
     if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;
     while(visited++<campaign_vehicle_route.path.count){
         node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
@@ -173,6 +174,40 @@ static int scene_campaign_vehicle_route_command(const scene_driller_runtime *r,r
     command->controlled=1;
     command->turn=fmaxf(-1.f,fminf(1.f,angle/.7f));
     command->throttle=fabsf(angle)>1.5f?0.f:fabsf(angle)>.8f?.2f:fminf(1.f,distance/4.f);
+    ++rf_scene_vehicle_route_state[3];return RF_OK;
+}
+/* Authored Goto and Goto_Player orders drive the same submerged body as the
+ * player. This is a direct steering first pass; collision and the full-hull
+ * water gate remain in the submersible solver. */
+static int scene_campaign_submarine_script_command(const scene_driller_runtime *r,
+    rf_vehicle_submersible_command *command)
+{
+    const float *target;float dx,dy,dz,horizontal,forward_x,forward_z,angle;
+    if(!campaign_vehicle_route.active || !campaign_vehicle_route.pursuit ||
+       r->entry.host.handle!=campaign_authored_vehicle_handle || r->entry.session.active ||
+       !r->entry.host.alive)return RF_OK;
+    target=campaign_vehicle_route.pursuit==2?scene_actor_body.state.position:
+        campaign_vehicle_route.target;
+    dx=target[0]-r->physics.state.position[0];
+    dy=target[1]-r->physics.state.position[1];
+    dz=target[2]-r->physics.state.position[2];
+    horizontal=sqrtf(dx*dx+dz*dz);
+    if(!isfinite(horizontal)||!isfinite(dy))return RF_FORMAT;
+    command->controlled=1;
+    if(horizontal<=1.5f && fabsf(dy)<=1.5f){
+        if(campaign_vehicle_route.pursuit==1){
+            campaign_vehicle_route.active=0;rf_scene_vehicle_route_state[0]=0;
+            ++rf_scene_vehicle_route_state[4];
+        }
+        return RF_OK;
+    }
+    forward_x=r->physics.state.orientation[6];forward_z=r->physics.state.orientation[8];
+    angle=atan2f(forward_z*dx-forward_x*dz,forward_x*dx+forward_z*dz);
+    if(!isfinite(angle))return RF_FORMAT;
+    command->yaw=fmaxf(-1.f,fminf(1.f,angle/.7f));
+    command->throttle=fabsf(angle)>1.5f?0.f:fabsf(angle)>.8f?.2f:
+        fminf(1.f,horizontal/4.f);
+    command->rise=fmaxf(-1.f,fminf(1.f,dy/3.f));
     ++rf_scene_vehicle_route_state[3];return RF_OK;
 }
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
@@ -214,10 +249,14 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
             rf_vehicle_submersible_command sub={0};rf_vehicle_submersible_result result;
             rf_vehicle_submersible_backend wet_backend={&r->submarine,scene_submarine_motion_water_path,scene_submarine_motion_resolve};
             if(rf_scene_vehicle_enabled==5){wet_backend.context=&r->fighter;wet_backend.water_path=scene_fighter_motion_air_path;wet_backend.resolve=scene_fighter_motion_resolve;}
-            sub.controlled=command.controlled;
+            sub.controlled=r->entry.session.active && r->entry.host.alive;
             if(sub.controlled){sub.throttle=player_input.move[2];sub.strafe=player_input.move[0];
                 sub.rise=(float)player_input.jump-(float)player_input.crouch;
                 sub.yaw=player_input.look[1];sub.pitch=player_input.look[0];}
+            else if(rf_scene_vehicle_enabled==4 && campaign_authored_vehicle_uid){
+                status=scene_campaign_submarine_script_command(r,&sub);
+                rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
+            }
             status=rf_vehicle_submersible_step(&r->physics.state,&r->submarine_parameters,&sub,scene_step_seconds,&wet_backend,&result);
         }else status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);
         if(status)goto fail;

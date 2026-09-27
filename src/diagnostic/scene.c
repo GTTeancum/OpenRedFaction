@@ -4839,6 +4839,8 @@ static void campaign_pursuit_target(campaign_npc_body *owner,const float target[
 uint32_t rf_scene_script_movement[8]; /* requests, steps, arrivals, blocked, active, last actor UID, last event UID, status */
 typedef struct scene_campaign_vehicle_route {
     rf_level_waypoint_path path;uint32_t active,index,mode,reverse,event;
+    uint32_t pursuit; /* 1: authored Goto point, 2: current player position */
+    float target[3];
 } scene_campaign_vehicle_route;
 static scene_campaign_vehicle_route campaign_vehicle_route;
 uint32_t rf_scene_vehicle_route_state[8]; /* active,index,count,drive ticks,arrivals,event,handle,status */
@@ -4855,24 +4857,32 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         if(!path.count)return RF_NOT_FOUND;
     }
     if(campaign_authored_vehicle_uid && handle==campaign_authored_vehicle_handle){
-        if(strcmp(event->type,"Follow_Waypoints"))return RF_NOT_FOUND;
+        uint32_t pursuit=!strcmp(event->type,"Goto")?1:
+            !strcmp(event->type,"Goto_Player")?2:0;
+        if(strcmp(event->type,"Follow_Waypoints") &&
+           !(rf_scene_vehicle_enabled==4 && pursuit))return RF_NOT_FOUND;
         if(on){
-            for(i=0;i<path.count;i++){
+            if(!pursuit)for(i=0;i<path.count;i++){
                 uint32_t node=rf_level_waypoint_node(&path,i);
                 if(node>=campaign_navigation.count)return RF_FORMAT;
                 for(j=0;j<3;j++)if(!isfinite(campaign_navigation.nodes[node].candidate.position[j]))return RF_FORMAT;
             }
+            else for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
             campaign_vehicle_route.path=path;campaign_vehicle_route.index=0;
             campaign_vehicle_route.mode=mode;campaign_vehicle_route.reverse=0;
             campaign_vehicle_route.event=event->uid;campaign_vehicle_route.active=1;
+            campaign_vehicle_route.pursuit=pursuit;
+            memcpy(campaign_vehicle_route.target,event->position,12);
             rf_scene_vehicle_route_state[2]=path.count;
             rf_scene_vehicle_route_state[5]=event->uid;
             rf_scene_vehicle_route_state[6]=handle;
-            printf("CAMPAIGN_VEHICLE_ROUTE %u %u %u %.6g %.6g %.6g\n",event->uid,handle,path.count,
+            if(pursuit)printf("CAMPAIGN_SUBMARINE_GOTO %u %u %u %.6g %.6g %.6g\n",
+                event->uid,handle,pursuit,event->position[0],event->position[1],event->position[2]);
+            else printf("CAMPAIGN_VEHICLE_ROUTE %u %u %u %.6g %.6g %.6g\n",event->uid,handle,path.count,
                 campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position[0],
                 campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position[1],
                 campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position[2]);
-        }else campaign_vehicle_route.active=0;
+        }else if(campaign_vehicle_route.event==event->uid)campaign_vehicle_route.active=0;
         rf_scene_vehicle_route_state[0]=campaign_vehicle_route.active;
         rf_scene_vehicle_route_state[1]=campaign_vehicle_route.index;
         return RF_OK;

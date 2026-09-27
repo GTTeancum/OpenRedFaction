@@ -32,15 +32,50 @@ static int scene_world_vehicle_route_event(uint32_t uid,rf_level_waypoint_path *
     }
     return found==1?RF_OK:RF_NOT_FOUND;
 }
+static int scene_world_vehicle_pursuit_event(uint32_t uid,uint32_t *pursuit,float target[3])
+{
+    uint32_t i,j,found=0;
+    if(!uid||!pursuit||!target||!campaign_authored_vehicle_handle||
+       rf_scene_vehicle_enabled!=4)return RF_NOT_FOUND;
+    for(i=0;i<campaign_events.count;i++){
+        const rf_runtime_event *event=campaign_events.items+i;
+        const rf_level_event *record;uint32_t links=0,kind;
+        if(!event->authored||event->authored->record.uid!=uid)continue;
+        if(++found!=1)return RF_FORMAT;
+        record=&event->authored->record;
+        kind=!strcmp(record->type,"Goto")?1:
+            !strcmp(record->type,"Goto_Player")?2:0;
+        if(!kind)return RF_FORMAT;
+        for(j=0;j<record->link_count;j++)if(event->links[j].value==campaign_authored_vehicle_handle &&
+            (event->links[j].kind==1||event->links[j].kind==2))++links;
+        if(links!=1)return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(record->position[j]))return RF_FORMAT;
+        *pursuit=kind;memcpy(target,record->position,12);
+    }
+    return found==1?RF_OK:RF_NOT_FOUND;
+}
 static int scene_world_vehicle_route_read(const void *data,uint32_t bytes,uint32_t base,
     scene_campaign_vehicle_route *out)
 {
-    const unsigned char *p=data;scene_campaign_vehicle_route route={0};uint32_t count,mode,i,j;int status;
+    const unsigned char *p=data;scene_campaign_vehicle_route route={0};uint32_t count,mode,i,j,version;int status;
     if(!data||!out||!base)return RF_RANGE;
     if(bytes==base){*out=route;return RF_OK;}
     if(bytes!=base+SCENE_WORLD_VEHICLE_ROUTE_BYTES)return RF_FORMAT;
     p+=base;
-    if(memcmp(p,"RFVR",4)||scene_world_route_word(p+4)!=1||scene_world_route_word(p+28))return RF_FORMAT;
+    if(memcmp(p,"RFVR",4)||scene_world_route_word(p+28))return RF_FORMAT;
+    version=scene_world_route_word(p+4);
+    if(version==2){
+        uint32_t authored=0;
+        route.event=scene_world_route_word(p+8);
+        route.pursuit=scene_world_route_word(p+12);
+        if(scene_world_route_word(p+16)||scene_world_route_word(p+20)||
+           scene_world_route_word(p+24))return RF_FORMAT;
+        status=scene_world_vehicle_pursuit_event(route.event,&authored,route.target);
+        if(status)return status;
+        if(route.pursuit!=authored)return RF_FORMAT;
+        route.active=1;*out=route;return RF_OK;
+    }
+    if(version!=1)return RF_FORMAT;
     route.event=scene_world_route_word(p+8);route.index=scene_world_route_word(p+12);
     route.reverse=scene_world_route_word(p+16);route.mode=scene_world_route_word(p+20);
     count=scene_world_route_word(p+24);
@@ -60,6 +95,17 @@ static int scene_world_vehicle_route_write(void *data,uint32_t capacity,uint32_t
     if(!data||!written)return RF_RANGE;*written=0;
     if(!campaign_vehicle_route.active)return RF_OK;
     if(capacity<SCENE_WORLD_VEHICLE_ROUTE_BYTES)return RF_RANGE;
+    if(campaign_vehicle_route.pursuit){
+        float target[3];uint32_t authored=0;
+        status=scene_world_vehicle_pursuit_event(campaign_vehicle_route.event,&authored,target);
+        if(status)return status;
+        if(authored!=campaign_vehicle_route.pursuit ||
+           memcmp(target,campaign_vehicle_route.target,12))return RF_FORMAT;
+        memset(p,0,SCENE_WORLD_VEHICLE_ROUTE_BYTES);memcpy(p,"RFVR",4);
+        scene_world_route_put(p+4,2);scene_world_route_put(p+8,campaign_vehicle_route.event);
+        scene_world_route_put(p+12,campaign_vehicle_route.pursuit);
+        *written=SCENE_WORLD_VEHICLE_ROUTE_BYTES;return RF_OK;
+    }
     status=scene_world_vehicle_route_event(campaign_vehicle_route.event,&authored,&mode);if(status)return status;
     if(mode!=campaign_vehicle_route.mode||authored.count!=campaign_vehicle_route.path.count||
        memcmp(authored.indices,campaign_vehicle_route.path.indices,authored.count*4)||
