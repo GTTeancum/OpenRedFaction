@@ -6,9 +6,16 @@
 typedef struct scene_world_snapshot_identity {unsigned char bytes[32];char level[64];} scene_world_snapshot_identity;
 static int scene_world_l1s2_authored_terrain(const scene_stream *s)
 {
-    return s && s->terrain && s->terrain_authored && s->terrain_publication &&
-        s->terrain_source_count<=1 && !strcmp(campaign_current_level,"L1S2.rfl") &&
-        s->terrain_authored->asset_view.source_uid==8123 && s->terrain_authored->asset_view.room==8;
+    if(!s || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
+       strcmp(campaign_current_level,"L1S2.rfl") ||
+       s->terrain_authored->asset_view.source_uid!=8123 || s->terrain_authored->asset_view.room!=8)return 0;
+    if(s->terrain_source_count<=1)return 1;
+    return s->terrain_source_count==2 && s->terrain_sources &&
+        s->terrain_sources[0].authored==s->terrain_authored &&
+        s->terrain_sources[0].terrain==s->terrain &&
+        s->terrain_sources[1].authored &&
+        s->terrain_sources[1].authored->asset_view.source_uid==8219 &&
+        s->terrain_sources[1].authored->asset_view.room==8;
 }
 static int scene_world_snapshot_validate(const void *data,uint32_t bytes,void *context)
 {
@@ -148,7 +155,9 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     }
     SNAP_END(RF_WORLD_VEHICLE);
     SNAP_START("destruction");status=scene_world_l1s2_authored_terrain(s)?
-        scene_authored_checkpoint_write(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes):
+        (s->terrain_source_count>1?
+            scene_authored_collection_checkpoint_write(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes):
+            scene_authored_checkpoint_write(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes)):
         scene_campaign_geomod_checkpoint_write(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);
     SNAP_END(RF_WORLD_DESTRUCTION);
     /* Switch records are held by CAMPAIGN_HISTORY instead of duplicated. */

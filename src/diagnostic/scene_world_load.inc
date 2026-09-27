@@ -21,6 +21,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_authored_checkpoint_stage *terrain_stage=NULL;
+    scene_authored_collection_stage *collection_stage=NULL;
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
@@ -64,11 +65,21 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(v->bytes>=4 && !memcmp(v->data,"RFDS",4)){
         rf_geomod_terrain_view edited;
         if(!scene_world_l1s2_authored_terrain(stream)){status=RF_FORMAT;goto done;}
-        phase="authored_terrain";status=scene_authored_checkpoint_stage_prepare(stream,v->data,v->bytes,NULL,&terrain_stage);
-        if(status)goto done;
-        authored_cuts=terrain_stage->cuts;
-        status=scene_authored_checkpoint_stage_commit(terrain_stage);if(status)goto done;
-        scene_authored_checkpoint_stage_discard(&terrain_stage);authored_terrain=1;
+        phase="authored_terrain";
+        if(stream->terrain_source_count>1) {
+            status=scene_authored_collection_stage_prepare(stream,v->data,v->bytes,&collection_stage);
+            if(status)goto done;
+            authored_cuts=collection_stage->shared.cuts;
+            status=scene_authored_collection_stage_commit(collection_stage,NULL);if(status)goto done;
+            scene_authored_collection_stage_discard(&collection_stage);
+        } else {
+            status=scene_authored_checkpoint_stage_prepare(stream,v->data,v->bytes,NULL,&terrain_stage);
+            if(status)goto done;
+            authored_cuts=terrain_stage->cuts;
+            status=scene_authored_checkpoint_stage_commit(terrain_stage);if(status)goto done;
+            scene_authored_checkpoint_stage_discard(&terrain_stage);
+        }
+        authored_terrain=1;
         status=scene_terrain_publication_view(stream,&edited);if(status)goto done;
         for(i=0;i<edited.mesh.vertex_count;i++)for(uint32_t axis=0;axis<3;axis++){
             float coordinate=edited.mesh.vertices[i].position[axis];
@@ -206,6 +217,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     if(status)printf("WORLD_SNAPSHOT_LOAD_REJECT phase%s status%d\n",phase,status);
     scene_authored_checkpoint_stage_discard(&terrain_stage);
+    scene_authored_collection_stage_discard(&collection_stage);
     scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;

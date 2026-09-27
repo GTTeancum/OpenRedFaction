@@ -63,6 +63,7 @@ int main(int argc,char **argv)
        !s->light_overlay_work)return 1;
     s->terrain_atlas_registered=1;s->terrain_atlas_index=s->light_rgb.count;
     strcpy(campaign_current_level,"L1S2.rfl");
+    if(!scene_world_l1s2_authored_terrain(s))return 1;
     memcpy(s->terrain_history_minimum,world.minimum,12);
     memcpy(s->terrain_history_maximum,world.maximum,12);
     CHECK(scene_checkpoint_identity(s,&level));

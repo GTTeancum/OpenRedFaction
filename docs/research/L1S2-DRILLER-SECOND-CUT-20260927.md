@@ -71,6 +71,13 @@ ordinary campaign RFDS3 dispatch and the room-121 second-cut publication remain
 separate work. The Xbox build compiles, but this new collection route has not
 run under XEMU or against the stock whole-game memory limit.
 
+Ordinary world snapshot dispatch now recognizes the exact L1S2
+UID8123/UID8219 collection, writes RFDS3 and selects the collection restore
+stage when that profile is loaded. The default campaign still opens only
+UID8123, so its existing RFDS2 saves continue on the previous route. Focused
+PC stage checks and Xbox compilation pass; a paired whole-world save/load has
+not yet run, and room 121 still lacks a scene publication owner.
+
 This is geometric and focused C collision evidence, not a runtime
 demonstration of the second cut or its visual quality. The Python probe uses
 SciPy for half-space solving; the shipping C/Xbox build does not depend on
