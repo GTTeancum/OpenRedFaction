@@ -2,6 +2,8 @@
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately95%; GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
+Current platform priority (user direction,2026-09-27): Xbox implementation and stock-64-MiB XEMU functional checks; retain the shared PC build path but pause PC gameplay testing and campaign-route replays.
+
 - PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
@@ -34,7 +36,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
-- USER PC hands-on pass: L1S1 starts unarmed and a broad text-only PC/Xbox real-spawn replay reaches the scripted Riot Stick grant and one attack alive; the image-free PC pickup/switch harness confirms handgun collection/equip and owned-only cycling, and the PC frontend now builds with focus-scoped mouse look/buttons, but interactive input, pickup/switching and flicker still need hands-on verification before calling the build ready for gameplay testing.
+- DEFERRED PC hands-on pass: L1S1 starts unarmed and an image-free PC pickup/switch harness confirms handgun collection/equip and owned-only cycling; interactive input, pickup/switching and flicker remain unverified while Xbox is the sole gameplay target.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
