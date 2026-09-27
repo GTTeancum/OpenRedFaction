@@ -14539,11 +14539,15 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             uint32_t side;
             for(side=0;side<2;side++){
                 const scene_campaign_wall_room *room=stream->campaign_wall->rooms+side;
+                rf_geomod_mesh_view draw=room->mesh;
                 rf_preview_mesh next={0};
+                /* Both room collision trees need the cavity boundary. Draw
+                 * its identical polygons once to avoid coplanar overdraw. */
+                if(side==1)draw.face_count=room->retained_faces;
                 next.vertices=generated.vertices+generated.count;
                 status=rf_preview_geomod_world_lit(&next,
                     stream->capacity-1024*1024-world_mesh.bytes-generated.bytes,
-                    &room->mesh,room->bound,stream->materials->count,&camera,
+                    &draw,room->bound,stream->materials->count,&camera,
                     room->colors,stream->geometry);if(status)return status;
                 generated.count+=next.count;generated.bytes+=next.bytes;
             }

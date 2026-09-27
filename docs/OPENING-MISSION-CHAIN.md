@@ -248,9 +248,9 @@ No images or audio were captured or inspected. Reproduce with
 `python tools/xemu_replay_check.py artifacts/opening-exit/third-drop.bin
 --campaign-spawn --level L1S1.rfl --no-images --seconds 650`.
 
-The remaining natural L1S1 path toward exit9019, its later armed actors and
-the gap between authored navigation components are still open. No full
-campaign or visual-parity claim follows from this opening route.
+The later route and exit9019 remain open. The cut through the navigation gap
+and the upper-bridge walk are documented below; neither establishes full
+campaign or visual parity.
 
 ## First walked GeoMod progression wall
 
@@ -319,9 +319,38 @@ against PC state, including the new wall telemetry, with3610 physical pages
 
 The replacement meshes enter the shared rendering path, but their visual
 appearance has not been inspected because of the no-images instruction.
+Both room collision trees retain the new cavity faces, while rendering submits
+those identical wall polygons once to avoid coplanar overlap.
 Wall-only and combined wall/script-cut save encoding and restore have been
 added, but a natural quick-save at frame4300 still fails before destruction
 serialization: active NPC UID8625 has `combat_alert=1`, and other opening
 actors also retain unsupported navigation, animation or combat state. The
 save milestone remains open until that broader NPC checkpoint admission is
 implemented and a live save/reload passes on PC and Xbox.
+
+## Far-side corridor and upper-bridge combat
+
+`tools/replay_opening_bridge_cover.py` continues the recorded charge cut with
+ordinary forward/strafe inputs. The player follows the second navigation
+component around the first right bend, up the long ramp, and to upper-bridge
+cover near(41.45,11.92,81.00) at frame5452, alive. At the first bend, guard
+UID8462 fires repeatedly; the route's movement reaches cover with14.6 health.
+The upper bridge exposes two more env_guards: UID9404 begins at
+(60.94,13.36,74.77), UID9406 at(63.14,13.36,77.69). A direct approach dies
+to UID9404's shot at frame5441. The northern cover detour avoids that lane,
+but advancing from it to about(49.1,11.9,81.6) dies to UID9406 at frame5542.
+A normal handgun ray from nearby cover at frame5487 selects and damages
+UID9406 from50 to30.8 health, but standing still for the next pistol shot
+allows its return fire to kill the player first. This is a live combat and
+route blocker, not evidence that AI or hit detection is missing. More robust
+cover/weapon play or a health route is needed before exit9019. No visual
+content was captured or inspected.
+
+The same5452-frame bridge-cover replay passed on Xbox in XEMU with stock
+64 MiB memory (`artifacts/xemu/replay-20260927-025039/report.json`). The
+guest final camera position and player-life/cut telemetry agree with PC;
+3543 physical pages (about13.84 MiB) remained available. That replay used
+the executable built before the duplicate-wall-draw correction above; the
+runner restored and rebuilt the current Xbox executable afterward. The
+correction passed the PC bridge-cover replay and Xbox compilation, but its
+visual appearance remains unverified under the no-images instruction.

@@ -7,7 +7,7 @@ typedef struct scene_campaign_wall_room {
     rf_collision_face bound[SCENE_TERRAIN_FACES];
     float positions[4096][3],colors[4096][3];
     uint32_t face_ids[SCENE_TERRAIN_FACES];
-    rf_geomod_mesh_view mesh;rf_collision_tree tree;
+    rf_geomod_mesh_view mesh;rf_collision_tree tree;uint32_t retained_faces;
 } scene_campaign_wall_room;
 struct scene_campaign_wall_owner {
     scene_campaign_wall_room rooms[2];
@@ -105,6 +105,7 @@ static int scene_campaign_wall_cut(scene_stream *s,const float center[3],float r
             scratch->cutter_collision,cutter.face_count,&work.clip,
             scratch->retained_vertices,8192,scratch->retained_faces,
             scratch->retained_unchanged,2048,&retained);if(status)goto done;
+        part->retained_faces=retained.face_count;
         status=rf_geomod_campaign_room_stage(s->geometry,&retained,
             scratch->retained_unchanged,&wall,actor_follow_world->slots,
             s->geometry->textures,s->terrain_material,s->materials->count,
