@@ -238,7 +238,7 @@ uint32_t rf_scene_endgame_clear[4]; /* resolved,missing,last handle,last previou
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
 uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[32];
-uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 walking miner;2 quiet armed guard;3 grenade guard. */
+uint32_t rf_scene_dev_npc_enabled; /* Opt-in NPC fixtures; mode7 is a submerged submarine target. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
 uint32_t rf_scene_swim_test_enabled;
@@ -17377,6 +17377,10 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
         memset(record->orientation,0,36);record->orientation[0][2]=-1;
         record->orientation[1][1]=1;record->orientation[2][0]=1;
         if(rf_scene_dev_npc_enabled==5){record->orientation[0][2]=1;record->orientation[2][0]=-1;}
+        if(rf_scene_dev_npc_enabled==7){
+            record->position[0]=-25.f;record->position[1]=-17.f;record->position[2]=5.f;
+            record->orientation[0][2]=1;record->orientation[2][0]=-1;
+        }
     }
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
     return RF_OK;
@@ -17485,9 +17489,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         /* Authored empty test/MP rooms can omit the NPC section entirely. */
         if(!status && collision && campaign_spawn && rf_scene_vehicle_enabled==4) {
-            /* The Sub DEV profile keeps the authored wet world but deliberately
-             * has no campaign NPCs or injected ctf06 guard fixture. */
-            if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"L5S3.rfl") || rf_scene_dev_npc_enabled)status=RF_FORMAT;
+            /* The default Sub DEV room is enemy-free; mode7 alone adds one
+             * submerged target for the native torpedo gameplay check. */
+            if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"L5S3.rfl") ||
+               (rf_scene_dev_npc_enabled && rf_scene_dev_npc_enabled!=7))status=RF_FORMAT;
+            else if(rf_scene_dev_npc_enabled==7)status=scene_dev_npc_seeds(tables_path,&tables);
         } else if(!status && collision && campaign_spawn && rf_scene_dev_npc_enabled) {
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"ctf06.rfl"))status=RF_FORMAT;
             else status=scene_dev_npc_seeds(tables_path,&tables);

@@ -169,6 +169,8 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 result['extra'] = {key: words(monitor, extra_addresses[key], count)
                                    for key, count in extra_symbols.items()}
             (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+            if allow_guest_error and diagnostic[2] & 0x80000000:
+                return result
             if diagnostic[37] != frames:
                 raise RuntimeError(f'{name}: expected {frames} frames, got {diagnostic[37]}; '
                                    f'level transitions {transitions}, player life {life}, '

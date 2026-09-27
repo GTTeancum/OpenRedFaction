@@ -9,6 +9,7 @@ static int scene_apc_secondary_visual_draw(const scene_driller_resources *,scene
  * uses the shared explicit first-pass homing policies and live actor ownership.
  * Shared impact appearance is provisional, not charge_explode asset parity. */
 uint32_t rf_scene_submarine_weapon[8]; /* ticks,launches,contacts,expired,live,liquid-stops,detonations,reserve */
+uint32_t rf_scene_submarine_homing_state[8]; /* scans,locks,last target,steered,submerged target,health bits,target y bits,target z bits */
 static inline uint32_t scene_submarine_weapon_pending(const scene_stream *s)
 {
     uint32_t i;for(i=0;i<SCENE_SUBMARINE_WEAPON_CAPACITY;i++)if(s->submarine_weapon.rounds[i].flight.active)return 1;
@@ -63,15 +64,19 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
     if(rf_scene_vehicle_enabled!=4||!s->driller_runtime)return RF_OK;
     state=&s->submarine_weapon;runtime=s->driller_runtime;
     if(!isfinite(dt)||dt<0||dt>.05f)return RF_RANGE;
-    if(!frame)memset(rf_scene_submarine_weapon,0,sizeof(rf_scene_submarine_weapon));
+    if(!frame){memset(rf_scene_submarine_weapon,0,sizeof(rf_scene_submarine_weapon));
+        memset(rf_scene_submarine_homing_state,0,sizeof(rf_scene_submarine_homing_state));}
     ++rf_scene_submarine_weapon[0];rf_scene_submarine_weapon[4]=0;
     for(i=0;i<SCENE_SUBMARINE_WEAPON_CAPACITY;i++){
         scene_submarine_weapon_round *round=state->rounds+i;rf_weapon_flight_liquid_event event;
         scene_apc_primary_query composed;scene_submarine_projectile_query query;float end[3],origin[3];
         if(!round->flight.active)continue;
-        {uint32_t target;
+        {uint32_t target;float before[3];memcpy(before,round->flight.velocity,sizeof(before));
+         ++rf_scene_submarine_homing_state[0];
          status=scene_submarine_homing_scan(round,&state->definition,dt,scene_submarine_homing_read,s,
-            campaign_npc_body_count,scene_submarine_homing_sight,s,&target);if(status)return status;}
+            campaign_npc_body_count,scene_submarine_homing_sight,s,&target);if(status)return status;
+         if(target!=UINT32_MAX){++rf_scene_submarine_homing_state[1];rf_scene_submarine_homing_state[2]=target;
+             if(memcmp(before,round->flight.velocity,sizeof(before)))++rf_scene_submarine_homing_state[3];}}
         composed.stream=s;composed.source=round->source;composed.driver=round->driver;
         query.world=s->collision;query.composed=scene_apc_primary_sweep_all;query.context=&composed;
         for(k=0;k<3;k++)end[k]=round->flight.position[k]+round->flight.velocity[k]*fminf(dt,(float)round->flight.remaining);
@@ -100,6 +105,12 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
     if(fired){
         ++rf_scene_submarine_weapon[1];++rf_scene_submarine_weapon[4];
         combat_sound("TorpedoLaunch",state->rounds[free_slot].flight.position);
+    }
+    if(rf_scene_dev_npc_enabled==7 && campaign_npc_body_count==1){const campaign_npc_body *npc=campaign_npc_bodies;uint32_t wet=0;
+        status=scene_submarine_weapon_muzzle_wet(s,npc->eye_position,&wet);
+        if(!status)rf_scene_submarine_homing_state[4]=wet;
+        memcpy(rf_scene_submarine_homing_state+5,&npc->damage.effects.health,4);
+        memcpy(rf_scene_submarine_homing_state+6,npc->eye_position+1,8);
     }
     rf_scene_submarine_weapon[7]=(uint32_t)state->reserve;return RF_OK;
 }

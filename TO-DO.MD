@@ -50,9 +50,9 @@ Current platform priority (user direction,2026-09-27): Xbox implementation and s
 
 - Fighter: Boarding, hover flight, cockpit, finite minigun/forward rockets and exit pass PC/Xbox with exact gameplay state and11.64MiB free; live seated save/reload/exit now passes PC/Xbox with identical1228-byte checkpoints and11.57MiB free; campaign placement, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
-- Submarine saves/guidance: Occupied L5S3 DEV submarine ordinary save/reload now passes on stock-64-MiB Xbox with torpedo reserve retained; active-shot saves, campaign placement and enemy pursuit remain open.
+- Submarine saves/guidance: Stock-64-MiB Xbox now saves/reloads the occupied DEV submarine and guides a torpedo toward a submerged hostile guard; active-shot saves, campaign placement and wider pursuit remain open.
 
-- Submarine: Boarding, underwater movement/ascent, torpedo launch/impact/blast and swimming exit pass earlier PC/Xbox checks; occupied Xbox ordinary save/reload now passes with20.95MiB free, while active-shot saves, enemy guidance, underwater GeoMod, campaign placement and visual/audio refinement remain (docs/SUBMARINE-FIRST-PASS.md).
+- Submarine: Boarding, underwater movement/ascent, torpedo launch/impact/blast, swimming exit and occupied ordinary save/reload pass Xbox checks; an opt-in wet guard is acquired, steered toward and damaged with20.03MiB free, while active-shot saves, wider enemy pursuit, underwater GeoMod, campaign placement and visual/audio refinement remain (docs/SUBMARINE-FIRST-PASS.md).
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 

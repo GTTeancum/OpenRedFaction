@@ -556,7 +556,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     stream_flag=fopen("D:\\vehicle-test.flag","rb");rf_scene_vehicle_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4' || mode=='5')rf_scene_vehicle_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\firearms-test.flag","rb");rf_scene_firearms_enabled=0;if(stream_flag){int mode=fgetc(stream_flag);fclose(stream_flag);if(mode<'1' || mode>'4')return RF_FORMAT;rf_scene_firearms_enabled=(uint32_t)(mode-'0');}
     stream_flag=fopen("D:\\fusion-test.flag","rb");rf_scene_fusion_enabled=stream_flag!=NULL;if(stream_flag)fclose(stream_flag);
-    stream_flag=fopen("D:\\dev-npc.flag","rb");rf_scene_dev_npc_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4' || mode=='5' || mode=='6')rf_scene_dev_npc_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
+    stream_flag=fopen("D:\\dev-npc.flag","rb");rf_scene_dev_npc_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2' && mode<='7')rf_scene_dev_npc_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\fragment-platform-test.flag","rb");rf_scene_fragment_platform_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4')rf_scene_fragment_platform_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\moving-support-test.flag","rb");rf_scene_moving_support_enabled=stream_flag!=NULL;
     if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2'&&mode<='4')rf_scene_moving_support_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
@@ -572,9 +572,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         FILE *checkpoint;
         const char *vehicle_level=rf_scene_vehicle_enabled==4?"L5S3.rfl":"ctf06.rfl";
         if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,vehicle_level) ||
-           rf_scene_dev_npc_enabled || (rf_scene_vehicle_enabled==4 && rf_scene_player_checkpoint_enabled))return RF_FORMAT;
+           (rf_scene_dev_npc_enabled && !(rf_scene_vehicle_enabled==4 && rf_scene_dev_npc_enabled==7)) ||
+           (rf_scene_vehicle_enabled==4 && rf_scene_player_checkpoint_enabled))return RF_FORMAT;
         if(rf_scene_vehicle_enabled==4){
-        /* Static underwater world saves are not integrated yet. */
+        /* The separate DEV GeoMod checkpoint profile remains unsupported for
+         * static underwater terrain; ordinary world saves use RFVC4. */
         checkpoint=fopen("D:\\geomod-checkpoint.bin","rb");
         if(checkpoint){fclose(checkpoint);return RF_FORMAT;}
         checkpoint=fopen("D:\\geomod-checkpoint-out.flag","rb");

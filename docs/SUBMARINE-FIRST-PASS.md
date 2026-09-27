@@ -1,6 +1,6 @@
 # Submarine first pass
 
-Current scope is an enemy-free underwater DEV fixture, not campaign vehicle completion.
+Current scope is an underwater DEV fixture that defaults to enemy-free; an opt-in submerged guard checks live torpedo targeting. Campaign vehicle completion remains open.
 
 ## Authored inputs
 
@@ -8,7 +8,7 @@ The installed `sub` class uses `Sub_Mini01.v3m`, `sub.vfx`, movement kind7, mass
 
 The cockpit has19 mesh records. Disabled materialless `Sphere01` has26 vertices/48 faces and no-material face sentinels; it is fully parsed and retained with keys, without a render instance. The other18 meshes keep render instances. Hull, cockpit and torpedo resource test reports1,921,594 resident bytes and1,930,486 peak bytes on PC; these figures exclude allocator overhead and are not a full Xbox memory measurement.
 
-Torpedo uses actual model `torpedo01.v3m`, damage200, speed7, lifetime10seconds, radius0.15, blast/crater radius5, reserve20 and3second cadence. Guidance now scans generation-bearing live hostile NPC handles with underwater aim points and actual collision LOS. The turn-time-as-full-revolution and full-cone interpretations are explicit first-pass policies; live enemy tracking remains unverified in the enemy-free fixture. Liquid boundary expiration is distinct from a solid-impact explosion.
+Torpedo uses actual model `torpedo01.v3m`, damage200, speed7, lifetime10seconds, radius0.15, blast/crater radius5, reserve20 and3second cadence. Guidance scans generation-bearing live hostile NPC handles with underwater aim points and actual collision LOS. The turn-time-as-full-revolution and full-cone interpretations are explicit first-pass policies; a single opt-in hostile target now verifies live native tracking below. Liquid boundary expiration is distinct from a solid-impact explosion.
 
 ## Implementation policies
 
@@ -29,7 +29,7 @@ Water admission checks actual posed hull spheres against wet rooms, their liquid
 
 ## Remaining
 
-Native300-frame run `artifacts/xemu/render-20260918-162608` also passes: one boarding, one swimming exit, one torpedo launch/solid impact/detonation,19rounds remaining; all vehicle words and all eight torpedo counters match PC exactly. Native external hull/on-foot weapon frame inspected;21.43MiB free and harness disc restoration confirmed. Submarine live saves, enemy guidance verification/tuning, articulated/propulsion visuals, full audio and campaign placement remain open. The underwater fixture uses actual static world geometry; it does not yet install an editable terrain owner, so the torpedo terrain dispatch is wired but underwater GeoMod is not demonstrated. Live NPC torpedo damage is also unverified in this enemy-free fixture.
+Native300-frame run `artifacts/xemu/render-20260918-162608` also passes: one boarding, one swimming exit, one torpedo launch/solid impact/detonation,19rounds remaining; all vehicle words and all eight torpedo counters match PC exactly. Native external hull/on-foot weapon frame inspected;21.43MiB free and harness disc restoration confirmed. Ordinary live saves and one native submerged-target check are covered below; wider pursuit, articulated/propulsion visuals, full audio and campaign placement remain open. The underwater fixture uses actual static world geometry; it does not yet install an editable terrain owner, so the torpedo terrain dispatch is wired but underwater GeoMod is not demonstrated.
 
 The dark cave and cockpit appearance are first-pass visuals. The generic vehicle HUD still uses ground-vehicle control hints; submarine controls are forward/strafe, look to rotate, jump/crouch to rise/dive, use to board/exit, primary fire for torpedoes.
 
@@ -40,4 +40,4 @@ RFVC4/profile4 stores common vehicle pose/motion/occupancy/700HP plus torpedo re
 
 The stock-64-MiB Xbox save/reload check at `artifacts/xemu/submarine-save-20260927-155359` passed with an isolated test HDD and process-contained input. After boarding, forward motion and ascent, the save wrote10,768bytes; the fresh load accepted the same payload, restored occupancy and20 torpedoes, and continued80 neutral frames with5,362 free pages (20.95MiB). The test disc flags were restored. This verifies a bounded native functional flow, not campaign vehicle placement or interactive controller feel. The L5S3 `Headlamp_State` and `Detach` event types now have ordinary event checkpoint records; their gameplay effects remain separate implementation work.
 
-Guidance performs allocation-free candidate scanning, source/driver exclusion, wet-target filtering, collision LOS and bounded speed-preserving steering before the liquid flight step. Focused candidate/LOS/wakeup/turn/error checks pass; the existing300-frame enemy-free PC drive/fire/exit replay also passes after integration. It does not demonstrate pursuit of a live enemy. Current parser ownership adds132 PC bytes to the earlier submarine resource aggregate (now1,921,726 resident/1,930,618 peak).
+Guidance performs allocation-free candidate scanning, source/driver exclusion, wet-target filtering, collision LOS and bounded speed-preserving steering before the liquid flight step. Focused candidate/LOS/wakeup/turn/error checks pass. A stock-64-MiB Xbox run in `artifacts/xemu/submarine-target-20260927-162038` with opt-in `dev-npc.flag=7` spawned one submerged hostile guard in L5S3: the torpedo acquired it for25 steps, changed heading25 times, detonated once, and reduced guard health from50 to12.57;19 torpedoes remained and5,127 pages (20.03MiB) were free. The test disc flags were restored. This proves one bounded native acquisition/damage flow, while wider pursuit and campaign encounters remain open. Current parser ownership adds132 PC bytes to the earlier submarine resource aggregate (now1,921,726 resident/1,930,618 peak).
