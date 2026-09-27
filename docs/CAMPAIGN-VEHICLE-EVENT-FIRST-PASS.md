@@ -121,7 +121,26 @@ XEMU finishes with 3,801 free physical pages (about 14.85 MiB). The native
 report is `artifacts/xemu/replay-20260927-073902/report.json`. No images were
 captured. A focused composed-world ray now hits face 768 at z=-17 before the
 cut and the recessed surface at z=-17.613625 after it, while an adjacent ray
-still hits z=-17. Live actor traversal and save/reload remain unverified.
+still hits z=-17. Live actor traversal remains unverified; post-cut ordinary
+saves are currently rejected as described below.
+
+The second transaction reaches publication but its new cutter bounds
+`(121.107674,-2.405448,-19.962753)..(126.905739,0.702065,-13.505847)`
+overlap another editor cavity, UID 8219. That brush has 14 source faces and
+32 compiled faces spread across rooms 8, 13 and 123. The current UID 8123
+owner can replace room 8 only, so the other-brush guard rejects the edit.
+The bounds test is conservative: a precise cutter/brush intersection test
+could prove a false positive, or multi-room publication may be required.
+Neither has been established. The focused test preserves this rejection
+instead of allowing an unowned edit.
+
+An ordinary process-local quick-save requested after the first cut currently
+returns `RF_RANGE` from `scene_world_snapshot_capture_mode` because it rejects
+any active `s->terrain`. The ordinary destruction section is RFCG for the
+L1S1 scripted wall; it does not serialize or restore the authored terrain
+history, identity and publication used here. Driller saves before excavation
+work, but post-cut campaign saving requires an authored-terrain section and
+restore staging before removing that guard.
 
 The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
 source. It validates the 389-brush section with bounded successor-header

@@ -106,6 +106,19 @@ int main(int argc,char **argv)
             return 1;
         }
     }
+    {
+        /* The live second bit overlaps adjacent operation-2 brush UID8219,
+         * whose compiled faces occupy rooms 8, 13 and 123. A single-room
+         * owner must reject it until those rooms can publish atomically. */
+        const float minimum[3]={121.107674f,-2.405448f,-19.962753f};
+        const float maximum[3]={126.905739f,0.702065f,-13.505847f};
+        uint32_t reference=UINT32_MAX;
+        cut_status=rf_geomod_authored_cavity_admit(owner,minimum,maximum,&reference);
+        if(cut_status!=RF_NOT_FOUND) {
+            fprintf(stderr,"FAIL adjacent brush admission status %d\n",cut_status);
+            return 1;
+        }
+    }
     CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.f,0));
     CHECK(rf_geomod_terrain_get(terrain,&terrain_view));
     if(terrain_view.cuts!=1 || terrain_view.mesh.face_count<=48 ||
