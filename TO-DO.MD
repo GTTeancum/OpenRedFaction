@@ -30,7 +30,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route and seated route-following save/reload match, while L1S2 editable GeoMod ownership for drilling, additional instances, full routes and NPC traffic remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route and seated route-following save/reload match, while L1S2 room-8 cavity ownership for drilling, additional instances, full routes and NPC traffic remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 

@@ -103,10 +103,10 @@ def parse_at(data, at, wanted):
             "textures": textures, "vertices": len(vertices), "faces": faces, "tail": tail}
 
 
-def parse_record(data, at, wanted, recovery_window=8192):
+def parse_record(data, at, wanted, recovery_window=65536):
     """Keep unidentified editor sidecars opaque and require a valid next header.
 
-    The common record ends at the five-word tail. A few L1S1 detail brushes
+    The common record ends at the five-word tail. Some campaign detail brushes
     carry extra data before that tail; the first small-flags tail directly
     followed by another validated brush header is a recovery candidate. The
     inventory must still consume its declared count and exact section size.
@@ -145,8 +145,8 @@ def main():
     parser.add_argument("uid", type=int, nargs="?")
     parser.add_argument("--inventory", action="store_true",
                         help="List the validated uniform prefix and first nonuniform offset")
-    parser.add_argument("--resync-window", type=int, default=8192,
-                        help="After prefix stops, probe this many bytes for candidate record headers")
+    parser.add_argument("--resync-window", type=int, default=65536,
+                        help="After prefix stops, probe this many bytes for candidate record headers (L1S2 needs 17568)")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     if not 0 <= args.resync_window <= 65536:

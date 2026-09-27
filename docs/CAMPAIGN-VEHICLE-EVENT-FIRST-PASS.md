@@ -84,6 +84,26 @@ render publication, checkpoint history and a stock-memory budget before
 campaign drilling can be called functional. The existing 220-frame drive
 replay recorded no drill contact; it proves boarding/driving/exit only.
 
+The installed L1S2 editor source narrows the first excavation target. A
+read-only decode of all 389 declared brush records places the authored
+Driller UID 8122 at `(109.0512,-3.57238,-12.2843)` inside the bounds of
+brush UID 8117, `(101.5,-4.88,-17.5)..(116,1.12,4.5)`. UID 8117 has
+52 source faces and 70 compiled faces, all in room 8, linked by the exact
+face-source words. `python tools/probe_campaign_geomod_brush.py L1S2.rfl 8117`
+confirms a closed convex cavity but not a convex solid; its operation word is
+2, so treating it as one small solid post would be unjustified. Nearby UIDs
+8120/8121 are operation-0 brushes, each with 26 source faces and 25 compiled
+room-8 faces. This identifies
+specific source owners and a room for a campaign-world cutter, but does not
+establish the drill bit's first hit, cut admissibility, or a valid Boolean
+publication strategy. `python tools/probe_campaign_geomod_brush.py L1S2.rfl
+--inventory` now consumes all 839,569 editor-section bytes across 389 brushes;
+38 records have opaque sidecars, the largest 17,568 bytes at UID 245. These
+sidecars are bounded by validated successor headers, not decoded as Boolean
+operations. A complete owner must preserve the
+neighboring compiled face identities and room collision, then be exercised
+by actual Driller contact, cut, save/reload and stock-memory checks.
+
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and
 checkpoint seat pose agree. The ordinary loader stages the occupied host and
