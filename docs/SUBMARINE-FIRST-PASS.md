@@ -1,6 +1,6 @@
 # Submarine first pass
 
-Current scope is an underwater DEV fixture that defaults to enemy-free; an opt-in submerged guard checks live torpedo targeting. Campaign vehicle completion remains open.
+Current scope includes an underwater DEV fixture that defaults to enemy-free, an opt-in submerged guard for torpedo targeting, and one boardable authored L5S3 submarine. Wider campaign vehicle completion remains open.
 
 ## Authored inputs
 
@@ -46,4 +46,4 @@ The earlier fixture's detonation was a world contact whose blast damaged the gua
 
 ## Authored campaign placement
 
-Direct installed RFL inventory (`tools/inventory_campaign_vehicles.py`) finds nine `sub` entities in L5S3, L5S4, L10S2, L10S3 and L10S4. L5S3 UID3977 at (105.14,65.54,10.02) is 11.1 units from that level's player start; its other two submarines are 114.3 and 123.8 units away. The one-host campaign adapter now selects UID3977 and uses its authored pose instead of the DEV fixture pose. A neutral 80-frame stock-64-MiB Xbox load in `artifacts/xemu/submarine-campaign-20260927-164123` registered the host at the exact authored position with 5,779 free pages (22.57MiB); disc flags were restored. This proves level loading and host registration, not boarding, combat or natural route progression. The other eight submarine instances and levels remain open; current scene ownership can represent only one vehicle host at a time.
+Direct installed RFL inventory (`tools/inventory_campaign_vehicles.py`) finds nine `sub` entities in L5S3, L5S4, L10S2, L10S3 and L10S4. The closest L5S3 entity to the player start, UID3977 at (105.14,65.54,10.02), loaded natively but rejected a staged Use press at its full-body water gate (`artifacts/xemu/submarine-campaign-20260927-164720`). Its authored links include `Turn_Off_Physics`, `Make_Invulnerable` and `Detach`; proximity alone does not establish it as a boardable host. UID3963 at (30.74,-16.49,8.31) instead has authored `Headlamp_State` and `Goto_Player` links. The one-host campaign adapter now selects this underwater instance and uses its authored pose. A bounded 80-frame stock-64-MiB Xbox run in `artifacts/xemu/submarine-campaign-20260927-165038` staged the player three units away through the existing process-local actor-start hook, boarded once, launched one torpedo, retained 19 rounds and had 5,895 free pages (23.03MiB); disc flags were restored. This verifies board/fire in the authored level, not travel from the natural player start or the remaining eight submarine instances. Current scene ownership can represent only one vehicle host at a time.

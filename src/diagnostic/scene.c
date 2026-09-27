@@ -315,7 +315,7 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
     static const struct {const char *level,*class_name;int32_t uid;uint32_t kind;} vehicles[]={
         {"L1S2.rfl","Driller01",8122,1},
         {"L1S3.rfl","APC",9627,2},
-        {"L5S3.rfl","sub",3977,4},
+        {"L5S3.rfl","sub",3963,4},
         {"L12S1.rfl","Jeep01",7629,3}};
     unsigned i,j;rf_level_entity vehicle;int status;
     /* Original level setup 435aeb resets gravity independently of jump strength. */

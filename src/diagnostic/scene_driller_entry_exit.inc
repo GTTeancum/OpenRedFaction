@@ -1,7 +1,7 @@
 #ifndef SCENE_DRILLER_ENTRY_EXIT_INC
 #define SCENE_DRILLER_ENTRY_EXIT_INC
 /* Include after driller resources/physics, vehicle possession and collision.
- * DEV-only single-driver ownership. Side/front/back exit order is a port policy,
+ * Single-driver ownership. Side/front/back exit order is a port policy,
  * not recovered exit-tag semantics. Full body sweeps use world + movers; the
  * enemy-free profile is required (other actors are not exit obstacles here). */
 typedef struct scene_driller_entry_exit {
@@ -19,6 +19,7 @@ typedef struct scene_driller_entry_exit {
         const scene_vehicle_pose *,const scene_vehicle_pose *,uint32_t *);
     void *water_context;
 } scene_driller_entry_exit;
+uint32_t rf_scene_submarine_boarding[8]; /* attempts,range,dry,solid,allowed,player xyz bits */
 static void scene_driller_point(const float origin[3],const float basis[9],const float local[3],float out[3])
 {
     uint32_t i,j;for(i=0;i<3;++i){out[i]=origin[i];for(j=0;j<3;++j)out[i]+=local[j]*basis[j*3+i];}
@@ -64,9 +65,16 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
     rf_collision_body_sphere spheres[64];float d2=0,range=c->resource->physics.authored.use_radius;uint32_t i;int status;
     *allowed=0;
     if(rf_entity_lookup(c->entities,(int32_t)player)!=c->player_view || host!=c->registration.handle)return RF_NOT_FOUND;
+    if(c->resource->physics.authored.movement_index==7){
+        ++rf_scene_submarine_boarding[0];
+        memcpy(rf_scene_submarine_boarding+5,c->player_body->state.position,12);
+    }
     for(i=0;i<3;++i){float d=c->player_body->state.position[i]-c->physics->state.position[i];d2+=d*d;}
     if(!strcmp(c->resource->model,"Jeep01.v3m"))printf("JEEP_USE distance %.6g radius %.6g player %.6g %.6g %.6g host %.6g %.6g %.6g\n",sqrtf(d2),range,c->player_body->state.position[0],c->player_body->state.position[1],c->player_body->state.position[2],c->physics->state.position[0],c->physics->state.position[1],c->physics->state.position[2]);
-    if(!isfinite(range) || range<=0 || d2>range*range)return RF_OK;
+    if(!isfinite(range) || range<=0 || d2>range*range){
+        if(c->resource->physics.authored.movement_index==7)++rf_scene_submarine_boarding[1];
+        return RF_OK;
+    }
     status=scene_driller_entry_seat(c,host,&seat);if(status)return status;
     status=scene_driller_player_shape(c,&query,spheres);if(status)return status;
     if(c->resource->physics.authored.movement_index==7){
@@ -74,12 +82,15 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
         if(!c->water_path)return RF_RANGE;
         memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=c->water_path(c->water_context,spheres,query.count,&from,&seat,&wet);
-        if(status || !wet)return status;
+        if(status || !wet){if(!wet)++rf_scene_submarine_boarding[2];return status;}
     }
     if(!strcmp(c->resource->model,"Jeep01.v3m")){
         scene_vehicle_pose from;memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=scene_vehicle_seated_path(c,&from,&seat,allowed);
     }else status=scene_vehicle_collision_exit_path(&query,c->player_body->state.position,seat.position,c->player_body->state.orientation,allowed);
+    if(c->resource->physics.authored.movement_index==7 && !status){
+        ++rf_scene_submarine_boarding[*allowed?4:3];
+    }
     if(!strcmp(c->resource->model,"Jeep01.v3m"))printf("JEEP_ENTRY_SWEEP %d %u target %.6g %.6g %.6g\n",status,*allowed,seat.position[0],seat.position[1],seat.position[2]);
     return status;
 }
@@ -156,6 +167,7 @@ static int scene_driller_entry_exit_open(scene_driller_entry_exit *c,rf_object_r
     if(!c || !objects || !entities || !player || !body || !resource || !physics || !collision || !eye_offset || c->registration.view)return RF_RANGE;
     if(rf_entity_lookup(entities,player->handle)!=player)return RF_NOT_FOUND;
     memset(c,0,sizeof(*c));c->objects=objects;c->entities=entities;c->player_view=player;c->player_body=body;
+    if(resource->physics.authored.movement_index==7)memset(rf_scene_submarine_boarding,0,sizeof(rf_scene_submarine_boarding));
     c->resource=resource;c->physics=physics;c->collision=*collision;memcpy(c->eye_offset,eye_offset,12);
     c->view.handle=-1;c->view.type=0;c->view.class_type=(int32_t)resource->physics.authored.use_kind;
     c->view.linked_handle=-1;c->view.weapons[0]=c->view.weapons[1]=-1;c->view.base_speed=resource->movement.speed;

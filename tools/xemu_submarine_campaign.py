@@ -3,6 +3,7 @@
 The replay is neutral and bounded; it does not traverse the campaign or use
 the PC game, screenshots, or host input.
 """
+import argparse
 import datetime
 import json
 import math
@@ -18,7 +19,16 @@ from xemu_session_guard import require_no_project_xemu
 ROOT = Path(__file__).resolve().parents[1]
 DISC = ROOT / 'build/xbox/disc'
 FRAMES = 80
-EXPECTED = (105.1426773071289, 65.54188537597656, 10.020004272460938)
+EXPECTED = (30.736595153808594, -16.48705291748047, 8.313613891601562)
+
+
+def replay(board):
+    rows = []
+    for frame in range(FRAMES):
+        rows.append(struct.pack('<5f7I', 0, 0, 0, 0, 0,
+                                0, 0, int(board and frame == 12),
+                                int(board and frame == 40), 0, 0, 0))
+    return b'RFI6' + struct.pack('<I', 48) + b''.join(rows)
 
 
 def build(folder, phase):
@@ -30,6 +40,10 @@ def build(folder, phase):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--board', action='store_true',
+                        help='Stage beside authored UID3963, board and launch one torpedo')
+    args = parser.parse_args()
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
@@ -41,20 +55,25 @@ def main():
     names.add('player-control.flag')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox L5S3 authored submarine host'}
+    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox L5S3 authored submarine host',
+              'board_fixture': args.board}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') + b'L5S3.rfl'.ljust(64, b'\0'))
+        if args.board:
+            (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 3963))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(
-            b'RFI6' + struct.pack('<I', 48) + bytes(FRAMES * 48))
+        (DISC / 'player-replay.bin').write_bytes(replay(args.board))
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
                           extra_symbols={'rf_scene_vehicle_enabled': 1,
-                                         'rf_scene_vehicle_state': 16},
+                                         'rf_scene_vehicle_state': 16,
+                                         'rf_scene_submarine_weapon': 8,
+                                         'rf_scene_submarine_boarding': 8,
+                                         'rf_scene_player_swim': 12},
                           allow_guest_error=True)
         result['guest'] = guest
         if guest['guest_phase'] & 0x80000000:
@@ -65,11 +84,19 @@ def main():
         position = [struct.unpack('<f', struct.pack('<I', word))[0]
                     for word in vehicle[6:9]]
         result['host_position'] = position
+        result['boarding'] = guest['extra']['rf_scene_submarine_boarding']
+        result['swim'] = guest['extra']['rf_scene_player_swim']
         if enabled != 4 or vehicle[0] != FRAMES or not vehicle[12]:
             raise RuntimeError(f'Authored submarine was not registered: {enabled}, {vehicle}')
         if any(not math.isfinite(value) or abs(value - expected) > 1
                for value, expected in zip(position, EXPECTED)):
             raise RuntimeError(f'Unexpected authored submarine position: {position}')
+        if args.board:
+            weapon = guest['extra']['rf_scene_submarine_weapon']
+            if vehicle[1] != 1 or vehicle[3] != 1:
+                raise RuntimeError(f'Authored submarine was not boarded: {vehicle}')
+            if weapon[1] != 1 or weapon[7] != 19:
+                raise RuntimeError(f'Authored submarine did not launch a torpedo: {weapon}')
         result['result'] = 'PASS'
     finally:
         for name, data in original.items():
