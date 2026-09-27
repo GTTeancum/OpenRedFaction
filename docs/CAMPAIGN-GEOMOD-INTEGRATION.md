@@ -39,6 +39,18 @@ faces and 2 of brush 7778's 488; expanding those bounds by the blast's
 count, not proof that the full room cut fits the current scratch budget. A
 remote-box check confirms that infinite planes alone do not create fragments.
 
+The shared C editor-brush reader now opens UID 8755 and UID 7778 directly from
+the installed L1S1 section without requiring decoded lengths for unrelated
+opaque sidecars. It owns world-space collision faces and source-word IDs in
+5,104 and 57,280 resident bytes respectively; its temporary section buffer
+is released after selection. A 10-by-10 horizontal patch centered at UID 9456
+clips against both actual closed air sources on PC within a 4,096-vertex / 1,024-
+fragment work bank: 67.6862 square units retained in 97 fragments / 385
+vertices. This demonstrates a bounded real-source CSG operation, not a room
+cut: the compiled room's rendered/collision faces are not yet replaced, and
+the reader has only been exercised at runtime on PC. Its source compiles in
+the NXDK Xbox build; native loading and stock-memory validation remain.
+
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's
 CSG, then publish matching render, collision, material and player-support
