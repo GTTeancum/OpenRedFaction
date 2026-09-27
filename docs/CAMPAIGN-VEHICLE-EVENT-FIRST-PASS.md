@@ -156,8 +156,16 @@ fresh-load harness run timed out during section startup before snapshot loading
 began, then the next run passed, so startup reliability still needs attention.
 The ordinary loader admits a saved cutter head within its edited surface only
 when the six chassis spheres still clear terrain and all eight spheres clear
-movers, props and other actors. Wider repeated cuts, continued post-load
-driving, other terrain owners and visual content remain open. See
+movers, props and other actors. A further 180-frame process-contained drive
+from that ordinary save moves the Driller about 3 units on PC and stock-64-MiB
+Xbox; the loaded vehicle, drill and unchanged paired terrain counters match
+exactly, with 3,315 free physical pages at the native endpoint. The text-only
+report is `artifacts/xemu/render-20260927-104501/report.json`. Repeated longer
+replay attempts failed before loading the save when the harness's zero-byte
+optical load marker returned an I/O error. Writing a one-byte marker let the
+same 180-frame continuation pass; the game's flag reader checks existence, not
+contents. Wider repeated cuts, other terrain owners, occasional section
+startup delay and visual content remain open. See
 `docs/research/L1S2-DRILLER-SECOND-CUT-20260927.md` for the measurements.
 
 The earlier single-source first cut survives an ordinary campaign quick-save and a fresh load on

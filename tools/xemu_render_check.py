@@ -458,8 +458,8 @@ def main():
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
         if args.quick_save_frame is not None or args.quick_load_frame is not None:
             (disc/'campaign-quick-actions.bin').write_bytes(struct.pack('<2I',*[0xffffffff if v is None else v for v in (args.quick_save_frame,args.quick_load_frame)]))
-        if args.world_checkpoint_save:(disc/'world-hdd-save.flag').write_bytes(b'')
-        if args.world_checkpoint_load:(disc/'world-hdd-load.flag').write_bytes(b'')
+        if args.world_checkpoint_save:(disc/'world-hdd-save.flag').write_bytes(b'1')
+        if args.world_checkpoint_load:(disc/'world-hdd-load.flag').write_bytes(b'1')
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
         if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
         if args.cavity_seam_test:(disc/'cavity-seam.flag').write_bytes(b'')
@@ -995,6 +995,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['registers'] = monitor.command('human-monitor-command', {'command-line': 'info registers'})
                 report['failure_telemetry'] = {name: words(monitor, symbol(name), count) for name, count in
                     [('rf_scene_world_checkpoint_state',10), ('rf_xbox_checkpoint_storage_state',8), ('rf_xbox_renderer_stage',4), ('rf_xbox_load_stage',1), ('rf_xbox_level_transitions',4), ('rf_scene_level_transition',20), ('rf_scene_endgame',6), ('rf_diagnostic', 58), ('rf_animation_progress', 4), ('rf_scene_profile_stage', 2),
+                     ('rf_scene_campaign_load_stage',1), ('rf_scene_npc_bodies',6), ('rf_preview_failure',8), ('rf_scene_world_texture_budget',4),
                      ('rf_xbox_retained_world', 8), ('rf_xbox_retained_models', 8), ('rf_xbox_retained_model_kinds', 6)]}
             except Exception as capture_error:
                 report['capture_error'] = repr(capture_error)
