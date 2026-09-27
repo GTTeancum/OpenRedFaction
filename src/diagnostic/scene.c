@@ -315,6 +315,7 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
     static const struct {const char *level,*class_name;int32_t uid;uint32_t kind;} vehicles[]={
         {"L1S2.rfl","Driller01",8122,1},
         {"L1S3.rfl","APC",9627,2},
+        {"L5S3.rfl","sub",3977,4},
         {"L12S1.rfl","Jeep01",7629,3}};
     unsigned i,j;rf_level_entity vehicle;int status;
     /* Original level setup 435aeb resets gravity independently of jump strength. */
@@ -17488,7 +17489,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
         }
         /* Authored empty test/MP rooms can omit the NPC section entirely. */
-        if(!status && collision && campaign_spawn && rf_scene_vehicle_enabled==4) {
+        if(!status && collision && campaign_spawn && rf_scene_vehicle_enabled==4 && rf_scene_dev_room_enabled) {
             /* The default Sub DEV room is enemy-free; mode7 alone adds one
              * submerged target for the native torpedo gameplay check. */
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"L5S3.rfl") ||

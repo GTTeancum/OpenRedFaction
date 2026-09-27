@@ -50,9 +50,11 @@ Current platform priority (user direction,2026-09-27): Xbox implementation and s
 
 - Fighter: Boarding, hover flight, cockpit, finite minigun/forward rockets and exit pass PC/Xbox with exact gameplay state and11.64MiB free; live seated save/reload/exit now passes PC/Xbox with identical1228-byte checkpoints and11.57MiB free; campaign placement, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
-- Submarine saves/guidance: Stock-64-MiB Xbox now saves/reloads the occupied DEV submarine and guides a torpedo into direct contact with a submerged hostile guard; active-shot saves, campaign placement and wider pursuit remain open.
+- Submarine saves/guidance: Stock-64-MiB Xbox saves/reloads the occupied DEV submarine and guides a torpedo into a submerged guard; active-shot saves and wider pursuit remain open.
 
-- Submarine: Boarding, underwater movement/ascent, torpedo launch/direct NPC impact/blast, swimming exit and occupied ordinary save/reload pass Xbox checks with20.03MiB free; active-shot saves, wider enemy pursuit, underwater GeoMod, campaign placement and visual/audio refinement remain (docs/SUBMARINE-FIRST-PASS.md).
+- Submarine campaign placement: L5S3's authored UID3977 host now loads on stock-64-MiB Xbox with22.57MiB free; boarding there, the other eight authored submarine instances, underwater GeoMod and visual/audio refinement remain open (docs/SUBMARINE-FIRST-PASS.md).
+
+- Submarine: Boarding, underwater movement/ascent, torpedo launch/direct NPC impact/blast, swimming exit and occupied ordinary save/reload pass Xbox DEV checks with20.03MiB free; active-shot saves and wider enemy pursuit remain open (docs/SUBMARINE-FIRST-PASS.md).
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
