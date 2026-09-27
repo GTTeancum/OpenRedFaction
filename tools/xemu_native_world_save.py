@@ -1,0 +1,233 @@
+"""Bounded Xbox-only ordinary save/reload check on the owned test HDD.
+
+No PC executable, screenshot, host input, campaign route, or user HDD is used.
+The guest saves an authored L1S2 spawn, then a fresh guest boot loads it.
+"""
+
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import socket
+import struct
+import subprocess
+import time
+
+from xemu_guest_snapshot import words
+from xemu_session_guard import require_no_project_xemu
+from xemu_smoke import Monitor
+from xemu_world_hdd import prepare
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DISC = ROOT / 'build/xbox/disc'
+EMULATOR = Path('C:/Games/Emulators/Xemu')
+FLAGS = (
+    'campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin',
+    'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin',
+    'campaign-setup.bin', 'campaign-goal.bin', 'campaign-goto.bin',
+    'campaign-exit-start.bin', 'campaign-trigger-start.bin',
+    'campaign-quick-actions.bin', 'player-replay.bin',
+    'player-control-frames.txt', 'dev-room.flag', 'vehicle-test.flag',
+    'dev-npc.flag', 'firearms-test.flag', 'fusion-test.flag',
+    'world-hdd-save.flag', 'world-hdd-load.flag',
+)
+
+
+def build(run, name):
+    with (run / f'{name}-build.log').open('wb') as log:
+        subprocess.run(['C:/msys64/usr/bin/bash.exe', '--noprofile', '--norc',
+                        'tools/build-xbox.sh', '--repack'], cwd=ROOT,
+                       env=dict(os.environ, MSYSTEM='CLANG64'),
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+
+
+def address(mapping, name):
+    match = re.search(r'_' + re.escape(name) + r'\s+([0-9a-fA-F]+)', mapping)
+    if not match:
+        raise RuntimeError('Missing Xbox symbol ' + name)
+    return int(match.group(1), 16)
+
+
+def run_guest(run, name, hdd, frames, seconds):
+    phase_dir = run / name
+    phase_dir.mkdir()
+    shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
+    config = phase_dir / 'xemu.toml'
+    config.write_text(f'''[general]
+show_welcome = false
+skip_boot_anim = true
+[general.updates]
+check = false
+[input]
+auto_bind = false
+background_input_capture = false
+[net]
+enable = false
+[audio]
+use_dsp = true
+[sys.files]
+bootrom_path = '{(EMULATOR / 'MCPX/mcpx_1.0.bin').as_posix()}'
+flashrom_path = '{(EMULATOR / 'BIOS/xbox-4627_debug.bin').as_posix()}'
+eeprom_path = '{(phase_dir / 'eeprom.bin').as_posix()}'
+hdd_path = '{hdd.as_posix()}'
+dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
+''')
+    with socket.socket() as reservation:
+        reservation.bind(('127.0.0.1', 0))
+        port = reservation.getsockname()[1]
+    command = [str(EMULATOR / 'xemu.exe'), '-config_path', str(config),
+               '-m', '64', '-display', 'xemu', '-audio', 'none',
+               '-qmp', f'tcp:127.0.0.1:{port},server=on,wait=off']
+    mapping = (ROOT / 'build/xbox/main.map').read_text()
+    symbols = {key: address(mapping, key) for key in
+               ('rf_diagnostic', 'rf_scene_world_checkpoint_state',
+                'rf_xbox_checkpoint_storage_state', 'rf_scene_player_life')}
+    monitor = process = None
+    try:
+        require_no_project_xemu(ROOT)
+        startup = None
+        if os.name == 'nt':
+            startup = subprocess.STARTUPINFO()
+            startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startup.wShowWindow = 0
+        with (phase_dir / 'stdout.log').open('wb') as out, (phase_dir / 'stderr.log').open('wb') as err:
+            process = subprocess.Popen(command, cwd=phase_dir,
+                                       env=dict(os.environ, SDL_AUDIO_DRIVER='dummy'),
+                                       stdout=out, stderr=err, startupinfo=startup,
+                                       creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            deadline = time.monotonic() + seconds
+            last = None
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    raise RuntimeError(f'{name}: XEMU exited {process.returncode}')
+                if monitor is None:
+                    try:
+                        monitor = Monitor(port)
+                    except OSError:
+                        time.sleep(.5)
+                        continue
+                    memory = monitor.command('query-memory-size-summary')
+                    if memory.get('base-memory') != 64 * 1024 * 1024:
+                        raise RuntimeError(f'{name}: not stock 64 MiB')
+                try:
+                    diagnostic = words(monitor, symbols['rf_diagnostic'], 58)
+                except RuntimeError as exc:
+                    if 'received 0' not in str(exc):
+                        raise
+                    time.sleep(.5)
+                    continue
+                if diagnostic[0] != 0x52464447:
+                    time.sleep(.5)
+                    continue
+                stage = (diagnostic[2], diagnostic[37] // 30)
+                if stage != last:
+                    print(f'{name}: phase {stage[0]}, frame {diagnostic[37]}', flush=True)
+                    last = stage
+                if diagnostic[2] & 0x80000000:
+                    raise RuntimeError(f'{name}: guest error {diagnostic[2]:08x}')
+                if diagnostic[2] == 5:
+                    break
+                time.sleep(.5)
+            else:
+                raise TimeoutError(f'{name}: XEMU did not finish in {seconds}s')
+            monitor.command('stop')
+            if diagnostic[37] != frames:
+                raise RuntimeError(f'{name}: expected {frames} frames, got {diagnostic[37]}')
+            state = words(monitor, symbols['rf_scene_world_checkpoint_state'], 10)
+            storage = words(monitor, symbols['rf_xbox_checkpoint_storage_state'], 8)
+            life = words(monitor, symbols['rf_scene_player_life'], 8)
+            result = dict(memory_bytes=64 * 1024 * 1024, frames=diagnostic[37],
+                          free_pages=diagnostic[44], checkpoint_state=state,
+                          storage_state=storage, player_life=life)
+            (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+            if not 0 < result['free_pages'] <= 16384 or life[2]:
+                raise RuntimeError(f'{name}: memory exhausted or player dead')
+            return result
+    finally:
+        if monitor:
+            try:
+                monitor.command('quit')
+            except (OSError, RuntimeError):
+                pass
+            monitor.close()
+        if process:
+            try:
+                process.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                process.wait(timeout=8)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--frames', type=int, default=64)
+    parser.add_argument('--seconds', type=int, default=180)
+    args = parser.parse_args()
+    if not 32 <= args.frames <= 600 or not 30 <= args.seconds <= 3600:
+        parser.error('Require 32..600 frames and 30..3600 seconds')
+    require_no_project_xemu(ROOT)
+    base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
+    if not base.is_file():
+        raise RuntimeError('Missing isolated XEMU test HDD base')
+    hdd = prepare(ROOT, base)
+    run = ROOT / 'artifacts/xemu' / ('native-world-' +
+          datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+    run.mkdir(parents=True)
+    flag_names = set(FLAGS) | {path.name for path in DISC.glob('campaign-*') if path.is_file()}
+    original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
+                for name in sorted(flag_names)}
+    (run / 'disc-restore.json').write_text(json.dumps({
+        name: value.hex() if value is not None else None
+        for name, value in original.items()}, indent=2) + '\n')
+    report = dict(result='FAIL', scope='Xbox-only ordinary L1S2 spawn save/reload',
+                  hdd=str(hdd), frames=args.frames, phases={})
+    try:
+        for name in original:
+            (DISC / name).unlink(missing_ok=True)
+        (DISC / 'campaign-spawn.flag').write_bytes(b'')
+        (DISC / 'campaign-level.bin').write_bytes(
+            b'levels1.vpp'.ljust(64, b'\0') + b'L1S2.rfl'.ljust(64, b'\0'))
+        (DISC / 'player-replay.bin').write_bytes(
+            b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44))
+        (DISC / 'world-hdd-save.flag').write_bytes(b'1')
+        build(run, 'save')
+        saved = run_guest(run, 'save', hdd, args.frames, args.seconds)
+        report['phases']['save'] = saved
+        save_state = saved['checkpoint_state']
+        if save_state[9] != 1 or save_state[3] != 0 or not 320 <= save_state[4] <= 110524:
+            raise RuntimeError('Xbox ordinary save failed')
+        (DISC / 'world-hdd-save.flag').unlink()
+        (DISC / 'world-hdd-load.flag').write_bytes(b'1')
+        build(run, 'load')
+        loaded = run_guest(run, 'load', hdd, args.frames, args.seconds)
+        report['phases']['load'] = loaded
+        load_state = loaded['checkpoint_state']
+        if load_state[8] != 1 or load_state[0] != 0 or load_state[1] != save_state[4]:
+            raise RuntimeError('Xbox ordinary reload failed or loaded a different payload')
+        if loaded['storage_state'][4:7] != saved['storage_state'][4:7]:
+            raise RuntimeError('Xbox ordinary reload selected a different generation or slot')
+        report['result'] = 'PASS'
+    finally:
+        for name, data in original.items():
+            if data is None:
+                (DISC / name).unlink(missing_ok=True)
+            else:
+                (DISC / name).write_bytes(data)
+        build(run, 'restore')
+        report['disc_restored'] = all(
+            ((DISC / name).read_bytes() if (DISC / name).exists() else None) == data
+            for name, data in original.items())
+        if not report['disc_restored']:
+            report['result'] = 'FAIL'
+        (run / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+        print(run, report['result'], flush=True)
+        if not report['disc_restored']:
+            raise RuntimeError('Xbox test disc flags were not restored')
+
+
+if __name__ == '__main__':
+    main()
