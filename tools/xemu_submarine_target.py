@@ -4,6 +4,7 @@ The guard is opt-in and process-contained. No PC game, images, or host input.
 """
 import datetime
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -63,6 +64,7 @@ def main():
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
                           extra_symbols={'rf_scene_vehicle_state': 16,
                                          'rf_scene_submarine_weapon': 8,
+                                         'rf_scene_submarine_impact_state': 10,
                                          'rf_scene_submarine_homing_state': 8},
                           allow_guest_error=True)
         result['guest'] = guest
@@ -71,6 +73,8 @@ def main():
                                f'load stage {guest["campaign_load_stage"]}')
         vehicle = guest['extra']['rf_scene_vehicle_state']
         torpedo = guest['extra']['rf_scene_submarine_weapon']
+        impact = guest['extra']['rf_scene_submarine_impact_state']
+        result['impact'] = impact
         homing = guest['extra']['rf_scene_submarine_homing_state']
         result['homing'] = homing
         if vehicle[3] != 1 or torpedo[1] != 1 or torpedo[7] != 19:
@@ -79,8 +83,10 @@ def main():
             raise RuntimeError(f'Wet hostile acquisition/steering failed: {homing}')
         if not torpedo[2] or not torpedo[6]:
             raise RuntimeError(f'Torpedo did not hit and detonate: {torpedo}')
+        if impact[1] != 1:
+            raise RuntimeError(f'Torpedo did not make direct NPC contact: {impact}')
         health = struct.unpack('<f', struct.pack('<I', homing[5]))[0]
-        if not 0 <= health < 50:
+        if not math.isfinite(health) or health >= 50:
             raise RuntimeError(f'Submerged guard took no damage: {health}')
         result['target_health'] = health
         result['result'] = 'PASS'

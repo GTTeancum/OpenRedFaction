@@ -17378,7 +17378,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
         record->orientation[1][1]=1;record->orientation[2][0]=1;
         if(rf_scene_dev_npc_enabled==5){record->orientation[0][2]=1;record->orientation[2][0]=-1;}
         if(rf_scene_dev_npc_enabled==7){
-            record->position[0]=-25.f;record->position[1]=-17.f;record->position[2]=5.f;
+            record->position[0]=-24.7f;record->position[1]=-15.9f;record->position[2]=5.f;
             record->orientation[0][2]=1;record->orientation[2][0]=-1;
         }
     }
