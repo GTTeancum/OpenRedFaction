@@ -1,5 +1,6 @@
 #include "rf/editor_brush.h"
 #include "rf/geomod_solid_clip.h"
+#include "rf/geomod_campaign_wall.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,7 +12,7 @@ int main(int argc,char **argv)
     rf_editor_brush owned[2]={{0}};
     static const uint32_t uids[2]={8755,7778},counts[2]={44,488};
     uint32_t i,j,k;int status;
-    if(argc!=2)return 2;
+    if(argc!=3)return 2;
     status=rf_vpp_open(&archive,argv[1]);if(status)return 3;
     status=rf_level_open(&level,&archive,"L1S1.rfl");if(status)return 4;
     status=rf_geometry_open(&geometry,&level,8*1024*1024);if(status)return 13;
@@ -93,6 +94,54 @@ int main(int argc,char **argv)
         if(!isfinite(area) || fabs(area-67.6862)>0.02)return 12;
         printf("PASS L1S1 10x10 patch outside air union: area %.4f, fragments %u, vertices %u\n",
             area,result.fragment_count,result.vertex_count);
+        {
+            static rf_geomod_template shape;
+            static rf_geomod_vertex cutter_vertices[RF_GEOMOD_STAR_VERTEX_LIMIT],wall_vertices[4096];
+            static rf_geomod_face cutter_faces[RF_GEOMOD_STAR_FACE_LIMIT],wall_faces[1024];
+            static const float center[3]={36.7616f,4.0061f,44.425f};
+            static const float basis[9]={1,0,0,0,1,0,0,0,1};
+            rf_geomod_mesh_view cutter,wall;float kernel[3];
+            status=rf_geomod_template_load(argv[2],&shape);if(status)return 19;
+            status=rf_geomod_template_mesh(&shape,center,basis,5.f,7,
+                cutter_vertices,cutter_faces,kernel,&cutter);if(status)return 20;
+            status=rf_geomod_campaign_wall_build(&cutter,sources,2,&work,
+                wall_vertices,4096,wall_faces,1024,&wall);
+            if(status){fprintf(stderr,"L1S1 wall build status %d\n",status);return 21;}
+            if(wall.face_count!=368 || wall.vertex_count!=1447)return 22;
+            for(i=0;i<wall.face_count;i++){
+                const rf_geomod_face *f=wall.faces+i;
+                const rf_geomod_vertex *v=wall.vertices+f->first;
+                double normal[3]={0},toward=0;uint32_t corner,axis;
+                if(f->material!=7 || f->source_face!=UINT32_MAX ||
+                   f->count<3 || f->first+f->count>wall.vertex_count)return 23;
+                for(corner=1;corner+1<f->count;corner++){
+                    double a[3],b[3];
+                    for(axis=0;axis<3;axis++){
+                        a[axis]=(double)v[corner].position[axis]-v[0].position[axis];
+                        b[axis]=(double)v[corner+1].position[axis]-v[0].position[axis];
+                    }
+                    for(axis=0;axis<3;axis++)normal[axis]+=
+                        a[(axis+1)%3]*b[(axis+2)%3]-a[(axis+2)%3]*b[(axis+1)%3];
+                }
+                for(axis=0;axis<3;axis++)toward+=normal[axis]*(kernel[axis]-v[0].position[axis]);
+                if(!isfinite(toward) || toward<=1e-10)return 24;
+            }
+            printf("PASS L1S1 authored crater wall faces=%u vertices=%u radius=5\n",
+                wall.face_count,wall.vertex_count);
+            {
+                static rf_collision_face collision_faces[1024];
+                static rf_collision_face_filter filters[1024];
+                static float positions[4096][3];rf_collision_tree tree={0};
+                for(i=0;i<wall.face_count;i++)filters[i].face_flags=256;
+                status=rf_geomod_collision_faces(&wall,filters,positions,4096,
+                    collision_faces,1024);
+                if(status){fprintf(stderr,"L1S1 wall collision status %d\n",status);return 25;}
+                status=rf_collision_tree_open(collision_faces,wall.face_count,1024*1024,&tree);
+                if(status){fprintf(stderr,"L1S1 wall tree status %d\n",status);return 26;}
+                printf("PASS L1S1 staged wall collision tree bytes=%u\n",tree.allocated_bytes);
+                rf_collision_tree_close(&tree);
+            }
+        }
     }
     for(i=0;i<2;i++)rf_editor_brush_close(owned+i);
     rf_geometry_close(&geometry);

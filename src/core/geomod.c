@@ -2988,6 +2988,19 @@ static int template_prepare(const rf_geomod_template *shape,const float center[3
     for(i=0;i<shape->face_count;i++)faces[i]=(rf_geomod_face){i*3,3,material,UINT32_MAX};
     return RF_OK;
 }
+int rf_geomod_template_mesh(const rf_geomod_template *shape,const float center[3],
+    const float basis[9],float radius,uint32_t material,
+    rf_geomod_vertex *vertices,rf_geomod_face *faces,float kernel[3],rf_geomod_mesh_view *out)
+{
+    rf_geomod_mesh_view mesh;int status;
+    if(!shape || !vertices || !faces || !kernel || !out ||
+       !isfinite(radius) || radius<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_RANGE;
+    status=template_prepare(shape,center,basis,radius/shape->radius,material,NULL,0,vertices,faces,kernel);
+    if(status)return status;
+    mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
+    status=star_mesh_planes(&mesh,kernel,NULL);if(status)return status;
+    *out=mesh;return RF_OK;
+}
 int rf_geomod_template_bounds(const rf_geomod_template *shape,const float center[3],const float basis[9],
     float scale,const rf_geomod_shallow_limit *limits,uint32_t limit_count,float minimum[3],float maximum[3])
 {

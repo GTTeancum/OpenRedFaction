@@ -548,6 +548,13 @@ int rf_geomod_template_load(const char *path,rf_geomod_template *out);
  * cutter vertices used by CSG. Validates the cutter; errors preserve bounds. */
 int rf_geomod_template_bounds(const rf_geomod_template *,const float center[3],const float basis[9],
     float scale,const rf_geomod_shallow_limit *,uint32_t count,float minimum[3],float maximum[3]);
+/* Share the exact template transform with nonconvex campaign CSG. Caller owns
+ * fixed arrays of STAR_VERTEX_LIMIT / STAR_FACE_LIMIT; output borrows them.
+ * Radius is in world units, unlike the scale accepted by template_bounds.
+ * This prepares geometry only and does not publish or mutate terrain. */
+int rf_geomod_template_mesh(const rf_geomod_template *,const float center[3],
+    const float basis[9],float radius,uint32_t material,
+    rf_geomod_vertex *,rf_geomod_face *,float kernel[3],rf_geomod_mesh_view *);
 /* Original radius normalization, supplied proper orthonormal row basis,
  * translated kernel, retained UVs. Material supplied by level settings. */
 int rf_geomod_terrain_cut_template(rf_geomod_terrain *terrain,const rf_geomod_template *shape,

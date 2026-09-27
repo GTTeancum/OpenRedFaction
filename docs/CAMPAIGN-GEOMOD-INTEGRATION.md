@@ -60,6 +60,18 @@ those faces intersect a particular cutter, nor publish modified faces into
 the room render and collision trees. The existing overlay can replace one
 room tree, but campaign publication must stage render and collision together.
 
+The cutter template transform is now shared with campaign CSG. With the
+installed template at UID 9456, radius 5, and the two authored air volumes,
+the shared C wall builder emits 368 inward-facing convex crater polygons / 1,447
+vertices. The PC probe checks winding toward the removed volume, material and
+face bounds, then converts those polygons to collision faces and builds a
+61,820-byte standalone collision tree within a 1 MiB limit. The same source
+compiles into the NXDK build. The tree contains only new crater walls: it is
+not yet a replacement for room 28's complete tree, and no live campaign
+render/collision state changes. The next step is to clip the existing compiled
+room faces by the cutter, merge retained surfaces with new wall polygons, and
+publish both views atomically.
+
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's
 CSG, then publish matching render, collision, material and player-support

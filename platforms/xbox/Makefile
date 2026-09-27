@@ -10,6 +10,7 @@ SHADER_OBJS += $(PROJECT_ROOT)/src/platform/xbox/solid_fragment.inl $(PROJECT_RO
 SRCS += $(PROJECT_ROOT)/src/core/geomod.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_notify.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_solid_clip.c
+SRCS += $(PROJECT_ROOT)/src/core/geomod_campaign_wall.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_piece_bank.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_subdivide.c
 SRCS += $(PROJECT_ROOT)/src/core/debris_audio.c
