@@ -88,17 +88,24 @@ static int parse(cursor *c, brush_record *b, uint32_t index) {
     for (i = 0; i < 9; i++)
         if (!isfinite(b->basis[i]))
             return RF_FORMAT;
+    for (i = 0; i < 3; i++) {
+        double length = 0;
+        for (j = 0; j < 3; j++) length += (double)b->basis[j * 3 + i] * b->basis[j * 3 + i];
+        if (fabs(length - 1) > .01) return RF_FORMAT;
+    }
     if (!take(c, 6))
         return RF_FORMAT;
     s = number(c, &b->textures);
     if (s)
         return s;
+    if (b->textures > 64) return RF_FORMAT;
     b->texture_offset = c->at;
     for (i = 0; i < b->textures; i++) {
         p = take(c, 2);
         if (!p)
             return RF_FORMAT;
         n = p[0] | (uint32_t)p[1] << 8;
+        if (!n || n > 255) return RF_FORMAT;
         if (!take(c, n))
             return RF_FORMAT;
     }
@@ -107,6 +114,7 @@ static int parse(cursor *c, brush_record *b, uint32_t index) {
     s = number(c, &b->vertices);
     if (s)
         return s;
+    if (b->vertices < 4 || b->vertices > 8192) return RF_FORMAT;
     b->vertex_offset = c->at;
     if (b->vertices > (c->size - c->at) / 12)
         return RF_FORMAT;
@@ -126,6 +134,7 @@ static int parse(cursor *c, brush_record *b, uint32_t index) {
     s = number(c, &b->faces);
     if (s)
         return s;
+    if (!b->faces || b->faces > 8192) return RF_FORMAT;
     b->face_offset = c->at;
     for (i = 0; i < b->faces; i++) {
         uint32_t stride;
@@ -134,6 +143,7 @@ static int parse(cursor *c, brush_record *b, uint32_t index) {
             return RF_FORMAT;
         n = u32(p + 52);
         stride = u32(p + 20) == UINT32_MAX ? 12 : 20;
+        if (u32(p + 16) >= b->textures || n < 3 || n > 64) return RF_FORMAT;
         if (n > (c->size - c->at) / stride || n > UINT32_MAX - b->corners)
             return RF_FORMAT;
         b->corners += n;
@@ -321,7 +331,7 @@ static int import_brush_oriented(const unsigned char *data, const brush_record *
                 s=geometry_source(g,candidate,&id);if(s)return s;
                 if(id!=source)continue;
                 s=rf_geometry_get_face(g,candidate,&visible);if(s)return s;
-                if(visible.room!=(b->uid==148?0u:3u))continue;
+                if(visible.room!=(b->uid==8123?8u:b->uid==148?0u:3u))continue;
                 s=rf_geometry_initial_collision_filter(g,candidate,0,&filter);if(s)return s;
                 if(ordinary_source(&filter)){ref=candidate;break;}
             }
@@ -454,7 +464,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     uint32_t count, i, j, k, total_faces = 0, source_index = UINT32_MAX, nnear = 0, nfaces = 0, ncorners = 0,
                              wfaces = 0, wcorners = 0, fallback = UINT32_MAX, air = 0;
     uint64_t scratch, at, peak;
-    uint32_t source_room=source_uid==148?0u:3u;
+    uint32_t source_room=source_uid==8123?8u:source_uid==148?0u:3u;
     const beam_profile *beam=find_beam_profile(source_uid);
     const post_profile *post=find_post_profile(source_uid);
     rf_geomod_authored_detail_guard guard={0},*stored_guard=NULL;
@@ -462,7 +472,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (cavity ? (source_uid!=66 && source_uid!=148) : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
+    if (cavity ? (source_uid!=66 && source_uid!=148 && source_uid!=8123) : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -482,6 +492,21 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
         s = parse(&c, records + i, i);
         if (s)
             goto done;
+        /* L1S2 detail brushes carry opaque sidecars before their actual
+         * five-word tail. Validate the successor header before skipping any
+         * bytes; exact section consumption below guards the entire stream. */
+        if (records[i].flags > 255) {
+            uint32_t nominal=c.at, next, limit;
+            if (i + 1 == count) {s=RF_FORMAT;goto done;}
+            limit=bytes-nominal<65536u?bytes:nominal+65536u;
+            for(next=nominal+1;next+4<=limit;next++) {
+                cursor probe={data,bytes,next};brush_record successor;
+                if(next<20 || u32(data+next-12)>255)continue;
+                if(!parse(&probe,&successor,i+1) && successor.uid!=records[i].uid)break;
+            }
+            if(next+4>limit){s=RF_FORMAT;goto done;}
+            records[i].flags=u32(data+next-12);c.at=next;
+        }
         if (records[i].faces > MAX_BRUSH_FACES - total_faces) {
             s = RF_RANGE;
             goto done;
@@ -500,7 +525,8 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
         goto done;
     }
     source = records + source_index;
-    if (source->flags != (cavity?2u:0u) || source->faces < 4 || source->faces > 32) {
+    if (source->flags != (cavity?2u:0u) || source->faces < 4 ||
+        source->faces > (source_uid==8123?64u:32u)) {
         s = RF_NOT_FOUND;
         goto done;
     }
@@ -802,7 +828,8 @@ static int open_profile(const rf_level *level, const rf_geometry *geometry,
     int status;
     if (!level || !geometry || !out || *out)
         return RF_RANGE;
-    if (level->version != 180 || strcmp(level->entry.name, "ctf06.rfl"))
+    if (level->version != 180 ||
+        (source_uid==8123?strcmp(level->entry.name,"L1S2.rfl"):strcmp(level->entry.name,"ctf06.rfl")))
         return RF_NOT_FOUND;
     section = rf_level_find(level, 0x2000000);
     if (!section)

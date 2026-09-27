@@ -120,6 +120,20 @@ unverified. A first campaign owner should target UID 8123's actual contact
 surface, preserve its 83 linked compiled room-8 faces, then prove collision,
 render publication, save/reload and stock-memory behavior.
 
+The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
+source. It validates the 389-brush section with bounded successor-header
+recovery for opaque editor sidecars, then retains 48 authored faces and 83
+compiled windows; a focused PC check reports 26,652 resident bytes and a
+959,885-byte decode peak. The existing ctf06 decoder check also passes.
+This is source ownership only. `rf_geomod_terrain_open` still returns
+`RF_RANGE` because the shared cutter has a 32-source-face limit, including
+fixed plane/support arrays. UID 8123 has 48 authored faces but only 14
+geometrically distinct planes in an offline rounded-plane census. The next
+core step is to qualify a lossless coplanar-source representation or expand
+the source-face limit consistently through cutter provenance and publication;
+simply raising the admission check would overrun fixed arrays. Scene identity
+capture, live publication and native memory admission are also still gated.
+
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and
 checkpoint seat pose agree. The ordinary loader stages the occupied host and
