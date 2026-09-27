@@ -32,6 +32,7 @@ typedef struct scene_checkpoint_world_context {
     uint32_t fresh_boot; /* Fresh owner state is replaced, not required to be independently saveable. */
     uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
     uint32_t npc_route_contact; /* Saved moving NPC may retain shallow contact with an unchanged prop. */
+    uint32_t player_route_contact; /* Saved player may retain shallow broad-sphere contact with an unchanged prop. */
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *modified_min,*modified_max; /* Optional conservative bounds of the changed room. */
     uint32_t modified_rooms[3],modified_room_count; /* Exact room ownership of the supported campaign cuts. */
@@ -103,9 +104,9 @@ static int scene_checkpoint_world_shallow_route_prop(const scene_checkpoint_worl
 {
     /* The static-room flag may be false after a GeoMod cut elsewhere in the
      * same room; the prop's immutable pose is checked independently here. */
-    return c->fresh_boot&&c->npc_route_contact&&
+    return c->fresh_boot&&(c->npc_route_contact||c->player_route_contact)&&
         scene_checkpoint_world_authored_prop(c,slot,prop)&&
-        radius-sqrt(distance)<=.1;
+        radius-sqrt(distance)<=(c->player_route_contact?.025:.1);
 }
 /* Some authored NPC spawn spheres intersect an unadvanced mover. Preserve
  * that original overlap only when both the NPC and mover still have their
@@ -230,8 +231,8 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
                     if(scene_checkpoint_world_authored_prop_overlap(c,p,j,prop,i,other,distance,radius*radius))continue;
                     if(scene_checkpoint_world_shallow_route_prop(c,j,prop,distance,radius))continue;
 #ifndef RF_IMAGE_XBOX_NATIVE
-                    if(scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_prop uid%u sphere%u prop_sphere%u distance2%.12g limit2%.12g route%u fresh%u static%u authored%u status%d\n",
-                        prop->uid,i,k,distance,radius*radius,c->npc_route_contact,c->fresh_boot,
+                    if(scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_prop uid%u sphere%u prop_sphere%u distance2%.12g limit2%.12g depth%.9g route%u player%u fresh%u static%u authored%u status%d\n",
+                        prop->uid,i,k,distance,radius*radius,radius-sqrt(distance),c->npc_route_contact,c->player_route_contact,c->fresh_boot,
                         c->authored_static_unchanged,scene_checkpoint_world_authored_prop(c,j,prop),RF_NOT_FOUND);
 #endif
                     return RF_NOT_FOUND;

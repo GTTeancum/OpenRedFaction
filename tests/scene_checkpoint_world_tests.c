@@ -51,6 +51,10 @@ int main(void)
      CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.38*1.38,1.5));
      context.npc_route_contact=0;
      CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));
+     context.player_route_contact=1;
+     CHECK(scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));
+     CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.46*1.46,1.5));
+     context.player_route_contact=0;
      context.npc_route_contact=1;prop.state.position[0]=.01f;
      CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));prop.state.position[0]=0;
      context.authored_static_unchanged=0;

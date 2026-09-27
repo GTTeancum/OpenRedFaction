@@ -61,6 +61,7 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         memcpy(s.basis,s.placement.basis,36);memcpy(s.eye,s.placement.basis,36);
     }else scene_checkpoint_placement(stream,&s.player,s.basis,&s.placement);
     context=world->world;context.allow_no_contact=0;context.authored_position=NULL;context.authored_basis=NULL;
+    context.player_route_contact=1;
     context.authored_props=NULL;context.authored_static_unchanged=0;
     context.spawn_shell_uid=0;context.spawn_shell_position=stream->world_checkpoint_level?
         stream->world_checkpoint_level->player_position:NULL;context.support_uid=support_uid;

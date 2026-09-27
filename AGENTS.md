@@ -30,6 +30,7 @@
 
 - User update (2026-09-18): Prioritize a working, integrated engine and core gameplay; polish comes after the engine is assembled.
 - Keep testing proportional: use focused checks to establish that changed behavior works and catch material regressions; do not repeatedly run broad suites or expand edge-case testing without a concrete need.
+- User update (2026-09-27): Do not play through campaign routes as part of development; implement systems and use bounded functional checks instead. Keep existing route scripts in the repository, but stop running them unless the user requests that work again.
 - Do not let exhaustive validation, minor fidelity details or isolated edge cases monopolize progress on missing engine systems. Record remaining issues in TO-DO.MD and continue integration unless they block basic gameplay, stability or the stock 64 MiB Xbox target.
 - GeoMod remains a core priority, but its polish and exhaustive coverage must not delay assembling the rest of the engine.
 
