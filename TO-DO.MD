@@ -16,7 +16,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign endgame: Authored failures, protected-NPC death, English descriptions, restart and cross-level quick-load recovery run on PC/Xbox, and event off restores the protection flag; natural off-event coverage, other languages, menu/slot choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
 
-- Xbox retained rendering: L6S3 native static world, model and clutter draws pass the 480-frame PC/Xbox replay; L1S1 real-spawn handoff gameplay matches but the broad 2380-frame replay fails NPC draw count (Xbox15 versus PC9, equal444880 vertices), so resolve that mismatch and revisit disabled model bounds culling.
+- Xbox retained rendering: L6S3 static world/model/clutter draws pass; L1S1 real-spawn gameplay matches PC/Xbox, the retained NPC count check now respects GPU clipping and a stale clutter-memory fixture is corrected, but the remaining 2380-frame broad checks and model bounds culling still need work.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 

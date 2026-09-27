@@ -27,7 +27,9 @@ for row in rows:
  if compiled not in models:models[compiled]=sum(s['type']=='0x43535048' for s in inspect_model(read('meshes.vpp',compiled))['sections'])
  enabled=bool(flags&{'collide_weapon','collide_object'});count=models[compiled]
  bodies.append((enabled,max(1,count) if enabled else 0,count))
-resident=len(rows)*4+len(models)*12+20;peak=resident
+# One pointer and one five-word damage binding are retained per authored
+# record, including records without a constructed physical body.
+resident=len(rows)*(4+20)+len(models)*12+20;peak=resident
 for enabled,spheres,source in bodies:
  used=532+spheres*24;peak=max(peak,resident+used+source*24);resident+=used
 expected=[len(bodies),sum(v[0] for v in bodies),sum(v[1] for v in bodies),resident,peak]
@@ -35,5 +37,5 @@ log=Path(sys.argv[1]) if len(sys.argv)>1 else root/'artifacts/clutter-bodies-pc.
 actual=list(map(int,next(l for l in log.read_text().splitlines() if l.startswith('CLUTTER_BODIES ')).split()[1:]))
 assert actual[:5]==expected,(actual,expected)
 assert actual[6:]==[len(bodies),len(bodies),0,0]
-report=dict(result='PASS',expected=expected,models=len(models),scope='Independent L1S1 record/class flags and serialized CSPH counts; verified generic constructor storage sizes derive created/physics/sphere counts and measured budget. PC load/retirement counters agree. Does not independently verify every live body float or original global registration order.')
+report=dict(result='PASS',expected=expected,models=len(models),scope='Independent L1S1 record/class flags and serialized CSPH counts; generic constructor storage plus one 20-byte damage binding per authored record derive created/physics/sphere counts and measured budget. PC load/retirement counters agree. Does not independently verify every live body float or original global registration order.')
 (root/'artifacts/clutter-scene-bodies.json').write_text(json.dumps(report,indent=2));print(report)

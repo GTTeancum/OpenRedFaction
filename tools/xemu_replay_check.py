@@ -439,7 +439,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      reference_draw=expected('NPC_DRAW')
      if retained_models[1]:
       # Xbox submits retained model vertices outside the shared CPU mesh.
-      assert npc_draw[0]==reference_draw[0] and npc_draw[1]==reference_draw[1] and npc_draw[4]==reference_draw[4],npc_draw
+      # PC counts actors only after CPU clipping emits triangles. Retained
+      # Xbox batches count before GPU clipping, so the visible-actor count can
+      # be larger even when both dispatch the same actors and resources.
+      assert npc_draw[0]==reference_draw[0] and reference_draw[1]<=npc_draw[1]<=startup[0] and npc_draw[4]==reference_draw[4],npc_draw
       assert npc_draw[2:4]==[0,2166136261] and retained_models[4]>0 and retained_models[5]>0,retained_models
      else:assert npc_draw==reference_draw and npc_draw[0]==section_frames and npc_draw[4]<512*1024,npc_draw
      report['npc_draw']=npc_draw

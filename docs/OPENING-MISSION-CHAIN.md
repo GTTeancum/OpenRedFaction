@@ -65,6 +65,16 @@ PC on the authored Riot Stick grant `[1,1,100,2,1,100,0,0]`; the broad report
 had already matched selected weapon2, ammunition `[2,0,100]`, one attack,
 and living player state. Recheck the saved evidence with
 `python tools/check_opening_xemu_gameplay.py artifacts/xemu/replay-20260926-230828`.
-The broad replay itself is **FAIL**: Xbox reports15 NPC draw submissions versus
-PC9 at the final frame, with444880 total NPC vertices on both. Preserve this
-renderer mismatch; the focused gameplay result makes no visual-parity claim.
+That broad replay itself is **FAIL**: Xbox reports15 NPC draw submissions versus
+PC9 at the final frame, with444880 total NPC vertices on both. The focused
+gameplay result makes no visual-parity claim.
+
+The NPC count check was subsequently corrected: PC counts actors only after CPU
+clipping emits triangles, while Xbox counts retained models before GPU clipping.
+The rerun `replay-20260926-231539` passed the bounded NPC count and exact
+`NPC_RENDER_DISPATCH` comparison, then stopped at a stale L1S1 clutter memory
+fixture. Both PC and Xbox reported `[168,149,173,97772,97772]`; the fixture
+omitted one20-byte damage binding for each of170 authored records. The
+independent `verify_clutter_scene_bodies.py` calculation now reproduces97772.
+This fixes the fixture, not the broad replay result; rerun its remaining checks
+before claiming full native parity.
