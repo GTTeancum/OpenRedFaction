@@ -66,7 +66,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     /* Loading while on foot must reject transient live combat BEFORE the
      * terrain/player transaction publishes anything. Match final admission. */
     if(s->driller_runtime && !scene_driller_active(s)){
-        if(record.profile==1)status=scene_vehicle_checkpoint_parked_owner(s,record.value.vehicle.player_occupied);
+        if(record.profile==1)status=scene_vehicle_checkpoint_parked_owner(s,0);
         else if(record.profile==5)status=scene_fighter_checkpoint_admit_parked(s);
         else {combat.vehicle.player_occupied=0;status=scene_vehicle_combat_parked_admit(s,&combat);}
         if(status)return status;

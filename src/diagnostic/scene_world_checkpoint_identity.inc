@@ -5,6 +5,7 @@
  * authored objects/items may not use it. Keys are aliases to controller UIDs,
  * never additional canonical handle identities. */
 #define SCENE_WORLD_CHECKPOINT_PLAYER_UID (UINT32_MAX-1u)
+#define SCENE_WORLD_TRIGGER_REMOVED 0x80000000u
 static int scene_world_checkpoint_uid_add(rf_level_uid_object *rows,uint32_t *count,
     uint32_t uid,uint32_t handle,uint32_t flags,const void *expected,uint32_t absent)
 {
@@ -37,7 +38,9 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
     }
     for(i=0;i<campaign_triggers.count;i++){
         const rf_runtime_trigger *t=campaign_triggers.items+i;if(!t->authored){status=RF_FORMAT;goto fail;}
-        WORLD_UID(t->authored->record.uid,t->handle,0,t,0);
+        {uint32_t removed=rf_object_registry_lookup(&campaign_registry,t->handle)==NULL;
+            if(removed && (!(t->state.flags&16u)||!(t->activation.object_flags&2u))){status=RF_FORMAT;goto fail;}
+            WORLD_UID(t->authored->record.uid,t->handle,0,t,removed);}
     }
     for(i=0;i<campaign_group_registration.count;i++){
         const rf_level_uid_object *o=campaign_group_registration.objects+i;

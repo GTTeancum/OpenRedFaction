@@ -34,6 +34,7 @@ typedef struct scene_checkpoint_world_context {
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
     uint32_t authored_rotating_npc; /* Stationary authored turret may rotate without translating. */
+    uint32_t authored_center_shift_npc; /* Unmoved actor: bounded rotated sphere centers, checked against static world. */
     const rf_geometry_collision_movers *authored_movers; /* Fresh-boot mover poses for exact authored-overlap proof. */
     rf_clutter_base_owner *const *authored_props; /* Parallel immutable authored-pose owners; caller proves class geometry identity. */
     uint32_t spawn_shell_uid; /* Narrow player-only authored hollow prop exception; zero disables it. */
@@ -48,6 +49,21 @@ static int scene_checkpoint_world_authored_pose(const scene_checkpoint_world_con
        memcmp(p->position,c->authored_position,12))return 0;
     if(!c->authored_rotating_npc)
         for(k=0;k<9;k++)if(!isfinite(c->authored_basis[k])||fabsf(p->basis[k]-c->authored_basis[k])>1e-5f)return 0;
+    return 1;
+}
+static int scene_checkpoint_world_authored_surface_pose(const scene_checkpoint_world_context *c,
+    const rf_checkpoint_placement *p)
+{
+    uint32_t i,j,k;
+    if(scene_checkpoint_world_authored_pose(c,p))return 1;
+    if(!c->authored_center_shift_npc||!c->allow_no_contact||!c->authored_static_unchanged||
+       !c->authored_position||!c->authored_basis||!p->spheres||
+       memcmp(p->position,c->authored_position,12))return 0;
+    for(i=0;i<p->count;i++)for(k=0;k<3;k++){
+        double delta=0;
+        for(j=0;j<3;j++)delta+=(double)p->spheres[i].center[j]*(p->basis[j*3+k]-c->authored_basis[j*3+k]);
+        if(!isfinite(delta)||fabs(delta)>.125)return 0;
+    }
     return 1;
 }
 static int scene_checkpoint_world_authored_prop(const scene_checkpoint_world_context *c,uint32_t slot,const rf_clutter_base_owner *p)
@@ -221,11 +237,13 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     {rf_checkpoint_placement_result reason={UINT32_MAX,UINT32_MAX,0};
      status=(c->allow_no_contact||c->support_uid)?rf_checkpoint_world_placement_check(&p,&reason):
         rf_checkpoint_world_standing_check(&p,c->dt,c->class_speed,NULL,NULL,&reason);
-     /* Preserve a level author's stationary spawn even when its unchanged
-      * class sphere intersects a static polygon. Never extend this exception
+    /* Preserve a level author's stationary spawn even when its unchanged
+      * class sphere intersects a static polygon. A turned, unmoved NPC may
+      * shift sphere centers by at most 125 mm; all actual centers are checked
+      * against the world below. Never extend this exception
       * to displaced saves, modified terrain, solid/ambiguous classification,
       * or candidate movers/props (checked below). Default/player has no proof. */
-     if(status==RF_NOT_FOUND&&reason.reason==RF_CHECKPOINT_PLACEMENT_SURFACE&&scene_checkpoint_world_authored_pose(c,&p)){
+     if(status==RF_NOT_FOUND&&reason.reason==RF_CHECKPOINT_PLACEMENT_SURFACE&&scene_checkpoint_world_authored_surface_pose(c,&p)){
          uint32_t k;
          {
              rf_checkpoint_placement centers=p;rf_physics_sphere points[8];

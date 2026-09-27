@@ -109,6 +109,12 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         const rf_runtime_trigger *trigger=campaign_triggers.items+i;
         status=rf_campaign_trigger_register(triggers,campaign_current_level,trigger->authored->record.uid,&slot);
         if(!status)status=rf_runtime_trigger_save(trigger,now,triggers->states+slot);
+        if(!status && !rf_object_registry_lookup(&campaign_registry,trigger->handle)){
+            if(!(trigger->state.flags&16u)||!(trigger->activation.object_flags&2u))status=RF_FORMAT;
+            /* Removal is distinct from a finite trigger that is merely spent
+             * but still registered. Use the transport-only high bit. */
+            else triggers->states[slot].object_flags|=SCENE_WORLD_TRIGGER_REMOVED;
+        }
         if(!status)triggers->items[slot].retired=1;
     }
     if(!status)status=rf_campaign_triggers_checkpoint_encode(identity.bytes,triggers,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);

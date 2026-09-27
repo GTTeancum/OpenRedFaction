@@ -2,7 +2,7 @@
 #define RF_SCENE_WORLD_MISSION_RESTORE_INCLUDED
 /* Paused-scene staging for mission stores and live trigger/pickup bindings.
  * Caller validates the entire world before assignment-only publication. */
-typedef struct scene_world_mission_trigger {rf_runtime_trigger before,next;} scene_world_mission_trigger;
+typedef struct scene_world_mission_trigger {rf_runtime_trigger before,next;uint32_t removed;} scene_world_mission_trigger;
 typedef struct scene_world_mission_pickup {uint32_t before_slot,next_slot,uid;uint8_t before_taken,next_taken;} scene_world_mission_pickup;
 typedef struct scene_world_mission_stage {
     rf_campaign_goals goals;rf_campaign_local_goals local;
@@ -49,7 +49,12 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
         for(j=0;j<i;j++)if(campaign_triggers.items[j].authored->record.uid==t->authored->record.uid){status=RF_FORMAT;goto fail;}
         status=scene_world_mission_key(s->triggers.levels,s->triggers.level_count,s->triggers.items,s->triggers.count,(uint32_t)t->authored->record.uid,&slot);if(status)goto fail;
         if(!s->triggers.items[slot].retired){status=RF_FORMAT;goto fail;}
-        r->before=r->next=*t;status=rf_runtime_trigger_restore(&r->next,now,s->triggers.states+slot);if(status)goto fail;
+        {rf_campaign_trigger_state saved=s->triggers.states[slot];
+            r->removed=!!(saved.object_flags&SCENE_WORLD_TRIGGER_REMOVED);
+            /* The marker belongs to RFTC, never to the live trigger flags. */
+            saved.object_flags&=~SCENE_WORLD_TRIGGER_REMOVED;
+            if(r->removed&&(!(saved.flags&16u)||!(saved.object_flags&2u))){status=RF_FORMAT;goto fail;}
+            r->before=r->next=*t;status=rf_runtime_trigger_restore(&r->next,now,&saved);if(status)goto fail;}
     }
     for(i=0;i<s->pickup_count;i++){
         scene_world_mission_pickup *r=s->live_pickups+i;r->uid=(uint32_t)stream->pickups.items[i].uid;
@@ -83,7 +88,10 @@ static inline void scene_world_mission_assign(const scene_world_mission_stage *s
 {
     uint32_t i;rf_scene_mission_goals=s->goals;campaign_local_goals=s->local;
     rf_scene_campaign_pickups=s->pickups;campaign_startup_inventory=s->startup;campaign_trigger_history=s->triggers;
-    for(i=0;i<s->trigger_count;i++)s->trigger_owner[i]=s->live_triggers[i].next;
+    for(i=0;i<s->trigger_count;i++){
+        s->trigger_owner[i]=s->live_triggers[i].next;
+        if(s->live_triggers[i].removed)(void)rf_object_registry_remove(&campaign_registry,s->trigger_owner[i].handle);
+    }
     for(i=0;i<s->pickup_count;i++){s->slot_owner[i]=s->live_pickups[i].next_slot;s->taken_owner[i]=s->live_pickups[i].next_taken;}
 }
 static inline int scene_world_mission_probe(scene_stream *stream,const rf_world_checkpoint *world,int32_t now)

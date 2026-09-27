@@ -87,6 +87,15 @@ pages (18.81 MiB). See `render-20260926-195605` and
 `render-20260926-195825` in that same artifact directory. Other vehicle
 classes and broader seated save points remain to be exercised.
 
+The L1S2 Driller now also saves while seated and moving. The removed trigger
+and stationary turned miner in that section required ordinary-world restore
+admission; both are retained on PC/Xbox fresh load. All 16 native save sections
+match PC, and the loaded driver/vehicle state matches after 64 frames with
+4,790 free physical pages. No images were captured. Reports are
+`artifacts/xemu/render-20260926-202409/report.json` and
+`render-20260926-202555/report.json`. Campaign drill contact and native
+post-load driving remain to be checked.
+
 This is one selected owner per section, not general campaign vehicle
 creation. L1S3 contains other APC instances, and other sections and vehicle
 classes still need ownership. The remaining Jeep route nodes, scripted
