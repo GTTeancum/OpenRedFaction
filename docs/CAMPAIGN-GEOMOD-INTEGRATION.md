@@ -21,7 +21,11 @@ now encode this one authored cut as a 12-byte identity record. A fresh-scene PC
 save/load/resave replay rebuilds room 28 before actor placement, retains the
 same mesh and differential collision result, and emits the same 12-byte
 destruction section on resave. An uncut L1S1 save still loads. The Xbox build
-passes, but native HDD save/load of this cut has not yet been exercised.
+passes. A stock 64 MiB XEMU HDD save writes the same 102,176-byte checkpoint
+components as PC, including the destruction record. A fresh native HDD load
+matches PC on the 865-face/3,392-vertex rebuilt room, the 145,316-byte tree,
+and all four differential collision counters; 4,069 guest pages remain free.
+Both native runs used text-only telemetry and produced no images.
 Other scripted cuts, repeated destruction, portal-spanning edits and campaign
 weapons still need general ownership and publication.
 

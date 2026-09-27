@@ -711,6 +711,18 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     actual_parts,expected_parts=sections(data),sections(expected)
                     report['checks']['WORLD_CHECKPOINT']['component_equal']={k:actual_parts[k]==v for k,v in expected_parts.items()}
                     assert all(report['checks']['WORLD_CHECKPOINT']['component_equal'].values()), 'Ordinary PC/Xbox saved component mismatch'
+                cut_line=next((line for line in pc.stdout.splitlines() if line.startswith('CAMPAIGN_GEOMOD ')),None)
+                collision_line=next((line for line in pc.stdout.splitlines() if line.startswith('CAMPAIGN_GEOMOD_COLLISION ')),None)
+                if cut_line and collision_line:
+                    expected_cut=list(map(int,cut_line.split()[1:]))
+                    expected_collision=list(map(int,collision_line.split()[1:]))
+                    if expected_cut[1]:
+                        actual_cut=words(monitor,symbol('rf_scene_campaign_geomod'),8)
+                        actual_collision=words(monitor,symbol('rf_scene_campaign_geomod_collision'),4)
+                        report['checks']['CAMPAIGN_GEOMOD_RESTORE']=dict(
+                            pc=expected_cut,xbox=actual_cut,pc_collision=expected_collision,
+                            xbox_collision=actual_collision,equal=actual_cut==expected_cut and actual_collision==expected_collision)
+                        assert report['checks']['CAMPAIGN_GEOMOD_RESTORE']['equal'], 'Campaign cut/collision mismatch after native save or load'
             if args.quick_save_frame is not None or args.quick_load_frame is not None:
                 state=words(monitor,symbol('rf_scene_world_checkpoint_state'),10)
                 report['checks']['QUICK_ACTIONS']=dict(state=state)

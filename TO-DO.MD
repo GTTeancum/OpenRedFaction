@@ -4,9 +4,9 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
-- PRIORITY Campaign GeoMod: L1S1 UID9456 cuts live room 28 with matching PC/XEMU mesh and collision; PC ordinary save/load/resave now retains the cut, while native HDD reload, visual inspection, repeated cuts, other rooms and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
+- PRIORITY Campaign GeoMod: L1S1 UID9456 cuts live room 28 and survives PC/XEMU ordinary save/load with matching mesh and collision; visual inspection, repeated cuts, other rooms and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and seated APC, Driller and route-following Jeep save/reload pass PC/Xbox; L1S1's active cut passes PC save/load/resave in 102,176 bytes, with native HDD reload still open. Other vehicles, broader cross-level coverage, menu/slot selection, moving-host charges and resource demand remain (saves approximately97%).
+- PRIORITY Ordinary saves: L1S1 inactive and active-cut states, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and seated APC, Driller and route-following Jeep save/reload pass PC/Xbox; the active cut fits in 102,176 bytes with stock-memory native HDD reload. Other vehicles, broader cross-level coverage, menu/slot selection, moving-host charges and resource demand remain (saves approximately98%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
