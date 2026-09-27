@@ -1,8 +1,9 @@
 #ifndef RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
-/* RFEN5: identity-bound gravity, force-volume state, changed navigation radii,
+/* RFEN6: identity-bound gravity, force-volume state, changed navigation radii,
  * blackout timer, player support mover UID and portable cutscene clock/camera. Navigation rows use authored UIDs and
- * raw radius bits, never indices. Monitor rows bind authored UIDs. RFEN1-4 remain readable. No handles are serialized.
+ * raw radius bits, never indices. Monitor rows bind authored UIDs; the tail preserves the
+ * 30-frame enemy sight schedule and gunfire random state. RFEN1-5 remain readable. No handles are serialized.
  * Queued level handoffs are not admitted; other presentation state is separate. */
 enum {SCENE_ENV_HEADER=80,SCENE_ENV_ROW=16,SCENE_ENV_NAV_ROW=8,
     SCENE_ENV_FORM_BYTES=24,SCENE_ENV_MONITOR_HEADER=24,SCENE_ENV_MONITOR_ROW=20,
@@ -19,6 +20,7 @@ typedef struct scene_world_environment_stage {
     rf_cutscene_runtime cutscene_before,cutscene_next;
     campaign_player_form_state form_before,form_next;
     int32_t blackout_before,blackout_next;uint32_t support_uid;
+    uint32_t sight_before,sight_next,spread_before,spread_next;
     uint32_t monitor_count,monitor_before_count,monitor_before_words[5],monitor_next_words[5];
     scene_monitor_binding monitor_before[SCENE_MONITOR_BINDING_LIMIT],monitor_next[SCENE_MONITOR_BINDING_LIMIT];
     scene_environment_entry rows[];
@@ -74,9 +76,9 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
     if(status)return status;
     required=SCENE_ENV_HEADER+(uint64_t)campaign_forces.count*SCENE_ENV_ROW+
         (uint64_t)nav_count*SCENE_ENV_NAV_ROW+RF_CUTSCENE_CHECKPOINT_BYTES+SCENE_ENV_FORM_BYTES+
-        SCENE_ENV_MONITOR_HEADER+(uint64_t)campaign_monitor_count*SCENE_ENV_MONITOR_ROW;
+        SCENE_ENV_MONITOR_HEADER+(uint64_t)campaign_monitor_count*SCENE_ENV_MONITOR_ROW+8;
     if(required>capacity||required>UINT32_MAX)return RF_RANGE;bytes=(uint32_t)required;
-    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,5);scene_history_put(p+8,bytes);
+    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,6);scene_history_put(p+8,bytes);
     scene_history_put(p+16,campaign_forces.count);scene_history_put(p+20,nav_count);memcpy(p+24,identity,32);
     if(campaign_blackout_deadline>=0){
         status=rf_timer_remaining(campaign_blackout_deadline,now,&blackout_remaining);if(status)return status;
@@ -111,7 +113,7 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         memcpy(&armor_bits,&campaign_player_form.normal_class_armor,4);scene_history_put(form+20,armor_bits);
     }
     {
-        unsigned char *monitor=p+bytes-SCENE_ENV_MONITOR_HEADER-campaign_monitor_count*SCENE_ENV_MONITOR_ROW;
+        unsigned char *monitor=p+bytes-8-SCENE_ENV_MONITOR_HEADER-campaign_monitor_count*SCENE_ENV_MONITOR_ROW;
         scene_history_put(monitor,campaign_monitor_count);
         for(i=0;i<5;i++)scene_history_put(monitor+4+i*4,rf_scene_monitor_bindings[i]);
         for(i=0;i<campaign_monitor_count;i++){
@@ -121,6 +123,8 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
             scene_history_put_float(row+16,b->refresh_seconds);
         }
     }
+    scene_history_put(p+bytes-8,(combat_frame%30+campaign_enemy_sight_phase_offset)%30);
+    scene_history_put(p+bytes-4,campaign_enemy_spread_random.value);
     scene_history_put(p+12,scene_history_hash(p,bytes));*written=bytes;return RF_OK;
 }
 static inline void scene_world_environment_close(scene_world_environment_stage **s)
@@ -133,15 +137,15 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     if(rf_scene_level_transition.pending)return RF_NOT_FOUND;
     if(bytes<80||memcmp(p,"RFEN",4)||scene_history_word(p+8)!=bytes||
        scene_history_word(p+12)!=scene_history_hash(p,bytes)||memcmp(p+24,identity,32))return RF_FORMAT;
-    version=scene_history_word(p+4);if(version<1||version>5)return RF_FORMAT;
+    version=scene_history_word(p+4);if(version<1||version>6)return RF_FORMAT;
     if((version<3&&(scene_history_word(p+72)||scene_history_word(p+76)))||scene_history_word(p+72)>30001||
        scene_history_word(p+76)==UINT32_MAX)return RF_FORMAT;
     count=scene_history_word(p+16);nav_count=scene_history_word(p+20);
     {uint64_t base=80u+(uint64_t)count*SCENE_ENV_ROW+(uint64_t)nav_count*SCENE_ENV_NAV_ROW+
         (version>=3?RF_CUTSCENE_CHECKPOINT_BYTES:0)+(version>=4?SCENE_ENV_FORM_BYTES:0);
-     if(version==5){if(base+SCENE_ENV_MONITOR_HEADER>bytes)return RF_FORMAT;
+     if(version>=5){if(base+SCENE_ENV_MONITOR_HEADER+(version==6?8u:0u)>bytes)return RF_FORMAT;
          if(scene_history_word(p+(size_t)base)>SCENE_MONITOR_BINDING_LIMIT||
-            base+SCENE_ENV_MONITOR_HEADER+(uint64_t)scene_history_word(p+(size_t)base)*SCENE_ENV_MONITOR_ROW!=bytes)return RF_FORMAT;}
+            base+SCENE_ENV_MONITOR_HEADER+(uint64_t)scene_history_word(p+(size_t)base)*SCENE_ENV_MONITOR_ROW+(version==6?8u:0u)!=bytes)return RF_FORMAT;}
      else if(base!=bytes)return RF_FORMAT;}
     if((version==1&&nav_count)||count>SCENE_ENV_FORCE_MAX||count!=campaign_forces.count||
        nav_count>campaign_navigation.count||nav_count>SCENE_ENV_NAV_MAX||
@@ -159,6 +163,11 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     memcpy(s->monitor_next,campaign_monitor_bindings,sizeof(s->monitor_next));
     memcpy(s->monitor_next_words,rf_scene_monitor_bindings,sizeof(s->monitor_next_words));
     s->blackout_before=campaign_blackout_deadline;s->blackout_next=-1;
+    s->sight_before=campaign_enemy_sight_phase_offset;
+    s->spread_before=campaign_enemy_spread_random.value;
+    s->sight_next=version==6?scene_history_word(p+bytes-8):0;
+    s->spread_next=version==6?scene_history_word(p+bytes-4):campaign_enemy_spread_random.value;
+    if(s->sight_next>=30){status=RF_FORMAT;goto fail;}
     s->support_uid=scene_history_word(p+76);
     if(scene_history_word(p+72)){
         status=rf_timer_set(&s->blackout_next,now,(int32_t)scene_history_word(p+72)-1);if(status)goto fail;
@@ -181,7 +190,7 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
                 (s->form_next.variant||s->form_next.compromised||s->form_next.return_slot||
                  s->form_next.return_unarmed||scene_history_word(form+20)))){status=RF_FORMAT;goto fail;}
     }
-    if(version==5){
+    if(version>=5){
         const unsigned char *monitor=p+80+count*SCENE_ENV_ROW+nav_count*SCENE_ENV_NAV_ROW+
             RF_CUTSCENE_CHECKPOINT_BYTES+SCENE_ENV_FORM_BYTES;
         s->monitor_count=scene_history_word(monitor);
@@ -232,7 +241,9 @@ static inline int scene_world_environment_validate(const scene_world_environment
         s->monitor_before_count!=campaign_monitor_count||
         memcmp(s->monitor_before,campaign_monitor_bindings,sizeof(s->monitor_before))||
         memcmp(s->monitor_before_words,rf_scene_monitor_bindings,sizeof(s->monitor_before_words))||
-        s->blackout_before!=campaign_blackout_deadline)return RF_FORMAT;
+        s->blackout_before!=campaign_blackout_deadline||
+        s->sight_before!=campaign_enemy_sight_phase_offset||
+        s->spread_before!=campaign_enemy_spread_random.value)return RF_FORMAT;
     for(i=0;i<s->count;i++)if(memcmp(&s->rows[i].before,s->owner+s->rows[i].slot,sizeof(rf_physics_force_region)))return RF_FORMAT;
     for(i=0;i<s->nav_count;i++){
         const scene_environment_nav_entry *e=scene_environment_nav_rows((scene_world_environment_stage *)s)+i;
@@ -256,6 +267,11 @@ static inline void scene_world_environment_assign(const scene_world_environment_
     memcpy(campaign_monitor_bindings,s->monitor_next,sizeof(campaign_monitor_bindings));
     memcpy(rf_scene_monitor_bindings,s->monitor_next_words,sizeof(rf_scene_monitor_bindings));
     campaign_blackout_deadline=s->blackout_next;
+    /* A quick-load can occur mid-session; the replay frame does not restart. */
+    campaign_enemy_sight_phase_offset=(s->sight_next+30-
+        (combat_frame==UINT32_MAX?0:combat_frame%30))%30;
+    campaign_enemy_spread_random.value=s->spread_next;
+    rf_scene_enemy_spread[5]=s->spread_next;
     rf_scene_cutscene[3]=campaign_cutscene_runtime.active_uid;
     rf_scene_cutscene[4]=campaign_cutscene_runtime.point_index;
     rf_scene_cutscene[7]=campaign_cutscene_runtime.active;

@@ -333,6 +333,20 @@ performed under the no-images instruction.
 
 ## Far-side corridor and upper-bridge combat
 
+An uninterrupted post-wall route and a resumed ordinary save originally took
+different damage near guard8462 despite matching player positions. A fresh
+load restarted the 30-frame staggered sight schedule and enemy gunfire random
+state. RFEN6 now records both values; `tools/check_opening_wall_sight_save.py`
+captures a natural frame4335 wall save and replays 165 more inputs in a fresh
+PC process. The guard fires at resumed frames107 and137, and the player stays
+alive with the same14.6 health/5.4 armor reached by the uninterrupted route.
+RFEN1-5 files remain readable, though older files cannot recover the omitted
+phase/random values. Stock-64-MiB XEMU saved the wall state with all16
+components byte-identical to PC (`artifacts/xemu/render-20260927-052110`).
+A fresh Xbox process then loaded it and replayed165 inputs; player vitals,
+enemy spread and combat telemetry matched PC with3853 physical pages free
+(`artifacts/xemu/render-20260927-052943`). No images were captured or inspected.
+
 `tools/replay_opening_bridge_cover.py` continues the recorded charge cut with
 ordinary forward/strafe inputs. The player follows the second navigation
 component around the first right bend, up the long ramp, and to upper-bridge

@@ -9063,6 +9063,8 @@ static void combat_sound(const char *name,const float position[3])
 uint32_t rf_scene_combat_death[8]; /* entered,action,motion,status,tick,weight bits,frozen,generation */
 uint32_t rf_scene_combat[8];
 static uint32_t combat_frame,combat_hit_frame,combat_surface_frame;
+/* Preserve the staggered enemy sight-check schedule across ordinary loads. */
+static uint32_t campaign_enemy_sight_phase_offset;
 static rf_level_message campaign_subtitle;
 static int32_t campaign_subtitle_deadline=-1;
 static uint32_t campaign_subtitle_uid;
@@ -10180,7 +10182,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             float forward=0;
             /* Practical first pass: stagger sight checks, 20-unit range and 120-degree cone.
              * Authored affiliation 0 is unfriendly; neutral/friendly actors need provocation. */
-            if(frame%30!=i%30)continue;
+            if((frame%30+campaign_enemy_sight_phase_offset)%30!=i%30)continue;
             ++rf_scene_enemy_awareness[0];
             if(owner->damage.effects.affiliation!=0){++rf_scene_enemy_awareness[5];continue;}
             if(distance>20*20 || distance<.0001f){++rf_scene_enemy_awareness[3];continue;}
@@ -13748,7 +13750,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;impact_sound_random.value=1;memset(rf_scene_impact_audio,0,sizeof(rf_scene_impact_audio));memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
-        memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
+        memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));campaign_enemy_sight_phase_offset=0;
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));
