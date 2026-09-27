@@ -131,3 +131,40 @@ OpenGL assertion did not recur. The run produced no raster files and does
 not establish visual choreography or traversal beyond the first handoff.
 Reproduce with
 `python tools/xemu_replay_check.py artifacts/opening-handoff/authored-spawn.bin --campaign-spawn --level L1S1.rfl --no-images --seconds 600`.
+
+## First live encounter after the handoff
+
+The stationary2380-frame handoff replay ends with23.2 player health. Extending
+it without changing the route leaves guard8324 firing every30 frames and kills
+the player at frame2386. The Riot Stick grant is already present by frame1805,
+when health is100. This is a test-route exposure, not evidence that the player
+should survive by standing in the handoff volume.
+
+`tools/replay_opening_exit_walk.py` starts from the same real spawn, leaves at
+frame1805, aims at guard8324 using ordinary bounded look commands, and starts
+Riot Stick alternate fire near contact range. Holding alternate fire from the
+handoff exhausts the battery before contact; the later start defeats the guard.
+The player collects its drop, cycles to a16-round handgun and walks to the
+stair approach near navpoint36. The tool first records the PC aim commands,
+bakes them into an RFI6 input file, then replays that file without the PC aim
+helper and requires exact matching PC gameplay/body diagnostics. No event,
+inventory, position or damage is injected. The PC final player is alive at
+(-53.719,-7.121,13.644) with23.2 health.
+
+Stock-64-MiB XEMU `replay-20260927-002215` **PASS**es all2254 baked input
+frames. PC/Xbox match the Riot Stick grant, one combat death, the selected
+handgun ID3 with16 rounds, player life/health and the broad campaign telemetry;
+3815 physical pages (14.90MiB) remain. The broad verifier does not directly
+read the weapon-drop diagnostic, so the native handgun acquisition is inferred
+from matching selected weapon/ammo plus the authored drop route. No raster
+files were produced or inspected. Reproduce with
+`python tools/replay_opening_exit_walk.py` then
+`python tools/xemu_replay_check.py artifacts/opening-exit/direct-guard.bin --campaign-spawn --level L1S1.rfl --no-images --seconds 600`.
+
+The offline authored navigation graph has10 disconnected components. Handoff
+and exit9019 lie in different components, with a7.443-unit nearest gap between
+nodes134 and72 near x=-25. This graph does not prove a player obstruction or
+GeoMod requirement; movement/collision and authored events must decide the
+crossing. A PC-only extension toward navpoint37 exposes a second armed guard,
+UID8326 at(-54.73,-3.34,31.67), whose shot kills the low-health player at
+frame2348. The remaining stair encounter and natural path to exit9019 are open.
