@@ -145,6 +145,8 @@ scene's grouped transaction in a PC harness. Replaying the recorded second
 contact then selects both sources but rejects at UID 8123 obstacle admission,
 leaving the first cut and publication serial unchanged. That guard remains
 necessary until UID 9996 room-121 detail participates in the same edit.
+The pair's private RFDS3 first-cut save now restores and re-encodes
+byte-identically on PC; ordinary campaign save dispatch is still single-source.
 This is not live admission: the two rooms still need one scene-level bind,
 checkpoint history and renderer staging. See
 `docs/research/L1S2-DRILLER-SECOND-CUT-20260927.md` for the measurements.

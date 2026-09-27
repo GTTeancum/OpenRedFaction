@@ -2,6 +2,8 @@
  * atlas reconstruction, body decode or live restore. Main-thread synchronous;
  * buffers/output parameters must be disjoint from the scene and each other. */
 #include "rf/authored_checkpoint_layout.h"
+static inline int scene_authored_source_cavity(uint32_t uid)
+{return uid==66 || uid==148 || uid==8123 || uid==8219;}
 static inline int scene_authored_sources_match(const scene_stream *s,const void *data,uint32_t bytes,
     rf_authored_sources_layout *out)
 {
@@ -29,13 +31,16 @@ static inline int scene_authored_sources_write(const scene_stream *s,void *buffe
         if(!source->authored)return RF_FORMAT;
         cores[i]=source->authored==s->terrain_authored?s->terrain:source->terrain;
         pieces[i]=scene_detached_source_registry(s,i);
-        if(!cores[i] || !pieces[i])return RF_FORMAT;
+        if(!cores[i] || (!pieces[i] && !scene_authored_source_cavity(source->authored->asset_view.source_uid)))return RF_FORMAT;
+        if(pieces[i] && scene_authored_source_cavity(source->authored->asset_view.source_uid))return RF_FORMAT;
         blobs[i].uid=source->authored->asset_view.source_uid;
         memcpy(blobs[i].identity,source->authored->source_identity,32);
         status=rf_geomod_terrain_history_size(cores[i],&blobs[i].core_bytes);if(status)return status;
         /* Include even an empty registry's versioned state, avoiding ambiguity
          * between an omitted old trailer and an intentionally empty owner. */
-        status=rf_geomod_piece_registry_state_size(pieces[i],&blobs[i].piece_bytes);if(status)return status;
+        if(pieces[i]) {
+            status=rf_geomod_piece_registry_state_size(pieces[i],&blobs[i].piece_bytes);if(status)return status;
+        }
         total+=(uint64_t)blobs[i].core_bytes+blobs[i].piece_bytes;
     }
     if(total>RF_COMPOSED_CHECKPOINT_RFDS_MAX || total>capacity)return RF_RANGE;
@@ -49,7 +54,9 @@ static inline int scene_authored_sources_write(const scene_stream *s,void *buffe
         status=rf_geomod_terrain_history_encode(cores[i],scratch+at,blobs[i].core_bytes);if(status)goto done;
         status=scene_checkpoint_materials(scratch+at,blobs[i].core_bytes,s->terrain_material,0);if(status)goto done;
         at+=blobs[i].core_bytes;blobs[i].pieces=scratch+at;
-        status=rf_geomod_piece_registry_state_encode(pieces[i],scratch+at,blobs[i].piece_bytes);if(status)goto done;
+        if(blobs[i].piece_bytes) {
+            status=rf_geomod_piece_registry_state_encode(pieces[i],scratch+at,blobs[i].piece_bytes);if(status)goto done;
+        }
         at+=blobs[i].piece_bytes;
     }
     status=rf_authored_sources_pack(blobs,s->terrain_source_count,packet,bytes,&at);if(status)goto done;
@@ -84,6 +91,7 @@ static inline int scene_authored_sources_stage_prepare(const scene_stream *s,con
     for(i=0;i<layout.count;i++) {
         const rf_authored_source_span *span=layout.sources+i;
         status=scene_checkpoint_materials_mode(input+span->core_offset,span->core_bytes,0,0,0);if(status)return status;
+        if(scene_authored_source_cavity(span->uid) && span->piece_bytes)return RF_FORMAT;
         if(checkpoint_u32(input+span->core_offset+12)>serial)return RF_FORMAT;
         if(span->core_bytes>max_history)max_history=span->core_bytes;
     }
@@ -104,13 +112,15 @@ static inline int scene_authored_sources_stage_prepare(const scene_stream *s,con
         factory_scene->terrain_authored=s->terrain_sources[i].authored;factory.scene=factory_scene;
         status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->cores[i]);if(status)goto done;
         generated.query_flags=0;generated.face_flags=256;
-        status=scene_detached_open(factory_scene,&generated,&p->pieces[i]);if(status)goto done;
-        status=rf_geomod_piece_registry_begin(p->pieces[i],1);if(status)goto done;
-        status=rf_geomod_terrain_set_extraction(p->cores[i],rf_geomod_piece_registry_emit,p->pieces[i]);if(status)goto done;
+        if(!scene_authored_source_cavity(span->uid)) {
+            status=scene_detached_open(factory_scene,&generated,&p->pieces[i]);if(status)goto done;
+            status=rf_geomod_piece_registry_begin(p->pieces[i],1);if(status)goto done;
+            status=rf_geomod_terrain_set_extraction(p->cores[i],rf_geomod_piece_registry_emit,p->pieces[i]);if(status)goto done;
+        }
         memcpy(history,input+span->core_offset,span->core_bytes);
         status=scene_checkpoint_materials(history,span->core_bytes,0,s->terrain_material);if(status)goto done;
         status=rf_geomod_terrain_history_decode(p->cores[i],history,span->core_bytes);if(status)goto done;
-        rf_geomod_piece_registry_commit(p->pieces[i]);
+        if(p->pieces[i])rf_geomod_piece_registry_commit(p->pieces[i]);
         if(span->piece_bytes) {
             status=rf_geomod_piece_registry_state_decode(p->pieces[i],input+span->piece_offset,span->piece_bytes);if(status)goto done;
         }

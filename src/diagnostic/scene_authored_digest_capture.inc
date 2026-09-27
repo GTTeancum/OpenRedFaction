@@ -22,7 +22,8 @@ typedef struct scene_authored_digest_work {
     unsigned char packed[64*64*2],rgb[64*3];
 } scene_authored_digest_work;
 static inline int scene_authored_digest_generated(scene_authored_digest_work *w,
-    const scene_terrain_noise_map *map,const rf_geomod_publication_origin *origin,uint32_t ordinal,rf_geomod_digest_chart *chart)
+    const scene_terrain_noise_map *map,const rf_geomod_publication_origin *origin,
+    const char *level,uint32_t ordinal,rf_geomod_digest_chart *chart)
 {
     rf_random_state random={0};uint32_t i,n,total;int status;
     if(map->width<4 || map->width>64 || map->height<4 || map->height>64)return RF_FORMAT;
@@ -31,8 +32,8 @@ static inline int scene_authored_digest_generated(scene_authored_digest_work *w,
     if(origin->kind==RF_GEOMOD_PUBLICATION_NEIGHBOR)chart->kind=RF_GEOMOD_DIGEST_AUTHORED_CHART;
     chart->image.width=map->width;chart->image.height=map->height;chart->image.format=5;
     chart->image.bytes_per_pixel=2;chart->image.bytes=map->width*map->height*2;chart->image.pixels=w->packed;
-    if(chart->kind==RF_GEOMOD_DIGEST_AUTHORED_CHART)snprintf(chart->image.name,sizeof(chart->image.name),"ctf06.rfl/authored/%u/%u/%u",origin->owner,origin->source_face,ordinal);
-    else snprintf(chart->image.name,sizeof(chart->image.name),"ctf06.rfl/crater/%u/%u",origin->owner,ordinal);
+    if(chart->kind==RF_GEOMOD_DIGEST_AUTHORED_CHART)snprintf(chart->image.name,sizeof(chart->image.name),"%s/authored/%u/%u/%u",level,origin->owner,origin->source_face,ordinal);
+    else snprintf(chart->image.name,sizeof(chart->image.name),"%s/crater/%u/%u",level,origin->owner,ordinal);
     for(i=0;i<2;i++) {
         uint32_t axis=map->binding.projection.axes[i],dim=i?map->height:map->width;float span;double scale;
         if(axis>2)return RF_FORMAT;span=map->maximum[axis]-map->minimum[axis];if(!(span>0))return RF_FORMAT;
@@ -86,7 +87,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
     rf_geomod_retained_material_input retained={0};uint32_t f,i,j,k,charts=0,materials,unchanged,found,peak;
     rf_geomod_retained_material_source sources[4]={{0}};
     unsigned char collection_identity[32];uint32_t collection=s && s->terrain_source_count>1,source_index,source_count=0,material_policy=1,token_count=0;
-    int status=RF_FORMAT;
+    const char *phase="manifest";int status=RF_FORMAT;
     if(!s || !publication || !composition || !lighting || !out || !peak_bytes ||
        !s->terrain_authored || !s->terrain_publication || !s->geometry || !actor_follow_world ||
        !actor_follow_world->slots || !lighting->terrain_noise || !composition->tree || !composition->face_ids ||
@@ -97,7 +98,14 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
     a=collection?s->terrain_sources[0].authored:s->terrain_authored;if(!a)return RF_FORMAT;manifest=&a->identity_manifest;noise=lighting->terrain_noise;base=s->terrain_publication->base;
     if(!base || !base->source_indices || noise->count>RF_GEOMOD_LIGHTMAP_LIMIT || !manifest->substrate ||
        !manifest->materials || !manifest->references || !manifest->material_count || manifest->material_count>=128 ||
-       manifest->reference_count>768 || manifest->substrate->prehashed!=1 || manifest->substrate->image.pixels)return RF_FORMAT;
+       manifest->reference_count>768 || manifest->substrate->prehashed!=1 || manifest->substrate->image.pixels) {
+        if(rf_scene_combat_trace)printf("AUTHORED_DIGEST_HEADER base%u indices%u maps%u substrate%u materials%u references%u material_count%u reference_count%u prehashed%u pixels%u\n",
+            base!=NULL,base && base->source_indices!=NULL,noise->count,manifest->substrate!=NULL,
+            manifest->materials!=NULL,manifest->references!=NULL,manifest->material_count,
+            manifest->reference_count,manifest->substrate?manifest->substrate->prehashed:0,
+            manifest->substrate && manifest->substrate->image.pixels!=NULL);
+        return RF_FORMAT;
+    }
     peak=(uint32_t)sizeof(*w)+8192;if(peak>SCENE_AUTHORED_DIGEST_BUDGET)return RF_RANGE;
     w=calloc(1,sizeof(*w));if(!w)return RF_IO;
     memset(w->map_charts,0xff,sizeof(w->map_charts));memset(w->face_maps,0xff,sizeof(w->face_maps));
@@ -133,6 +141,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
         for(i=0;i<source_count;i++){checkpoint_sha_word(&hash,sources[i].uid);checkpoint_sha_add(&hash,sources[i].identity,32);}
         checkpoint_sha_end(&hash,collection_identity);
     }
+    phase="maps";
     for(i=0;i<noise->count;i++) {
         const scene_terrain_noise_map *m=noise->maps+i;rf_geomod_retained_material_map *v=w->maps+i;
         if(m->material!=s->terrain_material) {
@@ -145,6 +154,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
         memcpy(v->maximum,m->maximum,sizeof(v->maximum));v->x=m->x;v->y=m->y;v->width=m->width;v->height=m->height;
         v->base_seed=m->base_seed;v->projection=m->binding.projection;
     }
+    phase="faces";
     for(f=0;f<publication->mesh.face_count;f++) {
         const rf_geomod_face *face=publication->mesh.faces+f;const rf_geomod_publication_origin *o=origins+f;
         const rf_preview_surface_lightmap *binding=lighting->terrain_bindings+f;
@@ -191,7 +201,8 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
             }
             if(w->map_charts[found]==UINT32_MAX) {
                 if(charts==RF_GEOMOD_PUBLICATION_FACES)goto done;
-                status=scene_authored_digest_generated(w,noise->maps+found,o,found,w->charts+charts);if(status)goto done;
+                const char *chart_level=!strcmp(campaign_current_level,"L1S2.rfl")?"l1s2.rfl":"ctf06.rfl";
+                status=scene_authored_digest_generated(w,noise->maps+found,o,chart_level,found,w->charts+charts);if(status)goto done;
                 status=RF_FORMAT;w->charts[charts].key=charts;w->map_charts[found]=charts++;
             }
             w->face_charts[f]=w->map_charts[found];
@@ -209,14 +220,14 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
     retained.owner_generation=noise->generation;retained.owner_cuts=noise->cuts;retained.baked=noise->bake;
     retained.sample=noise->sample;retained.random=noise->random.value;retained.x=noise->x;retained.y=noise->y;retained.row=noise->row;retained.material_policy=material_policy;
     if(material_policy==2){retained.authored_material_tokens=w->authored_tokens;retained.authored_material_count=token_count;}
-    status=collection?rf_geomod_retained_material_collection_digest(&retained,sources,source_count,result.material_digest):
+    phase="retained_digest";status=collection?rf_geomod_retained_material_collection_digest(&retained,sources,source_count,result.material_digest):
         rf_geomod_retained_material_digest(&retained,result.material_digest);if(status)goto done;
     pub.mesh=publication->mesh;pub.origins=origins;pub.face_charts=w->face_charts;
     pub.materials=w->materials;pub.material_count=publication->mesh.face_count?materials:0;
     pub.charts=w->charts;pub.chart_count=charts;pub.source_domain=RF_GEOMOD_DIGEST_COMPILED_SOURCE;
     pub.publication_policy=pub.material_policy=1;
-    status=rf_geomod_publication_digest(&pub,result.publication_digest);if(status)goto done;
-    status=RF_FORMAT;unchanged=composition->count-publication->mesh.face_count;
+    phase="publication_digest";status=rf_geomod_publication_digest(&pub,result.publication_digest);if(status)goto done;
+    phase="collision_rows";status=RF_FORMAT;unchanged=composition->count-publication->mesh.face_count;
     if(unchanged!=base->face_count-(publication->cuts?s->terrain_publication->replaced_count:0))goto done;
     for(i=0;i<composition->count;i++) {
         rf_geomod_collision_digest_row *r=w->rows+i;r->canonical_order=i;
@@ -246,9 +257,10 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
     collision.composition=composition;collision.rows=w->rows;collision.row_count=composition->count;
     collision.materials=w->materials;collision.material_count=materials;collision.source_identity=collection?collection_identity:a->source_identity;
     collision.room=a->asset_view.room;collision.collision_policy=1;
-    status=rf_geomod_collision_digest(&collision,result.collision_digest);if(status)goto done;
+    phase="collision_digest";status=rf_geomod_collision_digest(&collision,result.collision_digest);if(status)goto done;
     if(publication->mesh.face_count)memcpy(face_maps,w->face_maps,publication->mesh.face_count*sizeof(*face_maps));
     *out=result;*peak_bytes=peak;
 done:
+    if(status && rf_scene_combat_trace)printf("AUTHORED_DIGEST_REJECT %s %d\n",phase,status);
     free(w);return status;
 }

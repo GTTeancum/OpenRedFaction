@@ -61,6 +61,16 @@ only; the normal L1S2 scene remains the single source and keeps its working
 first-cut save/load path. The pair's 16 MiB subsystem budget has passed this
 PC transaction but has not been validated against whole-game stock Xbox RAM.
 
+The paired first-cut scene now writes RFDS3 without detached-piece trailers,
+stages both cavity histories, commits the private collection restore and
+re-encodes byte-identically in the focused PC harness. The original
+single-source RFDS2 stage and the exact second-contact rollback checks pass.
+Generated chart names for L1S2 use lowercase `l1s2.rfl`, as required by the
+shared digest format. This qualifies the pair's scene-level first-cut history;
+ordinary campaign RFDS3 dispatch and the room-121 second-cut publication remain
+separate work. The Xbox build compiles, but this new collection route has not
+run under XEMU or against the stock whole-game memory limit.
+
 This is geometric and focused C collision evidence, not a runtime
 demonstration of the second cut or its visual quality. The Python probe uses
 SciPy for half-space solving; the shipping C/Xbox build does not depend on

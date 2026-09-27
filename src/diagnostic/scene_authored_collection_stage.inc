@@ -36,7 +36,9 @@ static inline int scene_collection_player_placement(const scene_stream *s,const 
     uint32_t i;int status;
     if(!s || !player || !s->terrain_sources || s->terrain_source_count<2 || s->terrain_source_count>4)return RF_RANGE;
     for(i=0;i<s->terrain_source_count;i++) {
-        status=rf_geomod_piece_registry_placement_check(scene_detached_source_registry(s,i),player);if(status)return status;
+        rf_geomod_piece_registry *registry=scene_detached_source_registry(s,i);
+        if(!registry)continue;
+        status=rf_geomod_piece_registry_placement_check(registry,player);if(status)return status;
     }
     return RF_OK;
 }
@@ -65,11 +67,18 @@ static inline int scene_authored_collection_stage_prepare(scene_stream *s,const 
     const unsigned char *data=input;rf_authored_checkpoint_layout layout;
     scene_authored_collection_stage *p=NULL;rf_geomod_terrain_view core;
     rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];rf_collision_composition_view composition;
-    uint64_t external,reconstruction_external,retained;uint32_t serial,i;int status;
+    uint64_t external,reconstruction_external,retained;uint32_t serial,i,l1s2_pair;int status;
     if(!s || !input || !out || *out || s->terrain_source_count<2 || s->terrain_source_count>4 || !s->terrain_sources ||
        !s->terrain_publication || s->terrain_publication->has_pending || !s->geometry || !s->collision || s->terrain_shadow_reference)return RF_RANGE;
     status=rf_authored_collection_layout_read(data,bytes,&layout);if(status)return status;
-    if(!s->terrain_sources[0].authored || strcmp(campaign_current_level,"ctf06.rfl") || strcmp((const char *)data+16,campaign_current_level) ||
+    l1s2_pair=s->terrain_source_count==2 &&
+        s->terrain_sources[0].authored && s->terrain_sources[1].authored &&
+        s->terrain_sources[0].authored->asset_view.source_uid==8123 &&
+        s->terrain_sources[1].authored->asset_view.source_uid==8219 &&
+        s->terrain_sources[0].authored->asset_view.room==8 &&
+        s->terrain_sources[1].authored->asset_view.room==8 &&
+        !strcmp(campaign_current_level,"L1S2.rfl");
+    if(!s->terrain_sources[0].authored || (strcmp(campaign_current_level,"ctf06.rfl") && !l1s2_pair) || strcmp((const char *)data+16,campaign_current_level) ||
        memcmp(data+80,s->terrain_sources[0].authored->source_identity,32) || memcmp(data+112,s->terrain_checkpoint_identity+32,96) ||
        checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
     serial=checkpoint_u32(data+316);if(serial==UINT32_MAX)return RF_FORMAT;
@@ -148,11 +157,13 @@ static inline int scene_authored_collection_stage_commit(scene_authored_collecti
        !s->terrain_publication || !s->terrain_publication->has_pending || p->shared.lighting->owner!=&p->candidate)return RF_RANGE;
     for(i=0;i<s->terrain_source_count;i++) {
         const scene_terrain_source_owner *owner=s->terrain_sources+i;
-        if(owner->authored!=p->owners[i].authored || !p->sources->cores[i] || !p->sources->pieces[i])return RF_FORMAT;
+        if(owner->authored!=p->owners[i].authored || !p->sources->cores[i] ||
+           (!p->sources->pieces[i] && !scene_authored_source_cavity(owner->authored->asset_view.source_uid)))return RF_FORMAT;
         old_cores[i]=owner->authored==s->terrain_authored?s->terrain:owner->terrain;
         old_pieces[i]=scene_detached_source_registry(s,i);
-        if(!old_cores[i] || !old_pieces[i])return RF_FORMAT;
-        for(j=0;j<i;j++)if(old_cores[i]==old_cores[j] || old_pieces[i]==old_pieces[j])return RF_FORMAT;
+        if(!old_cores[i] || (!old_pieces[i] && !scene_authored_source_cavity(owner->authored->asset_view.source_uid)))return RF_FORMAT;
+        for(j=0;j<i;j++)if(old_cores[i]==old_cores[j] ||
+            (old_pieces[i] && old_pieces[i]==old_pieces[j]))return RF_FORMAT;
         if(owner->authored==s->terrain_authored){if(selected!=UINT32_MAX)return RF_FORMAT;selected=i;}
         assets+=owner->authored->resident_bytes;asset_peak+=owner->authored->peak_bytes;
     }
