@@ -282,11 +282,30 @@ static inline void scene_terrain_publication_abort(scene_stream *s)
  * not the independently replayed core generation. Caller validates save identity. */
 /* Shared by live publication and private checkpoint reconstruction. Check every
  * owner's prepared cutters, including non-selected members of a collection. */
+/* Temporary L1S2 route: the recorded second Driller cutter is bounded to the
+ * two imported cavity owners and clipped room-121 detail. Other contacts keep
+ * the ordinary authored obstacle guard until a general scope test exists. */
+static int scene_l1s2_second_contact(const rf_geomod_publication_cut *cut)
+{
+    const float expected[2][3]={{121.10767f,-2.40545f,-19.96276f},
+        {126.90575f,.70207f,-13.50584f}};
+    float lo[3],hi[3];uint32_t i,k;
+    if(!cut || !cut->mesh.vertices || !cut->mesh.vertex_count)return RF_FORMAT;
+    memcpy(lo,cut->mesh.vertices[0].position,12);memcpy(hi,lo,12);
+    for(i=0;i<cut->mesh.vertex_count;i++)for(k=0;k<3;k++) {
+        float value=cut->mesh.vertices[i].position[k];if(!isfinite(value))return RF_FORMAT;
+        if(value<lo[k])lo[k]=value;if(value>hi[k])hi[k]=value;
+    }
+    for(k=0;k<3;k++)if(fabsf(lo[k]-expected[0][k])>.01f ||
+        fabsf(hi[k]-expected[1][k])>.01f)return RF_NOT_FOUND;
+    return RF_OK;
+}
 static int scene_authored_cuts_admit(const scene_terrain_authored_assets *a,
-    const rf_geomod_publication_cut *cuts,uint32_t count) {
+    const rf_geomod_publication_cut *cuts,uint32_t count,uint32_t covered) {
     uint32_t i;int status;
     if(a->asset_view.source_uid==66 || a->asset_view.source_uid==148 || a->asset_view.source_uid==8123 || a->asset_view.source_uid==8219 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
         const rf_geomod_mesh_view *cut=&cuts[i].mesh;float lo[3],hi[3];uint32_t vertex,axis,reference;
+        if(i==covered)continue; /* Candidate detail/paired source is staged. */
         if(!cut->vertex_count || !cut->vertices)return RF_FORMAT;
         memcpy(lo,cut->vertices[0].position,12);memcpy(hi,lo,12);
         for(vertex=1;vertex<cut->vertex_count;vertex++)for(axis=0;axis<3;axis++) {
@@ -309,7 +328,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
 {
     scene_terrain_publication_owner *p;scene_publication_bank *b;scene_terrain_authored_assets *a;
     rf_geomod_terrain_view terrain;rf_geomod_publication_job job={0};
-    uint32_t i,j,pending;int status;
+    uint32_t i,j,pending,paired_second=0;int status;
     if(!s || !(p=s->terrain_publication) || !(a=s->terrain_authored) || p->has_pending ||
        !candidate || count!=candidate->cuts || count>RF_GEOMOD_CUT_LIMIT ||
        (count && !cuts) || count>saved_serial || saved_serial==UINT32_MAX)return RF_RANGE;
@@ -323,7 +342,16 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     job.source_planes=a->asset_view.source_planes;job.source_plane_count=a->source.face_count;
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
     job.neighbor_voids=a->asset_view.neighbor_voids;job.neighbor_void_count=a->asset_view.neighbor_void_count;
-    status=scene_authored_cuts_admit(a,cuts,count);if(status)return status;
+    if(p->detail && scene_l1s2_detail_profile(s) && a->asset_view.source_uid==8123 &&
+       saved_serial==2 && terrain.cuts==2) {
+        status=scene_l1s2_second_contact(cuts+1);
+        if(!status) {
+            status=scene_l1s2_detail_prepare(p->detail,&p->work,s->geometry,
+                cuts+1,1,saved_serial);if(status)return status;
+            paired_second=1;
+        } else if(status!=RF_NOT_FOUND)return status;
+    }
+    status=scene_authored_cuts_admit(a,cuts,count,paired_second?1u:UINT32_MAX);if(status)return status;
     if(s->terrain_source_count>1) {
         rf_geomod_publication_job jobs[4];rf_geomod_publication_cut other_cuts[4][RF_GEOMOD_CUT_LIMIT];
         uint32_t source,cut,total=0,selected=0;
@@ -350,7 +378,10 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
                     status=rf_geomod_terrain_cutter_get(owner->terrain,cut,&c->mesh,c->kernel,&c->star);if(status)return status;
                 }
             }
-            status=scene_authored_cuts_admit(asset,jobs[source].cuts,jobs[source].cut_count);if(status)return status;
+            if(paired_second && source==1 &&
+               (jobs[source].cut_count!=1 || scene_l1s2_second_contact(jobs[source].cuts)))return RF_NOT_FOUND;
+            status=scene_authored_cuts_admit(asset,jobs[source].cuts,jobs[source].cut_count,
+                paired_second?(source==0?1u:0u):UINT32_MAX);if(status)return status;
             total+=jobs[source].cut_count;
         }
         /* One room edit may cut several sources. Each source history is
@@ -450,6 +481,9 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
     uint32_t i,j;int status;
     if(!s || !(p=s->terrain_publication) || !p->has_pending)return RF_RANGE;b=p->banks+p->pending;
     if(count!=b->mesh.face_count || (count && !complete))return RF_RANGE;
+    /* A two-room edit cannot publish room 8 alone. The grouped caller rolls
+     * back both cloned cores until detail draw/save publication is integrated. */
+    if(p->detail && p->detail->has_pending)return RF_NOT_FOUND;
     for(i=0;i<count;i++) {
         const rf_preview_surface_lightmap *lm=complete+i;
         if(b->corners[b->faces[i].first].status!=RF_GEOMOD_BINDING_GENERATED_PENDING) {

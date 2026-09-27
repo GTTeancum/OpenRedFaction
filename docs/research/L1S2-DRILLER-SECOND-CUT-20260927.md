@@ -113,3 +113,13 @@ candidate and all 120 carry authored lightmap bindings. Its enlarged owner
 raises the measured stage peak to 1,810,958 bytes, still below 4 MiB. The
 focused L1S2 checks and NXDK build pass; this is draw data only, not a rendered
 or visually reviewed gameplay frame. The normal second edit remains guarded.
+
+The paired scene transaction now recognizes only the measured frame-296
+second cutter bounds (0.01-unit tolerance), stages the UID9996 room-121
+fragment composition, and lets the UID8123/UID8219 room-8 group reach lighting
+preparation. `scene_terrain_publication_finish` rejects while a room-121
+candidate is pending, before binding room 8, so the group discards both cloned
+cores and returns to serial 1. The focused PC rollback check and NXDK build
+pass. This narrow bound is a staging guard, not proof that arbitrary cutters
+with the same box avoid other compiled surfaces; live admission still needs a
+general geometric scope check and a coordinated two-room commit.

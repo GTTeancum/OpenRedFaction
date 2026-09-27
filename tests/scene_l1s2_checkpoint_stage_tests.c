@@ -87,7 +87,7 @@ int main(int argc,char **argv)
             rf_scene_combat_trace=0;
             if(second_status!=RF_NOT_FOUND || s->terrain_publication_serial!=previous_serial ||
                s->terrain_publication->has_pending)return 1;
-            printf("PASS L1S2 second-contact admission rollback status%d serial%u\n",
+            printf("PASS L1S2 second-contact two-room commit gate rollback status%d serial%u\n",
                 second_status,previous_serial);
             {
                 scene_authored_edit_context factory={0};rf_geomod_terrain *detail_core=NULL;
