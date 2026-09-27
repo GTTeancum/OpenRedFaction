@@ -101,5 +101,22 @@ the weapon handoff:15 animation registrations produce8 starts (one loop and
 seven actions), four Look_At commands produce2693 turn steps and170 published
 pose changes, and two authored Slay actions execute. This is live event flow,
 not exact choreography or visual fidelity. The broad Xbox verifier now reads
-and compares `SCRIPT_ANIMATION` and `SCRIPT_LOOK_AT` on its next run; the PASS
-above predates those explicit comparisons, so their native parity remains open.
+and compares `SCRIPT_ANIMATION` and `SCRIPT_LOOK_AT`; the earlier2380-frame
+PASS predates those explicit comparisons.
+
+The first expanded 2380-frame native attempt (`replay-20260926-233605`) ended
+at guest frame1802 when XEMU's host OpenGL display fence asserted; no final
+guest comparison was available. The contained 1800-frame prefix already
+contains all eight scripted animation starts and four Look_At commands. A
+second text-only stock-64-MiB run (`replay-20260926-234256`) **PASS**es the
+expanded broad checks: `SCRIPT_ANIMATION` matches PC at
+`[15,8,1,7,0,9493,8322,2892,5,0]`, and `SCRIPT_LOOK_AT` matches at
+`[4,0,2495,0,0,9791,8432,8322,170]`. XEMU reports3847 free pages
+(15.03MiB). This validates live scripted state through frame1800, before the
+later slays and Riot Stick handoff. The prior2380-frame broad PASS covers
+that later gameplay without the two newly added script comparisons. Neither
+run inspected visual output.
+
+Reproduce the shorter prefix after generating it with the PC route tool:
+`python tools/replay_opening_authored_spawn.py`, then
+`python tools/xemu_replay_check.py artifacts/opening-handoff/scripted-1800.bin --campaign-spawn --level L1S1.rfl --no-images --seconds 480`.

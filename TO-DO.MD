@@ -18,7 +18,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Xbox retained rendering: L6S3 static world/model/clutter draws and L1S1 real-spawn 2380-frame broad PC/Xbox telemetry pass in stock64MiB with3831 free pages; visual parity, GPU clipping detail and disabled model bounds culling remain open.
 
-- Opening scripted actors: Real-spawn PC walking executes eight Play_Animation starts, four Look_At commands and two scripted slays before the Riot Stick handoff; direct Xbox animation/gaze parity, exact choreography and onward traversal remain.
+- Opening scripted actors: Real-spawn PC/Xbox walking matches eight Play_Animation starts and four Look_At commands through frame1800, while the later handoff/slays pass broader telemetry separately; exact choreography and onward traversal remain.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 

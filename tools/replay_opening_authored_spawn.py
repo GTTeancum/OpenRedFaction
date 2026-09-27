@@ -32,6 +32,7 @@ for i in range(frames):
     records.append(struct.pack('<5f6I', x if i >= 720 else c*x+s*z,
                                0, z, 0, 0, 0, 0, 0, int(i == 2360), 0, 0))
 source.write_bytes(b'RFI5' + struct.pack('<I', 44) + b''.join(records))
+(folder / 'scripted-1800.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + b''.join(records[:1800]))
 
 env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
 env['RF_REPLAY_LEVEL'] = 'L1S1.rfl'

@@ -274,11 +274,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     expected_resource_hash=2166136261
     for repeat in range(2):
      for resource,frame in [('LightCorona01.tga',None),('boom01.vbm',0),('boom01.vbm',15)]:
-      raw=run/'particle-resource.rgba'
-      command=[str(root/'build/pc/Release/rf_image_probe.exe'),str(root/'Installed_Game/maps2.vpp'),resource,str(raw),'65536']
+      command=[str(root/'build/pc/Release/rf_image_probe.exe'),'--hash-rgba',str(root/'Installed_Game/maps2.vpp'),resource,'65536',str(expected_resource_hash)]
       if frame is not None:command.append(str(frame))
-      subprocess.run(command,check=True,capture_output=True)
-      for value in raw.read_bytes():expected_resource_hash=((expected_resource_hash^value)*16777619)&0xffffffff
+      expected_resource_hash=int(subprocess.check_output(command,text=True).strip())
     assert resources[2]==expected_resource_hash,resources
     report['particle_resources']=resources
     loading=words(monitor,symbol('rf_explosion_loading_diagnostic'),6)
