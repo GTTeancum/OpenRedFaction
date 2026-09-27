@@ -215,6 +215,10 @@ int main(int argc,char **argv)
                 printf("PASS L1S2 paired collision overlay room8=%u room121=%u\n",
                     detail->overlay.world.rooms[8].tree.face_count,
                     detail->overlay.world.rooms[121].tree.face_count);
+                CHECK(scene_l1s2_detail_prepare_reset(detail));
+                CHECK(scene_l1s2_detail_publish(detail));
+                if(detail->published || detail->overlay.world.rooms[121].tree.face_count!=
+                   world.rooms[121].tree.face_count)return 1;
                 rf_geomod_terrain_close(&detail_core);free(history_blob);
             }
         }
@@ -249,6 +253,24 @@ int main(int argc,char **argv)
             bytes,
             candidate.mesh.face_count,candidate.mesh.vertex_count,
             s->terrain_publication->replaced_count);
+        if(commit_mode) {
+            const uint32_t indices[2]={0,1};
+            scene_authored_edit_context reset[2]={{0}};
+            for(i=0;i<2;i++){reset[i].scene=s;reset[i].reset=1;}
+            CHECK(scene_terrain_authored_edit_group(s,indices,reset,2));
+            if(s->terrain_publication->detail->published ||
+               s->collision!=&s->terrain_collision.world ||
+               s->terrain_geometry.faces!=geometry.faces-s->terrain_publication->replaced_count ||
+               s->terrain_publication->detail->overlay.world.rooms[121].tree.face_count!=
+                   world.rooms[121].tree.face_count)return 1;
+            CHECK(scene_terrain_publication_view(s,&candidate));
+            if(candidate.cuts || candidate.mesh.face_count || s->terrain_publication_serial!=3)return 1;
+            printf("PASS L1S2 paired reset restores room121 and original static detail serial%u\n",
+                s->terrain_publication_serial);
+            CHECK(scene_terrain_authored_template_edit(s,center,basis,1.f/shape.radius,NULL,0));
+            CHECK(scene_terrain_publication_view(s,&candidate));
+            if(candidate.cuts!=1 || s->terrain_publication->detail->published)return 1;
+        }
         goto complete;
     }
     CHECK(rf_geomod_terrain_cut_template(s->terrain,&shape,center,basis,1.f,s->terrain_material));

@@ -144,3 +144,12 @@ post-restore checks retain the active room-121 overlay. Focused PC checks and
 NXDK compilation pass. This test-owned pair is not yet the normal L1S2
 campaign profile, and there is no Xbox runtime or visual-content verification
 for the second cut. Reset from an active paired cut also needs coverage.
+
+The paired reset now stages a base-tree replacement for room 121 whenever an
+active detail cut is removed. Its render view restores the 30 compiled detail
+faces, switches collision queries back to the room-8 overlay, and stops
+appending the detail draw bank. The focused PC route commits both cuts,
+round-trips RFDS3, resets both source histories to zero, confirms the original
+room-121 tree/static view, and makes the first cut again. All four focused
+L1S2 checks and the NXDK build pass. This does not yet cover arbitrary
+repeated cuts or native runtime reset.
