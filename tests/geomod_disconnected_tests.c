@@ -70,6 +70,58 @@ static void cap_area(const rf_collision_face *solid,uint32_t faces,uint32_t axis
     CHECK(!memcmp(&result,&kept,sizeof(result)));
 }
 
+static void overlapping_air_union(void)
+{
+    static rf_geomod_vertex clip_vertices[2][2048],aggregate_vertices[2][2048];
+    static rf_geomod_fragment clip_fragments[2][512],aggregate_fragments[2][512];
+    rf_geomod_solid_union_work work={0};rf_geomod_solid_clip_result result,kept;
+    rf_geomod_solid_clip_source sources[2];rf_geomod_mesh_view source;
+    rf_geomod_vertex shifted[2][24],polygon[4]={0};rf_collision_face faces[2][6];
+    float positions[2][24][3];uint32_t box,i,j;double area=0;
+    make_source(&source);
+    work.clip.vertices[0]=clip_vertices[0];work.clip.vertices[1]=clip_vertices[1];
+    work.clip.fragments[0]=clip_fragments[0];work.clip.fragments[1]=clip_fragments[1];
+    work.clip.vertex_capacity=2048;work.clip.fragment_capacity=512;
+    work.vertices[0]=aggregate_vertices[0];work.vertices[1]=aggregate_vertices[1];
+    work.fragments[0]=aggregate_fragments[0];work.fragments[1]=aggregate_fragments[1];
+    work.vertex_capacity=2048;work.fragment_capacity=512;
+    for(box=0;box<2;box++) {
+        rf_geomod_mesh_view shifted_source=source;
+        memcpy(shifted[box],source.vertices,sizeof(shifted[box]));
+        for(i=0;i<24;i++)shifted[box][i].position[0]+=box?4.f:-4.f;
+        shifted_source.vertices=shifted[box];
+        CHECK(!rf_geomod_collision_faces(&shifted_source,filters,positions[box],24,faces[box],6));
+        sources[box]=(rf_geomod_solid_clip_source){faces[box],6};
+    }
+    for(i=0;i<4;i++) {
+        static const float xy[4][2]={{-15,-15},{15,-15},{15,15},{-15,15}};
+        polygon[i].position[0]=polygon[i].uv[0]=xy[i][0];
+        polygon[i].position[1]=polygon[i].uv[1]=xy[i][1];
+    }
+    CHECK(!rf_geomod_polygon_clip_outside_union(polygon,4,sources,2,&work,&result));
+    for(i=0;i<result.fragment_count;i++) {
+        const rf_geomod_fragment *fragment=result.fragments+i;
+        const rf_geomod_vertex *v=result.vertices+fragment->first;
+        for(j=1;j+1<fragment->count;j++)
+            area+=fabs(((double)v[j].position[0]-v[0].position[0])*(v[j+1].position[1]-v[0].position[1])-
+                ((double)v[j].position[1]-v[0].position[1])*(v[j+1].position[0]-v[0].position[0]))*.5;
+        for(j=0;j<fragment->count;j++) {
+            CHECK(fabs(v[j].uv[0]-v[j].position[0])<0.00001);
+            CHECK(fabs(v[j].uv[1]-v[j].position[1])<0.00001);
+        }
+    }
+    /* Two 20x20 cavities overlap by 12x20. The retained rock section is
+     * 30x30 - (400 + 400 - 240) = 340 square units. */
+    CHECK(fabs(area-340)<0.0001);
+    kept=result;work.vertex_capacity=4;
+    CHECK(rf_geomod_polygon_clip_outside_union(polygon,4,sources,2,&work,&result)==RF_RANGE);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+    work.vertex_capacity=2048;polygon[0].uv[0]=NAN;
+    CHECK(rf_geomod_polygon_clip_outside_union(polygon,4,sources,0,&work,&result)==RF_FORMAT);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+    puts("PASS overlapping authored air union retains rock surface and UVs");
+}
+
 static void concave_caps(void)
 {
     rf_geomod_mesh_view source;rf_geomod_terrain *t;rf_geomod_terrain_view view;
@@ -613,6 +665,7 @@ static void thin_concave_body(void)
 }
 int main(void)
 {
+    overlapping_air_union();
     thin_concave_body();
     CHECK(!subdivision_cutter_cases());
     subdivision_mesh_cuts();

@@ -111,3 +111,45 @@ int rf_geomod_polygon_clip_solid_tracked(const rf_geomod_vertex *polygon,uint32_
     if(!input_edges || !solid_planes)return RF_RANGE;
     return clip_solid(polygon,n,solid,faces,inside,input_edges,solid_planes,work,result);
 }
+
+int rf_geomod_polygon_clip_outside_union(const rf_geomod_vertex *polygon,uint32_t n,
+    const rf_geomod_solid_clip_source *sources,uint32_t source_count,
+    rf_geomod_solid_union_work *work,rf_geomod_solid_clip_result *result)
+{
+    uint32_t bank=0,parts=1,used=n,s,i;int status;
+    if(!polygon || n<3 || n>64 || !work || !result || (source_count&&!sources) ||
+       !work->vertices[0] || !work->vertices[1] || !work->fragments[0] || !work->fragments[1] ||
+       work->vertex_capacity<n || !work->fragment_capacity)return RF_RANGE;
+    if(source_count>128)return RF_RANGE;
+    for(s=0;s<source_count;s++)if(!sources[s].faces || !sources[s].count)return RF_RANGE;
+    for(i=0;i<n;i++) {
+        uint32_t k;
+        for(k=0;k<3;k++)if(!isfinite(polygon[i].position[k]))return RF_FORMAT;
+        for(k=0;k<2;k++)if(!isfinite(polygon[i].uv[k]))return RF_FORMAT;
+    }
+    memcpy(work->vertices[0],polygon,n*sizeof(*polygon));
+    work->fragments[0][0]=(rf_geomod_fragment){0,n};
+    for(s=0;s<source_count;s++) {
+        uint32_t next=bank^1,next_used=0,next_parts=0;
+        for(i=0;i<parts;i++) {
+            const rf_geomod_fragment *piece=work->fragments[bank]+i;
+            rf_geomod_solid_clip_result clipped;uint32_t j;
+            status=rf_geomod_polygon_clip_solid(work->vertices[bank]+piece->first,piece->count,
+                sources[s].faces,sources[s].count,0,&work->clip,&clipped);
+            if(status)return status;
+            for(j=0;j<clipped.fragment_count;j++) {
+                const rf_geomod_fragment *fragment=clipped.fragments+j;
+                if(next_parts==work->fragment_capacity ||
+                   fragment->count>work->vertex_capacity-next_used)return RF_RANGE;
+                memcpy(work->vertices[next]+next_used,clipped.vertices+fragment->first,
+                    fragment->count*sizeof(*polygon));
+                work->fragments[next][next_parts++]=(rf_geomod_fragment){next_used,fragment->count};
+                next_used+=fragment->count;
+            }
+        }
+        bank=next;parts=next_parts;used=next_used;
+        if(!parts)break;
+    }
+    *result=(rf_geomod_solid_clip_result){work->vertices[bank],work->fragments[bank],used,parts,NULL};
+    return RF_OK;
+}

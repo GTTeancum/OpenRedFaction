@@ -23,6 +23,15 @@ changing the test-level name in the current cutter. See
 `docs/research/L1S1-SCRIPTED-BLAST-BRUSH-20260922.md` for earlier source
 evidence and the limits of proximity as a GeoMod admission test.
 
+The shared `geomod_solid_clip` core now has a bounded, allocation-free
+outside-union operation for polygons against overlapping closed air volumes.
+A focused PC fixture with two overlapping 20-by-20 cavities keeps the expected
+340 square units of a 30-by-30 section and preserves UVs; the stock NXDK
+build also passes. This provides one CSG operation needed to retain rock faces
+around multiple authored cavities. It has not been connected to the L1S1 room
+owner or exercised on the actual 44/488-face source brushes. Those complex
+brushes may exceed the present scratch capacities or need spatial filtering.
+
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's
 CSG, then publish matching render, collision, material and player-support
