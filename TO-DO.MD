@@ -8,7 +8,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, both L1S2 Driller cuts, active Shoot_At, resumed guard combat, moving-ground and close-contact player, and bridge-cover live-NPC saves/reloads work on PC/Xbox; deeper player/NPC contacts, further authored terrain owners and scripted targets remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge detonator selection, both L1S2 Driller cuts, active Shoot_At, resumed guard combat, moving-ground and close-contact player, and bridge-cover live-NPC saves/reloads work on PC/Xbox; deeper player/NPC contacts and further authored owners remain open (saves approximately99%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
@@ -22,7 +22,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Opening scripted actors: Real-spawn PC/Xbox walking matches eight Play_Animation starts, four Look_At commands, two Slay actions and the Riot Stick handoff; exact choreography remains.
 
-- Opening onward combat: Real-spawn PC/Xbox play defeats guards8324/8326/8625, crosses the Remote Charge wall, and reaches upper-bridge cover; collect Suit Repair9868 through guard8462's corner, then find cover past guards9404/9406 because the remaining Medical Kit lies beyond them.
+- Opening onward combat: PC real-spawn play kills guard8462 with a wall-side charge, collects Suit Repair9868 and saves/reloads, while stock-memory Xbox matches the first-bend combat state; find cover past guards9404/9406 because the remaining Medical Kit lies beyond them.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 

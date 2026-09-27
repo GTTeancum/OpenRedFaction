@@ -139,10 +139,15 @@ static uint32_t scene_remote_checkpoint_keep_restored(void)
 static void scene_remote_checkpoint_apply_selection(void)
 {
     uint32_t mode=scene_remote_restore_state.selected_mode;if(!scene_remote_restore_select)return;scene_remote_restore_select=0;
-    if(!mode || !campaign_import_applied || campaign_player_import.weapon!=(uint32_t)campaign_remote_id ||
-       campaign_selected_weapon()!=campaign_remote_id || !campaign_player_inventory.owned[campaign_remote_id])return;
+    if(!mode || campaign_explicit_unarmed || campaign_selected_weapon()!=campaign_remote_id ||
+       !campaign_player_inventory.owned[campaign_remote_id])return;
     campaign_select_primary(mode==2?9:8);campaign_ammo_publish();
 }
+/* Ordinary world load publishes after frame0's combat tick. Apply its saved
+ * charge/detonator mode here, after restoring the shared weapon ID, and do
+ * not leave a frame0 keep token for a later level. */
+static void scene_remote_checkpoint_world_selection(void)
+{scene_remote_restore_keep=0;scene_remote_checkpoint_apply_selection();}
 static void scene_remote_checkpoint_frame0(void)
 {
     if(scene_remote_checkpoint_keep_restored())scene_remote_checkpoint_apply_selection();

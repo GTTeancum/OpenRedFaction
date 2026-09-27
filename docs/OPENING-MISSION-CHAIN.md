@@ -416,10 +416,10 @@ UID9465 closer than23.29 units; the closest point is frame4852 near
 from nearby node76 to the kit's nearby node108 is248.8 units and passes the
 upper-bridge guard area. This graph does not prove every possible player route,
 but it does not support a short pre-bridge healing detour. From the ordinary
-wall save at frame4245, bounded aim toward guard8462 and stationary handgun
-fire for200 frames spent ammunition without damaging the guard; that firing
-position does not solve the encounter. Preserve more health at the close corner
-or establish another covered approach before attempting the upper guards.
+wall-side save at frame4335, an earlier bounded-aim firing probe did not
+damage guard8462. The selected weapon was actually the Remote Charge
+detonator; the shared weapon ID made its saved slot easy to misread. That
+probe establishes no handgun sightline result.
 
 The same5452-frame bridge-cover replay passed on Xbox in XEMU with stock
 64 MiB memory (`artifacts/xemu/replay-20260927-025039/report.json`). The
@@ -456,18 +456,43 @@ guard9404 around(59.42,13.03,77.11). This bounds the next route work to
 earlier health preservation, a closer explosive placement, or a verified
 covered approach; the probes establish no AI-damage defect or complete route.
 
-The close-corner ordinary save makes the first bend's pickup dependency clear.
-Guard8462's first hit reports40 damage. The baseline crosses Suit Repair
-UID9868 before that hit, granting25 armor and leaving the player alive at
-14.6 health/5.4 armor. A left/right sidestep, crouch or jump from the saved
-corner misses UID9868 and dies on the same first shot at local frame51;
-backtracking after30 frames also misses it. Backtracking after40-45 frames
-collects the armor and survives the first shot but dies to the next at local
-frame81. Retreating immediately avoids fire but returns toward the already
-cleared wall instead of progressing. From the earlier frame4245 wall save,
-bounded aim and pistol shots after20-40 forward frames do not damage8462;
-advancing60-80 frames without collecting the armor draws a fatal shot at
-local frame107. These are process-local text-only probes, not evidence that
-weapon hits or enemy damage are broken. A useful onward route must collect
-UID9868 and then continue past the guard's sightline or preserve more health
-before this encounter.
+The close-corner ordinary save shows why the old pass-through route is
+fragile. Guard8462's first hit reports40 damage. The baseline crosses Suit
+Repair UID9868 before that hit, granting25 armor and leaving the player alive
+at14.6 health/5.4 armor. Sidesteps, crouch, jump and early backtracking miss
+the armor and die on the first shot; retreat after collecting it dies to the
+second. These were Remote Charge inputs, not handgun attacks.
+
+The wall-side ordinary save at frame4335 originally had the Remote Charge
+detonator selected (slot9). Its shared weapon ID restored as the charge
+launcher (slot8) because the ordinary world load published after frame0's
+remote-mode selection pass. The world-load path now applies the saved remote
+mode after player inventory publication. A two-frame fresh PC load retains
+slot9 for the wall, close-corner and after-armor saves. The stock64MiB XEMU
+`render-20260927-120911` no-images load retains slot9 exactly as PC across
+all eight weapon-selection words, with3849 physical pages free. Explicit cycling to
+the actual handgun (slot0, weapon ID3) gives a confirmed shot ray selecting
+guard8462 from both wall-side test positions; each shot removes19.2 health.
+Standing to fire twice from that cover provokes a fatal countershot at local
+frame68, so the sightline alone does not solve the route.
+
+A process-local Remote Charge route now does. From the frame4335 save,
+select the launcher, move to the wall-side sightline, launch one charge and
+retreat while switching back to the detonator. It attaches to guard8462 at
+local frame60 and detonates at116; the guard is dead and the player remains
+alive after two smaller hits from guard9382. Following the old path from the
+retreat reaches Suit Repair9868 and(-2.14,2.38,36.33) with17 health/25 armor.
+An ordinary PC save there reloads with guard8462 still dead and matching
+vitals. Baking45 bounded aim inputs into the replay also kills guard8462 in
+an uninterrupted4486-frame PC run from the real spawn. The longer borrowed
+bridge route still dies to an upper guard, so this is a cleared first bend,
+not a cleared section. All checks here used text state and no image capture.
+
+The uninterrupted4486-frame route also passed the stock64MiB XEMU
+`render-20260927-115842` no-images run. All104 recorded PC/Xbox state
+comparisons agree, including two Remote Charge launches/attachments/
+detonations, player vitals, enemy-combat counters and the final player body;
+3603 physical pages remained free. The PC trace directly records guard8462's
+death. This Xbox harness does not expose that guard's individual health, so
+native death is supported by matching combat/blast state rather than a direct
+per-NPC health read. No visual-content claim follows from this text-only run.

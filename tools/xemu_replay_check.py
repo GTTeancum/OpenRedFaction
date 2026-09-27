@@ -127,10 +127,15 @@ pair_flag=root/'build/xbox/disc/campaign-actor-pairs.flag';saved_pair=pair_flag.
 volume_flag=root/'build/xbox/disc/campaign-volume-test.flag';saved_volume=volume_flag.read_bytes() if volume_flag.exists() else None
 regen_flag=root/'build/xbox/disc/campaign-lightmap-regen.flag';saved_regen=regen_flag.read_bytes() if regen_flag.exists() else None
 loss_flag=root/'build/xbox/disc/campaign-glare-loss.flag';saved_loss=loss_flag.read_bytes() if loss_flag.exists() else None
+world_load_flag=root/'build/xbox/disc/world-hdd-load.flag';saved_world_load=world_load_flag.read_bytes() if world_load_flag.exists() else None
+world_save_flag=root/'build/xbox/disc/world-hdd-save.flag';saved_world_save=world_save_flag.read_bytes() if world_save_flag.exists() else None
 step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'final_level':final_level,'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
+ # A persistent ordinary-save harness may leave these flag files staged.
+ # This replay uses the ordinary campaign spawn and a throwaway snapshot HDD.
+ world_load_flag.unlink(missing_ok=True);world_save_flag.unlink(missing_ok=True)
  if args.return_exit_uid is None:return_file.unlink(missing_ok=True)
  else:return_file.write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid or 0))
  if args.follow_uid is None:follow_file.unlink(missing_ok=True)
@@ -1214,6 +1219,10 @@ finally:
   else:regen_flag.write_bytes(saved_regen)
   if saved_loss is None:loss_flag.unlink(missing_ok=True)
   else:loss_flag.write_bytes(saved_loss)
+  if saved_world_load is None:world_load_flag.unlink(missing_ok=True)
+  else:world_load_flag.write_bytes(saved_world_load)
+  if saved_world_save is None:world_save_flag.unlink(missing_ok=True)
+  else:world_save_flag.write_bytes(saved_world_save)
   if saved_pair is None:pair_flag.unlink(missing_ok=True)
   else:pair_flag.write_bytes(saved_pair)
   if saved_death is None:death_flag.unlink(missing_ok=True)

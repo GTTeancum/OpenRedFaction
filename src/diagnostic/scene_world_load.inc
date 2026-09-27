@@ -180,6 +180,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     campaign_player_inventory=player.player.player.inventory;campaign_player_damage.state.effects.health=player.player.player.health;
     campaign_player_damage.state.effects.armor=player.player.player.armor;campaign_select_primary(selected);
     campaign_explicit_unarmed=player.player.player.weapon==UINT32_MAX;
+    scene_remote_checkpoint_world_selection();
     scene_weapon_modes_checkpoint_assign(stream,&player.modes);
     campaign_player_form=campaign_player_form_carry=environment->form_next;
     memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));

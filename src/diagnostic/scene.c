@@ -11660,6 +11660,7 @@ static int scene_remote_checkpoint_static_world_only(void);
 static void scene_remote_checkpoint_publish(void);
 static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
+static void scene_remote_checkpoint_world_selection(void);
 static int scene_vehicle_checkpoint_capture(scene_stream *,void *,uint32_t *);
 static int scene_vehicle_checkpoint_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
 static int scene_world_vehicle_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
