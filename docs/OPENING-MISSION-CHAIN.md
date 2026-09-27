@@ -58,3 +58,13 @@ the rest of the campaign.
 
 
 Xbox handoff verification remains incomplete: the240-second attempt timed out while frames were advancing; the600-second retry (`replay-20260914-133827`) lost its QMP connection. These are terminal harness results, not a successful native handoff. The user then paused tests and redirected work to structural Xbox optimization. The PC controls and original/PC/NXDK dispatch verifier above passed before that pause.
+
+Stock-64-MiB Xbox replay `replay-20260926-230828` completed the same 2380
+real-spawn input frames without framebuffer capture. Saved guest memory matches
+PC on the authored Riot Stick grant `[1,1,100,2,1,100,0,0]`; the broad report
+had already matched selected weapon2, ammunition `[2,0,100]`, one attack,
+and living player state. Recheck the saved evidence with
+`python tools/check_opening_xemu_gameplay.py artifacts/xemu/replay-20260926-230828`.
+The broad replay itself is **FAIL**: Xbox reports15 NPC draw submissions versus
+PC9 at the final frame, with444880 total NPC vertices on both. Preserve this
+renderer mismatch; the focused gameplay result makes no visual-parity claim.
