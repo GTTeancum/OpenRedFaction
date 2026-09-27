@@ -412,3 +412,17 @@ bridge geometry, while crouching and retreating after one hit still allows
 the guard to land its shot. The next route pass should preserve more health
 through the first bend or find a different line around the upper guard;
 these probes do not justify changing AI damage or claiming that cover works.
+
+A focused text-only continuation from the actual moving frame4320 save
+isolated the health loss: guard8462 is behind the advancing player near
+(-14.07,1.27,29.86), and its first shot at frame4351 reduces health from
+33.8 to14.6. The next seven shots through frame4561 leave those vitals
+unchanged. Short left/right sidesteps before the first shot still take damage;
+leftward variants die, while rightward variants survive at14.6 health. From
+the bridge-cover save, advancing north or south exposes a fatal shot from
+9404 or9406 around80-94 frames later. Crouching or jumping at that shot does
+not prevent it. A Remote Charge thrown from stationary bridge cover attaches
+to near geometry at(47.66,10.97,79.58); its five-unit blast cannot reach
+guard9404 around(59.42,13.03,77.11). This bounds the next route work to
+earlier health preservation, a closer explosive placement, or a verified
+covered approach; the probes establish no AI-damage defect or complete route.
