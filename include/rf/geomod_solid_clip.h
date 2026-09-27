@@ -26,6 +26,13 @@ typedef struct rf_geomod_solid_clip_result {
 int rf_geomod_polygon_clip_solid(const rf_geomod_vertex *,uint32_t,
     const rf_collision_face *,uint32_t,uint32_t,
     rf_geomod_solid_clip_work *,rf_geomod_solid_clip_result *);
+/* Campaign-only outside clip: split by actual bounded faces intersecting the
+ * input polygon rather than every infinite source plane. This avoids remote
+ * plane fragments; callers must supply a closed planar solid and test the
+ * resulting area/ownership before publication. Legacy clipping is unchanged. */
+int rf_geomod_polygon_clip_outside_solid_bounded(const rf_geomod_vertex *,uint32_t,
+    const rf_collision_face *,uint32_t,rf_geomod_solid_clip_work *,
+    rf_geomod_solid_clip_result *);
 /* Same geometry with outgoing-edge provenance. input_edges has polygon-count
  * entries; solid_planes has solid-face-count entries. Both work edge banks
  * must have vertex_capacity entries. IDs are opaque and are not renumbered.

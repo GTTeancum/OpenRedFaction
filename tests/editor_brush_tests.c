@@ -1,6 +1,7 @@
 #include "rf/editor_brush.h"
 #include "rf/geomod_solid_clip.h"
 #include "rf/geomod_campaign_wall.h"
+#include "rf/geomod_campaign_room.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -128,6 +129,75 @@ int main(int argc,char **argv)
             }
             printf("PASS L1S1 authored crater wall faces=%u vertices=%u radius=5\n",
                 wall.face_count,wall.vertex_count);
+            {
+                static rf_collision_face cutter_collision[RF_GEOMOD_STAR_FACE_LIMIT];
+                static rf_collision_face_filter cutter_filters[RF_GEOMOD_STAR_FACE_LIMIT];
+                static float cutter_positions[RF_GEOMOD_STAR_VERTEX_LIMIT][3];
+                static rf_geomod_vertex retained_vertices[8192];
+                static rf_geomod_face retained_faces[2048];
+                static uint8_t retained_unchanged[2048];
+                rf_geomod_mesh_view retained;uint32_t changed=0;
+                status=rf_geomod_collision_faces(&cutter,cutter_filters,cutter_positions,
+                    RF_GEOMOD_STAR_VERTEX_LIMIT,cutter_collision,RF_GEOMOD_STAR_FACE_LIMIT);
+                if(status)return 27;
+                status=rf_geomod_campaign_room_retain(&geometry,28,cutter_collision,
+                    cutter.face_count,&work.clip,retained_vertices,8192,retained_faces,
+                    retained_unchanged,2048,&retained);
+                if(status){fprintf(stderr,"L1S1 retained room status %d\n",status);return 28;}
+                for(i=0;i<retained.face_count;i++){
+                    const rf_geomod_face *f=retained.faces+i;
+                    if(f->source_face==3766)changed++;
+                    if(f->first+f->count>retained.vertex_count || f->count<3)return 29;
+                }
+                printf("PASS L1S1 room28 retained faces=%u vertices=%u source3766=%u\n",
+                    retained.face_count,retained.vertex_count,changed);
+                {
+                    static rf_geomod_vertex merged_vertices[4096];
+                    static rf_geomod_face merged_faces[1024];
+                    static rf_collision_face collision_faces[1024];
+                    static rf_collision_face_filter filters[1024];
+                    static float positions[4096][3];
+                    rf_geomod_mesh_view merged;rf_collision_tree tree={0};
+                    if(retained.vertex_count+wall.vertex_count>4096 ||
+                       retained.face_count+wall.face_count>1024)return 30;
+                    memcpy(merged_vertices,retained.vertices,retained.vertex_count*sizeof(*merged_vertices));
+                    memcpy(merged_vertices+retained.vertex_count,wall.vertices,wall.vertex_count*sizeof(*merged_vertices));
+                    memcpy(merged_faces,retained.faces,retained.face_count*sizeof(*merged_faces));
+                    for(i=0;i<wall.face_count;i++){
+                        merged_faces[retained.face_count+i]=wall.faces[i];
+                        merged_faces[retained.face_count+i].first+=retained.vertex_count;
+                    }
+                    merged=(rf_geomod_mesh_view){merged_vertices,merged_faces,
+                        retained.vertex_count+wall.vertex_count,
+                        retained.face_count+wall.face_count,0};
+                    for(i=0;i<merged.face_count;i++){
+                        uint32_t source=merged.faces[i].source_face;
+                        if(source==UINT32_MAX)filters[i]=(rf_collision_face_filter){0,256,0,0,0,0};
+                        else if(rf_geometry_initial_collision_filter(&geometry,source,0,filters+i))return 31;
+                    }
+                    for(i=0;i<merged.face_count;i++){
+                        const rf_geomod_face *f=merged.faces+i;
+                        if(i<retained.face_count && retained_unchanged[i]){
+                            status=rf_geometry_collision_face(&geometry,f->source_face,filters+i,
+                                positions+f->first,f->count,collision_faces+i);
+                        } else {
+                            rf_geomod_face local=*f;
+                            rf_geomod_mesh_view one;
+                            local.first=0;
+                            one=(rf_geomod_mesh_view){merged.vertices+f->first,&local,f->count,1,0};
+                            status=rf_geomod_collision_faces(&one,filters+i,positions+f->first,
+                                f->count,collision_faces+i,1);
+                        }
+                        if(status){fprintf(stderr,"L1S1 merged face %u source %u status %d\n",
+                            i,f->source_face,status);return 32;}
+                    }
+                    status=rf_collision_tree_open(collision_faces,merged.face_count,2*1024*1024,&tree);
+                    if(status){fprintf(stderr,"L1S1 merged tree status %d\n",status);return 33;}
+                    printf("PASS L1S1 staged room28 tree faces=%u vertices=%u treebytes=%u\n",
+                        merged.face_count,merged.vertex_count,tree.allocated_bytes);
+                    rf_collision_tree_close(&tree);
+                }
+            }
             {
                 static rf_collision_face collision_faces[1024];
                 static rf_collision_face_filter filters[1024];

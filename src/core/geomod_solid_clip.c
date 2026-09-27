@@ -127,6 +127,10 @@ int rf_geomod_polygon_clip_solid(const rf_geomod_vertex *polygon,uint32_t n,
     const rf_collision_face *solid,uint32_t faces,uint32_t inside,
     rf_geomod_solid_clip_work *work,rf_geomod_solid_clip_result *result)
 {return clip_solid(polygon,n,solid,faces,inside,NULL,NULL,work,result,0);}
+int rf_geomod_polygon_clip_outside_solid_bounded(const rf_geomod_vertex *polygon,uint32_t n,
+    const rf_collision_face *solid,uint32_t faces,rf_geomod_solid_clip_work *work,
+    rf_geomod_solid_clip_result *result)
+{return clip_solid(polygon,n,solid,faces,0,NULL,NULL,work,result,1);}
 int rf_geomod_polygon_clip_solid_tracked(const rf_geomod_vertex *polygon,uint32_t n,
     const rf_collision_face *solid,uint32_t faces,uint32_t inside,
     const uint16_t *input_edges,const uint16_t *solid_planes,

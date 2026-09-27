@@ -72,6 +72,19 @@ render/collision state changes. The next step is to clip the existing compiled
 room faces by the cutter, merge retained surfaces with new wall polygons, and
 publish both views atomically.
 
+The room-28 compiled faces now clip outside the same cutter. The bounded-face
+path avoids unnecessary remote plane splits; changed near-convex fragments are
+partitioned into collision-valid pieces, while untouched authored faces retain
+their original collision records. The PC probe removes face 3766 and retains
+499 polygons / 1,956 vertices from the 411 source faces. Combining these with
+368 crater-wall polygons yields a staged 867-face / 3,403-vertex room tree;
+its collision tree occupies 145,652 bytes. The current scene draw limit is
+800 faces, so this cannot yet be published through that owner. Raising or
+specializing the bound must include stock 64 MiB accounting. The generated
+walls also still need precise room assignment at portals before the staged
+tree is authoritative. Neither the render view nor live collision changes in
+the current build; the NXDK build only confirms the shared C code compiles.
+
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's
 CSG, then publish matching render, collision, material and player-support
