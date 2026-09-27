@@ -176,6 +176,10 @@ int main(void)
         make_face(edited,vertices[4],0,-2,0);make_face(edited+1,vertices[5],0,height,4);
         CHECK(rf_collision_tree_open(edited,2,65536,&next)==RF_OK);
         ids[0]=100+cycle*2;ids[1]=101+cycle*2;
+        memcpy(saved_indices,overlay.source_indices,sizeof(saved_indices));
+        CHECK(rf_geometry_collision_overlay_validate(&overlay,&next,ids,2)==RF_OK);
+        CHECK(!memcmp(saved_indices,overlay.source_indices,sizeof(saved_indices)));
+        CHECK(overlay.world.rooms[0].tree.faces!=(const rf_collision_face *)next.faces);
         CHECK(rf_geometry_collision_overlay_bind(&overlay,&next,ids,2)==RF_OK);
         /* Free the previous published tree before querying the replacement. */
         rf_collision_tree_close(&active);active=next;
@@ -189,6 +193,8 @@ int main(void)
         CHECK(!query(&overlay.world,40,.5f,3,1) && !query(&base,0,.5f,1,0));
         memcpy(saved_indices,overlay.source_indices,sizeof(saved_indices));
         memcpy(bad_ids,ids,sizeof(ids));bad_ids[0]=UINT32_MAX;
+        CHECK(rf_geometry_collision_overlay_validate(&overlay,&active,bad_ids,2)==RF_FORMAT);
+        CHECK(rf_geometry_collision_overlay_validate(&overlay,&active,ids,1)==RF_RANGE);
         CHECK(rf_geometry_collision_overlay_bind(&overlay,&active,bad_ids,2)==RF_FORMAT);
         CHECK(rf_geometry_collision_overlay_bind(&overlay,&active,ids,1)==RF_RANGE);
         invalid=active;invalid.faces=NULL;

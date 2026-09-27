@@ -123,3 +123,12 @@ cores and returns to serial 1. The focused PC rollback check and NXDK build
 pass. This narrow bound is a staging guard, not proof that arbitrary cutters
 with the same box avoid other compiled surfaces; live admission still needs a
 general geometric scope check and a coordinated two-room commit.
+
+The shared collision overlay now exposes the same read-only validation used
+by its bind operation. The scene finish path prevalidates both pending room
+trees and face-ID maps, including the detail candidate, before the deliberate
+commit rejection. Existing liquid-overlay checks confirm that preflight leaves
+the active world unchanged and returns the same format/range errors as bind.
+Focused PC checks and an NXDK rebuild pass. This removes a fallible step from
+the eventual paired commit, but it does not yet publish room 121 or its draw
+replacement in gameplay.

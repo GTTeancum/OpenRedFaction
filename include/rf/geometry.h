@@ -368,6 +368,10 @@ int rf_geometry_collision_overlay_open(const rf_geometry_collision_world *base,
  * Copies the map in tree order. Replacement nodes/faces/positions are borrowed
  * and must remain alive until rebind/close. No allocation, failure preserves
  * the active overlay. Caller synchronizes this with terrain publication. */
+/* Exact read-only preflight for bind; two-room transactions may validate both
+ * replacements before either overlay is changed. */
+int rf_geometry_collision_overlay_validate(const rf_geometry_collision_overlay *overlay,
+    const rf_collision_tree *tree,const uint32_t *face_ids,uint32_t count);
 int rf_geometry_collision_overlay_bind(rf_geometry_collision_overlay *overlay,
     const rf_collision_tree *tree,const uint32_t *face_ids,uint32_t count);
 void rf_geometry_collision_overlay_close(rf_geometry_collision_overlay *overlay);

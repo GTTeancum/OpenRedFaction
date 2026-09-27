@@ -481,9 +481,6 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
     uint32_t i,j;int status;
     if(!s || !(p=s->terrain_publication) || !p->has_pending)return RF_RANGE;b=p->banks+p->pending;
     if(count!=b->mesh.face_count || (count && !complete))return RF_RANGE;
-    /* A two-room edit cannot publish room 8 alone. The grouped caller rolls
-     * back both cloned cores until detail draw/save publication is integrated. */
-    if(p->detail && p->detail->has_pending)return RF_NOT_FOUND;
     for(i=0;i<count;i++) {
         const rf_preview_surface_lightmap *lm=complete+i;
         if(b->corners[b->faces[i].first].status!=RF_GEOMOD_BINDING_GENERATED_PENDING) {
@@ -496,9 +493,23 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
         }
     }
     status=rf_collision_composition_pending(p->composition,&cv);if(status)return status;
-    if(p->detail){status=rf_collision_composition_get(p->detail->composition,&detail_cv);if(status)return status;}
+    if(p->detail) {
+        status=p->detail->has_pending?
+            rf_collision_composition_pending(p->detail->composition,&detail_cv):
+            rf_collision_composition_get(p->detail->composition,&detail_cv);
+        if(status)return status;
+    }
     if((uint64_t)scene_publication_owned_bytes(p)+cv.peak_bytes+detail_cv.peak_bytes+
        s->terrain_collision.resident_bytes>SCENE_PUBLICATION_BUDGET)return RF_RANGE;
+    status=rf_geometry_collision_overlay_validate(&s->terrain_collision,
+        cv.tree,cv.face_ids,cv.count);if(status)return status;
+    if(p->detail && p->detail->has_pending) {
+        status=rf_geometry_collision_overlay_validate(&p->detail->overlay,
+            detail_cv.tree,detail_cv.face_ids,detail_cv.count);if(status)return status;
+        /* Both bindings are valid, but rendering/save publication must join
+         * this commit before either room may become player-visible. */
+        return RF_NOT_FOUND;
+    }
     /* Bind first; commit releases the old tree only after overlay replacement. */
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,cv.tree,cv.face_ids,cv.count);if(status)return status;
     scene_l1s2_detail_sync_base(p->detail,&s->terrain_collision);
