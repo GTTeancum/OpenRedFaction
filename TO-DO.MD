@@ -8,7 +8,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, both L1S2 Driller cuts, active Shoot_At, resumed guard combat, moving-ground player and bridge-cover live-NPC saves/reloads work on PC/Xbox; further authored terrain owners and scripted targets remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, both L1S2 Driller cuts, active Shoot_At, resumed guard combat, moving-ground and close-contact player, and bridge-cover live-NPC saves/reloads work on PC/Xbox; deeper player/NPC contacts, further authored terrain owners and scripted targets remain open (saves approximately99%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 

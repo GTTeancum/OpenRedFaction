@@ -376,6 +376,22 @@ A fresh Xbox process then loaded it and replayed165 inputs; player vitals,
 enemy spread and combat telemetry matched PC with3853 physical pages free
 (`artifacts/xemu/render-20260927-052943`). No images were captured or inspected.
 
+A later ordinary save at the close corner (frame4301) exposed a save/load
+admission mismatch: it wrote a105,076-byte save, but fresh player restore
+rejected a0.472-unit broad-sphere overlap with live guard8462. The guard had
+not entered pursuit, so the existing pursuer-only overlap allowance did not
+apply. Player restore now admits up to0.5 unit of shallow contact with a live
+NPC, or up to0.75 for an active pursuer; dead and retired actors remain
+excluded. PC reload advances181 ordinary inputs through the next guard shots,
+ending alive with the same health, armor and ammunition as uninterrupted play;
+its position is within0.11 unit of the uninterrupted route. Stock-64-MiB XEMU
+saved the same frame with all16 components byte-identical to PC and3603 free
+physical pages (`artifacts/xemu/render-20260927-111429`), then a fresh native
+process loaded and advanced181 frames with PC-matching vitals and enemy-combat
+state and3849 free pages (`artifacts/xemu/render-20260927-112125`). No images
+were made. Saves captured in deeper player/NPC contact remain an admission
+boundary to review; this change does not permit arbitrary overlap.
+
 `tools/replay_opening_bridge_cover.py` continues the recorded charge cut with
 ordinary forward/strafe inputs. The player follows the second navigation
 component around the first right bend, up the long ramp, and to upper-bridge
