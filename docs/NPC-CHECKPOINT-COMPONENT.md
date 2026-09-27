@@ -1,5 +1,16 @@
 # Ordinary saves: NPC component preparation
 
+Current status (2026-09-27): RFNC8 adds an optional 40-byte `Shoot_At`
+continuation to the 572-byte base row. It retains the authored event and fixed
+point, remaining fire/reload frames, burst count and spread RNG; restore
+rebinds the event to the current scene. RFNC1-7 remain readable. A live L15S1
+PC order saves 22,460 bytes, reloads in a fresh process, fires 10 shots over
+60 frames and saves again. The prior RFNC7 L1S1 wall snapshot also loads and
+resaves as RFNC8 (105,056 bytes). A stock-64-MiB XEMU save matches all 16 PC
+sections byte for byte, and a fresh XEMU load fires the same 10 shots in 60
+frames (`artifacts/xemu/render-20260927-045939` and
+`artifacts/xemu/render-20260927-050218`). No images were captured.
+
 Current status (2026-09-27): RFNC7 uses a 568-byte base row and an optional
 168-byte movement/look extension for only the actors that need it. It retains
 authored Goto, Goto_Player, Follow_Waypoints and Look_At bindings, route

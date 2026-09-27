@@ -1,5 +1,21 @@
 # Ordinary-level saves: implementation workstream
 
+## Active fixed-point combat order (2026-09-27)
+
+RFNC8 adds a sparse continuation for an authored `Shoot_At` actor. The record
+uses event UID and authored point, preserves its burst, relative fire/reload
+deadlines and shared spread RNG, and admits its action-2 firing/action-39
+reload clips through the existing motion playback checkpoint. Other scripted
+attack targets and non-script combat transitions still reject. The L15S1
+UID9489 order saves after 240 PC frames (22,460 bytes); a fresh PC load fires
+10 shots over 60 neutral frames and resaves. The RFNC7 L1S1 wall snapshot
+loads and resaves in RFNC8 at 105,056 bytes, below the 110,524-byte cap.
+A stock-64-MiB XEMU save produces the same 22,460-byte payload across all
+16 PC sections and the same 25 pre-save shots
+(`artifacts/xemu/render-20260927-045939`). A fresh XEMU load fires 10 shots
+over 60 frames, matching PC across 105 text-state checks
+(`artifacts/xemu/render-20260927-050218`). No images were captured.
+
 ## Active NPC movement and look (2026-09-27)
 
 RFNC7 serializes live authored movement/look state and retained route identity

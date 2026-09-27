@@ -114,7 +114,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
 {
     scene_npc_checkpoint_restore_stage *stage=NULL;rf_npc_checkpoint_record current;
     unsigned char identity[32]={0},wire[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX];
-    uint32_t i,j,expected=0,written;uint64_t bytes;unsigned char *bone_storage;int status;
+    uint32_t i,j,expected=0,written,spread_seen=0,spread_saved=0;uint64_t bytes;unsigned char *bone_storage;int status;
     const char *detail="preflight";
     if(fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
@@ -171,6 +171,13 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
             status=scene_npc_checkpoint_look_binding(rows[i].look.event,e->handle,
                 rows[i].look.target_uid,rows[i].look.position);
             if(status)goto fail;
+        }
+        if(rows[i].combat.active){
+            detail="shoot_binding";
+            status=scene_npc_checkpoint_shoot_binding(rows[i].combat.event,e->handle,rows[i].combat.point);
+            if(status)goto fail;
+            if(spread_seen&&spread_saved!=rows[i].combat.spread_rng){status=RF_FORMAT;goto fail;}
+            spread_seen=1;spread_saved=rows[i].combat.spread_rng;
         }
         if(fresh_boot){
             if(!campaign_poses.items||j>=campaign_poses.count){status=RF_FORMAT;goto fail;}
@@ -361,6 +368,17 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         o->combat_navigation_due=0;o->combat_burst_remaining=0;
         o->combat_scripted=0;o->combat_target=o->combat_alert?campaign_player_object.handle:0;
         o->combat_reload_due=0;o->combat_reload_weapon=0;
+        if(e->saved.combat.active){
+            uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
+            o->script_shoot.active=1;o->script_shoot.event=e->saved.combat.event;
+            memcpy(o->script_shoot.point,e->saved.combat.point,sizeof(e->saved.combat.point));
+            o->combat_scripted=3;o->combat_target=0;o->combat_alert=1;
+            o->combat_burst_remaining=e->saved.combat.burst;
+            o->combat_due=frame+e->saved.combat.due_remaining;
+            o->combat_reload_due=e->saved.combat.reload_remaining?frame+e->saved.combat.reload_remaining:0;
+            o->combat_reload_weapon=e->saved.combat.reload_weapon;
+            campaign_enemy_spread_random.value=e->saved.combat.spread_rng;
+        }
         o->controller_handle=e->controller_handle;
         o->object_flags=e->flags;memcpy(o->published,e->published,12);memcpy(o->previous,e->published,12);
         memset(o->look.body_angles,0,12);o->look.body_angles[1]=e->saved.yaw;memcpy(o->look.orientation,e->look_basis,36);

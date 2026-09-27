@@ -197,6 +197,41 @@ int main(void)
         owners[0].look.angles.delta_888[0]=0;owners[1].script_look.active=0;
         campaign_events.items=NULL;campaign_events.count=0;
     }
+    /* A fixed-point order survives a fresh binding and keeps its burst,
+     * deadlines and spread state rather than becoming player pursuit. */
+    {
+        rf_level_owned_event authored={0};rf_runtime_event runtime={0};rf_level_link_target link={0};
+        rf_npc_checkpoint_record shooting[2];
+        authored.record.uid=77;strcpy(authored.record.type,"Shoot_At");
+        authored.record.link_count=1;authored.record.position[0]=12;
+        runtime.authored=&authored;runtime.links=&link;link.kind=1;link.value=owners[0].registration.handle;
+        campaign_events.items=&runtime;campaign_events.count=1;
+        owners[0].script_shoot.active=1;owners[0].script_shoot.event=77;
+        owners[0].script_shoot.point[0]=12;owners[0].combat_scripted=3;
+        owners[0].combat_alert=1;owners[0].combat_target=0;owners[0].combat_burst_remaining=2;
+        combat_frame=100;owners[0].combat_due=117;owners[0].combat_reload_due=109;
+        owners[0].combat_reload_weapon=0;campaign_enemy_spread_random.value=0x1234abcd;
+        CHECK(!scene_npc_checkpoint_capture(&catalog,1000,shooting,2,&count));
+        CHECK(shooting[0].combat.active&&shooting[0].combat.event==77&&
+              shooting[0].combat.due_remaining==17&&shooting[0].combat.reload_remaining==9);
+        owners[0].script_shoot.active=owners[0].combat_scripted=owners[0].combat_alert=0;
+        owners[0].combat_due=owners[0].combat_reload_due=owners[0].combat_burst_remaining=0;
+        authored.record.position[0]=13;fit_state=(fit_context){0};
+        CHECK(scene_npc_checkpoint_restore_prepare(shooting,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_FORMAT&&!stage);
+        authored.record.position[0]=12;fit_state=(fit_context){0};
+        CHECK(!scene_npc_checkpoint_restore_prepare(shooting,2,&catalog,1000,fit,&fit_state,65536,&stage));
+        combat_frame=5;campaign_enemy_spread_random.value=1;
+        CHECK(!scene_npc_checkpoint_restore_commit(stage));
+        CHECK(owners[0].script_shoot.active&&owners[0].script_shoot.event==77&&
+              owners[0].script_shoot.point[0]==12&&owners[0].combat_scripted==3&&
+              owners[0].combat_target==0&&owners[0].combat_due==22&&
+              owners[0].combat_reload_due==14&&owners[0].combat_burst_remaining==2&&
+              campaign_enemy_spread_random.value==0x1234abcd);
+        scene_npc_checkpoint_restore_discard(&stage);
+        owners[0].script_shoot.active=owners[0].combat_scripted=owners[0].combat_alert=0;
+        owners[0].combat_due=owners[0].combat_reload_due=owners[0].combat_burst_remaining=0;
+        campaign_events.items=NULL;campaign_events.count=0;
+    }
     /* A completed death remains registered with its frozen final frame.
      * Stale combat awareness must not revive its target after reload. */
     {

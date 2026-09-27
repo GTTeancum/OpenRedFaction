@@ -8,11 +8,11 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 natural Remote Charge wall now saves/reloads on PC/Xbox with RFNC7 active NPC movement/look and frozen death poses; active one-shot motion and scripted combat remain (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 natural wall and RFNC8 active Shoot_At now save/reload and resume on PC/Xbox; other scripted targets and general combat transitions remain (saves approximately99%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
-- Scripted Shoot_At: Fixed-point fire and delayed OFF match PC/Xbox, living-player interception passes a PC fixture, and dead-body rejection matches Xbox; authored shotgun interception and active combat saves need wider live coverage (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
+- Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
 
 - Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
