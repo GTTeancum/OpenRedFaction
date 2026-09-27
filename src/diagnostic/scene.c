@@ -13351,14 +13351,14 @@ static int scene_script_explode(void *context,const rf_level_event *event,int32_
         else {
             ++rf_scene_script_explode_geometry[2];
             status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,
-                s->terrain_default_hardness,event->position,0,&region);
+                s->terrain_default_hardness,event->position,scale,&region);
             if(status)++rf_scene_script_explode_geometry[5];
             else {
                 rf_scene_script_explode_geometry[7]=region.hardness.hardness;
                 if(region.hardness.allowed){
                     ++rf_scene_script_explode_geometry[4];
                     if(event->uid==9456 && s->campaign_geomod){
-                        status=scene_campaign_geomod_cut(s,event->position,scale);
+                        status=scene_campaign_geomod_cut(s,event->position,region.hardness.scale);
                         if(status)return status;
                     }
                 }

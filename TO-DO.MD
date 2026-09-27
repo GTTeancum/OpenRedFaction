@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately93%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately95%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
-- PRIORITY Campaign GeoMod: L1S1 UID9456 cuts live room 28 and survives PC/XEMU ordinary save/load with matching mesh and collision; visual inspection, repeated cuts, other rooms and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
+- PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
 - PRIORITY Ordinary saves: L1S1 inactive and active-cut states, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and seated APC, Driller and route-following Jeep save/reload pass PC/Xbox; the active cut fits in 102,176 bytes with stock-memory native HDD reload. Other vehicles, broader cross-level coverage, menu/slot selection, moving-host charges and resource demand remain (saves approximately98%).
 

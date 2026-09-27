@@ -2,32 +2,52 @@
 
 Current state (2026-09-26): A bounded L1S1 owner now handles scripted Explode
 UID 9456. It reads editor brushes 8755 and 7778, constructs the cutter from
-the shared template, admits a room-28-only cut, retains authored faces outside
+the shared template at the original region-adjusted radius 2.5, admits a
+room-28-only cut, retains authored faces outside
 the cutter, builds new walls, maps compiled textures to live material slots,
 and stages one replacement collision tree. The scene hides the old room-28
 render faces, binds the new collision overlay, then marks the cut active for
 rendering. The generated walls use the level's loaded substrate material.
 
 An 80-frame process-local PC replay and a stock 64 MiB XEMU replay agree on
-one committed cut, 865 faces, 3,392 vertices, a 145,316-byte replacement tree,
-12 foreign detail-face AABB overlaps and zero reported error. A short ray hits
-a new wall that the original room tree misses on both builds. XEMU ends with
-4,048 available guest pages (15.81 MiB). The text-only checker still stops on
+one committed cut, 620 faces, 2,438 vertices, a 104,156-byte replacement tree,
+zero foreign detail-face AABB overlaps and zero reported error. A short ray hits
+a new wall that the original room tree misses on both builds. XEMU saves with
+4,064 available guest pages (15.88 MiB). The earlier text-only checker stops on
 an NPC draw-count difference (PC 3, Xbox 4). No visual frame was inspected
 under the user's no-images instruction; appearance, lighting, room visibility
 and visual parity remain unverified. This owner accepts only the first UID
 9456 cut. A repeated ON keeps it without making a second cut. Ordinary saves
-now encode this one authored cut as a 12-byte identity record. A fresh-scene PC
+encode this one authored cut as a 12-byte identity record: version 2 rebuilds
+the scaled shape, and version 1 continues to rebuild older unscaled prototype
+saves. A fresh-scene PC
 save/load/resave replay rebuilds room 28 before actor placement, retains the
 same mesh and differential collision result, and emits the same 12-byte
 destruction section on resave. An uncut L1S1 save still loads. The Xbox build
 passes. A stock 64 MiB XEMU HDD save writes the same 102,176-byte checkpoint
 components as PC, including the destruction record. A fresh native HDD load
-matches PC on the 865-face/3,392-vertex rebuilt room, the 145,316-byte tree,
+matches PC on the 620-face/2,438-vertex rebuilt room, the 104,156-byte tree,
 and all four differential collision counters; 4,069 guest pages remain free.
 Both native runs used text-only telemetry and produced no images.
 Other scripted cuts, repeated destruction, portal-spanning edits and campaign
 weapons still need general ownership and publication.
+
+Next authored cut (text-only evidence): ten installed Explode events request
+geometry with radius at least one. Executing original `RF.exe` routine 45cff0
+over each full level region list admits eight. In L1S1 it admits UID 9456 and
+UID 9587, while UID 9597 and UID 9728 fail hardness admission. UID 9587 is
+near room 31's operation-2 brush 8488, and its cutter has no foreign solid or
+portal overlap. Original hardness selection scales its requested 1.25 to
+0.5625; the shared C clipper then produces zero new wall faces and a 293-face
+retained candidate. This does not establish a valid visible cut, so room 31
+is not published. At the unscaled requested 1.25, the prototype would produce
+40 wall faces, which is not the original admission result. UID 9456 now uses
+the region-adjusted radius 2.5. Finding the next actual gameplay cut is the
+next step; multi-room overlays, render
+exclusion, cut order and save replay follow when a second cut is established.
+The repeatable admission probe is
+`tools/probe_scripted_geomod_admission.py`; the C stage is in
+`tests/editor_brush_tests.c`.
 
 The sections below record the earlier staging evidence. Statements that say
 publication or stock runtime validation has not happened describe those

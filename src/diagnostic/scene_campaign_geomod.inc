@@ -8,7 +8,7 @@ struct scene_campaign_geomod_owner {
     float positions[4096][3],colors[4096][3];
     uint32_t face_ids[SCENE_TERRAIN_FACES];
     rf_geomod_mesh_view mesh;rf_collision_tree tree;
-    uint32_t active;
+    uint32_t active;float committed_radius;
 };
 typedef struct scene_campaign_geomod_scratch {
     rf_geomod_template shape;
@@ -142,7 +142,7 @@ static int scene_campaign_geomod_cut(scene_stream *s,const float center[3],float
         owner->face_ids,owner->mesh.face_count);if(status){rf_collision_tree_close(&owner->tree);goto done;}
     s->collision=&s->terrain_collision.world;
     campaign_trigger_collision=s->collision;
-    owner->active=1;++rf_scene_campaign_geomod[1];
+    owner->committed_radius=radius;owner->active=1;++rf_scene_campaign_geomod[1];
     rf_scene_campaign_geomod[2]=28;rf_scene_campaign_geomod[3]=owner->mesh.face_count;
     rf_scene_campaign_geomod[4]=owner->mesh.vertex_count;
     rf_scene_campaign_geomod[5]=owner->tree.allocated_bytes;
@@ -151,16 +151,20 @@ done:
     rf_editor_brush_close(air+1);rf_editor_brush_close(air);free(scratch);
     return status;
 }
-/* RFWC DESTRUCTION v1: fixed authored-cut identity. The level/source identity
+/* RFWC DESTRUCTION v1/v2: fixed authored-cut identity. The level/source identity
  * belongs to the enclosing world checkpoint; geometry is regenerated from the
- * installed event and shared CSG, not serialized as unbounded mesh data. */
+ * installed event and shared CSG, not serialized as unbounded mesh data.
+ * v1 preserves the earlier unscaled prototype; v2 applies authored hardness. */
 static int scene_campaign_geomod_checkpoint_write(const scene_stream *s,
     unsigned char *out,uint32_t capacity,uint32_t *written)
 {
     if(!s || !out || !written)return RF_RANGE;
     if(!s->campaign_geomod || !s->campaign_geomod->active){*written=0;return RF_OK;}
     if(capacity<12)return RF_RANGE;
-    memcpy(out,"RFCG",4);out[4]=1;out[5]=out[6]=out[7]=0;
+    if(s->campaign_geomod->committed_radius!=5.f &&
+       s->campaign_geomod->committed_radius!=2.5f)return RF_FORMAT;
+    memcpy(out,"RFCG",4);out[4]=s->campaign_geomod->committed_radius==5.f?1:2;
+    out[5]=out[6]=out[7]=0;
     out[8]=0xf0;out[9]=0x24;out[10]=out[11]=0; /* UID 9456. */
     *written=12;return RF_OK;
 }
@@ -170,7 +174,7 @@ static int scene_campaign_geomod_checkpoint_restore(scene_stream *s,
     const unsigned char *p=data;uint32_t i,found=0;int status=RF_NOT_FOUND;
     if(!bytes)return RF_OK;
     if(!s || !s->campaign_geomod || s->campaign_geomod->active || !p || bytes!=12 ||
-       memcmp(p,"RFCG",4) || p[4]!=1 || p[5] || p[6] || p[7] ||
+       memcmp(p,"RFCG",4) || (p[4]!=1 && p[4]!=2) || p[5] || p[6] || p[7] ||
        p[8]!=0xf0 || p[9]!=0x24 || p[10] || p[11])return RF_FORMAT;
     for(i=0;i<campaign_events.count;i++){
         const rf_level_event *event=&campaign_events.items[i].authored->record;
@@ -178,7 +182,13 @@ static int scene_campaign_geomod_checkpoint_restore(scene_stream *s,
         if(++found!=1 || campaign_events.items[i].state.type!=10 ||
            (event->flags[0]&255u)!=1 || !isfinite(event->values[0]) ||
            event->values[0]<1)return RF_FORMAT;
-        status=scene_campaign_geomod_cut(s,event->position,event->values[0]);
+        if(p[4]==2){rf_geomod_region_result region;
+            status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,
+                s->terrain_default_hardness,event->position,event->values[0],&region);
+            if(status)return status;
+            if(!region.hardness.allowed || region.hardness.scale!=2.5f)return RF_FORMAT;
+            status=scene_campaign_geomod_cut(s,event->position,region.hardness.scale);
+        }else status=scene_campaign_geomod_cut(s,event->position,event->values[0]);
         if(status)return status;
     }
     return found==1?RF_OK:RF_NOT_FOUND;

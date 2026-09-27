@@ -104,12 +104,13 @@ int main(int argc,char **argv)
             static const float basis[9]={1,0,0,0,1,0,0,0,1};
             rf_geomod_mesh_view cutter,wall;float kernel[3];
             status=rf_geomod_template_load(argv[2],&shape);if(status)return 19;
-            status=rf_geomod_template_mesh(&shape,center,basis,5.f,7,
+            status=rf_geomod_template_mesh(&shape,center,basis,2.5f,7,
                 cutter_vertices,cutter_faces,kernel,&cutter);if(status)return 20;
             status=rf_geomod_campaign_wall_build(&cutter,sources,2,&work,
                 wall_vertices,4096,wall_faces,1024,&wall);
             if(status){fprintf(stderr,"L1S1 wall build status %d\n",status);return 21;}
-            if(wall.face_count!=368 || wall.vertex_count!=1447)return 22;
+            printf("L1S1 scaled UID9456 wall %u/%u\n",wall.face_count,wall.vertex_count);
+            if(wall.face_count!=106 || wall.vertex_count!=417)return 22;
             for(i=0;i<wall.face_count;i++){
                 const rf_geomod_face *f=wall.faces+i;
                 const rf_geomod_vertex *v=wall.vertices+f->first;
@@ -128,7 +129,7 @@ int main(int argc,char **argv)
                 for(axis=0;axis<3;axis++)toward+=normal[axis]*(kernel[axis]-v[0].position[axis]);
                 if(!isfinite(toward) || toward<=1e-10)return 24;
             }
-            printf("PASS L1S1 authored crater wall faces=%u vertices=%u radius=5\n",
+            printf("PASS L1S1 authored crater wall faces=%u vertices=%u radius=2.5\n",
                 wall.face_count,wall.vertex_count);
             {
                 static rf_collision_face cutter_collision[RF_GEOMOD_STAR_FACE_LIMIT];
@@ -146,8 +147,10 @@ int main(int argc,char **argv)
                     rf_geomod_campaign_room_scope scope;
                     status=rf_geomod_campaign_room_scope_check(&geometry,28,cutter_collision,
                         cutter.face_count,portals,256,&scope);
+                    if(!status)printf("L1S1 scaled UID9456 scope solid=%u detail=%u portals=%u links=%u\n",
+                        scope.other_solid_faces,scope.other_detail_faces,scope.touching_portals,scope.portal_links);
                     if(status || scope.other_solid_faces || scope.touching_portals ||
-                       scope.other_detail_faces!=12 || scope.portal_links!=2)return 35;
+                       scope.other_detail_faces!=0 || scope.portal_links!=2)return 35;
                     printf("PASS L1S1 room28 cut scope: foreign solid=%u detail=%u touching portals=%u\n",
                         scope.other_solid_faces,scope.other_detail_faces,scope.touching_portals);
                 }
@@ -180,7 +183,9 @@ int main(int argc,char **argv)
                         (rf_collision_face_filter){0,256,0,0,0,0},
                         3766,&stage_work,2*1024*1024,&merged,&tree);
                     if(status){fprintf(stderr,"L1S1 merged tree status %d\n",status);return 33;}
-                    if(merged.face_count!=867 || merged.vertex_count!=3403 ||
+                    printf("L1S1 scaled UID9456 merged %u/%u tree %u source3766=%u\n",
+                        merged.face_count,merged.vertex_count,tree.allocated_bytes,changed);
+                    if(merged.face_count!=620 || merged.vertex_count!=2438 ||
                        face_ids[retained.face_count]!=3766 ||
                        merged.faces[0].material!=retained.faces[0].material+100 ||
                        merged.faces[retained.face_count].material!=777)return 34;
@@ -189,7 +194,7 @@ int main(int argc,char **argv)
                     rf_collision_tree_close(&tree);
                     {
                         rf_geomod_mesh_view prior=merged;
-                        stage_work.face_capacity=866;
+                        stage_work.face_capacity=619;
                         status=rf_geomod_campaign_room_stage(&geometry,&retained,
                             retained_unchanged,&wall,texture_slots,geometry.textures,777,2048,
                             (rf_collision_face_filter){0,256,0,0,0,0},
@@ -213,6 +218,79 @@ int main(int argc,char **argv)
                 rf_collision_tree_close(&tree);
             }
         }
+    }
+    {
+        /* Next region-admitted L1S1 Explode request: UID 9587 in room 31.
+         * Probe its original hardness-scaled radius. The current CSG makes
+         * no new wall, so this candidate must not become a live owner yet. */
+        static rf_geomod_template shape;
+        static rf_geomod_vertex cutter_vertices[RF_GEOMOD_STAR_VERTEX_LIMIT];
+        static rf_geomod_face cutter_faces[RF_GEOMOD_STAR_FACE_LIMIT];
+        static rf_collision_face cutter_collision[RF_GEOMOD_STAR_FACE_LIMIT];
+        static rf_collision_face_filter cutter_filters[RF_GEOMOD_STAR_FACE_LIMIT];
+        static float cutter_positions[RF_GEOMOD_STAR_VERTEX_LIMIT][3];
+        static rf_geomod_vertex wall_vertices[4096],retained_vertices[8192],merged_vertices[4096];
+        static rf_geomod_face wall_faces[1024],retained_faces[2048],merged_faces[1024];
+        static uint8_t retained_unchanged[2048];
+        static rf_collision_face bound[1024];
+        static rf_collision_face_filter filters[1024];
+        static float positions[4096][3];
+        static uint32_t face_ids[1024];
+        static rf_geomod_vertex clip_vertices[2][4096],aggregate_vertices[2][4096];
+        static rf_geomod_fragment clip_fragments[2][1024],aggregate_fragments[2][1024];
+        static rf_geometry_portal portals[256];
+        const float center[3]={-19.050369262695312f,2.4551327228546143f,57.48625183105469f};
+        const float basis[9]={1,0,0,0,1,0,0,0,1};
+        rf_editor_brush cavity={0};rf_geomod_mesh_view cutter,wall,retained,merged;
+        rf_geomod_campaign_room_scope scope;rf_collision_tree tree={0};
+        rf_geomod_solid_clip_source source;
+        rf_geomod_solid_union_work work={0};float kernel[3];
+        uint32_t *slots=calloc(geometry.textures,sizeof(*slots));
+        if(!slots)return 37;
+        for(i=0;i<geometry.textures;i++)slots[i]=i;
+        status=rf_editor_brush_open(&level,8488,512*1024,&cavity);if(status)return 38;
+        if(cavity.operation!=2 || cavity.face_count!=28)return 39;
+        status=rf_geomod_template_load(argv[2],&shape);if(status)return 40;
+        /* Original 45cff0 admits requested 1.25, then hardness 55 scales
+         * the cutter to 0.5625. The minimum applies before this scaling. */
+        status=rf_geomod_template_mesh(&shape,center,basis,0.5625f,7,
+            cutter_vertices,cutter_faces,kernel,&cutter);if(status)return 41;
+        status=rf_geomod_collision_faces(&cutter,cutter_filters,cutter_positions,
+            RF_GEOMOD_STAR_VERTEX_LIMIT,cutter_collision,RF_GEOMOD_STAR_FACE_LIMIT);if(status)return 42;
+        status=rf_geomod_campaign_room_scope_check(&geometry,31,cutter_collision,
+            cutter.face_count,portals,256,&scope);if(status)return 43;
+        printf("L1S1 UID9587 room31 scope solid=%u detail=%u portals=%u\n",
+            scope.other_solid_faces,scope.other_detail_faces,scope.touching_portals);
+        if(scope.other_solid_faces || scope.touching_portals)return 44;
+        source=(rf_geomod_solid_clip_source){cavity.faces,cavity.face_count};
+        for(i=0;i<2;i++){
+            work.clip.vertices[i]=clip_vertices[i];work.clip.fragments[i]=clip_fragments[i];
+            work.vertices[i]=aggregate_vertices[i];work.fragments[i]=aggregate_fragments[i];
+        }
+        work.clip.vertex_capacity=work.vertex_capacity=4096;
+        work.clip.fragment_capacity=work.fragment_capacity=1024;
+        status=rf_geomod_campaign_wall_build(&cutter,&source,1,&work,
+            wall_vertices,4096,wall_faces,1024,&wall);
+        if(status){fprintf(stderr,"UID9587 wall stage status %d\n",status);return 45;}
+        status=rf_geomod_campaign_room_retain(&geometry,31,cutter_collision,
+            cutter.face_count,&work.clip,retained_vertices,8192,retained_faces,
+            retained_unchanged,2048,&retained);if(status)return 46;
+        {
+            rf_geomod_campaign_room_stage_work stage={merged_vertices,merged_faces,filters,
+                bound,positions,face_ids,4096,1024};
+            status=rf_geomod_campaign_room_stage(&geometry,&retained,retained_unchanged,
+                &wall,slots,geometry.textures,777,2048,(rf_collision_face_filter){0,256,0,0,0,0},
+                2898,&stage,2*1024*1024,&merged,&tree);
+        }
+        if(status)return 47;
+        if(wall.face_count!=0 || wall.vertex_count!=0 ||
+           retained.face_count!=293 || retained.vertex_count!=1204 ||
+           merged.face_count!=293 || merged.vertex_count!=1204 ||
+           tree.allocated_bytes!=49220)return 48;
+        printf("PASS L1S1 UID9587 effective radius0.5625: wall %u/%u retained %u/%u staged candidate %u/%u tree %u (not published)\n",
+            wall.face_count,wall.vertex_count,retained.face_count,retained.vertex_count,
+            merged.face_count,merged.vertex_count,tree.allocated_bytes);
+        rf_collision_tree_close(&tree);rf_editor_brush_close(&cavity);free(slots);
     }
     for(i=0;i<2;i++)rf_editor_brush_close(owned+i);
     rf_geometry_close(&geometry);
