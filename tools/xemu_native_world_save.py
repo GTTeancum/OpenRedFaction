@@ -54,7 +54,7 @@ def address(mapping, name):
     return int(match.group(1), 16)
 
 
-def run_guest(run, name, hdd, frames, seconds, snapshot=False):
+def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None):
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -94,6 +94,8 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 'rf_xbox_level_transitions', 'rf_player_replay_diagnostic',
                 'rf_scene_actor_frame_count', 'rf_scene_campaign_load_stage',
                 'rf_scene_follow_level_exits', 'rf_scene_level_transition')}
+    extra_symbols = extra_symbols or {}
+    extra_addresses = {key: address(mapping, key) for key in extra_symbols}
     monitor = process = None
     try:
         require_no_project_xemu(ROOT)
@@ -161,6 +163,9 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                           campaign_load_stage=load_stage, follow_exits=follow_exits,
                           level_request=level_request,
                           shallow_contacts=dict(npc=route_contact[0], player=route_contact[1]))
+            if extra_addresses:
+                result['extra'] = {key: words(monitor, extra_addresses[key], count)
+                                   for key, count in extra_symbols.items()}
             (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             if diagnostic[37] != frames:
                 raise RuntimeError(f'{name}: expected {frames} frames, got {diagnostic[37]}; '

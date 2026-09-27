@@ -46,9 +46,9 @@ Hostile armed NPCs acquire the player in sight; armed NPCs also retaliate
 when damaged, checking line of sight. The lower-left
 bar shows player health; incoming hits trigger the damage flash. Zero health
 blocks movement, look and actions and displays a respawn prompt. After a
-60-frame pause, release then press E (keyboard) or X (controller) to restore
-the starting player with full health/ammo. World and mission state persist;
-full restart/checkpoints and broader enemy AI remain unfinished.
+60-frame pause, release then press E (keyboard) or X (controller) to recover.
+Followed campaign sections now reload the current level; isolated testbeds
+retain the earlier in-place player restore. Checkpoint choice remains open.
 
 The shared provider polls once before stance and animation. Its validated
 movement/look/crouch state is reused by physics and camera; it replaces the
@@ -86,6 +86,14 @@ Verification:
   The report correctly remains FAIL with `Controller input ring is not PC-neutral`.
   Subsequent PC-neutral pose comparisons were not executed. This run is evidence
   of input acquisition and user-confirmed movement, not a passing neutral replay.
+- Xbox-only `tools/xemu_weapon_pickup.py` passed a bounded 140-frame L4S5
+  fixture in stock 64 MiB: authored UID3415 granted42 rifle rounds, three
+  forward/back/forward switches completed, two trigger presses produced six
+  shots, and the rifle ended selected with36 rounds. Guest state and the
+  restored disc are recorded in
+  `artifacts/xemu/weapon-pickup-20260927-153108/report.json`; no PC game or
+  image was used. This exercises the shared gameplay input path with replayed
+  commands, not the physical SDL shoulder/D-pad mapping.
 
 Physical crouch/reconnect/exit behavior remains to be checked by the user.
 Original player spawning/identity, timer ownership, camera collision and full
