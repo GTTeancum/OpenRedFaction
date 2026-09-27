@@ -247,6 +247,32 @@ int main(void)
         owners[0].combat_due=owners[0].combat_reload_due=owners[0].combat_burst_remaining=0;
         campaign_events.items=NULL;campaign_events.count=0;
     }
+    /* A scripted Attack targets an authored actor by UID, then rebinds its
+     * process-local handle and relative fire deadline after a fresh load. */
+    {
+        rf_npc_checkpoint_record attacking[2];uint32_t target=owners[1].registration.handle;
+        owners[0].combat_scripted=owners[0].combat_alert=1;owners[0].combat_target=target;
+        combat_frame=100;owners[0].combat_due=117;owners[0].combat_burst_remaining=2;
+        owners[0].combat_reload_due=109;owners[0].combat_reload_weapon=0;
+        campaign_enemy_spread_random.value=0x1234abcd;
+        CHECK(!scene_npc_checkpoint_capture(&catalog,1000,attacking,2,&count));
+        CHECK(attacking[0].combat.active==2&&attacking[0].combat.event==11&&
+              attacking[0].combat.due_remaining==17);
+        owners[0].combat_scripted=owners[0].combat_alert=owners[0].combat_target=0;
+        owners[0].combat_due=owners[0].combat_burst_remaining=owners[0].combat_reload_due=0;
+        attacking[0].combat.event=999;fit_state=(fit_context){0};
+        CHECK(scene_npc_checkpoint_restore_prepare(attacking,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_FORMAT&&!stage);
+        attacking[0].combat.event=11;fit_state=(fit_context){0};
+        CHECK(!scene_npc_checkpoint_restore_prepare(attacking,2,&catalog,1000,fit,&fit_state,65536,&stage));
+        combat_frame=5;campaign_enemy_spread_random.value=1;
+        CHECK(!scene_npc_checkpoint_restore_commit(stage));
+        CHECK(owners[0].combat_scripted==1&&owners[0].combat_target==target&&
+              owners[0].combat_due==22&&owners[0].combat_reload_due==14&&
+              owners[0].combat_burst_remaining==2&&campaign_enemy_spread_random.value==0x1234abcd);
+        scene_npc_checkpoint_restore_discard(&stage);
+        owners[0].combat_scripted=owners[0].combat_alert=owners[0].combat_target=0;
+        owners[0].combat_due=owners[0].combat_burst_remaining=owners[0].combat_reload_due=0;
+    }
     /* A completed death remains registered with its frozen final frame.
      * Stale combat awareness must not revive its target after reload. */
     {

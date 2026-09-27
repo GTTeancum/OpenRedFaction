@@ -1,12 +1,14 @@
 # Ordinary-level saves: implementation workstream
 
-## Active fixed-point combat order (2026-09-27)
+## Active scripted combat orders (2026-09-27)
 
 RFNC8 adds a sparse continuation for an authored `Shoot_At` actor. The record
 uses event UID and authored point, preserves its burst, relative fire/reload
 deadlines and shared spread RNG, and admits its action-2 firing/action-39
-reload clips through the existing motion playback checkpoint. Other scripted
-attack targets and non-script combat transitions still reject. The L15S1
+reload clips through the existing motion playback checkpoint. The same sparse
+record now retains active `Attack` targets as authored NPC UIDs or the local
+player, with relative fire/reload cadence and live pursuit; stale/dead targets
+and other scripted combat modes still reject. The L15S1
 UID9489 order saves after 240 PC frames (22,460 bytes); a fresh PC load fires
 10 shots over 60 neutral frames and resaves. The RFNC7 L1S1 wall snapshot
 loads and resaves in RFNC8 at 105,056 bytes, below the 110,524-byte cap.
@@ -15,6 +17,14 @@ A stock-64-MiB XEMU save produces the same 22,460-byte payload across all
 (`artifacts/xemu/render-20260927-045939`). A fresh XEMU load fires 10 shots
 over 60 frames, matching PC across 105 text-state checks
 (`artifacts/xemu/render-20260927-050218`). No images were captured.
+
+The L1S1→L1S2 natural route exposes two active Attack orders from guards9711/
+9712 toward actor9709. A quick-save at L1S2 local frame34 now writes63,616
+bytes on PC and Xbox; fresh PC reload retains both actor targets and pursuit,
+and stock64MiB XEMU reload passes the shared state checks with2931 pages free.
+The PC replay-only `RF_REPLAY_QUICKSAVE_BASE` override isolates that save
+from the user's ordinary quick-save files. Xbox save/load evidence is in
+`artifacts/xemu/render-20260927-140200` and `render-20260927-140922`.
 
 ## Active NPC movement and look (2026-09-27)
 

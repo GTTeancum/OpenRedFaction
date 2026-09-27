@@ -29,7 +29,7 @@ typedef struct rf_npc_checkpoint_record {
     uint32_t dead_pose,death_flags_810;int32_t death_action;
     rf_npc_checkpoint_move move; /* Authored movement or ordinary pursuit; borrowed navigation rebinds by index. */
     rf_npc_checkpoint_look look; /* Active authored Look_At order; event UID is checked against the loaded scene. */
-    rf_npc_checkpoint_combat combat; /* Active authored Shoot_At order; deadlines are frame-relative. */
+    rf_npc_checkpoint_combat combat; /* Active Shoot_At (1) or actor-targeted Attack (2); relative deadlines. */
     float look_command[3],look_delta[3],look_offset[3],look_vector[3];
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
@@ -41,7 +41,7 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC8 component (RFNC1-7 remain readable), not a composed save/profile. UID sorted, 572-byte LE base rows followed by optional 168-byte movement/look and 40-byte Shoot_At extensions and optional108+12*slot_count
+/* RFNC8 component (RFNC1-7 remain readable), not a composed save/profile. UID sorted, 572-byte LE base rows followed by optional 168-byte movement/look and 40-byte combat extensions and optional108+12*slot_count
  * animation bytes; no unused slots on wire. RF_NPC_CHECKPOINT_ROW_MAX bounds
  * one complete row. Absent animation must have zero script/playback/controller fields;
  * legacy1 supplies zero eye angles. Scene validates motion resource IDs,
@@ -55,10 +55,12 @@ typedef struct rf_npc_checkpoint_catalog {
  * borrowed route node ordinals, active Look_At command and per-frame look state.
  * Scene validates authored event/waypoint binding and
  * rebinds navigation pointers to the loaded level before publication.
- * Offset568 gives Shoot_At extension length (0 or40). The extension retains
- * event/point, relative fire/reload deadlines, burst count and shared spread RNG.
+ * Offset568 gives combat extension length (0 or40). Active1 retains the
+ * authored Shoot_At event/point; active2 retains an Attack target UID in
+ * event (zero means the local player) and a zero point. Both retain relative
+ * fire/reload deadlines, burst and RNG.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
- * Supported basic modes -1/0/1/2/11 only. Scene must reject scripted combat,
+ * Supported basic modes -1/0/1/2/11 only. Scene must reject other scripted combat,
  * unsupported movement, reload/pain/death transitions, projectiles, linked/carried objects
  * and other unsaved state; validate UID/class, class vitals, affiliation,
  * pose clearance and resource availability before any publication.

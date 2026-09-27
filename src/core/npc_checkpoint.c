@@ -128,15 +128,18 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
         if(r->retired||r->dead_pose||r->health<=0||!r->look.event)return RF_FORMAT;
         for(i=0;i<3;i++)if(!isfinite(r->look.position[i]))return RF_FORMAT;
     }
-    if(r->combat.active>1)return RF_FORMAT;
+    if(r->combat.active>2)return RF_FORMAT;
     if(!r->combat.active){if(memcmp(&r->combat,&zero_combat,sizeof(zero_combat)))return RF_FORMAT;}
     else {
-        if(r->retired||r->dead_pose||r->health<=0||!r->combat_alert||r->move.active||
-           !r->combat.event||r->combat.burst>256||r->combat.due_remaining>3600||
+        if(r->retired||r->dead_pose||r->health<=0||!r->combat_alert||
+           (r->combat.active==1?(r->move.active||!r->combat.event):
+            (r->combat.event==UINT32_MAX||(r->move.active&&r->move.follow!=2)))||
+           r->combat.burst>256||r->combat.due_remaining>3600||
            r->combat.reload_remaining>3600||r->combat.reload_weapon< -1||
            r->combat.reload_weapon>=64||
            (r->combat.reload_remaining&&r->combat.reload_weapon<0))return RF_FORMAT;
         for(i=0;i<3;i++)if(!isfinite(r->combat.point[i]))return RF_FORMAT;
+        if(r->combat.active==2&&(r->combat.point[0]||r->combat.point[1]||r->combat.point[2]))return RF_FORMAT;
     }
     for(i=0;i<3;i++){
         const float *vectors[4]={r->look_command,r->look_delta,r->look_offset,r->look_vector};

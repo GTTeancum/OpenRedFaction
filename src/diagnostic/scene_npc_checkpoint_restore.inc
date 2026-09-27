@@ -7,7 +7,7 @@
  * callbacks, allocation of live resources or actor publication are permitted. */
 typedef int (*scene_npc_checkpoint_place)(void *,const rf_checkpoint_placement *,rf_entity_room_state *,rf_physics_support_contact *);
 typedef struct scene_npc_checkpoint_restore_entry {
-    uint32_t slot,handle,registered,flags,controller_handle;
+    uint32_t slot,handle,registered,flags,controller_handle,attack_target_handle;
     rf_npc_checkpoint_record saved,before;
     campaign_npc_body owner_before;rf_entity_pose pose_before;
     rf_physics_body_state body;rf_entity_room_state room;rf_physics_support_contact support;
@@ -21,6 +21,25 @@ typedef struct scene_npc_checkpoint_restore_stage {
     uint32_t count,bytes,fresh_boot;int32_t now;
     scene_npc_checkpoint_restore_entry entries[];
 } scene_npc_checkpoint_restore_stage;
+static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
+    const rf_npc_checkpoint_record *rows,uint32_t count,uint32_t *handle)
+{
+    uint32_t i,j;
+    if(!handle||(count&&!rows))return RF_RANGE;
+    if(!uid){if(!campaign_player_object.handle)return RF_FORMAT;
+        *handle=campaign_player_object.handle;return RF_OK;}
+    for(i=0;i<count;i++)if(rows[i].uid==uid){
+        if(rows[i].retired||rows[i].dead_pose||rows[i].health<=0)return RF_FORMAT;
+        for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==uid){
+            campaign_npc_body *target=campaign_npc_bodies+j;
+            if(!target->registration.view||
+               rf_object_registry_lookup(&campaign_registry,target->registration.handle)!=&target->registration)return RF_FORMAT;
+            *handle=target->registration.handle;return RF_OK;
+        }
+        return RF_FORMAT;
+    }
+    return RF_FORMAT;
+}
 static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
     rf_checkpoint_placement *p,uint32_t *retired)
 {
@@ -198,9 +217,16 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
             if(status)goto fail;
         }
         if(rows[i].combat.active){
-            detail="shoot_binding";
-            status=scene_npc_checkpoint_shoot_binding(rows[i].combat.event,e->handle,rows[i].combat.point);
-            if(status)goto fail;
+            if(rows[i].combat.active==1){
+                detail="shoot_binding";
+                status=scene_npc_checkpoint_shoot_binding(rows[i].combat.event,e->handle,rows[i].combat.point);
+                if(status)goto fail;
+            }else{
+                detail="attack_target";
+                status=scene_npc_checkpoint_attack_target_handle(rows[i].combat.event,
+                    rows,count,&e->attack_target_handle);
+                if(status)goto fail;
+            }
             if(spread_seen&&spread_saved!=rows[i].combat.spread_rng){status=RF_FORMAT;goto fail;}
             spread_seen=1;spread_saved=rows[i].combat.spread_rng;
         }
@@ -395,9 +421,12 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         o->combat_reload_due=0;o->combat_reload_weapon=0;
         if(e->saved.combat.active){
             uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
-            o->script_shoot.active=1;o->script_shoot.event=e->saved.combat.event;
-            memcpy(o->script_shoot.point,e->saved.combat.point,sizeof(e->saved.combat.point));
-            o->combat_scripted=3;o->combat_target=0;o->combat_alert=1;
+            if(e->saved.combat.active==1){
+                o->script_shoot.active=1;o->script_shoot.event=e->saved.combat.event;
+                memcpy(o->script_shoot.point,e->saved.combat.point,sizeof(e->saved.combat.point));
+                o->combat_scripted=3;o->combat_target=0;
+            }else{o->combat_scripted=1;o->combat_target=e->attack_target_handle;}
+            o->combat_alert=1;
             o->combat_burst_remaining=e->saved.combat.burst;
             o->combat_due=frame+e->saved.combat.due_remaining;
             o->combat_reload_due=e->saved.combat.reload_remaining?frame+e->saved.combat.reload_remaining:0;

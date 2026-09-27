@@ -568,3 +568,15 @@ handgun ammo matched PC, and at least3160 physical pages remained free.
 The result proves the staged ordinary-save continuation into the next
 section on Xbox; an uninterrupted spawn-to-exit run and visual content
 remain unverified.
+
+At L1S2 local frame34 (replay frame3270), the first arrival quick-save used
+to reject active scripted Attack orders: guards9711 and9712 target authored
+actor9709. The NPC checkpoint now stores Attack target UIDs and relative
+fire/reload timing, then rebinds them to live handles on load. The staged
+route writes a63,616-byte quick-save on PC and stock64MiB XEMU; a fresh PC
+load retains both orders and their target, and a fresh XEMU process loads
+the save and matches all105 reported state checks with2931 physical pages
+free. See `artifacts/xemu/render-20260927-140200` and
+`render-20260927-140922`. The native text harness does not expose each
+guard's target directly, so that per-actor binding was inspected on PC only.
+No images were captured.

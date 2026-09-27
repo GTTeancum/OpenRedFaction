@@ -735,7 +735,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['checks']['QUICK_ACTIONS']=dict(state=state)
                 if args.quick_save_frame is not None:
                     save_match=re.search(r'WORLD_SNAPSHOT_STORED bytes(\d+)',pc.stdout)
-                    assert save_match and f'QUICK_SAVE frame{args.quick_save_frame} status0' in pc.stdout, 'PC quick-save failed'
+                    save_action=re.search(r'^QUICK_SAVE frame(\d+) status0$',pc.stdout,re.MULTILINE)
+                    scene_start=max((int(row.group(1)) for row in re.finditer(
+                        r'^LEVEL_TRANSITION \S+ \S+ \d+ (\d+)$',pc.stdout,re.MULTILINE)
+                        if int(row.group(1))<=args.quick_save_frame),default=0)
+                    expected_scene_frame=args.quick_save_frame-scene_start
+                    assert save_match and save_action and int(save_action.group(1))==expected_scene_frame, 'PC quick-save failed'
+                    report['checks']['QUICK_ACTIONS']['pc_save_scene_frame']=expected_scene_frame
                     assert state[9]==1 and state[3]==0 and state[4]==int(save_match.group(1)), 'Xbox quick-save failed or size differed'
                 if args.quick_load_frame is not None:
                     loaded=re.search(r'WORLD_SNAPSHOT_LOADED bytes(\d+)',pc.stdout)

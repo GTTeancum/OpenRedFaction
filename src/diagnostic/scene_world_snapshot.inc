@@ -55,7 +55,10 @@ static inline void scene_world_history_probe(const rf_world_checkpoint *world,in
 static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *level,const char *tables_path,uint32_t requested)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
-    const char *path=requested?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_OUT");
+    const char *path=requested?getenv("RF_REPLAY_QUICKSAVE_BASE"):getenv("RF_REPLAY_WORLD_SNAPSHOT_OUT");
+    /* A headless route can save after a section handoff without replacing the
+     * user's normal PC quick-save slots in the working directory. */
+    if(requested&&(!path||!*path))path="redfaction-save";
 #else
     rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
     const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;

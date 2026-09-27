@@ -1,15 +1,29 @@
 # Ordinary saves: NPC component preparation
 
-Current status (2026-09-27): RFNC8 adds an optional 40-byte `Shoot_At`
-continuation to the 572-byte base row. It retains the authored event and fixed
-point, remaining fire/reload frames, burst count and spread RNG; restore
-rebinds the event to the current scene. RFNC1-7 remain readable. A live L15S1
+Current status (2026-09-27): RFNC8's optional 40-byte combat continuation
+supports authored `Shoot_At` and active `Attack` orders. Shoot_At retains the
+authored event and fixed point; Attack retains its target as an authored actor
+UID (or zero for the local player). Both retain remaining fire/reload frames,
+burst count and spread RNG. Restore rebinds the event or target to the current
+scene, rejecting missing or defeated actor targets. RFNC1-7 remain readable. A live L15S1
 PC order saves 22,460 bytes, reloads in a fresh process, fires 10 shots over
 60 frames and saves again. The prior RFNC7 L1S1 wall snapshot also loads and
 resaves as RFNC8 (105,056 bytes). A stock-64-MiB XEMU save matches all 16 PC
 sections byte for byte, and a fresh XEMU load fires the same 10 shots in 60
 frames (`artifacts/xemu/render-20260927-045939` and
 `artifacts/xemu/render-20260927-050218`). No images were captured.
+
+The natural L1S1-to-L1S2 route quick-saves in L1S2 with two active
+NPC-to-NPC scripted Attack orders targeting UID9709. Its63,616-byte
+PC save reloads in a fresh process with both orders still bound to that
+actor; a100-frame continuation retains pursuit and the player's vitals.
+Stock64MiB XEMU writes the same-size quick-save after the level handoff
+(`artifacts/xemu/render-20260927-140200`) and loads it in a fresh process
+(`artifacts/xemu/render-20260927-140922`) with all reported PC/Xbox state
+checks passing and at least2931 pages free. The native harness confirms
+save/load and aggregate state, but does not read individual Attack targets;
+that binding was directly inspected on PC. Other scripted combat modes and
+unbound/dead Attack targets remain unsupported.
 
 Current status (2026-09-27): RFNC7 uses a 568-byte base row and an optional
 168-byte movement/look extension for only the actors that need it. It retains

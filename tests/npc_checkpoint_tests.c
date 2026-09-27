@@ -176,6 +176,21 @@ int main(void)
         CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
         actor.combat.event=9489;actor.combat.due_remaining=3601;
         CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
+        actor.combat.active=2;actor.combat.event=0;actor.combat.due_remaining=17;
+        actor.combat.point[0]=0;actor.move.active=1;actor.move.follow=2;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got));
+        CHECK(!rf_npc_checkpoint_decode(broken,got,identity,&c,&decoded,1,&count)&&
+              !memcmp(&actor,&decoded,sizeof(actor)));
+        actor.combat.event=9489;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got));
+        CHECK(!rf_npc_checkpoint_decode(broken,got,identity,&c,&decoded,1,&count)&&
+              decoded.combat.active==2&&decoded.combat.event==9489);
+        actor.combat.event=UINT32_MAX;
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
+        actor.combat.event=0;actor.combat.point[0]=1;
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
+        actor.combat.point[0]=0;actor.move.follow=0;
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
         /* Legacy RFNC2 has no optional-animation flag or trailer. */
         memcpy(legacy2,wire,64);memcpy(legacy2+64,wire+64,RF_NPC_CHECKPOINT_ROW_V2);legacy2[4]=2;
         for(uint32_t i=0;i<4;i++)legacy2[8+i]=(unsigned char)(sizeof(legacy2)>>(8*i));

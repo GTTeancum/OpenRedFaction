@@ -133,11 +133,26 @@ static int scene_npc_checkpoint_shoot_binding(uint32_t uid,uint32_t handle,const
     }
     return found==1?RF_OK:RF_NOT_FOUND;
 }
+static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
+{
+    uint32_t i;
+    if(!uid||!handle)return RF_RANGE;
+    if(handle==campaign_player_object.handle){*uid=0;return RF_OK;}
+    for(i=0;i<campaign_npc_body_count;i++){
+        const campaign_npc_body *target=campaign_npc_bodies+i;
+        uint32_t candidate=(uint32_t)campaign_seeds.records.items[i].record.uid;
+        if(target->registration.view&&target->registration.handle==handle&&
+           target->damage.effects.health>0&&target->persistence_registered&&
+           rf_object_registry_lookup(&campaign_registry,handle)==&target->registration&&
+           candidate&&candidate!=UINT32_MAX){*uid=candidate;return RF_OK;}
+    }
+    return RF_NOT_FOUND;
+}
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose;
-    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0;int pending,status;
+    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0;int pending,status;
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
@@ -194,6 +209,14 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
             return scene_npc_checkpoint_reject(index,"shoot_state",0,o->combat_scripted,RF_FORMAT);
         status=scene_npc_checkpoint_shoot_binding(o->script_shoot.event,o->registration.handle,o->script_shoot.point);
         if(status)return scene_npc_checkpoint_reject(index,"shoot_binding",0,o->script_shoot.event,status);
+    }else if(!terminal_dead&&o->combat_scripted==1){
+        /* A scripted Attack retains its target by authored UID (or zero for
+         * the local player), never by a process-local registry handle. */
+        status=scene_npc_checkpoint_attack_target_uid(o->combat_target,&attack_target_uid);
+        if(status||o->combat_alert!=1||o->script_shoot.active||
+           (o->script_move.active&&o->script_move.follow!=2)||
+           o->combat_burst_remaining>256||o->combat_reload_weapon< -1||o->combat_reload_weapon>=64)
+            return scene_npc_checkpoint_reject(index,"attack_state",0,o->combat_target,RF_FORMAT);
     }else{NPC_CAPTURE_ZERO(combat_scripted);NPC_CAPTURE_ZERO(script_shoot.active);}
     if(!terminal_dead){
         if(o->script_look.active){
@@ -202,9 +225,10 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
             if(status)return scene_npc_checkpoint_reject(index,"look_binding",0,o->script_look.event,status);
         }
     }
-    if(o->combat_target&&!(terminal_dead||(o->combat_alert&&o->combat_target==campaign_player_object.handle)))
+    if(o->combat_target&&!(terminal_dead||(o->combat_alert&&
+        (o->combat_target==campaign_player_object.handle||o->combat_scripted==1))))
         return scene_npc_checkpoint_reject(index,"combat_target",0,o->combat_target,RF_RANGE);
-    if(o->combat_scripted!=3){NPC_CAPTURE_ZERO(combat_burst_remaining);NPC_CAPTURE_ZERO(combat_reload_due);}
+    if(o->combat_scripted!=3&&o->combat_scripted!=1){NPC_CAPTURE_ZERO(combat_burst_remaining);NPC_CAPTURE_ZERO(combat_reload_due);}
     NPC_CAPTURE_ZERO(damage.effects.burn);
 #undef NPC_CAPTURE_ZERO
     for(i=0;i<64;i++)if(o->firing.active[i])return scene_npc_checkpoint_reject(index,"firing.active",i,o->firing.active[i],RF_RANGE);
@@ -229,7 +253,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
                !campaign_playback_resources.models[pose->skeleton].resources||
                (!initializing&&!o->script_animation.active&&!terminal_dead&&
                 !campaign_playback_resources.models[pose->skeleton].resources[motion].looping&&
-                !(o->combat_scripted==3&&(motion==o->selection.mapping.actions[2]||
+                !((o->combat_scripted==3||o->combat_scripted==1)&&(motion==o->selection.mapping.actions[2]||
                   motion==o->selection.mapping.actions[39])))||
                (terminal_dead&&campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
@@ -269,14 +293,15 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     row->dead_pose=terminal_dead;
     if(terminal_dead){row->death_flags_810=o->view.flags_810;row->death_action=o->death.action_824;}
     else {
-        if(o->combat_scripted==3){
+        if(o->combat_scripted==3||o->combat_scripted==1){
             uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
-            row->combat.active=1;row->combat.event=o->script_shoot.event;
+            row->combat.active=o->combat_scripted==3?1:2;
+            row->combat.event=row->combat.active==1?o->script_shoot.event:attack_target_uid;
             row->combat.burst=o->combat_burst_remaining;
             row->combat.due_remaining=o->combat_due>frame?o->combat_due-frame:0;
             row->combat.reload_remaining=o->combat_reload_due>frame?o->combat_reload_due-frame:0;
             row->combat.reload_weapon=o->combat_reload_weapon;
-            memcpy(row->combat.point,o->script_shoot.point,sizeof(row->combat.point));
+            if(row->combat.active==1)memcpy(row->combat.point,o->script_shoot.point,sizeof(row->combat.point));
             row->combat.spread_rng=campaign_enemy_spread_random.value;
         }
         memcpy(row->look_command,o->look.command_708,sizeof(row->look_command));
