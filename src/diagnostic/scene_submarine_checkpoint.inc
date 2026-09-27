@@ -46,7 +46,7 @@ static int scene_submarine_checkpoint_capture_state(const scene_submarine_checkp
     status=rf_submarine_checkpoint_validate(&value);if(status)return status;
     *out=value;return RF_OK;
 }
-static int scene_submarine_checkpoint_stage(const scene_submarine_checkpoint_live *live,
+static inline int scene_submarine_checkpoint_stage(const scene_submarine_checkpoint_live *live,
     const rf_submarine_checkpoint *record,const scene_submarine_checkpoint_backend *backend,
     scene_submarine_checkpoint_candidate *out)
 {

@@ -2,7 +2,8 @@
 #define RF_SCENE_WORLD_STORAGE_INCLUDED
 /* Read-only optical flags opt in. Native saves use their own protected HDD
  * profile; existing DEV destruction slots are never reused. */
-uint32_t rf_scene_world_checkpoint_state[10]; /* load status/bytes/staged,save status/bytes,generation,slot,hash,load attempted,save attempted */
+uint32_t rf_scene_world_checkpoint_state[10]; /* load status/bytes/staged,save status/bytes,generation,slot,snapshot stage,load attempted,save attempted */
+uint32_t rf_scene_world_snapshot_event_probe[6]; /* step, event index, UID, type, source, actor on rejection */
 unsigned char *rf_scene_world_checkpoint_data; /* Retained native endpoint capture; released at next capture. */
 static uint32_t scene_live_save_held,scene_live_save_pending,scene_live_save_until;
 static int scene_live_save_status;

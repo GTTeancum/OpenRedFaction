@@ -6,6 +6,7 @@ static int scene_vehicle_checkpoint_capture_record(const scene_stream *s,scene_v
     if(r.profile==1)status=scene_driller_checkpoint_capture(s,&r.value.vehicle);
     else if(r.profile==2)status=scene_apc_checkpoint_capture(s,&r.value.apc);
     else if(r.profile==3)status=scene_jeep_checkpoint_capture(s,&r.value.jeep);
+    else if(r.profile==4)status=scene_submarine_checkpoint_capture_live(s,&r.value.submarine);
     else if(r.profile==5)status=scene_fighter_checkpoint_capture_live(s,&r.value.fighter);
     else return RF_RANGE;
     if(status)return status;*out=r;return RF_OK;
@@ -16,12 +17,14 @@ static int scene_vehicle_checkpoint_capture(scene_stream *s,void *blob,uint32_t 
     if(!s||!blob||!bytes)return RF_RANGE;
     *bytes=0;if(!s->driller)return RF_OK;
     if(!s->terrain_authored){
-        if(!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)return RF_NOT_FOUND;
+        if((!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)&&
+           !(rf_scene_dev_room_enabled&&rf_scene_vehicle_enabled==4))return RF_NOT_FOUND;
     }
     status=scene_vehicle_checkpoint_capture_record(s,&record);if(status)return status;
     if(record.value.vehicle.player_occupied && !record.value.vehicle.alive)return RF_RANGE;
     if(record.profile==1)status=rf_vehicle_checkpoint_encode(&record.value.vehicle,blob,128);
     else if(record.profile==2)status=rf_apc_checkpoint_encode(&record.value.apc,blob,128);
+    else if(record.profile==4)status=rf_submarine_checkpoint_encode(&record.value.submarine,blob,128);
     else if(record.profile==5)status=rf_fighter_checkpoint_encode(&record.value.fighter,blob,160);
     else status=rf_jeep_checkpoint_encode(&record.value.jeep,blob,160);
     if(!status)*bytes=(record.profile==3 || record.profile==5)?160:128;
@@ -31,6 +34,8 @@ static int scene_vehicle_checkpoint_physics(const scene_stream *s,const rf_vehic
 {
     if(rf_scene_vehicle_enabled==1)return scene_driller_physics_initialize(s->driller,r->position,r->orientation,scene_gravity.acceleration,out);
     if(rf_scene_vehicle_enabled==5)return scene_vehicle_body_physics_initialize("Fighter01",
+        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out);
+    if(rf_scene_vehicle_enabled==4)return scene_vehicle_body_physics_initialize("sub",
         &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out);
     return scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==2?"APC":"Jeep01",
         &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,scene_gravity.acceleration,out);
@@ -43,7 +48,8 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     if(!bytes){if(s->driller)return RF_FORMAT;*out=record;return RF_OK;}
     if(!s->driller||
        !(s->terrain_authored?(!strcmp(campaign_current_level,"ctf06.rfl")||scene_world_l1s2_authored_terrain(s)):
-         (campaign_authored_vehicle_uid&&campaign_authored_vehicle_handle)))return RF_FORMAT;
+         (campaign_authored_vehicle_uid&&campaign_authored_vehicle_handle)||
+         (rf_scene_dev_room_enabled&&rf_scene_vehicle_enabled==4)))return RF_FORMAT;
     if(s->driller_runtime && !scene_driller_active(s)){const scene_driller_runtime *r=s->driller_runtime;
         if(!scene_driller_damage_runtime_valid(&r->damage)||r->damage.entry!=&r->entry||r->entry.physics!=&r->physics||
            r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->player.saved||r->damage.damage.state.effects.burn||
@@ -53,6 +59,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     if(record.profile==1)status=rf_vehicle_checkpoint_decode(blob,bytes,&record.value.vehicle);
     else if(record.profile==2)status=rf_apc_checkpoint_decode(blob,bytes,&record.value.apc);
     else if(record.profile==3)status=rf_jeep_checkpoint_decode(blob,bytes,&record.value.jeep);
+    else if(record.profile==4)status=rf_submarine_checkpoint_decode(blob,bytes,&record.value.submarine);
     else if(record.profile==5)status=rf_fighter_checkpoint_decode(blob,bytes,&record.value.fighter);
     else return RF_FORMAT;
     if(status)return status;
@@ -60,6 +67,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     status=scene_vehicle_checkpoint_physics(s,&record.value.vehicle,&physics);if(status)return status;
     if(record.profile==1)status=scene_driller_checkpoint_stage_rigid(&physics.state,&record.value.vehicle,&staged);
     else if(record.profile==2)status=scene_apc_checkpoint_stage_rigid(&physics.state,&record.value.apc,&combat);
+    else if(record.profile==4)status=scene_vehicle_combat_stage_validated(&physics.state,&record.value.vehicle,&staged);
     else if(record.profile==5)status=scene_vehicle_combat_stage_validated(&physics.state,&record.value.vehicle,&staged);
     else status=scene_jeep_checkpoint_stage_rigid(&physics.state,&record.value.jeep,&combat);
     if(status)return status;
@@ -68,6 +76,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     if(s->driller_runtime && !scene_driller_active(s)){
         if(record.profile==1)status=scene_vehicle_checkpoint_parked_owner(s,0);
         else if(record.profile==5)status=scene_fighter_checkpoint_admit_parked(s);
+        else if(record.profile==4)status=scene_submarine_checkpoint_admit_parked(s);
         else {combat.vehicle.player_occupied=0;status=scene_vehicle_combat_parked_admit(s,&combat);}
         if(status)return status;
     }
@@ -117,6 +126,7 @@ static int scene_vehicle_checkpoint_player_placement(const scene_stream *s,const
     if(r->profile==1)return scene_driller_checkpoint_seat_prepare(s,&r->value.vehicle,player,out);
     if(r->profile==2)return scene_apc_checkpoint_seat_prepare(s,&r->value.apc,player,out,scratch);
     if(r->profile==3)return scene_jeep_checkpoint_seat_prepare(s,&r->value.jeep,player,out,scratch);
+    if(r->profile==4)return scene_vehicle_combat_seat_prepare(s,&r->value.submarine.vehicle,player,"Sub_Mini01.v3m","interface_1",NULL,0,out,scratch);
     if(r->profile==5)return scene_vehicle_combat_seat_prepare(s,&r->value.fighter.vehicle,player,"Fighter01.v3m","interface_1",NULL,0,out,scratch);
     return RF_FORMAT;
 }
@@ -129,6 +139,7 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
     if(saved->profile==1){rf_vehicle_checkpoint parked=*v;parked.player_occupied=0;
         status=scene_driller_checkpoint_apply_parked(s,&parked);
     }else if(saved->profile==5){status=scene_fighter_checkpoint_apply_live(s,&saved->value.fighter);
+    }else if(saved->profile==4){status=scene_submarine_checkpoint_apply_live(s,&saved->value.submarine);
     }else{
         if(saved->profile==2)status=scene_apc_checkpoint_stage_rigid(&s->driller_runtime->physics.state,&saved->value.apc,&combat);
         else status=scene_jeep_checkpoint_stage_rigid(&s->driller_runtime->physics.state,&saved->value.jeep,&combat);

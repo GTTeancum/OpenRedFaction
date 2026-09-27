@@ -29,17 +29,20 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
 {
     scene_driller_physics physics;scene_checkpoint_world_context context;
     scene_world_vehicle_pair_context pairs={0};rf_collision_room_location location;
-    rf_entity_room_state room;rf_physics_support_contact support;int status;
+    rf_entity_room_state room;rf_physics_support_contact support;uint32_t dev_submarine,wet=0;int status;
+    rf_collision_body_sphere player_spheres[8];uint32_t i;
     if(!stream||!world||!player||!record||!stream->driller||!stream->driller_runtime||
-       !campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)return RF_NOT_FOUND;
+       ((!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)&&
+        !(rf_scene_dev_room_enabled&&record->profile==4)))return RF_NOT_FOUND;
+    dev_submarine=rf_scene_dev_room_enabled&&record->profile==4&&!campaign_authored_vehicle_uid;
     status=scene_vehicle_checkpoint_physics(stream,&record->value.vehicle,&physics);if(status)return status;
     pairs.vehicle.spheres=physics.spheres;pairs.vehicle.count=physics.sphere_count;
     pairs.vehicle.query_flags=4;
     memcpy(pairs.vehicle.position,record->value.vehicle.position,12);
     memcpy(pairs.vehicle.basis,record->value.vehicle.orientation,36);
     context=world->world;context.allow_no_contact=1;context.dt=scene_step_seconds;
-    context.class_speed=0;context.authored_position=campaign_authored_vehicle_position;
-    context.authored_basis=campaign_authored_vehicle_basis;
+    context.class_speed=0;context.authored_position=dev_submarine?stream->driller_position:campaign_authored_vehicle_position;
+    context.authored_basis=dev_submarine?stream->driller_basis:campaign_authored_vehicle_basis;
     context.authored_props=world->authored_prop_views;
     status=rf_geometry_collision_world_locate(context.world,pairs.vehicle.position,&location);if(status)return status;
     if(location.room==UINT32_MAX||location.room>=context.world->room_count)return RF_NOT_FOUND;
@@ -62,6 +65,25 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
         }
     }
     if(status)return status;
+    if(record->profile==4){
+        const scene_submarine_motion *motion=&stream->driller_runtime->submarine;
+        if(motion->collision.world!=stream->collision||!motion->liquids||
+           physics.sphere_count>8)return RF_NOT_FOUND;
+        status=scene_submarine_water_body_path(motion,physics.collision,physics.sphere_count,
+            pairs.vehicle.position,pairs.vehicle.basis,pairs.vehicle.position,pairs.vehicle.basis,&wet);
+        if(status||!wet)return status?status:RF_NOT_FOUND;
+        if(record->value.vehicle.player_occupied){
+            if(player->placement.count>8)return RF_RANGE;
+            for(i=0;i<player->placement.count;i++){
+                memcpy(player_spheres[i].center,player->placement.spheres[i].center,12);
+                player_spheres[i].radius=player->placement.spheres[i].radius;
+            }
+            status=scene_submarine_water_body_path(motion,player_spheres,player->placement.count,
+                player->placement.position,player->placement.basis,
+                player->placement.position,player->placement.basis,&wet);
+            if(status||!wet)return status?status:RF_NOT_FOUND;
+        }
+    }
     pairs.player=player;pairs.npcs=world->npcs;pairs.occupied=record->value.vehicle.player_occupied;
     return scene_npc_checkpoint_pair_fit_allowed(world->npcs->count+2,scene_world_vehicle_pair,&pairs,
         scene_world_vehicle_other_pair);

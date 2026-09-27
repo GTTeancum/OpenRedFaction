@@ -54,7 +54,8 @@ def address(mapping, name):
     return int(match.group(1), 16)
 
 
-def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None):
+def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
+              allow_guest_error=False):
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -137,9 +138,9 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 if stage != last:
                     print(f'{name}: phase {stage[0]}, frame {diagnostic[37]}', flush=True)
                     last = stage
-                if diagnostic[2] & 0x80000000:
+                if diagnostic[2] & 0x80000000 and not allow_guest_error:
                     raise RuntimeError(f'{name}: guest error {diagnostic[2]:08x}')
-                if diagnostic[2] == 5:
+                if diagnostic[2] == 5 or diagnostic[2] & 0x80000000:
                     break
                 time.sleep(.5)
             else:
@@ -156,6 +157,7 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
             follow_exits = words(monitor, symbols['rf_scene_follow_level_exits'], 1)[0]
             level_request = words(monitor, symbols['rf_scene_level_transition'], 20)
             result = dict(memory_bytes=64 * 1024 * 1024, frames=diagnostic[37],
+                          guest_phase=diagnostic[2],
                           free_pages=diagnostic[44], checkpoint_state=state,
                           storage_state=storage, player_life=life,
                           level_transitions=transitions,

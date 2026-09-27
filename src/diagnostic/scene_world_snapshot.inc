@@ -67,7 +67,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     rf_checkpoint_file_selection selection={0};rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
     rf_weapon_modes_checkpoint modes;rf_campaign_triggers *triggers=NULL;rf_level_uid_object *objects=NULL;
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
-    uint32_t at=RF_WORLD_CHECKPOINT_PREFIX,bytes=0,total=0,i,slot,object_count=0,omissions=0;
+    uint32_t at=RF_WORLD_CHECKPOINT_PREFIX,bytes=0,total=0,i,slot,object_count=0,omissions=0,stage=0;
     int status=RF_OK;int32_t now;const char *part="identity";
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!requested){status=scene_world_storage_flag("D:\\world-hdd-save.flag",&enabled);if(status||!enabled)return status;}
@@ -90,7 +90,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
 #endif
     if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
-#define SNAP_START(name) do{part=name;bytes=0;}while(0)
+#define SNAP_START(name) do{part=name;bytes=0;rf_scene_world_checkpoint_state[7]=++stage;}while(0)
 #define SNAP_END(type) do{if(status)goto done;if(bytes>RF_CHECKPOINT_FILE_MAX-at){status=RF_RANGE;goto done;}     bundle.sections[(type)-1]=(rf_world_checkpoint_slice){bytes?buffer+at:NULL,bytes};at+=bytes;     printf("WORLD_SNAPSHOT_COMPONENT %s %u\n",part,bytes);}while(0)
     SNAP_START("player");status=scene_driller_active(s)?scene_world_vehicle_player_capture(s,&player,&catalog):
         scene_checkpoint_player_snapshot(s,1,&player,&catalog);
@@ -106,12 +106,20 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     bytes=RF_PLAYER_CHECKPOINT_BYTES;SNAP_END(RF_WORLD_PLAYER);
     SNAP_START("npc");status=rf_scene_npc_checkpoint_export(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_NPC);
     SNAP_START("mover");status=rf_scene_mover_checkpoint_export(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_MOVER);
-    SNAP_START("events");status=scene_world_checkpoint_uid_map_open(s,&objects,&object_count,RF_CHECKPOINT_FILE_MAX);if(status)goto done;
+    SNAP_START("events");memset(rf_scene_world_snapshot_event_probe,0,sizeof(rf_scene_world_snapshot_event_probe));
+    rf_scene_world_snapshot_event_probe[0]=1;
+    status=scene_world_checkpoint_uid_map_open(s,&objects,&object_count,RF_CHECKPOINT_FILE_MAX);if(status)goto done;
+    rf_scene_world_snapshot_event_probe[0]=2;
     if(campaign_events.count>(RF_CHECKPOINT_FILE_MAX-at)/RF_EVENT_CHECKPOINT_BYTES){status=RF_RANGE;goto done;}
     map=(scene_event_checkpoint_map){objects,object_count,&campaign_registry};
     refs=(rf_event_checkpoint_refs){scene_event_checkpoint_export,scene_event_checkpoint_import,&map};
     for(i=0;i<campaign_events.count;i++){
         const rf_runtime_event *event=campaign_events.items+i;rf_runtime_event saved=*event;
+        rf_scene_world_snapshot_event_probe[0]=3;rf_scene_world_snapshot_event_probe[1]=i;
+        rf_scene_world_snapshot_event_probe[2]=event->authored->record.uid;
+        rf_scene_world_snapshot_event_probe[3]=event->state.type;
+        rf_scene_world_snapshot_event_probe[4]=event->state.source;
+        rf_scene_world_snapshot_event_probe[5]=event->state.actor;
         if(!event->retired && event->state.deadline>=0 &&
            (rf_event_checkpoint_external_requirements(event->state.type)&RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED)){
             printf("WORLD_SNAPSHOT_EVENT_PENDING_REJECT uid%u type%u deadline%d\n",
@@ -127,6 +135,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
             event->authored->record.uid,event->state.type,event->state.deadline,event->state.source,event->state.actor,status);goto done;}
         bytes+=RF_EVENT_CHECKPOINT_BYTES;
     }
+    rf_scene_world_snapshot_event_probe[0]=4;
     SNAP_END(RF_WORLD_EVENT);free(objects);objects=NULL;
     SNAP_START("triggers");triggers=malloc(sizeof(*triggers));if(!triggers){status=RF_IO;goto done;}*triggers=campaign_trigger_history;
     for(i=0;i<campaign_triggers.count&&!status;i++){
