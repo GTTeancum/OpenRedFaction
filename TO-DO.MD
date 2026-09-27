@@ -20,7 +20,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Opening scripted actors: Real-spawn PC/Xbox walking matches eight Play_Animation starts, four Look_At commands, two Slay actions and the Riot Stick handoff; exact choreography remains.
 
-- Opening onward combat: Real-spawn PC/Xbox play defeats guards8324 and8326 with ordinary movement, aim and weapon fire, and PC reaches the next stair point alive; guard8625 and the remaining L1S1 exit route remain.
+- Opening onward combat: Real-spawn PC/Xbox play defeats guards8324,8326 and8625, collects two16-round handgun drops and reaches the upper stair alive; the remaining L1S1 path, later encounters and exit9019 remain.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 

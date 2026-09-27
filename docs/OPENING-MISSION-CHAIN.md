@@ -215,6 +215,39 @@ stair point near navpoint37. Its PC replay ends frame2645 at
 this extra segment has not been run through XEMU. A longer PC-only probe
 toward navpoint130 exposed another armed actor: `ENEMY_SHOT_TRACE 2732 8625`
 preceded player death at frame2733 near(-44.37,-4.94,27.61). UID8625 is
-authored near(-43.55,43.96) in the horizontal plane. Defeating or avoiding
-that actor and navigating the disconnected graph region toward exit9019
-remain open.
+authored near(-43.55,43.96) in the horizontal plane. This direct walk exposes
+the third encounter; the following route defeats that guard before advancing.
+
+## Third guard and ammunition recovery
+
+`tools/replay_opening_guard_8625.py` holds the safe navpoint37 stair position,
+aims at UID8625 with ordinary look input and fires eight handgun rounds at
+45-frame intervals. Its PC helper-baked and plain RFI6 replays match player
+life, ammo, enemy combat and body state. The first shot damages the guard;
+as he moves, some later selected rays hit intervening world geometry. The
+remaining shots defeat him by frame2990. At frame3040 the player is alive at
+23.2 health with four rounds loaded. No damage, health, position or actor
+state is injected. Stock-64-MiB XEMU `replay-20260927-010636` **PASS**es all
+3040 frames with matching broad PC/Xbox combat state and3671 physical pages
+(14.34MiB) free. Reproduce after the preceding route tools with
+`python tools/replay_opening_guard_8625.py` and
+`python tools/xemu_replay_check.py artifacts/opening-exit/guard-8625.bin
+--campaign-spawn --level L1S1.rfl --no-images --seconds 600`.
+
+`tools/replay_opening_third_drop.py` then walks toward navpoint130 and detours
+to UID8625's dropped handgun near(-47.4,-2.3,41.0). The PC replay reaches
+frame3345 at(-47.42,-2.33,41.80), alive at23.2 health, with four loaded and
+16 reserve rounds. Its weapon-drop diagnostic reports two collected drops,
+32 rounds collected in total and UID8625 as the last source. Stock-64-MiB
+XEMU `replay-20260927-011215` **PASS**es all3345 frames; selected handgun,
+four loaded and16 reserve rounds match PC, with3671 pages (14.34MiB) free.
+The broad native verifier does not directly compare the drop diagnostic, so
+the Xbox pickup is evidenced by matching ammo after the same walked route.
+No images or audio were captured or inspected. Reproduce with
+`python tools/replay_opening_third_drop.py` then
+`python tools/xemu_replay_check.py artifacts/opening-exit/third-drop.bin
+--campaign-spawn --level L1S1.rfl --no-images --seconds 650`.
+
+The remaining natural L1S1 path toward exit9019, its later armed actors and
+the gap between authored navigation components are still open. No full
+campaign or visual-parity claim follows from this opening route.
