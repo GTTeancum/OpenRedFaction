@@ -187,3 +187,34 @@ before a fourth shot, so this is line-of-sight and damage evidence, not a
 completed second encounter or Xbox combat validation. A route using cover or
 an earlier firing position remains open, followed by the natural path to
 exit9019.
+
+## Moving duel at the upper stair
+
+`tools/replay_opening_upper_duel.py` continues from the lower-corner replay,
+keeps ordinary aim input on UID8326 while moving across the firing lane, and
+fires four handgun rounds at45-frame intervals. The PC helper only supplies
+bounded look inputs; the tool bakes those into RFI6 and confirms the same
+player life, inventory, enemy combat and body state without the helper. All
+four handgun rays select UID8326, whose health falls from75 to-15. The player
+stays alive at23.2 health and finishes frame2550 near(-55.69,-7.27,14.97)
+with12 rounds. This is ordinary recorded input, with no forced damage, health,
+actor state or position.
+
+Stock-64-MiB XEMU `replay-20260927-005357` **PASS**es the full2550-frame
+route with matching broad PC/Xbox state, including two encounter deaths,
+handgun ammo and living player state. It leaves3815 available physical pages
+(14.90MiB). This checks gameplay state but does not inspect visual or audio
+output. Reproduce with `python tools/replay_opening_upper_guard.py`,
+`python tools/replay_opening_upper_duel.py`, then
+`python tools/xemu_replay_check.py artifacts/opening-exit/upper-duel.bin
+--campaign-spawn --level L1S1.rfl --no-images --seconds 600`.
+
+`tools/replay_opening_upper_stairs.py` adds ordinary movement to the next
+stair point near navpoint37. Its PC replay ends frame2645 at
+(-50.55,-6.30,21.19), still alive with23.2 health and12 handgun rounds;
+this extra segment has not been run through XEMU. A longer PC-only probe
+toward navpoint130 exposed another armed actor: `ENEMY_SHOT_TRACE 2732 8625`
+preceded player death at frame2733 near(-44.37,-4.94,27.61). UID8625 is
+authored near(-43.55,43.96) in the horizontal plane. Defeating or avoiding
+that actor and navigating the disconnected graph region toward exit9019
+remain open.
