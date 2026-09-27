@@ -22,7 +22,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Opening scripted actors: Real-spawn PC/Xbox walking matches eight Play_Animation starts, four Look_At commands, two Slay actions and the Riot Stick handoff; exact choreography remains.
 
-- Opening onward combat: Real-spawn PC/Xbox play defeats guards8324/8326/8625, crosses the Remote Charge wall, and reaches upper-bridge cover; avoid guard8462's first close shot or find a covered route past guards9404/9406 toward exit9019.
+- Opening onward combat: Real-spawn PC/Xbox play defeats guards8324/8326/8625, crosses the Remote Charge wall, and reaches upper-bridge cover; the only remaining Medical Kit is beyond the guarded route, so preserve health through guard8462's close corner and find a covered approach past guards9404/9406 toward exit9019.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 

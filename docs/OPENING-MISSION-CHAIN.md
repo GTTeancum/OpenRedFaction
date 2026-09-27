@@ -392,6 +392,19 @@ route blocker, not evidence that AI or hit detection is missing. More robust
 cover/weapon play or a health route is needed before exit9019. No visual
 content was captured or inspected.
 
+The L1S1 item section contains only two Medical Kits: UID9789 near the first
+GeoMod wall (already collected on this route) and UID9465 at
+(33.73,10.65,13.25). A text-only 5452-frame replay trace never approaches
+UID9465 closer than23.29 units; the closest point is frame4852 near
+(25.51,4.90,34.27). The authored navigation graph's shortest undirected path
+from nearby node76 to the kit's nearby node108 is248.8 units and passes the
+upper-bridge guard area. This graph does not prove every possible player route,
+but it does not support a short pre-bridge healing detour. From the ordinary
+wall save at frame4245, bounded aim toward guard8462 and stationary handgun
+fire for200 frames spent ammunition without damaging the guard; that firing
+position does not solve the encounter. Preserve more health at the close corner
+or establish another covered approach before attempting the upper guards.
+
 The same5452-frame bridge-cover replay passed on Xbox in XEMU with stock
 64 MiB memory (`artifacts/xemu/replay-20260927-025039/report.json`). The
 guest final camera position and player-life/cut telemetry agree with PC;
