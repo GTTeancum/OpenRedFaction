@@ -54,7 +54,7 @@ Current platform priority (user direction,2026-09-27): Xbox implementation and s
 
 - Submarine campaign placement: Authored L5S3 UID3963, L5S4 UID3955 and L10S3 UID6794 each board/fire on stock-64-MiB Xbox; six other scripted/placed submarines, natural access, underwater GeoMod and visual/audio refinement remain open (docs/SUBMARINE-FIRST-PASS.md).
 
-- Submarine scripted motion: L5S3 Goto_Player and L5S4 fixed-point Goto steer their authored unoccupied hulls on Xbox, with L5S3 quick-save/load; natural activation, obstacle-aware travel and simultaneous hosts remain open (docs/SUBMARINE-FIRST-PASS.md).
+- Submarine scripted motion: L5S4's authored trigger naturally starts its Goto order on Xbox and L5S3 Goto_Player survives quick-save/load; other trigger flows, obstacle-aware travel and simultaneous hosts remain open (docs/SUBMARINE-FIRST-PASS.md).
 
 - Submarine: Boarding, underwater movement/ascent, torpedo launch/direct NPC impact/blast, swimming exit and occupied ordinary save/reload pass Xbox DEV checks with20.03MiB free; active-shot saves and wider enemy pursuit remain open (docs/SUBMARINE-FIRST-PASS.md).
 

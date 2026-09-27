@@ -28,6 +28,7 @@ PURSUE_EVENTS = {
     'L5S3': (4647, None),  # Goto_Player -> UID3963
     'L5S4': (3958, (-12.32318115234375, -22.4365234375, -18.183792114257812)),
 }
+TRIGGER_EVENTS = {'L5S4': (3959, 3958)}
 
 
 def replay(board, frames):
@@ -56,6 +57,8 @@ def main():
                         help='Fire the level\'s authored Goto/Goto_Player and check submarine movement')
     parser.add_argument('--save', action='store_true',
                         help='Quick-save/load the active authored pursuit during the Xbox run')
+    parser.add_argument('--trigger', action='store_true',
+                        help='Stage inside L5S4 authored trigger and check natural Goto dispatch')
     args = parser.parse_args()
     if args.pursue and (args.board or args.level not in PURSUE_EVENTS):
         parser.error('--pursue requires L5S3 or L5S4 and cannot be combined with --board')
@@ -63,9 +66,14 @@ def main():
         parser.error('--save requires --pursue')
     if args.save and args.level != 'L5S3':
         parser.error('--save currently checks the persistent L5S3 Goto_Player order')
+    if args.trigger and (args.board or args.pursue or args.save or args.level not in TRIGGER_EVENTS):
+        parser.error('--trigger requires L5S4 and cannot be combined with other fixtures')
     archive, uid, expected = CASES[args.level]
     event_uid, event_target = PURSUE_EVENTS.get(args.level, (0, None))
-    frames = 180 if args.pursue else FRAMES
+    trigger_uid = 0
+    if args.trigger:
+        trigger_uid, event_uid = TRIGGER_EVENTS[args.level]
+    frames = 180 if args.pursue or args.trigger else FRAMES
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
@@ -79,7 +87,7 @@ def main():
                 for name in sorted(names)}
     result = {'result': 'FAIL', 'scope': f'Stock-64-MiB Xbox {args.level} authored submarine host',
               'board_fixture': args.board, 'pursue_fixture': args.pursue,
-              'save_fixture': args.save, 'uid': uid}
+              'save_fixture': args.save, 'trigger_fixture': args.trigger, 'uid': uid}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -90,6 +98,8 @@ def main():
             (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', uid))
         if args.pursue:
             (DISC / 'campaign-goto.bin').write_bytes(struct.pack('<II', event_uid, 1))
+        if args.trigger:
+            (DISC / 'campaign-trigger-start.bin').write_bytes(struct.pack('<I', trigger_uid))
         if args.save:
             (DISC / 'campaign-quick-actions.bin').write_bytes(struct.pack('<II', 60, 100))
         (DISC / 'player-control.flag').write_bytes(b'')
@@ -117,10 +127,11 @@ def main():
         if enabled != 4 or (not args.save and vehicle[0] != frames) or \
                 (args.save and not 0 < vehicle[0] < frames) or not vehicle[12]:
             raise RuntimeError(f'Authored submarine was not registered: {enabled}, {vehicle}')
-        if any(not math.isfinite(value) or (not args.pursue and abs(value - expected) > 1)
+        if any(not math.isfinite(value) or (not (args.pursue or args.trigger)
+                                              and abs(value - expected) > 1)
                for value, expected in zip(position, expected)):
             raise RuntimeError(f'Unexpected authored submarine position: {position}')
-        if args.pursue:
+        if args.pursue or args.trigger:
             route = guest['extra']['rf_scene_vehicle_route_state']
             displacement = math.dist(position, expected)
             result['route'] = route
