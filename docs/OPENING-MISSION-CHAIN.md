@@ -340,9 +340,22 @@ while retaining strict RFPL1/2 decoding and standing collision checks.
 (5.88 horizontal,0.16 vertical units/second), loads in a fresh PC process and
 continues180 frames through the first guard hit. The player remains alive with
 14.6 health/5.4 armor and ends within0.15 units of the uninterrupted position.
-A bridge-cover save30 neutral frames later also passes the player gate but is
-still rejected by the live-NPC checkpoint, so that location is not yet a
-usable quick-save point. Stock-64-MiB XEMU saved the moving frame4320 state
+A bridge-cover save30 neutral frames later now captures all78 live NPC rows
+on PC. An authored Goto previously cleared the guard's combat alert but left
+its expired attack deadline; Goto now clears the displaced combat schedule.
+Fresh PC load and11 more frames succeed, followed by another ordinary save.
+The loader permits bounded broad-sphere contact between two actors sharing
+one Goto_Player order, or a pursuing guard and a living NPC, because both
+contacts occur in the actual L1S1 bridge state. The latter reaches0.655 world
+unit overlap and the former0.841. Other NPC pairs retain the existing
+authored-baseline fit checks.
+Stock-64-MiB XEMU then saved the full5482-frame bridge-cover route with all16
+components byte-identical to PC and3540 physical pages free
+(`artifacts/xemu/render-20260927-060837`). A fresh native process loaded that
+ordinary save and advanced11 neutral frames; PC/Xbox scripted movement,
+routes and combat telemetry agree, with3885 pages free
+(`artifacts/xemu/render-20260927-061925`). No images were captured or inspected.
+Stock-64-MiB XEMU saved the moving frame4320 state
 with all16 components byte-identical to PC and3607 physical pages free
 (`artifacts/xemu/render-20260927-054551`). A fresh Xbox process then loaded
 it and replayed181 inputs through guard8462; player vitals, enemy spread and

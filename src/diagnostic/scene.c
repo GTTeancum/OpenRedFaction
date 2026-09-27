@@ -4879,7 +4879,10 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(owner->damage.effects.health<=0)return RF_NOT_FOUND;
         for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
-        if(on){int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;owner->combat_alert=0;}
+        if(on){int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;
+            owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
+            owner->combat_navigation_due=owner->combat_due=owner->combat_burst_remaining=owner->combat_reload_due=0;
+            owner->combat_reload_weapon=-1;}
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
         owner->navigation.retained.count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
         owner->script_move.follow=!strcmp(event->type,"Goto_Player");

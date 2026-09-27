@@ -47,20 +47,31 @@ static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t 
 #ifndef RF_IMAGE_XBOX_NATIVE
     {const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
      if(enabled&&!strcmp(enabled,"1")&&stage&&i<stage->count&&j<stage->count)
-         printf("WORLD_RESTORE_NPC_PAIR_UID first%u second%u retired%u/%u dead%u/%u health%.6g/%.6g\n",
+         printf("WORLD_RESTORE_NPC_PAIR_UID first%u second%u fresh%u depth%.6g retired%u/%u dead%u/%u health%.6g/%.6g move%u/%u event%u/%u follow%u/%u\n",
              stage->entries[i].saved.uid,stage->entries[j].saved.uid,
+             stage->fresh_boot,radius-sqrt(candidate_distance2),
              stage->entries[i].saved.retired,stage->entries[j].saved.retired,
              stage->entries[i].saved.dead_pose,stage->entries[j].saved.dead_pose,
-             (double)stage->entries[i].saved.health,(double)stage->entries[j].saved.health);}
+             (double)stage->entries[i].saved.health,(double)stage->entries[j].saved.health,
+             stage->entries[i].saved.move.active,stage->entries[j].saved.move.active,
+             stage->entries[i].saved.move.event,stage->entries[j].saved.move.event,
+             stage->entries[i].saved.move.follow,stage->entries[j].saved.move.follow);}
 #endif
-    if(!stage||!stage->fresh_boot||i>=stage->count||j>=stage->count||
+    if(!stage||i>=stage->count||j>=stage->count||
        stage->entries[i].slot>=campaign_npc_body_count||stage->entries[j].slot>=campaign_npc_body_count)return 0;
-    /* Ordinary movement currently lets two NPCs driven by the same authored
-     * Goto_Player order share a shallow broad-sphere overlap (L1S1 8696/8697).
-     * Preserve only that same-order overlap, capped to 0.35 world unit. */
+    /* Ordinary movement can produce broad-sphere overlaps. This
+     * includes same-order Goto_Player actors (8696/8697) and a pursuing
+     * combatant contacting an idle actor (L1S1 8462/9389). Continuation
+     * may preserve same-order stacking up to 0.9 unit and pursuit contacts
+     * up to 0.75 unit, both on fresh load and in-place staging. */
     {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
      if(a->move.active&&b->move.active&&a->move.follow==1&&b->move.follow==1&&
-        a->move.event&&a->move.event==b->move.event&&radius-sqrt(candidate_distance2)<=.35)return 1;}
+        a->move.event&&a->move.event==b->move.event&&radius-sqrt(candidate_distance2)<=.9)return 1;}
+    {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
+     if(!a->retired&&!b->retired&&!a->dead_pose&&!b->dead_pose&&a->health>0&&b->health>0&&
+        ((a->move.active&&a->move.follow==2)||(b->move.active&&b->move.follow==2))&&
+        radius-sqrt(candidate_distance2)<=.75)return 1;}
+    if(!stage->fresh_boot)return 0;
     first=campaign_npc_bodies+stage->entries[i].slot;second=campaign_npc_bodies+stage->entries[j].slot;
     if(a>=first->body.spheres.count||b>=second->body.spheres.count)return 0;
     one=first->body.spheres.items+a;two=second->body.spheres.items+b;
