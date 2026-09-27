@@ -393,8 +393,9 @@ int rf_geomod_storage_prepare_solid_cut(rf_geomod_storage *,const rf_geomod_mesh
 #define RF_GEOMOD_WORK_FACES 1024
 #endif
 #define RF_GEOMOD_WORK_FRAGMENTS 512
-/* Star templates may contain 64 triangular faces; convex/source clipping
- * remains separately bounded to 32 planes. No change to the eight-cut limit. */
+/* Star templates may contain 64 triangular faces. Authored convex sources
+ * may contain 64 planes; each convex cutter remains bounded to 32. */
+#define RF_GEOMOD_SOURCE_FACE_LIMIT 64u
 typedef struct rf_geomod_multi_work {
     rf_geomod_cut_work split;
     rf_geomod_cut_work seed;
@@ -406,7 +407,7 @@ typedef struct rf_geomod_multi_work {
         } repair;
     };
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
-    float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
+    float source_planes[RF_GEOMOD_SOURCE_FACE_LIMIT][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
     float star_planes[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_FACE_LIMIT][4][4];
     float star_kernels[RF_GEOMOD_CUT_LIMIT][3];
     uint32_t star_count[RF_GEOMOD_CUT_LIMIT];

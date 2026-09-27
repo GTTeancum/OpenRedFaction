@@ -125,14 +125,18 @@ source. It validates the 389-brush section with bounded successor-header
 recovery for opaque editor sidecars, then retains 48 authored faces and 83
 compiled windows; a focused PC check reports 26,652 resident bytes and a
 959,885-byte decode peak. The existing ctf06 decoder check also passes.
-This is source ownership only. `rf_geomod_terrain_open` still returns
-`RF_RANGE` because the shared cutter has a 32-source-face limit, including
-fixed plane/support arrays. UID 8123 has 48 authored faces but only 14
-geometrically distinct planes in an offline rounded-plane census. The next
-core step is to qualify a lossless coplanar-source representation or expand
-the source-face limit consistently through cutter provenance and publication;
-simply raising the admission check would overrun fixed arrays. Scene identity
-capture, live publication and native memory admission are also still gated.
+The shared cutter now supports 64 source faces, with matching plane storage,
+support-ID ranges, source filter storage and publication validation; convex
+cutters remain bounded to 32 faces. A focused PC check opens UID 8123's 48-face
+cavity within a 1,152 KiB core budget, applies the single-bit Driller template
+at the recorded first-contact point using an identity test basis, and publishes
+83 authored windows with the resulting cut. The core has 166 faces after the
+cut; the publication has 209 faces, including 46 crater faces and 163 retained
+faces. Core resident memory is 898,576 bytes and cut peak is 1,014,012 bytes;
+reset restores the original 48 faces. Eight focused GeoMod checks and the
+NXDK build pass. This is a geometry/publication probe, not a live L1S2 cut:
+scene identity capture, native collision/render binding, actual vehicle-basis
+contact, save/reload and total stock-memory admission remain open.
 
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and

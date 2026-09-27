@@ -30,7 +30,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route and seated route-following save/reload match, while decoded L1S2 cavity UID8123 needs a 48-face-capable core, scene publication and save integration for confirmed drill contact (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; UID8123's 48-face L1S2 source now accepts a Driller cut and publishes crater faces in a focused PC check, while live scene ownership, native collision/render publication, save integration and broader vehicle routes remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 

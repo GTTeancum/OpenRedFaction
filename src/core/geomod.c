@@ -991,7 +991,7 @@ void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,vo
 /* Original endpoints give every subdivision of a partition diagonal the
  * same future clipping intersection. IDs occupy a separate support domain. */
 #define GEOMOD_CUT_SUPPORT_STRIDE (RF_GEOMOD_STAR_FACE_LIMIT*4u)
-#define GEOMOD_DIAGONAL_BASE (32u+RF_GEOMOD_CUT_LIMIT*GEOMOD_CUT_SUPPORT_STRIDE)
+#define GEOMOD_DIAGONAL_BASE (RF_GEOMOD_SOURCE_FACE_LIMIT+RF_GEOMOD_CUT_LIMIT*GEOMOD_CUT_SUPPORT_STRIDE)
 typedef struct geomod_diagonals {
     float endpoints[RF_GEOMOD_WORK_FACES][2][3];uint32_t count;
 } geomod_diagonals;
@@ -1028,8 +1028,8 @@ typedef struct geomod_corner_support {
 static const float *corner_support_plane(const geomod_corner_support *support,uint16_t id)
 {
     uint32_t cutter,local;
-    if(id<32)return support->work->source_planes[id];
-    cutter=(id-32)/GEOMOD_CUT_SUPPORT_STRIDE;local=(id-32)%GEOMOD_CUT_SUPPORT_STRIDE;
+    if(id<RF_GEOMOD_SOURCE_FACE_LIMIT)return support->work->source_planes[id];
+    cutter=(id-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE;local=(id-RF_GEOMOD_SOURCE_FACE_LIMIT)%GEOMOD_CUT_SUPPORT_STRIDE;
     return support->work->star_count[cutter]?support->work->star_planes[cutter][local/4][local%4]:support->work->cut_planes[cutter][local];
 }
 /* Resolve intersections on an actual shared star-cutter edge before using
@@ -1040,12 +1040,12 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
     uint32_t pair,a,b,other,i,j,k;
     /* Three supports from one star may meet at an authored vertex. Preserve
      * that vertex exactly instead of independently solving rounded planes. */
-    if(ids[0]>=32 && ids[1]>=32 && ids[2]>=32 &&
-       (ids[0]-32)/GEOMOD_CUT_SUPPORT_STRIDE==(ids[1]-32)/GEOMOD_CUT_SUPPORT_STRIDE && (ids[0]-32)/GEOMOD_CUT_SUPPORT_STRIDE==(ids[2]-32)/GEOMOD_CUT_SUPPORT_STRIDE) {
-        uint32_t cutter=(ids[0]-32)/GEOMOD_CUT_SUPPORT_STRIDE,found=0;const float *points[3][3],*shared=NULL;
+    if(ids[0]>=RF_GEOMOD_SOURCE_FACE_LIMIT && ids[1]>=RF_GEOMOD_SOURCE_FACE_LIMIT && ids[2]>=RF_GEOMOD_SOURCE_FACE_LIMIT &&
+       (ids[0]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE==(ids[1]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE && (ids[0]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE==(ids[2]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE) {
+        uint32_t cutter=(ids[0]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE,found=0;const float *points[3][3],*shared=NULL;
         if(support->work->star_count[cutter]) {
             for(i=0;i<3;i++) {
-                uint32_t local=(ids[i]-32)%GEOMOD_CUT_SUPPORT_STRIDE,face=local/4,side=local%4;
+                uint32_t local=(ids[i]-RF_GEOMOD_SOURCE_FACE_LIMIT)%GEOMOD_CUT_SUPPORT_STRIDE,face=local/4,side=local%4;
                 const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
                 for(j=0;j<3;j++)points[i][j]=(side && j==2)?support->work->star_kernels[cutter]:v[side?(side-1+j)%3:j].position;
             }
@@ -1060,7 +1060,7 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
     }
     if(support->source)for(pair=0;pair<3;pair++) {
         a=pair;b=(pair+1)%3;other=(pair+2)%3;
-        if(ids[a]>=32 || ids[b]>=32 || ids[a]==ids[b])continue;
+        if(ids[a]>=RF_GEOMOD_SOURCE_FACE_LIMIT || ids[b]>=RF_GEOMOD_SOURCE_FACE_LIMIT || ids[a]==ids[b])continue;
         for(i=0;i<support->source->face_count;i++) {
             const rf_geomod_face *face=support->source->faces+i;uint16_t fp=support->source_planes[i];
             if(fp!=ids[a] && fp!=ids[b])continue;
@@ -1089,11 +1089,11 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
         const float *points[2][3],*shared[2],*plane;uint32_t counts[2],found=0,cutter;
         double da,db,t;const float *first,*last;
         a=pair;b=(pair+1)%3;other=(pair+2)%3;
-        if(ids[a]<32 || ids[b]<32 || (ids[a]-32)/GEOMOD_CUT_SUPPORT_STRIDE!=(ids[b]-32)/GEOMOD_CUT_SUPPORT_STRIDE)continue;
-        cutter=(ids[a]-32)/GEOMOD_CUT_SUPPORT_STRIDE;
-        if(!support->work->star_count[cutter] || (ids[other]>=32 && (ids[other]-32)/GEOMOD_CUT_SUPPORT_STRIDE==cutter))continue;
+        if(ids[a]<RF_GEOMOD_SOURCE_FACE_LIMIT || ids[b]<RF_GEOMOD_SOURCE_FACE_LIMIT || (ids[a]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE!=(ids[b]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE)continue;
+        cutter=(ids[a]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE;
+        if(!support->work->star_count[cutter] || (ids[other]>=RF_GEOMOD_SOURCE_FACE_LIMIT && (ids[other]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE==cutter))continue;
         for(i=0;i<2;i++) {
-            uint32_t local=(ids[i?b:a]-32)%GEOMOD_CUT_SUPPORT_STRIDE,face=local/4,side=local%4;
+            uint32_t local=(ids[i?b:a]-RF_GEOMOD_SOURCE_FACE_LIMIT)%GEOMOD_CUT_SUPPORT_STRIDE,face=local/4,side=local%4;
             const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
             counts[i]=3;
             for(j=0;j<3;j++)points[i][j]=(side && j==2)?support->work->star_kernels[cutter]:v[side?(side-1+j)%3:j].position;
@@ -1232,7 +1232,7 @@ static int polygon_subtract_tracked_policy(const rf_geomod_vertex *vertices,uint
     uint16_t current_edges[64],front_edges[64],back_edges[64];
     double normal[3]={0},normal_length=0;
     uint32_t pass,i,j,left,nf,nb,total=0,pieces=0,required=0,required_pieces=0;int status;
-    if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>32 ||
+    if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>RF_GEOMOD_SOURCE_FACE_LIMIT ||
        !vertex_count || !fragment_count || vertex_count==fragment_count || (!!out != !!fragments))return RF_RANGE;
     if(tracking && (!tracking->input || !tracking->planes || (out && !tracking->output)))return RF_RANGE;
     /* Validate even planes beyond an early empty intersection. */
@@ -1333,7 +1333,7 @@ int rf_geomod_interior_face(const rf_geomod_vertex *vertices,uint32_t count,
     uint32_t capacity,uint32_t *out_count)
 {
     rf_geomod_vertex current[64],front[64],back[64];uint32_t i,j,k,left=count,nf,nb;int status;
-    if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>32 || !out_count)return RF_RANGE;
+    if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>RF_GEOMOD_SOURCE_FACE_LIMIT || !out_count)return RF_RANGE;
     for(i=0;i<plane_count;i++) {
         double norm=0;
         for(j=0;j<4;j++)if(!isfinite(planes[i][j]))return RF_FORMAT;
@@ -1448,10 +1448,10 @@ int rf_geomod_storage_reset(rf_geomod_storage *s)
     s->nv[next]=s->nv[2];s->nf[next]=s->nf[2];s->current=next;s->generation++;return RF_OK;
 }
 
-static int convex_mesh_planes_oriented(const rf_geomod_mesh_view *mesh,float planes[32][4],int inward)
+static int convex_mesh_planes_oriented(const rf_geomod_mesh_view *mesh,float (*planes)[4],uint32_t capacity,int inward)
 {
     uint32_t i,j,k;int status;
-    if(!mesh || mesh->face_count<4 || mesh->face_count>32 || !mesh->faces)return RF_RANGE;
+    if(!mesh || mesh->face_count<4 || mesh->face_count>capacity || !mesh->faces)return RF_RANGE;
     status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
     for(i=0;i<mesh->face_count;i++) {
         const rf_geomod_face *face=mesh->faces+i;double normal[3]={0},length=0,offset=0;
@@ -1473,7 +1473,7 @@ static int convex_mesh_planes_oriented(const rf_geomod_mesh_view *mesh,float pla
     return RF_OK;
 }
 static int convex_mesh_planes(const rf_geomod_mesh_view *mesh,float planes[32][4])
-{return convex_mesh_planes_oriented(mesh,planes,0);}
+{return convex_mesh_planes_oriented(mesh,planes,32,0);}
 int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work)
 {
@@ -1665,7 +1665,7 @@ static int subtract_history_face_range(rf_geomod_storage *s,const rf_geomod_vert
             const float (*planes)[4]=work->star_count[c]?work->star_planes[c][part]:work->cut_planes[c];
             uint32_t plane_count=work->star_count[c]?4:cutters[c].face_count;
             uint16_t plane_ids[32];
-            if(edges)for(j=0;j<plane_count;j++)plane_ids[j]=(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+(work->star_count[c]?part*4+j:j));
+            if(edges)for(j=0;j<plane_count;j++)plane_ids[j]=(uint16_t)(RF_GEOMOD_SOURCE_FACE_LIMIT+c*GEOMOD_CUT_SUPPORT_STRIDE+(work->star_count[c]?part*4+j:j));
             for(i=0;i<pieces;i++) {
                 const rf_geomod_fragment *face=work->fragments[bank]+i;uint32_t n,nf;
                 rf_geomod_edge_tracking tracking={work->edges[bank]+face->first,plane_ids,work->split_edges};
@@ -1723,7 +1723,7 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
     lineage->diagonals=&previous->diagonals;if(count==1)previous->diagonals.count=0;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
     if(!clip_context || !clip_context->source_is_current) {
-        status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
+        status=convex_mesh_planes_oriented(&source,work->source_planes,RF_GEOMOD_SOURCE_FACE_LIMIT,(int)cavity);if(status)return status;
     } else if(count!=1 || cavity || source.face_count>32)return RF_RANGE;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
     if(clip_context) {
@@ -1784,12 +1784,12 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
         if(status)goto failed;
     }
     status=rf_geomod_seed_adjacency(cutters+c,work->initial_edges,64*32);if(status)goto failed;
-    for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+work->initial_edges[i]*(work->star_count[c]?4:1));
+    for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(RF_GEOMOD_SOURCE_FACE_LIMIT+c*GEOMOD_CUT_SUPPORT_STRIDE+work->initial_edges[i]*(work->star_count[c]?4:1));
     for(i=0;i<cutters[c].face_count;i++) {
         const rf_geomod_face *f=cutters[c].faces+i;
         rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
         uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
-        geomod_corner_support support={work,(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
+        geomod_corner_support support={work,(uint16_t)(RF_GEOMOD_SOURCE_FACE_LIMIT+c*GEOMOD_CUT_SUPPORT_STRIDE+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
         if(clip_context) {
             rf_geomod_solid_clip_result clipped;uint32_t part;
             status=rf_geomod_polygon_clip_solid_tracked(cutters[c].vertices+f->first,f->count,
@@ -1815,7 +1815,7 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
             continue;
         }
         if(cavity) {
-            uint16_t source_ids[32];uint32_t pieces,part;
+            uint16_t source_ids[RF_GEOMOD_SOURCE_FACE_LIMIT];uint32_t pieces,part;
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
             for(j=0;j<source.face_count;j++)source_ids[j]=(uint16_t)j;
             status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
@@ -1857,8 +1857,8 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
                 uint16_t ids[3]={work->compact_planes[i],work->compact_edges[face->first+j],work->compact_edges[face->first+(j+face->count-1)%face->count]};
                 float planes[3][4],point[3];uint32_t q,cut=0;
                 for(q=0;q<3;q++) {
-                    if(ids[q]>=32) {
-                        uint32_t ci=(ids[q]-32)/GEOMOD_CUT_SUPPORT_STRIDE,local=(ids[q]-32)%GEOMOD_CUT_SUPPORT_STRIDE;
+                    if(ids[q]>=RF_GEOMOD_SOURCE_FACE_LIMIT) {
+                        uint32_t ci=(ids[q]-RF_GEOMOD_SOURCE_FACE_LIMIT)/GEOMOD_CUT_SUPPORT_STRIDE,local=(ids[q]-RF_GEOMOD_SOURCE_FACE_LIMIT)%GEOMOD_CUT_SUPPORT_STRIDE;
                         if(ci>=count || local>=(work->star_count[ci]?work->star_count[ci]*4:cutters[ci].face_count))break;
                         cut=1;
                     }
@@ -2002,7 +2002,7 @@ static int prepare_cuts(rf_geomod_storage *s,
     rf_geomod_mesh_view source;uint32_t i,c,n;int status;
     if(!s || !work || s->editing || count>RF_GEOMOD_CUT_LIMIT || (count && !cutters))return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
-    status=convex_mesh_planes(&source,work->source_planes);if(status)return status;
+    status=convex_mesh_planes_oriented(&source,work->source_planes,RF_GEOMOD_SOURCE_FACE_LIMIT,0);if(status)return status;
     /* Validate the entire history before creating an edit, including cutters
      * obscured by previous cuts. Failed input must not silently change history. */
     if(!prepared)for(c=0;c<count;c++){work->star_count[c]=0;status=convex_mesh_planes(cutters+c,work->cut_planes[c]);if(status)return status;}
@@ -2031,11 +2031,11 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work,int prepared)
 {
     rf_geomod_mesh_view source;uint32_t i,c,j,n,pieces;int status;
-    /* IDs0..31 name source planes; each cutter owns256 IDs, four per star part. */
-    uint16_t source_ids[32];
+    /* Source plane IDs occupy [0,64); each cutter owns256 IDs, four per star part. */
+    uint16_t source_ids[RF_GEOMOD_SOURCE_FACE_LIMIT];
     if(!s || !work || s->editing || count>RF_GEOMOD_CUT_LIMIT || (count && !cutters))return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
-    status=convex_mesh_planes_oriented(&source,work->source_planes,1);if(status)return status;
+    status=convex_mesh_planes_oriented(&source,work->source_planes,RF_GEOMOD_SOURCE_FACE_LIMIT,1);if(status)return status;
     if(!prepared)for(c=0;c<count;c++){work->star_count[c]=0;status=convex_mesh_planes(cutters+c,work->cut_planes[c]);if(status)return status;}
     status=rf_geomod_seed_adjacency(&source,work->initial_edges,64*32);if(status)return status;
     for(i=0;i<source.face_count;i++)source_ids[i]=(uint16_t)i;
@@ -2047,13 +2047,13 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
     }
     for(c=0;c<count;c++) {
         status=rf_geomod_seed_adjacency(cutters+c,work->initial_edges,64*32);if(status)goto failed;
-        for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+work->initial_edges[i]*(work->star_count[c]?4:1));
+        for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(RF_GEOMOD_SOURCE_FACE_LIMIT+c*GEOMOD_CUT_SUPPORT_STRIDE+work->initial_edges[i]*(work->star_count[c]?4:1));
         for(i=0;i<cutters[c].face_count;i++) {
             const rf_geomod_face *f=cutters[c].faces+i;
             /* Keep cutter boundaries outside the original empty room. Contact
              * between cavity and cutter is internal, for either plane orientation. */
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
-            geomod_corner_support support={work,(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+i*(work->star_count[c]?4:1)),cutters,NULL,NULL,NULL,NULL};
+            geomod_corner_support support={work,(uint16_t)(RF_GEOMOD_SOURCE_FACE_LIMIT+c*GEOMOD_CUT_SUPPORT_STRIDE+i*(work->star_count[c]?4:1)),cutters,NULL,NULL,NULL,NULL};
             status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
                 work->source_planes,source.face_count,work->seed.vertices,64*32,
                 work->seed.fragments,32,&n,&pieces,1,&tracking,&support);if(status)goto failed;
@@ -2558,7 +2558,7 @@ struct rf_geomod_terrain {
     rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_FACE_LIMIT];
     rf_geomod_mesh_view cuts[RF_GEOMOD_CUT_LIMIT];
     float kernels[RF_GEOMOD_CUT_LIMIT][3];uint32_t star_mask,mapping_width,mapping_height;
-    rf_collision_face_filter original_filters[32],generated_filter,*filters;
+    rf_collision_face_filter original_filters[RF_GEOMOD_SOURCE_FACE_LIMIT],generated_filter,*filters;
     rf_collision_face *faces[2];float (*positions[2])[3];rf_collision_tree tree;
     uint32_t bank,count,cavity,vc,fc,base_bytes,budget,peak_bytes;
     rf_geomod_terrain_piece_fn emit_piece;void *piece_context;
@@ -2642,7 +2642,7 @@ int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
     rf_geomod_terrain *t;rf_geomod_mesh_view mesh;rf_collision_tree tree={0};
     uint64_t bytes=sizeof(*t)+(uint64_t)vc*24+(uint64_t)fc*(2*sizeof(rf_collision_face)+sizeof(rf_collision_face_filter));
     unsigned char *p;uint32_t i,j,accepted;int status;
-    if(!source || !filters || !generated_filter || !out || *out || cavity>1 || source->face_count>32 ||
+    if(!source || !filters || !generated_filter || !out || *out || cavity>1 || source->face_count>RF_GEOMOD_SOURCE_FACE_LIMIT ||
        !source->faces || !vc || !fc || source->face_count>fc || source->vertex_count>vc || bytes>budget)return RF_RANGE;
     status=rf_collision_face_accept(generated_filter,&accepted);if(status)return status;
     for(i=0;i<source->face_count;i++) {
@@ -2664,7 +2664,7 @@ int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
     t->filters=(rf_collision_face_filter *)p;
     status=rf_geomod_storage_open(source,vc,fc,budget-t->base_bytes,&t->mesh);if(status)goto failed;
     t->base_bytes+=rf_geomod_storage_bytes(t->mesh);
-    status=convex_mesh_planes_oriented(source,t->work.source_planes,cavity);if(status)goto failed;
+    status=convex_mesh_planes_oriented(source,t->work.source_planes,RF_GEOMOD_SOURCE_FACE_LIMIT,cavity);if(status)goto failed;
     rf_geomod_storage_view(t->mesh,&mesh);
     status=terrain_bind(t,&mesh,0,&tree);if(status)goto failed;
     t->tree=tree;*out=t;return RF_OK;

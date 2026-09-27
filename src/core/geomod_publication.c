@@ -23,7 +23,7 @@ static int mesh_valid(const rf_geomod_mesh_view *m) {
 }
 static int planes_valid(const float (*p)[4], uint32_t n) {
     uint32_t i, k;
-    if (!p || !n || n > 32)
+    if (!p || !n || n > RF_GEOMOD_SOURCE_FACE_LIMIT)
         return RF_RANGE;
     for (i = 0; i < n; i++) {
         double d = 0;
