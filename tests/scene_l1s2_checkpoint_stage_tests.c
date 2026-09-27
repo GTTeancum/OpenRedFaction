@@ -14,8 +14,10 @@ int main(int argc,char **argv)
     const rf_geomod_publication_origin *origins=NULL;rf_preview_surface_lightmap *bindings=NULL;
     const float center[3]={121.208061f,-2.12633848f,-17.f};
     const float basis[9]={1,0,0,0,1,0,0,0,1};
-    unsigned char *save=NULL;uint32_t bytes=0,i;char path[1024];
-    if(argc!=3)return 2;
+    unsigned char *save=NULL;uint32_t bytes=0,i,pair_mode,second_mode;char path[1024];
+    pair_mode=argc==4 && (!strcmp(argv[3],"paired") || !strcmp(argv[3],"paired-second"));
+    second_mode=pair_mode && !strcmp(argv[3],"paired-second");
+    if(argc!=3 && !pair_mode)return 2;
     s=calloc(1,sizeof(*s));save=malloc(SCENE_CHECKPOINT_MAX);if(!s || !save)return 1;
     snprintf(path,sizeof(path),"%s/levels1.vpp",argv[1]);CHECK(rf_vpp_open(&archive,path));
     CHECK(rf_level_open(&level,&archive,"L1S2.rfl"));
@@ -38,7 +40,11 @@ int main(int argc,char **argv)
         CHECK(rf_surface_materials_read(text,entry.size,campaign_surface_palette));
         free(text);rf_vpp_close(&tables);
     }
-    CHECK(scene_terrain_authored_open_source(s,&level,maps,6,8123));
+    if(pair_mode) {
+        const uint32_t uids[2]={8123,8219};
+        rf_scene_vehicle_enabled=1;
+        CHECK(scene_terrain_sources_open(s,&level,maps,6,uids,2,6u*1024u*1024u));
+    } else CHECK(scene_terrain_authored_open_source(s,&level,maps,6,8123));
     CHECK(scene_terrain_publication_open(s));
     CHECK(rf_geomod_template_load(argv[2],&shape));s->terrain_template=&shape;
     s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));
@@ -57,6 +63,36 @@ int main(int argc,char **argv)
     strcpy(campaign_current_level,"L1S2.rfl");
     memcpy(s->terrain_history_minimum,world.minimum,12);
     memcpy(s->terrain_history_maximum,world.maximum,12);
+    if(pair_mode) {
+        CHECK(scene_terrain_authored_template_edit(s,center,basis,1.f/shape.radius,NULL,0));
+        if(second_mode) {
+            const float next_center[3]={124.314514f,-2.12633848f,-17.f};
+            const float next_basis[9]={-0.287775129f,0.000001598f,-0.957698166f,
+                -0.004944316f,0.999986291f,0.001487379f,
+                0.957684517f,0.005163210f,-0.287771463f};
+            rf_geomod_shallow_limit shallow={{0,-1,0},0.4f};
+            uint32_t touched[4],n=0,previous_serial=s->terrain_publication_serial;
+            int second_status;
+            CHECK(scene_terrain_authored_affected(s,next_center,next_basis,1.f,&shallow,1,touched,&n));
+            if(n!=2 || touched[0]!=0 || touched[1]!=1)return 1;
+            rf_scene_combat_trace=1;
+            second_status=scene_terrain_authored_template_edit(s,next_center,next_basis,1.f,&shallow,1);
+            rf_scene_combat_trace=0;
+            if(second_status!=RF_NOT_FOUND || s->terrain_publication_serial!=previous_serial ||
+               s->terrain_publication->has_pending)return 1;
+            printf("PASS L1S2 second-contact admission rollback status%d serial%u\n",
+                second_status,previous_serial);
+        }
+        CHECK(scene_terrain_publication_view(s,&candidate));
+        if(candidate.cuts!=1 || candidate.mesh.generation!=1 ||
+           candidate.mesh.face_count<s->terrain_authored->windows.face_count ||
+           s->terrain_publication->replaced_count!=91 ||
+           rf_scene_authored_collection[0]!=2 || s->terrain_publication->has_pending)return 1;
+        printf("PASS L1S2 paired scene edit faces%u vertices%u replaced%u\n",
+            candidate.mesh.face_count,candidate.mesh.vertex_count,
+            s->terrain_publication->replaced_count);
+        goto complete;
+    }
     CHECK(scene_checkpoint_identity(s,&level));
     CHECK(rf_geomod_terrain_cut_template(s->terrain,&shape,center,basis,1.f,s->terrain_material));
     CHECK(scene_terrain_publication_prepare(s));
@@ -78,9 +114,11 @@ int main(int argc,char **argv)
     if(before.cuts!=after.cuts || before.mesh.face_count!=after.mesh.face_count ||
        s->terrain_publication->has_pending)return 1;
     printf("PASS L1S2 authored checkpoint stage bytes%u faces%u cuts%u\n",bytes,after.mesh.face_count,after.cuts);
+complete:
     rf_geometry_collision_overlay_close(&s->terrain_collision);
     scene_terrain_publication_close(&s->terrain_publication);
-    rf_geomod_terrain_close(&s->terrain);scene_terrain_authored_close(&s->terrain_authored);
+    if(pair_mode)scene_terrain_sources_close(s);
+    else {rf_geomod_terrain_close(&s->terrain);scene_terrain_authored_close(&s->terrain_authored);}
     free(s->terrain_noise);free(s->terrain_atlas_pixels);free(s->terrain_tile);
     free(s->terrain_bindings);free(s->terrain_colors);free(s->terrain_light_cache);
     free(s->terrain_tiles);free(s->terrain_draw);free(s->light_overlay_work);

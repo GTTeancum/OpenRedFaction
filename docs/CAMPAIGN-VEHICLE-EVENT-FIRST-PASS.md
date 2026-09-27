@@ -140,6 +140,11 @@ candidate; a focused collision ray verifies that it removes face 5780 and
 exposes a recessed crater. The shared room importer and star cutter also trim
 room-121 detail from 30 compiled faces to 74 retained fragments; a focused
 collision-composition ray confirms that face 4972 no longer blocks at the cut.
+The exact UID 8123/8219 pair now commits a smaller first cut through the
+scene's grouped transaction in a PC harness. Replaying the recorded second
+contact then selects both sources but rejects at UID 8123 obstacle admission,
+leaving the first cut and publication serial unchanged. That guard remains
+necessary until UID 9996 room-121 detail participates in the same edit.
 This is not live admission: the two rooms still need one scene-level bind,
 checkpoint history and renderer staging. See
 `docs/research/L1S2-DRILLER-SECOND-CUT-20260927.md` for the measurements.

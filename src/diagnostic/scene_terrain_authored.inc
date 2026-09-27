@@ -56,7 +56,7 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
     if(!s || !level || !s->geometry || !s->collision || !actor_follow_world ||
        !actor_follow_world->slots || !s->materials || s->terrain || s->terrain_authored)return RF_RANGE;
     a=calloc(1,sizeof(*a));if(!a)return RF_IO;
-    status=(uid==66 || uid==148 || uid==8123)?rf_geomod_authored_cavity_open_source(level,s->geometry,uid,2*1024*1024,&a->asset):
+    status=(uid==66 || uid==148 || uid==8123 || uid==8219)?rf_geomod_authored_cavity_open_source(level,s->geometry,uid,2*1024*1024,&a->asset):
         rf_geomod_authored_post_open_source(level,s->geometry,uid,2*1024*1024,&a->asset);if(status)goto fail;
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
     /* Capture original asset identity before remapping face materials into
@@ -70,7 +70,7 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
     a->identity_manifest.substrate=calloc(1,sizeof(*a->identity_manifest.substrate));
     if(!a->identity_manifest.materials || !a->identity_manifest.references || !a->identity_manifest.substrate){status=RF_IO;goto fail;}
     status=rf_geomod_authored_identity_capture_manifest(level,s->geometry,&a->asset_view,
-        maps,map_count,&s->light_rgb,(uid==148 || uid==8123?3u:2u)*1024u*1024u,a->source_identity,&a->identity_peak_bytes,&a->identity_manifest);
+        maps,map_count,&s->light_rgb,(uid==148 || uid==8123 || uid==8219?3u:2u)*1024u*1024u,a->source_identity,&a->identity_peak_bytes,&a->identity_manifest);
     if(status){printf("AUTHORED_IDENTITY_ERROR %d\n",status);goto fail;}
     if(a->asset_view.room>=s->collision->room_count || !a->asset_view.replaced_count){status=RF_FORMAT;goto fail;}
     a->source=a->asset_view.source;a->windows=a->asset_view.windows;a->neighbors=a->asset_view.neighbors;
@@ -100,10 +100,10 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
         if(status)goto fail;
     }
     generated=a->asset_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
-    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,(uid==66 || uid==148 || uid==8123),
+    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,(uid==66 || uid==148 || uid==8123 || uid==8219),
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,SCENE_TERRAIN_CORE_BUDGET,&terrain);if(status)goto fail;
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
-    if(uid!=66 && uid!=148 && uid!=8123) {
+    if(uid!=66 && uid!=148 && uid!=8123 && uid!=8219) {
         status=scene_detached_open(s,&generated,&pieces);if(status)goto fail;
         status=rf_geomod_terrain_set_extraction(terrain,rf_geomod_piece_registry_emit,pieces);if(status)goto fail;
     }
@@ -167,12 +167,15 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     const uint32_t *uids,uint32_t count,uint32_t budget)
 {
     scene_stream *staged;scene_terrain_source_owner *sources;uint32_t i,j,opened=0;
+    uint32_t l1s2_pair=count==2 && uids && uids[0]==8123 && uids[1]==8219 &&
+        level && !strcmp(level->entry.name,"L1S2.rfl");
     uint32_t identity_before[10];uint64_t resident,reserved;int status=RF_RANGE;
     if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
     for(i=0;i<count;i++) {
-        if((uids[i]==66 || uids[i]==148 || uids[i]==8123) && count!=1)return RF_RANGE;
+        if((uids[i]==66 || uids[i]==148 || uids[i]==8123 || uids[i]==8219) && count!=1 && !l1s2_pair)return RF_RANGE;
+        if(uids[i]==8219 && !l1s2_pair)return RF_RANGE;
         if(rf_geomod_authored_post_detail(uids[i],NULL) && count!=1 && uids[0]!=92 && uids[0]!=108)return RF_RANGE;
-        if(!rf_geomod_authored_post_detail(uids[i],NULL) && uids[i]!=108 && uids[i]!=92 && uids[i]!=66 && !(uids[i]==148 && rf_scene_vehicle_enabled) && !(uids[i]==8123 && rf_scene_vehicle_enabled==1) && uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
+        if(!rf_geomod_authored_post_detail(uids[i],NULL) && uids[i]!=108 && uids[i]!=92 && uids[i]!=66 && !(uids[i]==148 && rf_scene_vehicle_enabled) && !(uids[i]==8123 && rf_scene_vehicle_enabled==1) && !(uids[i]==8219 && l1s2_pair) && uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
         if(rf_geomod_authored_beam_roof(uids[i]) && count!=1) {
             uint32_t posts[2];
             if(!rf_geomod_authored_beam_posts(uids[i],posts) || (count!=2 && count!=3) ||

@@ -41,7 +41,11 @@ static uint32_t scene_publication_owned_bytes(const scene_terrain_publication_ow
  * Keep a finite subsystem cap inside stock64MiB; native
  * headroom validation is separate from this worst-case reservation. */
 static uint32_t scene_destruction_budget(const scene_stream *s)
-{return s && s->terrain_publication && s->terrain_publication->connected?
+{return s && s->terrain_publication && (s->terrain_publication->connected ||
+    (s->terrain_source_count==2 && s->terrain_sources &&
+     s->terrain_sources[0].authored && s->terrain_sources[1].authored &&
+     s->terrain_sources[0].authored->asset_view.source_uid==8123 &&
+     s->terrain_sources[1].authored->asset_view.source_uid==8219))?
     (s->terrain_source_count==3?17u:16u)*1024u*1024u:SCENE_DESTRUCTION_BUDGET;}
 uint32_t rf_scene_terrain_publication[8]; /* activefaces,vertices,cuts,generation,resident,peak,pending,status */
 static void scene_terrain_publication_close(scene_terrain_publication_owner **ptr)
@@ -141,7 +145,7 @@ static inline void scene_terrain_publication_abort(scene_stream *s)
 static int scene_authored_cuts_admit(const scene_terrain_authored_assets *a,
     const rf_geomod_publication_cut *cuts,uint32_t count) {
     uint32_t i;int status;
-    if(a->asset_view.source_uid==66 || a->asset_view.source_uid==148 || a->asset_view.source_uid==8123 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
+    if(a->asset_view.source_uid==66 || a->asset_view.source_uid==148 || a->asset_view.source_uid==8123 || a->asset_view.source_uid==8219 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
         const rf_geomod_mesh_view *cut=&cuts[i].mesh;float lo[3],hi[3];uint32_t vertex,axis,reference;
         if(!cut->vertex_count || !cut->vertices)return RF_FORMAT;
         memcpy(lo,cut->vertices[0].position,12);memcpy(hi,lo,12);
@@ -149,7 +153,13 @@ static int scene_authored_cuts_admit(const scene_terrain_authored_assets *a,
             float value=cut->vertices[vertex].position[axis];if(value<lo[axis])lo[axis]=value;if(value>hi[axis])hi[axis]=value;
         }
         status=a->asset_view.detail_guard_count?rf_geomod_authored_post_admit(a->asset,lo,hi):
-            rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);if(status)return status;
+            rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);
+        if(status) {
+            if(rf_scene_combat_trace)
+                printf("GEOMOD_ADMISSION_REJECT owner%u cut%u status%d\n",
+                    a->asset_view.source_uid,i,status);
+            return status;
+        }
     }
     return RF_OK;
 }
@@ -211,7 +221,10 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
             status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;
             p->has_pending=1;return RF_OK;
         }
-        if(p->connected)status=rf_geomod_publication_build_connected(jobs,s->terrain_source_count,saved_serial,p->connected,
+        if(s->terrain_source_count==2 && jobs[0].crater_origin.owner==8123 && jobs[1].crater_origin.owner==8219)
+            status=rf_geomod_publication_build_cavity_groups(jobs,2,saved_serial,&p->work,
+                b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
+        else if(p->connected)status=rf_geomod_publication_build_connected(jobs,s->terrain_source_count,saved_serial,p->connected,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
         else status=rf_geomod_publication_build_groups(jobs,s->terrain_source_count,saved_serial,&p->work,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);

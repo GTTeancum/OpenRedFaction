@@ -47,6 +47,20 @@ must bind this room together with the room-8 candidate, then integrate paired
 admission, checkpoint history and renderer staging without regressing the
 first cut's save/load behavior.
 
+The exact UID8123/UID8219 pair now opens through the scene source collection,
+and a one-unit first cut commits through the real grouped scene transaction:
+177 room-8 publication faces, 731 vertices and 91 replaced compiled faces.
+The existing single-source checkpoint stage still passes. A second focused
+scene check applies the recorded frame-296 center, basis, unit template scale
+and 0.4 downward shallow limit after that paired first cut. Both source
+bounds are selected, but UID8123's cavity obstacle admission rejects the
+second cutter with `RF_NOT_FOUND`; the transaction retains serial 1 and no
+pending publication. This is an intentional guard while the intersected
+UID9996 detail in room 121 has no live replacement. The pair is diagnostic
+only; the normal L1S2 scene remains the single source and keeps its working
+first-cut save/load path. The pair's 16 MiB subsystem budget has passed this
+PC transaction but has not been validated against whole-game stock Xbox RAM.
+
 This is geometric and focused C collision evidence, not a runtime
 demonstration of the second cut or its visual quality. The Python probe uses
 SciPy for half-space solving; the shipping C/Xbox build does not depend on
