@@ -71,6 +71,36 @@ int rf_geomod_campaign_room_scope_check(const rf_geometry *geometry,uint32_t roo
         cutter_count,portal_work,portal_capacity,out);
 }
 
+int rf_geomod_campaign_room_import(const rf_geometry *geometry,uint32_t room,
+    rf_geomod_vertex *vertices,uint32_t vertex_capacity,rf_geomod_face *faces,
+    uint32_t face_capacity,uint32_t *face_ids,rf_geomod_mesh_view *out)
+{
+    rf_geomod_mesh_view result;uint32_t i,j,nv=0,nf=0;int status;
+    if(!geometry || !geometry->data || room>=geometry->rooms || !vertices ||
+       !vertex_capacity || !faces || !face_capacity || !face_ids || !out)return RF_RANGE;
+    for(i=0;i<geometry->faces;i++) {
+        rf_geometry_face face;
+        status=rf_geometry_get_face(geometry,i,&face);if(status)return status;
+        if(face.room!=room)continue;
+        if(face.corners<3 || face.corners>64 || face.source_word==UINT32_MAX ||
+           face.texture>=geometry->textures || nf==face_capacity ||
+           face.corners>vertex_capacity-nv)return RF_RANGE;
+        faces[nf]=(rf_geomod_face){nv,face.corners,face.texture,face.source_word};
+        face_ids[nf]=i;
+        for(j=0;j<face.corners;j++) {
+            rf_geometry_corner corner;uint32_t k;
+            status=rf_geometry_get_corner(geometry,i,j,&corner);if(status)return status;
+            status=rf_geometry_vertex(geometry,corner.vertex,vertices[nv+j].position);if(status)return status;
+            memcpy(vertices[nv+j].uv,corner.uv,sizeof(corner.uv));
+            for(k=0;k<3;k++)if(!isfinite(vertices[nv+j].position[k]))return RF_FORMAT;
+            for(k=0;k<2;k++)if(!isfinite(vertices[nv+j].uv[k]))return RF_FORMAT;
+        }
+        nv+=face.corners;nf++;
+    }
+    if(!nf)return RF_NOT_FOUND;
+    result=(rf_geomod_mesh_view){vertices,faces,nv,nf,0};*out=result;return RF_OK;
+}
+
 int rf_geomod_campaign_room_retain(const rf_geometry *geometry,uint32_t room,
     const rf_collision_face *cutter,uint32_t cutter_count,
     rf_geomod_solid_clip_work *work,rf_geomod_vertex *vertices,

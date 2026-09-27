@@ -22,6 +22,14 @@ int rf_geomod_campaign_room_scope_check_group(const rf_geometry *,
     rf_geometry_portal *portal_work,uint32_t portal_capacity,
     rf_geomod_campaign_room_scope *out);
 
+/* Copy one compiled room into a caller-owned mesh, preserving authored
+ * source tokens, texture indices, winding and UVs. face_ids receives the
+ * original compiled face ID for each output face, for collision/render
+ * replacement. No allocation; output view is unchanged on failure. */
+int rf_geomod_campaign_room_import(const rf_geometry *,uint32_t room,
+    rf_geomod_vertex *,uint32_t vertex_capacity,rf_geomod_face *,
+    uint32_t face_capacity,uint32_t *face_ids,rf_geomod_mesh_view *);
+
 /* Retain the compiled polygons of one room outside a closed cutter. Retained
  * faces preserve original winding, UV, texture index and source face ID.
  * Caller must map texture indices to live material slots on publication.

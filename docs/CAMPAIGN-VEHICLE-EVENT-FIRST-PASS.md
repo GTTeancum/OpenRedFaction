@@ -137,9 +137,11 @@ to UID 9996 in room 121. Thus the broad-box rejection is conservative in
 general, but **this cut reaches two additional owners**, not a false positive.
 The C core now decodes UID 8219 and produces a combined UID 8123/8219 room-8
 candidate; a focused collision ray verifies that it removes face 5780 and
-exposes a recessed crater. This is not live admission: room-121 detail,
-cross-room publication, checkpoint history and renderer staging still need
-coordinated treatment. See
+exposes a recessed crater. The shared room importer and star cutter also trim
+room-121 detail from 30 compiled faces to 74 retained fragments; a focused
+collision-composition ray confirms that face 4972 no longer blocks at the cut.
+This is not live admission: the two rooms still need one scene-level bind,
+checkpoint history and renderer staging. See
 `docs/research/L1S2-DRILLER-SECOND-CUT-20260927.md` for the measurements.
 
 The first cut now survives an ordinary campaign quick-save and a fresh load on

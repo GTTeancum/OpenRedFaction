@@ -36,8 +36,14 @@ cavity outputs into one bounded room-8 candidate. A focused collision probe
 replaces the 83 UID8123 and eight UID8219 room-8 face IDs together: a ray that
 previously hit UID8219 face 5780 at x=126.625 no longer hits that face, and an
 opposite ray meets the recessed crater at x=126.863. This proves the room-8
-geometry path, not a safe live second cut. Runtime publication must handle the
-intersected room-121 detail and cross-room ownership, then integrate paired
+geometry path, not a safe live second cut. Room 121 contains all 30 compiled
+faces of UID9996, each with serialized face flag 8; its room owner has kind 1
+and active state 1. The shared core can now import that compiled room while
+preserving face IDs, source tokens, UVs and texture indices. Applying the
+second star through the existing polygon cutter produces 74 retained fragments
+with 297 vertices. A collision-composition probe replaces the 30 original
+faces and confirms a ray that hit face 4972 now misses. Runtime publication
+must bind this room together with the room-8 candidate, then integrate paired
 admission, checkpoint history and renderer staging without regressing the
 first cut's save/load behavior.
 

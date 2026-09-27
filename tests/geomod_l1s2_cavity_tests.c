@@ -1,5 +1,6 @@
 /* Installed L1S2 source identity, bounded terrain admission and publication. */
 #include "rf/geomod_authored_post.h"
+#include "rf/geomod_campaign_room.h"
 #include "rf/authored_identity_capture.h"
 #include "rf/collision_composition.h"
 #include <stdio.h>
@@ -95,6 +96,72 @@ static int paired_collision_probe(const rf_geometry *geometry,
     rf_geometry_collision_overlay_close(&overlay);rf_collision_composition_close(&composition);
     rf_geometry_collision_world_close(&base);free(filters);free(faces);free(positions);free(ids);
     return status;
+}
+static int detail_room_clip_probe(const rf_geometry *geometry,
+    const rf_geomod_publication_cut *cut)
+{
+    static rf_geomod_vertex source_vertices[512];
+    static rf_geomod_face source_faces[64];
+    static rf_geomod_publication_origin source_origins[64];
+    static rf_collision_face_filter filters[RF_GEOMOD_PUBLICATION_FACES];
+    static rf_collision_face bound[RF_GEOMOD_PUBLICATION_FACES];
+    static float positions[RF_GEOMOD_PUBLICATION_VERTICES][3];
+    static uint32_t ids[RF_GEOMOD_PUBLICATION_FACES];
+    rf_geometry_collision_world world={0};rf_collision_composition *composition=NULL;
+    rf_collision_composition_view pending;rf_collision_tree_hit before={0},after={0};
+    uint32_t replaced[64],found_before=0,found_after=0;
+    const float ray_start[3]={126.4099f,-1.5967f,-17.7522f};
+    const float ray_delta[3]={0.4371f,-0.2428f,0};
+    rf_geomod_mesh_view source,clipped;uint32_t i,nf,changed=0;
+    if(!geometry || !cut)return 1;
+    CHECK(rf_geomod_campaign_room_import(geometry,121,source_vertices,512,
+        source_faces,64,replaced,&source));
+    nf=source.face_count;
+    if(nf!=30 || source.vertex_count!=120)return 1;
+    for(i=0;i<nf;i++) {
+        rf_geometry_face face;
+        CHECK(rf_geometry_get_face(geometry,replaced[i],&face));
+        if(face.flags!=8 || face.source_word!=source_faces[i].source_face)return 1;
+        source_origins[i]=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_RETAINED,
+            9996,face.source_word,replaced[i]};
+    }
+    CHECK(rf_geomod_publication_cut_neighbors(&source,source_origins,9996,cut,1,
+        &publication_work,published_vertices,RF_GEOMOD_PUBLICATION_VERTICES,
+        published_faces,RF_GEOMOD_PUBLICATION_FACES,published_origins,&clipped));
+    for(i=0;i<clipped.face_count;i++) {
+        uint32_t id=published_origins[i].reference;
+        if(id==4972 || id==4984 || id==4985 || id==4998)changed++;
+    }
+    printf("L1S2 room-121 detail clip source %u/%u output %u/%u touched descendants %u\n",
+        source.face_count,source.vertex_count,clipped.face_count,clipped.vertex_count,changed);
+    if(clipped.face_count==source.face_count || !changed)return 1;
+    CHECK(rf_geometry_collision_world_open(geometry,16u*1024u*1024u,&world));
+    for(i=0;i<clipped.face_count;i++) {
+        ids[i]=published_origins[i].reference;
+        CHECK(rf_geometry_initial_collision_filter(geometry,ids[i],0,filters+i));
+    }
+    CHECK(rf_geomod_collision_faces(&clipped,filters,positions,RF_GEOMOD_PUBLICATION_VERTICES,
+        bound,RF_GEOMOD_PUBLICATION_FACES));
+    CHECK(rf_collision_composition_open(&world.rooms[121].tree,
+        world.rooms[121].tree.source_indices,replaced,nf,
+        world.rooms[121].tree.face_count+clipped.face_count,
+        4u*1024u*1024u,NULL,&composition));
+    CHECK(rf_collision_composition_prepare(composition,bound,ids,clipped.face_count));
+    CHECK(rf_collision_composition_pending(composition,&pending));
+    CHECK(rf_collision_thin_tree(world.rooms[121].tree.nodes,
+        world.rooms[121].tree.node_count,world.rooms[121].tree.faces,
+        world.rooms[121].tree.face_count,4,ray_start,ray_delta,1.f,
+        world.rooms[121].tree.stack,world.rooms[121].tree.node_count,&before,&found_before));
+    CHECK(rf_collision_thin_tree(pending.tree->nodes,pending.tree->node_count,
+        pending.tree->faces,pending.tree->face_count,4,ray_start,ray_delta,1.f,
+        pending.tree->stack,pending.tree->node_count,&after,&found_after));
+    printf("L1S2 detail collision ray before %u face %u after %u face %u\n",
+        found_before,found_before?world.rooms[121].tree.source_indices[before.face_index]:UINT32_MAX,
+        found_after,found_after?pending.face_ids[pending.tree->source_indices[after.face_index]]:UINT32_MAX);
+    changed=found_before && world.rooms[121].tree.source_indices[before.face_index]==4972 &&
+        (!found_after || pending.face_ids[pending.tree->source_indices[after.face_index]]!=4972);
+    rf_collision_composition_close(&composition);rf_geometry_collision_world_close(&world);
+    return changed?0:1;
 }
 int main(int argc,char **argv)
 {
@@ -260,6 +327,7 @@ int main(int argc,char **argv)
             terrain_view.mesh.face_count,neighbor_terrain_view.mesh.face_count,
             published.face_count,owner_faces[0],owner_faces[1]);
         if(paired_collision_probe(&geometry,&view,&neighbor_view,&published,published_origins))return 1;
+        if(detail_room_clip_probe(&geometry,&second_cut))return 1;
     }
     CHECK(rf_geomod_terrain_reset(terrain));CHECK(rf_geomod_terrain_get(terrain,&terrain_view));
     if(terrain_view.cuts || terrain_view.mesh.face_count!=48)return 1;
