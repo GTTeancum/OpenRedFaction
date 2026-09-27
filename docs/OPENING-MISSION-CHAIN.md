@@ -47,5 +47,14 @@ The older `verify_trigger_links.py` compared only recorded event/controller call
 
 The final player position is(-75.388870,-8.095128,27.786995). The NPC-trigger chain and delayed player contact now deliver the weapon naturally within this staged entrance route. This is not a start-to-finish mission proof: Play_Animation/Look_At, confrontation presentation, full actor combat behavior and onward campaign traversal remain unfinished.
 
+An image-free PC replay now starts at the actual L1S1 player spawn, with no
+`RF_REPLAY_EXIT_START` or other staged pose. The older walking route needed a
+small strafe adjustment and 52 further forward frames to enter the handoff
+volume. `python tools/replay_opening_authored_spawn.py` passes 2360 frames:
+player trigger9869 contacts, exactly one scripted Riot Stick grant leaves100
+charge, and the player is alive. This closes the staged-spawn gap for the first
+weapon handoff, but does not verify interactive controller input, visuals, or
+the rest of the campaign.
+
 
 Xbox handoff verification remains incomplete: the240-second attempt timed out while frames were advancing; the600-second retry (`replay-20260914-133827`) lost its QMP connection. These are terminal harness results, not a successful native handoff. The user then paused tests and redirected work to structural Xbox optimization. The PC controls and original/PC/NXDK dispatch verifier above passed before that pause.
