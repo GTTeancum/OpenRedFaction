@@ -90,7 +90,10 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
     symbols = {key: address(mapping, key) for key in
                ('rf_diagnostic', 'rf_scene_world_checkpoint_state',
                 'rf_xbox_checkpoint_storage_state', 'rf_scene_player_life',
-                'rf_scene_checkpoint_world_route_contact')}
+                'rf_scene_checkpoint_world_route_contact',
+                'rf_xbox_level_transitions', 'rf_player_replay_diagnostic',
+                'rf_scene_actor_frame_count', 'rf_scene_campaign_load_stage',
+                'rf_scene_follow_level_exits', 'rf_scene_level_transition')}
     monitor = process = None
     try:
         require_no_project_xemu(ROOT)
@@ -140,17 +143,31 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
             else:
                 raise TimeoutError(f'{name}: XEMU did not finish in {seconds}s')
             monitor.command('stop')
-            if diagnostic[37] != frames:
-                raise RuntimeError(f'{name}: expected {frames} frames, got {diagnostic[37]}')
             state = words(monitor, symbols['rf_scene_world_checkpoint_state'], 10)
             storage = words(monitor, symbols['rf_xbox_checkpoint_storage_state'], 8)
             life = words(monitor, symbols['rf_scene_player_life'], 8)
             route_contact = words(monitor, symbols['rf_scene_checkpoint_world_route_contact'], 2)
+            transitions = words(monitor, symbols['rf_xbox_level_transitions'], 4)
+            replay_state = words(monitor, symbols['rf_player_replay_diagnostic'], 4)
+            actor_frame_count = words(monitor, symbols['rf_scene_actor_frame_count'], 1)[0]
+            load_stage = words(monitor, symbols['rf_scene_campaign_load_stage'], 1)[0]
+            follow_exits = words(monitor, symbols['rf_scene_follow_level_exits'], 1)[0]
+            level_request = words(monitor, symbols['rf_scene_level_transition'], 20)
             result = dict(memory_bytes=64 * 1024 * 1024, frames=diagnostic[37],
                           free_pages=diagnostic[44], checkpoint_state=state,
                           storage_state=storage, player_life=life,
+                          level_transitions=transitions,
+                          replay_state=replay_state, actor_frame_count=actor_frame_count,
+                          campaign_load_stage=load_stage, follow_exits=follow_exits,
+                          level_request=level_request,
                           shallow_contacts=dict(npc=route_contact[0], player=route_contact[1]))
             (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+            if diagnostic[37] != frames:
+                raise RuntimeError(f'{name}: expected {frames} frames, got {diagnostic[37]}; '
+                                   f'level transitions {transitions}, player life {life}, '
+                                   f'replay {replay_state}, actor frames {actor_frame_count}, '
+                                   f'load stage {load_stage}, follow {follow_exits}, '
+                                   f'level request {level_request}')
             if not 0 < result['free_pages'] <= 16384 or life[2]:
                 raise RuntimeError(f'{name}: memory exhausted or player dead')
             return result

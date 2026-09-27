@@ -11098,9 +11098,12 @@ is refilled, reload/damage flash cleared and reactive NPC alerts reset.
 The retained starting snapshot costs 1132 bytes; no respawn heap allocation.
 
 This is a practical implementation, not an original-routine reconstruction.
-World geometry, NPC health/deaths and mission state persist. It is not a
-checkpoint or full level reload. Moving-world obstruction at the restored
-position and repeat recovery across arbitrary campaign encounters remain open.
+The in-place restore remains the isolated-testbed fallback. In a followed
+campaign section, the same fresh Use press now requests the existing full
+level-restart transition, reconstructing the level instead of retaining its
+damaged enemies, props and active mission state. Checkpoint choice, moving-world
+obstruction in the testbed fallback and repeated recovery across arbitrary
+campaign encounters remain open.
 
 `python tools/replay_player_life.py` covers fatal retaliation, input blocking,
 held-Use rejection, restored health/ammo and firing after respawn. Movement
@@ -11120,6 +11123,15 @@ The initialized-snapshot fix also passes stock64MiB XEMU1500-frame replay:
 artifacts/xemu/replay-20260914-004948/report.json. Body state matches PC after
 about5.2 horizontal units of post-respawn travel, with matching lifecycle,
 combat and15 HUD samples;7115 available pages at completion. No added storage.
+
+The Xbox-only stock64MiB functional check in
+`artifacts/xemu/death-restart-20260927-152345/report.json` drives the existing
+death input fixture without running the PC game or capturing an image. At
+frame1300 the guest requests one fresh L1S1 reload (`uid=0xfffffffc`); it
+consumes all1500 input records, finishes alive in the newly loaded scene and
+reports4079 free physical pages. The test disc flags were restored. This
+proves the native restart path and continued simulation, not a complete
+checkpoint/menu flow or visible death presentation.
 
 ## Outstanding visible NPC death failure
 

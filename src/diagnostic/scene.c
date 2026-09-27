@@ -9581,6 +9581,17 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     }
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
     if(!pressed || frame-rf_scene_player_life[3]<60)return RF_OK;
+    if(rf_scene_follow_level_exits){
+        /* A campaign retry must reconstruct enemies, props and mission state.
+         * The existing fresh-section path also discards cross-level carry. */
+        memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+        strcpy(rf_scene_level_transition.level,campaign_current_level);
+        rf_scene_level_transition.uid=UINT32_MAX-3u;
+        rf_scene_level_transition.pending=1;
+        campaign_endgame.restart_requested=1;
+        printf("PLAYER_DEATH_RESTART %s %u\n",campaign_current_level,frame);
+        return RF_NOT_FOUND;
+    }
     if(scene_actor_body.spheres.count!=life_start.count)return RF_RANGE;
     scene_player_impact_relocated();
     scene_actor_body.state=life_start.body;rf_scene_actor_pose=life_start.pose;actor_look=life_start.look;
@@ -14277,9 +14288,15 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     }
     }
     if(rf_scene_enemy_combat[6]) {
+        const char *prompt;
+#ifdef RF_IMAGE_XBOX_NATIVE
+        prompt=rf_scene_follow_level_exits?"X TO RESTART":"X TO RESPAWN";
+#else
+        prompt=rf_scene_follow_level_exits?"E TO RESTART":"E TO RESPAWN";
+#endif
         status=combat_hud_rect(sink,context,224,184,192,64,0xff101010);if(status)return status;
         status=combat_hud_text(sink,context,272,194,"YOU DIED",0xffee6060);if(status)return status;
-        status=combat_hud_text(sink,context,242,224,"E/X TO RESPAWN",0xffeeeeee);if(status)return status;
+        status=combat_hud_text(sink,context,242,224,prompt,0xffeeeeee);if(status)return status;
     }
     return RF_OK;
 }

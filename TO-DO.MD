@@ -4,6 +4,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 Current platform priority (user direction,2026-09-27): Xbox implementation and stock-64-MiB XEMU functional checks; retain the shared PC build path but pause PC gameplay testing and campaign-route replays.
 
+- Player death recovery: Xbox campaign Use now reloads the current level and clears enemy/mission state after death; checkpoint choice, death presentation and broader encounters remain open (docs/DEATH-LIFECYCLE.md).
+
 - PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
@@ -1483,7 +1485,8 @@ See docs/ENEMY-AI.md; pursuit and weapon behavior remain open.
 First-pass player recovery now blocks controls after fatal damage and shows
 a death/respawn prompt. After60 frames, fresh E/X restores the starting player
 body, pose, health/armor and ammunition, clearing reactive enemy alerts.
-World/NPC/mission state persists: full level restart/checkpoints remain open.
+In isolated testbeds world/NPC/mission state still persists; the Xbox campaign
+now requests a full fresh level reload after death, while checkpoint choice remains open.
 A1132-byte retained snapshot avoids respawn allocations. PC tests cover death,
 held-Use rejection, health/ammo restoration and resumed firing; movement input
 was initially accepted without travel: the snapshot preceded speed/pose
@@ -1493,6 +1496,10 @@ PASS: one death, one respawn, resumed firing and matching PC state/HUD.
 Evidence artifacts/xemu/replay-20260914-003751/report.json;7115 available
 pages at completion (not a peak memory measurement).
 Evidence artifacts/player-life/report.json; docs/DEATH-LIFECYCLE.md.
+Xbox-only stock64MiB death/restart check passes at1500 frames: one fresh
+L1S1 level transition at frame1300, a newly loaded live scene, no dead player
+and4079 free physical pages. No PC run or image was used. Evidence:
+artifacts/xemu/death-restart-20260927-152345/report.json.
 Corrected snapshot native replay PASS: artifacts/xemu/replay-20260914-004948/
 report.json,1500 frames with PC-matching body/lifecycle/combat and15 HUD pixels;
 7115 available pages at completion. Prior no-travel limitation is resolved.
