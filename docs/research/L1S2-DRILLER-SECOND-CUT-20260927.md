@@ -61,6 +61,16 @@ only; the normal L1S2 scene remains the single source and keeps its working
 first-cut save/load path. The pair's 16 MiB subsystem budget has passed this
 PC transaction but has not been validated against whole-game stock Xbox RAM.
 
+The paired scene publication owner now also opens room 121 as a bounded detail
+source: 30 compiled faces and 120 vertices, all flags-8, with their compiled
+face IDs retained. Its inactive candidate bank clips the recorded second star
+to 74 faces and 297 vertices, prepares a composed collision tree, and changes
+the face-4972 ray as predicted. Aborting the candidate restores the original
+face-4972 hit and leaves room 8 at serial 1. The focused PC stage peak is
+1,741,302 bytes within the 4 MiB publication budget; the shared scene code
+also compiles for Xbox. This candidate is not yet bound to the live collision
+world or renderer, and the exact second edit remains guarded.
+
 The paired first-cut scene now writes RFDS3 without detached-piece trailers,
 stages both cavity histories, commits the private collection restore and
 re-encodes byte-identically in the focused PC harness. The original

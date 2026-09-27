@@ -8,7 +8,88 @@
  */
 #include "rf/geomod_publication_binding.h"
 #include "rf/collision_composition.h"
+#include "rf/geomod_campaign_room.h"
 #define SCENE_PUBLICATION_BUDGET (4u*1024u*1024u)
+#define SCENE_L1S2_DETAIL_VERTICES 2048u
+#define SCENE_L1S2_DETAIL_FACES 256u
+typedef struct scene_l1s2_detail_bank {
+    rf_geomod_vertex vertices[SCENE_L1S2_DETAIL_VERTICES];
+    rf_geomod_face faces[SCENE_L1S2_DETAIL_FACES];
+    rf_geomod_publication_origin origins[SCENE_L1S2_DETAIL_FACES];
+    rf_collision_face_filter filters[SCENE_L1S2_DETAIL_FACES];
+    rf_collision_face bound[SCENE_L1S2_DETAIL_FACES];
+    float positions[SCENE_L1S2_DETAIL_VERTICES][3];
+    uint32_t ids[SCENE_L1S2_DETAIL_FACES];
+    rf_geomod_mesh_view mesh;
+} scene_l1s2_detail_bank;
+typedef struct scene_l1s2_detail_owner {
+    rf_geomod_vertex source_vertices[512];rf_geomod_face source_faces[64];
+    rf_geomod_publication_origin source_origins[64];uint32_t replaced[64];
+    rf_geomod_mesh_view source;scene_l1s2_detail_bank banks[2];
+    rf_collision_composition *composition;uint32_t active,pending,has_pending;
+} scene_l1s2_detail_owner;
+static void scene_l1s2_detail_close(scene_l1s2_detail_owner **ptr)
+{
+    if(!ptr || !*ptr)return;
+    rf_collision_composition_close(&(*ptr)->composition);free(*ptr);*ptr=NULL;
+}
+static int scene_l1s2_detail_profile(const scene_stream *s)
+{
+    return s && s->terrain_source_count==2 && s->terrain_sources &&
+        s->terrain_sources[0].authored && s->terrain_sources[1].authored &&
+        s->terrain_sources[0].authored->asset_view.source_uid==8123 &&
+        s->terrain_sources[1].authored->asset_view.source_uid==8219;
+}
+static int scene_l1s2_detail_open(scene_stream *s,scene_l1s2_detail_owner **out)
+{
+    scene_l1s2_detail_owner *d;const rf_collision_tree *base;uint32_t i;int status;
+    if(!scene_l1s2_detail_profile(s) || !s->geometry || !s->collision ||
+       s->collision->room_count<=121 || !out || *out)return RF_RANGE;
+    d=calloc(1,sizeof(*d));if(!d)return RF_IO;
+    status=rf_geomod_campaign_room_import(s->geometry,121,d->source_vertices,512,
+        d->source_faces,64,d->replaced,&d->source);if(status)goto failed;
+    if(d->source.face_count!=30 || d->source.vertex_count!=120){status=RF_FORMAT;goto failed;}
+    for(i=0;i<d->source.face_count;i++) {
+        rf_geometry_face face;
+        status=rf_geometry_get_face(s->geometry,d->replaced[i],&face);if(status)goto failed;
+        if(face.flags!=8 || face.source_word!=d->source_faces[i].source_face){status=RF_FORMAT;goto failed;}
+        d->source_origins[i]=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_RETAINED,
+            9996,face.source_word,d->replaced[i]};
+    }
+    base=&s->collision->rooms[121].tree;
+    if(base->face_count>UINT32_MAX-SCENE_L1S2_DETAIL_FACES){status=RF_RANGE;goto failed;}
+    status=rf_collision_composition_open(base,base->source_indices,d->replaced,d->source.face_count,
+        base->face_count+SCENE_L1S2_DETAIL_FACES,1024u*1024u,NULL,&d->composition);
+    if(status)goto failed;
+    *out=d;return RF_OK;
+failed:
+    scene_l1s2_detail_close(&d);return status;
+}
+static inline int scene_l1s2_detail_prepare(scene_l1s2_detail_owner *d,
+    rf_geomod_publication_work *work,const rf_geometry *geometry,
+    const rf_geomod_publication_cut *cuts,uint32_t count,uint32_t serial)
+{
+    scene_l1s2_detail_bank *b;uint32_t i;int status;
+    if(!d || !work || !geometry || !cuts || !count || count>RF_GEOMOD_CUT_LIMIT ||
+       d->has_pending || serial==UINT32_MAX)return RF_RANGE;
+    d->pending=d->active^1u;b=d->banks+d->pending;
+    status=rf_geomod_publication_cut_neighbors(&d->source,d->source_origins,9996,cuts,count,
+        work,b->vertices,SCENE_L1S2_DETAIL_VERTICES,
+        b->faces,SCENE_L1S2_DETAIL_FACES,b->origins,&b->mesh);if(status)return status;
+    b->mesh.generation=serial;
+    for(i=0;i<b->mesh.face_count;i++) {
+        b->ids[i]=b->origins[i].reference;
+        if(b->ids[i]>=geometry->faces)return RF_FORMAT;
+        status=rf_geometry_initial_collision_filter(geometry,b->ids[i],0,b->filters+i);if(status)return status;
+    }
+    status=rf_geomod_collision_faces(&b->mesh,b->filters,b->positions,
+        SCENE_L1S2_DETAIL_VERTICES,b->bound,SCENE_L1S2_DETAIL_FACES);if(status)return status;
+    status=rf_collision_composition_prepare(d->composition,b->bound,b->ids,b->mesh.face_count);
+    if(status)return status;
+    d->has_pending=1;return RF_OK;
+}
+static void scene_l1s2_detail_abort(scene_l1s2_detail_owner *d)
+{if(d){rf_collision_composition_abort(d->composition);d->has_pending=0;}}
 typedef struct scene_publication_bank {
     rf_geomod_vertex vertices[RF_GEOMOD_PUBLICATION_VERTICES];
     rf_geomod_face faces[RF_GEOMOD_PUBLICATION_FACES];
@@ -23,6 +104,7 @@ typedef struct scene_publication_bank {
 } scene_publication_bank;
 struct scene_terrain_publication_owner {
     rf_geomod_publication_work work;scene_publication_bank banks[2];
+    scene_l1s2_detail_owner *detail;
     rf_geomod_publication_connected_work *connected;
     rf_collision_composition *composition;const rf_collision_tree *base;
     rf_geomod_publication_binding_reference references[256];
@@ -35,7 +117,8 @@ struct scene_terrain_publication_owner {
     uint32_t active,pending,has_pending,resident_bytes,peak_bytes;
 };
 static uint32_t scene_publication_owned_bytes(const scene_terrain_publication_owner *p)
-{return (uint32_t)sizeof(*p)+(p->connected?(uint32_t)sizeof(*p->connected):0);}
+{return (uint32_t)sizeof(*p)+(p->connected?(uint32_t)sizeof(*p->connected):0)+
+    (p->detail?(uint32_t)sizeof(*p->detail):0);}
 /* Connected edits reserve old/clone cores and independently bounded debris
  * registries; the triple profile also retains its unchanged third owner.
  * Keep a finite subsystem cap inside stock64MiB; native
@@ -51,6 +134,7 @@ uint32_t rf_scene_terrain_publication[8]; /* activefaces,vertices,cuts,generatio
 static void scene_terrain_publication_close(scene_terrain_publication_owner **ptr)
 {
     scene_terrain_publication_owner *p;if(!ptr || !*ptr)return;p=*ptr;
+    scene_l1s2_detail_close(&p->detail);
     rf_collision_composition_close(&p->composition);free(p->connected);free(p);*ptr=NULL;
 }
 static int scene_runtime_material_rows(scene_stream *s,const rf_geometry_runtime_surface **rows,uint32_t *count) {
@@ -90,7 +174,8 @@ static int scene_publication_runtime_import(scene_terrain_publication_owner *p,c
 }
 static inline int scene_terrain_publication_open(scene_stream *s)
 {
-    scene_terrain_publication_owner *p;rf_collision_composition_view cv;uint32_t room,capacity,i,j,k,n;int status;
+    scene_terrain_publication_owner *p;rf_collision_composition_view cv,detail_cv={0};
+    uint32_t room,capacity,i,j,k,n;int status;
     if(!s || !s->geometry || !s->terrain_authored || !s->collision || s->terrain_publication || s->terrain_collision.storage)return RF_RANGE;
     room=s->terrain_authored->asset_view.room;if(room>=s->collision->room_count)return RF_FORMAT;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;
@@ -123,9 +208,13 @@ static inline int scene_terrain_publication_open(scene_stream *s)
         p->replaced_ids,p->replaced_count,
         capacity,SCENE_PUBLICATION_BUDGET-scene_publication_owned_bytes(p),NULL,&p->composition);if(status)goto failed;
     status=rf_geometry_collision_overlay_open(s->collision,room,capacity,128*1024,&s->terrain_collision);if(status)goto failed;
+    if(scene_l1s2_detail_profile(s)) {
+        status=scene_l1s2_detail_open(s,&p->detail);if(status)goto failed_overlay;
+        status=rf_collision_composition_get(p->detail->composition,&detail_cv);if(status)goto failed_overlay;
+    }
     status=rf_collision_composition_get(p->composition,&cv);if(status)goto failed_overlay;
-    p->resident_bytes=scene_publication_owned_bytes(p)+cv.resident_bytes+s->terrain_collision.resident_bytes;
-    p->peak_bytes=scene_publication_owned_bytes(p)+cv.peak_bytes+s->terrain_collision.resident_bytes;
+    p->resident_bytes=scene_publication_owned_bytes(p)+cv.resident_bytes+detail_cv.resident_bytes+s->terrain_collision.resident_bytes;
+    p->peak_bytes=scene_publication_owned_bytes(p)+cv.peak_bytes+detail_cv.peak_bytes+s->terrain_collision.resident_bytes;
     if(p->peak_bytes>SCENE_PUBLICATION_BUDGET){status=RF_RANGE;goto failed_overlay;}
     s->terrain_publication=p;memset(rf_scene_terrain_publication,0,sizeof(rf_scene_terrain_publication));return RF_OK;
 failed_overlay:rf_geometry_collision_overlay_close(&s->terrain_collision);
@@ -133,7 +222,11 @@ failed:scene_terrain_publication_close(&p);return status;
 }
 static inline void scene_terrain_publication_abort(scene_stream *s)
 {
-    if(s && s->terrain_publication){rf_collision_composition_abort(s->terrain_publication->composition);s->terrain_publication->has_pending=0;}
+    if(s && s->terrain_publication){
+        rf_collision_composition_abort(s->terrain_publication->composition);
+        scene_l1s2_detail_abort(s->terrain_publication->detail);
+        s->terrain_publication->has_pending=0;
+    }
 }
 /* Synchronous private preparation. candidate/cutters may be borrowed from a
  * history-check visitor; no input pointer escapes this call. Inactive banks and
@@ -306,7 +399,7 @@ static inline int scene_terrain_publication_candidate(scene_stream *s,rf_geomod_
 static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_surface_lightmap *complete,
     uint32_t count,uint32_t image_count)
 {
-    scene_terrain_publication_owner *p;scene_publication_bank *b;rf_collision_composition_view cv;
+    scene_terrain_publication_owner *p;scene_publication_bank *b;rf_collision_composition_view cv,detail_cv={0};
     uint32_t i,j;int status;
     if(!s || !(p=s->terrain_publication) || !p->has_pending)return RF_RANGE;b=p->banks+p->pending;
     if(count!=b->mesh.face_count || (count && !complete))return RF_RANGE;
@@ -322,14 +415,16 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
         }
     }
     status=rf_collision_composition_pending(p->composition,&cv);if(status)return status;
-    if((uint64_t)scene_publication_owned_bytes(p)+cv.peak_bytes+s->terrain_collision.resident_bytes>SCENE_PUBLICATION_BUDGET)return RF_RANGE;
+    if(p->detail){status=rf_collision_composition_get(p->detail->composition,&detail_cv);if(status)return status;}
+    if((uint64_t)scene_publication_owned_bytes(p)+cv.peak_bytes+detail_cv.peak_bytes+
+       s->terrain_collision.resident_bytes>SCENE_PUBLICATION_BUDGET)return RF_RANGE;
     /* Bind first; commit releases the old tree only after overlay replacement. */
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,cv.tree,cv.face_ids,cv.count);if(status)return status;
     status=rf_collision_composition_commit(p->composition);if(status)return status; /* no allocation */
     if(count && complete!=b->bindings)memcpy(b->bindings,complete,count*sizeof(*complete));
     p->active=p->pending;p->has_pending=0;
-    p->resident_bytes=scene_publication_owned_bytes(p)+cv.resident_bytes+s->terrain_collision.resident_bytes;
-    p->peak_bytes=scene_publication_owned_bytes(p)+cv.peak_bytes+s->terrain_collision.resident_bytes;
+    p->resident_bytes=scene_publication_owned_bytes(p)+cv.resident_bytes+detail_cv.resident_bytes+s->terrain_collision.resident_bytes;
+    p->peak_bytes=scene_publication_owned_bytes(p)+cv.peak_bytes+detail_cv.peak_bytes+s->terrain_collision.resident_bytes;
     rf_scene_terrain_publication[0]=b->mesh.face_count;rf_scene_terrain_publication[1]=b->mesh.vertex_count;
     rf_scene_terrain_publication[2]=b->cuts;rf_scene_terrain_publication[3]=b->mesh.generation;
     rf_scene_terrain_publication[4]=p->resident_bytes;rf_scene_terrain_publication[5]=p->peak_bytes;

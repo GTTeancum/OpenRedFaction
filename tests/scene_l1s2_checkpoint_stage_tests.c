@@ -89,6 +89,51 @@ int main(int argc,char **argv)
                s->terrain_publication->has_pending)return 1;
             printf("PASS L1S2 second-contact admission rollback status%d serial%u\n",
                 second_status,previous_serial);
+            {
+                scene_authored_edit_context factory={0};rf_geomod_terrain *detail_core=NULL;
+                rf_geomod_publication_cut cutter;rf_collision_composition_view composed,room8;
+                rf_collision_tree_hit hit={0};uint32_t history_bytes,found=0;uint64_t stage_peak;
+                unsigned char *history_blob;
+                const float ray_start[3]={126.4099f,-1.5967f,-17.7522f};
+                const float ray_delta[3]={0.4371f,-0.2428f,0};
+                scene_l1s2_detail_owner *detail=s->terrain_publication->detail;
+                scene_l1s2_detail_bank *bank;
+                if(!detail || detail->source.face_count!=30)return 1;
+                CHECK(rf_geomod_terrain_history_size(s->terrain,&history_bytes));
+                history_blob=malloc(history_bytes);if(!history_blob)return 1;
+                CHECK(rf_geomod_terrain_history_encode(s->terrain,history_blob,history_bytes));
+                factory.scene=s;factory.authored=s->terrain_authored;
+                CHECK(scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&detail_core));
+                CHECK(rf_geomod_terrain_history_decode(detail_core,history_blob,history_bytes));
+                CHECK(rf_geomod_terrain_cut_template_limits(detail_core,&shape,next_center,next_basis,
+                    1.f,s->terrain_material,&shallow,1));
+                CHECK(rf_geomod_terrain_cutter_get(detail_core,1,&cutter.mesh,cutter.kernel,&cutter.star));
+                CHECK(scene_l1s2_detail_prepare(detail,&s->terrain_publication->work,s->geometry,
+                    &cutter,1,previous_serial+1));
+                bank=detail->banks+detail->pending;
+                CHECK(rf_collision_composition_pending(detail->composition,&composed));
+                CHECK(rf_collision_composition_get(s->terrain_publication->composition,&room8));
+                stage_peak=(uint64_t)scene_publication_owned_bytes(s->terrain_publication)+
+                    room8.resident_bytes+composed.peak_bytes+s->terrain_collision.resident_bytes;
+                if(stage_peak>SCENE_PUBLICATION_BUDGET)return 1;
+                CHECK(rf_collision_thin_tree(composed.tree->nodes,composed.tree->node_count,
+                    composed.tree->faces,composed.tree->face_count,4,ray_start,ray_delta,1.f,
+                    composed.tree->stack,composed.tree->node_count,&hit,&found));
+                if(bank->mesh.face_count!=74 || bank->mesh.vertex_count!=297 ||
+                   (found && composed.face_ids[composed.tree->source_indices[hit.face_index]]==4972))return 1;
+                printf("PASS L1S2 room121 scene candidate faces%u vertices%u stage_peak%u\n",
+                    bank->mesh.face_count,bank->mesh.vertex_count,(uint32_t)stage_peak);
+                scene_l1s2_detail_abort(detail);
+                if(detail->has_pending || s->terrain_publication->has_pending ||
+                   s->terrain_publication_serial!=previous_serial)return 1;
+                CHECK(rf_collision_composition_get(detail->composition,&composed));
+                found=0;
+                CHECK(rf_collision_thin_tree(composed.tree->nodes,composed.tree->node_count,
+                    composed.tree->faces,composed.tree->face_count,4,ray_start,ray_delta,1.f,
+                    composed.tree->stack,composed.tree->node_count,&hit,&found));
+                if(!found || composed.face_ids[composed.tree->source_indices[hit.face_index]]!=4972)return 1;
+                rf_geomod_terrain_close(&detail_core);free(history_blob);
+            }
         }
         CHECK(scene_terrain_publication_view(s,&candidate));
         if(candidate.cuts!=1 || candidate.mesh.generation!=1 ||

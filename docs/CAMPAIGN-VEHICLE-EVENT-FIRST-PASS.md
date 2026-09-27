@@ -140,6 +140,9 @@ candidate; a focused collision ray verifies that it removes face 5780 and
 exposes a recessed crater. The shared room importer and star cutter also trim
 room-121 detail from 30 compiled faces to 74 retained fragments; a focused
 collision-composition ray confirms that face 4972 no longer blocks at the cut.
+The paired scene publication owner now stages that same room-121 candidate
+within its bounded memory budget and verifies rollback to the original face;
+live collision binding and draw replacement are still open.
 The exact UID 8123/8219 pair now commits a smaller first cut through the
 scene's grouped transaction in a PC harness. Replaying the recorded second
 contact then selects both sources but rejects at UID 8123 obstacle admission,
