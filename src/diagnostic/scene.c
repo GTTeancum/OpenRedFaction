@@ -744,7 +744,7 @@ uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,poin
 #define SCENE_TERRAIN_DRAW_VERTICES (2*SCENE_TERRAIN_SOURCE_VERTICES)
 #endif
 #ifndef SCENE_TERRAIN_DRAW_BUDGET
-#define SCENE_TERRAIN_DRAW_BUDGET (320*1024)
+#define SCENE_TERRAIN_DRAW_BUDGET (384*1024)
 #endif
 #if SCENE_TERRAIN_SOURCE_VERTICES > 65535 || SCENE_TERRAIN_DRAW_VERTICES < SCENE_TERRAIN_SOURCE_VERTICES
 #error Terrain subdivision requires bounded uint16 source indices and room for original vertices
@@ -11051,17 +11051,20 @@ static int scene_campaign_wall_checkpoint_get(const scene_stream *s,float center
 static int scene_campaign_wall_cut(scene_stream *s,const float center[3],float radius);
 #include "scene_campaign_geomod.inc"
 #include "scene_campaign_wall.inc"
+static void scene_driller_runtime_rebind_collision(scene_stream *s);
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
-    rf_geomod_mesh_view source;uint32_t i,j,required;int status;
+    rf_geomod_mesh_view source;uint32_t i,j,required,campaign_driller;int status;
     memset(rf_scene_geomod,0,sizeof(rf_scene_geomod));memset(rf_scene_terrain_shadows,0,sizeof(rf_scene_terrain_shadows));
     memset(rf_scene_geo_regions,0,sizeof(rf_scene_geo_regions));
     memset(rf_scene_authored_identity,0,sizeof(rf_scene_authored_identity));
     memset(rf_scene_terrain_atlas,0,sizeof(rf_scene_terrain_atlas));
     memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
     memset(rf_scene_terrain_upload,0,sizeof(rf_scene_terrain_upload));
-    required=rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4;
+    campaign_driller=campaign_spawn && !rf_scene_dev_room_enabled && rf_scene_vehicle_enabled==1 &&
+        !strcmp(level->entry.name,"L1S2.rfl");
+    required=campaign_driller || (rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4);
     /* Region identity/hardness belongs to the level, including ordinary
      * campaign scenes whose terrain cutter has not yet been connected. */
     {
@@ -11092,7 +11095,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     if(!required)return campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl")?
         scene_campaign_geomod_open(s,level):RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world)return RF_FORMAT;
-    if(strcmp(level->entry.name,"ctf06.rfl") && (strcmp(level->entry.name,"glass_house.rfl") ||
+    if(strcmp(level->entry.name,"ctf06.rfl") && !campaign_driller && (strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91))return RF_FORMAT;
     /* Explicit developer wall fixture: ctf06's outer wall is retail hardness100.
      * Keep installed data/default hardness intact; admit only this local patch. */
@@ -11201,11 +11204,12 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     s->terrain_random.value=1; /* Explicit DEV stream; original global stream remains to integrate. */
     memcpy(s->terrain_history_minimum,s->collision->minimum,12);memcpy(s->terrain_history_maximum,s->collision->maximum,12);
     s->terrain_fallback=UINT32_MAX;
-    if(!strcmp(level->entry.name,"ctf06.rfl")) {
+    if(!strcmp(level->entry.name,"ctf06.rfl") || campaign_driller) {
         status=scene_terrain_authored_open(s,level,maps,map_count);if(status)return status;
         status=scene_terrain_publication_open(s);if(status)return status;
         status=scene_terrain_bind(s);if(status)return status;
         s->collision=&s->terrain_collision.world;
+        scene_driller_runtime_rebind_collision(s);
         return scene_terrain_render_exclude(s,s->terrain_publication->replaced_ids,
             s->terrain_publication->replaced_count);
     }
@@ -17933,7 +17937,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
         }
         if((rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4) ||
-           (campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl"))) {
+           (campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl")) ||
+           (campaign_spawn && !rf_scene_dev_room_enabled && rf_scene_vehicle_enabled==1 &&
+            !strcmp(level->entry.name,"L1S2.rfl"))) {
             rf_level_geomod_settings settings;const char *names[1];rf_materials interior={0};rf_material *combined;
             status=rf_level_geomod_settings_read(level,&settings);if(status)goto done;
             stream->terrain_default_hardness=settings.hardness;

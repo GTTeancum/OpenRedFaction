@@ -548,7 +548,7 @@ target_link_libraries(rf_geomod_authored_post_tests PRIVATE rf_core)
 add_test(NAME geomod_authored_post COMMAND rf_geomod_authored_post_tests "${CMAKE_SOURCE_DIR}/Installed_Game/levelsm.vpp" "${CMAKE_SOURCE_DIR}/build/data/geomod-template.bin")
 add_executable(rf_geomod_l1s2_cavity_tests tests/geomod_l1s2_cavity_tests.c)
 target_link_libraries(rf_geomod_l1s2_cavity_tests PRIVATE rf_core)
-add_test(NAME geomod_l1s2_cavity COMMAND rf_geomod_l1s2_cavity_tests "${CMAKE_SOURCE_DIR}/Installed_Game/levels1.vpp" "${CMAKE_SOURCE_DIR}/build/data/driller-single.bin")
+add_test(NAME geomod_l1s2_cavity COMMAND rf_geomod_l1s2_cavity_tests "${CMAKE_SOURCE_DIR}/Installed_Game/levels1.vpp" "${CMAKE_SOURCE_DIR}/build/data/driller-single.bin" "${CMAKE_SOURCE_DIR}/Installed_Game")
 
 add_executable(rf_geomod_edit_transaction_tests tests/geomod_edit_transaction_tests.c)
 target_link_libraries(rf_geomod_edit_transaction_tests PRIVATE rf_core)

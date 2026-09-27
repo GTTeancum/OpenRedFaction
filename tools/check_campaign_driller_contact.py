@@ -1,7 +1,7 @@
 """Replay L1S2's authored Driller against a real room-8 wall, without images.
 
-This checks contact provenance, not excavation. It launches only the local PC
-game process; input is contained in that process and never reaches the host UI.
+Require the first live cut and room publication. Input stays inside the local
+PC game process and never reaches the host UI.
 """
 import argparse
 import json
@@ -61,10 +61,18 @@ def main():
         contacts.append(dict(frame=frame, bit=bit, status=status, accepted=accepted,
                              point=point, room=room, face=face_id, source_word=source_word,
                              owner_uid=owner[0], owner_operation=owner[1]))
-    if not contacts or contacts[0]["room"] != 8 or contacts[0]["face"] != 768 or contacts[0]["owner_uid"] != 8123:
-        raise AssertionError("authored Driller did not reach the expected first wall contact")
+    if (not contacts or contacts[0]["room"] != 8 or contacts[0]["face"] != 768
+            or contacts[0]["owner_uid"] != 8123 or contacts[0]["status"] != 0
+            or contacts[0]["accepted"] != 1):
+        raise AssertionError("authored Driller did not commit the expected first wall cut")
+    if not re.search(r"^AUTHORED_SOURCE_CUTS 8123 1(?: 0){6}$", log, re.M):
+        raise AssertionError("L1S2 source did not retain one committed cut")
+    publication = re.search(r"^TERRAIN_PUBLICATION (\d+) (\d+) (\d+) (\d+) ", log, re.M)
+    if not publication or int(publication.group(1)) < 83 or publication.group(3, 4) != ("1", "1"):
+        raise AssertionError("committed cut did not publish the room geometry")
     print(json.dumps(dict(result="PASS", level="L1S2.rfl", actor_uid=8122,
-                          contacts=contacts, scope="First-contact owner identity only; cut acceptance, visuals and Xbox remain open")))
+                          contacts=contacts, published_faces=int(publication.group(1)),
+                          scope="First live PC cut and publication; collision hole, later cuts, save and Xbox remain open")))
 
 
 if __name__ == "__main__":

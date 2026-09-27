@@ -110,15 +110,16 @@ tools/check_campaign_driller_contact.py`) reaches the south wall twice:
 frames 249 and 296, both room 8, compiled face 768, source word 283, owned by
 operation-2 cavity brush UID 8123. The contact centers are
 `(121.208061,-2.12633848,-17)` and `(124.314514,-2.1283164,-17)`.
-Both attempts return `RF_NOT_FOUND` with zero accepted cuts because no
-campaign terrain owner is open; this is a controlled failure, not successful
-excavation. The harness asserts the first-contact face/source identity but
-allows the cut status to change when the owner is implemented. It writes only
-text and input data. PC and NXDK builds pass with the contact room/face
-telemetry; the replay itself has only run on PC, so Xbox cut behavior remains
-unverified. A first campaign owner should target UID 8123's actual contact
-surface, preserve its 83 linked compiled room-8 faces, then prove collision,
-render publication, save/reload and stock-memory behavior.
+The first contact now accepts one cut. The ordinary scene binds UID 8123 as
+the terrain owner, replaces its compiled room faces with a 171-face
+publication, and reports one committed cut and one draw generation. The
+second contact still returns `RF_NOT_FOUND`, so repeated-cut behavior remains
+open. The harness uses process-local input and text output. The PC replay and
+a 330-frame stock 64 MiB XEMU replay match on the source cut counters,
+publication face/vertex/cut/generation counters and terrain cut generation;
+XEMU finishes with 3,801 free physical pages (about 14.85 MiB). The native
+report is `artifacts/xemu/replay-20260927-073902/report.json`. No images were
+captured. Collision-hole behavior and save/reload remain unverified.
 
 The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
 source. It validates the 389-brush section with bounded successor-header
@@ -133,10 +134,12 @@ at the recorded first-contact point using an identity test basis, and publishes
 83 authored windows with the resulting cut. The core has 166 faces after the
 cut; the publication has 209 faces, including 46 crater faces and 163 retained
 faces. Core resident memory is 898,576 bytes and cut peak is 1,014,012 bytes;
-reset restores the original 48 faces. Eight focused GeoMod checks and the
-NXDK build pass. This is a geometry/publication probe, not a live L1S2 cut:
-scene identity capture, native collision/render binding, actual vehicle-basis
-contact, save/reload and total stock-memory admission remain open.
+reset restores the original 48 faces. The focused geometry check and NXDK
+build pass. Scene identity capture and actual vehicle-basis contact are now
+integrated in the PC replay. This focused core result uses an identity test
+basis, so its 209 faces differ from the 171 published by the live vehicle
+basis. The native runtime and stock-memory checks now pass; collision-hole
+and save/reload behavior remain open.
 
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and

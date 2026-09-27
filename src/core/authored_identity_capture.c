@@ -213,15 +213,19 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
             (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
         if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
     }
-    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (!rf_geomod_authored_post_detail(asset->source_uid,NULL) && !rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=148 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=(asset->source_uid==148?0u:3u) ||
-        asset->source.face_count!=(asset->source_uid==148?22u:asset->source_uid==66?14u:6u) || asset->solid_count!=((asset->source_uid==66 || asset->source_uid==148)?0u:rf_geomod_authored_post_detail(asset->source_uid,NULL)?2u:3u))return RF_NOT_FOUND;
+    if(level->version!=180 ||
+        (asset->source_uid==8123?strcmp(level->entry.name,"L1S2.rfl"):strcmp(level->entry.name,"ctf06.rfl")) ||
+        (!rf_geomod_authored_post_detail(asset->source_uid,NULL) && !rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=148 && asset->source_uid!=8123 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) ||
+        asset->room!=(asset->source_uid==8123?8u:asset->source_uid==148?0u:3u) ||
+        asset->source.face_count!=(asset->source_uid==8123?48u:asset->source_uid==148?22u:asset->source_uid==66?14u:6u) ||
+        asset->solid_count!=((asset->source_uid==66 || asset->source_uid==148 || asset->source_uid==8123)?0u:rf_geomod_authored_post_detail(asset->source_uid,NULL)?2u:3u))return RF_NOT_FOUND;
     if((rf_geomod_authored_beam_roof(asset->source_uid)!=0) && (asset->neighbor_void_count!=1 || !asset->neighbor_voids || asset->neighbor_voids[0].owner!=rf_geomod_authored_beam_roof(asset->source_uid)))return RF_NOT_FOUND;
     if(asset->detail_guard_count && (!asset->replaced_ids || asset->replaced_count>768))return RF_RANGE;
     status=detail_guard_validate(geometry,asset);if(status)return status;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
     origins[0]=asset->source_origins;origins[1]=asset->window_origins;origins[2]=asset->neighbor_origins;capacity=0;
     for(i=0;i<3;i++) {
-        if(i==2 && (asset->source_uid==66 || asset->source_uid==148) && !meshes[i]->face_count && !meshes[i]->vertex_count)continue;
+        if(i==2 && (asset->source_uid==66 || asset->source_uid==148 || asset->source_uid==8123) && !meshes[i]->face_count && !meshes[i]->vertex_count)continue;
         if(!meshes[i]->faces || !meshes[i]->vertices || !origins[i] || !meshes[i]->face_count || meshes[i]->face_count>768 ||
             !meshes[i]->vertex_count || meshes[i]->vertex_count>4096)return RF_RANGE;
         capacity+=meshes[i]->face_count;
@@ -240,7 +244,7 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     for(i=0;i<3;i++){status=mesh_capture(c,meshes[i],origins[i]);if(status)goto done;}
     status=allocate(c,editor->size,&memory);if(status)goto done;c->editor=memory;
     status=rf_level_read(level,editor,0,c->editor,editor->size);if(status)goto done;
-    c->input.asset=asset;strcpy(c->input.level,"ctf06.rfl");c->input.compiled_section=geometry->data;
+    c->input.asset=asset;strcpy(c->input.level,asset->source_uid==8123?"l1s2.rfl":"ctf06.rfl");c->input.compiled_section=geometry->data;
     c->input.compiled_bytes=geometry->bytes;c->input.editor_section=c->editor;c->input.editor_bytes=editor->size;
     /* Immutable view comes from the bounded loader, whose selected-source flags0 guard
      * proves original44d870 operation2. No trailing property inference. */
@@ -255,6 +259,12 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     if(asset->source_uid==66 || asset->source_uid==148) {
         c->input.source_mode=1;c->input.source_operation=1;
         c->input.loader_policy=4;c->input.publication_policy=13;
+    }
+    if(asset->source_uid==8123) {
+        /* L1S2 uses an inward cavity represented by an operation-2 editor
+         * brush. Separate policy IDs prevent aliasing a ctf06 save identity. */
+        c->input.source_mode=1;c->input.source_operation=2;
+        c->input.loader_policy=6;c->input.publication_policy=15;
     }
     if(asset->detail_guard_count){c->input.loader_policy=5;c->input.publication_policy=14;}
     c->input.material_domain=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS;

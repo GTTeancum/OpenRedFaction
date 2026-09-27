@@ -975,13 +975,13 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
     const float maximum[3],uint32_t *reference) {
     const rf_geomod_authored_post_view *a;uint32_t i,j,k,corner;
     if(!o || !minimum || !maximum || !reference)return RF_RANGE;
-    a=&o->view;if((a->source_uid!=66 && a->source_uid!=148) || !o->cavity_obstacles || !o->cavity_obstacle_count)return RF_NOT_FOUND;
+    a=&o->view;if((a->source_uid!=66 && a->source_uid!=148 && a->source_uid!=8123) || !o->cavity_obstacles)return RF_NOT_FOUND;
     for(k=0;k<3;k++)if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || minimum[k]>maximum[k])return RF_RANGE;
     for(i=0;i<o->cavity_obstacle_count;i++) {
         for(k=0;k<3;k++)if(maximum[k]<o->cavity_obstacles[i][0][k]-1e-5f || minimum[k]>o->cavity_obstacles[i][1][k]+1e-5f)break;
         if(k==3)return RF_NOT_FOUND;
     }
-    if(a->source_uid==148) {
+    if(a->source_uid==148 || a->source_uid==8123) {
         uint32_t touched=0,ref;int status=cavity_surface_box_admit(a,minimum,maximum,&touched,&ref);
         if(!status){*reference=ref;return RF_OK;}
         if(touched || status!=RF_NOT_FOUND)return status;

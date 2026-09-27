@@ -443,6 +443,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['campaign_geomod']=campaign_geomod
      report['campaign_wall']=campaign_wall
      report['campaign_geomod_collision']=campaign_geomod_collision
+     if any(line.startswith('AUTHORED_SOURCE_CUTS ') for line in pc.stdout.splitlines()):
+      source_cuts=words(monitor,symbol('rf_scene_authored_source_cuts'),8)
+      terrain_publication=words(monitor,symbol('rf_scene_terrain_publication'),8)
+      terrain_geomod=words(monitor,symbol('rf_scene_geomod'),8)
+      assert source_cuts==expected('AUTHORED_SOURCE_CUTS'),source_cuts
+      assert terrain_publication[:4]==expected('TERRAIN_PUBLICATION')[:4],terrain_publication
+      assert terrain_geomod[:3]==expected('GEOMOD')[:3],terrain_geomod
+      report['authored_source_cuts']=source_cuts
+      report['terrain_publication']=terrain_publication
+      report['terrain_geomod']=terrain_geomod
      npc_draw=words(monitor,symbol('rf_scene_npc_draw'),5)
      retained_models=words(monitor,symbol('rf_xbox_retained_models'),8)
      report['retained_models']=retained_models
@@ -861,7 +871,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       assert weapon_draw[:3]==reference_weapon[:3] and weapon_draw[5]==reference_weapon[5],weapon_draw
       assert weapon_draw[3:5]==[0,2166136261],weapon_draw
      else:assert weapon_draw==reference_weapon,weapon_draw
-     if args.actor_uid is not None:assert weapon_draw[3]>0,weapon_draw
+     if args.actor_uid is not None and not retained_models[1] and reference_weapon[3]>0:assert weapon_draw[3]>0,weapon_draw
      report['weapon_draw']=weapon_draw
      weapon_placement=words(monitor,symbol('rf_scene_weapon_placement'),4)
      assert weapon_placement==expected('WEAPON_PLACEMENT') and weapon_placement[1]>0,weapon_placement

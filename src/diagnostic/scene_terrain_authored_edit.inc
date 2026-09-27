@@ -11,7 +11,7 @@ static int scene_authored_edit_create(void *opaque,uint32_t budget,rf_geomod_ter
     scene_terrain_authored_assets *a=c->authored?c->authored:s->terrain_authored;
     rf_collision_face_filter generated=a->asset_view.source_filters[0];int status;
     generated.query_flags=0;generated.face_flags=256;
-    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,(a->asset_view.source_uid==66 || a->asset_view.source_uid==148),
+    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,(a->asset_view.source_uid==66 || a->asset_view.source_uid==148 || a->asset_view.source_uid==8123),
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,budget,out);if(status)return status;
     return rf_geomod_terrain_set_mapping(*out,s->terrain_texture_width,s->terrain_texture_height);
 }
@@ -143,7 +143,8 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
     }
     /* Destruction subsystem ceiling, not a claim that other game owners are free.
      * Actual whole-game stock64MiB headroom is checked in native runs. */
-    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+SCENE_DETACHED_BUDGET+
+    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+
+        (s->detached_pieces?SCENE_DETACHED_BUDGET:0)+
         rf_scene_terrain_atlas[3]+s->terrain_authored->resident_bytes+sizeof(*s->terrain_draw)+
         SCENE_TERRAIN_DRAW_VERTICES*sizeof(*s->terrain_colors)+sizeof(*s->terrain_light_cache)+
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+

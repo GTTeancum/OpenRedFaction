@@ -158,7 +158,8 @@ int rf_geomod_authored_identity(const rf_geomod_authored_identity_input *v,unsig
         !a->source_planes || !a->source_filters || !a->replaced_ids || !a->replaced_count || a->replaced_count>768 ||
         a->detail_guard_count>1 || (a->detail_guard_count && !a->detail_guards) ||
         a->neighbor_void_count>32 || (a->neighbor_void_count && !a->neighbor_voids))return RF_RANGE;
-    if(!name_valid(v->level) || !name_valid(a->settings.texture) || v->source_mode>1 || v->source_operation!=(v->source_mode?1u:2u) ||
+    if(!name_valid(v->level) || !name_valid(a->settings.texture) || v->source_mode>1 ||
+        v->source_operation!=((v->source_mode && a->source_uid!=8123)?1u:2u) ||
         v->material_domain!=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS || !v->loader_policy || !v->publication_policy ||
         !v->collision_policy || !v->material_policy || a->source_uid==UINT32_MAX || a->room==UINT32_MAX)return RF_FORMAT;
     if((a->detail_guard_count!=0)!=(v->loader_policy==5) ||
