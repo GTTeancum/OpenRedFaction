@@ -4,6 +4,7 @@
 #include "rf/geomod_campaign_room.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int main(int argc,char **argv)
@@ -168,15 +169,21 @@ int main(int argc,char **argv)
                     static rf_collision_face_filter filters[1024];
                     static float positions[4096][3];
                     static uint32_t face_ids[1024];
+                    uint32_t *texture_slots=calloc(geometry.textures,sizeof(*texture_slots));
                     rf_geomod_campaign_room_stage_work stage_work={merged_vertices,
                         merged_faces,filters,collision_faces,positions,face_ids,4096,1024};
                     rf_geomod_mesh_view merged;rf_collision_tree tree={0};
+                    if(!texture_slots)return 30;
+                    for(i=0;i<geometry.textures;i++)texture_slots[i]=i+100;
                     status=rf_geomod_campaign_room_stage(&geometry,&retained,
-                        retained_unchanged,&wall,(rf_collision_face_filter){0,256,0,0,0,0},
+                        retained_unchanged,&wall,texture_slots,geometry.textures,777,2048,
+                        (rf_collision_face_filter){0,256,0,0,0,0},
                         3766,&stage_work,2*1024*1024,&merged,&tree);
                     if(status){fprintf(stderr,"L1S1 merged tree status %d\n",status);return 33;}
                     if(merged.face_count!=867 || merged.vertex_count!=3403 ||
-                       face_ids[retained.face_count]!=3766)return 34;
+                       face_ids[retained.face_count]!=3766 ||
+                       merged.faces[0].material!=retained.faces[0].material+100 ||
+                       merged.faces[retained.face_count].material!=777)return 34;
                     printf("PASS L1S1 staged room28 tree faces=%u vertices=%u treebytes=%u\n",
                         merged.face_count,merged.vertex_count,tree.allocated_bytes);
                     rf_collision_tree_close(&tree);
@@ -184,10 +191,12 @@ int main(int argc,char **argv)
                         rf_geomod_mesh_view prior=merged;
                         stage_work.face_capacity=866;
                         status=rf_geomod_campaign_room_stage(&geometry,&retained,
-                            retained_unchanged,&wall,(rf_collision_face_filter){0,256,0,0,0,0},
+                            retained_unchanged,&wall,texture_slots,geometry.textures,777,2048,
+                            (rf_collision_face_filter){0,256,0,0,0,0},
                             3766,&stage_work,2*1024*1024,&merged,&tree);
                         if(status!=RF_RANGE || memcmp(&prior,&merged,sizeof(prior)) || tree.storage)return 36;
                     }
+                    free(texture_slots);
                 }
             }
             {

@@ -25,6 +25,9 @@
 #include "rf/geomod_authored_post.h"
 #include "rf/authored_identity_capture.h"
 #include "rf/geomod_publication_binding.h"
+#include "rf/editor_brush.h"
+#include "rf/geomod_campaign_wall.h"
+#include "rf/geomod_campaign_room.h"
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include "../platform/xbox/checkpoint_storage.h"
 #include "../platform/xbox/checkpoint_fixture.h"
@@ -767,6 +770,7 @@ typedef struct scene_impact_owner {
     struct {rf_explosion_clock clock;uint32_t slots[6];} instances[8];
 } scene_impact_owner;
 typedef struct scene_terrain_publication_owner scene_terrain_publication_owner;
+typedef struct scene_campaign_geomod_owner scene_campaign_geomod_owner;
 typedef struct scene_authored_clutter_baseline scene_authored_clutter_baseline;
 typedef struct scene_terrain_authored_assets {
     rf_geomod_authored_post *asset;rf_geomod_authored_post_view asset_view;
@@ -786,6 +790,7 @@ uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch pea
 
 typedef struct scene_driller_runtime scene_driller_runtime;
 typedef struct scene_stream {
+    scene_campaign_geomod_owner *campaign_geomod;
     scene_terrain_source_owner *terrain_sources;uint32_t terrain_source_count;
     scene_terrain_authored_assets *terrain_authored;
     scene_terrain_publication_owner *terrain_publication;
@@ -11029,6 +11034,7 @@ rejected:
 }
 #include "scene_terrain_authored_edit.inc"
 #include "scene_terrain_legacy_edit.inc"
+#include "scene_campaign_geomod.inc"
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -11067,7 +11073,8 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
         rf_scene_geo_regions[2]=s->terrain_default_hardness;
         rf_scene_geo_regions[3]=section!=NULL;
     }
-    if(!required)return RF_OK;
+    if(!required)return campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl")?
+        scene_campaign_geomod_open(s,level):RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world)return RF_FORMAT;
     if(strcmp(level->entry.name,"ctf06.rfl") && (strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91))return RF_FORMAT;
@@ -13348,7 +13355,13 @@ static int scene_script_explode(void *context,const rf_level_event *event,int32_
             if(status)++rf_scene_script_explode_geometry[5];
             else {
                 rf_scene_script_explode_geometry[7]=region.hardness.hardness;
-                if(region.hardness.allowed)++rf_scene_script_explode_geometry[4];
+                if(region.hardness.allowed){
+                    ++rf_scene_script_explode_geometry[4];
+                    if(event->uid==9456 && s->campaign_geomod){
+                        status=scene_campaign_geomod_cut(s,event->position,scale);
+                        if(status)return status;
+                    }
+                }
                 else ++rf_scene_script_explode_geometry[3];
             }
         }
@@ -14393,7 +14406,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=stream->terrain_publication?scene_terrain_publication_view(stream,&terrain):
             rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
         terrain_cuts=terrain.cuts;
-    }
+    }else if(stream->campaign_geomod && stream->campaign_geomod->active)terrain_cuts=1;
     render_world=terrain_cuts?&stream->terrain_render:actor_follow_world;
     if(campaign_spawn && stream->particles.state) {
         uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
@@ -14488,13 +14501,22 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      if(status){rf_scene_profile_stage[1]=108;return status;}
      if(terrain_cuts) {
         rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
-        status=stream->terrain_authored?scene_terrain_publication_view(stream,&terrain):rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
         generated.vertices=world_mesh.vertices+world_mesh.count;
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
-        status=scene_terrain_lighting(stream,&terrain,frame);if(status)return status;
-        status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
-            &stream->terrain_draw->view,stream->terrain_draw->bound,stream->materials->count,&camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
+        if(stream->campaign_geomod && stream->campaign_geomod->active){
+            const scene_campaign_geomod_owner *owner=stream->campaign_geomod;
+            status=rf_preview_geomod_world_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+                &owner->mesh,owner->bound,stream->materials->count,&camera,owner->colors,
+                stream->geometry);if(status)return status;
+        }else{
+            status=stream->terrain_authored?scene_terrain_publication_view(stream,&terrain):
+                rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
+            status=scene_terrain_lighting(stream,&terrain,frame);if(status)return status;
+            status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+                &stream->terrain_draw->view,stream->terrain_draw->bound,stream->materials->count,
+                &camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
+        }
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
      *stream->mesh=world_mesh;}
@@ -17862,7 +17884,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
             }
         }
-        if(rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4) {
+        if((rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4) ||
+           (campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl"))) {
             rf_level_geomod_settings settings;const char *names[1];rf_materials interior={0};rf_material *combined;
             status=rf_level_geomod_settings_read(level,&settings);if(status)goto done;
             stream->terrain_default_hardness=settings.hardness;
@@ -18191,7 +18214,7 @@ done:
     if(!stream->terrain_atlas_registered)rf_image_close(&stream->terrain_atlas);
     if(status && stream->terrain_noise)printf("NOISE_FAILURE %d %u %u %u %u %u %u\n",status,stream->terrain_noise->count,stream->terrain_noise->bake,stream->terrain_noise->sample,stream->terrain_noise->x,stream->terrain_noise->y,stream->terrain_noise->generation);
     free(stream->terrain_noise);free(stream->terrain_atlas_pixels);free(stream->terrain_tile);free(stream->terrain_bindings);free(stream->terrain_tiles);
-    rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);
+    rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_campaign_geomod_close(&stream->campaign_geomod);scene_terrain_publication_close(&stream->terrain_publication);
     scene_terrain_sources_close(stream);rf_geomod_piece_registry_close(&stream->detached_pieces);
     free(stream->terrain_face_offsets);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
     free(stream->liquid_rooms);free(stream->surface_indices);

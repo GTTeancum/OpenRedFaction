@@ -136,7 +136,9 @@ int rf_geomod_campaign_room_retain(const rf_geometry *geometry,uint32_t room,
 
 int rf_geomod_campaign_room_stage(const rf_geometry *geometry,
     const rf_geomod_mesh_view *retained,const uint8_t *unchanged,
-    const rf_geomod_mesh_view *walls,rf_collision_face_filter generated_filter,
+    const rf_geomod_mesh_view *walls,const uint32_t *texture_slots,
+    uint32_t texture_count,uint32_t wall_material,uint32_t material_capacity,
+    rf_collision_face_filter generated_filter,
     uint32_t generated_face_id,rf_geomod_campaign_room_stage_work *work,
     uint32_t tree_budget,rf_geomod_mesh_view *mesh,rf_collision_tree *tree)
 {
@@ -146,6 +148,8 @@ int rf_geomod_campaign_room_stage(const rf_geometry *geometry,
        !work->vertices || !work->faces || !work->filters || !work->collision_faces ||
        !work->positions || !work->face_ids || !mesh || !tree || tree->storage ||
        !retained->vertices || !retained->faces || !walls->vertices || !walls->faces ||
+       !texture_slots || texture_count<geometry->textures ||
+       !material_capacity || wall_material>=material_capacity ||
        generated_face_id>=geometry->faces || !tree_budget)return RF_RANGE;
     if(retained->vertex_count>work->vertex_capacity ||
        walls->vertex_count>work->vertex_capacity-retained->vertex_count ||
@@ -157,7 +161,8 @@ int rf_geomod_campaign_room_stage(const rf_geometry *geometry,
         const rf_geomod_face *f=retained->faces+i;
         if(f->count<3 || f->first>retained->vertex_count ||
            f->count>retained->vertex_count-f->first ||
-           f->source_face>=geometry->faces)return RF_FORMAT;
+           f->source_face>=geometry->faces || f->material>=geometry->textures ||
+           texture_slots[f->material]>=material_capacity)return RF_FORMAT;
     }
     for(i=0;i<walls->face_count;i++){
         const rf_geomod_face *f=walls->faces+i;
@@ -169,9 +174,12 @@ int rf_geomod_campaign_room_stage(const rf_geometry *geometry,
     memcpy(work->vertices+retained->vertex_count,walls->vertices,
         walls->vertex_count*sizeof(*work->vertices));
     memcpy(work->faces,retained->faces,retained->face_count*sizeof(*work->faces));
+    for(i=0;i<retained->face_count;i++)
+        work->faces[i].material=texture_slots[retained->faces[i].material];
     for(i=0;i<walls->face_count;i++){
         work->faces[retained->face_count+i]=walls->faces[i];
         work->faces[retained->face_count+i].first+=retained->vertex_count;
+        work->faces[retained->face_count+i].material=wall_material;
     }
     staged=(rf_geomod_mesh_view){work->vertices,work->faces,nv,nf,0};
     for(i=0;i<nf;i++){

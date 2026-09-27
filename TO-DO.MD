@@ -4,7 +4,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
-- PRIORITY Campaign GeoMod: Attach L1S1's UID9456 cut to live room 28; shared C now stages the 867-face render mesh and collision tree with conservative room scope, while atomic publication, stock runtime headroom and ordinary cut saves remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
+- PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts live room 28 with matching PC/XEMU mesh and changed collision under stock memory; visual inspection, repeated cuts, other rooms, ordinary saves and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
 - PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and seated APC, Driller and route-following Jeep save/reload pass PC/Xbox; other vehicles, broader cross-level coverage, menu/slot selection, moving-host charges and resource demand remain, with active campaign destruction waiting on authored room ownership and save-capacity measurement (saves approximately97%).
 

@@ -1,5 +1,12 @@
 # Scripted Explode radial first pass
 
+Update (2026-09-26): The positive L1S1 UID 9456 geometry request now commits
+a bounded room-28 cut on PC and stock 64 MiB XEMU. Text-only replay agrees on
+865 replacement faces and a new-wall collision ray absent from the original
+room. The earlier notes below describe the pre-integration state; broader
+campaign cuts, saves and visually inspected output remain open. See
+[campaign integration](CAMPAIGN-GEOMOD-INTEGRATION.md).
+
 `Explode` type 10 now reaches the shared world blast service on ON and supports delayed activation. It resolves the event's `texts[0]` through `vclip.tbl`, loading only clips used by the current level during scene setup. An unresolved/empty clip uses base damage 1; a resolved clip uses its authored `$damage` (usually 0). The delivered magnitude is a final float cast of `base * values[0] * values[1]`, radius is `values[0]`, source is `UINT32_MAX`, kind is 3, and the origin is the exact event position. OFF is a no-op. This is the world-wrapper arithmetic observed at original `RF.exe` 0x436490, 0x4364da..0x4364eb and 0x4365fe..0x43660d; see [the executed binary research](research/secondary-re/campaign-explode-world-20260916.md).
 
 Focused dispatcher checks pass. Process-local PC L1S1 UID 9395 delivered a named `charge_explode` request with zero radial damage; L9S3 UID 137 delivered the empty-clip positive radial request after its one-second authored delay. PC and NXDK builds pass. These replays establish event reachability and numeric dispatch; they do not establish actual victim damage in those placements, native runtime behavior, visual effects, or terrain cuts.

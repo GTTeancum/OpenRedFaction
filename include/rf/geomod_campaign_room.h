@@ -35,14 +35,18 @@ typedef struct rf_geomod_campaign_room_stage_work {
     float (*positions)[3];uint32_t *face_ids;
     uint32_t vertex_capacity,face_capacity;
 } rf_geomod_campaign_room_stage_work;
-/* Assemble retained authored surfaces and new walls in one room. The collision
+/* Assemble retained authored surfaces and new walls in one room. Compiled
+ * texture indices are remapped through the live scene's texture slots; new
+ * walls receive the scene's loaded substrate material. The collision
  * tree borrows work.positions/collision_faces, so all work storage must outlive
  * the tree and its live overlay. Caller supplies a valid metadata face ID for
  * generated walls and binds render/collision together after staging succeeds.
  * Output mesh/tree are preserved on failure; work arrays may change. */
 int rf_geomod_campaign_room_stage(const rf_geometry *geometry,
     const rf_geomod_mesh_view *retained,const uint8_t *unchanged,
-    const rf_geomod_mesh_view *walls,rf_collision_face_filter generated_filter,
+    const rf_geomod_mesh_view *walls,const uint32_t *texture_slots,
+    uint32_t texture_count,uint32_t wall_material,uint32_t material_capacity,
+    rf_collision_face_filter generated_filter,
     uint32_t generated_face_id,rf_geomod_campaign_room_stage_work *work,
     uint32_t tree_budget,rf_geomod_mesh_view *mesh,rf_collision_tree *tree);
 #endif

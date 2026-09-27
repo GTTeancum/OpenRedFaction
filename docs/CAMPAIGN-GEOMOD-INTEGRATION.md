@@ -1,5 +1,30 @@
 # Campaign GeoMod integration boundary
 
+Current state (2026-09-26): A bounded L1S1 owner now handles scripted Explode
+UID 9456. It reads editor brushes 8755 and 7778, constructs the cutter from
+the shared template, admits a room-28-only cut, retains authored faces outside
+the cutter, builds new walls, maps compiled textures to live material slots,
+and stages one replacement collision tree. The scene hides the old room-28
+render faces, binds the new collision overlay, then marks the cut active for
+rendering. The generated walls use the level's loaded substrate material.
+
+An 80-frame process-local PC replay and a stock 64 MiB XEMU replay agree on
+one committed cut, 865 faces, 3,392 vertices, a 145,316-byte replacement tree,
+12 foreign detail-face AABB overlaps and zero reported error. A short ray hits
+a new wall that the original room tree misses on both builds. XEMU ends with
+4,048 available guest pages (15.81 MiB). The text-only checker still stops on
+an NPC draw-count difference (PC 3, Xbox 4). No visual frame was inspected
+under the user's no-images instruction; appearance, lighting, room visibility
+and visual parity remain unverified. This owner accepts only the first UID
+9456 cut. A repeated ON keeps it without making a second cut. Ordinary saves
+reject an active cut until destruction state can be serialized and restored.
+Other scripted cuts, repeated destruction, portal-spanning edits and campaign
+weapons still need general ownership and publication.
+
+The sections below record the earlier staging evidence. Statements that say
+publication or stock runtime validation has not happened describe those
+earlier milestones, not the current build.
+
 The first-playable cutter, collision publication, debris and standalone
 destruction checkpoint work in the selected `ctf06.rfl` test geometry. The
 ordinary single-player loader currently creates no terrain owner. In
