@@ -92,3 +92,14 @@ This is geometric and focused C collision evidence, not a runtime
 demonstration of the second cut or its visual quality. The Python probe uses
 SciPy for half-space solving; the shipping C/Xbox build does not depend on
 SciPy.
+
+The paired scene now owns a room-121 overlay layered over room 8. The focused
+PC harness prepares the second room-121 candidate, verifies rollback to
+compiled face 4972, then prepares it again and publishes the 74-face tree
+into the second overlay. The room-8 view is synchronized after its first-cut
+bind, and a world query no longer reports face 4972 at the recorded ray. The
+stage peak including overlay storage is 1,761,806 bytes, below the 4 MiB
+publication cap. The three focused L1S2 checkpoint/paired checks pass, and
+the NXDK build completes. The live edit still fails its existing admission
+guard, deliberately: rendering, coordinated commit and second-cut save state
+are not ready for player-visible use. No Xbox runtime check was made here.

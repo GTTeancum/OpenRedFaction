@@ -26,11 +26,13 @@ typedef struct scene_l1s2_detail_owner {
     rf_geomod_vertex source_vertices[512];rf_geomod_face source_faces[64];
     rf_geomod_publication_origin source_origins[64];uint32_t replaced[64];
     rf_geomod_mesh_view source;scene_l1s2_detail_bank banks[2];
-    rf_collision_composition *composition;uint32_t active,pending,has_pending;
+    rf_collision_composition *composition;rf_geometry_collision_overlay overlay;
+    uint32_t active,pending,has_pending;
 } scene_l1s2_detail_owner;
 static void scene_l1s2_detail_close(scene_l1s2_detail_owner **ptr)
 {
     if(!ptr || !*ptr)return;
+    rf_geometry_collision_overlay_close(&(*ptr)->overlay);
     rf_collision_composition_close(&(*ptr)->composition);free(*ptr);*ptr=NULL;
 }
 static int scene_l1s2_detail_profile(const scene_stream *s)
@@ -61,6 +63,9 @@ static int scene_l1s2_detail_open(scene_stream *s,scene_l1s2_detail_owner **out)
     status=rf_collision_composition_open(base,base->source_indices,d->replaced,d->source.face_count,
         base->face_count+SCENE_L1S2_DETAIL_FACES,1024u*1024u,NULL,&d->composition);
     if(status)goto failed;
+    status=rf_geometry_collision_overlay_open(&s->terrain_collision.world,121,
+        base->face_count+SCENE_L1S2_DETAIL_FACES,128u*1024u,&d->overlay);
+    if(status)goto failed;
     *out=d;return RF_OK;
 failed:
     scene_l1s2_detail_close(&d);return status;
@@ -90,6 +95,33 @@ static inline int scene_l1s2_detail_prepare(scene_l1s2_detail_owner *d,
 }
 static void scene_l1s2_detail_abort(scene_l1s2_detail_owner *d)
 {if(d){rf_collision_composition_abort(d->composition);d->has_pending=0;}}
+/* Room 8 is the lower overlay. Its bind changes the room record in place;
+ * refresh the borrowed view before the room-121 overlay becomes observable. */
+static void scene_l1s2_detail_sync_base(scene_l1s2_detail_owner *d,
+    const rf_geometry_collision_overlay *base)
+{
+    uint32_t room;
+    if(!d || !base || !base->storage || !d->overlay.storage)return;
+    room=base->room;
+    d->overlay.world.rooms[room]=base->world.rooms[room];
+    d->overlay.world.views[room]=base->world.views[room];
+    d->overlay.world.views[room].tree=&d->overlay.world.rooms[room].tree;
+    d->overlay.world.liquids[room]=base->world.liquids[room];
+    memcpy(d->overlay.world.minimum,base->world.minimum,sizeof(base->world.minimum));
+    memcpy(d->overlay.world.maximum,base->world.maximum,sizeof(base->world.maximum));
+}
+/* Only a fully prepared room-121 candidate may enter the second overlay.
+ * The caller chooses when to expose overlay.world as the scene collision. */
+static inline int scene_l1s2_detail_publish(scene_l1s2_detail_owner *d)
+{
+    rf_collision_composition_view cv;int status;
+    if(!d || !d->has_pending)return RF_RANGE;
+    status=rf_collision_composition_pending(d->composition,&cv);if(status)return status;
+    status=rf_geometry_collision_overlay_bind(&d->overlay,cv.tree,cv.face_ids,cv.count);
+    if(status)return status;
+    status=rf_collision_composition_commit(d->composition);if(status)return status;
+    d->active=d->pending;d->has_pending=0;return RF_OK;
+}
 typedef struct scene_publication_bank {
     rf_geomod_vertex vertices[RF_GEOMOD_PUBLICATION_VERTICES];
     rf_geomod_face faces[RF_GEOMOD_PUBLICATION_FACES];
@@ -118,7 +150,7 @@ struct scene_terrain_publication_owner {
 };
 static uint32_t scene_publication_owned_bytes(const scene_terrain_publication_owner *p)
 {return (uint32_t)sizeof(*p)+(p->connected?(uint32_t)sizeof(*p->connected):0)+
-    (p->detail?(uint32_t)sizeof(*p->detail):0);}
+    (p->detail?(uint32_t)sizeof(*p->detail)+p->detail->overlay.resident_bytes:0);}
 /* Connected edits reserve old/clone cores and independently bounded debris
  * registries; the triple profile also retains its unchanged third owner.
  * Keep a finite subsystem cap inside stock64MiB; native
@@ -420,6 +452,7 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
        s->terrain_collision.resident_bytes>SCENE_PUBLICATION_BUDGET)return RF_RANGE;
     /* Bind first; commit releases the old tree only after overlay replacement. */
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,cv.tree,cv.face_ids,cv.count);if(status)return status;
+    scene_l1s2_detail_sync_base(p->detail,&s->terrain_collision);
     status=rf_collision_composition_commit(p->composition);if(status)return status; /* no allocation */
     if(count && complete!=b->bindings)memcpy(b->bindings,complete,count*sizeof(*complete));
     p->active=p->pending;p->has_pending=0;
