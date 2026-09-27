@@ -167,4 +167,23 @@ nodes134 and72 near x=-25. This graph does not prove a player obstruction or
 GeoMod requirement; movement/collision and authored events must decide the
 crossing. A PC-only extension toward navpoint37 exposes a second armed guard,
 UID8326 at(-54.73,-3.34,31.67), whose shot kills the low-health player at
-frame2348. The remaining stair encounter and natural path to exit9019 are open.
+frame2348.
+
+`tools/replay_opening_upper_guard.py` trims the first-guard route just after
+the first guard's defeat, cycles to the collected handgun, and bakes ordinary look input
+toward UID8326 before moving to a lower stair corner. The no-helper PC replay
+ends at frame2300, position(-64.615,-8.563,13.294), alive with23.2 health and
+16 rounds. Stock-64-MiB XEMU `replay-20260927-004601` **PASS**es all2300 frames
+with matching broad PC/Xbox state and3815 free physical pages (14.90MiB).
+No image was captured. Reproduce with `python tools/replay_opening_upper_guard.py`
+then `python tools/xemu_replay_check.py artifacts/opening-exit/upper-walk.bin
+--campaign-spawn --level L1S1.rfl --no-images --seconds 600`.
+
+Further PC-only probing reached the stair crest near(-56.10,-7.30,13.70)
+without additional damage. The lower corner's handgun ray selected UID8326
+but was blocked by level geometry; from the crest, three actual hits reduced
+the guard from75 to17.4 health. The stationary low-health player then died
+before a fourth shot, so this is line-of-sight and damage evidence, not a
+completed second encounter or Xbox combat validation. A route using cover or
+an earlier firing position remains open, followed by the natural path to
+exit9019.
