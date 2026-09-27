@@ -496,3 +496,30 @@ detonations, player vitals, enemy-combat counters and the final player body;
 death. This Xbox harness does not expose that guard's individual health, so
 native death is supported by matching combat/blast state rather than a direct
 per-NPC health read. No visual-content claim follows from this text-only run.
+
+`tools/replay_opening_bridge_guards.py` continues from the after-armor save
+through the winding ramp to the upper bridge. The first northward handgun
+strafe defeats guard9406. Guard9404's return shot catches a stationary player,
+but a southward retreat during the pistol reload and a later northward peek
+give three more unobstructed hits. The PC guard rows end at -7.6 and -30
+health respectively; the player is alive at about(39.37,10.79,75.07) with
+17 health and25 armor. A fresh ordinary PC load retains both defeated guards.
+The two settled death bodies overlap by0.632 unit, which the former NPC pair
+clearance rejected even though ordinary combat produced it. Restore now admits
+only bounded overlaps of at most0.75 unit between two saved dead actors;
+live/dead overlap and deeper stacks remain rejected. The focused NPC restore
+test and the real post-combat save/load pass.
+
+The same script builds a6338-frame uninterrupted input route from the real
+spawn. Stock64MiB XEMU completed it in `render-20260927-122622` with all106
+reported state checks passing, including combat, vitals, weapon selection and
+all16 ordinary-save components matching PC. Its NPC component is byte-identical
+to the PC save, supporting the same defeated-guard state without a separate
+native per-actor health read;3488 physical pages remained free. A fresh native
+process loaded that HDD save in `render-20260927-123600`, matching PC checkpoint,
+vitals and weapon selection with3881 pages free. The script regenerated the
+exact input SHA-256 used by XEMU:
+`9e8aca737c47dd41e43623a7e749be2e99f45de2a9b4ade908f29894474a9793`.
+All these runs were text-only; visual content remains unverified. The next
+ordinary route segment is from this bridge position through the authored
+navigation corridor toward exit9019.

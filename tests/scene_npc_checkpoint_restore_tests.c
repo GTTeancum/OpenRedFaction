@@ -68,9 +68,17 @@ int main(void)
         pair_stage->entries[0].saved.move.follow=pair_stage->entries[1].saved.move.follow=1;
         pair_stage->entries[0].saved.move.event=pair_stage->entries[1].saved.move.event=77;
         CHECK(scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.6*.6,.8));
-        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.3*.3,.8));
+        CHECK(scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.3*.3,.8));
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.1*.1,1.2));
         pair_stage->entries[1].saved.move.event=78;
         CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.6*.6,.8));
+        pair_stage->entries[0].saved.move.active=pair_stage->entries[1].saved.move.active=0;
+        pair_stage->entries[0].saved.dead_pose=pair_stage->entries[1].saved.dead_pose=1;
+        pair_stage->entries[0].saved.health=pair_stage->entries[1].saved.health=-1;
+        CHECK(scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.1*.1,.8));
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.04*.04,.8));
+        pair_stage->entries[1].saved.dead_pose=0;
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.1*.1,.8));
         free(pair_stage);
     }
     /* A registered authored actor may intentionally have no collision spheres. */

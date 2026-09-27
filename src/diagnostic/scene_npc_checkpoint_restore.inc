@@ -67,6 +67,12 @@ static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t 
     {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
      if(a->move.active&&b->move.active&&a->move.follow==1&&b->move.follow==1&&
         a->move.event&&a->move.event==b->move.event&&radius-sqrt(candidate_distance2)<=.9)return 1;}
+    /* Two actors can finish a live fight with overlapping death bodies. Keep
+     * that shallow terminal contact across a load without admitting arbitrary
+     * stacked actors or a live actor embedded in a corpse. */
+    {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
+     if(!a->retired&&!b->retired&&a->dead_pose&&b->dead_pose&&a->health<=0&&b->health<=0&&
+        radius-sqrt(candidate_distance2)<=.75)return 1;}
     {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
      if(!a->retired&&!b->retired&&!a->dead_pose&&!b->dead_pose&&a->health>0&&b->health>0&&
         ((a->move.active&&a->move.follow==2)||(b->move.active&&b->move.follow==2))&&
