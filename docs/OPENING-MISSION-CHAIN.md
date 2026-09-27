@@ -50,9 +50,9 @@ The final player position is(-75.388870,-8.095128,27.786995). The NPC-trigger ch
 An image-free PC replay now starts at the actual L1S1 player spawn, with no
 `RF_REPLAY_EXIT_START` or other staged pose. The older walking route needed a
 small strafe adjustment and 52 further forward frames to enter the handoff
-volume. `python tools/replay_opening_authored_spawn.py` passes 2360 frames:
+volume. `python tools/replay_opening_authored_spawn.py` passes 2380 frames:
 player trigger9869 contacts, exactly one scripted Riot Stick grant leaves100
-charge, and the player is alive. This closes the staged-spawn gap for the first
+charge, one primary attack executes, and the player is alive. This closes the staged-spawn gap for the first
 weapon handoff, but does not verify interactive controller input, visuals, or
 the rest of the campaign.
 
