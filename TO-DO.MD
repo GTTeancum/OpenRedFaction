@@ -4,7 +4,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
-- PRIORITY Campaign GeoMod: Attach the working cutter to authored single-player room geometry, beginning with L1S1's eligible Explode UID9456; the current owner opens only for ctf06 and L1S1's nearby source is non-convex, so room CSG, collision publication and then ordinary cut saves remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
+- PRIORITY Campaign GeoMod: Attach the working cutter to authored single-player room geometry, beginning with L1S1's eligible Explode UID9456 near non-convex cavity brush8755; exact 160-brush source ownership is now inventoried, while room CSG, collision publication and then ordinary cut saves remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
 - PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and seated APC, Driller and route-following Jeep save/reload pass PC/Xbox; other vehicles, broader cross-level coverage, menu/slot selection, moving-host charges and resource demand remain, with active campaign destruction waiting on authored room ownership and save-capacity measurement (saves approximately97%).
 

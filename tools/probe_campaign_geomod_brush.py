@@ -73,7 +73,9 @@ def parse_at(data, at, wanted):
     if any(not math.isfinite(x) for v in vertices for x in v):
         raise ValueError("nonfinite brush vertex")
     face_count = number()
-    if not 4 <= face_count <= 256:
+    # Campaign records include two-face detail geometry as well as large
+    # room volumes (L1S1 UID7778 has 488 faces).
+    if not 1 <= face_count <= 8192:
         raise ValueError("invalid face count")
 
     def world(vertex):
@@ -101,13 +103,120 @@ def parse_at(data, at, wanted):
             "textures": textures, "vertices": len(vertices), "faces": faces, "tail": tail}
 
 
+def parse_record(data, at, wanted, recovery_window=8192):
+    """Keep unidentified editor sidecars opaque and require a valid next header.
+
+    The common record ends at the five-word tail. A few L1S1 detail brushes
+    carry extra data before that tail; the first small-flags tail directly
+    followed by another validated brush header is a recovery candidate. The
+    inventory must still consume its declared count and exact section size.
+    """
+    brush = parse_at(data, at, wanted)
+    brush["opaque_bytes"] = 0
+    if brush["tail"][2] <= 255:
+        return brush
+    nominal_end = at + brush["bytes"]
+    match = None
+    for following in range(nominal_end + 1,
+                           min(len(data) - 4, nominal_end + recovery_window) + 1):
+        tail = struct.unpack_from("<5I", data, following - 20)
+        if tail[2] > 255:
+            continue
+        try:
+            successor = parse_at(data, following, U32.unpack_from(data, following)[0])
+        except (ValueError, struct.error, OverflowError):
+            continue
+        if successor["uid"] == wanted:
+            continue
+        match = (following, tail)
+        break
+    if match is None:
+        raise ValueError(f"missing opaque tail after brush {wanted}")
+    following, tail = match
+    brush["opaque_bytes"] = following - nominal_end
+    brush["bytes"] = following - at
+    brush["tail"] = tail
+    return brush
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("level")
-    parser.add_argument("uid", type=int)
+    parser.add_argument("uid", type=int, nargs="?")
+    parser.add_argument("--inventory", action="store_true",
+                        help="List the validated uniform prefix and first nonuniform offset")
+    parser.add_argument("--resync-window", type=int, default=8192,
+                        help="After prefix stops, probe this many bytes for candidate record headers")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
+    if not 0 <= args.resync_window <= 65536:
+        parser.error("resync window must be 0..65536 bytes")
     data, archive = section_bytes(args.level)
+    if args.inventory:
+        if args.uid is not None:
+            parser.error("uid and --inventory are mutually exclusive")
+        declared = U32.unpack_from(data)[0]
+        offset = 4
+        rows = []
+        compiled, _ = load(args.level)
+        by_source = collections.defaultdict(list)
+        for face in compiled:
+            by_source[face["source_word"]].append(face["room"])
+        stopped = None
+        for index in range(declared):
+            if offset + 4 > len(data):
+                stopped = {"index": index, "offset": offset, "reason": "short UID"}
+                break
+            uid = U32.unpack_from(data, offset)[0]
+            try:
+                brush = parse_record(data, offset, uid, args.resync_window)
+            except (ValueError, struct.error, OverflowError) as exc:
+                stopped = {"index": index, "offset": offset, "reason": str(exc)}
+                break
+            rooms = collections.Counter(room for face in brush["faces"]
+                                        for room in by_source[face["source_word"]])
+            rows.append({"index": index, "uid": uid, "offset": offset,
+                         "bytes": brush["bytes"], "opaque_bytes": brush["opaque_bytes"],
+                         "operation": brush["tail"][2],
+                         "source_faces": len(brush["faces"]),
+                         "compiled_faces": sum(rooms.values()), "rooms": dict(rooms)})
+            offset += brush["bytes"]
+        candidates = []
+        if stopped and 0 <= args.resync_window <= 65536:
+            for seek in range(offset + 1, min(len(data) - 4, offset + args.resync_window) + 1):
+                uid = U32.unpack_from(data, seek)[0]
+                try:
+                    brush = parse_at(data, seek, uid)
+                except (ValueError, struct.error, OverflowError):
+                    continue
+                following = seek + brush["bytes"]
+                next_valid = False
+                if following + 4 <= len(data):
+                    try:
+                        parse_at(data, following, U32.unpack_from(data, following)[0])
+                        next_valid = True
+                    except (ValueError, struct.error, OverflowError):
+                        pass
+                candidates.append({"offset": seek, "gap": seek - offset,
+                                   "uid": uid, "bytes": brush["bytes"],
+                                   "next_valid": next_valid})
+                if len(candidates) == 32:
+                    break
+        result = {"level": args.level, "archive": archive,
+                  "section_sha256": hashlib.sha256(data).hexdigest(),
+                  "declared": declared, "parsed": len(rows), "consumed_bytes": offset,
+                  "complete": stopped is None and len(rows) == declared and offset == len(data),
+                  "stopped": stopped,
+                  "resync_candidates": candidates, "rows": rows,
+                  "scope": "Read-only editor records; opaque spans are bounded by validated successor headers, not decoded as CSG"}
+        if stopped is None and offset != len(data):
+            raise ValueError(f"{len(data) - offset} trailing section bytes")
+        if args.report:
+            args.report.write_text(json.dumps(result, indent=2) + "\n")
+        print(json.dumps({key: value for key, value in result.items() if key != "rows"}))
+        return
+    if args.uid is None:
+        parser.error("uid is required unless --inventory is set")
     matches = []
     needle = U32.pack(args.uid)
     offset = -1
@@ -116,7 +225,7 @@ def main():
         if offset < 0:
             break
         try:
-            matches.append(parse_at(data, offset, args.uid))
+            matches.append(parse_record(data, offset, args.uid, args.resync_window))
         except (ValueError, struct.error, OverflowError):
             pass
     if len(matches) != 1:
