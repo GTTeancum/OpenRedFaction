@@ -141,22 +141,26 @@ exposes a recessed crater. The shared room importer and star cutter also trim
 room-121 detail from 30 compiled faces to 74 retained fragments; a focused
 collision-composition ray confirms that face 4972 no longer blocks at the cut.
 The paired scene publication owner now stages that same room-121 candidate
-within its bounded memory budget and verifies rollback to the original face;
-live collision binding and draw replacement are still open.
-The exact UID 8123/8219 pair now commits a smaller first cut through the
-scene's grouped transaction in a PC harness. Replaying the recorded second
-contact then selects both sources but rejects at UID 8123 obstacle admission,
-leaving the first cut and publication serial unchanged. That guard remains
-necessary until UID 9996 room-121 detail participates in the same edit.
-The pair's private RFDS3 first-cut save now restores and re-encodes
-byte-identically on PC. The ordinary world save/load dispatch now selects
-RFDS3 for the exact pair while the default campaign still selects its working
-single-source RFDS2 path; paired whole-world reload awaits live validation.
-This is not live admission: the two rooms still need one scene-level bind,
-checkpoint history and renderer staging. See
+within its bounded memory budget, binds both collision rooms, replaces the
+room-121 static draw faces, and resets both sources together. Normal L1S2
+campaign startup now opens UIDs 8123/8219. A 330-frame seated Driller replay
+commits the recorded contacts at frames 249 and 296, yielding 365 published
+faces, 1,520 vertices and three source cuts across two publications. A frame-320
+ordinary RFDS3 save writes 76,358 bytes; fresh PC and stock-64-MiB Xbox loads
+restore both cuts and the seated Driller. PC/Xbox publication, vehicle and
+drill counters match, and all 16 native save components equal PC. The native
+live run ended with 3,441 free physical pages; the 60-frame fresh load ended
+with 3,348. Reports are `artifacts/xemu/render-20260927-101559/report.json`
+and `render-20260927-102557/report.json`; no images were produced. One earlier
+fresh-load harness run timed out during section startup before snapshot loading
+began, then the next run passed, so startup reliability still needs attention.
+The ordinary loader admits a saved cutter head within its edited surface only
+when the six chassis spheres still clear terrain and all eight spheres clear
+movers, props and other actors. Wider repeated cuts, continued post-load
+driving, other terrain owners and visual content remain open. See
 `docs/research/L1S2-DRILLER-SECOND-CUT-20260927.md` for the measurements.
 
-The first cut now survives an ordinary campaign quick-save and a fresh load on
+The earlier single-source first cut survives an ordinary campaign quick-save and a fresh load on
 PC and stock-64-MiB XEMU. This exact L1S2 UID 8123/room-8 profile writes RFDS2
 in the world's destruction section; load rebuilds and publishes the authored
 collision before admitting NPCs, the seated player and the Driller. A live
@@ -166,9 +170,9 @@ and vehicle state counters match. Native save ended with 3,752 free physical
 pages; fresh load ended with 3,720. Both runs were text-only with no image
 capture (`artifacts/xemu/render-20260927-081157/report.json` and
 `render-20260927-081415/report.json`). The focused RFDS2 PC stage test still
-covers the exact 48-face source without detached pieces. This does not cover
-the next Driller cut, other terrain owners, resumed drill motion after load,
-or visual content.
+covers the exact 48-face source without detached pieces. The paired run above
+supersedes its second-cut limitation; other terrain owners, resumed drill
+motion after load, and visual content remain open.
 
 The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
 source. It validates the 389-brush section with bounded successor-header

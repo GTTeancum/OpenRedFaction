@@ -1,6 +1,6 @@
 """Replay L1S2's authored Driller against a real room-8 wall, without images.
 
-Require the first live cut and room publication. Input stays inside the local
+Require both live cuts and room publication. Input stays inside the local
 PC game process and never reaches the host UI.
 """
 import argparse
@@ -43,7 +43,7 @@ def check_world_save(output, inputs):
     env.update(RF_REPLAY_LEVEL="L1S2.rfl", RF_REPLAY_ARCHIVE="levels1.vpp",
                RF_REPLAY_ACTOR_UID="8122")
     for phase, replay, extra in (
-        ("save", inputs, {"RF_REPLAY_QUICKSAVE_FRAME": "270"}),
+        ("save", inputs, {"RF_REPLAY_QUICKSAVE_FRAME": "320"}),
         ("load", neutral, {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(run / "redfaction-save")})):
         process = subprocess.run([str(ROOT / "build/pc/Release/rf_pc_play.exe"),
                                   "--spawn-telemetry-replay", str(ROOT / "Installed_Game"), str(replay)],
@@ -52,14 +52,16 @@ def check_world_save(output, inputs):
         (run / f"{phase}.log").write_text(log)
         process.check_returncode()
         if phase == "save":
-            if ("DRILL_CUT 249 0 0 1 " not in log or "QUICK_SAVE frame270 status0" not in log or
+            if ("DRILL_CUT 249 0 0 1 " not in log or "DRILL_CUT 296 0 0 1 " not in log or
+                    "QUICK_SAVE frame320 status0" not in log or
                     "WORLD_SNAPSHOT_COMPONENT destruction " not in log):
-                raise AssertionError("Post-cut ordinary quick-save did not complete")
+                raise AssertionError("Paired-cut ordinary quick-save did not complete")
         else:
             if ("WORLD_SNAPSHOT_LOADED " not in log or "VEHICLE_SAVE_RESTORE profile1 " not in log or
-                    not re.search(r"^TERRAIN_PUBLICATION 171 707 1 1 ", log, re.M)):
-                raise AssertionError("Fresh load did not restore the cut and seated Driller")
-    return {"result": "PASS", "scope": "Text-only live L1S2 cut, ordinary quick-save and fresh PC load"}
+                    not re.search(r"^AUTHORED_SOURCE_CUTS 8123 2 8219 1(?: 0){4}$", log, re.M) or
+                    not re.search(r"^TERRAIN_PUBLICATION 365 1520 3 2 ", log, re.M)):
+                raise AssertionError("Fresh load did not restore both cuts and seated Driller")
+    return {"result": "PASS", "scope": "Text-only live L1S2 paired cuts, ordinary quick-save and fresh PC load"}
 
 
 def main():
@@ -99,14 +101,16 @@ def main():
             or contacts[0]["owner_uid"] != 8123 or contacts[0]["status"] != 0
             or contacts[0]["accepted"] != 1):
         raise AssertionError("authored Driller did not commit the expected first wall cut")
-    if not re.search(r"^AUTHORED_SOURCE_CUTS 8123 1(?: 0){6}$", log, re.M):
-        raise AssertionError("L1S2 source did not retain one committed cut")
+    if len(contacts) < 2 or contacts[1]["frame"] != 296 or contacts[1]["status"] != 0 or contacts[1]["accepted"] != 1:
+        raise AssertionError("authored Driller did not commit the second wall cut")
+    if not re.search(r"^AUTHORED_SOURCE_CUTS 8123 2 8219 1(?: 0){4}$", log, re.M):
+        raise AssertionError("L1S2 pair did not retain both committed cuts")
     publication = re.search(r"^TERRAIN_PUBLICATION (\d+) (\d+) (\d+) (\d+) ", log, re.M)
-    if not publication or int(publication.group(1)) < 83 or publication.group(3, 4) != ("1", "1"):
-        raise AssertionError("committed cut did not publish the room geometry")
+    if not publication or publication.group(1, 2, 3, 4) != ("365", "1520", "3", "2"):
+        raise AssertionError("committed cuts did not publish both room details")
     print(json.dumps(dict(result="PASS", level="L1S2.rfl", actor_uid=8122,
                           contacts=contacts, published_faces=int(publication.group(1)),
-                          scope="First live PC cut and publication; collision hole and later cuts remain open")))
+                          scope="Two live PC cuts and publication; further cuts remain open")))
     if args.save_load:
         print(json.dumps(check_world_save(output, inputs)))
 

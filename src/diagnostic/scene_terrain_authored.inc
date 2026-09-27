@@ -228,7 +228,13 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
 {
     uint32_t uids[3]={scene_authored_source_uid,0,93};
     uint32_t posts[2];
-    if(rf_scene_vehicle_enabled){uids[0]=!rf_scene_dev_room_enabled && !strcmp(level->entry.name,"L1S2.rfl")?8123:148;return scene_terrain_sources_open(s,level,maps,map_count,uids,1,6u*1024u*1024u);}
+    if(rf_scene_vehicle_enabled) {
+        if(!rf_scene_dev_room_enabled && !strcmp(level->entry.name,"L1S2.rfl")) {
+            uids[0]=8123;uids[1]=8219;
+            return scene_terrain_sources_open(s,level,maps,map_count,uids,2,6u*1024u*1024u);
+        }
+        uids[0]=148;return scene_terrain_sources_open(s,level,maps,map_count,uids,1,6u*1024u*1024u);
+    }
     if(rf_geomod_authored_beam_posts(uids[0],posts)){uids[1]=posts[1];uids[2]=posts[0];}
     else uids[1]=uids[0]==93?94:uids[0]==94?93:uids[0]==96?97:96;
     return scene_terrain_sources_open(s,level,maps,map_count,uids,scene_authored_source_count,

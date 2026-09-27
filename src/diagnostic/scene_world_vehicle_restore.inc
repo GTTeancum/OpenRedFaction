@@ -44,7 +44,24 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     status=rf_geometry_collision_world_locate(context.world,pairs.vehicle.position,&location);if(status)return status;
     if(location.room==UINT32_MAX||location.room>=context.world->room_count)return RF_NOT_FOUND;
     context.reference_room=location.room;
-    status=scene_checkpoint_world_place(&context,&pairs.vehicle,&room,&support);if(status)return status;
+    status=scene_checkpoint_world_place(&context,&pairs.vehicle,&room,&support);
+    if(status==RF_NOT_FOUND && record->profile==1 && physics.sphere_count==8 &&
+       scene_world_l1s2_authored_terrain(stream) && stream->terrain_source_count==2 &&
+       record->value.vehicle.player_occupied && record->value.vehicle.accepted_drill_cuts>=2){
+        rf_checkpoint_placement full=pairs.vehicle,chassis=pairs.vehicle;
+        rf_checkpoint_placement_result reason={UINT32_MAX,UINT32_MAX,0};
+        /* The last two Driller spheres are its forward cutter heads. A live
+         * cutter may end a tick inside the surface it just excavated; the
+         * chassis must still fit. Keep full-body mover/prop and pair checks. */
+        full.world=context.world;full.replaced_room=location.room;
+        int clearance=rf_checkpoint_world_placement_check(&full,&reason);
+        if(clearance==RF_NOT_FOUND && reason.reason==RF_CHECKPOINT_PLACEMENT_SURFACE && reason.sphere>=6){
+            chassis.count=6;
+            status=scene_checkpoint_world_place(&context,&chassis,&room,&support);
+            if(!status)status=scene_checkpoint_world_obstacles(&context,&full);
+        }
+    }
+    if(status)return status;
     pairs.player=player;pairs.npcs=world->npcs;pairs.occupied=record->value.vehicle.player_occupied;
     return scene_npc_checkpoint_pair_fit_allowed(world->npcs->count+2,scene_world_vehicle_pair,&pairs,
         scene_world_vehicle_other_pair);
