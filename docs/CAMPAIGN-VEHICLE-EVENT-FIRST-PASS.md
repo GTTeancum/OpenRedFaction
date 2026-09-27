@@ -84,7 +84,7 @@ render publication, checkpoint history and a stock-memory budget before
 campaign drilling can be called functional. The existing 220-frame drive
 replay recorded no drill contact; it proves boarding/driving/exit only.
 
-The installed L1S2 editor source narrows the first excavation target. A
+The installed L1S2 editor source narrows the excavation candidates. A
 read-only decode of all 389 declared brush records places the authored
 Driller UID 8122 at `(109.0512,-3.57238,-12.2843)` inside the bounds of
 brush UID 8117, `(101.5,-4.88,-17.5)..(116,1.12,4.5)`. UID 8117 has
@@ -103,6 +103,22 @@ sidecars are bounded by validated successor headers, not decoded as Boolean
 operations. A complete owner must preserve the
 neighboring compiled face identities and room collision, then be exercised
 by actual Driller contact, cut, save/reload and stock-memory checks.
+
+The first real contact is **not** in spawn brush 8117. A deterministic
+330-frame PC drive/turn/fire replay (`python
+tools/check_campaign_driller_contact.py`) reaches the south wall twice:
+frames 249 and 296, both room 8, compiled face 768, source word 283, owned by
+operation-2 cavity brush UID 8123. The contact centers are
+`(121.208061,-2.12633848,-17)` and `(124.314514,-2.1283164,-17)`.
+Both attempts return `RF_NOT_FOUND` with zero accepted cuts because no
+campaign terrain owner is open; this is a controlled failure, not successful
+excavation. The harness asserts the first-contact face/source identity but
+allows the cut status to change when the owner is implemented. It writes only
+text and input data. PC and NXDK builds pass with the contact room/face
+telemetry; the replay itself has only run on PC, so Xbox cut behavior remains
+unverified. A first campaign owner should target UID 8123's actual contact
+surface, preserve its 83 linked compiled room-8 faces, then prove collision,
+render publication, save/reload and stock-memory behavior.
 
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and

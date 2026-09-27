@@ -37,7 +37,8 @@ static int scene_driller_runtime_cut(void *context,const float *center,const flo
     status=scene_driller_excavate(c->stream,c->frame,r->shapes+index,&c->world_contact,
         center,basis,radius,flags,accepted,&post);
     rf_scene_drill_state[6]=(uint32_t)post;rf_scene_drill_state[7]=(uint32_t)status;
-    printf("DRILL_CUT %u %u %d %u %.9g %.9g %.9g\n",c->frame,index,status,*accepted,center[0],center[1],center[2]);
+    printf("DRILL_CUT %u %u %d %u %.9g %.9g %.9g %u %u\n",c->frame,index,status,*accepted,
+        center[0],center[1],center[2],c->world_contact.room,c->world_contact.face);
     if(status==RF_NOT_FOUND){++rf_scene_drill_state[5];return RF_OK;}
     return status;
 }
