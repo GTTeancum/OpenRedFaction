@@ -14,6 +14,13 @@ int rf_geomod_campaign_room_scope_check(const rf_geometry *,uint32_t room,
     const rf_collision_face *cutter,uint32_t cutter_count,
     rf_geometry_portal *portal_work,uint32_t portal_capacity,
     rf_geomod_campaign_room_scope *out);
+/* Same admission for a transaction that replaces several rooms together.
+ * Faces and portals wholly inside the selected set are not foreign. */
+int rf_geomod_campaign_room_scope_check_group(const rf_geometry *,
+    const uint32_t *rooms,uint32_t room_count,
+    const rf_collision_face *cutter,uint32_t cutter_count,
+    rf_geometry_portal *portal_work,uint32_t portal_capacity,
+    rf_geomod_campaign_room_scope *out);
 
 /* Retain the compiled polygons of one room outside a closed cutter. Retained
  * faces preserve original winding, UV, texture index and source face ID.

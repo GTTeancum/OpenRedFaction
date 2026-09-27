@@ -2,15 +2,21 @@
 #include <math.h>
 #include <string.h>
 
-int rf_geomod_campaign_room_scope_check(const rf_geometry *geometry,uint32_t room,
+static int room_in_group(uint32_t room,const uint32_t *rooms,uint32_t room_count)
+{
+    uint32_t i;for(i=0;i<room_count;i++)if(rooms[i]==room)return 1;return 0;
+}
+int rf_geomod_campaign_room_scope_check_group(const rf_geometry *geometry,
+    const uint32_t *rooms,uint32_t room_count,
     const rf_collision_face *cutter,uint32_t cutter_count,
     rf_geometry_portal *portal_work,uint32_t portal_capacity,
     rf_geomod_campaign_room_scope *out)
 {
     rf_geomod_campaign_room_scope result={0};float lo[3],hi[3];
     uint32_t i,j,k,portal_count;int status;
-    if(!geometry || !geometry->data || room>=geometry->rooms || !cutter ||
+    if(!geometry || !geometry->data || !rooms || !room_count || room_count>geometry->rooms || !cutter ||
        !cutter_count || cutter_count>64 || !portal_work || !portal_capacity || !out)return RF_RANGE;
+    for(i=0;i<room_count;i++)if(rooms[i]>=geometry->rooms)return RF_RANGE;
     for(k=0;k<3;k++)lo[k]=cutter[0].minimum[k],hi[k]=cutter[0].maximum[k];
     for(i=0;i<cutter_count;i++)for(k=0;k<3;k++){
         if(!isfinite(cutter[i].minimum[k]) || !isfinite(cutter[i].maximum[k]) ||
@@ -21,7 +27,7 @@ int rf_geomod_campaign_room_scope_check(const rf_geometry *geometry,uint32_t roo
     for(i=0;i<geometry->faces;i++){
         rf_geometry_face face;float flo[3],fhi[3];uint32_t overlaps=1;
         status=rf_geometry_get_face(geometry,i,&face);if(status)return status;
-        if(face.room==room || face.room==UINT32_MAX)continue;
+        if(room_in_group(face.room,rooms,room_count) || face.room==UINT32_MAX)continue;
         if(face.corners<3 || face.corners>64)return RF_FORMAT;
         for(j=0;j<face.corners;j++){
             rf_geometry_corner corner;float position[3];
@@ -46,12 +52,23 @@ int rf_geomod_campaign_room_scope_check(const rf_geometry *geometry,uint32_t roo
     if(status)return status;
     for(i=0;i<portal_count;i++){
         uint32_t overlaps=1;const rf_geometry_portal *portal=portal_work+i;
-        if(portal->rooms[0]!=room && portal->rooms[1]!=room)continue;
+        if(!room_in_group(portal->rooms[0],rooms,room_count) &&
+           !room_in_group(portal->rooms[1],rooms,room_count))continue;
+        if(room_in_group(portal->rooms[0],rooms,room_count) &&
+           room_in_group(portal->rooms[1],rooms,room_count))continue;
         result.portal_links++;
         for(k=0;k<3;k++)if(portal->maximum[k]<lo[k] || portal->minimum[k]>hi[k])overlaps=0;
         result.touching_portals+=overlaps;
     }
     *out=result;return RF_OK;
+}
+int rf_geomod_campaign_room_scope_check(const rf_geometry *geometry,uint32_t room,
+    const rf_collision_face *cutter,uint32_t cutter_count,
+    rf_geometry_portal *portal_work,uint32_t portal_capacity,
+    rf_geomod_campaign_room_scope *out)
+{
+    return rf_geomod_campaign_room_scope_check_group(geometry,&room,1,cutter,
+        cutter_count,portal_work,portal_capacity,out);
 }
 
 int rf_geomod_campaign_room_retain(const rf_geometry *geometry,uint32_t room,

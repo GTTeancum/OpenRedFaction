@@ -294,3 +294,16 @@ on both sides, admit the cut under the level's GeoMod regions, persist the
 edit through saves, and stay inside stock64MiB. The existing room28 event
 cut is a useful component, but its single-room owner, brush IDs and render
 path cannot be treated as coverage for this barrier.
+
+A text-only CSG probe now loads the authored Remote Charge crater radius (5.0)
+from `tables.vpp` and uses the recorded detonation point. Brush8715 owns36
+compiled faces in room40; brush8747 owns12 in room27. The grouped admission
+check finds zero foreign solid faces and zero touching external portals at
+radius5.0. A single-room check instead counts20/6 foreign solid faces,
+respectively, because it sees the opposite wall side. The bounded candidate
+build produces85 new wall faces and320 vertices. Room40 stages587 faces/2506
+vertices with a98,612-byte tree; room27 stages662 faces/2765 vertices with a
+111,212-byte tree. This proves each side fits the current per-room capacities,
+but does not yet publish either side, connect the weapon blast, or establish a
+through passage. Reproduce with `rf_opening_wall_probe` using `levels1.vpp`,
+`build/data/geomod-template.bin`, and `tables.vpp` in that order.

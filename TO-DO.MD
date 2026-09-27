@@ -2,7 +2,7 @@
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately95%; GeoMod100% for the first playable testbed milestone, accepted by the user. The newly walked L1S1 wall is a concrete campaign integration blocker; other GeoMod items below remain deferred refinement and coverage. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
-- PRIORITY Campaign GeoMod gate: Make Remote Charges open the L1S1 wall between rooms40/27 with rendered geometry, collision, save support and stock-memory Xbox validation (docs/OPENING-MISSION-CHAIN.md).
+- PRIORITY Campaign GeoMod gate: Publish the now-probed two-room L1S1 Remote Charge wall cut with rendered geometry, collision, save support and stock-memory Xbox validation (docs/OPENING-MISSION-CHAIN.md).
 
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
