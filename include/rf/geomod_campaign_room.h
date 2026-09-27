@@ -28,4 +28,21 @@ int rf_geomod_campaign_room_retain(const rf_geometry *geometry,uint32_t room,
     rf_geomod_solid_clip_work *work,rf_geomod_vertex *vertices,
     uint32_t vertex_capacity,rf_geomod_face *faces,uint8_t *unchanged,uint32_t face_capacity,
     rf_geomod_mesh_view *out);
+
+typedef struct rf_geomod_campaign_room_stage_work {
+    rf_geomod_vertex *vertices;rf_geomod_face *faces;
+    rf_collision_face_filter *filters;rf_collision_face *collision_faces;
+    float (*positions)[3];uint32_t *face_ids;
+    uint32_t vertex_capacity,face_capacity;
+} rf_geomod_campaign_room_stage_work;
+/* Assemble retained authored surfaces and new walls in one room. The collision
+ * tree borrows work.positions/collision_faces, so all work storage must outlive
+ * the tree and its live overlay. Caller supplies a valid metadata face ID for
+ * generated walls and binds render/collision together after staging succeeds.
+ * Output mesh/tree are preserved on failure; work arrays may change. */
+int rf_geomod_campaign_room_stage(const rf_geometry *geometry,
+    const rf_geomod_mesh_view *retained,const uint8_t *unchanged,
+    const rf_geomod_mesh_view *walls,rf_collision_face_filter generated_filter,
+    uint32_t generated_face_id,rf_geomod_campaign_room_stage_work *work,
+    uint32_t tree_budget,rf_geomod_mesh_view *mesh,rf_collision_tree *tree);
 #endif

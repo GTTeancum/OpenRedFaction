@@ -98,6 +98,15 @@ The default scene face capacity has been raised from 800 to 1,024 so the
 stock-Xbox runtime allocation and headroom are not yet measured, and the
 staged tree is not yet bound to the scene.
 
+The 867-face merge is now a shared C staging function rather than assembly
+inside the PC probe. It combines retained compiled faces and crater walls,
+preserves original collision finalizers for untouched faces, finalizes changed
+fragments as generated faces, and builds a replacement room tree. The caller
+supplies persistent mesh, collision, position and source-ID buffers plus an
+explicit authored metadata face for generated surfaces. A too-small output
+pool leaves the mesh/tree outputs unchanged. This is still preparation only:
+neither ordinary render view nor collision overlay is rebound yet.
+
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's
 CSG, then publish matching render, collision, material and player-support
