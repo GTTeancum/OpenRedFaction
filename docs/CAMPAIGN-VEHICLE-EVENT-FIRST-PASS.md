@@ -139,8 +139,13 @@ returns `RF_RANGE` from `scene_world_snapshot_capture_mode` because it rejects
 any active `s->terrain`. The ordinary destruction section is RFCG for the
 L1S1 scripted wall; it does not serialize or restore the authored terrain
 history, identity and publication used here. Driller saves before excavation
-work, but post-cut campaign saving requires an authored-terrain section and
-restore staging before removing that guard.
+work. The RFDS2 authored-terrain writer and restore stage now admit the exact
+L1S2 UID 8123/room-8 48-face cavity profile. A focused PC test applies the
+first cut, writes its checkpoint, stages reconstruction and commits the
+published terrain without detached pieces. The ordinary world envelope still
+needs to carry RFDS2 alongside the other world sections, and load must stage
+the edited collision before player/NPC placement. Post-cut campaign quick-save
+and Xbox restore have not been verified.
 
 The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
 source. It validates the 389-brush section with bounded successor-header

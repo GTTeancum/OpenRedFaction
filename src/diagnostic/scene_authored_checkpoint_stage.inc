@@ -34,7 +34,10 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     if(!s || s->terrain_source_count>1 || !input || !out || *out || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
        s->terrain_publication->has_pending || !s->geometry || !s->collision || s->terrain_shadow_reference)return RF_RANGE;
     status=rf_authored_checkpoint_layout_read(data,bytes,&layout);if(status)return status;
-    if(strcmp(campaign_current_level,"ctf06.rfl") || strcmp((const char *)data+16,campaign_current_level) ||
+    if((strcmp(campaign_current_level,"ctf06.rfl") &&
+        (strcmp(campaign_current_level,"L1S2.rfl") || s->terrain_authored->asset_view.source_uid!=8123 ||
+         s->terrain_authored->asset_view.room!=8)) ||
+       strcmp((const char *)data+16,campaign_current_level) ||
        memcmp(data+80,s->terrain_authored->source_identity,32) ||
        memcmp(data+112,s->terrain_checkpoint_identity+32,96) ||
        checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
@@ -43,7 +46,8 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     status=rf_geomod_terrain_get(s->terrain,&active);if(status)return status;
     /* Same conservative13MiB destruction ceiling as live authored edit, plus
      * explicit restore-only owners/scratch. This is not total-game free RAM. */
-    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+SCENE_DETACHED_BUDGET+
+    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+
+        (s->detached_pieces?SCENE_DETACHED_BUDGET:0)+
         rf_geomod_piece_registry_bytes(s->detached_pieces)+
         rf_scene_terrain_atlas[3]+s->terrain_authored->resident_bytes+sizeof(*s->terrain_draw)+
         SCENE_TERRAIN_DRAW_VERTICES*sizeof(*s->terrain_colors)+sizeof(*s->terrain_light_cache)+
@@ -58,7 +62,8 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     memcpy(history,data+layout.core_offset,layout.core_bytes);
     status=scene_checkpoint_materials(history,layout.core_bytes,0,s->terrain_material);if(status)goto failed;
     factory.scene=s;status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->core);if(status)goto failed;
-    if(s->terrain_authored->asset_view.source_uid==66 || s->terrain_authored->asset_view.source_uid==148) {
+    if(s->terrain_authored->asset_view.source_uid==66 || s->terrain_authored->asset_view.source_uid==148 ||
+       s->terrain_authored->asset_view.source_uid==8123) {
         /* Cavity growth has no extracted-solid registry or piece payload. */
         if(layout.piece_bytes){status=RF_FORMAT;goto failed;}
     } else {
