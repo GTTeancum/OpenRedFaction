@@ -120,3 +120,14 @@ run inspected visual output.
 Reproduce the shorter prefix after generating it with the PC route tool:
 `python tools/replay_opening_authored_spawn.py`, then
 `python tools/xemu_replay_check.py artifacts/opening-handoff/scripted-1800.bin --campaign-spawn --level L1S1.rfl --no-images --seconds 480`.
+
+The full real-spawn route subsequently completed in stock-64-MiB XEMU as
+`replay-20260926-235244`: all2380 frames **PASS** the expanded PC/Xbox
+comparisons. Animation state is `[15,8,1,7,0,9493,8322,4118,5,1]`,
+Look_At state is `[4,0,2693,544,0,9791,8432,8322,170]`, two scripted
+slays match, and trigger9869 grants the Riot Stick before one player attack.
+XEMU reports3831 free pages (14.96MiB) at completion. The earlier host
+OpenGL assertion did not recur. The run produced no raster files and does
+not establish visual choreography or traversal beyond the first handoff.
+Reproduce with
+`python tools/xemu_replay_check.py artifacts/opening-handoff/authored-spawn.bin --campaign-spawn --level L1S1.rfl --no-images --seconds 600`.
