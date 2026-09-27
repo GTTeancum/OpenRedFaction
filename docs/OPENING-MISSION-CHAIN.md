@@ -78,3 +78,11 @@ omitted one20-byte damage binding for each of170 authored records. The
 independent `verify_clutter_scene_bodies.py` calculation now reproduces97772.
 This fixes the fixture, not the broad replay result; rerun its remaining checks
 before claiming full native parity.
+
+The next text-only stock-memory run, `replay-20260926-232245`, advanced through
+that clutter check and stopped at an outdated weapon-material limit in the
+verifier. PC and Xbox matched `[4,4,4,525636,526372,524288,289886571,3371059565]`:
+524288 bytes is pixel payload, while the measured 526372-byte peak includes
+metadata and scratch. The scene loader's total budget is2MiB, so the broad
+assertion now uses that actual limit. Remaining assertions have not yet run to
+completion; this is still not a broad native PASS or visual-parity result.

@@ -84,6 +84,13 @@ pc_transitions=[line.split()[1:] for line in pc.stdout.splitlines() if line.star
 final_level=pc_transitions[-1][1] if pc_transitions else replay_env['RF_REPLAY_LEVEL']
 section_frames=frames-int(pc_transitions[-1][3]) if pc_transitions else frames
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
+# Catch stale local reference budgets before packaging or booting XEMU.
+if args.campaign_spawn:
+ weapon_budget=expected('WEAPON_MATERIALS')
+ assert weapon_budget[3]<=weapon_budget[4]<=2*1024*1024,weapon_budget
+ if final_level.lower()=='l1s1.rfl':
+  clutter_budget=json.loads((root/'artifacts/clutter-scene-bodies.json').read_text())
+  assert clutter_budget['result']=='PASS' and expected('CLUTTER_BODIES')[:5]==clutter_budget['expected'],clutter_budget
 if args.campaign_spawn and not args.climb and not args.door and not args.lift and args.force_uid is None and args.actor_uid is None and args.item_uid is None and args.exit_start_uid is None:
  starts=json.loads((root/'artifacts/player-start-verification.json').read_text())
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
@@ -830,7 +837,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['weapon_models']=weapon_models
      weapon_materials=words(monitor,symbol('rf_scene_weapon_materials'),8)
      assert weapon_materials==expected('WEAPON_MATERIALS'),weapon_materials
-     assert weapon_materials[0]==weapon_models[0] and weapon_materials[2]>0 and weapon_materials[3]<=weapon_materials[4]<=512*1024,weapon_materials
+     # This is total resident/peak allocation, including material metadata
+     # and scratch. Only the pixel payload here is 512 KiB; the loader admits
+     # the whole bundle under its 2 MiB budget.
+     assert weapon_materials[0]==weapon_models[0] and weapon_materials[2]>0 and weapon_materials[3]<=weapon_materials[4]<=2*1024*1024,weapon_materials
      report['weapon_materials']=weapon_materials
      weapon_muzzle=words(monitor,symbol('rf_scene_weapon_muzzle'),4)
      assert weapon_muzzle==expected('WEAPON_MUZZLE') and weapon_muzzle[1]>0,weapon_muzzle
