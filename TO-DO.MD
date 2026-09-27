@@ -16,7 +16,9 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign endgame: Authored failures, protected-NPC death, English descriptions, restart and cross-level quick-load recovery run on PC/Xbox, and event off restores the protection flag; natural off-event coverage, other languages, menu/slot choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
 
-- Xbox retained rendering: L6S3 static world/model/clutter draws pass; L1S1 real-spawn gameplay matches PC/Xbox, and NPC-count, clutter-memory and weapon-material verifier assumptions are corrected, but the remaining 2380-frame broad checks and model bounds culling still need work.
+- Xbox retained rendering: L6S3 static world/model/clutter draws and L1S1 real-spawn 2380-frame broad PC/Xbox telemetry pass in stock64MiB with3831 free pages; visual parity, GPU clipping detail and disabled model bounds culling remain open.
+
+- Opening scripted actors: Real-spawn PC walking executes eight Play_Animation starts, four Look_At commands and two scripted slays before the Riot Stick handoff; direct Xbox animation/gaze parity, exact choreography and onward traversal remain.
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
@@ -28,7 +30,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
-- USER PC hands-on pass: L1S1 starts unarmed and PC/Xbox text-only real-spawn walking reaches the scripted Riot Stick grant and one attack with matching gameplay state; staged handgun/rifle pickups and cycling pass, but interactive pickup/switching and flicker still need hands-on verification before calling the build ready for gameplay testing.
+- USER PC hands-on pass: L1S1 starts unarmed and a broad text-only PC/Xbox real-spawn replay reaches the scripted Riot Stick grant and one attack alive; staged handgun/rifle pickups and cycling pass, but interactive pickup/switching and flicker still need hands-on verification before calling the build ready for gameplay testing.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 

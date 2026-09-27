@@ -50,16 +50,25 @@ ammo = words('PLAYER_AMMO')
 contacts = words('TRIGGER_CONTACTS')
 life = words('PLAYER_LIFE')
 combat = words('COMBAT')
+animations = words('SCRIPT_ANIMATION')
+looks = words('SCRIPT_LOOK_AT')
+slays = words('SCRIPT_SLAYS')
 assert grants == [1, 1, 100, 2, 1, 100, 0, 0], grants
 assert ammo[:3] == [2, 0, 100] and ammo[7] == 0, ammo
 assert contacts[2] == 9869 and contacts[-1] == 0, contacts
 assert life[:3] == [0, 0, 0] and life[7] == 0, life
 assert combat[0] == 1 and combat[7] == 0, combat
+assert animations[:5] == [15, 8, 1, 7, 0] and animations[8:] == [5, 1], animations
+assert looks[0] == 4 and looks[2] > 0 and looks[4] == 0 and looks[8] > 0, looks
+assert slays[:2] == [2, 2], slays
 assert f'Completed {frames} frames' in run.stdout
 report = dict(result='PASS', frames=frames, grants=grants, ammo=ammo,
               contact_uid=contacts[2], player_life=life[:3], attacks=combat[0],
+              scripted_animations=animations, scripted_looks=looks,
+              scripted_slays=slays[:2],
               scope='Real L1S1 player spawn; walking activates opening mission '
-                    'triggers, grants Riot Stick and permits one attack while alive. No staged pose, '
+                    'triggers, NPC looks/animations and scripted slays, grants Riot Stick '
+                    'and permits one attack while alive. No staged pose, '
                     'event injection, image output, or host input. This does not '
                     'establish full mission or interactive controller behavior.')
 (folder / 'authored-spawn-report.json').write_text(json.dumps(report, indent=2))

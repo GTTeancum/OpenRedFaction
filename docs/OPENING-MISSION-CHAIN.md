@@ -27,7 +27,7 @@ Event28 dispatches through the existing movement callback, including delayed act
 
 `python tools/replay_waypoints.py` stages outside player trigger9029 and uses ordinary walking to activate9646. It supplies no direct setup/event dispatch. The2400-frame PC replay records one movement request,906 movement steps, both destination arrivals, zero blocked steps, and no active movement at completion. Miner8322 ends within0.25 horizontal units of node330 and contacts NPC trigger9672 near the first waypoint. All38 PC tests pass, including malformed/missing/placeholder paths and delayed on/off dispatch.
 
-The earlier waypoint-only replay does not cross player trigger9028, so9027 remains disabled and the Riot Stick grant does not occur. The extended replay below covers that missing route. Play_Animation/Look_At and full confrontation choreography remain incomplete; do not equate successful path traversal with retail mission parity.
+The earlier waypoint-only replay does not cross player trigger9028, so9027 remains disabled and the Riot Stick grant does not occur. The extended replay below covers that missing route. Play_Animation and Look_At have first-pass adapters, but full confrontation choreography remains incomplete; do not equate successful path traversal with retail mission parity.
 
 
 Stock64MiB XEMU replay `replay-20260914-132101` passes2400 frames with exact PC movement, actor-position and route counters. NXDK build and normal-build restoration succeed. Reproduce with `python tools/xemu_replay_check.py artifacts/waypoints/inputs.bin --campaign-spawn --level L1S1.rfl --exit-start-uid 9646 --seconds 240`.
@@ -45,7 +45,7 @@ The older `verify_trigger_links.py` compared only recorded event/controller call
 - Full approach1750 frames: player is in the handoff volume but the scripted delay has not finished; stays unarmed.
 - Full approach2400 frames: exactly one authored Riot Stick grant, selected weaponID2, loaded charge1, reserve0; no player death. Two authored Slay_Object actions also execute.
 
-The final player position is(-75.388870,-8.095128,27.786995). The NPC-trigger chain and delayed player contact now deliver the weapon naturally within this staged entrance route. This is not a start-to-finish mission proof: Play_Animation/Look_At, confrontation presentation, full actor combat behavior and onward campaign traversal remain unfinished.
+The final player position is(-75.388870,-8.095128,27.786995). The NPC-trigger chain and delayed player contact now deliver the weapon naturally within this staged entrance route. This is not a start-to-finish mission proof: exact animation/gaze behavior, confrontation presentation, full actor combat and onward campaign traversal remain unfinished.
 
 An image-free PC replay now starts at the actual L1S1 player spawn, with no
 `RF_REPLAY_EXIT_START` or other staged pose. The older walking route needed a
@@ -86,3 +86,20 @@ verifier. PC and Xbox matched `[4,4,4,525636,526372,524288,289886571,3371059565]
 metadata and scratch. The scene loader's total budget is2MiB, so the broad
 assertion now uses that actual limit. Remaining assertions have not yet run to
 completion; this is still not a broad native PASS or visual-parity result.
+
+The subsequent text-only stock-64-MiB run `replay-20260926-232832` is a broad
+**PASS** for all2380 frames. PC/Xbox match the real-spawn trigger9869 contact,
+one Riot Stick grant with100 charge, one attack, living player state, authored
+NPC dispatch, clutter state and the remaining campaign replay telemetry.
+XEMU reports3831 available physical pages (15.67MiB) at completion. The
+retained renderer's NPC submission count remains different by design after
+CPU versus GPU clipping; this run did not capture or inspect visual output,
+and does not prove PS2-level visual parity or full campaign completion.
+
+The real-spawn PC replay now checks the confrontation's script work as well as
+the weapon handoff:15 animation registrations produce8 starts (one loop and
+seven actions), four Look_At commands produce2693 turn steps and170 published
+pose changes, and two authored Slay actions execute. This is live event flow,
+not exact choreography or visual fidelity. The broad Xbox verifier now reads
+and compares `SCRIPT_ANIMATION` and `SCRIPT_LOOK_AT` on its next run; the PASS
+above predates those explicit comparisons, so their native parity remains open.
