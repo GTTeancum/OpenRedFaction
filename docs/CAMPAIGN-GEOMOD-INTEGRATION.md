@@ -31,6 +31,13 @@ build also passes. This provides one CSG operation needed to retain rock faces
 around multiple authored cavities. It has not been connected to the L1S1 room
 owner or exercised on the actual 44/488-face source brushes. Those complex
 brushes may exceed the present scratch capacities or need spatial filtering.
+The union path now rejects planes whose actual face bounds miss each input
+piece, while the established cutter keeps its earlier split behavior. At
+compiled L1S1 face 3766, exact polygon bounds intersect 7 of brush 8755's 44
+faces and 2 of brush 7778's 488; expanding those bounds by the blast's
+5-world-unit radius intersects 44 and 27 respectively. This is a candidate
+count, not proof that the full room cut fits the current scratch budget. A
+remote-box check confirms that infinite planes alone do not create fragments.
 
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's

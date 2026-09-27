@@ -116,7 +116,18 @@ static void overlapping_air_union(void)
     kept=result;work.vertex_capacity=4;
     CHECK(rf_geomod_polygon_clip_outside_union(polygon,4,sources,2,&work,&result)==RF_RANGE);
     CHECK(!memcmp(&result,&kept,sizeof(result)));
-    work.vertex_capacity=2048;polygon[0].uv[0]=NAN;
+    work.vertex_capacity=2048;
+    /* The remote box's x-planes cross this polygon, but none of its bounded
+     * faces do. No artificial subdivisions should survive the clip. */
+    for(i=0;i<24;i++)shifted[1][i].position[1]+=100.f;
+    {
+        rf_geomod_mesh_view shifted_source=source;
+        shifted_source.vertices=shifted[1];
+        CHECK(!rf_geomod_collision_faces(&shifted_source,filters,positions[1],24,faces[1],6));
+    }
+    CHECK(!rf_geomod_polygon_clip_outside_union(polygon,4,sources+1,1,&work,&result));
+    CHECK(result.fragment_count==1 && result.vertex_count==4);
+    polygon[0].uv[0]=NAN;kept=result;
     CHECK(rf_geomod_polygon_clip_outside_union(polygon,4,sources,0,&work,&result)==RF_FORMAT);
     CHECK(!memcmp(&result,&kept,sizeof(result)));
     puts("PASS overlapping authored air union retains rock surface and UVs");

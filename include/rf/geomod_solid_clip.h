@@ -46,6 +46,8 @@ typedef struct rf_geomod_solid_union_work {
  * closed planar topology required by the single-solid clipper. The first
  * source may overlap later sources; they are clipped in caller order. Both
  * aggregate banks must be disjoint from the clipper's banks and the input.
+ * This path skips planes of bounded faces whose AABBs miss each input piece;
+ * the legacy single-solid clipper retains its original split behavior.
  * No allocation or publication. Result borrows an aggregate bank until reuse;
  * errors preserve result, though scratch may change. */
 int rf_geomod_polygon_clip_outside_union(const rf_geomod_vertex *,uint32_t,
