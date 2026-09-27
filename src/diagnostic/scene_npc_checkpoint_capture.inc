@@ -63,7 +63,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose;
-    uint32_t i,slot=o->persistence_slot,controller_uid=0;int pending,status;
+    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0;int pending,status;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
@@ -77,20 +77,33 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     if(o->registration.view&&(o->registration.view!=&o->view||
        rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration||
        rf_entity_lookup(&campaign_entities,(int32_t)o->registration.handle)!=&o->view))return RF_FORMAT;
-    /* Never silently discard a route, including its inactive bound path. */
+    if(o->registration.view&&o->damage.effects.health<=0&&!key->retired){
+        if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;
+        pose=campaign_poses.items+index;
+        if(o->death.deadline_4b8!=-1||!(o->view.flags_810&1u)||o->death.action_824<0||o->death.action_824>=45||
+           o->script_animation.active||pose->playback.completion.frozen!=1||
+           pose->playback.completion.active.count!=1||
+           pose->playback.completion.active.slots[0].motion!=o->selection.mapping.actions[o->death.action_824])
+            return scene_npc_checkpoint_reject(index,"death_unsettled",0,o->death.action_824,RF_RANGE);
+        terminal_dead=1;
+    }
+    /* Live routes require a separate continuation record. Terminal corpses
+     * cannot travel, so their leftover route and steering state is discardable. */
 #define NPC_CAPTURE_ZERO(field) do{if(o->field)return scene_npc_checkpoint_reject(index,#field,0,(double)o->field,RF_RANGE);}while(0)
-    NPC_CAPTURE_ZERO(script_move.active);NPC_CAPTURE_ZERO(script_move.path.count);NPC_CAPTURE_ZERO(navigation.retained.count);
-    if(!o->script_animation.active&&o->script_animation.freeze)
+    if(!terminal_dead){
+        NPC_CAPTURE_ZERO(script_move.active);NPC_CAPTURE_ZERO(script_move.path.count);NPC_CAPTURE_ZERO(navigation.retained.count);
+    }
+    if(!terminal_dead&&!o->script_animation.active&&o->script_animation.freeze)
         return scene_npc_checkpoint_reject(index,"inactive_script_freeze",0,o->script_animation.freeze,RF_RANGE);
     if(o->view.linked_handle!=-1)return scene_npc_checkpoint_reject(index,"linked_handle",0,o->view.linked_handle,RF_RANGE);
     NPC_CAPTURE_ZERO(view.occupant_count);
     if(o->attachment_75c!=-1)return scene_npc_checkpoint_reject(index,"attachment_75c",0,o->attachment_75c,RF_RANGE);
     status=scene_npc_checkpoint_controller_uid(o->controller_handle,&controller_uid);
     if(status)return scene_npc_checkpoint_reject(index,"controller_handle",0,o->controller_handle,status);
-    if(o->combat_alert>1||(!o->combat_alert&&(o->combat_due||o->combat_navigation_due))||(key->retired&&o->combat_alert))
+    if(o->combat_alert>1||(!terminal_dead&&!o->combat_alert&&(o->combat_due||o->combat_navigation_due))||(key->retired&&o->combat_alert))
         return scene_npc_checkpoint_reject(index,"combat_alert",0,o->combat_alert,RF_RANGE);
     NPC_CAPTURE_ZERO(combat_scripted);
-    if(o->combat_target&&!(o->combat_alert&&o->combat_target==campaign_player_object.handle))
+    if(o->combat_target&&!(terminal_dead||(o->combat_alert&&o->combat_target==campaign_player_object.handle)))
         return scene_npc_checkpoint_reject(index,"combat_target",0,o->combat_target,RF_RANGE);
     NPC_CAPTURE_ZERO(combat_burst_remaining);
     NPC_CAPTURE_ZERO(combat_reload_due);NPC_CAPTURE_ZERO(damage.effects.burn);
@@ -104,7 +117,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
         if(!initializing&&!pose->playback.completion.active.count&&!o->script_animation.active&&
            (pose->controller.override_enabled||pose->controller.duration!=0||pose->controller.current>0||pose->controller.next>0))
             return scene_npc_checkpoint_reject(index,"controller_without_playback",0,pose->controller.current,RF_RANGE);
-        if(pose->playback.completion.frozen&&!o->script_animation.active)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
+        if(pose->playback.completion.frozen&&!o->script_animation.active&&!terminal_dead)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
 
         /* A resident looping clip can be restored from its serialized playback
          * even when it is not one of this NPC's controller state mappings.
@@ -115,7 +128,8 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
                !campaign_playback_resources.models||pose->skeleton>=campaign_playback_resources.model_count||
                (uint32_t)motion>=campaign_playback_resources.models[pose->skeleton].count||
                !campaign_playback_resources.models[pose->skeleton].resources||
-               (!initializing&&!o->script_animation.active&&!campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
+               (!initializing&&!o->script_animation.active&&!terminal_dead&&!campaign_playback_resources.models[pose->skeleton].resources[motion].looping)||
+               (terminal_dead&&campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
         }
         /* rf_entity_body_open deliberately supports an empty authored sphere
@@ -129,9 +143,9 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
             if(!isfinite(o->body.state.velocity[i])||fabsf(o->body.state.velocity[i])>.001f)
                 return scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
 #define NPC_CAPTURE_AXIS(field) do{if(o->field[i]!=0)return scene_npc_checkpoint_reject(index,#field,i,o->field[i],RF_RANGE);}while(0)
-            NPC_CAPTURE_AXIS(command_714);NPC_CAPTURE_AXIS(look.command_708);NPC_CAPTURE_AXIS(support_velocity);
-            NPC_CAPTURE_AXIS(look.angles.delta_888);NPC_CAPTURE_AXIS(look.angles.offset_894);
-            NPC_CAPTURE_AXIS(look.angles.vector_870);
+            NPC_CAPTURE_AXIS(command_714);NPC_CAPTURE_AXIS(support_velocity);
+            if(!terminal_dead){NPC_CAPTURE_AXIS(look.command_708);NPC_CAPTURE_AXIS(look.angles.delta_888);
+                NPC_CAPTURE_AXIS(look.angles.offset_894);NPC_CAPTURE_AXIS(look.angles.vector_870);}
 #undef NPC_CAPTURE_AXIS
         }
         if(o->script_animation.active){
@@ -151,7 +165,9 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     row->primary=o->view.weapons[0];row->secondary=o->view.weapons[1];
     row->drop=rf_scene_defeated_actors.drops[slot];row->inventory=o->inventory;row->ai_mode=o->ai_mode.action_280;
     row->controller_uid=controller_uid;
-    row->combat_alert=o->combat_alert;
+    row->combat_alert=terminal_dead?0:o->combat_alert;
+    row->dead_pose=terminal_dead;
+    if(terminal_dead){row->death_flags_810=o->view.flags_810;row->death_action=o->death.action_824;}
     if(o->registration.view&&(o->script_animation.active||campaign_poses.items[index].playback.completion.active.count)){
         if(key->retired)return RF_RANGE;
         row->animation_present=1;row->script_animation.active=o->script_animation.active;
@@ -178,7 +194,23 @@ static int scene_npc_checkpoint_capture(const rf_npc_checkpoint_catalog *catalog
     status=rf_npc_checkpoint_encode(identity,catalog,NULL,0,encoded,sizeof(encoded),&written);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
         status=scene_npc_checkpoint_row(i,now,&row);if(status==RF_NOT_FOUND)continue;if(status)return status;
-        status=rf_npc_checkpoint_encode(identity,catalog,&row,1,encoded,sizeof(encoded),&written);if(status)return status;
+        status=rf_npc_checkpoint_encode(identity,catalog,&row,1,encoded,sizeof(encoded),&written);
+        if(status){
+#ifndef RF_IMAGE_XBOX_NATIVE
+            if(getenv("RF_REPLAY_WORLD_CHECKPOINT_PROBE"))printf("WORLD_CHECKPOINT_NPC_CODEC uid%u health%.9g dead%u flags%u action%d frozen%u count%u controller%d/%d script%u phase%.9g\n",
+                row.uid,(double)row.health,row.dead_pose,row.death_flags_810,row.death_action,
+                row.playback.completion.frozen,row.playback.completion.active.count,row.controller.current,row.controller.next,
+                row.script_animation.active,(double)row.playback.phase);
+            if(getenv("RF_REPLAY_WORLD_CHECKPOINT_PROBE"))printf("WORLD_CHECKPOINT_NPC_CODEC_DETAIL uid%u flags%u mode%d primary%d secondary%d anim%u slot%d tick%d weight%.9g slots%d/%d/%d primary_flag%u generation%u mask%u duration%.9g elapsed%.9g override%d/%u\n",
+                row.uid,row.flags,row.ai_mode,row.primary,row.secondary,row.animation_present,
+                row.playback.completion.active.slots[0].motion,row.playback.completion.active.slots[0].tick,
+                (double)row.playback.completion.active.slots[0].weight,row.playback.completion.active.freeze_slot,
+                row.playback.completion.active.primary_slot,row.playback.completion.active.dominant_slot,
+                row.playback.completion.primary_flag,row.playback.generation,row.playback.event_mask,
+                (double)row.controller.duration,(double)row.controller.elapsed,row.controller.override_state,row.controller.override_enabled);
+#endif
+            return scene_npc_checkpoint_reject(i,"codec",0,row.uid,status);
+        }
         for(j=0;j<i;j++)if(campaign_npc_bodies[j].persistence_registered&&
             (uint32_t)campaign_seeds.records.items[j].record.uid==row.uid)return RF_FORMAT;
         n++;

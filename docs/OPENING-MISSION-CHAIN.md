@@ -323,9 +323,9 @@ Both room collision trees retain the new cavity faces, while rendering submits
 those identical wall polygons once to avoid coplanar overlap.
 Wall-only and combined wall/script-cut save encoding and restore have been
 added, but a natural quick-save at frame4300 still fails before destruction
-serialization: RFNC5 can represent UID8625's ordinary player alert, but its
-nonlooping frozen motion still rejects; other opening actors retain unsupported
-navigation, animation or combat state. The
+serialization: RFNC6 now admits UID8625 and the other settled dead guards with
+their frozen poses and drops; living UID8696/8697/9382/9391 retain active
+scripted movement, and UID8336 retains a changing look. The
 save milestone remains open until that broader NPC checkpoint admission is
 implemented and a live save/reload passes on PC and Xbox.
 

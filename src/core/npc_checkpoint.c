@@ -86,11 +86,16 @@ static void write_animation(unsigned char *p,const rf_npc_checkpoint_record *r)
 static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catalog *c)
 {
     uint32_t i;uint8_t used[32]={0};
-    if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->controller_uid==UINT32_MAX||r->retired>1||r->combat_alert>1||
+    if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->controller_uid==UINT32_MAX||r->retired>1||r->combat_alert>1||r->dead_pose>1||
        (r->retired&&r->combat_alert)||(r->flags&~0x4004u)||
-       !isfinite(r->health)||(!r->retired&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
+       !isfinite(r->health)||(!r->retired&&!r->dead_pose&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
        !isfinite(r->yaw)||
        (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=11))return RF_FORMAT;
+    if(r->dead_pose){
+        if(r->retired||r->health>0||r->combat_alert||!(r->death_flags_810&1u)||
+           r->death_action<0||r->death_action>=45||!r->animation_present||
+           !r->playback.completion.frozen||r->playback.completion.active.count!=1||r->script_animation.active)return RF_FORMAT;
+    }else if(r->death_flags_810||r->death_action)return RF_FORMAT;
     for(i=0;i<3;i++)if(!isfinite(r->eye_angles[i])||!isfinite(r->position[i])||!isfinite(r->drop.position[i]))return RF_FORMAT;
     for(i=0;i<64;i++){
         const rf_weapon_acquire_definition *d=c->weapons+i;
@@ -103,7 +108,7 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
     if(!selected(r->primary,r,c)||!selected(r->secondary,r,c))return RF_FORMAT;
     if(r->drop.state>2||r->drop.quantity<0)return RF_FORMAT;
     if(r->drop.state){
-        if(!r->retired||r->drop.weapon<0||(uint32_t)r->drop.weapon>=c->count||!c->supported[r->drop.weapon])return RF_FORMAT;
+        if((!r->retired&&!r->dead_pose)||r->drop.weapon<0||(uint32_t)r->drop.weapon>=c->count||!c->supported[r->drop.weapon])return RF_FORMAT;
     }else if(r->drop.weapon||r->drop.quantity||r->drop.position[0]||r->drop.position[1]||r->drop.position[2])return RF_FORMAT;
     return animation_valid(r);
 }
@@ -122,7 +127,8 @@ static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_r
     if(version>=2)for(i=0;i<3;i++)r->eye_angles[i]=real(p+528+i*4);
     if(version>=4)r->controller_uid=word(p+544);
     if(version>=5)r->combat_alert=word(p+548);
-    if(version>=3&&word(p+540))read_animation(p+(version>=5?552:version>=4?548:544),r);
+    if(version>=6){r->dead_pose=word(p+552);r->death_flags_810=word(p+556);r->death_action=signed_word(p+560);}
+    if(version>=3&&word(p+540))read_animation(p+(version>=6?564:version>=5?552:version>=4?548:544),r);
 }
 static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
 {
@@ -135,6 +141,7 @@ static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
     for(i=0;i<64;i++)put(p+268+i*4,(uint32_t)r->inventory.loaded[i]);put(p+524,(uint32_t)r->ai_mode);
     for(i=0;i<3;i++)put_real(p+528+i*4,r->eye_angles[i]);
     put(p+540,animation_bytes(r));put(p+544,r->controller_uid);put(p+548,r->combat_alert);
+    put(p+552,r->dead_pose);put(p+556,r->death_flags_810);put(p+560,(uint32_t)r->death_action);
     if(r->animation_present)write_animation(p+RF_NPC_CHECKPOINT_ROW,r);
 }
 int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
@@ -146,13 +153,13 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     bytes=64+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
     for(i=0;i<count;i++){status=valid(rows+i,c);if(status)return status;if(i&&rows[i-1].uid>=rows[i].uid)return RF_FORMAT;bytes+=animation_bytes(rows+i);}
     if(bytes>capacity)return RF_RANGE;
-    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,5);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
+    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,6);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
     for(i=0,at=64;i<count;i++){write_row(p+at,rows+i);at+=RF_NPC_CHECKPOINT_ROW+animation_bytes(rows+i);}
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
 static int row_span(const unsigned char *p,uint32_t available,uint32_t version,uint32_t *span)
 {
-    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:version==4?RF_NPC_CHECKPOINT_ROW_V4:RF_NPC_CHECKPOINT_ROW,n=0;
+    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:version==4?RF_NPC_CHECKPOINT_ROW_V4:version==5?RF_NPC_CHECKPOINT_ROW_V5:RF_NPC_CHECKPOINT_ROW,n=0;
     if(available<base)return RF_FORMAT;
     if(version>=3){n=word(p+540);if(n){
         uint32_t count;if(n<RF_NPC_CHECKPOINT_ANIMATION_BASE||n>RF_NPC_CHECKPOINT_ANIMATION_BASE+192||n>available-base)return RF_FORMAT;
@@ -166,7 +173,7 @@ static int decode(const void *data,uint32_t bytes,const unsigned char identity[3
     const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,span,at,previous=0;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
-    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>5||
+    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>6||
        word(p+8)!=bytes||word(p+20)||word(p+60)||word(p+56)!=c->hash||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
     version=word(p+4);count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_FORMAT;
     if(publish&&(count>capacity||(count&&!rows)))return RF_RANGE;

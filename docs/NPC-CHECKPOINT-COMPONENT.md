@@ -1,6 +1,15 @@
 # Ordinary saves: NPC component preparation
 
-Current status (2026-09-27): RFNC5 adds an ordinary combat-alert bit at row
+Current status (2026-09-27): RFNC6 adds a settled frozen death-pose record at
+offsets 552/556/560, including retained death flags and action. Completed
+dead actors remain registered; capture preserves their final clip and weapon
+drop while discarding stale movement, look and combat state. RFNC1-5 remain
+readable. Focused codec/capture/restore tests pass, and the real L1S1 PC wall
+replay now admits its settled dead guards. Its whole NPC component still
+rejects living actors with active scripted movement/look state. The NXDK stock-64-MiB build completes; a natural
+wall save/reload remains unverified. No images were captured.
+
+Earlier RFNC5 added an ordinary combat-alert bit at row
 offset 548 (552-byte base row), while RFNC1-4 remain readable. The scene
 captures a settled guard alerted to the player, then rebinds the player target
 and schedules a fresh 30-frame attack delay on load; burst/reload deadlines,

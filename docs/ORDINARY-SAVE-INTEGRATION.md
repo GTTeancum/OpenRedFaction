@@ -2,14 +2,21 @@
 
 ## Ordinary combat awareness component (2026-09-27)
 
+RFNC6 extends the component with terminal frozen death poses. The real L1S1
+PC wall replay now admits settled dead guards, preserving their death action,
+flags, final clip and dropped weapon. Stale movement, route, look and combat
+state is discarded only for these terminal actors. Focused codec and staged
+scene capture/restore checks pass. The natural wall still cannot save because
+living actors retain active scripted movement/look state. The NXDK build
+completes, while actual wall save/reload remains open. No images were captured.
+
 RFNC5 carries a settled NPC's ordinary player alert without storing a live
 player handle. Restore rebinds that target and starts a fresh 30-frame attack
 delay. RFNC1-4 decode remains supported. Focused codec, scene capture and
 scene restore checks pass; a live PC developer-room guard exports the alerted
 NPC component, and a 60-frame no-image stock-memory XEMU guard fixture passes
 with 1695 free pages. This does not admit active
-one-shot combat/death motion, routes, scripted targets or reloads. The natural
-L1S1 wall still fails ordinary save admission on those states; developer-room
+one-shot combat/death motion, routes, scripted targets or reloads. Developer-room
 whole-save and native alerted-NPC reload remain unverified. No images were
 captured.
 

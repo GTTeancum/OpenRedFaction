@@ -168,7 +168,13 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         id=e->selection.mapping.states[0];
         if(rows[i].animation_present){
             uint32_t k,skeleton=e->selection.mapping.skeleton;
+            if(!campaign_playback_resources.models||skeleton>=campaign_playback_resources.model_count){status=RF_RANGE;goto fail;}
             model=campaign_playback_resources.models+skeleton;
+            if(rows[i].dead_pose){
+                int32_t death_motion=e->selection.mapping.actions[rows[i].death_action];
+                if(death_motion<0||rows[i].playback.completion.active.slots[0].motion!=death_motion||
+                   !model->resources||(uint32_t)death_motion>=model->count||model->resources[death_motion].looping){status=RF_FORMAT;goto fail;}
+            }
             if(rows[i].script_animation.active){
                 status=scene_npc_checkpoint_restore_clip(skeleton,rows[i].script_animation.motion,count);if(status)goto fail;
                 if(model->resources[rows[i].script_animation.motion].looping!=rows[i].script_animation.loop){status=RF_FORMAT;goto fail;}
@@ -279,6 +285,15 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             o->script_animation.freeze=e->saved.script_animation.freeze;o->script_animation.motion=e->saved.script_animation.motion;
         }
         o->damage.effects.health=e->saved.health;o->damage.effects.armor=e->saved.armor;o->damage.effects.affiliation=e->saved.affiliation;
+        if(e->saved.dead_pose){
+            o->view.flags_810=e->saved.death_flags_810;o->damage.effects.flags_810=e->saved.death_flags_810;
+            o->death.action_824=e->saved.death_action;o->death.deadline_4b8=-1;
+            memset(&o->script_move,0,sizeof(o->script_move));memset(&o->navigation,0,sizeof(o->navigation));
+            memset(o->look.command_708,0,sizeof(o->look.command_708));
+            memset(o->look.angles.delta_888,0,sizeof(o->look.angles.delta_888));
+            memset(o->look.angles.offset_894,0,sizeof(o->look.angles.offset_894));
+            memset(o->look.angles.vector_870,0,sizeof(o->look.angles.vector_870));
+        }
         o->ai_mode.action_280=e->saved.ai_mode;o->ai_mode.clock_288=stage->now;
         o->combat_alert=e->saved.combat_alert;
         o->combat_due=o->combat_alert?(combat_frame==UINT32_MAX?30u:combat_frame+30u):0u;

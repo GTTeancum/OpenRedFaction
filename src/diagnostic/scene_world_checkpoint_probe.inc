@@ -36,6 +36,15 @@ static int scene_world_checkpoint_probe(scene_stream *s,const rf_level *level,co
             (double)o->body.state.velocity[0],(double)o->body.state.velocity[1],(double)o->body.state.velocity[2]);
         if(result&&o->script_animation.active)printf("WORLD_CHECKPOINT_NPC_SCRIPT uid%u loop%u freeze%u motion%d\n",
             (uint32_t)campaign_seeds.records.items[i].record.uid,o->script_animation.loop,o->script_animation.freeze,o->script_animation.motion);
+        if(result&&campaign_poses.items&&i<campaign_poses.count){
+            const rf_entity_pose *pose=campaign_poses.items+i;
+            printf("WORLD_CHECKPOINT_NPC_DEATH uid%u health%.9g action%d deadline%d flags%u retired%u frozen%u clips%u first_motion%d\n",
+                (uint32_t)campaign_seeds.records.items[i].record.uid,(double)o->damage.effects.health,
+                o->death.action_824,o->death.deadline_4b8,o->view.flags_810,
+                o->persistence_slot<rf_scene_defeated_actors.count?rf_scene_defeated_actors.items[o->persistence_slot].retired:UINT32_MAX,
+                pose->playback.completion.frozen,pose->playback.completion.active.count,
+                pose->playback.completion.active.count?pose->playback.completion.active.slots[0].motion:-1);
+        }
     }
     status=rf_scene_mover_checkpoint_export(identity,now,buffer,RF_CHECKPOINT_FILE_MAX,&bytes);
     scene_world_checkpoint_probe_result("mover",status,bytes);

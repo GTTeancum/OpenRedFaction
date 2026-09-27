@@ -145,6 +145,34 @@ int main(void)
         CHECK(poses[0].controller.current==18&&!owners[0].script_animation.active&&!memcmp(&poses[0].playback,&expected,sizeof(expected)));
         scene_npc_checkpoint_restore_discard(&stage);
     }
+    /* A completed death remains registered with its frozen final frame.
+     * Stale combat awareness must not revive its target after reload. */
+    {
+        rf_npc_checkpoint_record dead[2];rf_motion_playback_state expected;
+        mapping.actions[5]=0;owners[0].selection.mapping.actions[5]=0;
+        owners[0].damage.effects.health=-1;owners[0].view.flags_810=9;
+        owners[0].damage.effects.flags_810=9;owners[0].death.action_824=5;owners[0].death.deadline_4b8=-1;
+        owners[0].combat_alert=1;owners[0].combat_target=campaign_player_object.handle;
+        owners[0].combat_due=300;poses[0].playback.completion.frozen=1;clip.looping=0;
+        owners[0].script_move.path.count=2;owners[0].navigation.retained.count=1;
+        owners[0].look.angles.delta_888[0]=.01f;
+        owners[0].script_animation.freeze=1;
+        owners[1].script_animation.active=1;owners[1].script_animation.motion=0;
+        CHECK(!scene_npc_checkpoint_capture(&catalog,1000,dead,2,&count));
+        CHECK(dead[0].dead_pose&&dead[0].health==-1&&!dead[0].combat_alert&&dead[0].death_action==5);
+        expected=dead[0].playback;fit_state=(fit_context){0};
+        CHECK(!scene_npc_checkpoint_restore_prepare(dead,2,&catalog,1000,fit,&fit_state,65536,&stage));
+        CHECK(!scene_npc_checkpoint_restore_commit(stage));
+        CHECK(owners[0].damage.effects.health==-1&&owners[0].view.flags_810==9&&owners[0].death.action_824==5&&
+              owners[0].death.deadline_4b8==-1&&!owners[0].combat_alert&&!owners[0].combat_target&&
+              !owners[0].script_move.path.count&&!owners[0].navigation.retained.count&&
+              !owners[0].look.angles.delta_888[0]&&!owners[0].script_animation.freeze&&
+              !memcmp(&poses[0].playback,&expected,sizeof(expected)));
+        scene_npc_checkpoint_restore_discard(&stage);
+        owners[0].damage.effects.health=90;owners[0].view.flags_810=0;owners[0].damage.effects.flags_810=0;
+        owners[0].death.action_824=-1;owners[0].combat_due=0;poses[0].playback.completion.frozen=0;
+        owners[1].script_animation.active=0;clip.looping=1;
+    }
     /* Missing resident motion fails before mutating any owner. */
     memcpy(before,owners,sizeof(before));resident=NULL;fit_state=(fit_context){0};
     CHECK(scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_RANGE);
