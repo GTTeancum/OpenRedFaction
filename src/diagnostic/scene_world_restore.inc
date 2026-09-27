@@ -49,6 +49,8 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     if(s->placement_next>=s->placement_count)return RF_FORMAT;
     uid=s->placement_rows[s->placement_next].uid;
     if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
+    world.npc_route_contact=s->placement_rows[s->placement_next].move.active&&
+        s->placement_rows[s->placement_next].move.follow<=2;
     s->placement_next++;
     world.authored_position=NULL;world.authored_basis=NULL;world.authored_rotating_npc=world.authored_center_shift_npc=0;
     if(!world.authored_static_unchanged &&

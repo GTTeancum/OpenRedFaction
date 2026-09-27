@@ -46,6 +46,17 @@ int main(void)
      memcpy(authored_position,p.position,12);context.allow_no_contact=context.authored_static_unchanged=1;
      context.authored_position=authored_position;context.authored_basis=p.basis;context.authored_props=authored_props;
      CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+     context.fresh_boot=context.npc_route_contact=1;
+     CHECK(scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));
+     CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.38*1.38,1.5));
+     context.npc_route_contact=0;
+     CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));
+     context.npc_route_contact=1;prop.state.position[0]=.01f;
+     CHECK(!scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));prop.state.position[0]=0;
+     context.authored_static_unchanged=0;
+     CHECK(scene_checkpoint_world_shallow_route_prop(&context,0,&prop,1.48*1.48,1.5));
+     context.authored_static_unchanged=1;
+     context.fresh_boot=context.npc_route_contact=0;
      p.position[0]=.01f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);p.position[0]=0;
      prop.state.position[0]=.01f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.state.position[0]=0;
      prop.uid++;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.uid--;

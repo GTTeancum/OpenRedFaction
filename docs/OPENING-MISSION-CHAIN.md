@@ -523,3 +523,30 @@ exact input SHA-256 used by XEMU:
 All these runs were text-only; visual content remains unverified. The next
 ordinary route segment is from this bridge position through the authored
 navigation corridor toward exit9019.
+
+A text-only continuation from that ordinary bridge save now follows the
+authored corridor to about(87.46,16.25,53.97), then defeats guards9707,
+9708,9709 and9710 with normal handgun fire. The player remains alive at
+17 health and25 armor. `artifacts/opening-exit/bridge-to-four-lower.bin` is
+the1412-frame combined PC replay; its save reloads with all four guards
+defeated. The closer save exposed two ordinary-play restore cases: a moving
+pursuer brushing a settled corpse by0.122 unit, and a moving NPC sphere
+brushing an unchanged authored prop by less than0.1 unit after a GeoMod cut
+elsewhere in the room. Restore now admits only these shallow, identity- and
+state-bounded contacts; focused tests still reject deeper contacts and moved
+props. The next encounter defeats guard9732 and progresses around the final
+bend. Guards9482 and9483 also fall to ordinary handgun fire, but guard9484
+still blocks the exit approach at about(105.64,18.85,-45.99). The current
+low-health player can land three hits before its second damaging shot; this
+is an open combat-route problem, not a completed exit transition. No images
+were captured or inspected.
+
+Stock64MiB XEMU ran the same1412-frame bridge-save continuation in
+`artifacts/xemu/render-20260927-130917`. All106 reported state checks passed,
+all16 ordinary-save components were byte-identical to PC, and at least3849
+physical pages remained free. A separate native process loaded that new
+lower-corridor save in `artifacts/xemu/render-20260927-131309`, retained the
+player's17 health,25 armor and loaded handgun, and passed all106 checks with
+at least3881 pages free. This verifies the bounded close-contact restore
+changes in a fresh Xbox load; it does not verify visual content under the
+current no-images instruction.

@@ -73,6 +73,14 @@ static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t 
     {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
      if(!a->retired&&!b->retired&&a->dead_pose&&b->dead_pose&&a->health<=0&&b->health<=0&&
         radius-sqrt(candidate_distance2)<=.75)return 1;}
+    /* An active pursuer can brush a fallen actor during ordinary play. The
+     * L1S1 8456/9391 save records 0.122 unit of such contact; preserve only
+     * shallow pursuit/corpse contact, never an arbitrary live/dead stack. */
+    {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
+     if(!a->retired&&!b->retired&&
+        (((a->move.active&&a->move.follow==2)&&!a->dead_pose&&a->health>0&&b->dead_pose&&b->health<=0)||
+         ((b->move.active&&b->move.follow==2)&&!b->dead_pose&&b->health>0&&a->dead_pose&&a->health<=0))&&
+        radius-sqrt(candidate_distance2)<=.25)return 1;}
     {const rf_npc_checkpoint_record *a=&stage->entries[i].saved,*b=&stage->entries[j].saved;
      if(!a->retired&&!b->retired&&!a->dead_pose&&!b->dead_pose&&a->health>0&&b->health>0&&
         ((a->move.active&&a->move.follow==2)||(b->move.active&&b->move.follow==2))&&

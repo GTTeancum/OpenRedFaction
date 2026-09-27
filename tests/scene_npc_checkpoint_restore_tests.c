@@ -79,6 +79,13 @@ int main(void)
         CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.04*.04,.8));
         pair_stage->entries[1].saved.dead_pose=0;
         CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.1*.1,.8));
+        pair_stage->entries[0].saved.dead_pose=0;pair_stage->entries[0].saved.health=50;
+        pair_stage->entries[0].saved.move.active=1;pair_stage->entries[0].saved.move.follow=2;
+        pair_stage->entries[1].saved.dead_pose=1;
+        CHECK(scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.6*.6,.8));
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.4*.4,.8));
+        pair_stage->entries[0].saved.move.active=0;
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.6*.6,.8));
         free(pair_stage);
     }
     /* A registered authored actor may intentionally have no collision spheres. */
