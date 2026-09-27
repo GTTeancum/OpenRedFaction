@@ -30,7 +30,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route and seated route-following save/reload match, while campaign drilling, additional instances, full routes and NPC traffic remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route and seated route-following save/reload match, while L1S2 editable GeoMod ownership for drilling, additional instances, full routes and NPC traffic remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
@@ -58,7 +58,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD pass PC/Xbox; L1S3's authored APC now boards, drives, fires three primary shots and exits with exact PC/Xbox state and19.5MiB free, while other placements, live NPC damage, campaign persistence and articulated gun visuals remain.
 
-- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling cuts DEV geometry with exact native state, and L1S2's authored Driller now boards, drives and exits with exact PC/Xbox state and19.46MiB free, while campaign drill contact, additional placements, special-weapon coverage and persistence remain.
+- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling cuts DEV geometry with exact native state, and L1S2's authored Driller boards, drives and exits with exact PC/Xbox state and19.46MiB free, while campaign drill contact needs an editable L1S2 terrain owner and additional placements, special-weapon coverage and persistence remain.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -68,7 +68,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Riot shields: Live PC now blocks9shots without NPC damage and a longer encounter blocks32shots, breaks the shield and permits subsequent damage/fallback; exact posed-model ordering fixes coarse body overlap; native650-frame blocking replay passes with exact PC/Xbox counters and7.78MiB free, in-memory durability/break history now binds across revisits with focused checks and PC/Xbox builds passing; ordinary NPC bullets and shotgun pellets now resolve shield-only silhouettes before cover/damage; live round-trip verification and disk persistence remain.
 
-- NPC rockets: Authored instance loadouts and ordinary-level resource demand now enable real finite-ammo enemy rockets outside DEV; controlled PC encounter launches/impacts three rockets and kills the player; prior DEV native coverage passes, ordinary native encounter and campaign integration remain (docs/NPC-PROJECTILES-ORDINARY.md).
+- NPC rockets: Authored instance loadouts and ordinary-level resource demand enable finite-ammo enemy rockets outside DEV; controlled PC/Xbox encounter matches three launches/impacts with19.51MiB native headroom, while campaign integration and visual verification remain (docs/NPC-PROJECTILES-ORDINARY.md).
 
 - NPC grenades: Authored instance loadouts and ordinary resource demand now support enemy throws outside DEV;650-frame PC/Xbox encounter matches four launches/two detonations with20.36MiB native headroom; authored release timing, general flight saves and campaign integration remain (docs/NPC-PROJECTILES-ORDINARY.md).
 

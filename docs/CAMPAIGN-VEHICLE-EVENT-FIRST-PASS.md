@@ -74,6 +74,16 @@ remains unverified. All runs used `--no-images`; reports are
 `artifacts/xemu/render-20260926-185319/report.json`, and
 `artifacts/xemu/render-20260926-185512/report.json`.
 
+The campaign drilling gap is structural, not just an untested control input.
+`scene_driller_excavate` requires `terrain`, `terrain_authored` and a template
+before it can publish a cut, while ordinary L1S2 loading does not open the
+editable authored terrain owner (currently opened for `ctf06.rfl`). The
+L1S1 wall's dedicated room cut is a separate path. L1S2's vehicle contact
+must be connected to an admitted campaign GeoMod source with collision,
+render publication, checkpoint history and a stock-memory budget before
+campaign drilling can be called functional. The existing 220-frame drive
+replay recorded no drill contact; it proves boarding/driving/exit only.
+
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and
 checkpoint seat pose agree. The ordinary loader stages the occupied host and
