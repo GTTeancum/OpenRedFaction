@@ -15,9 +15,11 @@ int main(int argc,char **argv)
     const rf_geomod_publication_origin *origins=NULL;rf_preview_surface_lightmap *bindings=NULL;
     const float center[3]={121.208061f,-2.12633848f,-17.f};
     const float basis[9]={1,0,0,0,1,0,0,0,1};
-    unsigned char *save=NULL,*resave=NULL;uint32_t bytes=0,resaved=0,i,pair_mode,second_mode;char path[1024];
-    pair_mode=argc==4 && (!strcmp(argv[3],"paired") || !strcmp(argv[3],"paired-second"));
+    unsigned char *save=NULL,*resave=NULL;uint32_t bytes=0,resaved=0,i,pair_mode,second_mode,commit_mode;char path[1024];
+    pair_mode=argc==4 && (!strcmp(argv[3],"paired") || !strcmp(argv[3],"paired-second") ||
+        !strcmp(argv[3],"paired-commit"));
     second_mode=pair_mode && !strcmp(argv[3],"paired-second");
+    commit_mode=pair_mode && !strcmp(argv[3],"paired-commit");
     if(argc!=3 && !pair_mode)return 2;
     s=calloc(1,sizeof(*s));save=malloc(SCENE_CHECKPOINT_MAX);
     resave=malloc(SCENE_CHECKPOINT_MAX);if(!s || !save || !resave)return 1;
@@ -48,6 +50,11 @@ int main(int argc,char **argv)
         CHECK(scene_terrain_sources_open(s,&level,maps,6,uids,2,6u*1024u*1024u));
     } else CHECK(scene_terrain_authored_open_source(s,&level,maps,6,8123));
     CHECK(scene_terrain_publication_open(s));
+    if(commit_mode) {
+        CHECK(scene_terrain_render_exclude(s,s->terrain_publication->replaced_ids,
+            s->terrain_publication->replaced_count));
+        s->collision=&s->terrain_collision.world;
+    }
     CHECK(rf_geomod_template_load(argv[2],&shape));s->terrain_template=&shape;
     s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));
     s->terrain_atlas_pixels=calloc(512u*512u*2u,1);
@@ -72,6 +79,27 @@ int main(int argc,char **argv)
         rf_authored_sources_layout source_layout;
         rf_geomod_terrain_view source_core;
         CHECK(scene_terrain_authored_template_edit(s,center,basis,1.f/shape.radius,NULL,0));
+        if(commit_mode) {
+            const float next_center[3]={124.314514f,-2.12633848f,-17.f};
+            const float next_basis[9]={-0.287775129f,0.000001598f,-0.957698166f,
+                -0.004944316f,0.999986291f,0.001487379f,
+                0.957684517f,0.005163210f,-0.287771463f};
+            rf_geomod_shallow_limit shallow={{0,-1,0},0.4f};
+            scene_l1s2_detail_owner *detail=s->terrain_publication->detail;
+            CHECK(scene_terrain_authored_template_edit(s,next_center,next_basis,1.f,&shallow,1));
+            if(s->terrain_publication_serial!=2 || !detail || !detail->published ||
+               s->collision!=&detail->overlay.world ||
+               s->terrain_geometry.faces!=geometry.faces-s->terrain_publication->replaced_count-detail->source.face_count ||
+               detail->banks[detail->active].mesh.face_count!=74)return 1;
+            for(i=0;i<detail->source.face_count;i++) {
+                uint32_t j;
+                for(j=0;j<s->terrain_geometry.faces;j++)
+                    if(s->terrain_geometry.face_offsets[j]==geometry.face_offsets[detail->replaced[i]])return 1;
+            }
+            printf("PASS L1S2 paired second commit room8=%u room121=%u static_faces=%u\n",
+                s->terrain_collision.world.rooms[8].tree.face_count,
+                detail->overlay.world.rooms[121].tree.face_count,s->terrain_geometry.faces);
+        }
         if(second_mode) {
             const float next_center[3]={124.314514f,-2.12633848f,-17.f};
             const float next_basis[9]={-0.287775129f,0.000001598f,-0.957698166f,
@@ -191,7 +219,7 @@ int main(int argc,char **argv)
             }
         }
         CHECK(scene_terrain_publication_view(s,&candidate));
-        if(candidate.cuts!=1 || candidate.mesh.generation!=1 ||
+        if(candidate.cuts!=(commit_mode?3u:1u) || candidate.mesh.generation!=(commit_mode?2u:1u) ||
            candidate.mesh.face_count<s->terrain_authored->windows.face_count ||
            s->terrain_publication->replaced_count!=91 ||
            rf_scene_authored_collection[0]!=2 || s->terrain_publication->has_pending)return 1;
@@ -202,9 +230,9 @@ int main(int argc,char **argv)
         CHECK(scene_authored_sources_stage_prepare(s,save,bytes,s->terrain_publication_serial,
             6u*1024u*1024u,&source_stage));
         CHECK(rf_geomod_terrain_get(source_stage->cores[0],&source_core));
-        if(source_core.cuts!=1 || source_stage->pieces[0])return 1;
+        if(source_core.cuts!=(commit_mode?2u:1u) || source_stage->pieces[0])return 1;
         CHECK(rf_geomod_terrain_get(source_stage->cores[1],&source_core));
-        if(source_core.cuts || source_stage->pieces[1])return 1;
+        if(source_core.cuts!=(commit_mode?1u:0u) || source_stage->pieces[1])return 1;
         scene_authored_sources_stage_discard(&source_stage);
         rf_scene_combat_trace=1;
         CHECK(scene_authored_collection_checkpoint_write(s,save,SCENE_CHECKPOINT_MAX,&bytes));
@@ -214,6 +242,9 @@ int main(int argc,char **argv)
         scene_authored_collection_stage_discard(&collection_stage);
         CHECK(scene_authored_collection_checkpoint_write(s,resave,SCENE_CHECKPOINT_MAX,&resaved));
         if(resaved!=bytes || memcmp(save,resave,bytes))return 1;
+        if(commit_mode && (!s->terrain_publication->detail->published ||
+           s->collision!=&s->terrain_publication->detail->overlay.world ||
+           s->terrain_publication->detail->banks[s->terrain_publication->detail->active].mesh.face_count!=74))return 1;
         printf("PASS L1S2 paired scene edit and RFDS3 roundtrip bytes%u faces%u vertices%u replaced%u\n",
             bytes,
             candidate.mesh.face_count,candidate.mesh.vertex_count,
@@ -241,6 +272,7 @@ int main(int argc,char **argv)
        s->terrain_publication->has_pending)return 1;
     printf("PASS L1S2 authored checkpoint stage bytes%u faces%u cuts%u\n",bytes,after.mesh.face_count,after.cuts);
 complete:
+    free(s->terrain_face_offsets);
     rf_geometry_collision_overlay_close(&s->terrain_collision);
     scene_terrain_publication_close(&s->terrain_publication);
     if(pair_mode)scene_terrain_sources_close(s);

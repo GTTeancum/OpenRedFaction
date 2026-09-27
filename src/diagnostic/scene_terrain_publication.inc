@@ -28,7 +28,7 @@ typedef struct scene_l1s2_detail_owner {
     rf_geomod_publication_origin source_origins[64];uint32_t replaced[64];
     rf_geomod_mesh_view source;scene_l1s2_detail_bank banks[2];
     rf_collision_composition *composition;rf_geometry_collision_overlay overlay;
-    uint32_t active,pending,has_pending;
+    uint32_t active,pending,has_pending,published;
 } scene_l1s2_detail_owner;
 static void scene_l1s2_detail_close(scene_l1s2_detail_owner **ptr)
 {
@@ -135,7 +135,7 @@ static inline int scene_l1s2_detail_publish(scene_l1s2_detail_owner *d)
     status=rf_geometry_collision_overlay_bind(&d->overlay,cv.tree,cv.face_ids,cv.count);
     if(status)return status;
     status=rf_collision_composition_commit(d->composition);if(status)return status;
-    d->active=d->pending;d->has_pending=0;return RF_OK;
+    d->active=d->pending;d->has_pending=0;d->published=1;return RF_OK;
 }
 typedef struct scene_publication_bank {
     rf_geomod_vertex vertices[RF_GEOMOD_PUBLICATION_VERTICES];
@@ -163,6 +163,24 @@ struct scene_terrain_publication_owner {
     uint32_t runtime_count,runtime_vertices;
     uint32_t active,pending,has_pending,resident_bytes,peak_bytes;
 };
+/* Build a replacement static render view while both collision candidates are
+ * still private. The original geometry and its face IDs remain untouched. */
+static int scene_l1s2_detail_render_offsets(scene_stream *s,
+    const scene_terrain_publication_owner *p,uint32_t **out,uint32_t *count)
+{
+    uint32_t *offsets,i,j,n=0;
+    if(!s || !p || !p->detail || !s->geometry || !s->terrain_face_offsets ||
+       s->terrain_geometry.face_offsets!=s->terrain_face_offsets || !out || !count ||
+       s->geometry->faces>UINT32_MAX/sizeof(*offsets))return RF_NOT_FOUND;
+    offsets=malloc(s->geometry->faces*sizeof(*offsets));if(!offsets)return RF_IO;
+    for(i=0;i<s->geometry->faces;i++) {
+        for(j=0;j<p->replaced_count && p->replaced_ids[j]!=i;j++);
+        if(j<p->replaced_count)continue;
+        for(j=0;j<p->detail->source.face_count && p->detail->replaced[j]!=i;j++);
+        if(j==p->detail->source.face_count)offsets[n++]=s->geometry->face_offsets[i];
+    }
+    *out=offsets;*count=n;return RF_OK;
+}
 static uint32_t scene_publication_owned_bytes(const scene_terrain_publication_owner *p)
 {return (uint32_t)sizeof(*p)+(p->connected?(uint32_t)sizeof(*p->connected):0)+
     (p->detail?(uint32_t)sizeof(*p->detail)+p->detail->overlay.resident_bytes:0);}
@@ -478,7 +496,7 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
     uint32_t count,uint32_t image_count)
 {
     scene_terrain_publication_owner *p;scene_publication_bank *b;rf_collision_composition_view cv,detail_cv={0};
-    uint32_t i,j;int status;
+    uint32_t i,j,next_faces=0,*next_offsets=NULL;int status;
     if(!s || !(p=s->terrain_publication) || !p->has_pending)return RF_RANGE;b=p->banks+p->pending;
     if(count!=b->mesh.face_count || (count && !complete))return RF_RANGE;
     for(i=0;i<count;i++) {
@@ -500,20 +518,41 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
         if(status)return status;
     }
     if((uint64_t)scene_publication_owned_bytes(p)+cv.peak_bytes+detail_cv.peak_bytes+
-       s->terrain_collision.resident_bytes>SCENE_PUBLICATION_BUDGET)return RF_RANGE;
+       s->terrain_collision.resident_bytes+
+       (p->detail && p->detail->has_pending?(uint64_t)s->geometry->faces*sizeof(uint32_t):0)>SCENE_PUBLICATION_BUDGET)return RF_RANGE;
     status=rf_geometry_collision_overlay_validate(&s->terrain_collision,
         cv.tree,cv.face_ids,cv.count);if(status)return status;
     if(p->detail && p->detail->has_pending) {
         status=rf_geometry_collision_overlay_validate(&p->detail->overlay,
             detail_cv.tree,detail_cv.face_ids,detail_cv.count);if(status)return status;
-        /* Both bindings are valid, but rendering/save publication must join
-         * this commit before either room may become player-visible. */
-        return RF_NOT_FOUND;
+        status=scene_l1s2_detail_render_offsets(s,p,&next_offsets,&next_faces);
+        if(status)return status;
     }
     /* Bind first; commit releases the old tree only after overlay replacement. */
-    status=rf_geometry_collision_overlay_bind(&s->terrain_collision,cv.tree,cv.face_ids,cv.count);if(status)return status;
+    status=rf_geometry_collision_overlay_bind(&s->terrain_collision,cv.tree,cv.face_ids,cv.count);
+    if(status){free(next_offsets);return status;}
     scene_l1s2_detail_sync_base(p->detail,&s->terrain_collision);
+    if(next_offsets) {
+        status=rf_geometry_collision_overlay_bind(&p->detail->overlay,
+            detail_cv.tree,detail_cv.face_ids,detail_cv.count);
+        if(status) {
+            rf_collision_composition_view old;
+            if(!rf_collision_composition_get(p->composition,&old))
+                rf_geometry_collision_overlay_bind(&s->terrain_collision,old.tree,old.face_ids,old.count);
+            scene_l1s2_detail_sync_base(p->detail,&s->terrain_collision);
+            free(next_offsets);return status;
+        }
+    }
     status=rf_collision_composition_commit(p->composition);if(status)return status; /* no allocation */
+    if(next_offsets) {
+        status=rf_collision_composition_commit(p->detail->composition);if(status)return status;
+        p->detail->active=p->detail->pending;p->detail->has_pending=0;p->detail->published=1;
+        free(s->terrain_face_offsets);s->terrain_face_offsets=next_offsets;
+        s->terrain_geometry.face_offsets=next_offsets;s->terrain_geometry.faces=next_faces;
+        s->collision=&p->detail->overlay.world;
+        campaign_trigger_collision=s->collision;
+        scene_driller_runtime_rebind_collision(s);
+    }
     if(count && complete!=b->bindings)memcpy(b->bindings,complete,count*sizeof(*complete));
     p->active=p->pending;p->has_pending=0;
     p->resident_bytes=scene_publication_owned_bytes(p)+cv.resident_bytes+detail_cv.resident_bytes+s->terrain_collision.resident_bytes;

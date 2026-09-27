@@ -132,3 +132,15 @@ the active world unchanged and returns the same format/range errors as bind.
 Focused PC checks and an NXDK rebuild pass. This removes a fallible step from
 the eventual paired commit, but it does not yet publish room 121 or its draw
 replacement in gameplay.
+
+A separate `paired-commit` scene test now initializes the real static render
+view, then runs both recorded cuts through the grouped scene transaction. The
+second edit commits 652 room-8 collision faces and 74 room-121 detail faces,
+removes the 30 original detail IDs from the static render view, and selects
+the layered collision world for subsequent queries. The active detail bank is
+appended through the existing authored-lightmap draw path. RFDS3 for the two
+source histories replays and re-encodes byte-identically at 16,104 bytes;
+post-restore checks retain the active room-121 overlay. Focused PC checks and
+NXDK compilation pass. This test-owned pair is not yet the normal L1S2
+campaign profile, and there is no Xbox runtime or visual-content verification
+for the second cut. Reset from an active paired cut also needs coverage.

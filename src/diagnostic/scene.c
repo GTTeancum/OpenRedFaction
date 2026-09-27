@@ -11014,6 +11014,7 @@ static int scene_terrain_base_audit(scene_stream *s,const char *path)
 }
 #endif
 #include "scene_terrain_authored.inc"
+static void scene_driller_runtime_rebind_collision(scene_stream *s);
 #include "scene_terrain_publication.inc"
 #include "scene_terrain_lighting_stage.inc"
 #include "scene_terrain_edit_transaction.inc"
@@ -11051,7 +11052,6 @@ static int scene_campaign_wall_checkpoint_get(const scene_stream *s,float center
 static int scene_campaign_wall_cut(scene_stream *s,const float center[3],float radius);
 #include "scene_campaign_geomod.inc"
 #include "scene_campaign_wall.inc"
-static void scene_driller_runtime_rebind_collision(scene_stream *s);
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -14568,6 +14568,18 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
                 &stream->terrain_draw->view,stream->terrain_draw->bound,stream->materials->count,
                 &camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
+            if(stream->terrain_publication && stream->terrain_publication->detail &&
+               stream->terrain_publication->detail->published &&
+               stream->collision==&stream->terrain_publication->detail->overlay.world) {
+                const scene_l1s2_detail_bank *detail=
+                    stream->terrain_publication->detail->banks+stream->terrain_publication->detail->active;
+                rf_preview_mesh next={0};next.vertices=generated.vertices+generated.count;
+                status=rf_preview_geomod_world_lit(&next,
+                    stream->capacity-1024*1024-world_mesh.bytes-generated.bytes,
+                    &detail->mesh,detail->bound,stream->materials->count,
+                    &camera,detail->colors,stream->geometry);if(status)return status;
+                generated.count+=next.count;generated.bytes+=next.bytes;
+            }
         }
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
