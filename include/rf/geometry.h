@@ -96,7 +96,7 @@ typedef struct rf_geometry_resident_lightmap_context {
 int rf_geometry_corpse_resident_color(void *context,uint32_t face,const float point[3],uint32_t *color);
 typedef struct rf_geometry_face {
     float plane[4];
-    uint32_t texture, lightmap_mapping, room, portal, flags, corners;
+    uint32_t texture, lightmap_mapping, source_word, room, portal, flags, corners;
 } rf_geometry_face;
 typedef struct rf_geometry_corner {
     uint32_t vertex;

@@ -354,6 +354,7 @@ int rf_geometry_get_face(const rf_geometry *g, uint32_t index, rf_geometry_face 
     p = g->data + g->face_offsets[index];
     for (i = 0; i < 4; ++i) face->plane[i] = f32(p + i * 4);
     face->texture = u32(p + 16); face->lightmap_mapping = u32(p + 20);
+    face->source_word = u32(p + 24);
     face->portal = u32(p + 36); face->flags = u32(p + 40); face->room = u32(p + 48); face->corners = u32(p + 52);
     return RF_OK;
 }

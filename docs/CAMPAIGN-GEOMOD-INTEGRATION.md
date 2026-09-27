@@ -51,6 +51,15 @@ cut: the compiled room's rendered/collision faces are not yet replaced, and
 the reader has only been exercised at runtime on PC. Its source compiles in
 the NXDK Xbox build; native loading and stock-memory validation remain.
 
+The compiled face view now exposes its serialized source word. The shared C
+lookup maps UID 8755 to exactly 40 compiled faces in room 28, including face
+3766/source word 4395, and UID 7778 to 109 faces there; results stay in file
+order. This is the source-to-compiled handoff needed to select replacement
+surfaces without guessing from proximity. It does not yet determine which of
+those faces intersect a particular cutter, nor publish modified faces into
+the room render and collision trees. The existing overlay can replace one
+room tree, but campaign publication must stage render and collision together.
+
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's
 CSG, then publish matching render, collision, material and player-support

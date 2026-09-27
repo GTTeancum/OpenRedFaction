@@ -148,5 +148,29 @@ int rf_editor_brush_open(const rf_level *level,uint32_t uid,uint32_t budget,
     if(!status)status=rf_editor_brush_decode(data,section->size,uid,budget,out);
     free(data);return status;
 }
+int rf_editor_brush_compiled_faces(const rf_editor_brush *brush,
+    const rf_geometry *geometry,uint32_t room,uint32_t *ids,
+    uint32_t capacity,uint32_t *count)
+{
+    uint32_t i,j,n=0,phase;rf_geometry_face face;int status;
+    if(!brush || !brush->storage || !geometry || !geometry->data ||
+       room>=geometry->rooms || !count || (ids && !capacity) || (!ids && capacity))return RF_RANGE;
+    for(phase=0;phase<(ids?2u:1u);phase++){
+        uint32_t written=0;
+        for(i=0;i<geometry->faces;i++){
+            status=rf_geometry_get_face(geometry,i,&face);if(status)return status;
+            if(face.room!=room)continue;
+            for(j=0;j<brush->face_count;j++)if(face.source_word==brush->source_words[j])break;
+            if(j==brush->face_count)continue;
+            if(phase)ids[written]=i;
+            written++;
+        }
+        if(!phase){
+            n=written;if(!n)return RF_NOT_FOUND;
+            if(ids && n>capacity)return RF_RANGE;
+        }
+    }
+    *count=n;return RF_OK;
+}
 void rf_editor_brush_close(rf_editor_brush *brush)
 {if(brush){free(brush->storage);memset(brush,0,sizeof(*brush));}}

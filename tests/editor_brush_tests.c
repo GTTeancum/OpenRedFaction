@@ -7,12 +7,14 @@
 int main(int argc,char **argv)
 {
     rf_vpp archive={0};rf_level level={0};
+    rf_geometry geometry={0};
     rf_editor_brush owned[2]={{0}};
     static const uint32_t uids[2]={8755,7778},counts[2]={44,488};
     uint32_t i,j,k;int status;
     if(argc!=2)return 2;
     status=rf_vpp_open(&archive,argv[1]);if(status)return 3;
     status=rf_level_open(&level,&archive,"L1S1.rfl");if(status)return 4;
+    status=rf_geometry_open(&geometry,&level,8*1024*1024);if(status)return 13;
     for(i=0;i<2;i++) {
         rf_editor_brush brush={0},kept={0};
         status=rf_editor_brush_open(&level,uids[i],512*1024,&brush);
@@ -43,6 +45,21 @@ int main(int argc,char **argv)
         printf("PASS L1S1 editor brush uid=%u faces=%u corners=%u bytes=%u\n",
             brush.uid,brush.face_count,brush.corner_count,brush.resident_bytes);
         owned[i]=brush;
+    }
+    for(i=0;i<2;i++){
+        uint32_t count=0,ids[128],found3766=0;
+        status=rf_editor_brush_compiled_faces(owned+i,&geometry,28,NULL,0,&count);
+        if(status || count!=(i?109u:40u))return 14;
+        status=rf_editor_brush_compiled_faces(owned+i,&geometry,28,ids,128,&count);
+        if(status || count!=(i?109u:40u))return 15;
+        for(j=0;j<count;j++){
+            rf_geometry_face face;
+            if(j && ids[j]<=ids[j-1])return 16;
+            if(rf_geometry_get_face(&geometry,ids[j],&face) || face.room!=28)return 17;
+            found3766+=ids[j]==3766;
+        }
+        if(found3766!=(i?0u:1u))return 18;
+        printf("PASS L1S1 compiled room28 ownership uid=%u faces=%u\n",uids[i],count);
     }
     {
         static rf_geomod_vertex clip_vertices[2][4096],aggregate_vertices[2][4096];
@@ -78,5 +95,6 @@ int main(int argc,char **argv)
             area,result.fragment_count,result.vertex_count);
     }
     for(i=0;i<2;i++)rf_editor_brush_close(owned+i);
+    rf_geometry_close(&geometry);
     rf_vpp_close(&archive);return 0;
 }
