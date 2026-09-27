@@ -24,6 +24,10 @@ CASES = {
     'L5S4': ('levels1.vpp', 3955, (-27.5601806640625, -24.7811279296875, -14.7227783203125)),
     'L10S3': ('levels2.vpp', 6794, (510.3700256347656, -129.85679626464844, 160.26577758789062)),
 }
+PURSUE_EVENTS = {
+    'L5S3': (4647, None),  # Goto_Player -> UID3963
+    'L5S4': (3958, (-12.32318115234375, -22.4365234375, -18.183792114257812)),
+}
 
 
 def replay(board, frames):
@@ -49,15 +53,18 @@ def main():
     parser.add_argument('--board', action='store_true',
                         help='Stage beside the authored host, board and launch one torpedo')
     parser.add_argument('--pursue', action='store_true',
-                        help='Fire L5S3 authored Goto_Player and check submarine movement')
+                        help='Fire the level\'s authored Goto/Goto_Player and check submarine movement')
     parser.add_argument('--save', action='store_true',
                         help='Quick-save/load the active authored pursuit during the Xbox run')
     args = parser.parse_args()
-    if args.pursue and (args.board or args.level != 'L5S3'):
-        parser.error('--pursue requires L5S3 and cannot be combined with --board')
+    if args.pursue and (args.board or args.level not in PURSUE_EVENTS):
+        parser.error('--pursue requires L5S3 or L5S4 and cannot be combined with --board')
     if args.save and not args.pursue:
         parser.error('--save requires --pursue')
+    if args.save and args.level != 'L5S3':
+        parser.error('--save currently checks the persistent L5S3 Goto_Player order')
     archive, uid, expected = CASES[args.level]
+    event_uid, event_target = PURSUE_EVENTS.get(args.level, (0, None))
     frames = 180 if args.pursue else FRAMES
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
@@ -82,7 +89,7 @@ def main():
         if args.board:
             (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', uid))
         if args.pursue:
-            (DISC / 'campaign-goto.bin').write_bytes(struct.pack('<II', 4647, 1))
+            (DISC / 'campaign-goto.bin').write_bytes(struct.pack('<II', event_uid, 1))
         if args.save:
             (DISC / 'campaign-quick-actions.bin').write_bytes(struct.pack('<II', 60, 100))
         (DISC / 'player-control.flag').write_bytes(b'')
@@ -118,9 +125,16 @@ def main():
             displacement = math.dist(position, expected)
             result['route'] = route
             result['displacement'] = displacement
-            if route[3] < 1 or route[5] != 4647 or displacement < .05:
-                raise RuntimeError(f'Authored Goto_Player did not move submarine: '
+            if route[3] < 1 or route[5] != event_uid or displacement < .05:
+                raise RuntimeError(f'Authored Goto order did not move submarine: '
                                    f'{route}, displacement {displacement:.3f}')
+            if event_target is not None:
+                start_distance = math.dist(expected, event_target)
+                end_distance = math.dist(position, event_target)
+                result['target_distance'] = [start_distance, end_distance]
+                if end_distance >= start_distance - .05:
+                    raise RuntimeError(f'Authored Goto did not approach its target: '
+                                       f'{start_distance:.3f} -> {end_distance:.3f}')
             if args.save:
                 state = guest['checkpoint_state']
                 if state[8] != 1 or state[0] != 0 or route[0] != 1:
