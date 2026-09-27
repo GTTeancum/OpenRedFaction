@@ -59,12 +59,19 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     v=envelope.sections+RF_WORLD_DESTRUCTION-1;
     if(v->bytes){phase="destruction";
         status=scene_campaign_geomod_checkpoint_restore(stream,v->data,v->bytes);if(status)goto done;
-        if(!stream->campaign_geomod->mesh.vertex_count){status=RF_FORMAT;goto done;}
-        for(i=0;i<3;i++)modified_min[i]=modified_max[i]=stream->campaign_geomod->mesh.vertices[0].position[i];
-        for(uint32_t vertex=1;vertex<stream->campaign_geomod->mesh.vertex_count;vertex++)for(i=0;i<3;i++){
-            float coordinate=stream->campaign_geomod->mesh.vertices[vertex].position[i];
-            if(coordinate<modified_min[i])modified_min[i]=coordinate;
-            if(coordinate>modified_max[i])modified_max[i]=coordinate;
+        {const rf_geomod_mesh_view *edited[3]={
+            stream->campaign_geomod && stream->campaign_geomod->active?&stream->campaign_geomod->mesh:NULL,
+            stream->campaign_wall && stream->campaign_wall->active?&stream->campaign_wall->rooms[0].mesh:NULL,
+            stream->campaign_wall && stream->campaign_wall->active?&stream->campaign_wall->rooms[1].mesh:NULL};
+         uint32_t side,found_vertex=0;
+         for(side=0;side<3;side++)if(edited[side])for(uint32_t vertex=0;vertex<edited[side]->vertex_count;vertex++)for(i=0;i<3;i++){
+             float coordinate=edited[side]->vertices[vertex].position[i];
+             if(!found_vertex){modified_min[i]=modified_max[i]=coordinate;}
+             else {if(coordinate<modified_min[i])modified_min[i]=coordinate;
+                   if(coordinate>modified_max[i])modified_max[i]=coordinate;}
+             if(i==2)found_vertex=1;
+         }
+         if(!found_vertex){status=RF_FORMAT;goto done;}
         }
     }
     mapping.offsets=actor_follow_world->offsets;mapping.slots=actor_follow_world->slots;mapping.count=actor_follow_world->geometry_count;mapping.textures.count=actor_follow_world->material_count;

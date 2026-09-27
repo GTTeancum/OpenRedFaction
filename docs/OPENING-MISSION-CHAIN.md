@@ -288,12 +288,8 @@ with `python tools/replay_opening_wall_blocker.py`, then
 `python tools/xemu_replay_check.py artifacts/opening-exit/wall-blocker.bin
 --campaign-spawn --level L1S1.rfl --no-images --seconds 750`.
 
-The next implementation step is weapon-driven, authored-geometry cutting
-across the room40/27 wall pair. It must replace visible faces and collision
-on both sides, admit the cut under the level's GeoMod regions, persist the
-edit through saves, and stay inside stock64MiB. The existing room28 event
-cut is a useful component, but its single-room owner, brush IDs and render
-path cannot be treated as coverage for this barrier.
+This established the need for a weapon-driven, authored-geometry cut across
+rooms40/27, separate from the existing room28 scripted cutter.
 
 A text-only CSG probe now loads the authored Remote Charge crater radius (5.0)
 from `tables.vpp` and uses the recorded detonation point. Brush8715 owns36
@@ -307,3 +303,25 @@ vertices with a98,612-byte tree; room27 stages662 faces/2765 vertices with a
 but does not yet publish either side, connect the weapon blast, or establish a
 through passage. Reproduce with `rf_opening_wall_probe` using `levels1.vpp`,
 `build/data/geomod-template.bin`, and `tables.vpp` in that order.
+
+The live ordinary Remote Charge now uses that grouped admission and stages
+both rooms' replacement meshes and collision trees before publishing. The
+recorded charge commits one cut: room40 has533 faces/2304 vertices, room27
+has618 faces/2604 vertices, and the two trees total193,360 bytes. Extending
+the replay with150 forward inputs leaves the living player at
+(-18.745,-0.240,29.982), beyond the old x=-21.75 wall plane. The text-only
+stock64MiB XEMU run `replay-20260927-015923` **PASS**es all4245 frames
+against PC state, including the new wall telemetry, with3610 physical pages
+(14.10MiB) free at completion. Reproduce via
+`python tools/replay_opening_wall_cross.py` and
+`python tools/xemu_replay_check.py artifacts/opening-exit/wall-cross.bin
+--campaign-spawn --level L1S1.rfl --no-images --seconds 850`.
+
+The replacement meshes enter the shared rendering path, but their visual
+appearance has not been inspected because of the no-images instruction.
+Wall-only and combined wall/script-cut save encoding and restore have been
+added, but a natural quick-save at frame4300 still fails before destruction
+serialization: active NPC UID8625 has `combat_alert=1`, and other opening
+actors also retain unsupported navigation, animation or combat state. The
+save milestone remains open until that broader NPC checkpoint admission is
+implemented and a live save/reload passes on PC and Xbox.

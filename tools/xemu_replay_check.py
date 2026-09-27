@@ -433,12 +433,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_materials[0]>0 and npc_materials[2]>0 and npc_materials[6]>0,npc_materials
      report['npc_materials']=npc_materials
      campaign_geomod=words(monitor,symbol('rf_scene_campaign_geomod'),8)
+     campaign_wall=words(monitor,symbol('rf_scene_campaign_wall'),8)
      campaign_geomod_collision=words(monitor,symbol('rf_scene_campaign_geomod_collision'),4)
      assert campaign_geomod==expected('CAMPAIGN_GEOMOD'),campaign_geomod
+     assert campaign_wall==expected('CAMPAIGN_WALL'),campaign_wall
      assert campaign_geomod_collision==expected('CAMPAIGN_GEOMOD_COLLISION'),campaign_geomod_collision
      if args.setup_uid==[9456] and section_frames>=80:
       assert campaign_geomod[1]==1 and campaign_geomod[3]>800 and campaign_geomod_collision[3]>0
      report['campaign_geomod']=campaign_geomod
+     report['campaign_wall']=campaign_wall
      report['campaign_geomod_collision']=campaign_geomod_collision
      npc_draw=words(monitor,symbol('rf_scene_npc_draw'),5)
      retained_models=words(monitor,symbol('rf_xbox_retained_models'),8)

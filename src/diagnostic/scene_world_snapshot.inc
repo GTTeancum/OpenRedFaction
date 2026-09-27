@@ -77,6 +77,13 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #define SNAP_END(type) do{if(status)goto done;if(bytes>RF_CHECKPOINT_FILE_MAX-at){status=RF_RANGE;goto done;}     bundle.sections[(type)-1]=(rf_world_checkpoint_slice){bytes?buffer+at:NULL,bytes};at+=bytes;     printf("WORLD_SNAPSHOT_COMPONENT %s %u\n",part,bytes);}while(0)
     SNAP_START("player");status=scene_driller_active(s)?scene_world_vehicle_player_capture(s,&player,&catalog):
         scene_checkpoint_player_snapshot(s,1,&player,&catalog);
+    if(status)printf("WORLD_SNAPSHOT_PLAYER_STATE %d shield%u fusion%u support%u landing%u cooldown%u remaining%u delay%u held%u charge%u velocity %.6g %.6g %.6g\n",
+        status,scene_player_shield_damage_save_pending(),
+        campaign_fusion_id>=0?campaign_player_inventory.owned[campaign_fusion_id]:0,
+        campaign_support_handle,rf_scene_actor_landing[1],combat_trigger.cooldown,
+        combat_trigger.remaining,combat_trigger.delay,combat_trigger.held,
+        riot_charge_remainder,(double)scene_actor_body.state.velocity[0],
+        (double)scene_actor_body.state.velocity[1],(double)scene_actor_body.state.velocity[2]);
     if(!status&&RF_PLAYER_CHECKPOINT_BYTES>RF_CHECKPOINT_FILE_MAX-at)status=RF_RANGE;
     if(!status)status=rf_player_checkpoint_encode(&player,&catalog,buffer+at,RF_PLAYER_CHECKPOINT_BYTES);
     bytes=RF_PLAYER_CHECKPOINT_BYTES;SNAP_END(RF_WORLD_PLAYER);

@@ -74,10 +74,12 @@ report = dict(frames=4095,
                      if line.startswith('TAKEN_PICKUP ')],
               remote=words('REMOTE')[:8], geomod=words('GEOMOD')[:8],
               campaign_geomod=words('CAMPAIGN_GEOMOD')[:8],
+              campaign_wall=words('CAMPAIGN_WALL')[:8],
               events=[line for line in run.stdout.splitlines()
                       if line.startswith(('REMOTE_ATTACH ', 'REMOTE_DETONATE ',
                                           'GEOMOD_ADMISSION ', 'GEOMOD_HARDNESS '))])
 (folder / 'wall-blocker.json').write_text(json.dumps(report, indent=2))
 assert report['life'][0] == 0 and report['remote'][:4] == [1, 1, 1, 1]
+assert report['campaign_wall'][:2] == [1, 1] and report['campaign_wall'][7] == 0
 assert any('9789' in line for line in report['taken'])
 print(report)

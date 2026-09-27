@@ -50,6 +50,7 @@ static int scene_campaign_geomod_open(scene_stream *s,const rf_level *level)
         rf_geometry_collision_overlay_close(&s->terrain_collision);goto failed;
     }
     s->campaign_geomod=owner;memset(rf_scene_campaign_geomod,0,sizeof(rf_scene_campaign_geomod));
+    memset(rf_scene_campaign_wall,0,sizeof(rf_scene_campaign_wall));
     memset(rf_scene_campaign_geomod_collision,0,sizeof(rf_scene_campaign_geomod_collision));
     return RF_OK;
 failed:scene_campaign_geomod_close(&owner);return status;
@@ -140,7 +141,8 @@ static int scene_campaign_geomod_cut(scene_stream *s,const float center[3],float
     for(i=0;i<owner->mesh.vertex_count;i++)owner->colors[i][0]=owner->colors[i][1]=owner->colors[i][2]=1;
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,&owner->tree,
         owner->face_ids,owner->mesh.face_count);if(status){rf_collision_tree_close(&owner->tree);goto done;}
-    s->collision=&s->terrain_collision.world;
+    scene_campaign_wall_refresh_script_room(s);
+    s->collision=scene_campaign_wall_collision(s);
     campaign_trigger_collision=s->collision;
     owner->committed_radius=radius;owner->active=1;++rf_scene_campaign_geomod[1];
     rf_scene_campaign_geomod[2]=28;rf_scene_campaign_geomod[3]=owner->mesh.face_count;
@@ -158,11 +160,23 @@ done:
 static int scene_campaign_geomod_checkpoint_write(const scene_stream *s,
     unsigned char *out,uint32_t capacity,uint32_t *written)
 {
+    float wall_center[3],wall_radius=0;
+    int wall_status;uint32_t script;
     if(!s || !out || !written)return RF_RANGE;
-    if(!s->campaign_geomod || !s->campaign_geomod->active){*written=0;return RF_OK;}
-    if(capacity<12)return RF_RANGE;
-    if(s->campaign_geomod->committed_radius!=5.f &&
+    script=s->campaign_geomod && s->campaign_geomod->active;
+    wall_status=scene_campaign_wall_checkpoint_get(s,wall_center,&wall_radius);
+    if(wall_status && wall_status!=RF_NOT_FOUND)return wall_status;
+    if(!script && wall_status==RF_NOT_FOUND){*written=0;return RF_OK;}
+    if(script && s->campaign_geomod->committed_radius!=5.f &&
        s->campaign_geomod->committed_radius!=2.5f)return RF_FORMAT;
+    if(wall_status==RF_OK){
+        if(capacity<24)return RF_RANGE;
+        memcpy(out,"RFCG",4);out[4]=3;out[5]=(unsigned char)(2u|script);
+        out[6]=script?(s->campaign_geomod->committed_radius==5.f?1:2):0;out[7]=0;
+        memcpy(out+8,&wall_radius,4);memcpy(out+12,wall_center,12);
+        *written=24;return RF_OK;
+    }
+    if(capacity<12)return RF_RANGE;
     memcpy(out,"RFCG",4);out[4]=s->campaign_geomod->committed_radius==5.f?1:2;
     out[5]=out[6]=out[7]=0;
     out[8]=0xf0;out[9]=0x24;out[10]=out[11]=0; /* UID 9456. */
@@ -173,6 +187,23 @@ static int scene_campaign_geomod_checkpoint_restore(scene_stream *s,
 {
     const unsigned char *p=data;uint32_t i,found=0;int status=RF_NOT_FOUND;
     if(!bytes)return RF_OK;
+    if(s && s->campaign_geomod && p && bytes==24 && !memcmp(p,"RFCG",4) && p[4]==3){
+        float center[3],radius;unsigned char legacy[12]={0};
+        if((p[5]!=2 && p[5]!=3) || p[7] ||
+           (p[5]==2 && p[6]) || (p[5]==3 && p[6]!=1 && p[6]!=2) ||
+           scene_campaign_wall_checkpoint_get(s,center,&radius)==RF_OK ||
+           s->campaign_geomod->active)return RF_FORMAT;
+        memcpy(&radius,p+8,4);memcpy(center,p+12,12);
+        if(!isfinite(radius) || radius<1 || radius>5 ||
+           !isfinite(center[0]) || !isfinite(center[1]) || !isfinite(center[2]))return RF_FORMAT;
+        if(p[5]&1){
+            memcpy(legacy,"RFCG",4);legacy[4]=p[6];
+            legacy[8]=0xf0;legacy[9]=0x24;
+            status=scene_campaign_geomod_checkpoint_restore(s,legacy,12);
+            if(status)return status;
+        }
+        return scene_campaign_wall_cut(s,center,radius);
+    }
     if(!s || !s->campaign_geomod || s->campaign_geomod->active || !p || bytes!=12 ||
        memcmp(p,"RFCG",4) || (p[4]!=1 && p[4]!=2) || p[5] || p[6] || p[7] ||
        p[8]!=0xf0 || p[9]!=0x24 || p[10] || p[11])return RF_FORMAT;
