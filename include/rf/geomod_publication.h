@@ -90,6 +90,12 @@ int rf_geomod_publication_build_cavity(const rf_geomod_publication_job *,rf_geom
 int rf_geomod_publication_build_groups(const rf_geomod_publication_job *, uint32_t count,
     uint32_t generation, rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
     rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Aggregate independent inward-cavity owners in one room. Each job keeps its
+ * own retained windows and cutters; callers must prove the source set and
+ * qualify cross-owner admission before publishing the resulting room tree. */
+int rf_geomod_publication_build_cavity_groups(const rf_geomod_publication_job *,uint32_t count,
+    uint32_t generation,rf_geomod_publication_work *,rf_geomod_vertex *,uint32_t,
+    rf_geomod_face *,uint32_t,rf_geomod_publication_origin *,rf_geomod_mesh_view *);
 /* Clip existing neighbor surfaces by earlier convex voids. A void's owner
  * selects the input origin.owner it affects; other owners remain unchanged.
  * Planes are outward/unit, negative inside (reverse inward authored air planes).

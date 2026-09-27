@@ -49,13 +49,63 @@ static int collision_probe(const rf_geometry *geometry,const rf_geomod_authored_
     rf_geometry_collision_world_close(&base);free(filters);free(faces);free(positions);free(ids);
     return status;
 }
+static int paired_collision_probe(const rf_geometry *geometry,
+    const rf_geomod_authored_post_view *first,const rf_geomod_authored_post_view *second,
+    const rf_geomod_mesh_view *published,const rf_geomod_publication_origin *origins)
+{
+    rf_geometry_collision_world base={0};rf_geometry_collision_overlay overlay={0};
+    rf_collision_composition *composition=NULL;rf_collision_composition_view pending;
+    rf_collision_face_filter *filters=NULL;rf_collision_face *faces=NULL;
+    float (*positions)[3]=NULL;uint32_t *ids=NULL,replaced[256],i,hit_before=0,hit_after=0,hit_inside=0;
+    rf_geometry_world_hit before={0},after={0},inside={0};int status;
+    const float start[3]={128.f,-1.95f,-17.2f},delta[3]={-3.5f,0,0};
+    const float inside_start[3]={125.8f,-1.95f,-17.2f},inside_delta[3]={3.5f,0,0};
+    if(first->room!=second->room || first->replaced_count+second->replaced_count>256)return 1;
+    memcpy(replaced,first->replaced_ids,first->replaced_count*sizeof(*replaced));
+    memcpy(replaced+first->replaced_count,second->replaced_ids,second->replaced_count*sizeof(*replaced));
+    filters=calloc(published->face_count,sizeof(*filters));faces=calloc(published->face_count,sizeof(*faces));
+    positions=calloc(published->vertex_count,sizeof(*positions));ids=calloc(published->face_count,sizeof(*ids));
+    if(!filters || !faces || !positions || !ids)return 1;
+    CHECK(rf_geometry_collision_world_open(geometry,16u*1024u*1024u,&base));
+    CHECK(rf_geometry_collision_world_ray(&base,4,start,delta,1.f,&before,&hit_before));
+    for(i=0;i<published->face_count;i++) {
+        ids[i]=origins[i].reference;
+        CHECK(rf_geometry_initial_collision_filter(geometry,ids[i],0,filters+i));
+        if(origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER)filters[i].face_flags=256;
+    }
+    CHECK(rf_geomod_collision_faces(published,filters,positions,published->vertex_count,
+        faces,published->face_count));
+    CHECK(rf_collision_composition_open(&base.rooms[first->room].tree,
+        base.rooms[first->room].tree.source_indices,replaced,
+        first->replaced_count+second->replaced_count,
+        base.rooms[first->room].tree.face_count+published->face_count,
+        4u*1024u*1024u,NULL,&composition));
+    CHECK(rf_collision_composition_prepare(composition,faces,ids,published->face_count));
+    CHECK(rf_collision_composition_pending(composition,&pending));
+    CHECK(rf_geometry_collision_overlay_open(&base,first->room,
+        base.rooms[first->room].tree.face_count+published->face_count,128u*1024u,&overlay));
+    CHECK(rf_geometry_collision_overlay_bind(&overlay,pending.tree,pending.face_ids,pending.count));
+    CHECK(rf_collision_composition_commit(composition));
+    CHECK(rf_geometry_collision_world_ray(&overlay.world,4,start,delta,1.f,&after,&hit_after));
+    CHECK(rf_geometry_collision_world_ray(&overlay.world,4,inside_start,inside_delta,1.f,&inside,&hit_inside));
+    printf("L1S2 paired collision outward before %u face %u x %.6f after %u; inward crater %u face %u x %.6f\n",
+        hit_before,before.face,before.hit.point[0],hit_after,hit_inside,inside.face,inside.hit.point[0]);
+    status=hit_before && before.face==5780 && !hit_after && hit_inside &&
+        inside.hit.point[0]>before.hit.point[0]+0.01f?0:1;
+    rf_geometry_collision_overlay_close(&overlay);rf_collision_composition_close(&composition);
+    rf_geometry_collision_world_close(&base);free(filters);free(faces);free(positions);free(ids);
+    return status;
+}
 int main(int argc,char **argv)
 {
     rf_vpp archive={0};rf_level level;rf_geometry geometry={0};
     rf_vpp maps[6]={{0}};rf_lightmap_rgb_owner rgb={0};
-    rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view view;
-    rf_geomod_authored_identity_manifest manifest={0};unsigned char identity[32];uint32_t identity_peak=0;
-    rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view terrain_view;
+    rf_geomod_authored_post *owner=NULL,*neighbor_owner=NULL;
+    rf_geomod_authored_post_view view,neighbor_view;
+    rf_geomod_authored_identity_manifest manifest={0},neighbor_manifest={0};
+    unsigned char identity[32],neighbor_identity[32];uint32_t identity_peak=0,neighbor_identity_peak=0;
+    rf_geomod_terrain *terrain=NULL,*neighbor_terrain=NULL;
+    rf_geomod_terrain_view terrain_view,neighbor_terrain_view;
     rf_collision_face_filter generated;rf_geomod_template shape;
     rf_geomod_publication_job job={0};rf_geomod_publication_cut cut={0};rf_geomod_mesh_view published;
     const float center[3]={121.208061f,-2.12633848f,-17.f};
@@ -74,6 +124,16 @@ int main(int argc,char **argv)
             view.source_uid,view.room,view.source.face_count,view.windows.face_count,
             view.replaced_count,view.solid_count);return 1;
     }
+    CHECK(rf_geomod_authored_cavity_open_source(&level,&geometry,8219,2u*1024u*1024u,&neighbor_owner));
+    CHECK(rf_geomod_authored_post_get(neighbor_owner,&neighbor_view));
+    if(neighbor_view.source_uid!=8219 || neighbor_view.room!=8 ||
+       neighbor_view.source.face_count!=14 || neighbor_view.windows.face_count!=8 ||
+       neighbor_view.replaced_count!=8 || neighbor_view.solid_count) {
+        fprintf(stderr,"FAIL neighbor source %u room %u faces %u windows %u replaced %u solids %u\n",
+            neighbor_view.source_uid,neighbor_view.room,neighbor_view.source.face_count,
+            neighbor_view.windows.face_count,neighbor_view.replaced_count,neighbor_view.solid_count);
+        return 1;
+    }
     CHECK(rf_lightmap_rgb_open(&rgb,&level,16u*1024u*1024u));
     for(i=0;i<6;i++) {
         snprintf(map_path,sizeof(map_path),"%s/%s",argv[3],map_names[i]);
@@ -88,6 +148,16 @@ int main(int argc,char **argv)
     CHECK(rf_geomod_authored_identity_capture_manifest(&level,&geometry,&view,maps,6,&rgb,
         3u*1024u*1024u,identity,&identity_peak,&manifest));
     if(!manifest.material_count || !manifest.reference_count || identity_peak>3u*1024u*1024u)return 1;
+    neighbor_manifest.reference_capacity=neighbor_view.source.face_count+neighbor_view.windows.face_count;
+    neighbor_manifest.material_capacity=neighbor_manifest.reference_capacity;
+    neighbor_manifest.materials=calloc(neighbor_manifest.material_capacity,sizeof(*neighbor_manifest.materials));
+    neighbor_manifest.references=calloc(neighbor_manifest.reference_capacity,sizeof(*neighbor_manifest.references));
+    neighbor_manifest.substrate=calloc(1,sizeof(*neighbor_manifest.substrate));
+    if(!neighbor_manifest.materials || !neighbor_manifest.references || !neighbor_manifest.substrate)return 1;
+    CHECK(rf_geomod_authored_identity_capture_manifest(&level,&geometry,&neighbor_view,maps,6,&rgb,
+        3u*1024u*1024u,neighbor_identity,&neighbor_identity_peak,&neighbor_manifest));
+    if(!neighbor_manifest.material_count || !neighbor_manifest.reference_count ||
+       neighbor_identity_peak>3u*1024u*1024u || !memcmp(identity,neighbor_identity,32))return 1;
     generated=view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
     CHECK(rf_geomod_terrain_open(&view.source,view.source_filters,&generated,1,
         4096,1024,1152u*1024u,&terrain));
@@ -107,9 +177,8 @@ int main(int argc,char **argv)
         }
     }
     {
-        /* The live second bit overlaps adjacent operation-2 brush UID8219,
-         * whose compiled faces occupy rooms 8, 13 and 123. A single-room
-         * owner must reject it until those rooms can publish atomically. */
+        /* The live second bit reaches UID8219 room-8 geometry and UID9996
+         * room-121 detail. The single-owner admission must still reject it. */
         const float minimum[3]={121.107674f,-2.405448f,-19.962753f};
         const float maximum[3]={126.905739f,0.702065f,-13.505847f};
         uint32_t reference=UINT32_MAX;
@@ -149,6 +218,49 @@ int main(int argc,char **argv)
     printf("L1S2 cut core faces %u publication faces %u crater %u retained %u resident %u peak %u\n",
         terrain_view.mesh.face_count,published.face_count,crater_faces,retained_faces,
         terrain_view.resident_bytes,terrain_view.peak_bytes);
+    {
+        const float next_center[3]={124.314514f,-2.12633848f,-17.f};
+        const float next_basis[9]={-0.287775129f,1.59786077e-06f,-0.957698166f,
+            -0.00494431565f,0.999986291f,0.0014873792f,
+            0.957684517f,0.00516320998f,-0.287771463f};
+        rf_geomod_shallow_limit shallow={{0,-1,0},0.4f};
+        rf_geomod_publication_cut first_cuts[2],second_cut;
+        rf_geomod_publication_job grouped[2];uint32_t owner_faces[2]={0,0};
+        generated=neighbor_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
+        CHECK(rf_geomod_terrain_open(&neighbor_view.source,neighbor_view.source_filters,&generated,1,
+            4096,1024,1152u*1024u,&neighbor_terrain));
+        CHECK(rf_geomod_terrain_cut_template_limits(terrain,&shape,next_center,next_basis,1.f,0,&shallow,1));
+        CHECK(rf_geomod_terrain_cut_template_limits(neighbor_terrain,&shape,next_center,next_basis,1.f,0,&shallow,1));
+        CHECK(rf_geomod_terrain_get(terrain,&terrain_view));
+        CHECK(rf_geomod_terrain_get(neighbor_terrain,&neighbor_terrain_view));
+        for(i=0;i<2;i++)CHECK(rf_geomod_terrain_cutter_get(terrain,i,
+            &first_cuts[i].mesh,first_cuts[i].kernel,&first_cuts[i].star));
+        CHECK(rf_geomod_terrain_cutter_get(neighbor_terrain,0,
+            &second_cut.mesh,second_cut.kernel,&second_cut.star));
+        grouped[0]=job;grouped[0].terrain=terrain_view.mesh;
+        grouped[0].cuts=first_cuts;grouped[0].cut_count=2;
+        grouped[1]=(rf_geomod_publication_job){0};
+        grouped[1].terrain=neighbor_terrain_view.mesh;
+        grouped[1].windows=neighbor_view.windows;
+        grouped[1].window_origins=neighbor_view.window_origins;
+        grouped[1].source_planes=neighbor_view.source_planes;
+        grouped[1].source_plane_count=neighbor_view.source.face_count;
+        grouped[1].cuts=&second_cut;grouped[1].cut_count=1;
+        grouped[1].crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,
+            8219,UINT32_MAX,neighbor_view.replaced_ids[0]};
+        CHECK(rf_geomod_publication_build_cavity_groups(grouped,2,2,&publication_work,
+            published_vertices,RF_GEOMOD_PUBLICATION_VERTICES,
+            published_faces,RF_GEOMOD_PUBLICATION_FACES,published_origins,&published));
+        for(i=0;i<published.face_count;i++) {
+            if(published_origins[i].owner==8123)owner_faces[0]++;
+            if(published_origins[i].owner==8219)owner_faces[1]++;
+        }
+        if(!owner_faces[0] || !owner_faces[1])return 1;
+        printf("L1S2 paired second cut source faces %u/%u published faces %u owners %u/%u\n",
+            terrain_view.mesh.face_count,neighbor_terrain_view.mesh.face_count,
+            published.face_count,owner_faces[0],owner_faces[1]);
+        if(paired_collision_probe(&geometry,&view,&neighbor_view,&published,published_origins))return 1;
+    }
     CHECK(rf_geomod_terrain_reset(terrain));CHECK(rf_geomod_terrain_get(terrain,&terrain_view));
     if(terrain_view.cuts || terrain_view.mesh.face_count!=48)return 1;
     printf("PASS L1S2 cavity source %u room %u faces %u windows %u resident %u peak %u\n",
@@ -156,8 +268,13 @@ int main(int argc,char **argv)
         view.resident_bytes,view.peak_bytes);
     printf("L1S2 identity materials %u references %u peak %u\n",
         manifest.material_count,manifest.reference_count,identity_peak);
+    printf("L1S2 neighbor identity materials %u references %u peak %u\n",
+        neighbor_manifest.material_count,neighbor_manifest.reference_count,neighbor_identity_peak);
+    free(neighbor_manifest.materials);free(neighbor_manifest.references);free(neighbor_manifest.substrate);
     free(manifest.materials);free(manifest.references);free(manifest.substrate);
     for(i=0;i<6;i++)rf_vpp_close(maps+i);rf_lightmap_rgb_close(&rgb);
-    rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);rf_geometry_close(&geometry);rf_vpp_close(&archive);
+    rf_geomod_terrain_close(&neighbor_terrain);rf_geomod_terrain_close(&terrain);
+    rf_geomod_authored_post_close(&neighbor_owner);
+    rf_geomod_authored_post_close(&owner);rf_geometry_close(&geometry);rf_vpp_close(&archive);
     return 0;
 }

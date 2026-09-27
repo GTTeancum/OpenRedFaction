@@ -21,13 +21,27 @@ half-space margin is `0.118774864`, with witness
 `(126.743775,-1.903039,-17.181067)`.
 
 Clipping UID8219's compiled polygons against those tetrahedra finds positive
-area only on room-8 faces 5780 and 5784. This particular cut need not mutate
-the brush's room-13 or room-123 polygons, although a later cutter may. The
-current source-8123-only publication would leave the two room-8 polygons
-intact, so the existing rejection is correct. The next implementation must
-admit UID8219 as another editable owner, combine its room-8 output with
-UID8123 in one collision/render transaction, and preserve its other rooms.
+area only on room-8 faces 5780 and 5784. This particular cut does not touch
+that brush's room-13 or room-123 polygons, although a later cutter may.
+Extending the same read-only sweep to other overlapping brushes reveals four
+positive-area compiled contacts on detail brush UID9996 in room 121: faces
+4972, 4984, 4985 and 4998. Their compiled flags are 8. Other nearby brush
+bounds overlap, but their compiled polygons do not intersect this cutter.
+The original source-8123-only publication would leave both UID8219's room-8
+geometry and UID9996's room-121 detail intact, so the live rejection remains
+correct.
 
-This is geometric evidence of ownership, not a runtime demonstration of the
-second cut or its visual quality. The probe uses SciPy for half-space solving;
-the shipping C/Xbox build does not depend on SciPy.
+The C core now decodes and hashes UID8219 independently and can compose both
+cavity outputs into one bounded room-8 candidate. A focused collision probe
+replaces the 83 UID8123 and eight UID8219 room-8 face IDs together: a ray that
+previously hit UID8219 face 5780 at x=126.625 no longer hits that face, and an
+opposite ray meets the recessed crater at x=126.863. This proves the room-8
+geometry path, not a safe live second cut. Runtime publication must handle the
+intersected room-121 detail and cross-room ownership, then integrate paired
+admission, checkpoint history and renderer staging without regressing the
+first cut's save/load behavior.
+
+This is geometric and focused C collision evidence, not a runtime
+demonstration of the second cut or its visual quality. The Python probe uses
+SciPy for half-space solving; the shipping C/Xbox build does not depend on
+SciPy.

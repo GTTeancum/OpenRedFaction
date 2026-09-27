@@ -15,16 +15,21 @@ from inspect_geomod_source_topology import convex, load
 from probe_campaign_geomod_brush import parse_record, section_bytes
 
 
-def brush(uid):
+def brushes():
     data, _ = section_bytes("L1S2.rfl")
     count = struct.unpack_from("<I", data)[0]
     at = 4
     for _ in range(count):
         current = struct.unpack_from("<I", data, at)[0]
         record = parse_record(data, at, current)
-        if current == uid:
-            return record
+        yield record
         at += record["bytes"]
+
+
+def brush(uid):
+    for record in brushes():
+        if record["uid"] == uid:
+            return record
     raise ValueError(f"missing brush {uid}")
 
 
@@ -73,6 +78,18 @@ def polygon_area(poly):
                for i in range(1, len(poly) - 1))
 
 
+def clipped_face_area(vertices, hulls):
+    area = 0.0
+    for tetra in hulls:
+        poly = vertices
+        for plane in tetra.equations:
+            poly = clip_polygon(poly, plane)
+            if len(poly) < 3:
+                break
+        area += polygon_area(poly)
+    return area
+
+
 def main():
     points, kernel, radius = cutter()
     source = brush(8219)
@@ -100,25 +117,44 @@ def main():
         if face["source_word"] not in source_words:
             continue
         vertices = [np.array(p) for p in face["points"]]
-        area = 0.0
-        for tetra in hulls:
-            poly = vertices
-            for plane in tetra.equations:
-                poly = clip_polygon(poly, plane)
-                if len(poly) < 3:
-                    break
-            area += polygon_area(poly)
+        area = clipped_face_area(vertices, hulls)
         if area > 1e-5:
             affected.append({"face": face["id"], "room": face["room"]})
+    # The room-8 second owner is not the whole overlap story: nearby detail
+    # brushes can live in other compiled rooms but still occupy cutter space.
+    other_words = {}
+    cutter_lo, cutter_hi = points.min(axis=0), points.max(axis=0)
+    for record in brushes():
+        if record["uid"] in (8123, 8219):
+            continue
+        vertices = np.array([p for face in record["faces"] for p in face["points"]])
+        if np.any(cutter_hi < vertices.min(axis=0)) or np.any(cutter_lo > vertices.max(axis=0)):
+            continue
+        for face in record["faces"]:
+            other_words[face["source_word"]] = record["uid"]
+    other_affected = []
+    for face in compiled:
+        uid = other_words.get(face["source_word"])
+        if uid is None:
+            continue
+        area = clipped_face_area([np.array(p) for p in face["points"]], hulls)
+        if area > 1e-5:
+            other_affected.append({"uid": uid, "face": face["id"],
+                                   "room": face["room"], "area": area})
     result = {"brush_uid": 8219, "triangles": len(margins), "template_radius": radius,
               "cutter_box": [points.min(axis=0).tolist(), points.max(axis=0).tolist()],
               "brush_box": [solid.min(axis=0).tolist(), solid.max(axis=0).tolist()],
               "maximum_intersection_margin": max(margins),
               "witness": witnesses[best],
               "intersecting_triangles": [i for i, margin in enumerate(margins) if margin > 1e-4],
-              "affected_compiled_faces": affected}
+              "affected_compiled_faces": affected,
+              "other_affected_compiled_faces": other_affected}
     if max(margins) <= 0.05 or {(row["face"], row["room"]) for row in affected} != {(5780, 8), (5784, 8)}:
         raise AssertionError("The measured Driller/UID8219 intersection changed")
+    if {(row["uid"], row["face"], row["room"]) for row in other_affected} != {
+            (9996, 4972, 121), (9996, 4984, 121),
+            (9996, 4985, 121), (9996, 4998, 121)}:
+        raise AssertionError("The measured Driller/detail-brush intersection changed")
     print(json.dumps(result, indent=2))
 
 

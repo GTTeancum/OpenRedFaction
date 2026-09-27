@@ -58,9 +58,9 @@ int rf_geomod_authored_post_open(const rf_level *, const rf_geometry *, uint32_t
  * to replace the room with this shell. Scene/identity admission stays disabled.
  * Same owned lifetime, budget and no-output-on-error contract as above. */
 /* Bounded cavity source profiles: ctf06 UID66/room3 and UID148/room0,
- * plus L1S2 UID8123/room8 (48 authored faces,83 compiled windows).
- * The shared core now admits64 source faces and live UID8123 cuts. This does
- * not admit neighboring L1S2 UID8219 or authorize an unowned second cut. */
+ * plus L1S2 UID8123/room8 (48 authored faces,83 compiled windows) and
+ * UID8219/room8 (14 authored faces,eight room-8 compiled windows). The latter
+ * is decoded for a paired edit but not yet selected by the live scene. */
 int rf_geomod_authored_cavity_open_source(const rf_level *,const rf_geometry *,
     uint32_t source_uid,uint32_t budget,rf_geomod_authored_post **);
 int rf_geomod_authored_cavity_open(const rf_level *,const rf_geometry *,uint32_t,rf_geomod_authored_post **);

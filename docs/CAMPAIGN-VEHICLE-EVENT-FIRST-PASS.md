@@ -132,10 +132,15 @@ the largest interior margin is about 0.119 units at
 `(126.744,-1.903,-17.181)`. Clipping the compiled brush polygons against the
 same tetrahedra finds positive-area contact on room-8 faces 5780 and 5784;
 none of UID 8219's room-13 or room-123 polygons is touched by this particular
-cut. Thus the broad-box rejection is conservative in general, but **this cut
-is a real second-owner edit**, not a false positive. UID 8123 alone cannot
-erase those two faces. Joint room-8 publication and collision for both owners
-is the next implementation step; later cuts may require additional rooms.
+cut. A wider sweep also finds four intersected flags-8 detail faces belonging
+to UID 9996 in room 121. Thus the broad-box rejection is conservative in
+general, but **this cut reaches two additional owners**, not a false positive.
+The C core now decodes UID 8219 and produces a combined UID 8123/8219 room-8
+candidate; a focused collision ray verifies that it removes face 5780 and
+exposes a recessed crater. This is not live admission: room-121 detail,
+cross-room publication, checkpoint history and renderer staging still need
+coordinated treatment. See
+`docs/research/L1S2-DRILLER-SECOND-CUT-20260927.md` for the measurements.
 
 The first cut now survives an ordinary campaign quick-save and a fresh load on
 PC and stock-64-MiB XEMU. This exact L1S2 UID 8123/room-8 profile writes RFDS2

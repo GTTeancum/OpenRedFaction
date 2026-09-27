@@ -331,7 +331,7 @@ static int import_brush_oriented(const unsigned char *data, const brush_record *
                 s=geometry_source(g,candidate,&id);if(s)return s;
                 if(id!=source)continue;
                 s=rf_geometry_get_face(g,candidate,&visible);if(s)return s;
-                if(visible.room!=(b->uid==8123?8u:b->uid==148?0u:3u))continue;
+                if(visible.room!=((b->uid==8123 || b->uid==8219)?8u:b->uid==148?0u:3u))continue;
                 s=rf_geometry_initial_collision_filter(g,candidate,0,&filter);if(s)return s;
                 if(ordinary_source(&filter)){ref=candidate;break;}
             }
@@ -464,7 +464,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     uint32_t count, i, j, k, total_faces = 0, source_index = UINT32_MAX, nnear = 0, nfaces = 0, ncorners = 0,
                              wfaces = 0, wcorners = 0, fallback = UINT32_MAX, air = 0;
     uint64_t scratch, at, peak;
-    uint32_t source_room=source_uid==8123?8u:source_uid==148?0u:3u;
+    uint32_t source_room=(source_uid==8123 || source_uid==8219)?8u:source_uid==148?0u:3u;
     const beam_profile *beam=find_beam_profile(source_uid);
     const post_profile *post=find_post_profile(source_uid);
     rf_geomod_authored_detail_guard guard={0},*stored_guard=NULL;
@@ -472,7 +472,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (cavity ? (source_uid!=66 && source_uid!=148 && source_uid!=8123) : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
+    if (cavity ? (source_uid!=66 && source_uid!=148 && source_uid!=8123 && source_uid!=8219) : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -829,7 +829,7 @@ static int open_profile(const rf_level *level, const rf_geometry *geometry,
     if (!level || !geometry || !out || *out)
         return RF_RANGE;
     if (level->version != 180 ||
-        (source_uid==8123?strcmp(level->entry.name,"L1S2.rfl"):strcmp(level->entry.name,"ctf06.rfl")))
+        ((source_uid==8123 || source_uid==8219)?strcmp(level->entry.name,"L1S2.rfl"):strcmp(level->entry.name,"ctf06.rfl")))
         return RF_NOT_FOUND;
     section = rf_level_find(level, 0x2000000);
     if (!section)
@@ -975,13 +975,13 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
     const float maximum[3],uint32_t *reference) {
     const rf_geomod_authored_post_view *a;uint32_t i,j,k,corner;
     if(!o || !minimum || !maximum || !reference)return RF_RANGE;
-    a=&o->view;if((a->source_uid!=66 && a->source_uid!=148 && a->source_uid!=8123) || !o->cavity_obstacles)return RF_NOT_FOUND;
+    a=&o->view;if((a->source_uid!=66 && a->source_uid!=148 && a->source_uid!=8123 && a->source_uid!=8219) || !o->cavity_obstacles)return RF_NOT_FOUND;
     for(k=0;k<3;k++)if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || minimum[k]>maximum[k])return RF_RANGE;
     for(i=0;i<o->cavity_obstacle_count;i++) {
         for(k=0;k<3;k++)if(maximum[k]<o->cavity_obstacles[i][0][k]-1e-5f || minimum[k]>o->cavity_obstacles[i][1][k]+1e-5f)break;
         if(k==3)return RF_NOT_FOUND;
     }
-    if(a->source_uid==148 || a->source_uid==8123) {
+    if(a->source_uid==148 || a->source_uid==8123 || a->source_uid==8219) {
         uint32_t touched=0,ref;int status=cavity_surface_box_admit(a,minimum,maximum,&touched,&ref);
         if(!status){*reference=ref;return RF_OK;}
         if(touched || status!=RF_NOT_FOUND)return status;

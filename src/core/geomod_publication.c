@@ -460,6 +460,23 @@ int rf_geomod_publication_build_groups(const rf_geomod_publication_job *jobs, ui
     }
     return publication_copy(w, generation, vertices, vc, faces, fc, origins, out);
 }
+int rf_geomod_publication_build_cavity_groups(const rf_geomod_publication_job *jobs,uint32_t count,
+    uint32_t generation,rf_geomod_publication_work *w,
+    rf_geomod_vertex *vertices,uint32_t vc,rf_geomod_face *faces,uint32_t fc,
+    rf_geomod_publication_origin *origins,rf_geomod_mesh_view *out) {
+    uint32_t i,k;int status;
+    if(!jobs || !count || count>32 || !w || !vertices || !faces || !origins || !out)return RF_RANGE;
+    for(i=0;i<count;i++) {
+        if(jobs[i].crater_origin.owner==UINT32_MAX || jobs[i].solid_count ||
+           jobs[i].neighbors.face_count || jobs[i].neighbor_void_count)return RF_NOT_FOUND;
+        for(k=0;k<i;k++)if(jobs[i].crater_origin.owner==jobs[k].crater_origin.owner)return RF_FORMAT;
+    }
+    w->result.nv=w->result.nf=0;
+    for(i=0;i<count;i++) {
+        status=publication_append(jobs+i,w,NULL,1);if(status)return status;
+    }
+    return publication_copy(w,generation,vertices,vc,faces,fc,origins,out);
+}
 
 int rf_geomod_publication_clip_neighbors(const rf_geomod_mesh_view *mesh,
     const rf_geomod_publication_origin *input_origins,
