@@ -100,10 +100,14 @@ From the repository root after a Release build:
 ./build/pc/Release/rf_pc_play.exe Installed_Game
 ```
 
-WASD moves, arrow keys look, Ctrl holds crouch, and Escape or closing the window
-ends the session. Movement diagonals are normalized. Only the frontend's own
-window messages supply keyboard state; losing focus clears held keys. No global
-input polling, cursor capture, host input generation, or desktop automation is used.
+WASD moves, the mouse or arrow keys look, left click or F fires, right click or G
+uses alternate fire, Tab/Q cycles owned weapons, Ctrl holds crouch, and Escape or
+closing the window ends the session. Movement diagonals are normalized. The
+frontend reads focus-scoped raw mouse deltas and its own window button/key messages;
+losing focus clears held input and pending mouse motion. No global input polling,
+cursor capture, host input generation, or desktop automation is used. Mouse look
+is bounded to the shared one-radian-per-second input range; sensitivity and
+interactive behavior still need a user playtest.
 This is port-owned input policy. It starts at the same diagnostic miner placement
 as the Xbox input prototype, rather than the original campaign player spawn.
 

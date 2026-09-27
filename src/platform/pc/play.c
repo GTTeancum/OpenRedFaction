@@ -69,6 +69,8 @@ extern uint32_t rf_scene_actor_selector_frames[64][8],rf_scene_actor_locomotion_
 typedef struct player {
     HWND window;
     unsigned char keys[256];
+    LONG mouse_dx,mouse_dy;
+    unsigned char mouse_fire,mouse_alt_fire;
     unsigned char *dib;
     BITMAPINFO bitmap;
     rf_pc_raster raster;
@@ -119,7 +121,25 @@ static LRESULT CALLBACK window_proc(HWND window,UINT message,WPARAM key,LPARAM d
         return 0;
     case WM_KEYUP:if(key<256)p->keys[key]=0;return 0;
     case WM_SETFOCUS:p->focused=1;return 0;
-    case WM_KILLFOCUS:p->focused=0;memset(p->keys,0,sizeof(p->keys));return 0;
+    case WM_KILLFOCUS:
+        p->focused=0;memset(p->keys,0,sizeof(p->keys));
+        p->mouse_dx=p->mouse_dy=0;p->mouse_fire=p->mouse_alt_fire=0;return 0;
+    case WM_INPUT: {
+        RAWINPUT raw;UINT size=sizeof(raw);
+        if(p->focused && GetRawInputData((HRAWINPUT)data,RID_INPUT,&raw,&size,sizeof(RAWINPUTHEADER))==size &&
+           raw.header.dwType==RIM_TYPEMOUSE && !(raw.data.mouse.usFlags&MOUSE_MOVE_ABSOLUTE)) {
+            /* Bound a burst of device events before converting it to one tick. */
+            int64_t dx=(int64_t)p->mouse_dx+raw.data.mouse.lLastX;
+            int64_t dy=(int64_t)p->mouse_dy+raw.data.mouse.lLastY;
+            p->mouse_dx=(LONG)fmax(-4096,fmin(4096,(double)dx));
+            p->mouse_dy=(LONG)fmax(-4096,fmin(4096,(double)dy));
+        }
+        return DefWindowProcW(window,message,key,data);
+    }
+    case WM_LBUTTONDOWN:p->mouse_fire=1;return 0;
+    case WM_LBUTTONUP:p->mouse_fire=0;return 0;
+    case WM_RBUTTONDOWN:p->mouse_alt_fire=1;return 0;
+    case WM_RBUTTONUP:p->mouse_alt_fire=0;return 0;
     case WM_CLOSE:p->quit=1;return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps;HDC dc=BeginPaint(window,&ps);paint(p,dc);EndPaint(window,&ps);return 0;
@@ -272,7 +292,13 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
+    if(p->focused) {
+        if(p->mouse_dy)out->look[0]=fmaxf(-1,fminf(1,-p->mouse_dy*.025f));
+        if(p->mouse_dx)out->look[1]=fmaxf(-1,fminf(1,p->mouse_dx*.025f));
+        p->mouse_dx=p->mouse_dy=0;
+    }
     out->cycle_weapon=p->keys[VK_TAB] && p->keys['Q']?0:p->keys[VK_TAB]?1:p->keys['Q']?2:0;out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];
+    if(p->focused){out->fire|=p->mouse_fire;out->alt_fire|=p->mouse_alt_fire;}
     save=p->focused&&p->keys[VK_F5];load=p->focused&&p->keys[VK_F9];status=p->focused?controller_input(out,&save,&load):RF_OK;
     rf_scene_save_button(save&&!load);rf_scene_load_button(load);return status;
 }
@@ -547,8 +573,12 @@ int main(int argc,char **argv)
             WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,rect.right-rect.left,rect.bottom-rect.top,
             NULL,NULL,wc.hInstance,&p);
         if(!p.window){status=RF_IO;goto cleanup;}
+        {RAWINPUTDEVICE mouse={0};
+         mouse.usUsagePage=1;mouse.usUsage=2;mouse.hwndTarget=p.window;
+         if(!RegisterRawInputDevices(&mouse,1,sizeof(mouse)))
+             fputs("Raw mouse unavailable; keyboard and XInput remain active.\n",stderr);}
         ShowWindow(p.window,SW_SHOW);
-        puts(spawn_profile?"WASD move | arrows look | Ctrl crouch | Space jump | E use | Escape exit":"WASD move | arrows look | Ctrl crouch | Escape exit");
+        puts(spawn_profile?"WASD move | mouse/arrows look | left click/F fire | Tab/Q weapons | Ctrl crouch | Space jump | E use | Escape exit":"WASD move | mouse/arrows look | Ctrl crouch | Escape exit");
     }
     rf_scene_particle_view_enabled=getenv("RF_PARTICLE_VIEW")!=NULL;rf_scene_particle_view_back=getenv("RF_PARTICLE_VIEW_BACK")!=NULL;
     rf_scene_actor_live_enabled=1;rf_scene_actor_eye_enabled=1;

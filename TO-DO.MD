@@ -34,7 +34,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
-- USER PC hands-on pass: L1S1 starts unarmed and a broad text-only PC/Xbox real-spawn replay reaches the scripted Riot Stick grant and one attack alive; the image-free PC pickup/switch harness confirms handgun collection/equip and owned-only forward/backward cycling, but interactive keyboard/XInput pickup/switching and flicker still need hands-on verification before calling the build ready for gameplay testing.
+- USER PC hands-on pass: L1S1 starts unarmed and a broad text-only PC/Xbox real-spawn replay reaches the scripted Riot Stick grant and one attack alive; the image-free PC pickup/switch harness confirms handgun collection/equip and owned-only cycling, and the PC frontend now builds with focus-scoped mouse look/buttons, but interactive input, pickup/switching and flicker still need hands-on verification before calling the build ready for gameplay testing.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
