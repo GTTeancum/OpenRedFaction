@@ -32,6 +32,7 @@ typedef struct scene_checkpoint_world_context {
     uint32_t fresh_boot; /* Fresh owner state is replaced, not required to be independently saveable. */
     uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
+    const float *modified_min,*modified_max; /* Optional conservative bounds of the changed room. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
     uint32_t authored_rotating_npc; /* Stationary authored turret may rotate without translating. */
     uint32_t authored_center_shift_npc; /* Unmoved actor: bounded rotated sphere centers, checked against static world. */
@@ -42,10 +43,29 @@ typedef struct scene_checkpoint_world_context {
     const float *spawn_basis; /* Borrowed authored player body basis for original prop overlap. */
     uint32_t support_uid; /* Authored mover UID for a saved player; zero requires static support. */
 } scene_checkpoint_world_context;
+static int scene_checkpoint_world_outside_modified(const scene_checkpoint_world_context *c,
+    const rf_checkpoint_placement *p)
+{
+    uint32_t i,j,k;
+    if(!c->modified_min||!c->modified_max||!p->spheres)return 0;
+    for(i=0;i<p->count;i++){
+        const rf_physics_sphere *sphere=p->spheres+i;
+        uint32_t separated=0;
+        for(k=0;k<3;k++){
+            double center=p->position[k];
+            for(j=0;j<3;j++)center+=(double)p->basis[j*3+k]*sphere->center[j];
+            if(!isfinite(center)||!isfinite(sphere->radius)||sphere->radius<0)return 0;
+            if(center+sphere->radius<c->modified_min[k]||
+               center-sphere->radius>c->modified_max[k]){separated=1;break;}
+        }
+        if(!separated)return 0;
+    }
+    return 1;
+}
 static int scene_checkpoint_world_authored_pose(const scene_checkpoint_world_context *c,const rf_checkpoint_placement *p)
 {
     uint32_t k;
-    if(!c->allow_no_contact||!c->authored_static_unchanged||!c->authored_position||!c->authored_basis||
+    if(!c->allow_no_contact||!c->authored_position||!c->authored_basis||
        memcmp(p->position,c->authored_position,12))return 0;
     if(!c->authored_rotating_npc)
         for(k=0;k<9;k++)if(!isfinite(c->authored_basis[k])||fabsf(p->basis[k]-c->authored_basis[k])>1e-5f)return 0;
@@ -55,6 +75,7 @@ static int scene_checkpoint_world_authored_surface_pose(const scene_checkpoint_w
     const rf_checkpoint_placement *p)
 {
     uint32_t i,j,k;
+    if(!c->authored_static_unchanged)return 0;
     if(scene_checkpoint_world_authored_pose(c,p))return 1;
     if(!c->authored_center_shift_npc||!c->allow_no_contact||!c->authored_static_unchanged||
        !c->authored_position||!c->authored_basis||!p->spheres||
@@ -99,7 +120,7 @@ static int scene_checkpoint_world_authored_prop_overlap(const scene_checkpoint_w
     uint32_t sphere,const float other[3],double current_distance2,double limit2)
 {
     float baseline[3];double distance2=0;uint32_t axis;
-    if(!c->allow_no_contact||!c->authored_static_unchanged||!c->authored_position||!c->authored_basis||
+    if(!c->allow_no_contact||!c->authored_position||!c->authored_basis||
        memcmp(p->position,c->authored_position,12)||!scene_checkpoint_world_authored_prop(c,slot,prop)||
        scene_checkpoint_world_point(p->spheres[sphere].center,c->authored_basis,c->authored_position,baseline))return 0;
     for(axis=0;axis<3;axis++){double d=(double)baseline[axis]-other[axis];distance2+=d*d;}

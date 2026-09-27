@@ -58,8 +58,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
-    if(!s||!level||!tables_path||s->terrain||
-       (s->campaign_geomod && s->campaign_geomod->active)||combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
+    if(!s||!level||!tables_path||s->terrain||combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=sizeof(identity.level)){status=RF_RANGE;goto done;}
@@ -134,8 +133,9 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         if(!status)bytes+=extra;
     }
     SNAP_END(RF_WORLD_VEHICLE);
-    /* Ordinary static scene has no active terrain owner; DESTRUCTION is absent.
-     * Switch records are held by CAMPAIGN_HISTORY instead of duplicated. */
+    SNAP_START("destruction");status=scene_campaign_geomod_checkpoint_write(s,
+        buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_DESTRUCTION);
+    /* Switch records are held by CAMPAIGN_HISTORY instead of duplicated. */
     SNAP_START("startup");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&campaign_startup_inventory,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_STARTUP);
     SNAP_START("campaign_history");omissions=scene_campaign_history_checkpoint_omissions();
     status=scene_campaign_history_checkpoint_encode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CAMPAIGN_HISTORY);

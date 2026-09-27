@@ -151,3 +151,35 @@ done:
     rf_editor_brush_close(air+1);rf_editor_brush_close(air);free(scratch);
     return status;
 }
+/* RFWC DESTRUCTION v1: fixed authored-cut identity. The level/source identity
+ * belongs to the enclosing world checkpoint; geometry is regenerated from the
+ * installed event and shared CSG, not serialized as unbounded mesh data. */
+static int scene_campaign_geomod_checkpoint_write(const scene_stream *s,
+    unsigned char *out,uint32_t capacity,uint32_t *written)
+{
+    if(!s || !out || !written)return RF_RANGE;
+    if(!s->campaign_geomod || !s->campaign_geomod->active){*written=0;return RF_OK;}
+    if(capacity<12)return RF_RANGE;
+    memcpy(out,"RFCG",4);out[4]=1;out[5]=out[6]=out[7]=0;
+    out[8]=0xf0;out[9]=0x24;out[10]=out[11]=0; /* UID 9456. */
+    *written=12;return RF_OK;
+}
+static int scene_campaign_geomod_checkpoint_restore(scene_stream *s,
+    const void *data,uint32_t bytes)
+{
+    const unsigned char *p=data;uint32_t i,found=0;int status=RF_NOT_FOUND;
+    if(!bytes)return RF_OK;
+    if(!s || !s->campaign_geomod || s->campaign_geomod->active || !p || bytes!=12 ||
+       memcmp(p,"RFCG",4) || p[4]!=1 || p[5] || p[6] || p[7] ||
+       p[8]!=0xf0 || p[9]!=0x24 || p[10] || p[11])return RF_FORMAT;
+    for(i=0;i<campaign_events.count;i++){
+        const rf_level_event *event=&campaign_events.items[i].authored->record;
+        if(event->uid!=9456)continue;
+        if(++found!=1 || campaign_events.items[i].state.type!=10 ||
+           (event->flags[0]&255u)!=1 || !isfinite(event->values[0]) ||
+           event->values[0]<1)return RF_FORMAT;
+        status=scene_campaign_geomod_cut(s,event->position,event->values[0]);
+        if(status)return status;
+    }
+    return found==1?RF_OK:RF_NOT_FOUND;
+}

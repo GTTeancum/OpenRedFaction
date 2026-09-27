@@ -51,6 +51,8 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
     s->placement_next++;
     world.authored_position=NULL;world.authored_basis=NULL;world.authored_rotating_npc=world.authored_center_shift_npc=0;
+    if(!world.authored_static_unchanged &&
+       scene_checkpoint_world_outside_modified(&world,placement))world.authored_static_unchanged=1;
     /* Immutable sphere-owner binding identifies the class, without consulting
      * live positions. Empty sets take the point-only room path (speed unused). */
     for(i=0;i<campaign_npc_body_count;i++)if(placement->count&&
@@ -62,8 +64,7 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
          * 0x400000 owns moving support. Neither state may lose its contact. */
         world.allow_no_contact=!(campaign_npc_bodies[i].body.state.flags&(1u|0x400000u))&&
             !campaign_npc_bodies[i].support.handle;
-        if(world.allow_no_contact&&world.authored_static_unchanged&&
-           !s->envelope.sections[RF_WORLD_DESTRUCTION-1].bytes){
+        if(world.allow_no_contact){
             world.authored_position=campaign_seeds.records.items[i].record.position;
             world.authored_basis=campaign_seeds.records.items[i].record.orientation[0];
             world.authored_rotating_npc=!strcmp(campaign_seeds.records.items[i].record.class_name,"Auto Turret");

@@ -24,6 +24,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
     uint32_t vehicle_present=0,vehicle_base=0;
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
+    float modified_min[3]={0},modified_max[3]={0};
     const rf_world_checkpoint_slice *v;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!scene_live_load_active){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
@@ -45,7 +46,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     if(status)goto done;
     status=rf_world_checkpoint_decode(buffer,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&envelope);if(status)goto done;
-    if(envelope.sections[RF_WORLD_DESTRUCTION-1].bytes||envelope.sections[RF_WORLD_SWITCHES-1].bytes){status=RF_NOT_FOUND;goto done;}
+    if(envelope.sections[RF_WORLD_SWITCHES-1].bytes){status=RF_NOT_FOUND;goto done;}
     phase="npc_resources";catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64){status=RF_RANGE;goto done;}
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -55,10 +56,22 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(rows_count){rows=malloc(rows_count*sizeof(*rows));if(!rows){status=RF_IO;goto done;}}
     status=rf_npc_checkpoint_decode(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count);if(status)goto done;
     status=scene_npc_checkpoint_resources_require(rows,rows_count,budget,&added);if(status)goto done;free(rows);rows=NULL;
+    v=envelope.sections+RF_WORLD_DESTRUCTION-1;
+    if(v->bytes){phase="destruction";
+        status=scene_campaign_geomod_checkpoint_restore(stream,v->data,v->bytes);if(status)goto done;
+        if(!stream->campaign_geomod->mesh.vertex_count){status=RF_FORMAT;goto done;}
+        for(i=0;i<3;i++)modified_min[i]=modified_max[i]=stream->campaign_geomod->mesh.vertices[0].position[i];
+        for(uint32_t vertex=1;vertex<stream->campaign_geomod->mesh.vertex_count;vertex++)for(i=0;i<3;i++){
+            float coordinate=stream->campaign_geomod->mesh.vertices[vertex].position[i];
+            if(coordinate<modified_min[i])modified_min[i]=coordinate;
+            if(coordinate>modified_max[i])modified_max[i]=coordinate;
+        }
+    }
     mapping.offsets=actor_follow_world->offsets;mapping.slots=actor_follow_world->slots;mapping.count=actor_follow_world->geometry_count;mapping.textures.count=actor_follow_world->material_count;
     surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
     context.world=stream->collision;context.movers=&campaign_movers;context.metadata=campaign_body_surface;context.metadata_context=&surfaces;
-    context.dt=1.0f/60;context.authored_static_unchanged=1;context.fresh_boot=1;
+    context.dt=1.0f/60;context.authored_static_unchanged=!envelope.sections[RF_WORLD_DESTRUCTION-1].bytes;context.fresh_boot=1;
+    if(v->bytes){context.modified_min=modified_min;context.modified_max=modified_max;}
     phase="world";status=scene_world_restore_prepare(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget,&world);if(status)goto done;cost=world->allocated_bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;

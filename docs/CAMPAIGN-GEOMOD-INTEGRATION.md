@@ -17,7 +17,11 @@ an NPC draw-count difference (PC 3, Xbox 4). No visual frame was inspected
 under the user's no-images instruction; appearance, lighting, room visibility
 and visual parity remain unverified. This owner accepts only the first UID
 9456 cut. A repeated ON keeps it without making a second cut. Ordinary saves
-reject an active cut until destruction state can be serialized and restored.
+now encode this one authored cut as a 12-byte identity record. A fresh-scene PC
+save/load/resave replay rebuilds room 28 before actor placement, retains the
+same mesh and differential collision result, and emits the same 12-byte
+destruction section on resave. An uncut L1S1 save still loads. The Xbox build
+passes, but native HDD save/load of this cut has not yet been exercised.
 Other scripted cuts, repeated destruction, portal-spanning edits and campaign
 weapons still need general ownership and publication.
 
