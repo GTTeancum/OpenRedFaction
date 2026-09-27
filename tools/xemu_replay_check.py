@@ -362,6 +362,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       assert actual==expected(label),(label,actual,expected(label))
      report['combat']=words(monitor,symbol('rf_scene_combat'),8)
      assert report['combat']==expected('COMBAT') and report['combat'][7]==0,report['combat']
+     report['remote']=words(monitor,symbol('rf_scene_remote'),8)
+     assert report['remote']==expected('REMOTE') and report['remote'][7]==0,report['remote']
      forces=words(monitor,symbol('rf_scene_campaign_forces'),3)
      assert forces==expected('CAMPAIGN_FORCES') and forces[1]<=65536,forces
      report['campaign_forces']=forces

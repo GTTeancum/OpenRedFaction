@@ -251,3 +251,46 @@ No images or audio were captured or inspected. Reproduce with
 The remaining natural L1S1 path toward exit9019, its later armed actors and
 the gap between authored navigation components are still open. No full
 campaign or visual-parity claim follows from this opening route.
+
+## First walked GeoMod progression wall
+
+The no-image route `tools/replay_opening_wall_blocker.py` extends the real
+spawn through the graph's near side. The player passes NPC UID9382 without
+an attack, reaches navpoint134 near(-25.35,-1.62,29.59), and presses into
+the wall. Forward movement stops near(-22.36,-0.90,28.19); a jump is
+accepted at frame3650 but also cannot cross. This establishes an actual
+player collision blocker for this route, beyond the disconnected nav graph.
+Compiled room40 faces3460/3462/3463 belong to solid editor brush8715; the
+opposing room27 faces3501/3502 belong to brush8747. The near face at
+x=-21.75 is about0.61 units from the stopped player center. No mover is
+authored at this wall.
+
+The same recorded inputs collect authored Remote Charges UID8866 and8867
+beside the wall, then Medical Kit UID9789. The kit raises player health
+from23.2 to48.2; the later approach and retreat take some combat damage but
+leave the player alive. The route cycles to charge slot8, faces the wall,
+launches a charge, retreats, cycles to detonator slot9 and fires. PC trace
+records attachment at frame3964 and detonation at frame4056 at
+(-21.800,-0.742,29.564). `REMOTE` ends `[1,1,1,1,0,0,0,0]`, but both
+ordinary `GEOMOD` and `CAMPAIGN_GEOMOD` stay zero: the wall is not cut.
+The current `scene_terrain_open` wires weapon-driven edits only for the
+developer terrain, while ordinary L1S1 creates a separate scripted cutter
+fixed to room28. This explains the missing weapon cut; it does not establish
+that the player's chosen route is the only retail route.
+
+Stock-64-MiB XEMU `replay-20260927-013736` **PASS**es all4095 frames with
+matching PC/Xbox player life, pickup UIDs8866/8867/9789, weapon
+selection, Remote Charge start/launch/attachment/detonation counts and zero
+campaign cuts. The native verifier now compares the remote counter directly.
+There are3666 physical pages (14.32MiB) free at completion. No image or
+audio was captured or inspected. Reproduce after the preceding route tools
+with `python tools/replay_opening_wall_blocker.py`, then
+`python tools/xemu_replay_check.py artifacts/opening-exit/wall-blocker.bin
+--campaign-spawn --level L1S1.rfl --no-images --seconds 750`.
+
+The next implementation step is weapon-driven, authored-geometry cutting
+across the room40/27 wall pair. It must replace visible faces and collision
+on both sides, admit the cut under the level's GeoMod regions, persist the
+edit through saves, and stay inside stock64MiB. The existing room28 event
+cut is a useful component, but its single-room owner, brush IDs and render
+path cannot be treated as coverage for this barrier.
