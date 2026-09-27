@@ -732,7 +732,7 @@ uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,poin
 #define SCENE_AUTHORED_WRITER_BUDGET (1024u*1024u)
 #endif
 #ifndef SCENE_TERRAIN_FACES
-#define SCENE_TERRAIN_FACES 800
+#define SCENE_TERRAIN_FACES 1024
 #endif
 #ifndef SCENE_TERRAIN_SOURCE_VERTICES
 #define SCENE_TERRAIN_SOURCE_VERTICES 4096

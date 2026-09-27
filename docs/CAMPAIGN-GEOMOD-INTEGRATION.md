@@ -78,12 +78,25 @@ partitioned into collision-valid pieces, while untouched authored faces retain
 their original collision records. The PC probe removes face 3766 and retains
 499 polygons / 1,956 vertices from the 411 source faces. Combining these with
 368 crater-wall polygons yields a staged 867-face / 3,403-vertex room tree;
-its collision tree occupies 145,652 bytes. The current scene draw limit is
-800 faces, so this cannot yet be published through that owner. Raising or
-specializing the bound must include stock 64 MiB accounting. The generated
+its collision tree occupies 145,652 bytes. The earlier 800-face scene draw
+limit could not hold it; the new 1,024-face bound awaits stock 64 MiB runtime
+accounting. The generated
 walls also still need precise room assignment at portals before the staged
 tree is authoritative. Neither the render view nor live collision changes in
 the current build; the NXDK build only confirms the shared C code compiles.
+
+Room-scope admission now checks every other room's compiled face bounds and
+room-linked portal bounds against the cutter. For UID 9456, it finds zero
+foreign solid faces and zero touching room-28 portals; 12 nearby faces belong
+to room 15's operation-4/flag-8 detail brush UID 7030, which stays authored.
+The scan across all 160 L1S1 editor brushes showed operation 4 compiling to
+flag-8 detail faces, while operations 0/1/2 compile to flag-0 faces in this
+level. This is an observed L1S1 mapping, not a general rule for all levels.
+Cuts that touch another solid room or linked portal still need a grouped edit.
+The default scene face capacity has been raised from 800 to 1,024 so the
+867-face first cut has a bounded destination; PC and NXDK builds pass. Its
+stock-Xbox runtime allocation and headroom are not yet measured, and the
+staged tree is not yet bound to the scene.
 
 The next playable integration must derive an authored room owner and its
 source-to-compiled face mapping, apply the existing cutter through that room's

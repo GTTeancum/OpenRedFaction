@@ -140,6 +140,16 @@ int main(int argc,char **argv)
                 status=rf_geomod_collision_faces(&cutter,cutter_filters,cutter_positions,
                     RF_GEOMOD_STAR_VERTEX_LIMIT,cutter_collision,RF_GEOMOD_STAR_FACE_LIMIT);
                 if(status)return 27;
+                {
+                    static rf_geometry_portal portals[256];
+                    rf_geomod_campaign_room_scope scope;
+                    status=rf_geomod_campaign_room_scope_check(&geometry,28,cutter_collision,
+                        cutter.face_count,portals,256,&scope);
+                    if(status || scope.other_solid_faces || scope.touching_portals ||
+                       scope.other_detail_faces!=12 || scope.portal_links!=2)return 35;
+                    printf("PASS L1S1 room28 cut scope: foreign solid=%u detail=%u touching portals=%u\n",
+                        scope.other_solid_faces,scope.other_detail_faces,scope.touching_portals);
+                }
                 status=rf_geomod_campaign_room_retain(&geometry,28,cutter_collision,
                     cutter.face_count,&work.clip,retained_vertices,8192,retained_faces,
                     retained_unchanged,2048,&retained);
