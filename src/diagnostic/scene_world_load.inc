@@ -21,7 +21,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
-    scene_vehicle_checkpoint_record vehicle={0};uint32_t vehicle_present=0;
+    scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
+    uint32_t vehicle_present=0,vehicle_base=0;
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
     const rf_world_checkpoint_slice *v;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -62,7 +63,13 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     v=envelope.sections+RF_WORLD_VEHICLE-1;vehicle_present=v->bytes!=0;
-    if(vehicle_present){phase="vehicle_read";status=scene_vehicle_checkpoint_read(stream,v->data,v->bytes,&vehicle);if(status)goto done;}
+    if(vehicle_present){
+        vehicle_base=(rf_scene_vehicle_enabled==3||rf_scene_vehicle_enabled==5)?160u:128u;
+        if(v->bytes<vehicle_base){status=RF_FORMAT;goto done;}
+        phase="vehicle_read";status=scene_vehicle_checkpoint_read(stream,v->data,vehicle_base,&vehicle);if(status)goto done;
+        phase="vehicle_route";status=scene_world_vehicle_route_read(v->data,v->bytes,vehicle_base,&vehicle_route);if(status)goto done;
+        if(vehicle_route.active&&!vehicle.value.vehicle.alive){status=RF_FORMAT;goto done;}
+    }
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
         vehicle_present?&vehicle:NULL,&player);if(status)goto done;
     if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle);if(status)goto done;}
@@ -105,6 +112,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
+    if(vehicle_present)scene_world_vehicle_route_assign(&vehicle_route);
     scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);
     scene_remote_checkpoint_publish();
     scene_actor_body.state=player.body;rf_scene_actor_room_state=player.room;

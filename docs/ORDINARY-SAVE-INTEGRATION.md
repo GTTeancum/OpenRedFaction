@@ -1,5 +1,20 @@
 # Ordinary-level saves: implementation workstream
 
+## Route-following Jeep save/reload (2026-09-26)
+
+The ordinary L12S1 vehicle section now carries an optional 32-byte route
+trailer for an active authored `Follow_Waypoints` path. It stores stable event
+UID, mode, direction and cursor, then rebinds to the current level's route
+and vehicle on load. Existing vehicle records without the trailer still load.
+The seated Jeep save is 35,756 bytes; all 16 PC/Xbox components match, and a
+fresh stock 64 MiB XEMU load retains the driver and active node 1 after 64
+frames, with 3,033 pages free. See
+`artifacts/xemu/render-20260926-204039/report.json` and
+`artifacts/xemu/render-20260926-204254/report.json`. A PC continuation drives
+after reload, but exact uninterrupted position differs by roughly 0.11 m
+after 64 frames; later nodes and native post-load exit remain open. No images
+were captured.
+
 ## Current milestone: L17 native save/reload (2026-09-23)
 
 RFNC4 encodes NPC mover-controller backlinks as authored first-key UIDs and

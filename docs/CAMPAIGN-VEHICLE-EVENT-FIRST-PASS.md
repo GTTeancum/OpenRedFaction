@@ -96,6 +96,14 @@ match PC, and the loaded driver/vehicle state matches after 64 frames with
 `render-20260926-202555/report.json`. Campaign drill contact and native
 post-load driving remain to be checked.
 
+The L12S1 Jeep now also saves with its 34-node authored waypoint route active
+and the driver seated. A fresh stock 64 MiB Xbox load retains route node 1
+and matches PC route and vehicle state after 64 frames, with 3,033 pages free.
+The save's 16 components are byte-equal to PC. No images were captured;
+reports are `artifacts/xemu/render-20260926-204039/report.json` and
+`render-20260926-204254/report.json`. Exact uninterrupted travel after reload
+and the remainder of the route still need coverage.
+
 This is one selected owner per section, not general campaign vehicle
 creation. L1S3 contains other APC instances, and other sections and vehicle
 classes still need ownership. The remaining Jeep route nodes, scripted
@@ -104,5 +112,5 @@ port policy, not an exact original AI driver reconstruction. The vehicle exit
 sweep does not yet account for nearby NPC bodies. L7S3's authored
 `Never_Leave_Vehicle` has no links, so no implicit current-vehicle lock is
 invented. Pulse state and active exit locks are not yet represented in ordinary
-world saves, nor is an active vehicle route cursor. No visual image capture was
+world saves. The active vehicle route cursor is now saved. No visual image capture was
 used for this work.

@@ -37,3 +37,20 @@ the driver and matches PC vehicle state after 64 frames with 4,790 free
 physical pages (`render-20260926-202555/report.json`). A PC continuation
 drives after loading. Native post-load driving, other removed-trigger layouts
 and wider seated save points remain unverified.
+
+The L12S1 Jeep now saves while the driver is seated and its authored
+`Follow_Waypoints` event UID 9692 is active. The optional 32-byte `RFVR`
+vehicle trailer stores the event UID, route mode, direction and waypoint
+cursor. On load, the event UID rebinds to the current authored 34-node path
+and live Jeep owner; no runtime handle or borrowed path pointer is persisted.
+The old 128/160-byte vehicle records still load with no active route. A fresh
+PC load keeps node 1 active and continues driving for 64 frames. Relative to
+an uninterrupted 284-frame PC run, the resulting Jeep position differs by
+about 0.11 m, so exact rigid-motion continuation remains open.
+
+The no-image stock 64 MiB XEMU save wrote 35,756 bytes and all 16 components
+matched PC byte-for-byte (`artifacts/xemu/render-20260926-204039/report.json`).
+A separate XEMU load ran 64 frames with the driver seated and `VEHICLE_ROUTE`
+matching PC at active node 1; 3,033 physical pages (11.85 MiB) were free
+(`artifacts/xemu/render-20260926-204254/report.json`). Later route nodes,
+native post-load exit and more campaign vehicle owners remain open.

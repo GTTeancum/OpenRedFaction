@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
 
-- PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, seated APC and seated Driller save/reload pass PC/Xbox; Jeep and other vehicles, broader cross-level coverage, menu/slot selection, active destruction, moving-host charges and resource demand remain (saves approximately96%).
+- PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and seated APC, Driller and route-following Jeep save/reload pass PC/Xbox; other vehicles, broader cross-level coverage, menu/slot selection, active destruction, moving-host charges and resource demand remain (saves approximately97%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
@@ -23,7 +23,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route match, while campaign drilling, additional instances, full routes, NPC traffic and Jeep seated saves remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; APC drive/fire/exit and seated save/reload, Driller drive/exit and seated save/reload, and the Jeep's initial route and seated route-following save/reload match, while campaign drilling, additional instances, full routes and NPC traffic remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
@@ -45,7 +45,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicle saves: DEV APC/Jeep save/load retains motion, ammo, RNG, aiming and Jeep seat/reference; seated L1S3 APC and L1S2 Driller now save/reload through ordinary campaign persistence on PC/Xbox, while Jeep/other campaign seats, moving route state and native Jeep exit remain (docs/CAMPAIGN-VEHICLE-SAVE-FIRST-PASS.md).
+- Vehicle saves: DEV APC/Jeep save/load retains motion, ammo, RNG, aiming and Jeep seat/reference; seated L1S3 APC, L1S2 Driller and route-following L12S1 Jeep save/reload through ordinary campaign persistence on PC/Xbox, while other campaign seats, exact Jeep travel continuation and native Jeep exit remain (docs/CAMPAIGN-VEHICLE-SAVE-FIRST-PASS.md).
 
 - Jeep: Driver/gunner roles, parked seat switching, independent gunner camera and finite-ammo fire pass PC/Xbox; L12S1 boarding, exit and initial scripted driving match PC/Xbox with at least12.54MiB free, while live NPC combat, destruction coverage and other level placements remain (see docs/JEEP-FIRST-PASS.md).
 

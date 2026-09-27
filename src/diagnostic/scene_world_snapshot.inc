@@ -125,8 +125,14 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     SNAP_START("weapon_modes");status=scene_weapon_modes_checkpoint_capture(s,&modes);
     if(!status)status=rf_weapon_modes_checkpoint_encode(scene_remote_checkpoint_catalog_hash(),&modes,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_WEAPON_MODES);
     SNAP_START("remote");status=scene_remote_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_REMOTE);
-    SNAP_START("vehicle");if(RF_CHECKPOINT_FILE_MAX-at<RF_JEEP_CHECKPOINT_BYTES){status=RF_RANGE;goto done;}
-    status=scene_vehicle_checkpoint_capture(s,buffer+at,&bytes);SNAP_END(RF_WORLD_VEHICLE);
+    SNAP_START("vehicle");if(RF_CHECKPOINT_FILE_MAX-at<RF_JEEP_CHECKPOINT_BYTES+SCENE_WORLD_VEHICLE_ROUTE_BYTES){status=RF_RANGE;goto done;}
+    status=scene_vehicle_checkpoint_capture(s,buffer+at,&bytes);
+    if(!status&&!bytes&&campaign_vehicle_route.active)status=RF_FORMAT;
+    if(!status&&bytes){uint32_t extra=0;
+        status=scene_world_vehicle_route_write(buffer+at+bytes,RF_CHECKPOINT_FILE_MAX-at-bytes,&extra);
+        if(!status)bytes+=extra;
+    }
+    SNAP_END(RF_WORLD_VEHICLE);
     /* Ordinary static scene has no active terrain owner; DESTRUCTION is absent.
      * Switch records are held by CAMPAIGN_HISTORY instead of duplicated. */
     SNAP_START("startup");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&campaign_startup_inventory,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_STARTUP);
