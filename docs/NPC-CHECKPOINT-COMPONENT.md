@@ -1,5 +1,19 @@
 # Ordinary saves: NPC component preparation
 
+Current status (2026-09-27): RFNC5 adds an ordinary combat-alert bit at row
+offset 548 (552-byte base row), while RFNC1-4 remain readable. The scene
+captures a settled guard alerted to the player, then rebinds the player target
+and schedules a fresh 30-frame attack delay on load; burst/reload deadlines,
+scripted targets, active routes and one-shot combat/death clips still reject.
+The three focused codec/capture/restore tests pass; `python
+tools/check_ordinary_alert_component.py` confirms a live PC developer-room
+alert exports a 736-byte NPC component, and the NXDK build passes. A 60-frame
+stock-64-MiB XEMU guard fixture passes without images, with 1695 physical
+pages free (`artifacts/xemu/render-20260927-034803/report.json`). Its
+developer-room whole-save attempt still rejects, and no Xbox save/reload of
+an alerted NPC has been claimed. The natural L1S1 wall save still rejects
+UID8625's nonlooping frozen motion before other active actor states.
+
 Current status (2026-09-23): RFNC4 adds a 548-byte base row with the mover
 controller's authored UID at offset 544; zero means no backlink. RFNC1/2/3
 remain readable. The scene adapter rejects unknown backlinks and restores the
@@ -20,7 +34,7 @@ The codec allocates nothing, stages one row on the stack during validation, and 
 
 Dormant loaded rounds without ownership are retained because authored `None` removes category ownership while leaving ammunition. Selected weapons must be owned. Ammo must be nonnegative and loaded rounds cannot exceed the catalog magazine; historical reserve surplus is preserved. Retired actors and empty available/collected drops remain distinguishable. Class health/armor limits, valid affiliation, UID/class matching, world fit/support and actual resource availability belong to live preflight.
 
-This first component explicitly supports only basic AI modes-1/0/1/2/11. It does not contain active waypoint/Goto route cursors, explicit combat targets, awareness/reaction/reload/burst timing, damage/pain/death animation progress, projectiles, burning/shield state, attachments or carried objects. A scene adapter must reject those states until represented; it must not reset them silently. Physics must be settled upright and class/pose reconstruction must be validated before publication. Dead actors must have finished their death transition; restore retirement and persistent drop independently so reloading cannot respawn actors or duplicate pickups. A successful decode alone does not establish playable save fidelity.
+The earlier RFNC1 component supported only basic AI modes-1/0/1/2/11 and did not contain active waypoint/Goto route cursors, combat awareness/reaction/reload/burst timing, damage/pain/death animation progress, projectiles, burning/shield state, attachments or carried objects. Later versions add the narrow capabilities described above; unrepresented states still reject rather than silently reset. Physics must be settled upright and class/pose reconstruction validated before publication. Dead actors must finish their death transition; restore retirement and persistent drop independently so reloading cannot respawn actors or duplicate pickups. A successful decode alone does not establish playable save fidelity.
 
 Parent integration: add `src/core/npc_checkpoint.c` to PC/Xbox core sources and a focused `npc_checkpoint_tests` target linked to rf_core. Future RFCP framing and live actor staging must remain opt-in. Movers, event/trigger state, collected authored items, unsupported player systems and moving props are separate ordinary-save blockers. Tests were authored without running builds or gameplay in this task.
 

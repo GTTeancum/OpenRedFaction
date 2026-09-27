@@ -323,8 +323,9 @@ Both room collision trees retain the new cavity faces, while rendering submits
 those identical wall polygons once to avoid coplanar overlap.
 Wall-only and combined wall/script-cut save encoding and restore have been
 added, but a natural quick-save at frame4300 still fails before destruction
-serialization: active NPC UID8625 has `combat_alert=1`, and other opening
-actors also retain unsupported navigation, animation or combat state. The
+serialization: RFNC5 can represent UID8625's ordinary player alert, but its
+nonlooping frozen motion still rejects; other opening actors retain unsupported
+navigation, animation or combat state. The
 save milestone remains open until that broader NPC checkpoint admission is
 implemented and a live save/reload passes on PC and Xbox.
 

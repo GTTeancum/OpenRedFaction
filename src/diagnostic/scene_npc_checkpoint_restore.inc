@@ -280,6 +280,11 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         }
         o->damage.effects.health=e->saved.health;o->damage.effects.armor=e->saved.armor;o->damage.effects.affiliation=e->saved.affiliation;
         o->ai_mode.action_280=e->saved.ai_mode;o->ai_mode.clock_288=stage->now;
+        o->combat_alert=e->saved.combat_alert;
+        o->combat_due=o->combat_alert?(combat_frame==UINT32_MAX?30u:combat_frame+30u):0u;
+        o->combat_navigation_due=0;o->combat_burst_remaining=0;
+        o->combat_scripted=0;o->combat_target=o->combat_alert?campaign_player_object.handle:0;
+        o->combat_reload_due=0;o->combat_reload_weapon=0;
         o->controller_handle=e->controller_handle;
         o->object_flags=e->flags;memcpy(o->published,e->published,12);memcpy(o->previous,e->published,12);
         memset(o->look.body_angles,0,12);o->look.body_angles[1]=e->saved.yaw;memcpy(o->look.orientation,e->look_basis,36);

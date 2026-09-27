@@ -54,9 +54,15 @@ int main(void)
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE&&count==99&&!memcmp(rows,saved,sizeof(rows)));
     owners[0].script_move.active=0;owners[0].controller_handle=1234;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_FORMAT&&count==99&&!memcmp(rows,saved,sizeof(rows)));
-    owners[0].controller_handle=0;owners[1].combat_alert=1;
+    owners[0].controller_handle=0;campaign_player_object.handle=12345;
+    owners[1].combat_alert=1;owners[1].combat_target=campaign_player_object.handle;owners[1].combat_due=120;
+    {rf_npc_checkpoint_record alerted[2];
+     CHECK(!scene_npc_checkpoint_capture(&catalog,1000,alerted,2,&count)&&alerted[0].combat_alert==1);
+     CHECK(!alerted[1].combat_alert);}
+    owners[1].combat_target=12346;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE&&!memcmp(rows,saved,sizeof(rows)));
-    owners[1].combat_alert=0;owners[1].body.state.velocity[0]=1;
+    owners[1].combat_alert=owners[1].combat_target=owners[1].combat_due=0;
+    owners[1].body.state.velocity[0]=1;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE);owners[1].body.state.velocity[0]=0;
     owners[1].script_animation.active=1;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_FORMAT);owners[1].script_animation.active=0;

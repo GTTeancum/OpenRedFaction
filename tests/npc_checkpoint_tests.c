@@ -14,10 +14,10 @@ int main(void)
     c.weapons[0]=(rf_weapon_acquire_definition){0,100,12};c.weapons[1]=(rf_weapon_acquire_definition){1,5,0};
     rows[0].uid=7;rows[0].class_id=3;rows[0].health=80;rows[0].armor=15;rows[0].flags=0x4004;
     rows[0].position[0]=4;rows[0].yaw=.5f;rows[0].primary=0;rows[0].secondary=-1;rows[0].ai_mode=2;
-    rows[0].controller_uid=1234;
+    rows[0].controller_uid=1234;rows[0].combat_alert=1;
     rows[0].inventory.owned[0]=1;rows[0].inventory.loaded[0]=4;rows[0].inventory.reserve[0]=120;
     rows[0].eye_angles[0]=.218f;rows[0].eye_angles[1]=1e-7f;rows[0].eye_angles[2]=-.03f;
-    rows[1]=rows[0];rows[1].uid=10;rows[1].retired=1;rows[1].health=-3;
+    rows[1]=rows[0];rows[1].uid=10;rows[1].retired=1;rows[1].health=-3;rows[1].combat_alert=0;
     rows[1].drop=(rf_campaign_weapon_drop){1,0,0,{4,2,1}};
     CHECK(!rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&bytes)&&bytes==sizeof(blob));
     CHECK(!rf_npc_checkpoint_preflight(blob,bytes,identity,&c,&count)&&count==2);
@@ -29,13 +29,15 @@ int main(void)
      for(uint32_t i=0;i<2;i++)memcpy(legacy+64+i*RF_NPC_CHECKPOINT_ROW_V1,blob+64+i*RF_NPC_CHECKPOINT_ROW,RF_NPC_CHECKPOINT_ROW_V1);
      reseal(legacy,sizeof(legacy));
      CHECK(!rf_npc_checkpoint_decode(legacy,sizeof(legacy),identity,&c,out,2,&count));
-     CHECK(out[0].eye_angles[0]==0&&out[0].eye_angles[1]==0&&out[0].eye_angles[2]==0&&out[0].controller_uid==0&&out[1].uid==10);
+     CHECK(out[0].eye_angles[0]==0&&out[0].eye_angles[1]==0&&out[0].eye_angles[2]==0&&out[0].controller_uid==0&&out[0].combat_alert==0&&out[1].uid==10);
     }
     memcpy(original,blob,bytes);memset(out,0x5a,sizeof(out));memcpy(saved,out,sizeof(out));count=99;
     CHECK(rf_npc_checkpoint_decode(blob,bytes,wrong,&c,out,2,&count)==RF_FORMAT&&count==99&&!memcmp(saved,out,sizeof(out)));
     c.hash++;CHECK(rf_npc_checkpoint_preflight(blob,bytes,identity,&c,&count)==RF_FORMAT&&count==99);c.hash--;
     blob[90]^=1;CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,2,&count)==RF_FORMAT&&!memcmp(saved,out,sizeof(out)));
     memcpy(blob,original,bytes);blob[64+RF_NPC_CHECKPOINT_ROW+524]=4;blob[64+RF_NPC_CHECKPOINT_ROW+525]=blob[64+RF_NPC_CHECKPOINT_ROW+526]=blob[64+RF_NPC_CHECKPOINT_ROW+527]=0;reseal(blob,bytes);
+    CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,2,&count)==RF_FORMAT&&count==99&&!memcmp(saved,out,sizeof(out)));
+    memcpy(blob,original,bytes);blob[64+548]=2;reseal(blob,bytes);
     CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,2,&count)==RF_FORMAT&&count==99&&!memcmp(saved,out,sizeof(out)));
     memcpy(blob,original,bytes);CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,1,&count)==RF_RANGE&&!memcmp(saved,out,sizeof(out)));
     memset(blob,0xa5,sizeof(blob));memcpy(sentinel,blob,sizeof(blob));rows[1].uid=rows[0].uid;
@@ -67,13 +69,20 @@ int main(void)
         CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,wire,sizeof(wire),&n));
         CHECK(n==64+RF_NPC_CHECKPOINT_ROW+RF_NPC_CHECKPOINT_ANIMATION_BASE+24);
         CHECK(!rf_npc_checkpoint_decode(wire,n,identity,&c,&decoded,1,&got)&&got==1&&!memcmp(&actor,&decoded,sizeof(actor)));
-        {uint32_t old_bytes=n-4;
+        {uint32_t old_bytes=n-8;
          memcpy(legacy3,wire,64);memcpy(legacy3+64,wire+64,RF_NPC_CHECKPOINT_ROW_V3);
          memcpy(legacy3+64+RF_NPC_CHECKPOINT_ROW_V3,wire+64+RF_NPC_CHECKPOINT_ROW,n-64-RF_NPC_CHECKPOINT_ROW);
          legacy3[4]=3;for(uint32_t i=0;i<4;i++)legacy3[8+i]=(unsigned char)(old_bytes>>(8*i));
          reseal(legacy3,old_bytes);
          CHECK(!rf_npc_checkpoint_decode(legacy3,old_bytes,identity,&c,&decoded,1,&got));
-         CHECK(decoded.animation_present&&decoded.playback.completion.active.count==2&&decoded.controller_uid==0);}
+         CHECK(decoded.animation_present&&decoded.playback.completion.active.count==2&&decoded.controller_uid==0&&!decoded.combat_alert);}
+        {unsigned char legacy4[sizeof(wire)];uint32_t old_bytes=n-4;
+         memcpy(legacy4,wire,64);memcpy(legacy4+64,wire+64,RF_NPC_CHECKPOINT_ROW_V4);
+         memcpy(legacy4+64+RF_NPC_CHECKPOINT_ROW_V4,wire+64+RF_NPC_CHECKPOINT_ROW,n-64-RF_NPC_CHECKPOINT_ROW);
+         legacy4[4]=4;for(uint32_t i=0;i<4;i++)legacy4[8+i]=(unsigned char)(old_bytes>>(8*i));
+         reseal(legacy4,old_bytes);
+         CHECK(!rf_npc_checkpoint_decode(legacy4,old_bytes,identity,&c,&decoded,1,&got));
+         CHECK(decoded.controller_uid==1234&&!decoded.combat_alert&&decoded.animation_present);}
         CHECK(!rf_npc_checkpoint_decode(wire,n,identity,&c,&decoded,1,&got)&&decoded.controller_uid==1234);
         for(uint32_t i=0;i<2;i++){resources[i].comparison.weight=1;resources[i].comparison.end_tick=10000;resources[i].references=1;}
         resources[0].looping=1;resources[0].markers[0]=3000;resources[0].markers[1]=7500;

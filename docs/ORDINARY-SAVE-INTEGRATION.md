@@ -1,5 +1,18 @@
 # Ordinary-level saves: implementation workstream
 
+## Ordinary combat awareness component (2026-09-27)
+
+RFNC5 carries a settled NPC's ordinary player alert without storing a live
+player handle. Restore rebinds that target and starts a fresh 30-frame attack
+delay. RFNC1-4 decode remains supported. Focused codec, scene capture and
+scene restore checks pass; a live PC developer-room guard exports the alerted
+NPC component, and a 60-frame no-image stock-memory XEMU guard fixture passes
+with 1695 free pages. This does not admit active
+one-shot combat/death motion, routes, scripted targets or reloads. The natural
+L1S1 wall still fails ordinary save admission on those states; developer-room
+whole-save and native alerted-NPC reload remain unverified. No images were
+captured.
+
 ## Route-following Jeep save/reload (2026-09-26)
 
 The ordinary L12S1 vehicle section now carries an optional 32-byte route

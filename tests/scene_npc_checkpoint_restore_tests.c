@@ -91,6 +91,14 @@ int main(void)
     CHECK(poses[0].playback.completion.active.count==1&&poses[0].playback.completion.active.slots[0].motion==0);
     CHECK(rf_scene_defeated_actors.vitals[0].health==30&&owners[0].eye_position[0]==5);
     scene_npc_checkpoint_restore_discard(&stage);CHECK(!stage);
+    /* Ordinary awareness retains the player target and starts a fresh attack
+     * delay; simulation-frame deadlines and bursts are not serialized. */
+    rows[1].combat_alert=1;campaign_player_object.handle=12345;combat_frame=100;
+    fit_state=(fit_context){0};CHECK(!scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage));
+    CHECK(!scene_npc_checkpoint_restore_commit(stage));
+    CHECK(owners[1].combat_alert==1&&owners[1].combat_target==12345&&owners[1].combat_due==130);
+    scene_npc_checkpoint_restore_discard(&stage);rows[1].combat_alert=0;
+    owners[1].combat_alert=owners[1].combat_target=owners[1].combat_due=0;
     /* Resume actual script ownership and playback at its saved phase, including
      * one-shot and frozen clips; no event dispatch or motion restart. */
     for(i=0;i<3;i++){

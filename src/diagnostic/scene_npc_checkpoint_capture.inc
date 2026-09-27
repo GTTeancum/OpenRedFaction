@@ -87,9 +87,13 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     if(o->attachment_75c!=-1)return scene_npc_checkpoint_reject(index,"attachment_75c",0,o->attachment_75c,RF_RANGE);
     status=scene_npc_checkpoint_controller_uid(o->controller_handle,&controller_uid);
     if(status)return scene_npc_checkpoint_reject(index,"controller_handle",0,o->controller_handle,status);
-    NPC_CAPTURE_ZERO(combat_alert);NPC_CAPTURE_ZERO(combat_scripted);
-    NPC_CAPTURE_ZERO(combat_target);NPC_CAPTURE_ZERO(combat_burst_remaining);NPC_CAPTURE_ZERO(combat_due);
-    NPC_CAPTURE_ZERO(combat_reload_due);NPC_CAPTURE_ZERO(combat_navigation_due);NPC_CAPTURE_ZERO(damage.effects.burn);
+    if(o->combat_alert>1||(!o->combat_alert&&(o->combat_due||o->combat_navigation_due))||(key->retired&&o->combat_alert))
+        return scene_npc_checkpoint_reject(index,"combat_alert",0,o->combat_alert,RF_RANGE);
+    NPC_CAPTURE_ZERO(combat_scripted);
+    if(o->combat_target&&!(o->combat_alert&&o->combat_target==campaign_player_object.handle))
+        return scene_npc_checkpoint_reject(index,"combat_target",0,o->combat_target,RF_RANGE);
+    NPC_CAPTURE_ZERO(combat_burst_remaining);
+    NPC_CAPTURE_ZERO(combat_reload_due);NPC_CAPTURE_ZERO(damage.effects.burn);
 #undef NPC_CAPTURE_ZERO
     for(i=0;i<64;i++)if(o->firing.active[i])return scene_npc_checkpoint_reject(index,"firing.active",i,o->firing.active[i],RF_RANGE);
     if(o->registration.view){
@@ -147,6 +151,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     row->primary=o->view.weapons[0];row->secondary=o->view.weapons[1];
     row->drop=rf_scene_defeated_actors.drops[slot];row->inventory=o->inventory;row->ai_mode=o->ai_mode.action_280;
     row->controller_uid=controller_uid;
+    row->combat_alert=o->combat_alert;
     if(o->registration.view&&(o->script_animation.active||campaign_poses.items[index].playback.completion.active.count)){
         if(key->retired)return RF_RANGE;
         row->animation_present=1;row->script_animation.active=o->script_animation.active;
