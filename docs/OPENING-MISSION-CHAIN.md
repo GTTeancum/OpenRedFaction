@@ -455,3 +455,19 @@ to near geometry at(47.66,10.97,79.58); its five-unit blast cannot reach
 guard9404 around(59.42,13.03,77.11). This bounds the next route work to
 earlier health preservation, a closer explosive placement, or a verified
 covered approach; the probes establish no AI-damage defect or complete route.
+
+The close-corner ordinary save makes the first bend's pickup dependency clear.
+Guard8462's first hit reports40 damage. The baseline crosses Suit Repair
+UID9868 before that hit, granting25 armor and leaving the player alive at
+14.6 health/5.4 armor. A left/right sidestep, crouch or jump from the saved
+corner misses UID9868 and dies on the same first shot at local frame51;
+backtracking after30 frames also misses it. Backtracking after40-45 frames
+collects the armor and survives the first shot but dies to the next at local
+frame81. Retreating immediately avoids fire but returns toward the already
+cleared wall instead of progressing. From the earlier frame4245 wall save,
+bounded aim and pistol shots after20-40 forward frames do not damage8462;
+advancing60-80 frames without collecting the armor draws a fatal shot at
+local frame107. These are process-local text-only probes, not evidence that
+weapon hits or enemy damage are broken. A useful onward route must collect
+UID9868 and then continue past the guard's sightline or preserve more health
+before this encounter.
