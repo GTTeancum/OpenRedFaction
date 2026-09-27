@@ -333,6 +333,22 @@ performed under the no-images instruction.
 
 ## Far-side corridor and upper-bridge combat
 
+A save requested at moving frame4300 previously failed the settled-player
+velocity gate. RFPL4 now stores finite ground velocity up to32 units/second
+while retaining strict RFPL1/2 decoding and standing collision checks.
+`tools/check_opening_moving_save.py` saves the actual moving player at frame4320
+(5.88 horizontal,0.16 vertical units/second), loads in a fresh PC process and
+continues180 frames through the first guard hit. The player remains alive with
+14.6 health/5.4 armor and ends within0.15 units of the uninterrupted position.
+A bridge-cover save30 neutral frames later also passes the player gate but is
+still rejected by the live-NPC checkpoint, so that location is not yet a
+usable quick-save point. Stock-64-MiB XEMU saved the moving frame4320 state
+with all16 components byte-identical to PC and3607 physical pages free
+(`artifacts/xemu/render-20260927-054551`). A fresh Xbox process then loaded
+it and replayed181 inputs through guard8462; player vitals, enemy spread and
+combat telemetry matched PC with3883 pages free
+(`artifacts/xemu/render-20260927-055352`). No image was captured or inspected.
+
 An uninterrupted post-wall route and a resumed ordinary save originally took
 different damage near guard8462 despite matching player positions. A fresh
 load restarted the 30-frame staggered sight schedule and enemy gunfire random

@@ -40,7 +40,6 @@ static int render_exclusion_test(void)
 }
 int main(void)
 {
- static const char *const names[5]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher"};
  CHECK(!render_exclusion_test());
  scene_stream s={0};rf_player_checkpoint_catalog c;rf_physics_sphere sphere={{0,0,0},.6f,0,0};uint32_t i;
  rf_scene_dev_room_enabled=campaign_spawn=1;rf_scene_water_test_enabled=0;strcpy(campaign_current_level,"glass_house.rfl");
@@ -49,7 +48,8 @@ int main(void)
  campaign_player_damage.state.effects.health=50;campaign_player_damage.state.effects.class_health=100;campaign_player_damage.state.effects.class_armor=100;
  campaign_player_view.linked_handle=-1;rf_scene_actor_landing[1]=1;
  CHECK(!scene_checkpoint_player_scope(&s,1));campaign_crouched=1;CHECK(scene_checkpoint_player_scope(&s,1)==RF_RANGE);campaign_crouched=0;
- scene_actor_body.state.velocity[0]=.01f;CHECK(scene_checkpoint_player_scope(&s,1)==RF_RANGE);scene_actor_body.state.velocity[0]=0;
+ scene_actor_body.state.velocity[0]=5;CHECK(!scene_checkpoint_player_scope(&s,1));
+ scene_actor_body.state.velocity[0]=33;CHECK(scene_checkpoint_player_scope(&s,1)==RF_RANGE);scene_actor_body.state.velocity[0]=0;
  combat_trigger.cooldown=1;CHECK(scene_checkpoint_player_scope(&s,1)==RF_RANGE);combat_trigger.cooldown=0;
  rf_scene_rockets[3]=1;CHECK(scene_checkpoint_player_scope(&s,1)==RF_RANGE);rf_scene_rockets[3]=0;
  campaign_player_view.linked_handle=123;CHECK(scene_checkpoint_player_scope(&s,1)==RF_RANGE);campaign_player_view.linked_handle=-1;
@@ -72,17 +72,24 @@ int main(void)
  rf_scene_player_checkpoint_enabled=1;rf_scene_player_checkpoint_state[1]=1;
  rf_scene_actor_landing[1]=3;scene_actor_body.state.flags=0x20600001u;
  campaign_support_handle=99;campaign_support_velocity[1]=1;scene_actor_body.state.velocity[1]=.001f;
- scene_checkpoint_player_locomotion();
+ scene_checkpoint_player_locomotion(&s);
  CHECK(rf_scene_actor_landing[1]==1&&rf_scene_actor_landing[2]==0);
  CHECK(scene_actor_body.state.flags==0x20000001u&&!campaign_support_handle&&campaign_support_velocity[1]==0&&scene_actor_body.state.velocity[1]==.001f);
- rf_scene_player_checkpoint_enabled=0;rf_scene_actor_landing[1]=3;scene_checkpoint_player_locomotion();CHECK(rf_scene_actor_landing[1]==3);
- rf_scene_player_checkpoint_enabled=1;rf_scene_player_checkpoint_state[1]=0;scene_checkpoint_player_locomotion();CHECK(rf_scene_actor_landing[1]==3);
+ rf_scene_player_checkpoint_enabled=0;rf_scene_actor_landing[1]=3;scene_checkpoint_player_locomotion(&s);CHECK(rf_scene_actor_landing[1]==3);
+ rf_scene_player_checkpoint_enabled=1;rf_scene_player_checkpoint_state[1]=0;scene_checkpoint_player_locomotion(&s);CHECK(rf_scene_actor_landing[1]==3);
  rf_scene_player_checkpoint_enabled=0;
- campaign_weapon_supply.names.count=5;rf_scene_weapon_supply[3]=123;
- for(i=0;i<5;i++){strcpy(campaign_weapon_supply.names.names[i],names[i]);campaign_weapon_supply.definitions[i]=(rf_weapon_acquire_definition){0,(int32_t)(100+i),10};}
- CHECK(!scene_checkpoint_player_catalog(&c)&&c.count==5&&c.hash==123&&c.reserve_capacity[0]==104&&c.health_capacity==100);
- for(i=0;i<5;i++)CHECK(c.supported[i]==1);for(i=5;i<64;i++)CHECK(!c.supported[i]);
- campaign_weapon_supply.names.names[4][0]=0;CHECK(scene_checkpoint_player_catalog(&c)==RF_FORMAT);
+ campaign_weapon_supply.names.count=0;rf_scene_weapon_supply[3]=123;
+ for(i=0;i<SCENE_WEAPON_SLOTS;i++){
+  uint32_t j,found=0;const char *name=campaign_weapon_names[i];
+  for(j=0;j<campaign_weapon_supply.names.count;j++)if(!strcmp(campaign_weapon_supply.names.names[j],name))found=1;
+  if(found)continue;
+  j=campaign_weapon_supply.names.count++;
+  strcpy(campaign_weapon_supply.names.names[j],name);
+  campaign_weapon_supply.definitions[j]=(rf_weapon_acquire_definition){0,(int32_t)(100+j),10};
+ }
+ CHECK(!scene_checkpoint_player_catalog_mode(&c,0)&&c.count==campaign_weapon_supply.names.count&&c.hash==123&&c.health_capacity==100);
+ CHECK(c.supported[rf_weapon_name_find(&campaign_weapon_supply.names,"12mm handgun")]==1);
+ campaign_weapon_supply.names.names[0][0]=0;CHECK(scene_checkpoint_player_catalog_mode(&c,0)==RF_FORMAT);
  CHECK(!transport_semantic_test());
- puts("PASS scene RFCP settled-mode, dynamic-owner and supported catalog gates");return 0;
+ puts("PASS scene RFCP ground-motion, dynamic-owner and supported catalog gates");return 0;
 }

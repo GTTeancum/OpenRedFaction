@@ -54,7 +54,13 @@ int main(void)
  CHECK(!rf_player_checkpoint_decode(changed,544,&c,&decoded)&&!memcmp(bad.velocity,decoded.velocity,12));
  CHECK(!rf_player_checkpoint_encode(&decoded,&c,encoded,544)&&!memcmp(changed,encoded,544));
  for(i=0;i<3;i++)for(j=0;j<3;j++){memcpy(encoded,changed,544);put(encoded+68+i*4,j==0?0x7fc00000u:j==1?0x7f800000u:0x3f800000u);reject(encoded,544,&c);}
- bad.velocity[0]=nextafterf(.001f,INFINITY);CHECK(rf_player_checkpoint_validate(&bad,&c,NULL,NULL)==RF_FORMAT);
+ bad.velocity[0]=nextafterf(.001f,INFINITY);
+ CHECK(!rf_player_checkpoint_encode(&bad,&c,changed,544)&&changed[4]==4);
+ CHECK(!rf_player_checkpoint_decode(changed,544,&c,&decoded)&&decoded.velocity[0]==bad.velocity[0]);
+ changed[4]=2;CHECK(rf_player_checkpoint_decode(changed,544,&c,&decoded)==RF_FORMAT);
+ bad.velocity[0]=32;bad.velocity[1]=-5;CHECK(!rf_player_checkpoint_encode(&bad,&c,changed,544)&&changed[4]==4);
+ CHECK(!rf_player_checkpoint_decode(changed,544,&c,&decoded)&&!memcmp(decoded.velocity,bad.velocity,12));
+ bad.velocity[0]=nextafterf(32.f,INFINITY);CHECK(rf_player_checkpoint_validate(&bad,&c,NULL,NULL)==RF_FORMAT);
  CHECK(!rf_player_checkpoint_decode(bytes,544,&c,&decoded)&&decoded.velocity[0]==0&&decoded.velocity[1]==0&&decoded.velocity[2]==0);
- puts("PASS RFPL v1/v2 roundtrip/residual velocity/truncation/pose/catalog/ammo/rollback boundaries");return 0;
+ puts("PASS RFPL v1/v2/v4 roundtrip/ground velocity/truncation/pose/catalog/ammo/rollback boundaries");return 0;
 }
