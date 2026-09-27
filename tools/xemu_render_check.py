@@ -243,6 +243,13 @@ def main():
         raise RuntimeError('Unexpected existing disc/scene-fixture.vpp; inspect prior fixture restoration before another run')
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
+    if args.quick_save_frame is not None or args.quick_load_frame is not None:
+        # Isolated PC save slots use this directory as cwd; campaign terrain and
+        # the Driller still load their shared templates by relative build path.
+        templates = run / 'build/data'
+        templates.mkdir(parents=True)
+        for name in ('geomod-template.bin', 'driller-single.bin', 'driller-double.bin'):
+            shutil.copyfile(root / 'build/data' / name, templates / name)
     print('Run:', run, flush=True)
     report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, goto_uid=args.goto_uid, goto_frame=args.goto_frame, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, trigger_approach_uid=args.trigger_approach_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,

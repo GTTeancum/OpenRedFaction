@@ -8,7 +8,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, active Shoot_At, resumed guard combat, moving-ground player and bridge-cover live-NPC saves/reloads work on PC/Xbox; other scripted targets remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, the first L1S2 Driller cut, active Shoot_At, resumed guard combat, moving-ground player and bridge-cover live-NPC saves/reloads work on PC/Xbox; further authored terrain owners and scripted targets remain open (saves approximately99%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
@@ -30,7 +30,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; the Driller makes one live PC/Xbox cut with recessed collision and its authored-terrain checkpoint stages on PC, while the next cutter reaches neighboring UID8219's three-room boundary and ordinary save integration, live traversal and broader routes remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; the Driller makes one live PC/Xbox cut with recessed collision and post-cut ordinary save/load works on PC/Xbox, while the next cutter reaches neighboring UID8219's three-room boundary and live traversal and broader routes remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 

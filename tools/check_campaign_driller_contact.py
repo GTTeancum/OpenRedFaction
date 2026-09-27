@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import struct
 import subprocess
 
@@ -29,9 +30,42 @@ def input_bytes():
     return b"RFI5" + struct.pack("<I", 44) + b"".join(rows)
 
 
+def check_world_save(output, inputs):
+    run = output / "ordinary-save"
+    (run / "build/data").mkdir(parents=True, exist_ok=True)
+    for name in ("geomod-template.bin", "driller-single.bin", "driller-double.bin"):
+        source, target = ROOT / "build/data" / name, run / "build/data" / name
+        if not target.exists() or not os.path.samefile(source, target):
+            shutil.copyfile(source, target)
+    neutral = run / "neutral.bin"
+    neutral.write_bytes(b"RFI5" + struct.pack("<I", 44) + bytes(60 * 44))
+    env = {key: value for key, value in os.environ.items() if not key.startswith("RF_REPLAY_")}
+    env.update(RF_REPLAY_LEVEL="L1S2.rfl", RF_REPLAY_ARCHIVE="levels1.vpp",
+               RF_REPLAY_ACTOR_UID="8122")
+    for phase, replay, extra in (
+        ("save", inputs, {"RF_REPLAY_QUICKSAVE_FRAME": "270"}),
+        ("load", neutral, {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(run / "redfaction-save")})):
+        process = subprocess.run([str(ROOT / "build/pc/Release/rf_pc_play.exe"),
+                                  "--spawn-telemetry-replay", str(ROOT / "Installed_Game"), str(replay)],
+                                 cwd=run, env=dict(env, **extra), capture_output=True, text=True)
+        log = process.stdout + process.stderr
+        (run / f"{phase}.log").write_text(log)
+        process.check_returncode()
+        if phase == "save":
+            if ("DRILL_CUT 249 0 0 1 " not in log or "QUICK_SAVE frame270 status0" not in log or
+                    "WORLD_SNAPSHOT_COMPONENT destruction " not in log):
+                raise AssertionError("Post-cut ordinary quick-save did not complete")
+        else:
+            if ("WORLD_SNAPSHOT_LOADED " not in log or "VEHICLE_SAVE_RESTORE profile1 " not in log or
+                    not re.search(r"^TERRAIN_PUBLICATION 171 707 1 1 ", log, re.M)):
+                raise AssertionError("Fresh load did not restore the cut and seated Driller")
+    return {"result": "PASS", "scope": "Text-only live L1S2 cut, ordinary quick-save and fresh PC load"}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "artifacts/driller-campaign-contact")
+    parser.add_argument("--save-load", action="store_true", help="Also check ordinary post-cut save and fresh load without images")
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -72,7 +106,9 @@ def main():
         raise AssertionError("committed cut did not publish the room geometry")
     print(json.dumps(dict(result="PASS", level="L1S2.rfl", actor_uid=8122,
                           contacts=contacts, published_faces=int(publication.group(1)),
-                          scope="First live PC cut and publication; collision hole, later cuts, save and Xbox remain open")))
+                          scope="First live PC cut and publication; collision hole and later cuts remain open")))
+    if args.save_load:
+        print(json.dumps(check_world_save(output, inputs)))
 
 
 if __name__ == "__main__":

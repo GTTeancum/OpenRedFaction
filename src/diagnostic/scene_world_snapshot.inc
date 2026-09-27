@@ -4,6 +4,12 @@
 /* Ordinary same-level profile. Components capture one paused endpoint;
  * restore performs resource/world/history admission before publication. */
 typedef struct scene_world_snapshot_identity {unsigned char bytes[32];char level[64];} scene_world_snapshot_identity;
+static int scene_world_l1s2_authored_terrain(const scene_stream *s)
+{
+    return s && s->terrain && s->terrain_authored && s->terrain_publication &&
+        s->terrain_source_count<=1 && !strcmp(campaign_current_level,"L1S2.rfl") &&
+        s->terrain_authored->asset_view.source_uid==8123 && s->terrain_authored->asset_view.room==8;
+}
 static int scene_world_snapshot_validate(const void *data,uint32_t bytes,void *context)
 {
     const scene_world_snapshot_identity *identity=context;rf_world_checkpoint bundle;int status;
@@ -58,7 +64,8 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
-    if(!s||!level||!tables_path||s->terrain||combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
+    if(!s||!level||!tables_path||(s->terrain&&!scene_world_l1s2_authored_terrain(s))||
+       combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=sizeof(identity.level)){status=RF_RANGE;goto done;}
@@ -140,8 +147,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         if(!status)bytes+=extra;
     }
     SNAP_END(RF_WORLD_VEHICLE);
-    SNAP_START("destruction");status=scene_campaign_geomod_checkpoint_write(s,
-        buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_DESTRUCTION);
+    SNAP_START("destruction");status=scene_world_l1s2_authored_terrain(s)?
+        scene_authored_checkpoint_write(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes):
+        scene_campaign_geomod_checkpoint_write(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);
+    SNAP_END(RF_WORLD_DESTRUCTION);
     /* Switch records are held by CAMPAIGN_HISTORY instead of duplicated. */
     SNAP_START("startup");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&campaign_startup_inventory,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_STARTUP);
     SNAP_START("campaign_history");omissions=scene_campaign_history_checkpoint_omissions();

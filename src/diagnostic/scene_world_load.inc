@@ -1,6 +1,7 @@
 #ifndef RF_SCENE_WORLD_LOAD_INCLUDED
 #define RF_SCENE_WORLD_LOAD_INCLUDED
-/* First ordinary loader: pristine static world, standing player, settled NPCs.
+/* Ordinary loader: pristine world or the admitted L1S2 authored terrain cut,
+ * standing/seated player and settled NPCs.
  * Called once after frame-zero initialization, before the next input tick.
  * All gameplay owners validate before assignment; cache demand may remain on
  * an aborted load and is owned by normal scene cleanup. */
@@ -19,10 +20,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
+    scene_authored_checkpoint_stage *terrain_stage=NULL;
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
-    uint32_t vehicle_present=0,vehicle_base=0;
+    uint32_t vehicle_present=0,vehicle_base=0,authored_terrain=0,authored_cuts=0;
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
     float modified_min[3]={0},modified_max[3]={0};
     const rf_world_checkpoint_slice *v;
@@ -31,7 +33,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[8]=1;
-    if(!stream||!level||!tables_path||!stream->collision||stream->terrain||stream->terrain_authored||stream->terrain_publication||
+    if(!stream||!level||!tables_path||!stream->collision||
+       (stream->terrain&&!scene_world_l1s2_authored_terrain(stream))||
+       (!stream->terrain&&(stream->terrain_authored||stream->terrain_publication))||
        stream->terrain_history_count||stream->terrain_publication_serial){status=RF_RANGE;goto done;}
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=64){status=RF_FORMAT;goto done;}
@@ -57,7 +61,24 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=rf_npc_checkpoint_decode(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count);if(status)goto done;
     status=scene_npc_checkpoint_resources_require(rows,rows_count,budget,&added);if(status)goto done;free(rows);rows=NULL;
     v=envelope.sections+RF_WORLD_DESTRUCTION-1;
-    if(v->bytes){phase="destruction";
+    if(v->bytes>=4 && !memcmp(v->data,"RFDS",4)){
+        rf_geomod_terrain_view edited;
+        if(!scene_world_l1s2_authored_terrain(stream)){status=RF_FORMAT;goto done;}
+        phase="authored_terrain";status=scene_authored_checkpoint_stage_prepare(stream,v->data,v->bytes,NULL,&terrain_stage);
+        if(status)goto done;
+        authored_cuts=terrain_stage->cuts;
+        status=scene_authored_checkpoint_stage_commit(terrain_stage);if(status)goto done;
+        scene_authored_checkpoint_stage_discard(&terrain_stage);authored_terrain=1;
+        status=scene_terrain_publication_view(stream,&edited);if(status)goto done;
+        for(i=0;i<edited.mesh.vertex_count;i++)for(uint32_t axis=0;axis<3;axis++){
+            float coordinate=edited.mesh.vertices[i].position[axis];
+            if(!i){modified_min[axis]=modified_max[axis]=coordinate;}
+            else {if(coordinate<modified_min[axis])modified_min[axis]=coordinate;
+                  if(coordinate>modified_max[axis])modified_max[axis]=coordinate;}
+        }
+        if(authored_cuts && !edited.mesh.vertex_count){status=RF_FORMAT;goto done;}
+    }else if(v->bytes){phase="destruction";
+        if(stream->terrain){status=RF_FORMAT;goto done;}
         status=scene_campaign_geomod_checkpoint_restore(stream,v->data,v->bytes);if(status)goto done;
         {const rf_geomod_mesh_view *edited[3]={
             stream->campaign_geomod && stream->campaign_geomod->active?&stream->campaign_geomod->mesh:NULL,
@@ -77,8 +98,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     mapping.offsets=actor_follow_world->offsets;mapping.slots=actor_follow_world->slots;mapping.count=actor_follow_world->geometry_count;mapping.textures.count=actor_follow_world->material_count;
     surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
     context.world=stream->collision;context.movers=&campaign_movers;context.metadata=campaign_body_surface;context.metadata_context=&surfaces;
-    context.dt=1.0f/60;context.authored_static_unchanged=!envelope.sections[RF_WORLD_DESTRUCTION-1].bytes;context.fresh_boot=1;
-    if(v->bytes){context.modified_min=modified_min;context.modified_max=modified_max;}
+    context.dt=1.0f/60;context.authored_static_unchanged=!v->bytes||(authored_terrain&&!authored_cuts);context.fresh_boot=1;
+    if(v->bytes&&(!authored_terrain||authored_cuts)){context.modified_min=modified_min;context.modified_max=modified_max;}
+    if(authored_terrain&&authored_cuts)context.modified_rooms[context.modified_room_count++]=stream->terrain_authored->asset_view.room;
     if(stream->campaign_geomod&&stream->campaign_geomod->active)context.modified_rooms[context.modified_room_count++]=28;
     if(stream->campaign_wall&&stream->campaign_wall->active){
         context.modified_rooms[context.modified_room_count++]=stream->campaign_wall->overlay[0].room;
@@ -183,6 +205,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
 #endif
     if(status)printf("WORLD_SNAPSHOT_LOAD_REJECT phase%s status%d\n",phase,status);
+    scene_authored_checkpoint_stage_discard(&terrain_stage);
     scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;

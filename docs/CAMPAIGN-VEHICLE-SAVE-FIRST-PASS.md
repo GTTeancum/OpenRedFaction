@@ -38,6 +38,17 @@ physical pages (`render-20260926-202555/report.json`). A PC continuation
 drives after loading. Native post-load driving, other removed-trigger layouts
 and wider seated save points remain unverified.
 
+The first live L1S2 cut is also retained by ordinary saves. RFDS2 occupies the
+world destruction section for this exact UID8123/room-8 terrain owner; the
+fresh loader rebuilds edited room collision before placing the seated player,
+NPCs and Driller. A no-image 330-frame PC/Xbox replay saved after the cut at
+frame 270, and a separate 60-frame load matched the 171-face one-cut terrain
+publication and vehicle state on both platforms. The Xbox runs finished with
+3,752 and 3,720 free physical pages respectively. See
+`artifacts/xemu/render-20260927-081157/report.json` and
+`render-20260927-081415/report.json`. Continued drilling and other authored
+terrain owners remain open.
+
 The L12S1 Jeep now saves while the driver is seated and its authored
 `Follow_Waypoints` event UID 9692 is active. The optional 32-byte `RFVR`
 vehicle trailer stores the event UID, route mode, direction and waypoint

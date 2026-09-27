@@ -67,22 +67,18 @@ replays match PC/Xbox vehicle state on stock XEMU. The L1S2 Driller has
 4,983 pages (19.46 MiB) free; the L1S3 APC has 4,993 pages (19.50 MiB) free.
 In separate 220-frame drive/fire/exit replays, both vehicles move and exit on
 PC/Xbox; the APC launches three primary shots with matching state. The Driller
-has no drill contact in that short campaign replay, so actual L1S2 excavation
-remains unverified. All runs used `--no-images`; reports are
+has no drill contact in that short campaign replay; the later contact test is
+described below. All runs used `--no-images`; reports are
 `artifacts/xemu/render-20260926-184928/report.json`,
 `artifacts/xemu/render-20260926-185103/report.json`,
 `artifacts/xemu/render-20260926-185319/report.json`, and
 `artifacts/xemu/render-20260926-185512/report.json`.
 
-The campaign drilling gap is structural, not just an untested control input.
-`scene_driller_excavate` requires `terrain`, `terrain_authored` and a template
-before it can publish a cut, while ordinary L1S2 loading does not open the
-editable authored terrain owner (currently opened for `ctf06.rfl`). The
-L1S1 wall's dedicated room cut is a separate path. L1S2's vehicle contact
-must be connected to an admitted campaign GeoMod source with collision,
-render publication, checkpoint history and a stock-memory budget before
-campaign drilling can be called functional. The existing 220-frame drive
-replay recorded no drill contact; it proves boarding/driving/exit only.
+Campaign drilling required an editable authored terrain owner, collision and
+render publication, checkpoint history and a stock-memory budget. UID8123 now
+supplies that first L1S2 room-8 owner. The L1S1 wall's dedicated room cut is a
+separate path. The earlier 220-frame drive replay recorded no drill contact;
+it proves boarding, driving and exit only.
 
 The installed L1S2 editor source narrows the excavation candidates. A
 read-only decode of all 389 declared brush records places the authored
@@ -134,18 +130,19 @@ could prove a false positive, or multi-room publication may be required.
 Neither has been established. The focused test preserves this rejection
 instead of allowing an unowned edit.
 
-An ordinary process-local quick-save requested after the first cut currently
-returns `RF_RANGE` from `scene_world_snapshot_capture_mode` because it rejects
-any active `s->terrain`. The ordinary destruction section is RFCG for the
-L1S1 scripted wall; it does not serialize or restore the authored terrain
-history, identity and publication used here. Driller saves before excavation
-work. The RFDS2 authored-terrain writer and restore stage now admit the exact
-L1S2 UID 8123/room-8 48-face cavity profile. A focused PC test applies the
-first cut, writes its checkpoint, stages reconstruction and commits the
-published terrain without detached pieces. The ordinary world envelope still
-needs to carry RFDS2 alongside the other world sections, and load must stage
-the edited collision before player/NPC placement. Post-cut campaign quick-save
-and Xbox restore have not been verified.
+The first cut now survives an ordinary campaign quick-save and a fresh load on
+PC and stock-64-MiB XEMU. This exact L1S2 UID 8123/room-8 profile writes RFDS2
+in the world's destruction section; load rebuilds and publishes the authored
+collision before admitting NPCs, the seated player and the Driller. A live
+330-frame save at frame 270 wrote 59,902 world bytes, and the 60-frame fresh
+load restored the 171-face, 707-vertex, one-cut publication. PC/Xbox terrain
+and vehicle state counters match. Native save ended with 3,752 free physical
+pages; fresh load ended with 3,720. Both runs were text-only with no image
+capture (`artifacts/xemu/render-20260927-081157/report.json` and
+`render-20260927-081415/report.json`). The focused RFDS2 PC stage test still
+covers the exact 48-face source without detached pieces. This does not cover
+the next Driller cut, other terrain owners, resumed drill motion after load,
+or visual content.
 
 The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
 source. It validates the 389-brush section with bounded successor-header
@@ -187,8 +184,8 @@ admission; both are retained on PC/Xbox fresh load. All 16 native save sections
 match PC, and the loaded driver/vehicle state matches after 64 frames with
 4,790 free physical pages. No images were captured. Reports are
 `artifacts/xemu/render-20260926-202409/report.json` and
-`render-20260926-202555/report.json`. Campaign drill contact and native
-post-load driving remain to be checked.
+`render-20260926-202555/report.json`. Later runs establish first drill contact
+and post-cut save/load below; native post-load driving remains to be checked.
 
 The L12S1 Jeep now also saves with its 34-node authored waypoint route active
 and the driver seated. A fresh stock 64 MiB Xbox load retains route node 1

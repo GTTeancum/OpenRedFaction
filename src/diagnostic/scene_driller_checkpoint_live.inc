@@ -42,7 +42,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     if(!s||!out)return RF_RANGE;
     if(!bytes){if(s->driller)return RF_FORMAT;*out=record;return RF_OK;}
     if(!s->driller||
-       !(s->terrain_authored?!strcmp(campaign_current_level,"ctf06.rfl"):
+       !(s->terrain_authored?(!strcmp(campaign_current_level,"ctf06.rfl")||scene_world_l1s2_authored_terrain(s)):
          (campaign_authored_vehicle_uid&&campaign_authored_vehicle_handle)))return RF_FORMAT;
     if(s->driller_runtime && !scene_driller_active(s)){const scene_driller_runtime *r=s->driller_runtime;
         if(!scene_driller_damage_runtime_valid(&r->damage)||r->damage.entry!=&r->entry||r->entry.physics!=&r->physics||
@@ -186,7 +186,7 @@ static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_playe
     status=rf_player_checkpoint_seated_profile_validate(player,catalog,vehicle.profile,scene_vehicle_checkpoint_typed(&vehicle));if(status)return status;
     status=scene_vehicle_checkpoint_player_placement(s,&vehicle,player,&placement,&scratch);if(status)return status;
     if(ordinary){rf_collision_room_location location;
-        if(s->terrain||!s->collision)return RF_RANGE;
+        if((s->terrain&&!scene_world_l1s2_authored_terrain(s))||!s->collision)return RF_RANGE;
         status=rf_geometry_collision_world_locate(s->collision,placement.position,&location);if(status)return status;
         if(location.room==UINT32_MAX||location.room>=s->collision->room_count)return RF_NOT_FOUND;
         placement.world=s->collision;placement.replaced_room=location.room;
