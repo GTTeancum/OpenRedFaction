@@ -46,7 +46,18 @@ int main(void)
     CHECK(stage->countdown.remaining==42.25f&&stage->countdown.expiry_pending==1&&stage->countdown.difficulty==2);
     CHECK(stage->actors.vitals[current_actor].health==37.5f&&stage->actors.vitals[current_actor].armor==9&&stage->actors.mission[current_actor].flags==0x4004);
     CHECK(stage->actors.items[old_actor].retired&&stage->actors.drops[old_actor].state==2&&stage->actors.drops[old_actor].quantity==0);
-    scene_campaign_history_checkpoint_close(&stage);CHECK(!stage);memcpy(saved,wire,bytes);
+    scene_campaign_history_checkpoint_close(&stage);CHECK(!stage);
+    /* A frozen but still registered body must not become retired in the
+     * history sidecar, or the next same-level save cannot capture it. */
+    npc.damage.effects.health=-1;
+    CHECK(!scene_campaign_history_checkpoint_encode(identity,100,wire,sizeof(wire),&bytes));
+    CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage));
+    CHECK(!stage->actors.items[current_actor].retired&&stage->actors.vitals[current_actor].valid&&
+          stage->actors.vitals[current_actor].health==-1);
+    scene_campaign_history_checkpoint_close(&stage);CHECK(!stage);
+    npc.damage.effects.health=37.5f;
+    CHECK(!scene_campaign_history_checkpoint_encode(identity,100,wire,sizeof(wire),&bytes));
+    memcpy(saved,wire,bytes);
     CHECK(scene_campaign_history_checkpoint_prepare(wrong,wire,bytes,sizeof(*stage),&stage)==RF_FORMAT&&!stage);
     wire[bytes-1]^=1;CHECK(scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage)==RF_FORMAT&&!stage);memcpy(wire,saved,bytes);
     row_offset=96+scene_history_word(wire+48)*64;memcpy(wire+row_offset+32,wire+row_offset,12);

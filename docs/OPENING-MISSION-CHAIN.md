@@ -322,12 +322,14 @@ appearance has not been inspected because of the no-images instruction.
 Both room collision trees retain the new cavity faces, while rendering submits
 those identical wall polygons once to avoid coplanar overlap.
 Wall-only and combined wall/script-cut save encoding and restore have been
-added, but a natural quick-save at frame4300 still fails before destruction
-serialization: RFNC6 now admits UID8625 and the other settled dead guards with
-their frozen poses and drops; living UID8696/8697/9382/9391 retain active
-scripted movement, and UID8336 retains a changing look. The
-save milestone remains open until that broader NPC checkpoint admission is
-implemented and a live save/reload passes on PC and Xbox.
+added. RFNC7 admits the living actors' active movement/look and the settled
+guards' frozen poses. The natural PC quick-save at frame4300 writes 104,744
+bytes, and a fresh PC process loads it and resaves after 1, 10 and 60 neutral
+frames. A stock-64-MiB XEMU run at the same wall saves all 16 components
+identically to PC (`artifacts/xemu/render-20260927-043953`); a fresh XEMU
+process loads the wall and runs 60 neutral frames with 105 text-state checks
+passing (`artifacts/xemu/render-20260927-044852`). No visual inspection was
+performed under the no-images instruction.
 
 ## Far-side corridor and upper-bridge combat
 

@@ -79,6 +79,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     context.world=stream->collision;context.movers=&campaign_movers;context.metadata=campaign_body_surface;context.metadata_context=&surfaces;
     context.dt=1.0f/60;context.authored_static_unchanged=!envelope.sections[RF_WORLD_DESTRUCTION-1].bytes;context.fresh_boot=1;
     if(v->bytes){context.modified_min=modified_min;context.modified_max=modified_max;}
+    if(stream->campaign_geomod&&stream->campaign_geomod->active)context.modified_rooms[context.modified_room_count++]=28;
+    if(stream->campaign_wall&&stream->campaign_wall->active){
+        context.modified_rooms[context.modified_room_count++]=stream->campaign_wall->overlay[0].room;
+        context.modified_rooms[context.modified_room_count++]=stream->campaign_wall->overlay[1].room;
+    }
     phase="world";status=scene_world_restore_prepare(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget,&world);if(status)goto done;cost=world->allocated_bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;

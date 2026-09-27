@@ -75,7 +75,14 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     status=rf_geometry_collision_world_locate(world.world,placement->position,&location);
     if(!status){
         if(location.room==UINT32_MAX||location.room>=world.world->room_count)status=RF_NOT_FOUND;
-        else {world.reference_room=location.room;status=scene_checkpoint_world_place(&world,placement,room,support);}
+        else {
+            if(!world.authored_static_unchanged&&world.modified_room_count){
+                uint32_t changed=0;
+                for(i=0;i<world.modified_room_count;i++)if(world.modified_rooms[i]==location.room)changed=1;
+                if(!changed)world.authored_static_unchanged=1;
+            }
+            world.reference_room=location.room;status=scene_checkpoint_world_place(&world,placement,room,support);
+        }
     }
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(status){const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");

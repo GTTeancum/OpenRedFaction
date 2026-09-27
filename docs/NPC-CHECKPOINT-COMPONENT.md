@@ -1,13 +1,24 @@
 # Ordinary saves: NPC component preparation
 
-Current status (2026-09-27): RFNC6 adds a settled frozen death-pose record at
+Current status (2026-09-27): RFNC7 uses a 568-byte base row and an optional
+168-byte movement/look extension for only the actors that need it. It retains
+authored Goto, Goto_Player, Follow_Waypoints and Look_At bindings, route
+cursor/start/goal, and steering vectors using event UIDs and route ordinals
+instead of process-local pointers. RFNC1-6 remain readable. The real L1S1
+Remote Charge wall now saves all 78 NPCs in 54,736 component bytes; its
+104,744-byte PC world snapshot loads in a fresh process and resaves after
+1, 10 and 60 neutral frames. Focused codec, capture and restore checks pass,
+and the stock-64-MiB NXDK build completes. A text-only stock-64-MiB XEMU
+wall save matches all 16 PC components byte for byte; a fresh XEMU load
+continues for 60 frames. No images were captured.
+
+Earlier RFNC6 (2026-09-27) added a settled frozen death-pose record at
 offsets 552/556/560, including retained death flags and action. Completed
 dead actors remain registered; capture preserves their final clip and weapon
 drop while discarding stale movement, look and combat state. RFNC1-5 remain
-readable. Focused codec/capture/restore tests pass, and the real L1S1 PC wall
-replay now admits its settled dead guards. Its whole NPC component still
-rejects living actors with active scripted movement/look state. The NXDK stock-64-MiB build completes; a natural
-wall save/reload remains unverified. No images were captured.
+readable. Focused codec/capture/restore tests passed, and the real L1S1 PC wall
+replay admitted its settled dead guards; living actors with active scripted
+movement/look still required RFNC7.
 
 Earlier RFNC5 added an ordinary combat-alert bit at row
 offset 548 (552-byte base row), while RFNC1-4 remain readable. The scene

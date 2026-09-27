@@ -60,6 +60,19 @@ int main(void)
         CHECK(!scene_npc_checkpoint_restore_placement(pair_stage,0,&candidate,&inactive)&&!inactive&&candidate.count==1);
         free(pair_stage);
     }
+    {
+        scene_npc_checkpoint_restore_stage *pair_stage=calloc(1,sizeof(*pair_stage)+2*sizeof(*pair_stage->entries));
+        CHECK(pair_stage);pair_stage->count=2;pair_stage->fresh_boot=1;
+        pair_stage->entries[0].slot=0;pair_stage->entries[1].slot=1;
+        pair_stage->entries[0].saved.move.active=pair_stage->entries[1].saved.move.active=1;
+        pair_stage->entries[0].saved.move.follow=pair_stage->entries[1].saved.move.follow=1;
+        pair_stage->entries[0].saved.move.event=pair_stage->entries[1].saved.move.event=77;
+        CHECK(scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.6*.6,.8));
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.3*.3,.8));
+        pair_stage->entries[1].saved.move.event=78;
+        CHECK(!scene_npc_checkpoint_restore_original_overlap(pair_stage,0,1,0,0,.6*.6,.8));
+        free(pair_stage);
+    }
     /* A registered authored actor may intentionally have no collision spheres. */
     free(owners[1].body.spheres.items);owners[1].body.spheres.items=NULL;owners[1].body.spheres.count=0;
     CHECK(!scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count));
@@ -144,6 +157,45 @@ int main(void)
         CHECK(!scene_npc_checkpoint_restore_commit(stage));
         CHECK(poses[0].controller.current==18&&!owners[0].script_animation.active&&!memcmp(&poses[0].playback,&expected,sizeof(expected)));
         scene_npc_checkpoint_restore_discard(&stage);
+    }
+    /* Authored movement rebinds event identity and retained start/goal nodes
+     * without copying pointers from the saved process. */
+    {
+        rf_level_owned_event authored[2]={0};rf_runtime_event runtime[2]={0};rf_level_link_target link[2]={0};
+        rf_npc_checkpoint_record moving[2];
+        authored[0].record.uid=77;strcpy(authored[0].record.type,"Goto");authored[0].record.link_count=1;
+        authored[0].record.position[0]=6;runtime[0].authored=&authored[0];runtime[0].links=&link[0];
+        link[0].kind=1;link[0].value=owners[0].registration.handle;
+        authored[1].record.uid=88;strcpy(authored[1].record.type,"Look_At");authored[1].record.link_count=1;
+        authored[1].record.words[0]=8322;authored[1].record.position[0]=7;
+        runtime[1].authored=&authored[1];runtime[1].links=&link[1];
+        link[1].kind=1;link[1].value=owners[1].registration.handle;
+        campaign_events.items=runtime;campaign_events.count=2;
+        owners[0].script_move.active=1;owners[0].script_move.event=77;
+        owners[0].script_move.target[0]=6;owners[0].script_move.route_index=1;
+        owners[0].navigation.start.position[0]=5;owners[0].navigation.goal.position[0]=6;
+        owners[0].navigation.retained.count=2;
+        owners[0].navigation.retained.nodes[0]=&owners[0].navigation.start;
+        owners[0].navigation.retained.nodes[1]=&owners[0].navigation.goal;
+        owners[0].look.angles.delta_888[0]=.01f;
+        owners[1].script_look.active=1;owners[1].script_look.event=88;
+        owners[1].script_look.target_uid=8322;owners[1].script_look.position[0]=7;
+        CHECK(!scene_npc_checkpoint_capture(&catalog,1000,moving,2,&count));
+        CHECK(moving[0].move.active&&moving[0].move.event==77&&
+              moving[0].move.retained_nodes[0]==UINT32_MAX&&moving[0].look_delta[0]==.01f&&
+              moving[1].look.active&&moving[1].look.event==88);
+        fit_state=(fit_context){0};
+        CHECK(!scene_npc_checkpoint_restore_prepare(moving,2,&catalog,1000,fit,&fit_state,65536,&stage));
+        CHECK(!scene_npc_checkpoint_restore_commit(stage));
+        CHECK(owners[0].script_move.active&&owners[0].script_move.event==77&&
+              owners[0].navigation.retained.nodes[0]==&owners[0].navigation.start&&
+              owners[0].navigation.retained.nodes[1]==&owners[0].navigation.goal&&
+              owners[0].look.angles.delta_888[0]==.01f&&
+              owners[1].script_look.active&&owners[1].script_look.target_uid==8322);
+        scene_npc_checkpoint_restore_discard(&stage);
+        owners[0].script_move.active=0;owners[0].navigation.retained.count=0;
+        owners[0].look.angles.delta_888[0]=0;owners[1].script_look.active=0;
+        campaign_events.items=NULL;campaign_events.count=0;
     }
     /* A completed death remains registered with its frozen final frame.
      * Stale combat awareness must not revive its target after reload. */

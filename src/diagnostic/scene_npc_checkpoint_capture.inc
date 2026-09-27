@@ -59,11 +59,70 @@ static int scene_npc_checkpoint_controller_handle(uint32_t uid,uint32_t *handle)
     }
     return found?RF_OK:RF_NOT_FOUND;
 }
+/* Resolve borrowed waypoint storage from a unique authored movement event.
+ * Pursuit (follow 2) is ordinary combat state and has no authored event. */
+static int scene_npc_checkpoint_move_binding(uint32_t uid,uint32_t handle,uint32_t follow,
+    rf_level_waypoint_path *path,uint32_t *mode)
+{
+    uint32_t i,j,found=0,linked;int status;
+    if(!path||!mode||follow>2)return RF_RANGE;
+    memset(path,0,sizeof(*path));*mode=0;
+    if(follow==2)return uid?RF_FORMAT:RF_OK;
+    if(!uid)return RF_FORMAT;
+    for(i=0;i<campaign_events.count;i++){
+        const rf_runtime_event *runtime=campaign_events.items+i;const rf_level_event *record;
+        if(!runtime->authored||runtime->authored->record.uid!=uid)continue;
+        if(++found!=1)return RF_FORMAT;record=&runtime->authored->record;
+        if((follow==1&&strcmp(record->type,"Goto_Player"))||
+           (follow==0&&strcmp(record->type,"Goto")&&strcmp(record->type,"Follow_Waypoints")))return RF_FORMAT;
+        if(record->link_count&&!runtime->links)return RF_FORMAT;
+        linked=0;for(j=0;j<record->link_count;j++)if((runtime->links[j].kind==1||runtime->links[j].kind==2)&&
+            runtime->links[j].value==handle)linked++;
+        if(linked!=1)return RF_FORMAT;
+        if(!strcmp(record->type,"Follow_Waypoints")){
+            if(!campaign_waypoints)return RF_NOT_FOUND;
+            if(!strcmp(record->texts[1],"Loop"))*mode=1;
+            else if(!strcmp(record->texts[1],"Ping Pong"))*mode=2;
+            else if(strcmp(record->texts[1],"One way"))return RF_FORMAT;
+            status=rf_level_waypoint_find(campaign_waypoints,campaign_waypoint_bytes,
+                campaign_navigation.count,record->texts[0],path);if(status)return status;
+            if(!path->count)return RF_FORMAT;
+        }
+    }
+    return found==1?RF_OK:RF_NOT_FOUND;
+}
+static int scene_npc_checkpoint_route_ordinal(const campaign_npc_body *o,
+    const rf_entity_navigation_candidate *node,uint32_t *ordinal)
+{
+    uint32_t i;if(!o||!node||!ordinal)return RF_RANGE;
+    if(node==&o->navigation.start){*ordinal=UINT32_MAX;return RF_OK;}
+    if(node==&o->navigation.goal){*ordinal=UINT32_MAX-1;return RF_OK;}
+    if(!campaign_navigation.references)return RF_RANGE;
+    for(i=0;i<campaign_navigation.count;i++)if(campaign_navigation.references[i].candidate==node){*ordinal=i+1;return RF_OK;}
+    return RF_NOT_FOUND;
+}
+static int scene_npc_checkpoint_look_binding(uint32_t uid,uint32_t handle,uint32_t target_uid,const float position[3])
+{
+    uint32_t i,j,found=0,linked;
+    if(!uid||!position)return RF_FORMAT;
+    for(i=0;i<campaign_events.count;i++){
+        const rf_runtime_event *runtime=campaign_events.items+i;const rf_level_event *record;
+        if(!runtime->authored||runtime->authored->record.uid!=uid)continue;
+        if(++found!=1)return RF_FORMAT;record=&runtime->authored->record;
+        if(strcmp(record->type,"Look_At")||record->words[0]!=target_uid||
+           memcmp(record->position,position,12)||(record->link_count&&!runtime->links))return RF_FORMAT;
+        linked=0;for(j=0;j<record->link_count;j++)if((runtime->links[j].kind==1||runtime->links[j].kind==2)&&
+            runtime->links[j].value==handle)linked++;
+        if(linked!=1)return RF_FORMAT;
+    }
+    return found==1?RF_OK:RF_NOT_FOUND;
+}
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0;int pending,status;
+    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
@@ -91,9 +150,20 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
      * cannot travel, so their leftover route and steering state is discardable. */
 #define NPC_CAPTURE_ZERO(field) do{if(o->field)return scene_npc_checkpoint_reject(index,#field,0,(double)o->field,RF_RANGE);}while(0)
     if(!terminal_dead){
-        NPC_CAPTURE_ZERO(script_move.active);NPC_CAPTURE_ZERO(script_move.path.count);NPC_CAPTURE_ZERO(navigation.retained.count);
+        if(o->script_move.active){
+            status=scene_npc_checkpoint_move_binding(o->script_move.event,o->registration.handle,
+                o->script_move.follow,&authored_path,&authored_mode);
+            if(status)return scene_npc_checkpoint_reject(index,"move_binding",0,o->script_move.event,status);
+            if(o->script_move.path.count!=authored_path.count||o->script_move.path_mode!=authored_mode||
+               (authored_path.count&&(!o->script_move.path.indices||
+                memcmp(o->script_move.path.indices,authored_path.indices,authored_path.count*4))))
+                return scene_npc_checkpoint_reject(index,"move_path",0,o->script_move.path.count,RF_FORMAT);
+            NPC_CAPTURE_ZERO(script_move.stop);
+        }else{NPC_CAPTURE_ZERO(script_move.path.count);NPC_CAPTURE_ZERO(navigation.retained.count);}
     }
-    if(!terminal_dead&&!o->script_animation.active&&o->script_animation.freeze)
+    if(!terminal_dead&&!o->script_animation.active&&o->script_animation.freeze&&
+       !(o->script_move.active&&index<campaign_poses.count&&campaign_poses.items&&
+         !campaign_poses.items[index].playback.completion.frozen))
         return scene_npc_checkpoint_reject(index,"inactive_script_freeze",0,o->script_animation.freeze,RF_RANGE);
     if(o->view.linked_handle!=-1)return scene_npc_checkpoint_reject(index,"linked_handle",0,o->view.linked_handle,RF_RANGE);
     NPC_CAPTURE_ZERO(view.occupant_count);
@@ -103,6 +173,14 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     if(o->combat_alert>1||(!terminal_dead&&!o->combat_alert&&(o->combat_due||o->combat_navigation_due))||(key->retired&&o->combat_alert))
         return scene_npc_checkpoint_reject(index,"combat_alert",0,o->combat_alert,RF_RANGE);
     NPC_CAPTURE_ZERO(combat_scripted);
+    if(!terminal_dead){
+        NPC_CAPTURE_ZERO(script_shoot.active);
+        if(o->script_look.active){
+            status=scene_npc_checkpoint_look_binding(o->script_look.event,o->registration.handle,
+                o->script_look.target_uid,o->script_look.position);
+            if(status)return scene_npc_checkpoint_reject(index,"look_binding",0,o->script_look.event,status);
+        }
+    }
     if(o->combat_target&&!(terminal_dead||(o->combat_alert&&o->combat_target==campaign_player_object.handle)))
         return scene_npc_checkpoint_reject(index,"combat_target",0,o->combat_target,RF_RANGE);
     NPC_CAPTURE_ZERO(combat_burst_remaining);
@@ -144,8 +222,6 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
                 return scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
 #define NPC_CAPTURE_AXIS(field) do{if(o->field[i]!=0)return scene_npc_checkpoint_reject(index,#field,i,o->field[i],RF_RANGE);}while(0)
             NPC_CAPTURE_AXIS(command_714);NPC_CAPTURE_AXIS(support_velocity);
-            if(!terminal_dead){NPC_CAPTURE_AXIS(look.command_708);NPC_CAPTURE_AXIS(look.angles.delta_888);
-                NPC_CAPTURE_AXIS(look.angles.offset_894);NPC_CAPTURE_AXIS(look.angles.vector_870);}
 #undef NPC_CAPTURE_AXIS
         }
         if(o->script_animation.active){
@@ -168,6 +244,33 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     row->combat_alert=terminal_dead?0:o->combat_alert;
     row->dead_pose=terminal_dead;
     if(terminal_dead){row->death_flags_810=o->view.flags_810;row->death_action=o->death.action_824;}
+    else {
+        memcpy(row->look_command,o->look.command_708,sizeof(row->look_command));
+        memcpy(row->look_delta,o->look.angles.delta_888,sizeof(row->look_delta));
+        memcpy(row->look_offset,o->look.angles.offset_894,sizeof(row->look_offset));
+        memcpy(row->look_vector,o->look.angles.vector_870,sizeof(row->look_vector));
+        if(o->script_look.active){
+            row->look.active=1;row->look.event=o->script_look.event;
+            row->look.target_uid=o->script_look.target_uid;
+            memcpy(row->look.position,o->script_look.position,sizeof(row->look.position));
+        }
+        if(o->script_move.active){
+            rf_npc_checkpoint_move *m=&row->move;
+            m->active=1;m->event=o->script_move.event;m->follow=o->script_move.follow;
+            m->path_index=o->script_move.path_index;m->path_mode=o->script_move.path_mode;
+            m->path_reverse=o->script_move.path_reverse;m->path_count=o->script_move.path.count;
+            m->route_index=o->script_move.route_index;m->retry=o->script_move.retry;
+            m->retained_count=o->navigation.retained.count;
+            memcpy(m->target,o->script_move.target,sizeof(m->target));m->fall_speed=o->script_move.fall_speed;
+            memcpy(m->route_start,o->navigation.start.position,sizeof(m->route_start));
+            memcpy(m->route_goal,o->navigation.goal.position,sizeof(m->route_goal));
+            if(m->retained_count>4)return scene_npc_checkpoint_reject(index,"route_count",0,m->retained_count,RF_FORMAT);
+            for(i=0;i<m->retained_count;i++){
+                status=scene_npc_checkpoint_route_ordinal(o,o->navigation.retained.nodes[i],m->retained_nodes+i);
+                if(status)return scene_npc_checkpoint_reject(index,"route_node",i,0,status);
+            }
+        }
+    }
     if(o->registration.view&&(o->script_animation.active||campaign_poses.items[index].playback.completion.active.count)){
         if(key->retired)return RF_RANGE;
         row->animation_present=1;row->script_animation.active=o->script_animation.active;

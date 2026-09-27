@@ -33,6 +33,7 @@ typedef struct scene_checkpoint_world_context {
     uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *modified_min,*modified_max; /* Optional conservative bounds of the changed room. */
+    uint32_t modified_rooms[3],modified_room_count; /* Exact room ownership of the supported campaign cuts. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
     uint32_t authored_rotating_npc; /* Stationary authored turret may rotate without translating. */
     uint32_t authored_center_shift_npc; /* Unmoved actor: bounded rotated sphere centers, checked against static world. */

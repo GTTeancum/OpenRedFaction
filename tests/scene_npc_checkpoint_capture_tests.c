@@ -51,7 +51,7 @@ int main(void)
     CHECK(!rf_npc_checkpoint_decode(payload,bytes,identity,&catalog,rows,2,&count)&&count==2);
     CHECK(rows[0].uid==10 && rows[1].inventory.loaded[0]==7);
     memcpy(saved,rows,sizeof(rows));count=99;owners[0].script_move.active=1;
-    CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE&&count==99&&!memcmp(rows,saved,sizeof(rows)));
+    CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_FORMAT&&count==99&&!memcmp(rows,saved,sizeof(rows)));
     owners[0].script_move.active=0;owners[0].controller_handle=1234;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_FORMAT&&count==99&&!memcmp(rows,saved,sizeof(rows)));
     owners[0].controller_handle=0;campaign_player_object.handle=12345;

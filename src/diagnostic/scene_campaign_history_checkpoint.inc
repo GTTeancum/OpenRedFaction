@@ -203,12 +203,14 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int
         key=s->actors.items+slot;if(key->level>=s->actors.level_count||key->uid!=(uint32_t)campaign_seeds.records.items[i].record.uid||
             !memchr(s->actors.levels[key->level],0,64)||!memchr(campaign_current_level,0,64)||
             !scene_history_same((const unsigned char *)s->actors.levels[key->level],(const unsigned char *)campaign_current_level))return RF_FORMAT;
-        if(o->registration.view&&o->damage.effects.health>0){
+        if(o->registration.view){
             if(o->registration.view!=&o->view||rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration)return RF_FORMAT;
             s->actors.vitals[slot].valid=1;s->actors.vitals[slot].health=o->damage.effects.health;s->actors.vitals[slot].armor=o->damage.effects.armor;
             s->actors.mission[slot].affiliation=o->damage.effects.affiliation;s->actors.mission[slot].flags=o->object_flags&0x4004u;
         }
-        if(o->damage.effects.health<=0)s->actors.items[slot].retired=1;
+        /* RFNC7 preserves a completed death pose as a registered body during
+         * same-level reload. Only a released body is retired in this sidecar. */
+        if(o->damage.effects.health<=0&&!o->registration.view)s->actors.items[slot].retired=1;
     }
     return RF_OK;
 }

@@ -5,6 +5,10 @@
 #include <float.h>
 #include <math.h>
 #include <string.h>
+#ifndef RF_IMAGE_XBOX_NATIVE
+#include <stdio.h>
+#include <stdlib.h>
+#endif
 /* Read candidate pose + immutable sphere resources, never current live NPC
  * positions. The callback may be called repeatedly and must remain read-only
  * and stable. Retired rows need no placement/resources. */
@@ -57,7 +61,14 @@ static int scene_npc_checkpoint_pair_fit_allowed(uint32_t count,scene_npc_checkp
             for(a=0;a<first.count;a++)for(b=0;b<second.count;b++){
                 double distance=0,radius=(double)first.spheres[a].radius+second.spheres[b].radius-.002;
                 for(k=0;k<3;k++){double d=(double)centers[a][k]-others[b][k];distance+=d*d;}
-                if(distance<radius*radius&&(!allow||!allow(context,i,j,a,b,distance,radius)))return RF_NOT_FOUND;
+                if(distance<radius*radius&&(!allow||!allow(context,i,j,a,b,distance,radius))){
+#ifndef RF_IMAGE_XBOX_NATIVE
+                    {const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
+                     if(enabled&&!strcmp(enabled,"1"))printf("WORLD_RESTORE_NPC_PAIR first%u second%u sphere%u/%u distance2%.9g limit2%.9g\n",
+                         i,j,a,b,distance,radius*radius);}
+#endif
+                    return RF_NOT_FOUND;
+                }
             }
         }
     }

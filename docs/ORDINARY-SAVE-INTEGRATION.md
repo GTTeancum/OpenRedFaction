@@ -1,14 +1,29 @@
 # Ordinary-level saves: implementation workstream
 
-## Ordinary combat awareness component (2026-09-27)
+## Active NPC movement and look (2026-09-27)
+
+RFNC7 serializes live authored movement/look state and retained route identity
+as a sparse extension, keeping the L1S1 Remote Charge wall's 78-NPC component
+to 54,736 bytes. A real PC wall save is 104,744 bytes within the existing
+110,524-byte budget. Fresh-process load followed by saves after 1, 10 and 60
+neutral frames passes. The restore also confines its unchanged-authored-pose
+exception to rooms outside the actual GeoMod edits and tolerates the shallow
+overlap of two living NPCs following the same Goto_Player event. Registered
+frozen corpses remain registered in the campaign-history sidecar, allowing
+the loaded state to save again. The NXDK build passes. The stock-64-MiB XEMU
+wall save produces the same 104,744-byte component payload as PC across all
+16 sections (`artifacts/xemu/render-20260927-043953`); a fresh XEMU process
+loads it and runs 60 frames with 105 text-state checks passing
+(`artifacts/xemu/render-20260927-044852`). No images were captured.
+
+## Earlier combat awareness and frozen-pose components (2026-09-27)
 
 RFNC6 extends the component with terminal frozen death poses. The real L1S1
 PC wall replay now admits settled dead guards, preserving their death action,
 flags, final clip and dropped weapon. Stale movement, route, look and combat
 state is discarded only for these terminal actors. Focused codec and staged
-scene capture/restore checks pass. The natural wall still cannot save because
-living actors retain active scripted movement/look state. The NXDK build
-completes, while actual wall save/reload remains open. No images were captured.
+scene capture/restore checks passed. Living actors' active scripted
+movement/look state required RFNC7.
 
 RFNC5 carries a settled NPC's ordinary player alert without storing a live
 player handle. Restore rebinds that target and starts a fresh 30-frame attack
