@@ -318,7 +318,8 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
         {"L5S3.rfl","sub",3963,4},
         {"L5S4.rfl","sub",3955,4},
         {"L10S3.rfl","sub",6794,4},
-        {"L12S1.rfl","Jeep01",7629,3}};
+        {"L12S1.rfl","Jeep01",7629,3},
+        {"L13S3.rfl","Fighter01",8955,5}};
     unsigned i,j;rf_level_entity vehicle;int status;
     /* Original level setup 435aeb resets gravity independently of jump strength. */
     rf_physics_gravity_set(&scene_gravity,9.8f);

@@ -48,7 +48,7 @@ Current platform priority (user direction,2026-09-27): Xbox implementation and s
 
 - Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; one pistol shot now triggers an authored three-prop chain in live PC; oil-drum chain explosions now pass PC/Xbox with inspected native flashes, exact damage parity and17.08MiB free; sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
 
-- Fighter: Boarding, hover flight, cockpit, finite minigun/forward rockets and exit pass PC/Xbox with exact gameplay state and11.64MiB free; live seated save/reload/exit now passes PC/Xbox with identical1228-byte checkpoints and11.57MiB free; campaign placement, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
+- Fighter: Authored L13S3 UID8955 now boards/fires and follows its trigger-started waypoint on stock-64-MiB Xbox with at least14.79MiB free; other campaign placements, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
 - Submarine saves/guidance: Stock-64-MiB Xbox saves/reloads the occupied DEV submarine and guides a torpedo into a submerged guard; active-shot saves and wider pursuit remain open.
 

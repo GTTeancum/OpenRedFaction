@@ -210,6 +210,61 @@ static int scene_campaign_submarine_script_command(const scene_driller_runtime *
     command->rise=fmaxf(-1.f,fminf(1.f,dy/3.f));
     ++rf_scene_vehicle_route_state[3];return RF_OK;
 }
+/* Fighter Follow_Waypoints uses authored 3D nodes and the same dry-hull
+ * solver as player flight. A player taking the seat temporarily owns controls. */
+static int scene_campaign_fighter_route_command(const scene_driller_runtime *r,
+    rf_vehicle_submersible_command *command)
+{
+    uint32_t visited=0,node;const float *target;
+    float dx,dy,dz,horizontal,distance,forward_x,forward_z,angle;
+    if(!campaign_vehicle_route.active || campaign_vehicle_route.pursuit ||
+       r->entry.host.handle!=campaign_authored_vehicle_handle || r->entry.session.active ||
+       !r->entry.host.alive)return RF_OK;
+    if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;
+    while(visited++<campaign_vehicle_route.path.count){
+        node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
+        if(node>=campaign_navigation.count)return RF_FORMAT;
+        target=campaign_navigation.nodes[node].candidate.position;
+        dx=target[0]-r->physics.state.position[0];
+        dy=target[1]-r->physics.state.position[1];
+        dz=target[2]-r->physics.state.position[2];
+        distance=sqrtf(dx*dx+dy*dy+dz*dz);
+        if(!isfinite(distance))return RF_FORMAT;
+        if(distance>3.f)break;
+        ++rf_scene_vehicle_route_state[4];
+        if(campaign_vehicle_route.reverse){
+            if(campaign_vehicle_route.index)--campaign_vehicle_route.index;
+            else {campaign_vehicle_route.reverse=0;campaign_vehicle_route.index=1;}
+        }else ++campaign_vehicle_route.index;
+        if(campaign_vehicle_route.index>=campaign_vehicle_route.path.count){
+            if(campaign_vehicle_route.mode==1)campaign_vehicle_route.index=0;
+            else if(campaign_vehicle_route.mode==2 && campaign_vehicle_route.path.count>1){
+                campaign_vehicle_route.reverse=1;
+                campaign_vehicle_route.index=campaign_vehicle_route.path.count-2;
+            }else {campaign_vehicle_route.active=0;break;}
+        }
+    }
+    rf_scene_vehicle_route_state[0]=campaign_vehicle_route.active;
+    rf_scene_vehicle_route_state[1]=campaign_vehicle_route.index;
+    if(!campaign_vehicle_route.active)return RF_OK;
+    node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
+    if(node>=campaign_navigation.count)return RF_FORMAT;
+    target=campaign_navigation.nodes[node].candidate.position;
+    dx=target[0]-r->physics.state.position[0];
+    dy=target[1]-r->physics.state.position[1];
+    dz=target[2]-r->physics.state.position[2];
+    horizontal=sqrtf(dx*dx+dz*dz);
+    if(!isfinite(horizontal)||!isfinite(dy))return RF_FORMAT;
+    forward_x=r->physics.state.orientation[6];forward_z=r->physics.state.orientation[8];
+    angle=atan2f(forward_z*dx-forward_x*dz,forward_x*dx+forward_z*dz);
+    if(!isfinite(angle))return RF_FORMAT;
+    command->controlled=1;
+    command->yaw=fmaxf(-1.f,fminf(1.f,angle/.7f));
+    command->throttle=fabsf(angle)>1.5f?0.f:fabsf(angle)>.8f?.2f:
+        fminf(1.f,horizontal/8.f);
+    command->rise=fmaxf(-1.f,fminf(1.f,dy/6.f));
+    ++rf_scene_vehicle_route_state[3];return RF_OK;
+}
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
@@ -238,7 +293,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     if(frame && r->entry.session.active)r->driver_seconds+=scene_step_seconds;
     command.controlled=r->entry.session.active && r->entry.host.alive && (rf_scene_vehicle_enabled!=3 || scene_jeep_can_steer(&r->jeep_seat));command.throttle=command.controlled?player_input.move[2]:0;
     command.turn=command.controlled?player_input.move[0]:0;
-    if(campaign_authored_vehicle_uid && r->entry.host.alive){
+    if(campaign_authored_vehicle_uid && r->entry.host.alive && rf_scene_vehicle_enabled!=5){
         status=scene_campaign_vehicle_route_command(r,&command);
         rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
     }
@@ -255,6 +310,10 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
                 sub.yaw=player_input.look[1];sub.pitch=player_input.look[0];}
             else if(rf_scene_vehicle_enabled==4 && campaign_authored_vehicle_uid){
                 status=scene_campaign_submarine_script_command(r,&sub);
+                rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
+            }
+            else if(rf_scene_vehicle_enabled==5 && campaign_authored_vehicle_uid){
+                status=scene_campaign_fighter_route_command(r,&sub);
                 rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
             }
             status=rf_vehicle_submersible_step(&r->physics.state,&r->submarine_parameters,&sub,scene_step_seconds,&wet_backend,&result);
