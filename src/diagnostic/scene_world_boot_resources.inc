@@ -5,7 +5,7 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=scene_live_load_active?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
 #else
-    rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
+    rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0,fixture=0;
 #endif
     scene_world_snapshot_identity identity;rf_world_checkpoint world;
     rf_player_checkpoint_catalog catalog;rf_player_checkpoint player;
@@ -14,7 +14,10 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
     *mask=0;
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    if(!scene_live_load_active){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
+    if(!scene_live_load_active){
+        status=scene_world_storage_flag("D:\\world-fixture-load.flag",&fixture);if(status)return status;
+        if(!fixture){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
+    }
 #else
     if(!path||!*path)return RF_OK;
 #endif
@@ -23,8 +26,10 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
     memset(identity.level,0,sizeof(identity.level));strcpy(identity.level,campaign_current_level);
     data=malloc(RF_CHECKPOINT_FILE_MAX);if(!data){status=RF_IO;goto done;}
 #ifdef RF_IMAGE_XBOX_NATIVE
-    (void)selection;status=rf_xbox_checkpoint_storage_open_world(&storage,0);
-    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);
+    if(fixture)status=rf_checkpoint_file_load(SCENE_WORLD_FIXTURE_BASE,data,RF_CHECKPOINT_FILE_MAX,&bytes,
+        scene_world_snapshot_validate,&identity,&selection);
+    else {status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+        if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);}
 #else
     status=rf_checkpoint_file_load(path,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
 #endif

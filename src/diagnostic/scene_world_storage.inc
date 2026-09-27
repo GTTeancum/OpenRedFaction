@@ -19,6 +19,9 @@ void rf_scene_save_button(uint32_t held)
     scene_live_save_held=!!held;
 }
 #ifdef RF_IMAGE_XBOX_NATIVE
+/* Read-only optical fixture for native restore admission. It never writes the
+ * private HDD and is absent from ordinary game discs. */
+#define SCENE_WORLD_FIXTURE_BASE "D:\\world-fixture"
 static int scene_world_storage_flag(const char *path,uint32_t *found)
 {
     FILE *file;*found=0;errno=0;file=fopen(path,"rb");

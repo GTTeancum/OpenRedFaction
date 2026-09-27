@@ -46,6 +46,7 @@ typedef struct scene_checkpoint_world_context {
     const float *spawn_basis; /* Borrowed authored player body basis for original prop overlap. */
     uint32_t support_uid; /* Authored mover UID for a saved player; zero requires static support. */
 } scene_checkpoint_world_context;
+uint32_t rf_scene_checkpoint_world_route_contact[2]; /* admitted NPC,player shallow prop contacts */
 static int scene_checkpoint_world_outside_modified(const scene_checkpoint_world_context *c,
     const rf_checkpoint_placement *p)
 {
@@ -104,9 +105,10 @@ static int scene_checkpoint_world_shallow_route_prop(const scene_checkpoint_worl
 {
     /* The static-room flag may be false after a GeoMod cut elsewhere in the
      * same room; the prop's immutable pose is checked independently here. */
-    return c->fresh_boot&&(c->npc_route_contact||c->player_route_contact)&&
-        scene_checkpoint_world_authored_prop(c,slot,prop)&&
-        radius-sqrt(distance)<=(c->player_route_contact?.025:.1);
+    if(!c->fresh_boot||(!c->npc_route_contact&&!c->player_route_contact)||
+       !scene_checkpoint_world_authored_prop(c,slot,prop)||
+       radius-sqrt(distance)>(c->player_route_contact?.025:.1))return 0;
+    ++rf_scene_checkpoint_world_route_contact[c->player_route_contact?1:0];return 1;
 }
 /* Some authored NPC spawn spheres intersect an unadvanced mover. Preserve
  * that original overlap only when both the NPC and mover still have their

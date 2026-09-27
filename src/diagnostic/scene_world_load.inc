@@ -11,7 +11,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=scene_live_load_active?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
 #else
-    rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
+    rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0,fixture=0;
     const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
 #endif
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
@@ -30,7 +30,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     float modified_min[3]={0},modified_max[3]={0};
     const rf_world_checkpoint_slice *v;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    if(!scene_live_load_active){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
+    if(!scene_live_load_active){
+        status=scene_world_storage_flag("D:\\world-fixture-load.flag",&fixture);if(status)return status;
+        if(!fixture){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
+    }
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[8]=1;
@@ -46,8 +49,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #ifndef RF_IMAGE_XBOX_NATIVE
     status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
 #else
-    (void)path;(void)selection;status=rf_xbox_checkpoint_storage_open_world(&storage,0);
-    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);
+    (void)path;
+    if(fixture)status=rf_checkpoint_file_load(SCENE_WORLD_FIXTURE_BASE,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,
+        scene_world_snapshot_validate,&identity,&selection);
+    else {status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+        if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);}
 #endif
     if(status)goto done;
     status=rf_world_checkpoint_decode(buffer,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&envelope);if(status)goto done;

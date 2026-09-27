@@ -1,11 +1,12 @@
-"""Bounded Xbox-only ordinary save/reload check on the owned test HDD.
+"""Bounded Xbox-only ordinary save/reload or read-only fixture restore.
 
 No PC executable, screenshot, host input, campaign route, or user HDD is used.
-The guest saves an authored L1S2 spawn, then a fresh guest boot loads it.
+The default saves an authored L1S2 spawn on the owned test HDD, then reloads it.
 """
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,6 +35,7 @@ FLAGS = (
     'player-control-frames.txt', 'dev-room.flag', 'vehicle-test.flag',
     'dev-npc.flag', 'firearms-test.flag', 'fusion-test.flag',
     'world-hdd-save.flag', 'world-hdd-load.flag',
+    'world-fixture-load.flag', 'world-fixture.0', 'world-fixture.1',
 )
 
 
@@ -52,7 +54,7 @@ def address(mapping, name):
     return int(match.group(1), 16)
 
 
-def run_guest(run, name, hdd, frames, seconds):
+def run_guest(run, name, hdd, frames, seconds, snapshot=False):
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -82,10 +84,13 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
     command = [str(EMULATOR / 'xemu.exe'), '-config_path', str(config),
                '-m', '64', '-display', 'xemu', '-audio', 'none',
                '-qmp', f'tcp:127.0.0.1:{port},server=on,wait=off']
+    if snapshot:
+        command.append('-snapshot')
     mapping = (ROOT / 'build/xbox/main.map').read_text()
     symbols = {key: address(mapping, key) for key in
                ('rf_diagnostic', 'rf_scene_world_checkpoint_state',
-                'rf_xbox_checkpoint_storage_state', 'rf_scene_player_life')}
+                'rf_xbox_checkpoint_storage_state', 'rf_scene_player_life',
+                'rf_scene_checkpoint_world_route_contact')}
     monitor = process = None
     try:
         require_no_project_xemu(ROOT)
@@ -140,9 +145,11 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
             state = words(monitor, symbols['rf_scene_world_checkpoint_state'], 10)
             storage = words(monitor, symbols['rf_xbox_checkpoint_storage_state'], 8)
             life = words(monitor, symbols['rf_scene_player_life'], 8)
+            route_contact = words(monitor, symbols['rf_scene_checkpoint_world_route_contact'], 2)
             result = dict(memory_bytes=64 * 1024 * 1024, frames=diagnostic[37],
                           free_pages=diagnostic[44], checkpoint_state=state,
-                          storage_state=storage, player_life=life)
+                          storage_state=storage, player_life=life,
+                          shallow_contacts=dict(npc=route_contact[0], player=route_contact[1]))
             (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             if not 0 < result['free_pages'] <= 16384 or life[2]:
                 raise RuntimeError(f'{name}: memory exhausted or player dead')
@@ -166,14 +173,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--frames', type=int, default=64)
     parser.add_argument('--seconds', type=int, default=180)
+    parser.add_argument('--fixture', type=Path,
+                        help='Read-only native load from an existing RFSG .0/.1 file on the test disc')
     args = parser.parse_args()
     if not 32 <= args.frames <= 600 or not 30 <= args.seconds <= 3600:
         parser.error('Require 32..600 frames and 30..3600 seconds')
+    fixture_data = None
+    if args.fixture:
+        if args.fixture.suffix not in ('.0', '.1') or not args.fixture.is_file():
+            parser.error('Fixture must be an existing RFSG .0 or .1 file')
+        fixture_data = args.fixture.read_bytes()
+        if len(fixture_data) < 24 or fixture_data[:4] != b'RFSG' or \
+           struct.unpack_from('<I', fixture_data, 4)[0] != 1 or \
+           len(fixture_data) != 24 + struct.unpack_from('<I', fixture_data, 12)[0]:
+            parser.error('Fixture has an invalid RFSG header or payload length')
     require_no_project_xemu(ROOT)
     base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not base.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    hdd = prepare(ROOT, base)
+    hdd = base if fixture_data is not None else prepare(ROOT, base)
     run = ROOT / 'artifacts/xemu' / ('native-world-' +
           datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
@@ -183,7 +201,8 @@ def main():
     (run / 'disc-restore.json').write_text(json.dumps({
         name: value.hex() if value is not None else None
         for name, value in original.items()}, indent=2) + '\n')
-    report = dict(result='FAIL', scope='Xbox-only ordinary L1S2 spawn save/reload',
+    report = dict(result='FAIL', scope='Xbox-only ordinary L1S2 fixture restore' if fixture_data is not None
+                  else 'Xbox-only ordinary L1S2 spawn save/reload',
                   hdd=str(hdd), frames=args.frames, phases={})
     try:
         for name in original:
@@ -193,23 +212,38 @@ def main():
             b'levels1.vpp'.ljust(64, b'\0') + b'L1S2.rfl'.ljust(64, b'\0'))
         (DISC / 'player-replay.bin').write_bytes(
             b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44))
-        (DISC / 'world-hdd-save.flag').write_bytes(b'1')
-        build(run, 'save')
-        saved = run_guest(run, 'save', hdd, args.frames, args.seconds)
-        report['phases']['save'] = saved
-        save_state = saved['checkpoint_state']
-        if save_state[9] != 1 or save_state[3] != 0 or not 320 <= save_state[4] <= 110524:
-            raise RuntimeError('Xbox ordinary save failed')
-        (DISC / 'world-hdd-save.flag').unlink()
-        (DISC / 'world-hdd-load.flag').write_bytes(b'1')
-        build(run, 'load')
-        loaded = run_guest(run, 'load', hdd, args.frames, args.seconds)
-        report['phases']['load'] = loaded
-        load_state = loaded['checkpoint_state']
-        if load_state[8] != 1 or load_state[0] != 0 or load_state[1] != save_state[4]:
-            raise RuntimeError('Xbox ordinary reload failed or loaded a different payload')
-        if loaded['storage_state'][4:7] != saved['storage_state'][4:7]:
-            raise RuntimeError('Xbox ordinary reload selected a different generation or slot')
+        if fixture_data is not None:
+            (DISC / 'world-fixture-load.flag').write_bytes(b'1')
+            (DISC / ('world-fixture' + args.fixture.suffix)).write_bytes(fixture_data)
+            report['fixture'] = dict(source=str(args.fixture.resolve()),
+                                     sha256=hashlib.sha256(fixture_data).hexdigest(),
+                                     payload_bytes=len(fixture_data)-24)
+            build(run, 'fixture')
+            loaded = run_guest(run, 'fixture', hdd, args.frames, args.seconds, snapshot=True)
+            report['phases']['fixture'] = loaded
+            state = loaded['checkpoint_state']
+            if state[8] != 1 or state[0] != 0 or state[1] != len(fixture_data)-24:
+                raise RuntimeError('Xbox optical ordinary fixture restore failed')
+            if loaded['shallow_contacts']['player'] < 1:
+                raise RuntimeError('Xbox fixture did not exercise the player shallow-contact rule')
+        else:
+            (DISC / 'world-hdd-save.flag').write_bytes(b'1')
+            build(run, 'save')
+            saved = run_guest(run, 'save', hdd, args.frames, args.seconds)
+            report['phases']['save'] = saved
+            save_state = saved['checkpoint_state']
+            if save_state[9] != 1 or save_state[3] != 0 or not 320 <= save_state[4] <= 110524:
+                raise RuntimeError('Xbox ordinary save failed')
+            (DISC / 'world-hdd-save.flag').unlink()
+            (DISC / 'world-hdd-load.flag').write_bytes(b'1')
+            build(run, 'load')
+            loaded = run_guest(run, 'load', hdd, args.frames, args.seconds)
+            report['phases']['load'] = loaded
+            load_state = loaded['checkpoint_state']
+            if load_state[8] != 1 or load_state[0] != 0 or load_state[1] != save_state[4]:
+                raise RuntimeError('Xbox ordinary reload failed or loaded a different payload')
+            if loaded['storage_state'][4:7] != saved['storage_state'][4:7]:
+                raise RuntimeError('Xbox ordinary reload selected a different generation or slot')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():
