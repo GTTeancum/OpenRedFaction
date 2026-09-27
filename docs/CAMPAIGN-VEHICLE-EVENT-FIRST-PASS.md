@@ -119,7 +119,9 @@ a 330-frame stock 64 MiB XEMU replay match on the source cut counters,
 publication face/vertex/cut/generation counters and terrain cut generation;
 XEMU finishes with 3,801 free physical pages (about 14.85 MiB). The native
 report is `artifacts/xemu/replay-20260927-073902/report.json`. No images were
-captured. Collision-hole behavior and save/reload remain unverified.
+captured. A focused composed-world ray now hits face 768 at z=-17 before the
+cut and the recessed surface at z=-17.613625 after it, while an adjacent ray
+still hits z=-17. Live actor traversal and save/reload remain unverified.
 
 The shared C asset decoder now admits this exact L1S2 UID 8123/room-8
 source. It validates the 389-brush section with bounded successor-header
@@ -130,16 +132,17 @@ The shared cutter now supports 64 source faces, with matching plane storage,
 support-ID ranges, source filter storage and publication validation; convex
 cutters remain bounded to 32 faces. A focused PC check opens UID 8123's 48-face
 cavity within a 1,152 KiB core budget, applies the single-bit Driller template
-at the recorded first-contact point using an identity test basis, and publishes
-83 authored windows with the resulting cut. The core has 166 faces after the
-cut; the publication has 209 faces, including 46 crater faces and 163 retained
-faces. Core resident memory is 898,576 bytes and cut peak is 1,014,012 bytes;
+at the recorded first-contact point using an identity test basis and unit scale,
+and publishes 83 authored windows with the resulting cut. The core has 113
+faces after the cut; the publication has 169 faces, including 16 crater faces
+and 153 retained faces. Core resident memory is 889,672 bytes and cut peak is
+1,014,012 bytes;
 reset restores the original 48 faces. The focused geometry check and NXDK
 build pass. Scene identity capture and actual vehicle-basis contact are now
 integrated in the PC replay. This focused core result uses an identity test
-basis, so its 209 faces differ from the 171 published by the live vehicle
-basis. The native runtime and stock-memory checks now pass; collision-hole
-and save/reload behavior remain open.
+basis, so its 169 faces differ from the 171 published by the live vehicle
+basis. The native runtime and stock-memory checks now pass; live traversal and
+save/reload behavior remain open.
 
 An ordinary L1S3 save now retains the seated APC driver. The campaign player
 class eye offset is refreshed before boarding, so the live seat pose and

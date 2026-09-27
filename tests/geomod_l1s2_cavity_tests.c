@@ -1,6 +1,7 @@
 /* Installed L1S2 source identity, bounded terrain admission and publication. */
 #include "rf/geomod_authored_post.h"
 #include "rf/authored_identity_capture.h"
+#include "rf/collision_composition.h"
 #include <stdio.h>
 #include <stdlib.h>
 #define CHECK(call) do { int result=(call); if(result) { fprintf(stderr,"FAIL line%d status%d %s\n",__LINE__,result,#call); return 1; } } while(0)
@@ -8,6 +9,46 @@ static rf_geomod_publication_work publication_work;
 static rf_geomod_vertex published_vertices[RF_GEOMOD_PUBLICATION_VERTICES];
 static rf_geomod_face published_faces[RF_GEOMOD_PUBLICATION_FACES];
 static rf_geomod_publication_origin published_origins[RF_GEOMOD_PUBLICATION_FACES];
+static int collision_probe(const rf_geometry *geometry,const rf_geomod_authored_post_view *asset,
+    const rf_geomod_mesh_view *published,const rf_geomod_publication_origin *origins)
+{
+    rf_geometry_collision_world base={0};rf_geometry_collision_overlay overlay={0};
+    rf_collision_composition *composition=NULL;rf_collision_composition_view pending;
+    rf_collision_face_filter *filters=NULL;rf_collision_face *faces=NULL;
+    float (*positions)[3]=NULL;uint32_t *ids=NULL,i,front=0,back=0,side=0;int status;
+    const float start[3]={121.208061f,-2.12633848f,-15.f},delta[3]={0,0,-6.f};
+    const float side_start[3]={117.5f,-2.12633848f,-15.f};
+    rf_geometry_world_hit before={0},after={0},side_hit={0};
+    filters=calloc(published->face_count,sizeof(*filters));faces=calloc(published->face_count,sizeof(*faces));
+    positions=calloc(published->vertex_count,sizeof(*positions));ids=calloc(published->face_count,sizeof(*ids));
+    if(!filters || !faces || !positions || !ids)return 1;
+    CHECK(rf_geometry_collision_world_open(geometry,16u*1024u*1024u,&base));
+    CHECK(rf_geometry_collision_world_ray(&base,4,start,delta,1.f,&before,&front));
+    for(i=0;i<published->face_count;i++) {
+        ids[i]=origins[i].reference;
+        CHECK(rf_geometry_initial_collision_filter(geometry,ids[i],0,filters+i));
+        if(origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER)filters[i].face_flags=256;
+    }
+    CHECK(rf_geomod_collision_faces(published,filters,positions,published->vertex_count,
+        faces,published->face_count));
+    CHECK(rf_collision_composition_open(&base.rooms[asset->room].tree,
+        base.rooms[asset->room].tree.source_indices,asset->replaced_ids,asset->replaced_count,
+        base.rooms[asset->room].tree.face_count+published->face_count,4u*1024u*1024u,NULL,&composition));
+    CHECK(rf_collision_composition_prepare(composition,faces,ids,published->face_count));
+    CHECK(rf_collision_composition_pending(composition,&pending));
+    CHECK(rf_geometry_collision_overlay_open(&base,asset->room,
+        base.rooms[asset->room].tree.face_count+published->face_count,128u*1024u,&overlay));
+    CHECK(rf_geometry_collision_overlay_bind(&overlay,pending.tree,pending.face_ids,pending.count));
+    CHECK(rf_collision_composition_commit(composition));
+    CHECK(rf_geometry_collision_world_ray(&overlay.world,4,start,delta,1.f,&after,&back));
+    CHECK(rf_geometry_collision_world_ray(&overlay.world,4,side_start,delta,1.f,&side_hit,&side));
+    printf("L1S2 collision cut before %u face %u z %.6f after %u face %u z %.6f; adjacent wall %u face %u z %.6f\n",
+        front,before.face,before.hit.point[2],back,after.face,after.hit.point[2],side,side_hit.face,side_hit.hit.point[2]);
+    status=front && before.face==768 && back && after.hit.point[2]<-17.01f && side && side_hit.face==768?0:1;
+    rf_geometry_collision_overlay_close(&overlay);rf_collision_composition_close(&composition);
+    rf_geometry_collision_world_close(&base);free(filters);free(faces);free(positions);free(ids);
+    return status;
+}
 int main(int argc,char **argv)
 {
     rf_vpp archive={0};rf_level level;rf_geometry geometry={0};
@@ -65,7 +106,7 @@ int main(int argc,char **argv)
             return 1;
         }
     }
-    CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,10.f,0));
+    CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.f,0));
     CHECK(rf_geomod_terrain_get(terrain,&terrain_view));
     if(terrain_view.cuts!=1 || terrain_view.mesh.face_count<=48 ||
        terrain_view.resident_bytes>1152u*1024u || terrain_view.peak_bytes>1152u*1024u) {
@@ -91,6 +132,7 @@ int main(int argc,char **argv)
         fprintf(stderr,"FAIL publication faces %u crater %u retained %u\n",
             published.face_count,crater_faces,retained_faces);return 1;
     }
+    if(collision_probe(&geometry,&view,&published,published_origins))return 1;
     printf("L1S2 cut core faces %u publication faces %u crater %u retained %u resident %u peak %u\n",
         terrain_view.mesh.face_count,published.face_count,crater_faces,retained_faces,
         terrain_view.resident_bytes,terrain_view.peak_bytes);
