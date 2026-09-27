@@ -354,3 +354,15 @@ the executable built before the duplicate-wall-draw correction above; the
 runner restored and rebuilt the current Xbox executable afterward. The
 correction passed the PC bridge-cover replay and Xbox compilation, but its
 visual appearance remains unverified under the no-images instruction.
+
+Focused PC combat probes from that cover confirm a route/survival problem.
+The player has33.8 health and1.2 armor after crossing the wall, but reaches
+bridge cover with14.6 health and5.4 armor after guard8462 fires near the
+first bend. An earlier northward strafe still drew five shots from8462 and
+died before the upper ramp. On the bridge, switching from the Remote Charge
+to the handgun allows two ordinary hits on guard9406 (50 to11.6 health),
+but its return shot kills the player before a third. Firing sooner hits the
+bridge geometry, while crouching and retreating after one hit still allows
+the guard to land its shot. The next route pass should preserve more health
+through the first bend or find a different line around the upper guard;
+these probes do not justify changing AI damage or claiming that cover works.
