@@ -59,9 +59,8 @@ int rf_geomod_authored_post_open(const rf_level *, const rf_geometry *, uint32_t
  * Same owned lifetime, budget and no-output-on-error contract as above. */
 /* Bounded cavity source profiles: ctf06 UID66/room3 and UID148/room0,
  * plus L1S2 UID8123/room8 (48 authored faces,83 compiled windows).
- * UID8123 decode does not imply scene publication: the shared terrain core
- * currently admits at most32 source faces. Caller owns scene selection and
- * must not use this source as a live cutter until that limit is resolved. */
+ * The shared core now admits64 source faces and live UID8123 cuts. This does
+ * not admit neighboring L1S2 UID8219 or authorize an unowned second cut. */
 int rf_geomod_authored_cavity_open_source(const rf_level *,const rf_geometry *,
     uint32_t source_uid,uint32_t budget,rf_geomod_authored_post **);
 int rf_geomod_authored_cavity_open(const rf_level *,const rf_geometry *,uint32_t,rf_geomod_authored_post **);

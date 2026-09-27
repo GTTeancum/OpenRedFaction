@@ -120,15 +120,22 @@ cut and the recessed surface at z=-17.613625 after it, while an adjacent ray
 still hits z=-17. Live actor traversal remains unverified; post-cut ordinary
 saves are currently rejected as described below.
 
-The second transaction reaches publication but its new cutter bounds
+The second transaction reaches publication but its cutter bounds
 `(121.107674,-2.405448,-19.962753)..(126.905739,0.702065,-13.505847)`
-overlap another editor cavity, UID 8219. That brush has 14 source faces and
-32 compiled faces spread across rooms 8, 13 and 123. The current UID 8123
-owner can replace room 8 only, so the other-brush guard rejects the edit.
-The bounds test is conservative: a precise cutter/brush intersection test
-could prove a false positive, or multi-room publication may be required.
-Neither has been established. The focused test preserves this rejection
-instead of allowing an unowned edit.
+overlap editor cavity UID 8219. That brush has 14 source faces and 32
+compiled faces spread across rooms 8, 13 and 123. A read-only geometric
+probe (`python -B tools/probe_driller_second_cut.py`) uses the recorded live
+frame-296 basis, the original-derived single-bit template, the real 0.4-unit
+downward shallow limit and installed editor brush geometry. Intersecting the
+26 cutter tetrahedra with UID 8219's convex cavity proves positive penetration:
+the largest interior margin is about 0.119 units at
+`(126.744,-1.903,-17.181)`. Clipping the compiled brush polygons against the
+same tetrahedra finds positive-area contact on room-8 faces 5780 and 5784;
+none of UID 8219's room-13 or room-123 polygons is touched by this particular
+cut. Thus the broad-box rejection is conservative in general, but **this cut
+is a real second-owner edit**, not a false positive. UID 8123 alone cannot
+erase those two faces. Joint room-8 publication and collision for both owners
+is the next implementation step; later cuts may require additional rooms.
 
 The first cut now survives an ordinary campaign quick-save and a fresh load on
 PC and stock-64-MiB XEMU. This exact L1S2 UID 8123/room-8 profile writes RFDS2
