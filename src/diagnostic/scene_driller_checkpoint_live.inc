@@ -16,12 +16,9 @@ static int scene_vehicle_checkpoint_capture(scene_stream *s,void *blob,uint32_t 
     if(!s||!blob||!bytes)return RF_RANGE;
     *bytes=0;if(!s->driller)return RF_OK;
     if(!s->terrain_authored){
-        /* Ordinary world restore currently admits a parked host only. Refuse
-         * a seated save until its player/possession transaction is composed. */
-        if(!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle||scene_driller_active(s))return RF_NOT_FOUND;
+        if(!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)return RF_NOT_FOUND;
     }
     status=scene_vehicle_checkpoint_capture_record(s,&record);if(status)return status;
-    if(!s->terrain_authored && record.value.vehicle.player_occupied)return RF_NOT_FOUND;
     if(record.value.vehicle.player_occupied && !record.value.vehicle.alive)return RF_RANGE;
     if(record.profile==1)status=rf_vehicle_checkpoint_encode(&record.value.vehicle,blob,128);
     else if(record.profile==2)status=rf_apc_checkpoint_encode(&record.value.apc,blob,128);
@@ -164,18 +161,19 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
         s->apc_aim.angles[0],s->apc_aim.angles[1]);
     return RF_OK;
 }
-static int scene_vehicle_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint *player,rf_player_checkpoint_catalog *catalog)
+static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_player_checkpoint *player,
+    rf_player_checkpoint_catalog *catalog,uint32_t ordinary)
 {
     scene_vehicle_checkpoint_record vehicle;rf_checkpoint_placement placement;rf_physics_sphere scratch;rf_geomod_terrain_view view;
     rf_collision_composition_view composed;scene_driller_runtime *r=s->driller_runtime;int status;
-    status=scene_checkpoint_player_scope(s,0);if(status)return status;
+    status=ordinary?scene_checkpoint_player_state_scope(s,0,1):scene_checkpoint_player_scope(s,0);if(status)return status;
     if(!r || !r->entry.session.active || !r->player.saved || !r->entry.host.alive ||
        campaign_player_damage.state.effects.health<=0 || campaign_crouched || campaign_climb.region ||
        combat_trigger.cooldown || combat_trigger.remaining || combat_trigger.delay || combat_trigger.held || rf_scene_combat[6] ||
        riot_charge_remainder || rf_scene_rockets[3] || scene_apc_primary_pending(s) || scene_apc_secondary_pending(s) || scene_ai_grenade_pending() || scene_ai_rocket_pending() ||
        scene_fusion_projectile_pending() || scene_burning_save_pending() || scene_flame_input_pending() || scene_flame_canister_save_pending())return RF_RANGE;
     status=scene_vehicle_checkpoint_capture_record(s,&vehicle);if(status)return status;
-    status=scene_checkpoint_player_catalog(catalog);if(status)return status;
+    status=scene_checkpoint_player_catalog_mode(catalog,ordinary);if(status)return status;
     memset(player,0,sizeof(*player));player->player.inventory=campaign_player_inventory;
     player->player.health=campaign_player_damage.state.effects.health;player->player.armor=campaign_player_damage.state.effects.armor;
     player->player.weapon=campaign_explicit_unarmed?UINT32_MAX:(uint32_t)campaign_selected_weapon();
@@ -187,6 +185,15 @@ static int scene_vehicle_checkpoint_player_capture(scene_stream *s,rf_player_che
     memcpy(player->eye_angles,r->player.saved_look.state.eye_angles,12);
     status=rf_player_checkpoint_seated_profile_validate(player,catalog,vehicle.profile,scene_vehicle_checkpoint_typed(&vehicle));if(status)return status;
     status=scene_vehicle_checkpoint_player_placement(s,&vehicle,player,&placement,&scratch);if(status)return status;
+    if(ordinary){rf_collision_room_location location;
+        if(s->terrain||!s->collision)return RF_RANGE;
+        status=rf_geometry_collision_world_locate(s->collision,placement.position,&location);if(status)return status;
+        if(location.room==UINT32_MAX||location.room>=s->collision->room_count)return RF_NOT_FOUND;
+        placement.world=s->collision;placement.replaced_room=location.room;
+        status=rf_checkpoint_world_placement_check(&placement,NULL);
+        if(!status){rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;rf_scene_player_checkpoint_state[7]=1;}
+        return status;
+    }
     status=scene_terrain_publication_view(s,&view);if(status)return status;
     status=rf_collision_composition_get(s->terrain_publication->composition,&composed);if(status)return status;
     view.faces=composed.tree->faces;view.tree=composed.tree;view.mesh.face_count=composed.count;
@@ -195,3 +202,7 @@ static int scene_vehicle_checkpoint_player_capture(scene_stream *s,rf_player_che
     if(!status){rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;rf_scene_player_checkpoint_state[7]=1;}
     return status;
 }
+static int scene_vehicle_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint *player,rf_player_checkpoint_catalog *catalog)
+{return scene_vehicle_checkpoint_player_capture_mode(s,player,catalog,0);}
+static int scene_world_vehicle_player_capture(scene_stream *s,rf_player_checkpoint *player,rf_player_checkpoint_catalog *catalog)
+{return scene_vehicle_checkpoint_player_capture_mode(s,player,catalog,1);}

@@ -23,8 +23,6 @@ static int scene_checkpoint_player_catalog_mode(rf_player_checkpoint_catalog *c,
     }
     return RF_OK;
 }
-static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
-{return scene_checkpoint_player_catalog_mode(c,0);}
 /* Ordinary same-level saves retain authored mover identity, never the runtime
  * registry handle. The mover checkpoint carries its candidate pose/velocity. */
 static int scene_checkpoint_player_support_uid(const scene_stream *s,uint32_t *uid)

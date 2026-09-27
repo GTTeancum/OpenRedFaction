@@ -11635,6 +11635,7 @@ static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
 static int scene_vehicle_checkpoint_capture(scene_stream *,void *,uint32_t *);
 static int scene_vehicle_checkpoint_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
+static int scene_world_vehicle_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
 static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const scene_vehicle_checkpoint_record *,const rf_player_checkpoint *,rf_checkpoint_placement *,rf_physics_sphere *);
 static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,scene_vehicle_checkpoint_record *);
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
@@ -11702,7 +11703,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_restore.inc"
 #include "scene_world_player_restore.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
-    const scene_world_player_stage *,const rf_world_checkpoint_slice *,scene_vehicle_checkpoint_record *);
+    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_storage.inc"

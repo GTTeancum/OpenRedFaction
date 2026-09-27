@@ -74,6 +74,19 @@ remains unverified. All runs used `--no-images`; reports are
 `artifacts/xemu/render-20260926-185319/report.json`, and
 `artifacts/xemu/render-20260926-185512/report.json`.
 
+An ordinary L1S3 save now retains the seated APC driver. The campaign player
+class eye offset is refreshed before boarding, so the live seat pose and
+checkpoint seat pose agree. The ordinary loader stages the occupied host and
+player together, permits their intentional overlap, and restores possession
+after publishing the saved player state. A 220-frame drive/fire replay saves at
+frame 130; the stock 64 MiB Xbox run passes with no image capture
+(`artifacts/xemu/render-20260926-195348/report.json`). A fresh 64-frame load
+and a separate drive/fire continuation both match PC/Xbox vehicle state; the
+continuation fires three APC primary shots and retains 4,816 free physical
+pages (18.81 MiB). See `render-20260926-195605` and
+`render-20260926-195825` in that same artifact directory. Other vehicle
+classes and broader seated save points remain to be exercised.
+
 This is one selected owner per section, not general campaign vehicle
 creation. L1S3 contains other APC instances, and other sections and vehicle
 classes still need ownership. The remaining Jeep route nodes, scripted

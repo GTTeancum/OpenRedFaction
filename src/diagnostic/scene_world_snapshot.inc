@@ -75,7 +75,8 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
 #define SNAP_START(name) do{part=name;bytes=0;}while(0)
 #define SNAP_END(type) do{if(status)goto done;if(bytes>RF_CHECKPOINT_FILE_MAX-at){status=RF_RANGE;goto done;}     bundle.sections[(type)-1]=(rf_world_checkpoint_slice){bytes?buffer+at:NULL,bytes};at+=bytes;     printf("WORLD_SNAPSHOT_COMPONENT %s %u\n",part,bytes);}while(0)
-    SNAP_START("player");status=scene_checkpoint_player_snapshot(s,1,&player,&catalog);
+    SNAP_START("player");status=scene_driller_active(s)?scene_world_vehicle_player_capture(s,&player,&catalog):
+        scene_checkpoint_player_snapshot(s,1,&player,&catalog);
     if(!status&&RF_PLAYER_CHECKPOINT_BYTES>RF_CHECKPOINT_FILE_MAX-at)status=RF_RANGE;
     if(!status)status=rf_player_checkpoint_encode(&player,&catalog,buffer+at,RF_PLAYER_CHECKPOINT_BYTES);
     bytes=RF_PLAYER_CHECKPOINT_BYTES;SNAP_END(RF_WORLD_PLAYER);

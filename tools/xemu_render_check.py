@@ -228,8 +228,8 @@ def main():
         parser.error('Trigger approach requires --spawn, a positive UID and no other trigger/exit placement')
     if any(v is not None and not 0<=v<args.frames for v in (args.quick_save_frame,args.quick_load_frame)):
         parser.error('Quick action frames must lie inside the replay')
-    if (args.quick_save_frame is not None or args.quick_load_frame is not None) and (not args.spawn or args.dev_room or not args.world_hdd_persistent):
-        parser.error('Quick action replay requires ordinary spawn and persistent test HDD')
+    if (args.quick_save_frame is not None or args.quick_load_frame is not None) and (args.dev_room or not args.world_hdd_persistent):
+        parser.error('Quick action replay requires an ordinary campaign run and persistent test HDD')
     if args.quick_load_save and (args.quick_load_frame is None or args.quick_load_save.name not in ('redfaction-save.0','redfaction-save.1') or not args.quick_load_save.is_file()):
         parser.error('Quick-load seed must be an existing redfaction-save.0/.1 with a quick-load frame')
     root = Path(__file__).resolve().parents[1]

@@ -176,6 +176,11 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     if(!s->driller)return RF_OK;
     status=scene_driller_runtime_open(s);if(status)return status;r=s->driller_runtime;
     if(r->last_frame==frame)return RF_OK;
+    /* The campaign player class finishes loading after the vehicle host opens.
+     * Refresh its seat eye offset until boarding, then keep it fixed for the
+     * occupied session and any checkpoint derived from that session. */
+    if(!r->entry.session.active)
+        memcpy(r->entry.eye_offset,rf_scene_actor_initial_eye_offsets,12);
     was=r->entry.session.active;use_edge=player_input.use&&!r->entry.held;
     stage=1;status=scene_driller_damage_runtime_tick(&r->damage,&changed);if(status)goto fail;
     if(r->entry.host.alive){status=scene_driller_entry_exit_use(&r->entry,player_input.use,campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;}

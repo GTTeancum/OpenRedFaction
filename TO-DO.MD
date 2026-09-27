@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 - Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
 
-- PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and a parked campaign APC save/reload pass PC/Xbox; seated vehicles, broader cross-level coverage, menu/slot selection, active destruction, moving-host charges and resource demand remain (saves approximately95%).
+- PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return, a planted remote charge, and parked/seated campaign APC save/reload pass PC/Xbox; other vehicle classes, broader cross-level coverage, menu/slot selection, active destruction, moving-host charges and resource demand remain (saves approximately96%).
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 

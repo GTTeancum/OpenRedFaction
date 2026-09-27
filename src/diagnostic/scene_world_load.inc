@@ -61,9 +61,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="world";status=scene_world_restore_prepare(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget,&world);if(status)goto done;cost=world->allocated_bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
-    phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,&player);if(status)goto done;
     v=envelope.sections+RF_WORLD_VEHICLE-1;vehicle_present=v->bytes!=0;
-    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,v,&vehicle);if(status)goto done;}
+    if(vehicle_present){phase="vehicle_read";status=scene_vehicle_checkpoint_read(stream,v->data,v->bytes,&vehicle);if(status)goto done;}
+    phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
+        vehicle_present?&vehicle:NULL,&player);if(status)goto done;
+    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle);if(status)goto done;}
     if(player.player.player.weapon==UINT32_MAX)found=1;
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){
         selected=i;found=1;break;}
@@ -96,9 +98,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_world_environment_validate(environment);if(status)goto done;
     /* Parked publication has no callbacks or mutation on rejection. Admit it
      * before the assignment-only world transaction below. */
-    if(vehicle_present){phase="vehicle_publish";stream->vehicle_record=vehicle;
+    if(vehicle_present && !vehicle.value.vehicle.player_occupied){phase="vehicle_publish";stream->vehicle_record=vehicle;
         status=scene_vehicle_checkpoint_publish(stream);if(status)goto done;}
-    /* No fallible operations below. Stable scene owns every validated target. */
+    /* Publish validated world owners before restoring the occupied vehicle:
+     * driver possession needs the saved player body and health in place. */
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
@@ -125,6 +128,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         memcpy(rf_scene_player_form+6,&campaign_player_damage.state.effects.armor,4);
     }
     campaign_ammo_publish();
+    if(vehicle_present && vehicle.value.vehicle.player_occupied){
+        phase="vehicle_publish";stream->vehicle_record=vehicle;stream->player_checkpoint_value=player.player;
+        status=scene_vehicle_checkpoint_publish(stream);if(status)goto done;
+    }
     campaign_support_handle=player.support.handle;memcpy(campaign_support_velocity,player.support_velocity,12);
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
     scene_actor_body.state.flags&=~(0x200000u|0x400000u);
