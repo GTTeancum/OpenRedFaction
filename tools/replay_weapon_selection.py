@@ -10,7 +10,7 @@ for name in [x for x in ('rifle','held_cycle','switch_back','cancel_burst','empt
  source=folder/(name+'.bin');source.write_bytes(b'RFI5'+struct.pack('<I',44)+b''.join(record(i) for i in range(1800 if name=='respawn' else 120)))
  env={k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')}
  env.update(RF_REPLAY_LEVEL='L1S1.rfl' if name=='unowned' else 'L4S5.rfl',RF_REPLAY_ITEM_UID='9427' if name=='unowned' else '3415',RF_REPLAY_ARCHIVE='levels1.vpp')
- run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(name+'.ppm'))],env=env,capture_output=True,text=True)
+ run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-telemetry-replay',str(root/'Installed_Game'),str(source)],env=env,capture_output=True,text=True)
  (folder/(name+'.log')).write_text(run.stdout+run.stderr);run.check_returncode()
  def words(key):return list(map(int,next(x for x in run.stdout.splitlines() if x.startswith(key+' ')).split()[1:]))
  selection,ammo,combat,pickups,audio=map(words,('WEAPON_SELECTION','PLAYER_AMMO','COMBAT','PICKUPS','WEAPON_AUDIO'))

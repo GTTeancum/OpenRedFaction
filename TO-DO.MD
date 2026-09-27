@@ -28,7 +28,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
-- USER PC hands-on pass: Authored rifle pickup and forward/back cycling pass text-only live-loop telemetry, PC/Xbox now offer both cycling directions, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
+- USER PC hands-on pass: L1S1 starts unarmed, while staged handgun/rifle pickups, firing and forward/back cycling pass image-free live-loop telemetry; PC/Xbox offer both cycling directions, but normal-route pickup/switching and flicker still need hands-on verification before calling the build ready for gameplay testing.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 

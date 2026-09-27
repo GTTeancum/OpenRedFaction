@@ -32,8 +32,10 @@ campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
 
 PC campaign controls add F to fire, G for Riot Stick alternate fire, R to reload, Tab to cycle weapons forward and Q to cycle backward
 (or RT/Y/D-pad/shoulders with XInput). A held cycle button switches only once; release it before another switch.
-Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
-pistol starts with16 loaded/125 reserve as first-pass policy. Authored assault
+Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. L1S1
+starts unarmed; weapons are collected automatically by walking over authored
+pickups, and cycling has no effect until a weapon is owned. Other campaign
+sections may grant a starting pistol with 16 loaded/125 reserve. Authored assault
 rifle pickups grant ownership and ammunition; primary rifle fire uses three-shot
 bursts. Both guns have first-person models, sounds and finite independent ammo.
 The reticle flashes green on damaging hits. Bottom-right markers show the current
