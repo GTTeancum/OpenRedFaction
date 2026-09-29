@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Final nuke defusal: L20S3's Xbox puzzle pauses world simulation, reaches credits on completion and applies ordinary player damage on timeout; original art/audio, RNG seed and timeout transition presentation remain open (docs/DEFUSE-FIRST-PASS.md).
 
-- Player death recovery: Xbox authored section exits now attempt one settled ordinary save for X-to-load death recovery, with a validated L1S1→L1S2 case; separate manual/auto slots, broader sections, authored checkpoints and death presentation remain open (docs/DEATH-LIFECYCLE.md).
+- Player death recovery: Xbox authored section exits now use separate automatic slots for X-to-load death recovery while manual quicksaves keep their own slots; broader sections, authored checkpoints and death presentation remain open (docs/DEATH-LIFECYCLE.md).
 
 - PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).
 

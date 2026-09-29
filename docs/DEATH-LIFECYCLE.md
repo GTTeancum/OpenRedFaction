@@ -14,9 +14,22 @@ The request waits until section frame 30 or later and the existing live-player
 save admission accepts a settled body; it gives up at frame 180. It does not
 run on initial boot, quick-load, or a death restart. The attempt is nonfatal if
 another component rejects the save. This is a practical port recovery rule,
-not a claim that the original game used this checkpoint policy. It currently
-shares the ordinary save slots with manual quick-save; separate slot selection
-and broader section admission remain open.
+not a claim that the original game used this checkpoint policy. Automatic
+handoffs use `ordinary-auto.0/.1`; manual quicksaves retain `ordinary.0/.1`.
+Death recovery prefers the automatic pair and falls back to the manual pair
+when no valid automatic file exists. Explicit quickload reads only the manual
+pair. Broader section admission remains open.
+
+Focused stock-64-MiB validation of the separated slots passed on 2026-09-29.
+`artifacts/xemu/section-autosave-20260929-174829/` saved L1S2 at
+section frame 37, recovered the death from the automatic slot at global frame
+221, completed 300 frames alive and retained 3,343 free pages (13.06 MiB).
+`artifacts/xemu/death-save-recovery-20260929-175243/` started without an
+automatic save, wrote a manual L1S1 save, recovered the death through the
+manual fallback at global frame 176, and retained 3,977 free pages. Both
+isolated test discs were restored. The two-slot behavior follows from the
+distinct Xbox base paths; a combined manual-save-then-section-handoff session
+has not yet been exercised.
 
 `python tools/xemu_section_autosave.py` stages the authored L1S1 exit UID 9019
 at global frame 60 without walking the campaign route. In stock 64 MiB XEMU,
@@ -33,8 +46,8 @@ diagnostic sampling was removed. NXDK and the maintained PC compile pass; no
 PC gameplay was run. The full death/load run predates that read-only cleanup.
 
 After the existing 60-frame death gate, X requests the newest structurally
-valid ordinary save through the same identity-checked quick-load path as
-Back+X. If no usable save can be selected, it requests a fresh current-section
+valid automatic save, falling back to a manual save if none exists, through the
+same identity-checked quick-load path as Back+X. If no usable save can be selected, it requests a fresh current-section
 restart. B requests a fresh restart directly. The ordinary save format and
 saved scene restore are unchanged; an authored checkpoint/menu slot choice and
 original death presentation remain open. This recovery policy is a practical

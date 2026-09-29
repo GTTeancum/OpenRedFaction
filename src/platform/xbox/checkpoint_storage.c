@@ -35,6 +35,11 @@ int rf_xbox_checkpoint_storage_open_world(rf_xbox_checkpoint_storage *s,uint32_t
     int status=rf_xbox_checkpoint_storage_open(s,writable);
     if(!status)s->base=RF_XBOX_WORLD_CHECKPOINT_BASE;return status;
 }
+int rf_xbox_checkpoint_storage_open_world_auto(rf_xbox_checkpoint_storage *s,uint32_t writable)
+{
+    int status=rf_xbox_checkpoint_storage_open(s,writable);
+    if(!status)s->base=RF_XBOX_WORLD_AUTOSAVE_BASE;return status;
+}
 int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *s,void *buffer,uint32_t capacity,
     uint32_t *bytes,rf_checkpoint_file_validate validate,void *context)
 {

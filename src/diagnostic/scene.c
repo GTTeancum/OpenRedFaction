@@ -17426,7 +17426,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         step_profile_mark(6,&step_clock);profile_mark(7);
 modal_step_done:
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
-            if(scene_live_load_active){scene_live_load_active=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
+            if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
 #ifdef RF_IMAGE_XBOX_NATIVE
         if(scene_section_autosave_pending && frame>=30){
@@ -17437,7 +17437,7 @@ modal_step_done:
                 ++rf_scene_section_autosave[0];
                 rf_scene_section_autosave[3]=frame;
                 saved=ready?ready:scene_world_snapshot_capture_mode(stream,
-                    stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
+                    stream->world_checkpoint_level,stream->world_checkpoint_tables,2);
                 rf_scene_section_autosave[2]=(uint32_t)saved;
                 if(!saved)++rf_scene_section_autosave[1];
                 printf("SECTION_AUTOSAVE %s frame%u status%d\n",campaign_current_level,frame,saved);
@@ -17448,7 +17448,7 @@ modal_step_done:
             uint32_t death_recovery=scene_live_load_death_recovery;
             scene_live_load_pending=scene_live_save_pending=0;scene_live_notice_load=1;
             scene_live_load_death_recovery=0;
-            scene_live_save_status=scene_world_quickload_request(stream);scene_live_save_until=frame+180;
+            scene_live_save_status=scene_world_quickload_request(stream,death_recovery);scene_live_save_until=frame+180;
             if(death_recovery && scene_live_save_status)campaign_life_request_restart(frame);
             printf("QUICK_LOAD frame%u status%d\n",frame,scene_live_save_status);
         }

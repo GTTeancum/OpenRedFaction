@@ -9,6 +9,7 @@ typedef struct rf_xbox_checkpoint_storage {
     uint32_t mounted,writable;const char *base;
 } rf_xbox_checkpoint_storage;
 #define RF_XBOX_WORLD_CHECKPOINT_BASE "R:\\OpenRedFaction\\ordinary"
+#define RF_XBOX_WORLD_AUTOSAVE_BASE "R:\\OpenRedFaction\\ordinary-auto"
 #define RF_XBOX_CHECKPOINT_BASE "R:\\OpenRedFaction\\geomod-dev"
 /* Diagnostics: phase(1 mount,2 directory,3 select,4 store,5 flush,6 close),
  * RF status, Win32 error, NTSTATUS, generation,slot,bytes,
@@ -17,6 +18,7 @@ typedef struct rf_xbox_checkpoint_storage {
 extern uint32_t rf_xbox_checkpoint_storage_state[8];
 int rf_xbox_checkpoint_storage_open(rf_xbox_checkpoint_storage *,uint32_t writable);
 int rf_xbox_checkpoint_storage_open_world(rf_xbox_checkpoint_storage *,uint32_t writable);
+int rf_xbox_checkpoint_storage_open_world_auto(rf_xbox_checkpoint_storage *,uint32_t writable);
 int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *,void *,uint32_t,
     uint32_t *,rf_checkpoint_file_validate,void *);
 /* After any store error, call load before retry. Older selected slot remains

@@ -86,7 +86,8 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #ifndef RF_IMAGE_XBOX_NATIVE
     status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL,&selection);
 #else
-    (void)path;status=rf_xbox_checkpoint_storage_open_world(&storage,1);
+    (void)path;status=requested==2?rf_xbox_checkpoint_storage_open_world_auto(&storage,1):
+        rf_xbox_checkpoint_storage_open_world(&storage,1);
     if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
 #endif
     if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;

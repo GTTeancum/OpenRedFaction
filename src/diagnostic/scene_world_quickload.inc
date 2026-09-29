@@ -1,19 +1,30 @@
 /* Resolve the saved level and verify its source before discarding the current scene.
  * Full component/resource admission remains in the fresh-scene loader. */
-static int scene_world_quickload_request(scene_stream *stream)
+static int scene_world_quickload_request(scene_stream *stream,uint32_t death_recovery)
 {
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};
     unsigned char *data=NULL;uint32_t bytes=0,i,prefix=0;int status=RF_OK;
     rf_world_checkpoint world;rf_level target;rf_vpp target_archive={0};char directory[1024];
 #ifdef RF_IMAGE_XBOX_NATIVE
-    rf_xbox_checkpoint_storage storage={0};
+    rf_xbox_checkpoint_storage storage={0};uint32_t chosen_auto=0;
+#else
+    (void)death_recovery;
 #endif
     if(!stream||!campaign_spawn||!rf_scene_follow_level_exits||rf_scene_dev_room_enabled||
        rf_scene_level_transition.pending||!stream->world_checkpoint_level||!stream->world_checkpoint_tables)return RF_RANGE;
     data=malloc(RF_CHECKPOINT_FILE_MAX);if(!data){status=RF_IO;goto done;}
 #ifdef RF_IMAGE_XBOX_NATIVE
-    (void)selection;status=rf_xbox_checkpoint_storage_open_world(&storage,0);
-    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+    (void)selection;
+    if(death_recovery){
+        status=rf_xbox_checkpoint_storage_open_world_auto(&storage,0);
+        if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+        if(status==RF_NOT_FOUND || status==RF_FORMAT || status==RF_RANGE){
+            int closed=scene_world_storage_close(&storage);if(closed){status=closed;goto done;}
+            memset(&storage,0,sizeof(storage));
+            status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+        }else if(!status)chosen_auto=1;
+    }else status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+    if(!status && !chosen_auto)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
 #else
     status=rf_checkpoint_file_load("redfaction-save",data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL,&selection);
 #endif
@@ -43,5 +54,9 @@ static int scene_world_quickload_request(scene_stream *stream)
     memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
     strcpy(rf_scene_level_transition.level,identity.level);
     rf_scene_level_transition.uid=UINT32_MAX-2u;rf_scene_level_transition.pending=1;
-    scene_live_load_active=1;return RF_OK;
+    scene_live_load_active=1;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    scene_live_load_auto_source=chosen_auto;
+#endif
+    return RF_OK;
 }

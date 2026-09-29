@@ -28,7 +28,8 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(fixture)status=rf_checkpoint_file_load(SCENE_WORLD_FIXTURE_BASE,data,RF_CHECKPOINT_FILE_MAX,&bytes,
         scene_world_snapshot_validate,&identity,&selection);
-    else {status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+    else {status=scene_live_load_active&&scene_live_load_auto_source?
+        rf_xbox_checkpoint_storage_open_world_auto(&storage,0):rf_xbox_checkpoint_storage_open_world(&storage,0);
         if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);}
 #else
     status=rf_checkpoint_file_load(path,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
