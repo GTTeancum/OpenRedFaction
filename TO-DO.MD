@@ -22,6 +22,8 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Scripted Shoot_Once: Xbox L20S1 primary and L7S4 Tankbot secondary fire work; delayed-event coverage, active-request saves and Tankbot impact presentation remain (docs/SCRIPTED-SHOOT-ONCE-FIRST-PASS.md).
 
+- Fire_Weapon_No_Anim: L8S4 Parker fires a finite-ammo handgun shot without a firing motion on Xbox; natural delayed sequence, other targets and active-request saves remain (docs/FIRE-WEAPON-NO-ANIM-FIRST-PASS.md).
+
 - Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
 - Campaign endgame: Authored failures, protected-NPC death, English descriptions, restart and cross-level quick-load recovery run on PC/Xbox, and event off restores the protection flag; natural off-event coverage, other languages, menu/slot choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).

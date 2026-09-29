@@ -598,6 +598,20 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         }
         return;
     }
+    if(state->type==79) {
+        if(action!=1)return;
+        if(!c->triggers->fire_no_animation){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++){
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            if(!rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->fire_no_animation(c->triggers->fire_no_animation_context,
+                link->value,c->event->authored->record.uid);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==0) {
         if(action==2)return;
         if(!c->triggers->play_sound){++c->report->unsupported_actions;return;}
@@ -1369,6 +1383,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==8 && triggers->shoot_at) &&
            !(event->state.type==9 && triggers->shoot_once) &&
+           !(event->state.type==79 && triggers->fire_no_animation) &&
            !(event->state.type==46 && triggers->alarm) &&
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&
            !(event->state.type==1 && triggers->slay_object) &&

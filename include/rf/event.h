@@ -374,6 +374,10 @@ typedef struct rf_runtime_triggers {
      * or secondary (1) weapon; scene may decline unsupported weapon families. */
     int (*shoot_once)(void *context,uint32_t handle,uint32_t mode,uint32_t event_uid);
     void *shoot_once_context;
+    /* Fire_Weapon_No_Anim79 requests a single linked actor primary shot while
+     * suppressing only its firing animation. */
+    int (*fire_no_animation)(void *context,uint32_t handle,uint32_t event_uid);
+    void *fire_no_animation_context;
     /* Alarm46: linked NPC wake requests plus one shared timed siren. */
     int (*alarm)(void *,const rf_level_event *,const rf_level_link_target *,int32_t,uint32_t);
     void *alarm_context;

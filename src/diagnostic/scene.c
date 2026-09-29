@@ -1351,6 +1351,15 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
         /* Process-local replay can force expiry or an authored player teleport
          * without waiting through the mission/cutscene. Shoot_At setup lets
          * the later authored Invert chain observe both delayed states. */
+        if(campaign_events.items[i].state.type==79){
+            /* Bound a one-shot action check without replaying L8S4's 26-second
+             * sequence; ordinary activation keeps the authored delay. */
+            float delay=campaign_events.items[i].state.delay;int status;
+            campaign_events.items[i].state.delay=0;
+            status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
+                UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
+            campaign_events.items[i].state.delay=delay;return status;
+        }
         if(campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
            campaign_events.items[i].state.type==49 || campaign_events.items[i].state.type==9 ||
            campaign_events.items[i].state.type==50)
@@ -10125,21 +10134,20 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
 }
 uint32_t rf_scene_script_shoot_at[8]; /* on,off,linked,shots,last event,last actor,last target hash,incidental player damage shots */
 uint32_t rf_scene_script_shoot_once[6]; /* queued, fired, unsupported, event, actor, pending */
-static int campaign_script_shoot_once(void *context,uint32_t handle,uint32_t mode,uint32_t event_uid)
+uint32_t rf_scene_script_fire_no_anim[6]; /* queued, fired, unsupported, event, actor, pending */
+static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mode,uint32_t event_uid)
 {
-    uint32_t i,j;(void)context;
+    uint32_t i,j,*report=mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;(void)context;
     for(i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *owner=campaign_npc_bodies+i;float length=0;
         if(!owner->registration.view || owner->registration.handle!=handle ||
            rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration)continue;
-        /* The authored Tankbot secondary is a missile, which needs its own
-         * projectile implementation rather than a fabricated hitscan. */
-        if((mode==0 && owner->view.weapons[0]<0) ||
+        if((mode!=1 && owner->view.weapons[0]<0) ||
            (mode==1 && (!scene_tankbot_missile_resources || owner->view.weapons[1]!=
                rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile"))) ||
            owner->damage.effects.health<=0 ||
            (owner->view.flags_810&1u)){
-            ++rf_scene_script_shoot_once[2];return RF_NOT_FOUND;
+            ++report[2];return RF_NOT_FOUND;
         }
         for(j=0;j<3;j++)length+=owner->look.orientation[6+j]*owner->look.orientation[6+j];
         if(!isfinite(length)||length<.25f||length>4.f)return RF_RANGE;
@@ -10149,14 +10157,17 @@ static int campaign_script_shoot_once(void *context,uint32_t handle,uint32_t mod
         owner->script_once.event=event_uid;
         owner->script_once.mode=mode;
         owner->script_once.expires=(combat_frame==UINT32_MAX?0:combat_frame)+120;
-        ++owner->script_once.count;++rf_scene_script_shoot_once[0];
-        rf_scene_script_shoot_once[3]=event_uid;
-        rf_scene_script_shoot_once[4]=campaign_seeds.records.items[i].record.uid;
-        rf_scene_script_shoot_once[5]=owner->script_once.count;
+        ++owner->script_once.count;++report[0];
+        report[3]=event_uid;report[4]=campaign_seeds.records.items[i].record.uid;
+        report[5]=owner->script_once.count;
         return RF_OK;
     }
     return RF_NOT_FOUND;
 }
+static int campaign_script_shoot_once(void *context,uint32_t handle,uint32_t mode,uint32_t event_uid)
+{return campaign_script_single_fire(context,handle,mode,event_uid);}
+static int campaign_script_fire_no_animation(void *context,uint32_t handle,uint32_t event_uid)
+{return campaign_script_single_fire(context,handle,2,event_uid);}
 static int campaign_script_shoot_at(void *context,const rf_level_event *event,
     const rf_level_link_target *links,uint32_t on)
 {
@@ -10194,7 +10205,7 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
     return matched?RF_OK:RF_NOT_FOUND;
 }
 uint32_t rf_scene_enemy_fire[6]; /* shots, motion starts, missing, sounds, last motion, status */
-static int campaign_enemy_fire_presentation(uint32_t slot)
+static int campaign_enemy_fire_presentation(uint32_t slot,uint32_t animate)
 {
     campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;
     rf_entity_playback_model *model;int32_t sounds[45],sound,motion;uint32_t i;int status,active;
@@ -10205,6 +10216,7 @@ static int campaign_enemy_fire_presentation(uint32_t slot)
         else if(owner->view.weapons[0]==campaign_rifle_id)label="Assault Loop";
     }
     if(label && label[0]){combat_sound(label,owner->eye_position);++rf_scene_enemy_fire[3];}
+    if(!animate)return RF_OK;
     /* Pure damage fixtures have no pose owner; absent authored clips are optional. */
     if(slot>=campaign_poses.count || !campaign_poses.items)return RF_NOT_FOUND;
     status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
@@ -10311,7 +10323,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
         uint32_t point_spread_ready=0,once;
-        if(owner->script_once.count && frame>owner->script_once.expires){owner->script_once.count=0;rf_scene_script_shoot_once[5]=0;}
+        uint32_t *single_report=owner->script_once.mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;
+        if(owner->script_once.count && frame>owner->script_once.expires){owner->script_once.count=0;single_report[5]=0;}
         once=owner->script_once.count>0;
         if(once && owner->script_once.mode==1){
             if(!owner->registration.view || (owner->object_flags&(2u|0x4000u)) ||
@@ -10320,7 +10333,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(status==RF_NOT_FOUND)continue;
             if(status)return status;
             ++rf_scene_enemy_combat[2];--owner->script_once.count;
-            ++rf_scene_script_shoot_once[1];rf_scene_script_shoot_once[5]=owner->script_once.count;
+            ++single_report[1];single_report[5]=owner->script_once.count;
             continue;
         }
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
@@ -10480,7 +10493,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
-        status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
+        status=campaign_enemy_fire_presentation(i,!(once && owner->script_once.mode==2));rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
         if(weapon==campaign_grenade_id || weapon==campaign_rocket_id)goto enemy_shot_done;
         if(point_target && melee)goto enemy_shot_done;
@@ -10581,8 +10594,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
          } else {status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
         }
 enemy_shot_done:
-        if(once){--owner->script_once.count;++rf_scene_script_shoot_once[1];
-            rf_scene_script_shoot_once[5]=owner->script_once.count;}
+        if(once){--owner->script_once.count;++single_report[1];
+            single_report[5]=owner->script_once.count;}
         if(owner->combat_scripted && owner->registration.handle==rf_scene_script_attack[11]) {
             if(vehicle_victim)scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
             float health=victim?victim->damage.effects.health:
@@ -17826,6 +17839,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_vehicle_exit_lock=campaign_set_vehicle_exit_lock;
             campaign_triggers.shoot_at=campaign_script_shoot_at;
             campaign_triggers.shoot_once=campaign_script_shoot_once;
+            campaign_triggers.fire_no_animation=campaign_script_fire_no_animation;
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
             campaign_triggers.set_player_form=campaign_set_player_form;campaign_triggers.player_form_context=stream;
