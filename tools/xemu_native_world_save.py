@@ -55,7 +55,7 @@ def address(mapping, name):
 
 
 def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
-              allow_guest_error=False):
+              allow_guest_error=False, allow_player_dead=False):
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -177,7 +177,7 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                                    f'replay {replay_state}, actor frames {actor_frame_count}, '
                                    f'load stage {load_stage}, follow {follow_exits}, '
                                    f'level request {level_request}')
-            if not 0 < result['free_pages'] <= 16384 or life[2]:
+            if not 0 < result['free_pages'] <= 16384 or (life[2] and not allow_player_dead):
                 raise RuntimeError(f'{name}: memory exhausted or player dead')
             return result
     finally:

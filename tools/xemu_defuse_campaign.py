@@ -3,6 +3,7 @@
 The replay supplies directions inside the guest process. It does not control
 the host desktop, play a campaign route, capture images, or run PC gameplay.
 """
+import argparse
 import datetime
 import json
 import os
@@ -29,11 +30,11 @@ def solution():
     return result
 
 
-def replay():
+def replay(frames, timeout):
     rows = []
     pattern = solution()
-    for frame in range(FRAMES):
-        symbol = pattern[(frame - 20) // 3] if frame >= 20 and \
+    for frame in range(frames):
+        symbol = pattern[(frame - 20) // 3] if not timeout and frame >= 20 and \
             (frame - 20) % 3 == 0 and (frame - 20) // 3 < len(pattern) else 0
         vertical = 1.0 if symbol == 1 else -1.0 if symbol == 3 else 0.0
         cycle = 2 if symbol == 2 else 1 if symbol == 4 else 0
@@ -51,19 +52,26 @@ def build(folder, name):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--timeout', action='store_true',
+                        help='Use a quarter-second guest fixture to check the failure damage path')
+    args = parser.parse_args()
+    frames = 80 if args.timeout else FRAMES
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / ('defuse-l20s3-' +
+    folder = ROOT / 'artifacts/xemu' / ('defuse-l20s3-' + ('timeout-' if args.timeout else '') +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names.add('player-control.flag')
+    names.add('campaign-defuse-seconds.bin')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
     report = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox L20S3 Defuse_Nuke',
-              'event_uid': UID, 'trigger_uid': 18306, 'solution': solution()}
+              'event_uid': UID, 'trigger_uid': 18306, 'solution': solution(),
+              'timeout_fixture': args.timeout}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -72,26 +80,40 @@ def main():
             b'levels2.vpp'.ljust(64, b'\0') + b'L20S3.rfl'.ljust(64, b'\0'))
         (DISC / 'campaign-trigger-start.bin').write_bytes(struct.pack('<I', 18306))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(replay())
+        (DISC / 'player-replay.bin').write_bytes(replay(frames, args.timeout))
+        if args.timeout:
+            (DISC / 'campaign-defuse-seconds.bin').write_bytes(struct.pack('<f', .25))
         build(folder, 'run')
-        guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
-                          extra_symbols={'rf_scene_defuse': 13,
+        guest = run_guest(folder, 'run', hdd, frames, 180, snapshot=True,
+                          extra_symbols={'rf_scene_defuse': 17,
                                          'rf_scene_endgame': 6,
                                          'rf_scene_event_ticks': 12},
-                          allow_guest_error=True)
+                          allow_guest_error=True, allow_player_dead=args.timeout)
         report['guest'] = guest
         puzzle = guest['extra']['rf_scene_defuse']
         ending = guest['extra']['rf_scene_endgame']
         if guest['guest_phase'] & 0x80000000:
             raise RuntimeError(f'Xbox guest failed: {guest["guest_phase"]:08x}, '
                                f'load stage {guest["campaign_load_stage"]}')
-        if puzzle[0] != 1 or puzzle[2] != 11 or puzzle[6] != 1 or puzzle[7] != 0:
-            raise RuntimeError(f'Defuse sequence did not complete: {puzzle}')
-        if puzzle[12] < 40 or guest['extra']['rf_scene_event_ticks'][0] > FRAMES - puzzle[12]:
+        if puzzle[12] < (10 if args.timeout else 40) or \
+                guest['extra']['rf_scene_event_ticks'][0] > frames - puzzle[12]:
             raise RuntimeError(f'Modal gameplay kept advancing: {puzzle}, '
                                f'{guest["extra"]["rf_scene_event_ticks"]}')
-        if ending[2] != 1 or ending[4] != 2:
-            raise RuntimeError(f'Credits outcome missing: {ending}')
+        if args.timeout:
+            health = struct.unpack('<f', struct.pack('<I', puzzle[15]))[0]
+            damage = struct.unpack('<f', struct.pack('<I', puzzle[14]))[0]
+            report['timeout_damage'] = damage
+            report['timeout_health'] = health
+            if puzzle[0] != 1 or puzzle[1] or puzzle[6] or puzzle[7] != 1 or \
+                    puzzle[13] != 1 or damage <= 0 or health > 0 or \
+                    guest['player_life'][0] != 1 or ending[0] != 0:
+                raise RuntimeError(f'Timeout did not use ordinary fatal damage: '
+                                   f'{puzzle}, life {guest["player_life"]}, end {ending}')
+        else:
+            if puzzle[0] != 1 or puzzle[2] != 11 or puzzle[6] != 1 or puzzle[7] != 0:
+                raise RuntimeError(f'Defuse sequence did not complete: {puzzle}')
+            if ending[2] != 1 or ending[4] != 2:
+                raise RuntimeError(f'Credits outcome missing: {ending}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():

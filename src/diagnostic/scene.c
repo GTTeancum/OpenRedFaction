@@ -234,9 +234,10 @@ static struct {
     uint32_t active,completed,failed,uid,progress,errors,last_direction;
     float seconds;uint8_t solution[11];
 } campaign_defuse;
-uint32_t rf_scene_defuse[13]; /* opens,active,progress,phase,errors,ms,complete,failed,UID,first4,last7,last input,paused world frames */
+uint32_t rf_scene_defuse[17]; /* opens,active,progress,phase,errors,ms,complete,failed,UID,first4,last7,last input,paused world frames,timeout damage count/amount/health/frame */
 static int scene_endgame_request(const char *,const char *,uint32_t,int32_t);
 static int campaign_defuse_input(uint32_t,rf_scene_input *);
+static int campaign_defuse_failure_damage(uint32_t);
 static char campaign_current_level[64];
 uint32_t rf_scene_restart_pending(void){return campaign_endgame.restart_requested;}
 uint32_t rf_scene_endgame[6]; /* requests,terminal,credits,last UID,phase,remaining ms */
@@ -9236,11 +9237,18 @@ static int scene_script_defuse(void *context,const rf_level_event *event,int32_t
     uint32_t seed,i,packed=0,tail=0,difficulty=rf_scene_campaign_countdown.difficulty;
     (void)context;(void)now;
     if(!event)return RF_RANGE;
-    if(campaign_defuse.active || campaign_defuse.completed || campaign_endgame.phase)return RF_OK;
+    if(campaign_defuse.active || campaign_defuse.completed || campaign_defuse.failed || campaign_endgame.phase)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
     memset(&campaign_defuse,0,sizeof(campaign_defuse));
     campaign_defuse.active=1;campaign_defuse.uid=event->uid;
     campaign_defuse.seconds=seconds[difficulty<4?difficulty:1];
+#ifdef RF_IMAGE_XBOX_NATIVE
+    /* Bounded guest fixture; retail discs omit this file. */
+    {FILE *fixture=fopen("D:\\campaign-defuse-seconds.bin","rb");
+     if(fixture){float value;int valid=fread(&value,1,sizeof(value),fixture)==sizeof(value) && fgetc(fixture)==EOF;
+         fclose(fixture);if(!valid || !isfinite(value) || value<=0 || value>seconds[0])return RF_FORMAT;
+         campaign_defuse.seconds=value;}}
+#endif
     seed=event->uid^UINT32_C(0x5a17c0de);
     for(i=0;i<11;i++){
         seed=seed*UINT32_C(214013)+UINT32_C(2531011);
@@ -9262,23 +9270,26 @@ static int campaign_defuse_input(uint32_t frame,rf_scene_input *input)
     if(input->cycle_weapon==2){direction=2;++count;}
     if(input->move[1]<-.5f){direction=3;++count;}
     if(input->cycle_weapon==1){direction=4;++count;}
-    if(frame){campaign_defuse.seconds-=1.0f/60.0f;
-        if(campaign_defuse.seconds<=0){campaign_defuse.seconds=0;
-            campaign_defuse.active=0;campaign_defuse.failed=1;
-            status=scene_endgame_request("D:\\tables.vpp","nuke",campaign_defuse.uid,(int32_t)((uint64_t)frame*1000/60));}}
-    if(!status && campaign_defuse.active){
+    if(campaign_defuse.active){
         if(count==1 && direction!=campaign_defuse.last_direction){
             base=campaign_defuse.progress<4?0:4;
             if(direction==campaign_defuse.solution[campaign_defuse.progress]){
                 ++campaign_defuse.progress;
-                if(campaign_defuse.progress==11){campaign_defuse.active=0;campaign_defuse.completed=1;
-                    status=scene_endgame_request("D:\\tables.vpp","call_credits",campaign_defuse.uid,
-                        (int32_t)((uint64_t)frame*1000/60));}
+                if(campaign_defuse.progress==11){campaign_defuse.active=0;campaign_defuse.completed=1;}
             } else {campaign_defuse.progress=base;++campaign_defuse.errors;}
             rf_scene_defuse[11]=direction;
         }
         campaign_defuse.last_direction=count==1?direction:0;
     }
+    if(frame){campaign_defuse.seconds-=1.0f/60.0f;
+        if(campaign_defuse.seconds<0){campaign_defuse.seconds=0;
+            campaign_defuse.active=0;campaign_defuse.failed=1;}}
+    /* The final symbol wins a same-frame timeout, matching the original's
+     * completion-first next-update outcome gate. */
+    if(campaign_defuse.completed)
+        status=scene_endgame_request("D:\\tables.vpp","call_credits",campaign_defuse.uid,
+            (int32_t)((uint64_t)frame*1000/60));
+    else if(campaign_defuse.failed)status=campaign_defuse_failure_damage(frame);
     rf_scene_defuse[1]=campaign_defuse.active;rf_scene_defuse[2]=campaign_defuse.progress;
     rf_scene_defuse[3]=campaign_defuse.progress>=4?2:1;
     rf_scene_defuse[4]=campaign_defuse.errors;
@@ -9756,6 +9767,25 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
 }
 static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
 static uint32_t combat_play(void *c,uint32_t t){(void)c;(void)t;return UINT32_MAX;}
+/* Original 43b800/4a4dd0 requests an ordinary, unforced 1000-damage hit on
+ * defusal failure. The shared damage owner decides whether it is fatal. */
+static int campaign_defuse_failure_damage(uint32_t frame)
+{
+    float seconds=(float)frame/60.0f,applied=0;uint32_t clock_bits;int status;
+    int32_t now=(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD);
+    combat_feedback feedback={now,0};
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
+        combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    rf_damage_request request={1000.0f,UINT32_MAX,-1,0,UINT32_MAX,0};
+    memcpy(&clock_bits,&seconds,4);++rf_scene_defuse[13];rf_scene_defuse[16]=frame;
+    status=rf_scene_player_damage_audio(campaign_player_object.handle,&request,1,clock_bits,now,
+        &combat_pain_random,&effects,&applied);
+    if(!status)status=feedback.status;
+    memcpy(rf_scene_defuse+14,&applied,4);
+    memcpy(rf_scene_defuse+15,&campaign_player_damage.state.effects.health,4);
+    rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
+    return status;
+}
 /* Nearest segment/AABB entry; the legacy segment predicate returns an endpoint. */
 uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
 float rf_scene_gameplay_eye[3]; /* Last gameplay camera, read-only harness telemetry. */

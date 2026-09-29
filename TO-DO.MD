@@ -4,7 +4,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 Current platform priority (user direction,2026-09-27): Xbox implementation and stock-64-MiB XEMU functional checks; retain the shared PC build path but pause PC gameplay testing and campaign-route replays.
 
-- Final nuke defusal: L20S3's authored trigger opens a two-phase Xbox puzzle, pauses world simulation and reaches credits in a bounded stock-64-MiB replay; original art/audio, RNG seed and timeout presentation remain open (docs/DEFUSE-FIRST-PASS.md).
+- Final nuke defusal: L20S3's Xbox puzzle pauses world simulation, reaches credits on completion and applies ordinary player damage on timeout; original art/audio, RNG seed and timeout transition presentation remain open (docs/DEFUSE-FIRST-PASS.md).
 
 - Player death recovery: Xbox campaign Use now reloads the current level and clears enemy/mission state after death; checkpoint choice, death presentation and broader encounters remain open (docs/DEATH-LIFECYCLE.md).
 
