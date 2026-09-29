@@ -2,9 +2,32 @@
 
 # Death lifecycle reconstruction
 
-The live campaign now has a practical first-pass death gate and in-place
-respawn, described below. Full original death-start/dying-update, game-over,
-checkpoints and level restart remain unfinished.
+The live campaign has a first-pass death gate, isolated-testbed in-place
+respawn and Xbox campaign save-or-restart recovery. Full original
+death-start/dying-update, game-over presentation and authored checkpoints
+remain unfinished.
+
+## Xbox campaign recovery first pass (2026-09-29)
+
+After the existing 60-frame death gate, X requests the newest structurally
+valid ordinary save through the same identity-checked quick-load path as
+Back+X. If no usable save can be selected, it requests a fresh current-section
+restart. B requests a fresh restart directly. The ordinary save format and
+saved scene restore are unchanged; an authored checkpoint/menu slot choice and
+original death presentation remain open. This recovery policy is a practical
+port behavior, not a claim about the original game's exact button mapping.
+
+`python tools/xemu_death_save_recovery.py` uses process-contained input and a
+single optical damage fixture, without playing a campaign route. In stock
+64 MiB XEMU, the saved L1S1 case quick-saved 104,044 bytes, took a fatal hit,
+and recovered through one quick-load transition (UID `0xfffffffd`) at global
+frame 176; the final player was alive with 3,978 free pages. Report:
+`artifacts/xemu/death-save-recovery-20260929-161656/`. The `--no-save`
+variant selected one fresh-restart transition (UID `0xfffffffc`) and ended
+alive with 4,083 free pages:
+`artifacts/xemu/death-save-recovery-fallback-20260929-162052/`.
+Both test-disc flag sets were restored. Physical B-button use, other saved
+sections and visual presentation were not verified.
 
 ## Death-entry state prefix
 

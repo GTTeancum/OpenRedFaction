@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-27): Xbox implementation and s
 
 - Final nuke defusal: L20S3's Xbox puzzle pauses world simulation, reaches credits on completion and applies ordinary player damage on timeout; original art/audio, RNG seed and timeout transition presentation remain open (docs/DEFUSE-FIRST-PASS.md).
 
-- Player death recovery: Xbox campaign Use now reloads the current level and clears enemy/mission state after death; checkpoint choice, death presentation and broader encounters remain open (docs/DEATH-LIFECYCLE.md).
+- Player death recovery: Xbox X now loads a valid ordinary save after death or restarts the section when none exists, while B requests a fresh restart; authored checkpoints, death presentation and broader encounters remain open (docs/DEATH-LIFECYCLE.md).
 
 - PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).
 

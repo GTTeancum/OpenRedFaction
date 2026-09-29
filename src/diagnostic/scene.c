@@ -1355,7 +1355,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
            campaign_events.items[i].state.type==49)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47 && campaign_events.items[i].state.type!=86)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -9406,7 +9406,7 @@ uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,no
 uint32_t rf_scene_enemy_combat[8]; /* ticks,alerts,shots,hits,blocked,health bits,down,status */
 static float combat_initial_health;
 uint32_t rf_scene_player_life[8]; /* deaths,respawns,dead,death frame,respawn frame,snapshot bytes,blocked inputs,status */
-static uint32_t life_valid,life_use;
+static uint32_t life_valid,life_use,life_restart_held;
 static struct {
     rf_physics_body_state body;rf_group_attached_pose pose;rf_look_pose look;
     campaign_player_damage_owner damage;rf_entity_view view;
@@ -9661,11 +9661,22 @@ static int campaign_ammo_reset(void)
     if(had_riot){d=campaign_weapon_supply.definitions+campaign_riot_id;status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_riot_id,-1);if(status)return status;campaign_player_inventory.reserve[d->ammo_type]=d->capacity;}
     campaign_ammo_publish();return RF_OK;
 }
+static void scene_death_quickload_request(void);
+static void campaign_life_request_restart(uint32_t frame)
+{
+    memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+    strcpy(rf_scene_level_transition.level,campaign_current_level);
+    rf_scene_level_transition.uid=UINT32_MAX-3u;
+    rf_scene_level_transition.pending=1;
+    campaign_endgame.restart_requested=1;
+    printf("PLAYER_DEATH_RESTART %s %u\n",campaign_current_level,frame);
+}
 static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 {
-    uint32_t pressed=input->use && !life_use,i,has_weapon=0;int status;
-    if(!frame){memset(rf_scene_player_life,0,sizeof(rf_scene_player_life));life_valid=0;life_use=input->use;return RF_OK;}
-    life_use=input->use;
+    uint32_t pressed=input->use && !life_use,restart=input->crouch && !life_restart_held,i,has_weapon=0;int status;
+    if(!frame){memset(rf_scene_player_life,0,sizeof(rf_scene_player_life));life_valid=0;
+        life_use=input->use;life_restart_held=input->crouch;return RF_OK;}
+    life_use=input->use;life_restart_held=input->crouch;
     if(!life_valid || campaign_player_damage.state.effects.health>0)return RF_OK;
     if(!rf_scene_player_life[2]) {
         ++rf_scene_player_life[0];rf_scene_player_life[2]=1;rf_scene_player_life[3]=frame;
@@ -9673,16 +9684,10 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
         memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
     }
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
-    if(!pressed || frame-rf_scene_player_life[3]<60)return RF_OK;
+    if((!pressed && !restart) || frame-rf_scene_player_life[3]<60)return RF_OK;
     if(rf_scene_follow_level_exits){
-        /* A campaign retry must reconstruct enemies, props and mission state.
-         * The existing fresh-section path also discards cross-level carry. */
-        memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
-        strcpy(rf_scene_level_transition.level,campaign_current_level);
-        rf_scene_level_transition.uid=UINT32_MAX-3u;
-        rf_scene_level_transition.pending=1;
-        campaign_endgame.restart_requested=1;
-        printf("PLAYER_DEATH_RESTART %s %u\n",campaign_current_level,frame);
+        if(pressed && !restart){scene_death_quickload_request();return RF_OK;}
+        campaign_life_request_restart(frame);
         return RF_NOT_FOUND;
     }
     if(scene_actor_body.spheres.count!=life_start.count)return RF_RANGE;
@@ -9767,23 +9772,42 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
 }
 static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
 static uint32_t combat_play(void *c,uint32_t t){(void)c;(void)t;return UINT32_MAX;}
-/* Original 43b800/4a4dd0 requests an ordinary, unforced 1000-damage hit on
- * defusal failure. The shared damage owner decides whether it is fatal. */
-static int campaign_defuse_failure_damage(uint32_t frame)
+static int campaign_player_unforced_damage(uint32_t frame,float requested,float *applied)
 {
-    float seconds=(float)frame/60.0f,applied=0;uint32_t clock_bits;int status;
+    float seconds=(float)frame/60.0f;uint32_t clock_bits;int status;
     int32_t now=(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD);
     combat_feedback feedback={now,0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
         combat_random,combat_notify,combat_playing,combat_play,&feedback};
-    rf_damage_request request={1000.0f,UINT32_MAX,-1,0,UINT32_MAX,0};
-    memcpy(&clock_bits,&seconds,4);++rf_scene_defuse[13];rf_scene_defuse[16]=frame;
+    rf_damage_request request={requested,UINT32_MAX,-1,0,UINT32_MAX,0};
+    memcpy(&clock_bits,&seconds,4);
     status=rf_scene_player_damage_audio(campaign_player_object.handle,&request,1,clock_bits,now,
-        &combat_pain_random,&effects,&applied);
+        &combat_pain_random,&effects,applied);
     if(!status)status=feedback.status;
+    rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
+    return status;
+}
+/* Original 43b800/4a4dd0 requests an ordinary, unforced 1000-damage hit on
+ * defusal failure. The shared damage owner decides whether it is fatal. */
+static int campaign_defuse_failure_damage(uint32_t frame)
+{
+    float applied=0;int status;
+    ++rf_scene_defuse[13];rf_scene_defuse[16]=frame;
+    status=campaign_player_unforced_damage(frame,1000.0f,&applied);
     memcpy(rf_scene_defuse+14,&applied,4);
     memcpy(rf_scene_defuse+15,&campaign_player_damage.state.effects.health,4);
-    rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
+    return status;
+}
+uint32_t rf_scene_player_kill_test[4]; /* requests,frame,applied bits,health bits */
+static uint32_t scene_player_kill_test_frame=UINT32_MAX;
+static int scene_player_kill_fixture(uint32_t frame)
+{
+    float applied=0;int status;
+    if(frame!=scene_player_kill_test_frame || !campaign_spawn)return RF_OK;
+    ++rf_scene_player_kill_test[0];rf_scene_player_kill_test[1]=frame;
+    status=campaign_player_unforced_damage(frame,1000.0f,&applied);
+    memcpy(rf_scene_player_kill_test+2,&applied,4);
+    memcpy(rf_scene_player_kill_test+3,&campaign_player_damage.state.effects.health,4);
     return status;
 }
 /* Nearest segment/AABB entry; the legacy segment predicate returns an endpoint. */
@@ -14413,16 +14437,16 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
         status=combat_hud_rect(sink,context,477,458,128.0f*(pistol_reload_ticks-rf_scene_combat[6])/pistol_reload_ticks,3,0xffffc040);if(status)return status;
     }
     }
-    if(rf_scene_enemy_combat[6]) {
+    if(rf_scene_player_life[2] || rf_scene_enemy_combat[6]) {
         const char *prompt;
 #ifdef RF_IMAGE_XBOX_NATIVE
-        prompt=rf_scene_follow_level_exits?"X TO RESTART":"X TO RESPAWN";
+        prompt=rf_scene_follow_level_exits?"X RECOVER  B RESTART":"X TO RESPAWN";
 #else
-        prompt=rf_scene_follow_level_exits?"E TO RESTART":"E TO RESPAWN";
+        prompt=rf_scene_follow_level_exits?"E RECOVER  CTRL RESTART":"E TO RESPAWN";
 #endif
-        status=combat_hud_rect(sink,context,224,184,192,64,0xff101010);if(status)return status;
+        status=combat_hud_rect(sink,context,170,184,300,64,0xff101010);if(status)return status;
         status=combat_hud_text(sink,context,272,194,"YOU DIED",0xffee6060);if(status)return status;
-        status=combat_hud_text(sink,context,242,224,prompt,0xffeeeeee);if(status)return status;
+        status=combat_hud_text(sink,context,176,224,prompt,0xffeeeeee);if(status)return status;
     }
     return RF_OK;
 }
@@ -17039,6 +17063,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         /* Save initialized locomotion and pose, not the earlier camera-preparation state. */
         if(campaign_spawn){status=campaign_life_capture();if(status)return status;}
     }
+    if(stream->collision){int status=scene_player_kill_fixture(frame);if(status)return status;}
     uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+(rf_scene_actor_eye_enabled?0:actor->bytes);
     if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
        bytes>stream->capacity)return RF_RANGE;
@@ -17338,8 +17363,11 @@ modal_step_done:
             if(scene_live_load_active){scene_live_load_active=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
         if(scene_live_load_pending){
+            uint32_t death_recovery=scene_live_load_death_recovery;
             scene_live_load_pending=scene_live_save_pending=0;scene_live_notice_load=1;
+            scene_live_load_death_recovery=0;
             scene_live_save_status=scene_world_quickload_request(stream);scene_live_save_until=frame+180;
+            if(death_recovery && scene_live_save_status)campaign_life_request_restart(frame);
             printf("QUICK_LOAD frame%u status%d\n",frame,scene_live_save_status);
         }
         if(scene_live_save_pending){
@@ -17554,7 +17582,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_extra_pickups_resources_reset();
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
-    scene_live_save_pending=scene_live_load_pending=scene_live_save_until=0;scene_live_save_status=RF_OK;
+    scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=scene_live_save_until=0;scene_live_save_status=RF_OK;
+    scene_player_kill_test_frame=UINT32_MAX;memset(rf_scene_player_kill_test,0,sizeof(rf_scene_player_kill_test));
+#ifdef RF_IMAGE_XBOX_NATIVE
+    /* Optional optical fixture for a bounded death/recovery path. */
+    {FILE *fixture=fopen("D:\\campaign-player-kill.bin","rb");
+     if(fixture){uint32_t at=0;int valid=fread(&at,1,sizeof(at),fixture)==sizeof(at) && fgetc(fixture)==EOF;
+         fclose(fixture);if(!valid || !at || at>60000)return RF_FORMAT;
+         scene_player_kill_test_frame=at;}}
+#endif
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;

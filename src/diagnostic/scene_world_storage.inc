@@ -8,12 +8,15 @@ unsigned char *rf_scene_world_checkpoint_data; /* Retained native endpoint captu
 static uint32_t scene_live_save_held,scene_live_save_pending,scene_live_save_until;
 static int scene_live_save_status;
 static uint32_t scene_live_load_held,scene_live_load_pending,scene_live_load_active,scene_live_notice_load;
+static uint32_t scene_live_load_death_recovery;
 /* A startup snapshot belongs to one level. Do not replay it when that level
  * hands off to the next; an explicit live quick-load is still permitted. */
 static uint32_t scene_world_startup_snapshot_consumed;
 uint32_t rf_scene_quickload_pending(void){return scene_live_load_active;}
 void rf_scene_load_button(uint32_t held)
 {if(held&&!scene_live_load_held)scene_live_load_pending=1;scene_live_load_held=!!held;}
+static void scene_death_quickload_request(void)
+{scene_live_load_pending=1;scene_live_load_death_recovery=1;}
 void rf_scene_save_button(uint32_t held)
 {
     if(held&&!scene_live_save_held)scene_live_save_pending=1;

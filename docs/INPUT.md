@@ -46,9 +46,11 @@ Hostile armed NPCs acquire the player in sight; armed NPCs also retaliate
 when damaged, checking line of sight. The lower-left
 bar shows player health; incoming hits trigger the damage flash. Zero health
 blocks movement, look and actions and displays a respawn prompt. After a
-60-frame pause, release then press E (keyboard) or X (controller) to recover.
-Followed campaign sections now reload the current level; isolated testbeds
-retain the earlier in-place player restore. Checkpoint choice remains open.
+60-frame pause, release then press E (keyboard) or X (controller) to recover
+from the latest valid ordinary save. If none is usable, the current section
+restarts fresh; Ctrl (keyboard) or B (controller) requests a fresh restart
+directly. Isolated testbeds retain the earlier in-place player restore.
+Authored checkpoint and menu-slot choice remain open.
 
 The shared provider polls once before stance and animation. Its validated
 movement/look/crouch state is reused by physics and camera; it replaces the
