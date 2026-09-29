@@ -12,7 +12,8 @@
 #include "rf/audio.h"
 /* First-pass primary-fire settings from a named weapons.tbl declaration.
  * SP values only; finite positive fire timing/damage and a bounded magazine.
- * Explosives without both clip fields return magazine/reload_seconds zero;
+ * Explosives (including clipless secondary weapons identified by explosive
+ * damage type) without both clip fields return magazine/reload_seconds zero;
  * callers consume reserve ammo directly and must not initiate reload.
  * Output is preserved on malformed, duplicate or missing required fields. */
 typedef struct rf_weapon_primary_definition {
@@ -33,7 +34,7 @@ typedef struct rf_weapon_explosive_definition {
     uint32_t impact_count;char impact_vclips[3][64];float impact_radius[3];
 } rf_weapon_explosive_definition;
 /* Named explosive weapons.tbl fields for projectile motion/blast integration.
- * Requires explosive weapon type and all five finite fields; speed/lifetime
+ * Requires explosive weapon or damage type and all five finite fields; speed/lifetime
  * positive, radii nonnegative. Duplicate/missing/malformed fields preserve
  * output. Optional $Glow true requires ordered inner/outer radii and RGB bytes;
  * absent/false glow is zero. RGB is normalized to0..1. This decodes authored

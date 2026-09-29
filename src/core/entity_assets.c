@@ -674,6 +674,8 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
             if(token(&l,t,&q) || !q)return RF_FORMAT;
             for(k=0;k<9;k++)if(same(t,names[k]))break;
             if(k==9)return RF_FORMAT;v.damage_kind=(int32_t)k;
+            /* Secondary missiles omit $Weapon Type but retain explosive damage. */
+            if(k==3)explosive=1;
         }
         mask|=bit;
     }
@@ -779,7 +781,12 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
             bit=4;field=&value.collision_radius;
         } else if(same(t,"$Damage")) {
             if(token(&l,t,&q) || q)return RF_FORMAT;
-            if(!same(t,"Radius:"))continue; /* Type/Multi are separate fields. */
+            if(same(t,"Type:")) {
+                if(mask&1024)return RF_FORMAT;
+                if(token(&l,t,&q) || !q || !same(t,"explosive"))return RF_FORMAT;
+                mask|=32|1024;continue;
+            }
+            if(!same(t,"Radius:"))continue; /* Multi is a separate field. */
             bit=8;field=&value.damage_radius;
         } else if(same(t,"+Crater")) {
             if(token(&l,t,&q) || q || !same(t,"Radius:"))return RF_FORMAT;
@@ -787,8 +794,9 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
         } else if(same(t,"$Weapon")) {
             if(token(&l,t,&q) || q)return RF_FORMAT;
             if(!same(t,"Type:"))continue;
-            bit=32;if(mask&bit)return RF_FORMAT;
+            bit=512;if(mask&bit)return RF_FORMAT;
             if(token(&l,t,&q) || !q || !same(t,"explosive"))return RF_FORMAT;
+            mask|=32;
         }
         if(!bit)continue;
         if(mask&bit)return RF_FORMAT;

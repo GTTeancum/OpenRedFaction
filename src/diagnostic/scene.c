@@ -671,7 +671,7 @@ typedef struct scene_particle_workspace {
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
-static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources;
+static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_tankbot_missile_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
@@ -2134,7 +2134,8 @@ static uint32_t scene_scanner_enabled,scene_scanner_held;
 static rf_weapon_scanner_result scene_scanner_result;
 uint32_t rf_scene_scanner[4]; /* active, visible markers, truncated, status */
 static rf_weapon_primary_definition campaign_pistol,campaign_primary[SCENE_WEAPON_SLOTS];
-static rf_weapon_explosive_definition campaign_rocket,campaign_grenade,campaign_remote,campaign_fusion;
+static rf_weapon_explosive_definition campaign_rocket,campaign_grenade,campaign_remote,campaign_fusion,campaign_tankbot_missile;
+static rf_weapon_primary_definition campaign_tankbot_missile_primary;
 #define campaign_remote_primary campaign_primary[8]
 static rf_explosion_definition campaign_rocket_impact;
 static int32_t campaign_rocket_impact_sound=-1;
@@ -4427,7 +4428,7 @@ typedef struct campaign_npc_body {
         rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
     struct {uint32_t active,event,target_uid;float position[3];} script_look;
     struct {uint32_t active,event;float point[3];} script_shoot;
-    struct {uint32_t count,event,expires;float point[3];} script_once;
+    struct {uint32_t count,event,expires,mode;float point[3];} script_once;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     uint32_t combat_alert,combat_due,combat_burst_remaining;
     uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
@@ -10133,7 +10134,10 @@ static int campaign_script_shoot_once(void *context,uint32_t handle,uint32_t mod
            rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration)continue;
         /* The authored Tankbot secondary is a missile, which needs its own
          * projectile implementation rather than a fabricated hitscan. */
-        if(mode!=0 || owner->view.weapons[0]<0 || owner->damage.effects.health<=0 ||
+        if((mode==0 && owner->view.weapons[0]<0) ||
+           (mode==1 && (!scene_tankbot_missile_resources || owner->view.weapons[1]!=
+               rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile"))) ||
+           owner->damage.effects.health<=0 ||
            (owner->view.flags_810&1u)){
             ++rf_scene_script_shoot_once[2];return RF_NOT_FOUND;
         }
@@ -10143,6 +10147,7 @@ static int campaign_script_shoot_once(void *context,uint32_t handle,uint32_t mod
         for(j=0;j<3;j++)owner->script_once.point[j]=owner->eye_position[j]+
             40.f*owner->look.orientation[6+j]/sqrtf(length);
         owner->script_once.event=event_uid;
+        owner->script_once.mode=mode;
         owner->script_once.expires=(combat_frame==UINT32_MAX?0:combat_frame)+120;
         ++owner->script_once.count;++rf_scene_script_shoot_once[0];
         rf_scene_script_shoot_once[3]=event_uid;
@@ -10294,6 +10299,7 @@ static void campaign_enemy_point_ray_target(const campaign_npc_body *shooter,
 #include "scene_ai_melee_contact.inc"
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
 static int scene_ai_rocket_launch(campaign_npc_body *,const float *);
+static int scene_ai_tankbot_missile_launch(campaign_npc_body *,const float *);
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -10307,6 +10313,16 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         uint32_t point_spread_ready=0,once;
         if(owner->script_once.count && frame>owner->script_once.expires){owner->script_once.count=0;rf_scene_script_shoot_once[5]=0;}
         once=owner->script_once.count>0;
+        if(once && owner->script_once.mode==1){
+            if(!owner->registration.view || (owner->object_flags&(2u|0x4000u)) ||
+               owner->damage.effects.health<=0 || (owner->view.flags_810&1u))continue;
+            status=scene_ai_tankbot_missile_launch(owner,owner->script_once.point);
+            if(status==RF_NOT_FOUND)continue;
+            if(status)return status;
+            ++rf_scene_enemy_combat[2];--owner->script_once.count;
+            ++rf_scene_script_shoot_once[1];rf_scene_script_shoot_once[5]=owner->script_once.count;
+            continue;
+        }
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
          if(!once && !campaign_enemy_mode_admits(owner,speed2>.0001f,0)){campaign_pursuit_stop(owner);continue;}}
         /* First-pass disguise policy: unalerted ordinary guards do not acquire
@@ -16311,7 +16327,9 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
         if(fighter){status=scene_apc_secondary_visual_basis(flight->velocity,fighter_basis);if(status)return status;}
         /* Fighter uses the actual DrillMissile01 animation with current flight
          * direction, including homing changes. ShellTest keeps its own clock. */
-        float time=fmodf((float)((fighter?s->fighter_weapon.rocket.lifetime:fusion?scene_fusion_projectiles[index].definition.lifetime:campaign_rocket.lifetime)-flight->remaining)*15,fusion?30.f:16.f);
+        float lifetime=fighter?s->fighter_weapon.rocket.lifetime:fusion?scene_fusion_projectiles[index].definition.lifetime:
+            shot<SCENE_ROCKETS?campaign_rocket.lifetime:scene_ai_rockets[shot-SCENE_ROCKETS].definition->lifetime;
+        float time=fmodf((lifetime-flight->remaining)*15,fusion?30.f:16.f);
         rf_level camera=s->rocket_camera;++rf_scene_rocket_visual[1];
         /* Bind tiny animated triangles near their own origin: world-space plane
          * constants lose precision at distant authored level coordinates.
@@ -17659,7 +17677,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
     campaign_export_valid=0;memset(&campaign_player_form,0,sizeof(campaign_player_form));memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));memset(rf_scene_player_model,0,sizeof(rf_scene_player_model));
     if(campaign_spawn && campaign_player_form_carry.active){rf_scene_player_form[0]=1;rf_scene_player_form[1]=campaign_player_form_carry.variant;}
-    rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=0;
+    rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=scene_tankbot_missile_resources=0;
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=scene_flame_visual_ready=0;memset(rf_scene_flame_visual,0,sizeof(rf_scene_flame_visual));
     scene_remote_reset();
     memset(scene_grenades,0,sizeof(scene_grenades));memset(&scene_grenade_throw,0,sizeof(scene_grenade_throw));memset(rf_scene_grenades,0,sizeof(rf_scene_grenades));
@@ -17973,7 +17991,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=24;status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
-             {scene_weapon_resource_demand demand;uint32_t npc_projectiles=scene_ai_projectile_resource_mask(),saved_weapons=0;
+             {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
+              uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources);
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
               if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
@@ -17987,6 +18006,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   scene_flame_resources=!!(demand.mask&(1u<<10));
                   if(!status && scene_flame_resources)status=scene_flame_visual_open(&tables);
                   if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources))status=scene_rocket_definitions_open(&tables);
+                  if(!status && scene_tankbot_missile_resources)status=rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile);
+                  if(!status && scene_tankbot_missile_resources)status=rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary);
                   if(!status && scene_remote_resources)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
                   if(!status && scene_grenade_resources)status=rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade);
                   scene_fusion_resources=!!(demand.mask&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);

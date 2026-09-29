@@ -8,6 +8,7 @@
 typedef struct scene_ai_rocket_projectile {
     rf_weapon_flight flight;rf_weapon_flight_liquid_state liquid;
     uint32_t source;float damage,basis[9];
+    const rf_weapon_explosive_definition *definition;
 } scene_ai_rocket_projectile;
 static scene_ai_rocket_projectile scene_ai_rockets[SCENE_AI_ROCKET_CAPACITY];
 /* launches, impacts, expired, live, pool refusals */
@@ -16,39 +17,58 @@ static void scene_ai_rocket_reset(void)
 {memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));}
 static uint32_t scene_ai_rocket_pending(void)
 {uint32_t i;for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active)return 1;return 0;}
-static int scene_ai_rocket_launch(campaign_npc_body *owner,const float target[3])
+static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3],
+    int32_t weapon,const rf_weapon_explosive_definition *definition,float damage)
 {
     scene_ai_rocket_projectile shot={0};float direction[3],up[3]={0,1,0};double length=0;uint32_t i,k;int status;
-    if(!owner || !target || campaign_rocket_id<0 || campaign_rocket_id>=64)return RF_RANGE;
-    if(!owner->inventory.owned[campaign_rocket_id] || owner->inventory.loaded[campaign_rocket_id]<=0)return RF_NOT_FOUND;
+    const rf_weapon_acquire_definition *ammo;
+    if(!owner || !target || !definition || weapon<0 || weapon>=64 ||
+       (uint32_t)weapon>=campaign_weapon_supply.names.count || !isfinite(damage) || damage<0)return RF_RANGE;
+    ammo=campaign_weapon_supply.definitions+weapon;
+    if(!owner->inventory.owned[weapon] || ammo->ammo_type<0 || ammo->ammo_type>=32 ||
+       (ammo->magazine>0?owner->inventory.loaded[weapon]:owner->inventory.reserve[ammo->ammo_type])<=0)return RF_NOT_FOUND;
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY && scene_ai_rockets[i].flight.active;i++){}
     if(i==SCENE_AI_ROCKET_CAPACITY){++rf_scene_ai_rockets[4];return RF_NOT_FOUND;}
     for(k=0;k<3;k++){direction[k]=target[k]-owner->eye_position[k];length+=(double)direction[k]*direction[k];}
     if(!isfinite(length))return RF_RANGE;if(length<1e-12)return RF_NOT_FOUND;length=sqrt(length);
     for(k=0;k<3;k++)direction[k]=(float)(direction[k]/length);
-    status=rf_weapon_flight_launch(&shot.flight,owner->eye_position,direction,campaign_rocket.speed,campaign_rocket.lifetime,campaign_rocket.collision_radius);if(status)return status;
+    status=rf_weapon_flight_launch(&shot.flight,owner->eye_position,direction,definition->speed,definition->lifetime,definition->collision_radius);if(status)return status;
     if(fabsf(direction[1])>.99f){up[0]=1;up[1]=0;}
     shot.basis[0]=up[1]*direction[2]-up[2]*direction[1];shot.basis[1]=up[2]*direction[0]-up[0]*direction[2];shot.basis[2]=up[0]*direction[1]-up[1]*direction[0];
     length=sqrt((double)shot.basis[0]*shot.basis[0]+(double)shot.basis[1]*shot.basis[1]+(double)shot.basis[2]*shot.basis[2]);
     for(k=0;k<3;k++){shot.basis[k]=(float)(shot.basis[k]/length);shot.basis[6+k]=direction[k];}
     shot.basis[3]=direction[1]*shot.basis[2]-direction[2]*shot.basis[1];shot.basis[4]=direction[2]*shot.basis[0]-direction[0]*shot.basis[2];shot.basis[5]=direction[0]*shot.basis[1]-direction[1]*shot.basis[0];
-    shot.source=owner->registration.handle;shot.damage=combat_enemy_primary_damage(campaign_primary+4);
-    shot.liquid.query_flags=0x1004u|(campaign_rocket.collision_radius<.05f?0x100u:0);
-    scene_ai_rockets[i]=shot;--owner->inventory.loaded[campaign_rocket_id];++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];return RF_OK;
+    shot.source=owner->registration.handle;shot.damage=damage;shot.definition=definition;
+    shot.liquid.query_flags=0x1004u|(definition->collision_radius<.05f?0x100u:0);
+    status=rf_weapon_consume_shot(&owner->inventory,campaign_weapon_supply.definitions,
+        campaign_weapon_supply.names.count,weapon);if(status)return status;
+    scene_ai_rockets[i]=shot;++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];return RF_OK;
+}
+static int scene_ai_rocket_launch(campaign_npc_body *owner,const float target[3])
+{return scene_ai_missile_launch(owner,target,campaign_rocket_id,&campaign_rocket,
+    combat_enemy_primary_damage(campaign_primary+4));}
+static int scene_ai_tankbot_missile_launch(campaign_npc_body *owner,const float target[3])
+{
+    int32_t weapon=rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile");
+    if(!scene_tankbot_missile_resources || !owner || owner->view.weapons[1]!=weapon)return RF_NOT_FOUND;
+    return scene_ai_missile_launch(owner,target,weapon,&campaign_tankbot_missile,
+        combat_enemy_primary_damage(&campaign_tankbot_missile_primary));
 }
 static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_ai_rockets[3]=0;
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++){
         scene_ai_rocket_projectile *shot=scene_ai_rockets+i;rf_weapon_flight_liquid_event move;
+        const rf_weapon_explosive_definition *definition=shot->definition;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};scene_ai_projectile_query query={stream,shot->source};
         if(!shot->flight.active)continue;
+        if(!definition)return RF_RANGE;
         status=rf_weapon_flight_step_liquid(&shot->flight,1.f/60,&shot->liquid,&policy,scene_ai_projectile_sweep,&query,&move);if(status)return status;
         if(move.has_liquid){combat_sound("Medium Water Splash",move.liquid_contact.hit.point);scene_ripple_start(stream,move.liquid_contact.hit.point,frame,0);}
         if(move.terminal.kind==2)++rf_scene_ai_rockets[2];
         if(move.terminal.kind==1){
             rf_weapon_flight_contact *contact=&move.terminal.contact;uint32_t tag=contact->object;
-            ++rf_scene_ai_rockets[1];status=scene_impact_start(stream,contact,frame);if(status)return status;scene_impact_sound(contact->hit.point,frame);
+            ++rf_scene_ai_rockets[1];status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);
             if(tag!=UINT32_MAX && (tag&SCENE_DETACHED_ROCKET_OWNER)){
                 status=scene_detached_sources_damage(stream,(tag>>16)&0x7fff,tag&0xffff,shot->damage);if(status)return status;
             }
@@ -74,9 +94,9 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
              /* Match player rockets: move the radial origin off the contacted
               * surface so it does not occlude its own cover rays. */
              for(k=0;k<3;k++)origin[k]=contact->hit.point[k]+contact->hit.normal[k]*.01f;
-             status=scene_explosion_blast_source(stream,frame,origin,shot->damage,campaign_rocket.damage_radius,shot->source,3);if(status)return status;}
+             status=scene_explosion_blast_source(stream,frame,origin,shot->damage,definition->damage_radius,shot->source,3);if(status)return status;}
 
-            status=scene_explosion_terrain(stream,frame,contact,campaign_rocket.crater_radius);if(status)return status;
+            status=scene_explosion_terrain(stream,frame,contact,definition->crater_radius);if(status)return status;
         }
         if(shot->flight.active)++rf_scene_ai_rockets[3];
     }
