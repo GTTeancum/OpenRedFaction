@@ -9915,9 +9915,14 @@ static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],
     }
     *blocked=wall || matched;return RF_OK;
 }
-/* First-pass death presentation; action audio remains a separate integration. */
+uint32_t rf_scene_live_death_audio[4]; /* requested, played, silent, failed */
+/* Audio admission must not prevent a lethal hit or its weapon drop. */
 static int combat_death_sound(void *context,uint32_t handle,const char *name)
-{(void)context;(void)handle;(void)name;return RF_OK;}
+{
+    int status;uint32_t played=rf_scene_npc_action_audio[2];++rf_scene_live_death_audio[0];
+    status=rf_scene_npc_death_sound(context,handle,name);
+    ++rf_scene_live_death_audio[status?3:rf_scene_npc_action_audio[2]>played?1:2];return RF_OK;
+}
 uint32_t rf_scene_weapon_drops[8]; /* emitted,collected,rounds,last UID,available,state hash,bytes,status */
 /* Practical live adapter, not exact42ae10: remaining ammunition capped at
  * one magazine, floor ray placement and fixed persistent owner. Authored
@@ -9941,7 +9946,9 @@ static int campaign_weapon_drop_emit(campaign_npc_body *owner)
 static int combat_death_start(uint32_t slot)
 {
     campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;int status;
-    rf_scene_death_motion_ops ops={NULL,combat_death_sound,NULL};
+    rf_scene_death_selection_context audio_context={0};
+    rf_scene_death_motion_ops ops={NULL,combat_death_sound,&audio_context};
+    audio_context.random=&combat_sound_random;
     scene_burning_extinguish(owner->registration.handle);
     status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     model=campaign_playback_resources.models+pose->skeleton;

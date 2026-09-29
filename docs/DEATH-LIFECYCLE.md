@@ -7,6 +7,19 @@ respawn and Xbox campaign save-or-restart recovery. Full original
 death-start/dying-update, game-over presentation and authored checkpoints
 remain unfinished.
 
+## Live NPC death action audio (2026-09-29)
+
+The live death path now passes its authored action-sound label to the existing
+NPC Foley resolver and starts a spatial voice when the group has a sample.
+Audio lookup or voice failure remains nonfatal so it cannot suppress the
+lethal hit, death motion or weapon drop. The focused stock-64-MiB XEMU check
+`tools/xemu_npc_death_audio.py` dispatches L1S1's authored Slay_Object UID
+9362 against actor UID 8432 and completes 90 frames with one death entry and
+one started action-sound voice; it reports 4,065 free pages and restores its
+isolated test disc (`artifacts/xemu/npc-death-audio-20260929-181303/`). The
+guest voice request was verified; audible DSP output and exact retail sound
+timing remain unverified.
+
 ## Xbox campaign recovery first pass (2026-09-29)
 
 Authored section handoffs now request one Xbox ordinary save in the new section.

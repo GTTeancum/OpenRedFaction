@@ -48,6 +48,8 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
+- NPC death presentation: A live authored death now starts its class action-sound voice on Xbox; corpse ownership, full death effects and audible-output verification remain open (docs/DEATH-LIFECYCLE.md).
+
 - Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
 
 - Prop saves: Static prop damage/destruction now survives PC/Xbox reload and resave with identical checkpoint bytes and8.14MiB native headroom; moving props, broader classes/levels and campaign persistence remain.
