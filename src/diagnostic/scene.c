@@ -17362,6 +17362,22 @@ modal_step_done:
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
             if(scene_live_load_active){scene_live_load_active=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
+#ifdef RF_IMAGE_XBOX_NATIVE
+        if(scene_section_autosave_pending && frame>=30){
+            int saved,ready;
+            ready=scene_checkpoint_player_state_scope(stream,1,1);
+            if(!ready || frame>=180){
+                scene_section_autosave_pending=0;
+                ++rf_scene_section_autosave[0];
+                rf_scene_section_autosave[3]=frame;
+                saved=ready?ready:scene_world_snapshot_capture_mode(stream,
+                    stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
+                rf_scene_section_autosave[2]=(uint32_t)saved;
+                if(!saved)++rf_scene_section_autosave[1];
+                printf("SECTION_AUTOSAVE %s frame%u status%d\n",campaign_current_level,frame,saved);
+            }
+        }
+#endif
         if(scene_live_load_pending){
             uint32_t death_recovery=scene_live_load_death_recovery;
             scene_live_load_pending=scene_live_save_pending=0;scene_live_notice_load=1;
@@ -17583,6 +17599,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
     scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=scene_live_save_until=0;scene_live_save_status=RF_OK;
+    scene_section_autosave_pending=0;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    if(campaign_spawn && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
+       rf_scene_level_transition.uid<UINT32_MAX-3u && !scene_live_load_active &&
+       !campaign_endgame.restart_requested)
+        scene_section_autosave_pending=1;
+#endif
     scene_player_kill_test_frame=UINT32_MAX;memset(rf_scene_player_kill_test,0,sizeof(rf_scene_player_kill_test));
 #ifdef RF_IMAGE_XBOX_NATIVE
     /* Optional optical fixture for a bounded death/recovery path. */

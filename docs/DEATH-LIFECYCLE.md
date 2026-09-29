@@ -9,6 +9,29 @@ remain unfinished.
 
 ## Xbox campaign recovery first pass (2026-09-29)
 
+Authored section handoffs now request one Xbox ordinary save in the new section.
+The request waits until section frame 30 or later and the existing live-player
+save admission accepts a settled body; it gives up at frame 180. It does not
+run on initial boot, quick-load, or a death restart. The attempt is nonfatal if
+another component rejects the save. This is a practical port recovery rule,
+not a claim that the original game used this checkpoint policy. It currently
+shares the ordinary save slots with manual quick-save; separate slot selection
+and broader section admission remain open.
+
+`python tools/xemu_section_autosave.py` stages the authored L1S1 exit UID 9019
+at global frame 60 without walking the campaign route. In stock 64 MiB XEMU,
+L1S2's initially falling player first passed save admission at section frame
+37, producing a 63,212-byte save. A process-local fatal hit at L1S2 frame 90
+and a guest Use press at global frame 220 recovered by one ordinary quick-load
+transition at frame 221, not a fresh restart. The 300-frame run ended with a
+living player and 3,343 free pages (13.06 MiB). The optical flags were
+restored; no PC gameplay or image capture was used. Reports:
+`artifacts/xemu/section-autosave-20260929-165118/` (death/load) and
+`artifacts/xemu/section-autosave-20260929-165725/` (final-source handoff/save).
+The latter confirms one successful save at section frame 37 after temporary
+diagnostic sampling was removed. NXDK and the maintained PC compile pass; no
+PC gameplay was run. The full death/load run predates that read-only cleanup.
+
 After the existing 60-frame death gate, X requests the newest structurally
 valid ordinary save through the same identity-checked quick-load path as
 Back+X. If no usable save can be selected, it requests a fresh current-section

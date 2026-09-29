@@ -9,6 +9,10 @@ static uint32_t scene_live_save_held,scene_live_save_pending,scene_live_save_unt
 static int scene_live_save_status;
 static uint32_t scene_live_load_held,scene_live_load_pending,scene_live_load_active,scene_live_notice_load;
 static uint32_t scene_live_load_death_recovery;
+/* An authored section handoff gets one Xbox recovery snapshot after the new
+ * scene has loaded. Quick-loads and death restarts must never replace it. */
+static uint32_t scene_section_autosave_pending;
+uint32_t rf_scene_section_autosave[4]; /* attempts, successes, last status, section frame */
 /* A startup snapshot belongs to one level. Do not replay it when that level
  * hands off to the next; an explicit live quick-load is still permitted. */
 static uint32_t scene_world_startup_snapshot_consumed;

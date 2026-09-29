@@ -18,9 +18,10 @@ progression and the full campaign remain unfinished.
 firing loop damages a visible NPC; the green reticle confirms a hit and the
 bottom-right markers show11 rounds left. Reloading is supported. First-person
 gun presentation remains unfinished; player shot and reload audio are connected. Hostile armed NPCs now spot and attack the player; armed actors also retaliate
-when damaged. Death blocks controls; E (keyboard) or X (controller) respawns
-the player with full health/ammo at the starting position. This first pass
-preserves world state; checkpoints and full restart remain open. Scripted and
+when damaged. On Xbox, death blocks controls until X loads the latest valid
+ordinary save or restarts the section when none exists; B requests a fresh
+section restart. Authored section handoffs now attempt a recovery save after
+the player settles. Broader checkpoint coverage remains open. Scripted and
 reactive NPC targets now support pursuit.
 
 ![Xbox reconstruction: miner, mining robot, overhead lamps and warning fixture in Live Mines](docs/images/xbox-campaign-props.png)
