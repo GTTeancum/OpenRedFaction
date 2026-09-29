@@ -5976,6 +5976,21 @@ int rf_scene_npc_fall(uint32_t handle)
     owner->movement_slot=rf_movement_fall(campaign_modes,campaign_seeds.classes[cls].physics.flags,&owner->body.state.flags);
     owner->movement_orientation=campaign_identity[0];return RF_OK;
 }
+/* Process-contained Xbox fixture: seed a real owned actor's falling mode and
+ * velocity, then let the ordinary scene step perform collision and impact. */
+int rf_scene_npc_fixture_fall(uint32_t uid,float downward_speed)
+{
+    campaign_npc_body *owner;uint32_t i;int status;
+    if(!uid || !isfinite(downward_speed) || downward_speed<=0 || downward_speed>100)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
+        (uint32_t)campaign_seeds.records.items[i].record.uid==uid)break;
+    if(i==campaign_npc_body_count)return RF_NOT_FOUND;
+    owner=campaign_npc_bodies+i;
+    if(owner->damage.effects.health<=0 || owner->script_move.active)return RF_RANGE;
+    status=rf_scene_npc_fall(owner->registration.handle);if(status)return status;
+    owner->body.state.velocity[1]=-downward_speed;
+    return RF_OK;
+}
 int rf_scene_npc_set_speed(uint32_t handle,int32_t requested)
 {
     campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;

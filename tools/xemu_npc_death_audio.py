@@ -1,4 +1,5 @@
-"""Bounded Xbox NPC death/corpse and idle landing-impact check."""
+"""Bounded Xbox NPC death/corpse and idle landing-impact checks."""
+import argparse
 import datetime
 import json
 import os
@@ -24,18 +25,24 @@ def build(folder, phase):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--impact-drop', action='store_true',
+                        help='Drive a real NPC into a damaging landing instead of scripted Slay')
+    args = parser.parse_args()
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / ('npc-death-audio-' +
+    folder = ROOT / 'artifacts/xemu' / (('npc-impact-drop-' if args.impact_drop else 'npc-death-audio-') +
              datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names.add('player-control.flag')
+    names.add('campaign-npc-drop.bin')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'Xbox authored NPC death, owned corpse and idle landing impact'}
+    report = {'result': 'FAIL', 'scope': 'Xbox synthetic high-speed NPC landing through live scene' if args.impact_drop
+              else 'Xbox authored NPC death, owned corpse and idle landing impact'}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -43,7 +50,10 @@ def main():
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') + b'L1S1.rfl'.ljust(64, b'\0'))
         (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 8432))
-        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 9362, 9362))
+        if args.impact_drop:
+            (DISC / 'campaign-npc-drop.bin').write_bytes(struct.pack('<If', 8432, 20.0))
+        else:
+            (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 9362, 9362))
         (DISC / 'player-control.flag').write_bytes(b'')
         neutral = struct.pack('<5f7I', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         (DISC / 'player-replay.bin').write_bytes(
@@ -68,7 +78,12 @@ def main():
         corpses = guest['extra']['rf_scene_live_corpses']
         idle_ground = guest['extra']['rf_scene_npc_idle_ground']
         idle_impact = guest['extra']['rf_scene_npc_idle_impact']
-        if slay[:3] != [1, 1, 8432] or slay[5] or guest['replay_state'][2] != FRAMES:
+        if guest['replay_state'][2] != FRAMES:
+            raise RuntimeError(f'Xbox replay did not complete: {guest["replay_state"]}')
+        if args.impact_drop:
+            if any(slay) or idle_impact[2] != 1 or idle_impact[3] != 1 or not idle_impact[0]:
+                raise RuntimeError(f'Damaging landing did not kill with impact sound: {idle_impact}, {slay}')
+        elif slay[:3] != [1, 1, 8432] or slay[5]:
             raise RuntimeError(f'Authored death did not complete: {slay}')
         if death != [1, 1, 0, 0]:
             raise RuntimeError(f'Death action did not start one voice: {death}')
@@ -78,7 +93,7 @@ def main():
             raise RuntimeError(f'Owned corpse was not updated and drawn: {corpses}')
         if not all(idle_ground[:4]) or idle_ground[4]:
             raise RuntimeError(f'Idle NPC ground pass did not run cleanly: {idle_ground}')
-        if idle_impact[0] != idle_ground[3] or idle_impact[4]:
+        if idle_impact[0] != idle_ground[3] + idle_impact[2] or idle_impact[4]:
             raise RuntimeError(f'Idle NPC landings did not dispatch impact: {idle_impact}')
         report['result'] = 'PASS'
     finally:

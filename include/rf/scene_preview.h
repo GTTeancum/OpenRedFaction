@@ -191,6 +191,7 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
  * movement orientation. Preserves position, velocity and support ownership.
  * Registered active NPC only; errors preserve state. No physics stepping. */
 int rf_scene_npc_fall(uint32_t handle);
+int rf_scene_npc_fixture_fall(uint32_t uid,float downward_speed);
 int rf_scene_npc_set_speed(uint32_t handle,int32_t requested);
 int rf_scene_npc_request_motion(uint32_t handle,int32_t requested,float duration);
 /*4a0840 NPC query preparation bound to retained class/body/support and current

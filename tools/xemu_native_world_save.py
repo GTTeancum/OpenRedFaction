@@ -30,6 +30,7 @@ FLAGS = (
     'campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin',
     'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin',
     'campaign-setup.bin', 'campaign-goal.bin', 'campaign-goto.bin',
+    'campaign-npc-drop.bin',
     'campaign-exit-start.bin', 'campaign-trigger-start.bin',
     'campaign-quick-actions.bin', 'player-replay.bin',
     'player-control-frames.txt', 'dev-room.flag', 'vehicle-test.flag',

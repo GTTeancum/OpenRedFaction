@@ -41,6 +41,8 @@ char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
 static uint32_t campaign_setup_next_uid,campaign_goto_frame;
+static uint32_t campaign_npc_drop_uid;
+static float campaign_npc_drop_speed;
 static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
@@ -51,6 +53,11 @@ static void player_input_close(void)
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    if(campaign_npc_drop_uid && !campaign_total_frames) {
+        int status=rf_scene_npc_fixture_fall(campaign_npc_drop_uid,campaign_npc_drop_speed);
+        if(status)return status;
+        campaign_npc_drop_uid=0;
+    }
     if(campaign_setup_uid && !campaign_total_frames) {
         int status=rf_scene_fire_setup_event(campaign_setup_uid,0);if(status)return status;
     }
@@ -529,6 +536,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             campaign_goto_uid=values[0];campaign_goto_frame=values[1];}
         exit_file=fopen("D:\\campaign-goal.bin","rb");
         if(exit_file){int invalid=fread(&campaign_goal_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
+        exit_file=fopen("D:\\campaign-npc-drop.bin","rb");
+        if(exit_file){uint32_t uid;float speed;
+            int invalid=fread(&uid,4,1,exit_file)!=1 || fread(&speed,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;
+            fclose(exit_file);if(invalid || !uid || !(speed>0) || speed>100)return RF_FORMAT;
+            campaign_npc_drop_uid=uid;campaign_npc_drop_speed=speed;}
     }
     {FILE *actions=fopen("D:\\campaign-quick-actions.bin","rb");
      quick_action_frames[0]=quick_action_frames[1]=UINT32_MAX;
