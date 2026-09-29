@@ -18,7 +18,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
-- NPC idle gravity: Ordinary uncommanded NPCs now recheck static floor support, fall with body velocity and land on stock-64-MiB Xbox; moving support, impact effects and full scheduling remain open (docs/MOVEMENT.md).
+- NPC idle gravity: Ordinary uncommanded NPCs recheck static floor support, fall with body velocity and dispatch impact before landing on stock-64-MiB Xbox; moving support, damaging-landing integration and full scheduling remain open (docs/MOVEMENT.md).
 
 - Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
 
@@ -2762,7 +2762,7 @@ Immediate open items:
 - [ ] Complete death-start41fdc0 around the verified early player/timer stage41fe5f..41feed, death-animation handoff, configured-item drop linked-actor handoff4204a1..4205e8 and SP tail cleanup420b03..420bdc, bind real item allocation/query/bounds and connect the verified SP weapon-drop42ae10 resource callbacks and shared inventory removal4031a0, bind verified player-mode fields and player-specific cleanup including riot-shield impact marks, bind the verified shared dying-update41ee40 to live owners and recover their player/camera handoff; dead/dying queries, death-entry state, collision-pair retirement and death-action selection are verified; live clearance integration, playback and remaining death effects are open.
 - [ ] Extend integrated player damage/pain/death audio to authored callers and recover death animation, camera, game-over and respawn ownership.
 - [ ] Attach the verified event-to-player damage/flash/camera binding to authored activation with complete player pain audio/death reactions and camera-mode lifecycle; add weapon damage and verify HUD/pause presentation timing.
-- [ ] Complete NPC settling/fall/landing with moving support, impact damage/audio and full original scheduling; the first-pass idle static-floor path now falls and lands on Xbox, while deeper diagnostic sweeps find floors below all24 opening-level short-probe misses.
+- [ ] Complete NPC settling/fall/landing with moving support, a live damaging/audio impact case and full original scheduling; the first-pass idle static-floor path now dispatches the reconstructed impact handler on Xbox, while deeper diagnostic sweeps find floors below all24 opening-level short-probe misses.
 - [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
 - [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
 - [ ] Connect verified impact amount and force-region suppression to NPC contact ownership and the shared damage backend using registered skeletal owners.

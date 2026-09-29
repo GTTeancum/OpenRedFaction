@@ -1,4 +1,4 @@
-"""Bounded Xbox NPC death-action audio check with an authored Slay event."""
+"""Bounded Xbox NPC death/corpse and idle landing-impact check."""
 import datetime
 import json
 import os
@@ -35,7 +35,7 @@ def main():
     names.add('player-control.flag')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'Xbox authored NPC death, owned corpse and idle-body gravity'}
+    report = {'result': 'FAIL', 'scope': 'Xbox authored NPC death, owned corpse and idle landing impact'}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -55,6 +55,7 @@ def main():
                                          'rf_scene_live_death_selection': 4,
                                          'rf_scene_live_corpses': 8,
                                          'rf_scene_npc_idle_ground': 6,
+                                         'rf_scene_npc_idle_impact': 5,
                                          'rf_scene_npc_action_audio': 9,
                                          'rf_scene_combat_death': 8},
                           allow_guest_error=True)
@@ -66,6 +67,7 @@ def main():
         selection = guest['extra']['rf_scene_live_death_selection']
         corpses = guest['extra']['rf_scene_live_corpses']
         idle_ground = guest['extra']['rf_scene_npc_idle_ground']
+        idle_impact = guest['extra']['rf_scene_npc_idle_impact']
         if slay[:3] != [1, 1, 8432] or slay[5] or guest['replay_state'][2] != FRAMES:
             raise RuntimeError(f'Authored death did not complete: {slay}')
         if death != [1, 1, 0, 0]:
@@ -76,6 +78,8 @@ def main():
             raise RuntimeError(f'Owned corpse was not updated and drawn: {corpses}')
         if not all(idle_ground[:4]) or idle_ground[4]:
             raise RuntimeError(f'Idle NPC ground pass did not run cleanly: {idle_ground}')
+        if idle_impact[0] != idle_ground[3] or idle_impact[4]:
+            raise RuntimeError(f'Idle NPC landings did not dispatch impact: {idle_impact}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():

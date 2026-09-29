@@ -7,9 +7,12 @@ stagger. A lost static floor selects the existing falling movement mode; on
 following frames, `rf_physics_fall_propose` advances the owned body velocity
 with scene gravity, then the body sweeps, commits and publishes its position.
 A static walkable support query accepts the floor and restores normal or slow
-stance. The scripted Goto fall-speed accumulator remains exclusive to scripted
-movement. This is a first-pass live scheduler: moving-platform support,
-impact damage/audio and the complete original wake/landing order remain open.
+stance. Before restoring stance, the live landing writes its contact and calls
+the reconstructed NPC impact handler with actual body velocity, damage/foley
+services and a lethal-death handoff. The scripted Goto fall-speed accumulator
+remains exclusive to scripted movement. This is a first-pass live scheduler:
+moving-platform support and the complete original wake/landing order remain
+open.
 
 The focused stock-64-MiB XEMU L1S1 run
 `artifacts/xemu/npc-death-audio-20260929-184745/` completed 90 frames with
@@ -18,6 +21,14 @@ five static landings, with zero idle-ground errors and 4,050 free pages. The
 owned-corpse death check also passed in the same session, and the isolated
 test disc was restored. These counters verify the simulated state and retained
 render submission; visual appearance was not inspected or captured.
+
+After the impact binding, the stock-64-MiB XEMU run
+`artifacts/xemu/npc-death-audio-20260929-185532/` still completed 90 frames
+with five static landings and five impact-handler calls, zero impact errors,
+and 4,049 free pages. These were short falls: none crossed the handler's
+damage or sound threshold. A live high-speed impact, including lethal death
+presentation, remains unverified; the isolated impact component has separate
+original/PC/NXDK and Xbox checks in `docs/DEATH-LIFECYCLE.md`.
 
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared

@@ -15936,6 +15936,9 @@ static int campaign_script_locomotion(uint32_t index,uint32_t moving)
  * Goto adapter's separate fall-speed accumulator. Support checks are spread
  * across eight frames; a falling owner integrates and sweeps every frame. */
 uint32_t rf_scene_npc_idle_ground[6]; /* checks,fall entries,moved,landed,errors,last UID */
+uint32_t rf_scene_npc_idle_impact[5]; /* calls,nonlethal damage,lethal,sound requests,errors */
+static int campaign_npc_idle_impact_feedback(void *context,uint32_t player,float amount)
+{return rf_scene_player_feedback(player,amount,.05f,*(const int32_t*)context);}
 static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body *owner,
     uint32_t slot,float elapsed,uint32_t frame)
 {
@@ -15973,8 +15976,30 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
     if(found && contact.time<1 && contact.normal[1]>=.5f &&
        (!contact.handle || contact.handle==UINT32_MAX)) {
         if(falling) {
+            float speed,seconds=(float)((double)frame*scene_step_seconds),health=owner->damage.effects.health;
+            uint32_t clock_bits,entered;int32_t now=(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD);
+            uint32_t sound_before=rf_scene_npc_impact_dispatch[3];combat_feedback feedback={now,0};
+            rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
+                combat_random,combat_notify,combat_playing,combat_play,&feedback};
+            rf_scene_npc_impact_services impact={&effects,&combat_pain_random,1,0,
+                campaign_npc_idle_impact_feedback,&now};
+            speed=-(owner->body.state.velocity[0]*contact.normal[0]+
+                owner->body.state.velocity[1]*contact.normal[1]+owner->body.state.velocity[2]*contact.normal[2]);
+            memcpy(&clock_bits,&seconds,4);impact.clock_bits=clock_bits;
             status=rf_physics_support_accept(&owner->body.state,&probe,contact.time,0,contact.velocity[1],0,
                 (int32_t)contact.material,&owner->support,owner->published);if(status)goto failed;
+            status=rf_collision_contact_write(&owner->body.state,&owner->collision_contact,&contact);if(status)goto failed;
+            ++rf_scene_npc_idle_impact[0];
+            status=rf_scene_npc_impact(handle,speed,&impact);
+            if(!status)status=feedback.status;
+            if(status){++rf_scene_npc_idle_impact[4];goto failed;}
+            rf_scene_npc_idle_impact[3]+=rf_scene_npc_impact_dispatch[3]-sound_before;
+            if(owner->damage.effects.health<=0) {
+                status=rf_scene_npc_death_entry(handle,&entered);if(status)goto failed;
+                if(entered){owner->script_move.active=0;status=combat_death_start(slot);if(status)goto failed;}
+                ++rf_scene_npc_idle_impact[2];return RF_OK;
+            }
+            if(owner->damage.effects.health<health)++rf_scene_npc_idle_impact[1];
             status=(owner->view.flags_810&0x400u)?rf_scene_npc_slow(stream->collision,handle,1,NULL):
                 rf_scene_npc_normal(stream->collision,handle,NULL);if(status)goto failed;
             status=rf_scene_npc_publish_position(handle);if(status)goto failed;
@@ -18663,7 +18688,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;
