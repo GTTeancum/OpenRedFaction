@@ -1,5 +1,24 @@
 # Movement settings used by turn animations
 
+## Xbox ordinary NPC idle gravity (2026-09-29)
+
+Ordinary NPCs without a scripted move now recheck support on an eight-frame
+stagger. A lost static floor selects the existing falling movement mode; on
+following frames, `rf_physics_fall_propose` advances the owned body velocity
+with scene gravity, then the body sweeps, commits and publishes its position.
+A static walkable support query accepts the floor and restores normal or slow
+stance. The scripted Goto fall-speed accumulator remains exclusive to scripted
+movement. This is a first-pass live scheduler: moving-platform support,
+impact damage/audio and the complete original wake/landing order remain open.
+
+The focused stock-64-MiB XEMU L1S1 run
+`artifacts/xemu/npc-death-audio-20260929-184745/` completed 90 frames with
+358 idle support checks, five transitions to fall, 76 moving-body frames and
+five static landings, with zero idle-ground errors and 4,050 free pages. The
+owned-corpse death check also passed in the same session, and the isolated
+test disc was restored. These counters verify the simulated state and retained
+render submission; visual appearance was not inspected or captured.
+
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared
 C state rather than writing a raw original entity structure. This is the
