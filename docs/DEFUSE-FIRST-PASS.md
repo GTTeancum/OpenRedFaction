@@ -14,8 +14,9 @@ in `research/secondary-re/campaign-defuse-nuke-20260916.md`. This port's
 deterministic sequence seed (`event UID ^ 0x5a17c0de`), edge handling, mistake
 reset, text HUD, and immediate credits handoff are first-pass policies. They
 do not claim original RNG ownership, artwork, fonts, audio, animation, media,
-modal-stack lifecycle or exact ending timing. The world is not yet paused
-during the modal puzzle, and timeout presentation is not verified.
+modal-stack lifecycle or exact ending timing. The port now holds player physics,
+events, NPC updates and particles during the active modal puzzle while still
+presenting the level. Timeout presentation is not verified.
 
 `python tools/xemu_defuse_campaign.py` stages the authored trigger and replays
 the 11 directions inside the guest process. The 140-frame stock-64-MiB run in
@@ -24,3 +25,9 @@ progress 11, completion true, no errors, credits state 2, and 9,449 free
 physical pages (36.91 MiB). The isolated test disc flags were restored. This
 is a bounded functional check, not a campaign playthrough. No visual-content
 inspection was performed under the current no-images instruction.
+
+The follow-up 140-frame stock-64-MiB replay in
+`artifacts/xemu/defuse-l20s3-20260929-155811/` passed with 50 paused world
+frames and 89 event ticks, then reached credits with the same 9,449 free
+pages. This establishes the bounded modal simulation hold and completion
+path; it does not prove every renderer, audio or timeout behavior.

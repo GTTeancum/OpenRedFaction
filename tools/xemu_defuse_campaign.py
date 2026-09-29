@@ -75,8 +75,9 @@ def main():
         (DISC / 'player-replay.bin').write_bytes(replay())
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
-                          extra_symbols={'rf_scene_defuse': 12,
-                                         'rf_scene_endgame': 6},
+                          extra_symbols={'rf_scene_defuse': 13,
+                                         'rf_scene_endgame': 6,
+                                         'rf_scene_event_ticks': 12},
                           allow_guest_error=True)
         report['guest'] = guest
         puzzle = guest['extra']['rf_scene_defuse']
@@ -86,6 +87,9 @@ def main():
                                f'load stage {guest["campaign_load_stage"]}')
         if puzzle[0] != 1 or puzzle[2] != 11 or puzzle[6] != 1 or puzzle[7] != 0:
             raise RuntimeError(f'Defuse sequence did not complete: {puzzle}')
+        if puzzle[12] < 40 or guest['extra']['rf_scene_event_ticks'][0] > FRAMES - puzzle[12]:
+            raise RuntimeError(f'Modal gameplay kept advancing: {puzzle}, '
+                               f'{guest["extra"]["rf_scene_event_ticks"]}')
         if ending[2] != 1 or ending[4] != 2:
             raise RuntimeError(f'Credits outcome missing: {ending}')
         report['result'] = 'PASS'

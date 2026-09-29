@@ -234,7 +234,7 @@ static struct {
     uint32_t active,completed,failed,uid,progress,errors,last_direction;
     float seconds;uint8_t solution[11];
 } campaign_defuse;
-uint32_t rf_scene_defuse[12]; /* opens,active,progress,phase,errors,ms,complete,failed,UID,first4,last7,last input */
+uint32_t rf_scene_defuse[13]; /* opens,active,progress,phase,errors,ms,complete,failed,UID,first4,last7,last input,paused world frames */
 static int scene_endgame_request(const char *,const char *,uint32_t,int32_t);
 static int campaign_defuse_input(uint32_t,rf_scene_input *);
 static char campaign_current_level[64];
@@ -17138,6 +17138,10 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             const scene_piece_support *piece_support=scene_ground_piece_support+(frame%64);
             const rf_geometry_body_hit *contact=rf_scene_actor_ground_contacts+(frame%64);uint32_t route=RF_PLAYER_SUPPORT_QUERY;
             int moved=0;uint32_t axis;
+            /* The final puzzle is terminal on either outcome. Keep presenting
+             * the level, but do not advance its physics, events, NPCs or
+             * particles while the modal input owner holds the player. */
+            if(campaign_defuse.active){++rf_scene_defuse[12];goto modal_step_done;}
             if(stream->particles.state) {
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
                     particle_now,NULL,NULL,&stream->particle_first);if(status)return status;
@@ -17299,6 +17303,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
         step_profile_mark(6,&step_clock);profile_mark(7);
+modal_step_done:
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
             if(scene_live_load_active){scene_live_load_active=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
