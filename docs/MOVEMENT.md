@@ -9,8 +9,8 @@ with scene gravity, then the body sweeps, commits and publishes its position.
 A static walkable support query accepts the floor and restores normal or slow
 stance. Before restoring stance, the live landing writes its contact and calls
 the reconstructed NPC impact handler with actual body velocity, damage/foley
-services and a lethal-death handoff. The scripted Goto fall-speed accumulator
-remains exclusive to scripted movement. This is a first-pass live scheduler:
+services and a lethal-death handoff. Authored Goto actors now use the same
+body-velocity gravity and landing path. This is a first-pass live scheduler:
 moving-platform support and the complete original wake/landing order remain
 open.
 
@@ -39,6 +39,20 @@ one owned death/corpse, and 4,049 free pages. The authored Slay event was not
 staged, so this death came from landing. The fixture verifies the live damaging
 path without claiming that a natural campaign fall or moving-platform landing
 has been exercised.
+
+Authored Goto actors now use the same owned body velocity and scene gravity
+when support is lost. Their landing runs the shared contact, impact and stance
+path; a lethal landing exits before trying to republish the retired actor.
+The bounded L1S1 Goto 9363 fixture activates miner 8432, then seeds downward
+velocity through `campaign-npc-drop.bin` at frame 31. Stock-64-MiB XEMU
+completed 90 frames in both cases: the nonlethal speed-11 case
+`artifacts/xemu/npc-scripted-drop-20260929-191600/` recorded one scripted
+landing and one damage event with 4,065 free pages, while the lethal speed-20
+case `artifacts/xemu/npc-scripted-drop-20260929-193346/` recorded one scripted
+landing, one death, one impact-sound request and an owned corpse with 4,049
+free pages. Both restored their isolated test disc. These are synthetic
+velocity fixtures; natural fall distances, moving supports and other scripted
+movement modes remain open.
 
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared
