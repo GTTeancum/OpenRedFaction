@@ -319,7 +319,8 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
         {"L5S4.rfl","sub",3955,4},
         {"L10S3.rfl","sub",6794,4},
         {"L12S1.rfl","Jeep01",7629,3},
-        {"L13S3.rfl","Fighter01",8955,5}};
+        {"L13S3.rfl","Fighter01",8955,5},
+        {"L18S2.rfl","Fighter01",10066,5}};
     unsigned i,j;rf_level_entity vehicle;int status;
     /* Original level setup 435aeb resets gravity independently of jump strength. */
     rf_physics_gravity_set(&scene_gravity,9.8f);
@@ -869,6 +870,7 @@ static int scene_driller_projectile_damage(const rf_weapon_flight_contact *,uint
 static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float,uint32_t,int32_t);
 
 static uint32_t scene_driller_active(const scene_stream *);
+static uint32_t scene_campaign_vehicle_target(const scene_stream *,uint32_t,float [3],float *);
 static int scene_apc_aim_direction(scene_stream *,const float [3],float [3]);
 static void scene_vehicle_hud_values(const scene_stream *,float *,int32_t [2]);
 static const char *scene_vehicle_hud_label(const scene_stream *);
@@ -9985,6 +9987,8 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(!on){if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
+        else if(links[i].value==campaign_authored_vehicle_handle && campaign_authored_vehicle_handle)
+            target=links[i].value;
         else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
             campaign_npc_bodies[j].registration.handle==links[i].value){target=links[i].value;break;}
     }
@@ -10181,16 +10185,20 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         const float pursue_range=definition && definition->ai_attack_range>0?attack_range:(melee?2.6f:20.0f);
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
            owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0){campaign_pursuit_stop(owner);continue;}
-        campaign_npc_body *victim=NULL;uint32_t victim_slot=UINT32_MAX;
+        campaign_npc_body *victim=NULL;uint32_t victim_slot=UINT32_MAX,vehicle_victim=0;
+        float vehicle_eye[3]={0},vehicle_health=0;
         const float *target_eye=player_eye;
         if(owner->combat_scripted && !point_target && owner->combat_target!=campaign_player_object.handle) {
-            for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+            if(owner->combat_target==campaign_authored_vehicle_handle)
+                vehicle_victim=scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
+            else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
                 campaign_npc_bodies[j].registration.handle==owner->combat_target){victim=campaign_npc_bodies+j;victim_slot=j;break;}
             /* Practical campaign behavior: finished targets release the order back to
              * ordinary affiliation/sight checks. Hidden living targets may return. */
-            if(!victim || victim==owner || victim->damage.effects.health<=0) {
+            if((!victim && !vehicle_victim) || victim==owner ||
+               (victim && victim->damage.effects.health<=0)) {
                 if(owner->registration.handle==rf_scene_script_attack[11]) {
-                    float health=victim?victim->damage.effects.health:0;
+                    float health=victim?victim->damage.effects.health:vehicle_health;
                     rf_scene_script_attack[4]=0;memcpy(rf_scene_script_attack+8,&health,4);
                     ++rf_scene_attack_recovery[0];
                 }
@@ -10198,10 +10206,10 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
                 owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
                 victim=NULL;victim_slot=UINT32_MAX;
-            } else {
+            } else if(victim){
                 if(victim->object_flags&(2|0x4000)){campaign_pursuit_stop(owner);continue;}
                 target_eye=victim->eye_position;
-            }
+            } else target_eye=vehicle_eye;
         }
         if(!campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
         if(point_target)target_eye=owner->script_shoot.point;
@@ -10228,13 +10236,17 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             ++rf_scene_enemy_combat[1];
         }
         if(owner->combat_scripted && owner->registration.handle==rf_scene_script_attack[11]) {
-            float health=victim?victim->damage.effects.health:campaign_player_damage.state.effects.health;
-            memcpy(rf_scene_script_attack_position+3,owner->body.state.position,12);memcpy(rf_scene_script_attack_position+6,victim?victim->body.state.position:scene_actor_body.state.position,12);
+            float health=victim?victim->damage.effects.health:
+                vehicle_victim?vehicle_health:campaign_player_damage.state.effects.health;
+            memcpy(rf_scene_script_attack_position+3,owner->body.state.position,12);
+            memcpy(rf_scene_script_attack_position+6,victim?victim->body.state.position:
+                vehicle_victim?vehicle_eye:scene_actor_body.state.position,12);
             if(!rf_scene_script_attack[10]){memcpy(rf_scene_script_attack+7,&health,4);rf_scene_script_attack[10]=1;}
             memcpy(rf_scene_script_attack+8,&health,4);if(owner->script_move.follow==2)++rf_scene_script_attack[9];
         }
         if(owner->combat_alert && !point_target && !campaign_script_movement_owns(owner)) {
-            const float *target_position=victim?victim->body.state.position:scene_actor_body.state.position;
+            const float *target_position=victim?victim->body.state.position:
+                vehicle_victim?vehicle_eye:scene_actor_body.state.position;
             if(frame>=owner->combat_navigation_due) {
                 float range=owner->script_move.follow==2?(melee?fminf(2.2f,pursue_range):pursue_range*.8f):pursue_range;
                 status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
@@ -10318,12 +10330,14 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             status=campaign_enemy_shotgun_fire(stream,owner,victim,victim_slot,
                 definition,delta,player_eye,point_target,
                 point_target?fmaxf(attack_range,sqrtf(distance)+1.0f):attack_range,
+                vehicle_victim,vehicle_health,
                 clock_bits,&effects,&feedback,&amount,&player_amount);
             if(status)return status;
             goto enemy_shot_done;
         }
         if(melee) {
             uint32_t contact;
+            if(vehicle_victim)goto enemy_shot_done;
             status=campaign_enemy_melee_contact(stream,owner->eye_position,delta,attack_range,
                 victim?&victim->body:&scene_actor_body,shot_damage,&contact);
             if(status)return status;
@@ -10399,7 +10413,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         }
 enemy_shot_done:
         if(owner->combat_scripted && owner->registration.handle==rf_scene_script_attack[11]) {
-            float health=victim?victim->damage.effects.health:campaign_player_damage.state.effects.health;
+            if(vehicle_victim)scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
+            float health=victim?victim->damage.effects.health:
+                vehicle_victim?vehicle_health:campaign_player_damage.state.effects.health;
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
         }
         if(amount>0){++rf_scene_enemy_combat[3];
@@ -15559,7 +15575,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
 {
     uint32_t i,j;rf_scene_script_movement[4]=0;
     for(i=0;i<campaign_npc_body_count;i++) {
-        campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn;int status;
+        campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn,vehicle_aim[3];int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
         if(o->ai_mode.action_280==1 && o->script_move.active){o->script_move.active=0;o->script_move.stop=1;}
         if(o->script_move.stop) {
@@ -15572,10 +15588,11 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
             if(o->combat_scripted==3 && o->script_shoot.active)aim=o->script_shoot.point;
             else if(o->combat_scripted && o->combat_target!=campaign_player_object.handle) {
                 aim=NULL;
-                for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+                if(o->combat_target==campaign_authored_vehicle_handle){float health;
+                    if(scene_campaign_vehicle_target(stream,o->combat_target,vehicle_aim,&health))aim=vehicle_aim;}
+                else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
                     campaign_npc_bodies[j].registration.handle==o->combat_target && campaign_npc_bodies[j].damage.effects.health>0) {
-                    aim=campaign_npc_bodies[j].body.state.position;break;
-                }
+                    aim=campaign_npc_bodies[j].body.state.position;break;}
             }
             if(aim && (o->combat_scripted==3 || campaign_player_damage.state.effects.health>0)) {
                 memcpy(o->body.state.next_position,o->body.state.position,12);

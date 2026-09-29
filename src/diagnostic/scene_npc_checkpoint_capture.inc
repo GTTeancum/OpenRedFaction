@@ -138,6 +138,8 @@ static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
     uint32_t i;
     if(!uid||!handle)return RF_RANGE;
     if(handle==campaign_player_object.handle){*uid=0;return RF_OK;}
+    if(campaign_authored_vehicle_uid && handle==campaign_authored_vehicle_handle){
+        *uid=(uint32_t)campaign_authored_vehicle_uid;return RF_OK;}
     for(i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *target=campaign_npc_bodies+i;
         uint32_t candidate=(uint32_t)campaign_seeds.records.items[i].record.uid;

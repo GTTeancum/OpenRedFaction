@@ -32,7 +32,9 @@ static int scene_script_explode_effects_open(rf_vpp *tables,rf_vpp *maps,uint32_
     if(!status && (owner->definition.recipe.central_count>6 ||
        owner->definition.recipe.central_random!=0))status=RF_FORMAT;
     if(!status){owner->definition.resolved&=(1u<<owner->definition.recipe.central_count)-1;
-        status=rf_explosion_materials_open(&owner->materials,&owner->definition,maps,map_count,128*1024);}
+        /* Big Charge in L18S2 exceeds the old per-effect 128 KiB allowance.
+         * The shared 512 KiB owner cap below still bounds resident effects. */
+        status=rf_explosion_materials_open(&owner->materials,&owner->definition,maps,map_count,512*1024);}
     if(!status && scene_script_explode_effect_bytes+sizeof(*owner)+owner->materials.resident_bytes>512*1024)status=RF_RANGE;
     if(status){rf_explosion_materials_close(&owner->materials);free(owner);return status;}
     if(clip.has_foley)memcpy(owner->foley,clip.foley,sizeof(owner->foley));

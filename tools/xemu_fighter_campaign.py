@@ -1,4 +1,4 @@
-"""Bounded stock-64-MiB Xbox check of the authored L13S3 Fighter01 host.
+"""Bounded stock-64-MiB Xbox checks of authored L13S3 and L18S2 fighters.
 
 The process-local actor fixture supplies input only inside the guest game.
 No PC gameplay, campaign route, screen capture or host input is involved.
@@ -22,6 +22,8 @@ FRAMES = 80
 UID = 8955
 POSITION = (24.44294548034668, -26.2889404296875, 20.15338897705078)
 ROUTE_TARGET = (-82.29115295410156, -49.269466400146484, 110.44220733642578)
+L18S2_UID = 10066
+L18S2_POSITION = (-13.6331787109375, 28.193084716796875, 103.06741333007812)
 
 
 def replay(board, frames):
@@ -46,39 +48,47 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--route', action='store_true',
                         help='Leave the authored fighter unoccupied and check its auto waypoint route')
+    parser.add_argument('--l18s2', action='store_true',
+                        help='Check L18S2 Fighter01 level load and registration')
     args = parser.parse_args()
-    frames = 180 if args.route else FRAMES
+    if args.route and args.l18s2:
+        parser.error('--route and --l18s2 are mutually exclusive')
+    frames = 120 if args.l18s2 else 180 if args.route else FRAMES
+    uid = L18S2_UID if args.l18s2 else UID
+    expected = L18S2_POSITION if args.l18s2 else POSITION
+    level = 'L18S2' if args.l18s2 else 'L13S3'
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / ('fighter-campaign-l13s3-' +
+    folder = ROOT / 'artifacts/xemu' / (f'fighter-campaign-{level.lower()}-' +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names.add('player-control.flag')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox L13S3 authored Fighter01',
-              'uid': UID, 'route_fixture': args.route}
+    report = {'result': 'FAIL', 'scope': f'Stock-64-MiB Xbox {level} authored Fighter01',
+              'uid': uid, 'route_fixture': args.route, 'load_fixture': args.l18s2}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
-            b'levels3.vpp'.ljust(64, b'\0') + b'L13S3.rfl'.ljust(64, b'\0'))
-        if not args.route:
-            (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', UID))
-        else:
+            b'levels3.vpp'.ljust(64, b'\0') + f'{level}.rfl'.encode().ljust(64, b'\0'))
+        if not args.route and not args.l18s2:
+            (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', uid))
+        elif args.route:
             (DISC / 'campaign-trigger-start.bin').write_bytes(struct.pack('<I', 9820))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(replay(not args.route, frames))
+        (DISC / 'player-replay.bin').write_bytes(replay(not (args.route or args.l18s2), frames))
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, frames, 180, snapshot=True,
                           extra_symbols={'rf_scene_vehicle_enabled': 1,
                                          'rf_scene_vehicle_state': 16,
                                          'rf_scene_vehicle_route_state': 8,
-                                         'rf_scene_fighter_weapon': 8},
+                                         'rf_scene_fighter_weapon': 8,
+                                         'rf_scene_script_explode_visual': 8},
                           allow_guest_error=True)
         report['guest'] = guest
         if guest['guest_phase'] & 0x80000000:
@@ -92,10 +102,13 @@ def main():
         report['host_position'] = position
         if enabled != 5 or vehicle[0] != frames or not vehicle[12]:
             raise RuntimeError(f'Authored fighter was not registered: {enabled}, {vehicle}')
-        if any(not math.isfinite(value) or (not args.route and abs(value - expected) > 1)
-               for value, expected in zip(position, POSITION)):
+        if any(not math.isfinite(value) or (not args.route
+                                              and abs(value - target) > 1)
+               for value, target in zip(position, expected)):
             raise RuntimeError(f'Unexpected authored fighter position: {position}')
-        if args.route:
+        if args.l18s2:
+            report['memory_free_mib'] = round(guest['free_pages'] * 4096 / (1024 * 1024), 2)
+        elif args.route:
             route = guest['extra']['rf_scene_vehicle_route_state']
             displacement = math.dist(position, POSITION)
             distances = (math.dist(POSITION, ROUTE_TARGET),

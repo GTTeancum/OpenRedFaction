@@ -27,6 +27,15 @@ uint32_t rf_scene_vehicle_state[16];
 uint32_t rf_scene_jeep_seats[8]; /* ticks,driver frames,gunner frames,switches,role,seat,steer,fire */
 uint32_t rf_scene_vehicle_damage[8]; /* health bits,amount bits,calls,destroyed,pending,exits,source,alive */
 uint32_t rf_scene_drill_state[8]; /* ticks,contacts,damage,cuts,requests,rejections,postwork,status */
+static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t handle,
+    float position[3],float *health)
+{
+    const scene_driller_runtime *r=s?s->driller_runtime:NULL;
+    if(!r || !handle || handle!=r->entry.host.handle || !position || !health)return 0;
+    memcpy(position,r->physics.state.position,12);
+    *health=r->damage.damage.state.effects.health;
+    return r->entry.host.alive && *health>0;
+}
 static int scene_driller_runtime_cut(void *context,const float *center,const float *basis,
     const char *name,float radius,uint32_t flags,uint32_t source,uint32_t *accepted)
 {

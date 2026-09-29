@@ -6,7 +6,8 @@
  * This reuses the same port spread model as other reconstructed firearms. */
 static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *owner,
     campaign_npc_body *victim,uint32_t victim_slot,const rf_weapon_primary_definition *definition,
-    const float delta[3],const float player_eye[3],uint32_t point_target,float range,uint32_t clock_bits,
+    const float delta[3],const float player_eye[3],uint32_t point_target,float range,
+    uint32_t vehicle_target,float vehicle_health,uint32_t clock_bits,
     const rf_damage_effect_backend *effects,combat_feedback *feedback,float *amount,float *player_amount)
 {
     uint32_t pellet,j,shot_frame;float ray[3],distance=0,damage,total=0,player_total=0,clock_seconds;int status;
@@ -30,7 +31,8 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         scene_ai_shield_ray_selection npc_shield={0};
         rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
         if(!point_target &&
-           (victim?victim->damage.effects.health:campaign_player_damage.state.effects.health)<=0)break;
+           (victim?victim->damage.effects.health:
+            vehicle_target?vehicle_health:campaign_player_damage.state.effects.health)<=0)break;
         ++rf_scene_enemy_spread[0];
         status=rf_weapon_spread_ray(ray,definition->ai_spread_degrees,&campaign_enemy_spread_random,spread);
         rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
