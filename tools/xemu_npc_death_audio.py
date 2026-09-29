@@ -51,6 +51,7 @@ def main():
         guest = run_guest(folder, 'run', hdd, FRAMES, 240, snapshot=True,
                           extra_symbols={'rf_scene_script_slays': 6,
                                          'rf_scene_live_death_audio': 4,
+                                         'rf_scene_live_death_selection': 4,
                                          'rf_scene_npc_action_audio': 9,
                                          'rf_scene_combat_death': 8},
                           allow_guest_error=True)
@@ -59,10 +60,13 @@ def main():
             raise RuntimeError(f'Xbox guest failed: {guest["guest_phase"]:08x}')
         slay = guest['extra']['rf_scene_script_slays']
         death = guest['extra']['rf_scene_live_death_audio']
+        selection = guest['extra']['rf_scene_live_death_selection']
         if slay[:3] != [1, 1, 8432] or slay[5] or guest['replay_state'][2] != FRAMES:
             raise RuntimeError(f'Authored death did not complete: {slay}')
         if death != [1, 1, 0, 0]:
             raise RuntimeError(f'Death action did not start one voice: {death}')
+        if selection[:3] != [1, 1, 0] or selection[3] >= 45:
+            raise RuntimeError(f'Live death did not select an authored action: {selection}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():

@@ -9916,6 +9916,19 @@ static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],
     *blocked=wall || matched;return RF_OK;
 }
 uint32_t rf_scene_live_death_audio[4]; /* requested, played, silent, failed */
+uint32_t rf_scene_live_death_selection[4]; /* attempts, selected, generic fallback, last action */
+static int combat_death_select(void *context,uint32_t handle,int32_t *action)
+{
+    rf_scene_death_selection_context *input=context;int status=RF_NOT_FOUND;
+    if(!action)return RF_RANGE;
+    ++rf_scene_live_death_selection[0];
+    if(input && input->world && input->scratch && input->capacity)
+        status=rf_scene_npc_death_select(input,handle,action);
+    if(status){*action=5;++rf_scene_live_death_selection[2];}
+    else ++rf_scene_live_death_selection[1];
+    rf_scene_live_death_selection[3]=(uint32_t)*action;
+    return RF_OK;
+}
 /* Audio admission must not prevent a lethal hit or its weapon drop. */
 static int combat_death_sound(void *context,uint32_t handle,const char *name)
 {
@@ -9945,16 +9958,23 @@ static int campaign_weapon_drop_emit(campaign_npc_body *owner)
 }
 static int combat_death_start(uint32_t slot)
 {
-    campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;int status;
-    rf_scene_death_selection_context audio_context={0};
-    rf_scene_death_motion_ops ops={NULL,combat_death_sound,&audio_context};
-    audio_context.random=&combat_sound_random;
+    campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;
+    rf_entity_death_obstacle *scratch=NULL;uint32_t i,count=0;int status;
+    rf_scene_death_selection_context death_context={0};
+    rf_scene_death_motion_ops ops={combat_death_select,combat_death_sound,&death_context};
+    death_context.world=campaign_trigger_collision;death_context.random=&combat_pain_random;
     scene_burning_extinguish(owner->registration.handle);
     status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     model=campaign_playback_resources.models+pose->skeleton;
     status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;
     status=campaign_weapon_drop_emit(owner);if(status)return status;
-    owner->death.requested_83c=5;status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
+    for(i=0;i<RF_OBJECT_SLOTS;++i)if(campaign_entities.slots[i])++count;
+    if(count && count<=RF_OBJECT_SLOTS) {
+        scratch=malloc(count*sizeof(*scratch));
+        if(scratch){death_context.scratch=scratch;death_context.capacity=count;}
+    }
+    owner->death.requested_83c=-1;status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
+    free(scratch);
     rf_scene_combat_death[0]=1;rf_scene_combat_death[1]=(uint32_t)owner->death.action_824;
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
     if(!status && (owner->view.flags_810&0x00400000u) &&
