@@ -31,7 +31,7 @@
 - User update (2026-09-18): Prioritize a working, integrated engine and core gameplay; polish comes after the engine is assembled.
 - Keep testing proportional: use focused checks to establish that changed behavior works and catch material regressions; do not repeatedly run broad suites or expand edge-case testing without a concrete need.
 - User update (2026-09-27): Do not play through campaign routes as part of development; implement systems and use bounded functional checks instead. Keep existing route scripts in the repository, but stop running them unless the user requests that work again.
-- User update (2026-09-27): Focus fully on Xbox implementation and stock-64-MiB XEMU functional checks; do not spend time testing PC gameplay. Preserve the PC build path for shared code, without treating PC behavior as a release gate.
+- User update (2026-09-29): Xbox is the sole runtime implementation and validation target. Keep the PC build compiling as a shared-code staging path when changes require it, but do not run or tune PC gameplay; use focused stock-64-MiB XEMU checks for changed behavior.
 - Do not let exhaustive validation, minor fidelity details or isolated edge cases monopolize progress on missing engine systems. Record remaining issues in TO-DO.MD and continue integration unless they block basic gameplay, stability or the stock 64 MiB Xbox target.
 - GeoMod remains a core priority, but its polish and exhaustive coverage must not delay assembling the rest of the engine.
 
