@@ -17,6 +17,8 @@
 /* Enable only when the caller consumes exits after scene cleanup. */
 extern uint32_t rf_scene_follow_level_exits;
 extern rf_campaign_countdown rf_scene_campaign_countdown;
+/* Final-puzzle diagnostics; word 1 is active while Xbox D-pad directions feed it. */
+extern uint32_t rf_scene_defuse[12];
 /* Explicit developer loadout for the validated GlassHouse, ctf06 and water fixtures. */
 extern uint32_t rf_scene_dev_room_enabled;
 extern uint32_t rf_scene_dev_npc_enabled;

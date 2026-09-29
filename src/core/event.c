@@ -634,6 +634,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             &c->event->authored->record,c->now);
         return;
     }
+    if(state->type==86) {
+        if(action!=1)return;
+        if(!c->triggers->defuse_nuke){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->defuse_nuke(c->triggers->defuse_context,
+            &c->event->authored->record,c->now);
+        return;
+    }
     if(state->type==67) {
         if(action==2)return;
         if(!c->triggers->clear_endgame_if_killed){++c->report->unsupported_actions;return;}

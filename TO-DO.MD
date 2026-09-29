@@ -4,6 +4,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 Current platform priority (user direction,2026-09-27): Xbox implementation and stock-64-MiB XEMU functional checks; retain the shared PC build path but pause PC gameplay testing and campaign-route replays.
 
+- Final nuke defusal: L20S3's authored trigger now opens a two-phase Xbox puzzle and a bounded stock-64-MiB replay reaches credits; original art/audio, modal world pause, RNG seed and timeout presentation remain open (docs/DEFUSE-FIRST-PASS.md).
+
 - Player death recovery: Xbox campaign Use now reloads the current level and clears enemy/mission state after death; checkpoint choice, death presentation and broader encounters remain open (docs/DEATH-LIFECYCLE.md).
 
 - PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).

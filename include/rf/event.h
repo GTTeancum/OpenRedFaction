@@ -404,6 +404,9 @@ typedef struct rf_runtime_triggers {
     /* Endgame71: named failure after a fade, or immediate call_credits. */
     int (*endgame)(void *,const rf_level_event *,int32_t);
     void *endgame_context;
+    /* Defuse_Nuke86 opens the campaign's modal final puzzle on ON. */
+    int (*defuse_nuke)(void *,const rf_level_event *,int32_t);
+    void *defuse_context;
     /* Clear_Endgame_If_Killed67 clears on activation and restores on deactivation. */
     int (*clear_endgame_if_killed)(void *,uint32_t handle,uint32_t clear);
     void *clear_endgame_context;

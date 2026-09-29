@@ -230,6 +230,13 @@ uint32_t rf_scene_cutscene[12]; /* loaded descriptors/points, starts, active UID
 /* A terminal mission result belongs to this level instance, not the player-life
  * snapshot. The pending fade is intentionally excluded from ordinary saves. */
 static struct {char reason[64],description[512];int32_t deadline;uint32_t phase,credits,uid,use_held,restart_requested;} campaign_endgame;
+static struct {
+    uint32_t active,completed,failed,uid,progress,errors,last_direction;
+    float seconds;uint8_t solution[11];
+} campaign_defuse;
+uint32_t rf_scene_defuse[12]; /* opens,active,progress,phase,errors,ms,complete,failed,UID,first4,last7,last input */
+static int scene_endgame_request(const char *,const char *,uint32_t,int32_t);
+static int campaign_defuse_input(uint32_t,rf_scene_input *);
 static char campaign_current_level[64];
 uint32_t rf_scene_restart_pending(void){return campaign_endgame.restart_requested;}
 uint32_t rf_scene_endgame[6]; /* requests,terminal,credits,last UID,phase,remaining ms */
@@ -446,6 +453,7 @@ static int player_begin_frame(void *context,uint32_t frame)
         memset(&value,0,sizeof(value));
     }
     if(campaign_cutscene_runtime.active)memset(&value,0,sizeof(value));
+    if(campaign_defuse.active){status=campaign_defuse_input(frame,&value);if(status)return status;}
     if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
@@ -9220,6 +9228,64 @@ static int scene_script_endgame(void *context,const rf_level_event *event,int32_
     if(!event)return RF_RANGE;
     return scene_endgame_request(context,event->name,event->uid,now);
 }
+/* First playable final-puzzle owner. The installed event supplies the entry
+ * point; the original modal art/audio and RNG seed lifecycle remain open. */
+static int scene_script_defuse(void *context,const rf_level_event *event,int32_t now)
+{
+    static const float seconds[4]={62.34f,46.77f,41.03f,30.26f};
+    uint32_t seed,i,packed=0,tail=0,difficulty=rf_scene_campaign_countdown.difficulty;
+    (void)context;(void)now;
+    if(!event)return RF_RANGE;
+    if(campaign_defuse.active || campaign_defuse.completed || campaign_endgame.phase)return RF_OK;
+    if(campaign_player_damage.state.effects.health<=0)return RF_OK;
+    memset(&campaign_defuse,0,sizeof(campaign_defuse));
+    campaign_defuse.active=1;campaign_defuse.uid=event->uid;
+    campaign_defuse.seconds=seconds[difficulty<4?difficulty:1];
+    seed=event->uid^UINT32_C(0x5a17c0de);
+    for(i=0;i<11;i++){
+        seed=seed*UINT32_C(214013)+UINT32_C(2531011);
+        campaign_defuse.solution[i]=(uint8_t)(((seed>>16)&0x7fffu)%4u+1u);
+        if(i<4)packed|=(uint32_t)(campaign_defuse.solution[i]-1)<<(i*2);
+        else tail|=(uint32_t)(campaign_defuse.solution[i]-1)<<((i-4)*2);
+    }
+    ++rf_scene_defuse[0];rf_scene_defuse[1]=1;rf_scene_defuse[2]=0;
+    rf_scene_defuse[3]=1;rf_scene_defuse[4]=0;
+    rf_scene_defuse[5]=(uint32_t)(campaign_defuse.seconds*1000.0f);
+    rf_scene_defuse[8]=event->uid;rf_scene_defuse[9]=packed;rf_scene_defuse[10]=tail;
+    return RF_OK;
+}
+static int campaign_defuse_input(uint32_t frame,rf_scene_input *input)
+{
+    uint32_t direction=0,count=0,base;int status=RF_OK;
+    if(!input || !campaign_defuse.active)return RF_RANGE;
+    if(input->move[1]>.5f){direction=1;++count;}
+    if(input->cycle_weapon==2){direction=2;++count;}
+    if(input->move[1]<-.5f){direction=3;++count;}
+    if(input->cycle_weapon==1){direction=4;++count;}
+    if(frame){campaign_defuse.seconds-=1.0f/60.0f;
+        if(campaign_defuse.seconds<=0){campaign_defuse.seconds=0;
+            campaign_defuse.active=0;campaign_defuse.failed=1;
+            status=scene_endgame_request("D:\\tables.vpp","nuke",campaign_defuse.uid,(int32_t)((uint64_t)frame*1000/60));}}
+    if(!status && campaign_defuse.active){
+        if(count==1 && direction!=campaign_defuse.last_direction){
+            base=campaign_defuse.progress<4?0:4;
+            if(direction==campaign_defuse.solution[campaign_defuse.progress]){
+                ++campaign_defuse.progress;
+                if(campaign_defuse.progress==11){campaign_defuse.active=0;campaign_defuse.completed=1;
+                    status=scene_endgame_request("D:\\tables.vpp","call_credits",campaign_defuse.uid,
+                        (int32_t)((uint64_t)frame*1000/60));}
+            } else {campaign_defuse.progress=base;++campaign_defuse.errors;}
+            rf_scene_defuse[11]=direction;
+        }
+        campaign_defuse.last_direction=count==1?direction:0;
+    }
+    rf_scene_defuse[1]=campaign_defuse.active;rf_scene_defuse[2]=campaign_defuse.progress;
+    rf_scene_defuse[3]=campaign_defuse.progress>=4?2:1;
+    rf_scene_defuse[4]=campaign_defuse.errors;
+    rf_scene_defuse[5]=(uint32_t)(campaign_defuse.seconds*1000.0f);
+    rf_scene_defuse[6]=campaign_defuse.completed;rf_scene_defuse[7]=campaign_defuse.failed;
+    memset(input,0,sizeof(*input));return status;
+}
 static int campaign_cutscene_point_action(scene_stream *stream,uint32_t uid,int32_t now)
 {
     uint32_t i;
@@ -14333,7 +14399,26 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
 int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
 {
     int32_t remaining=0;uint32_t alpha=255;int status;
-    if(!sink || !particle_draw_stream || !campaign_spawn || !campaign_endgame.phase)return RF_OK;
+    if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
+    if(campaign_defuse.active){
+        static const char symbols[]=" ULDR";
+        char timer[32],sequence[32],progress[32];uint32_t i,start=campaign_defuse.progress<4?0:4;
+        uint32_t end=start?11:4,at=0;
+        for(i=start;i<end;i++){
+            sequence[at++]=symbols[campaign_defuse.solution[i]];
+            if(i+1<end)sequence[at++]=' ';
+        }
+        sequence[at]=0;
+        snprintf(timer,sizeof(timer),"TIME %02u",(uint32_t)ceilf(campaign_defuse.seconds));
+        snprintf(progress,sizeof(progress),"%u / %u",campaign_defuse.progress-start,end-start);
+        status=combat_hud_rect(sink,context,0,0,640,480,0xe0101010);if(status)return status;
+        status=combat_hud_text(sink,context,192,84,"DISARM WARHEAD",0xffffc060);if(status)return status;
+        status=combat_hud_text(sink,context,266,126,timer,0xffeeeeee);if(status)return status;
+        status=combat_hud_text(sink,context,176,188,sequence,0xff80ff80);if(status)return status;
+        status=combat_hud_text(sink,context,272,236,progress,0xffeeeeee);if(status)return status;
+        return combat_hud_text(sink,context,128,360,"ENTER THE SEQUENCE WITH D-PAD",0xffeeeeee);
+    }
+    if(!campaign_endgame.phase)return RF_OK;
     if(campaign_endgame.phase==1){
         status=rf_timer_remaining(campaign_endgame.deadline,campaign_blackout_now,&remaining);
         if(status)return status;
@@ -17224,7 +17309,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         }
         if(scene_live_save_pending){
             scene_live_save_pending=0;scene_live_notice_load=0;
-            scene_live_save_status=campaign_endgame.phase?RF_NOT_FOUND:
+            scene_live_save_status=(campaign_endgame.phase || campaign_defuse.active)?RF_NOT_FOUND:
                 scene_world_snapshot_capture_mode(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
             scene_live_save_until=frame+180;
             printf("QUICK_SAVE frame%u status%d\n",frame,scene_live_save_status);
@@ -17604,11 +17689,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.monitor_state=campaign_monitor_state;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
+            campaign_triggers.defuse_nuke=scene_script_defuse;campaign_triggers.defuse_context=stream;
             campaign_triggers.clear_endgame_if_killed=campaign_clear_endgame_if_killed;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
             memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));memset(rf_scene_endgame_text,0,sizeof(rf_scene_endgame_text));memset(rf_scene_endgame_clear,0,sizeof(rf_scene_endgame_clear));
+            memset(&campaign_defuse,0,sizeof(campaign_defuse));memset(rf_scene_defuse,0,sizeof(rf_scene_defuse));
             campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
