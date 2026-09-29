@@ -27,9 +27,13 @@ section frame 37, recovered the death from the automatic slot at global frame
 `artifacts/xemu/death-save-recovery-20260929-175243/` started without an
 automatic save, wrote a manual L1S1 save, recovered the death through the
 manual fallback at global frame 176, and retained 3,977 free pages. Both
-isolated test discs were restored. The two-slot behavior follows from the
-distinct Xbox base paths; a combined manual-save-then-section-handoff session
-has not yet been exercised.
+isolated test discs were restored. A combined session then passed with
+`tools/xemu_save_slot_separation.py`: it saved L1S1 manually at global frame
+55, autosaved L1S2 at section frame 37, and explicit quickload at global
+frame 150 returned to L1S1. The 220-frame stock-64-MiB report is
+`artifacts/xemu/save-slot-separation-20260929-175756/`; it ended with 3,954
+free pages (15.45 MiB), and its isolated test disc was restored. This verifies
+that the automatic save did not replace the manual save in the tested handoff.
 
 `python tools/xemu_section_autosave.py` stages the authored L1S1 exit UID 9019
 at global frame 60 without walking the campaign route. In stock 64 MiB XEMU,
