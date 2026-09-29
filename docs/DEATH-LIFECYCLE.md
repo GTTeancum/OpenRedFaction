@@ -9,6 +9,21 @@ remain unfinished.
 
 ## Live NPC death motion and action audio (2026-09-29)
 
+Live ordinary skeletal NPC deaths now construct an owned corpse in a bounded
+30-slot pool, transfer the active skeletal pose, update it independently of the
+dead actor, render it through the retained Xbox model path when visible, and
+release its model and owned resources before level teardown. Unsupported
+replacement-model classes keep the existing actor death path. The live bridge
+does not yet publish collision/source effects, attached items or corpse save
+state. It also does not prove final visual appearance or original death timing.
+The focused stock-64-MiB XEMU run staged the camera at L1S1 miner UID 8432,
+dispatched authored Slay_Object UID 9362, then completed 90 frames with one
+owned corpse, 89 corpse updates and one accepted retained model submission.
+No corpse errors or unsupported fallbacks occurred; 4,050 physical pages were
+free, and the isolated test disc was restored
+(`artifacts/xemu/npc-death-audio-20260929-183638/`). The guest draw telemetry
+confirms a submission, not visual parity; no image was captured.
+
 The live death path now calls the registered death-motion selector with the
 current actor pose, collision world, registered-entity clearance scratch and
 combat RNG. A failed query or scratch allocation falls back to the previous

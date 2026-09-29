@@ -35,13 +35,14 @@ def main():
     names.add('player-control.flag')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'Xbox authored Slay to NPC death action audio'}
+    report = {'result': 'FAIL', 'scope': 'Xbox authored Slay to NPC death action audio and owned corpse'}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') + b'L1S1.rfl'.ljust(64, b'\0'))
+        (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 8432))
         (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 9362, 9362))
         (DISC / 'player-control.flag').write_bytes(b'')
         neutral = struct.pack('<5f7I', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -52,6 +53,7 @@ def main():
                           extra_symbols={'rf_scene_script_slays': 6,
                                          'rf_scene_live_death_audio': 4,
                                          'rf_scene_live_death_selection': 4,
+                                         'rf_scene_live_corpses': 8,
                                          'rf_scene_npc_action_audio': 9,
                                          'rf_scene_combat_death': 8},
                           allow_guest_error=True)
@@ -61,12 +63,15 @@ def main():
         slay = guest['extra']['rf_scene_script_slays']
         death = guest['extra']['rf_scene_live_death_audio']
         selection = guest['extra']['rf_scene_live_death_selection']
+        corpses = guest['extra']['rf_scene_live_corpses']
         if slay[:3] != [1, 1, 8432] or slay[5] or guest['replay_state'][2] != FRAMES:
             raise RuntimeError(f'Authored death did not complete: {slay}')
         if death != [1, 1, 0, 0]:
             raise RuntimeError(f'Death action did not start one voice: {death}')
         if selection[:3] != [1, 1, 0] or selection[3] >= 45:
             raise RuntimeError(f'Live death did not select an authored action: {selection}')
+        if corpses[0] != 1 or corpses[1] != 1 or not corpses[2] or not corpses[3] or not corpses[4] or any(corpses[5:]):
+            raise RuntimeError(f'Owned corpse was not updated and drawn: {corpses}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():

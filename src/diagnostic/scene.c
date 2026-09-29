@@ -4502,6 +4502,137 @@ static const rf_entity_motion_selection *campaign_model_motion_selection(uint32_
     return &campaign_npc_bodies[slot].selection;
 }
 
+/* Stock-memory live corpse ownership. A corpse keeps the actor's skeletal
+ * registration until its own retirement, while the actor remains available
+ * for death-event and persistence queries. */
+static rf_corpse_owners campaign_live_corpses;
+static rf_corpse_list_link campaign_live_corpse_head,campaign_live_corpse_objects;
+static uint32_t campaign_live_corpse_count,campaign_live_corpse_object_count;
+uint32_t rf_scene_live_corpses[8]; /* created,live,draw passes,submitted models,ticks,retired,unsupported,errors */
+static const char *const campaign_death_names[12]={
+    "death_generic","death_blast_forward","death_blast_backward","death_head_forward",
+    "death_head_backward","death_head_neutral","death_chest_forward","death_chest_backward",
+    "death_chest_neutral","death_leg_left","death_leg_right","death_crouch"};
+typedef struct campaign_live_corpse_effects {int status;} campaign_live_corpse_effects;
+static uint32_t campaign_live_corpse_load(void *context,const char *name)
+{(void)context;(void)name;return 0;}
+static void campaign_live_corpse_create_effect(void *context,uint32_t operation,
+    rf_corpse_create_source *source,rf_corpse *corpse,const char *name)
+{
+    campaign_live_corpse_effects *effects=context;float pending[3]={0};(void)source;(void)name;
+    if(operation==RF_CORPSE_CREATE_POSE && !effects->status) {
+        effects->status=rf_scene_corpse_evaluate(corpse,pending);
+        if(!effects->status)effects->status=rf_scene_corpse_pose((rf_corpse_owned*)corpse);
+    } else if(operation==RF_CORPSE_CREATE_PLAY && !effects->status)
+        effects->status=rf_scene_corpse_play(corpse,source->motion_a44);
+}
+static rf_corpse_delete_emitter *campaign_live_corpse_emitter(void *context,
+    rf_corpse_create_source *source,rf_corpse *corpse)
+{(void)context;(void)source;(void)corpse;return NULL;}
+static void campaign_live_corpse_delete_effect(void *context,uint32_t operation,uint32_t token)
+{
+    (void)context;
+    if(operation==RF_CORPSE_DELETE_MODEL && token && token<=campaign_model_owner_count &&
+       campaign_model_owners[token-1].owned && rf_scene_model_retire(token-1))++rf_scene_live_corpses[7];
+}
+static uint32_t *campaign_live_corpse_item(void *context,int32_t id)
+{(void)context;(void)id;return NULL;}
+static const rf_corpse_delete_backend campaign_live_corpse_delete_backend={
+    campaign_live_corpse_delete_effect,campaign_live_corpse_item,NULL};
+static int campaign_live_corpses_open(void)
+{
+    int status=rf_corpse_owners_init(&campaign_live_corpses,sizeof(campaign_live_corpses)+32*1024);
+    if(status)return status;
+    campaign_live_corpse_head.next=campaign_live_corpse_head.previous=&campaign_live_corpse_head;
+    campaign_live_corpse_objects.next=campaign_live_corpse_objects.previous=&campaign_live_corpse_objects;
+    campaign_live_corpse_count=campaign_live_corpse_object_count=0;
+    memset(rf_scene_live_corpses,0,sizeof(rf_scene_live_corpses));return RF_OK;
+}
+static void campaign_live_corpses_close(void)
+{
+    uint32_t i;
+    for(i=0;i<RF_CORPSE_CAPACITY;++i)if(campaign_live_corpses.pool.active_mask&(1u<<i)) {
+        if(rf_corpse_owned_delete(&campaign_live_corpses,i,&campaign_registry,
+            &campaign_live_corpse_count,&campaign_live_corpse_object_count,0,
+            &campaign_live_corpse_delete_backend))++rf_scene_live_corpses[7];
+    }
+}
+static void campaign_live_corpse_create(uint32_t slot)
+{
+    campaign_npc_body *actor;rf_corpse_create_source source={0};rf_corpse_create_request request={0};
+    rf_corpse_create_ownership ownership;rf_corpse_create_backend backend;
+    campaign_live_corpse_effects effects={0};rf_corpse *corpse=NULL;rf_physics_sphere scratch[8];
+    uint32_t cls,room,i;int status;
+    if(slot>=campaign_npc_body_count || !campaign_live_corpses.budget)return;
+    actor=campaign_npc_bodies+slot;cls=campaign_seeds.items[slot].class_index;
+    if(actor->death.action_824<5 || actor->death.action_824>16 ||
+       actor->body.spheres.count>8 || !campaign_model_owners[slot].registration.loaded ||
+       campaign_model_owners[slot].owned || !campaign_surface_palette || !campaign_surface_palette->count) {
+        ++rf_scene_live_corpses[6];return;
+    }
+    source.model=slot+1;source.handle=actor->registration.handle;
+    source.uid=(uint32_t)campaign_seeds.records.items[slot].record.uid;
+    source.object_flags=actor->object_flags;source.flags_810=actor->view.flags_810;
+    source.flags_814=2;source.motion_a44=-1;source.emitter_kind=-1;
+    source.weapon=actor->view.weapons[0];source.attachment_index=UINT32_MAX;
+    source.word_1fc=actor->collision_material;source.physics_radius=actor->model_radius_78;
+    source.spheres=actor->body.spheres.items;source.sphere_count=actor->body.spheres.count;
+    status=rf_scene_corpse_class_source(cls,&source);
+    if(status || source.model_kind!=2 || (source.replacement_model && source.replacement_model[0])) {
+        ++rf_scene_live_corpses[6];return;
+    }
+    room=campaign_model_owners[slot].room;
+    request.death_name=campaign_death_names[actor->death.action_824-5];
+    memcpy(request.position,actor->published,12);
+    memcpy(request.basis,campaign_model_owners[slot].basis,36);
+    request.created_seconds=(float)((double)campaign_blackout_now*.001);
+    request.now_ms=campaign_blackout_now;request.sphere_scratch=scratch;request.sphere_capacity=8;
+    ownership=(rf_corpse_create_ownership){&campaign_live_corpses,&campaign_registry,
+        &campaign_live_corpse_objects,&campaign_live_corpse_object_count,room,
+        campaign_surface_palette->materials[0].elasticity,campaign_surface_palette->materials[0].friction,
+        campaign_surface_palette->materials[0].density};
+    backend=(rf_corpse_create_backend){NULL,campaign_live_corpse_load,rf_scene_corpse_motion,
+        campaign_live_corpse_create_effect,campaign_live_corpse_emitter,&effects};
+    status=rf_corpse_owned_create_bound(&ownership,&source,&request,&campaign_live_corpse_head,
+        &campaign_live_corpse_count,&backend,&corpse,rf_scene_corpse_bind_model,&room);
+    if(status || effects.status) {
+        if(corpse)for(i=0;i<RF_CORPSE_CAPACITY;++i)if(&campaign_live_corpses.slots[i].corpse==corpse) {
+            int cleanup=campaign_live_corpses.slots[i].construction==RF_CORPSE_CONSTRUCT_COMPLETE?
+                rf_corpse_owned_delete(&campaign_live_corpses,i,&campaign_registry,
+                    &campaign_live_corpse_count,&campaign_live_corpse_object_count,0,
+                    &campaign_live_corpse_delete_backend):
+                rf_corpse_owned_abort(&campaign_live_corpses,i,&campaign_registry,
+                    &campaign_live_corpse_count,&campaign_live_corpse_object_count,0,
+                    &campaign_live_corpse_delete_backend);
+            if(cleanup)++rf_scene_live_corpses[7];
+            break;
+        }
+        ++rf_scene_live_corpses[7];return;
+    }
+    corpse->update.item_2cc=-1;
+    actor->object_flags=source.object_flags;actor->view.flags_7c=actor->object_flags;
+    ++rf_scene_live_corpses[0];rf_scene_live_corpses[1]=campaign_live_corpse_count;
+}
+static int campaign_live_corpses_tick(float elapsed,int32_t now)
+{
+    uint32_t i;int status;float pending[3];
+    for(i=0;i<RF_CORPSE_CAPACITY;++i)if(campaign_live_corpses.pool.active_mask&(1u<<i)) {
+        rf_corpse_owned *owner=campaign_live_corpses.slots+i;
+        memset(pending,0,sizeof(pending));
+        status=rf_scene_corpse_update(owner,elapsed,now,NULL,0,pending,NULL);
+        if(status){++rf_scene_live_corpses[7];return status;}
+        ++rf_scene_live_corpses[4];
+        if(owner->corpse.update.fade.object_flags_7c&2u) {
+            status=rf_corpse_owned_delete(&campaign_live_corpses,i,&campaign_registry,
+                &campaign_live_corpse_count,&campaign_live_corpse_object_count,0,
+                &campaign_live_corpse_delete_backend);
+            if(status){++rf_scene_live_corpses[7];return status;}
+            ++rf_scene_live_corpses[5];
+        }
+    }
+    rf_scene_live_corpses[1]=campaign_live_corpse_count;return RF_OK;
+}
+
 uint32_t rf_scene_npc_visibility_rooms[6];
 static int campaign_npc_eye_update(uint32_t actor)
 {
@@ -5340,6 +5471,7 @@ static void campaign_close_movers(void)
     free(campaign_clutter_damage_profiles);campaign_clutter_damage_profiles=NULL;
     rf_clutter_classes_close(&campaign_clutter_classes);
     rf_clutter_catalogs_close(&campaign_clutter_catalogs);
+    campaign_live_corpses_close();
     campaign_models_close();
     campaign_npc_bodies_close();
     if(campaign_playback_resources.models) {
@@ -9975,6 +10107,7 @@ static int combat_death_start(uint32_t slot)
     }
     owner->death.requested_83c=-1;status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
     free(scratch);
+    if(!status)campaign_live_corpse_create(slot);
     rf_scene_combat_death[0]=1;rf_scene_combat_death[1]=(uint32_t)owner->death.action_824;
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
     if(!status && (owner->view.flags_810&0x00400000u) &&
@@ -16167,6 +16300,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         if(actor<campaign_npc_body_count && campaign_npc_bodies[actor].persistence_registered &&
            rf_scene_defeated_actors.items[campaign_npc_bodies[actor].persistence_slot].retired)continue;
         status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)continue;
+        if(owner->owned)continue;
         if(owner->room<stream->visibility.state.count && !stream->visibility.state.rooms[owner->room].visible)continue;
         if(actor>=campaign_npc_body_count || !campaign_npc_bodies[actor].registration.view)return RF_RANGE;
         body=campaign_npc_bodies+actor;context.pose=pose;before=body->object_flags;
@@ -16177,6 +16311,22 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         if(before&(2|0x4000))++rf_scene_npc_render_dispatch[3];else ++rf_scene_npc_render_dispatch[2];
         rf_scene_npc_render_dispatch[4]=npc_hash_bytes(rf_scene_npc_render_dispatch[4],&body->registration.handle,4);
         rf_scene_npc_render_dispatch[4]=npc_hash_bytes(rf_scene_npc_render_dispatch[4],&body->object_flags,4);
+    }
+    rf_scene_live_corpses[2]=rf_scene_live_corpses[3]=0;
+    for(actor=0;actor<RF_CORPSE_CAPACITY;++actor)if(campaign_live_corpses.pool.active_mask&(1u<<actor)) {
+        const rf_corpse *corpse=&campaign_live_corpses.slots[actor].corpse;
+        uint32_t model=corpse->update.model,slot,before=rf_scene_npc_draw[1];
+        rf_entity_pose *pose;scene_npc_render_context context;
+        if(!model || model>campaign_model_owner_count)return RF_RANGE;
+        slot=model-1;
+        if(campaign_model_owners[slot].room<stream->visibility.state.count &&
+           !stream->visibility.state.rooms[campaign_model_owners[slot].room].visible)continue;
+        status=campaign_model_pose(slot,&pose);if(status)return status;
+        if(!pose || !campaign_model_owners[slot].owned)return RF_RANGE;
+        context=(scene_npc_render_context){stream,slot,pose,&buffers,&lights,&attributes,&planes,&projection};
+        rf_scene_npc_draw_detail[0]=slot;
+        status=scene_npc_render_family(&context,0);if(status)return status;
+        ++rf_scene_live_corpses[2];rf_scene_live_corpses[3]+=rf_scene_npc_draw[1]-before;
     }
     rf_scene_npc_draw[2]=stream->mesh->count-start_all;
     rf_scene_npc_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_npc_draw[2]*sizeof(rf_preview_vertex));
@@ -17428,6 +17578,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
+                status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
                 npc_step_profile_mark(1,&npc_clock);
                 status=campaign_npc_rooms_pass(frame);if(status)return status;
                 npc_step_profile_mark(2,&npc_clock);
@@ -18030,6 +18181,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=23;status=campaign_models_open();if(status)goto done;
             /* This diagnostic begins the simulation clock at zero. */
             rf_scene_campaign_load_stage=24;status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
+            status=campaign_live_corpses_open();if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
