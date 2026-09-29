@@ -183,6 +183,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
      * cannot travel, so their leftover route and steering state is discardable. */
 #define NPC_CAPTURE_ZERO(field) do{if(o->field)return scene_npc_checkpoint_reject(index,#field,0,(double)o->field,RF_RANGE);}while(0)
     if(!terminal_dead){
+        NPC_CAPTURE_ZERO(script_once.count);
         if(o->script_move.active){
             status=scene_npc_checkpoint_move_binding(o->script_move.event,o->registration.handle,
                 o->script_move.follow,&authored_path,&authored_mode);

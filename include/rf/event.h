@@ -370,6 +370,10 @@ typedef struct rf_runtime_triggers {
     /* Shoot_At8 assigns linked NPCs an authored fixed world-space fire point. */
     int (*shoot_at)(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on);
     void *shoot_at_context;
+    /* Shoot_Once9: linked actor fires one shot with its authored primary (0)
+     * or secondary (1) weapon; scene may decline unsupported weapon families. */
+    int (*shoot_once)(void *context,uint32_t handle,uint32_t mode,uint32_t event_uid);
+    void *shoot_once_context;
     /* Alarm46: linked NPC wake requests plus one shared timed siren. */
     int (*alarm)(void *,const rf_level_event *,const rf_level_link_target *,int32_t,uint32_t);
     void *alarm_context;

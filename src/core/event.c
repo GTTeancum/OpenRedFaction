@@ -582,6 +582,22 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             c->event->links,c->now,action==1);
         return;
     }
+    if(state->type==9) {
+        uint32_t fire_mode=c->event->authored->record.words[0];
+        if(action!=1)return; /* 4b9f80 has no type-9 OFF effect. */
+        if(!c->triggers->shoot_once){++c->report->unsupported_actions;return;}
+        if(fire_mode>1){c->status=RF_RANGE;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            if(!rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->shoot_once(c->triggers->shoot_once_context,link->value,
+                fire_mode,c->event->authored->record.uid);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==0) {
         if(action==2)return;
         if(!c->triggers->play_sound){++c->report->unsupported_actions;return;}
@@ -1352,6 +1368,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==47 && triggers->set_player_form) &&
            !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==8 && triggers->shoot_at) &&
+           !(event->state.type==9 && triggers->shoot_once) &&
            !(event->state.type==46 && triggers->alarm) &&
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&
            !(event->state.type==1 && triggers->slay_object) &&

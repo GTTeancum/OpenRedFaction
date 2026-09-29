@@ -1,0 +1,11 @@
+# Scripted Shoot_Once, first pass
+
+Xbox is the runtime target for this implementation. The PC build remains a shared-code compile check; no PC gameplay run was used.
+
+The verified PC executable (`SHA-256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836`) constructs event type 9 at `0x4be550` with vtable `0x58997c`. Its ON action at `0x4bad80` visits linked actors, calls the AI-target setter `0x409050`, then calls primary fire at `0x425830` when the authored mode word at event offset `0x2b8` is zero or secondary fire at `0x426ca0` when it is one. Its OFF action at `0x4b9f80` has no type-9 effect. The exact setter argument and its effect in this event still need inspection; no motion-reset claim is made. This is binary-derived behavior, not a screenshot comparison.
+
+The reconstructed event dispatcher now passes linked actor handles and the authored fire mode into the scene. For primary mode, the scene queues one shot along the actor's current facing and routes it through ordinary NPC weapon selection, finite ammunition, world cover, hit resolution and firing presentation. The pending request has a bounded lifetime and prevents an ordinary NPC checkpoint save until it has fired or expired. The stock-64-MiB XEMU fixture stages L20S1's authored `UnHide` UID 12475, then `Shoot_Once` UID 12546, linked to mercenary UID 12544. It records one queued and one fired shot, no unsupported request and no pending shot after 110 frames, with 5,065 free physical pages (about 19.8 MiB). The fixture is `tools/xemu_shoot_once.py`; it restores the disc's prior flags after the run. The passing run is in `artifacts/xemu/shoot-once-20260929-171412` (untracked output).
+
+The actor was initially hidden in L20S1, so dispatching Shoot_Once without its reveal correctly left the request waiting. This fixture verifies the authored reveal and shot sequence rather than weakening the hidden-actor fire guard.
+
+Open: mode 1 is used by L7S4's Tankbot and needs a real secondary missile path; this first pass deliberately declines that mode rather than substituting hitscan fire. L4S2's six-second delayed primary event, simultaneous queued shots, and save/reload while a request is pending need coverage or persistence work. The AI-target setter call, exact animation timing and shot direction relative to the original remain unverified.
