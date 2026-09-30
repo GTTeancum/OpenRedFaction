@@ -178,3 +178,15 @@ side encounters remain open. NPC ordinary saves also remain open: RFNC8
 rejects nonzero support velocity and has no authored support UID field, so
 that work needs an explicit checkpoint-format extension rather than merely a
 restore-time reprobe.
+
+The L20S2 lift fixture above directly fires event 18354. Its natural
+`When_Dead` source links Fighter01 UIDs 4801 and 18353. A focused Xbox attempt
+with a process-local NPC death fixture stopped at frame 31, before the first
+death: that fixture searches skeletal NPC bodies, but these Fighter01 objects
+are vehicle entities and have no registered NPC body to damage. The passive
+vehicle owners currently hold pose and attachment state only; they have no
+damage/death lifecycle for the scene's death query to observe. The fixture
+does not establish natural lift activation. Implement vehicle hit, health and
+death state, then include those linked vehicle UIDs in `campaign_death_query`
+and verify the event fires from actual deaths on stock-64-MiB Xbox. The failed
+diagnostic is retained only in `artifacts/xemu/vehicle-group-natural-20260930-064007`.
