@@ -1549,6 +1549,7 @@ static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
 static rf_entity_seeds campaign_seeds;
+#include "scene_turret_dependent_classes.inc"
 #include "scene_turret_models.inc"
 static int scene_turret_uid_life(uint32_t,uint32_t *,uint32_t *);
 static int scene_turret_set_ai_mode(uint32_t,int32_t);
@@ -2887,7 +2888,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         entity_text=malloc(entity_entry.size);if(!entity_text){status=RF_RANGE;goto audio_done;}
         status=rf_vpp_read(&tables,&entity_entry,0,entity_text,entity_entry.size);if(status)goto audio_done;
         for(i=0;i<campaign_seeds.class_count;++i) {
-            const char *name=campaign_seeds.records.items[campaign_seeds.classes[i].record_index].record.class_name;
+            const char *name;status=scene_turret_class_name(&campaign_seeds,i,&name);if(status)goto audio_done;
             status=rf_entity_footstep_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_footstep_groups[i]);
             if(status)goto audio_done;
             status=rf_entity_pain_groups_read(entity_text,entity_entry.size,name,&campaign_foley,campaign_pain_groups[i]);
@@ -5527,6 +5528,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         float model_sphere[4],model_radius;
         rf_entity_movement_values movement_values;rf_movement_config *movement=campaign_npc_movement_configs+cls;
         const rf_entity_pose *pose;const rf_entity_render_model *model;
+        if(scene_turret_class_is_dependent(&campaign_seeds,cls)) {eye_class->tag=eye_class->parent=-1;continue;}
         for(first=0;first<campaign_poses.count;++first)if(campaign_seeds.items[first].class_index==cls)break;
         if(first==campaign_poses.count){status=RF_FORMAT;goto done;}
         eye_class->tag=eye_class->parent=-1;
@@ -5778,6 +5780,7 @@ static void campaign_close_movers(void)
             (void)rf_entity_pose_release(campaign_poses.items+actor,&campaign_playback_resources);
     }
     rf_entity_seeds_close(&campaign_seeds);
+    (void)scene_turret_dependent_classes_close();
     rf_entity_poses_close(&campaign_poses);
     if(campaign_npc_motion_data){uint32_t i;for(i=0;i<campaign_npc_motion_count;++i)free(campaign_npc_motion_data[i]);free(campaign_npc_motion_data);}
     free(campaign_npc_motion_sizes);campaign_npc_motion_sizes=NULL;
@@ -19389,6 +19392,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"ctf06.rfl"))status=RF_FORMAT;
             else status=scene_dev_npc_seeds(tables_path,&tables);
         } else if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
+        if(!status && collision && campaign_spawn)status=scene_turret_dependent_classes_open(&campaign_seeds,&tables,2*1024*1024);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
         if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
         if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
@@ -19610,7 +19614,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         status=rf_vpp_open(&motions,motions_path);if(status)goto done;motions_opened=1;
         if(campaign_spawn) {
             rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
-            rf_scene_campaign_load_stage=19;status=rf_entity_base_motions_open(&campaign_seeds,&tables,&motions,1024*1024,&campaign_base_motions);
+            rf_scene_campaign_load_stage=19;status=scene_turret_dependent_base_motions_open(&campaign_seeds,&tables,&motions,2*1024*1024,&campaign_base_motions);
             rf_vpp_close(&tables);if(status)goto done;
             rf_scene_campaign_load_stage=20;status=rf_entity_motion_catalog_open(&campaign_skeletons,&campaign_base_motions,512*1024,&campaign_motion_catalog);
             if(status)goto done;

@@ -3,7 +3,8 @@
 /* Optional RFTU1 wrapper within RF_WORLD_VEHICLE. Its inner payload remains
  * an unchanged RFVA/vehicle/RFVR record, or empty for a turret-only level.
  * Include after turret combat and scene_history scalar codecs. RFWC supplies
- * source identity/checksum. Legacy unwrapped saves keep authored turret state. */
+ * source identity/checksum. Legacy unwrapped saves keep authored turret state.
+ * Rows address the stable authored prefix; RFTU2 owns generated suffix rows. */
 enum {SCENE_TURRET_CHECKPOINT_HEADER=16,SCENE_TURRET_CHECKPOINT_ROW=184};
 typedef struct scene_turret_saved {
     uint32_t uid,class_index,dead,flags,flags_810,flags_814,affiliation;
@@ -68,6 +69,9 @@ static int scene_turret_checkpoint_target(uint32_t value,uint32_t decode,uint32_
     for(i=0;i<scene_turret_count;i++) {
         const scene_turret_owner *o=scene_turrets+i;
         if(value==(decode?o->uid:o->registration.handle)&&scene_turret_lookup(o->registration.handle)==o) {
+            /* A generated head has no authored UID. Never encode its valid
+             * handle as UINT_MAX (none), even with no pending fire cadence. */
+            if(o->uid==UINT32_MAX||i>=scene_turret_authored_count)return RF_NOT_FOUND;
             *out=decode?o->registration.handle:o->uid;return RF_OK;
         }
     }
@@ -78,7 +82,8 @@ static int scene_turret_checkpoint_row_valid(const scene_turret_saved *v,uint32_
 {
     const scene_turret_owner *o;const scene_turret_combat_state *s;const rf_entity_seed_class *c;
     float local[9],basis[9];uint32_t i;int status;
-    if(!v||index>=scene_turret_count||!scene_turret_combat_ready)return RF_RANGE;
+    if(!v||index>=scene_turret_authored_count||scene_turret_authored_count>scene_turret_count||
+       scene_turret_count>SCENE_TURRET_OWNER_LIMIT||!scene_turret_combat_ready)return RF_RANGE;
     o=scene_turrets+index;s=scene_turret_combat_states+index;
     if(v->uid!=o->uid||v->class_index!=o->class_index||!v->uid||v->uid==UINT32_MAX||
        scene_turret_lookup(o->registration.handle)!=o||s->handle!=o->registration.handle||
@@ -102,8 +107,11 @@ static int scene_turret_checkpoint_row_valid(const scene_turret_saved *v,uint32_
 
 static int scene_turret_checkpoint_capture_row(uint32_t index,uint32_t frame,scene_turret_saved *v)
 {
-    const scene_turret_owner *o=scene_turrets+index;const scene_turret_combat_state *s=scene_turret_combat_states+index;
+    const scene_turret_owner *o;const scene_turret_combat_state *s;
     int status;
+    if(!v||!scene_turrets||index>=scene_turret_authored_count||scene_turret_authored_count>scene_turret_count||
+       scene_turret_count>SCENE_TURRET_OWNER_LIMIT)return RF_RANGE;
+    o=scene_turrets+index;s=scene_turret_combat_states+index;
     if(o->damage.effects.burn||o->view.linked_handle!=-1||(o->view.occupant_count&&!scene_npc_seat_checkpoint_host(o->registration.handle)))return RF_NOT_FOUND;
     if(o->model!=(o->dead?o->dead_model:o->live_model))return RF_FORMAT;
     memset(v,0,sizeof(*v));v->uid=o->uid;v->class_index=o->class_index;v->dead=o->dead;
@@ -140,14 +148,15 @@ static int scene_turret_checkpoint_capture(unsigned char *p,uint32_t capacity,
     uint32_t inner_bytes,uint32_t frame,uint32_t *written)
 {
     scene_turret_saved row;uint32_t i;int status;
-    uint64_t required=SCENE_TURRET_CHECKPOINT_HEADER+(uint64_t)inner_bytes+(uint64_t)scene_turret_count*SCENE_TURRET_CHECKPOINT_ROW;
+    uint64_t required=SCENE_TURRET_CHECKPOINT_HEADER+(uint64_t)inner_bytes+(uint64_t)scene_turret_authored_count*SCENE_TURRET_CHECKPOINT_ROW;
     if(!p||!written||inner_bytes>capacity||frame==UINT32_MAX)return RF_RANGE;
-    if(!scene_turret_count){*written=inner_bytes;return RF_OK;}
+    if(scene_turret_authored_count>scene_turret_count)return RF_RANGE;
+    if(!scene_turret_authored_count){*written=inner_bytes;return RF_OK;}
     if(scene_turret_count>SCENE_TURRET_OWNER_LIMIT||!scene_turrets||!scene_turret_combat_ready||required>capacity||required>RF_CHECKPOINT_FILE_MAX)return RF_RANGE;
-    for(i=0;i<scene_turret_count;i++){status=scene_turret_checkpoint_capture_row(i,frame,&row);if(status)return status;}
+    for(i=0;i<scene_turret_authored_count;i++){status=scene_turret_checkpoint_capture_row(i,frame,&row);if(status)return status;}
     memmove(p+SCENE_TURRET_CHECKPOINT_HEADER,p,inner_bytes);memcpy(p,"RFTU",4);
-    scene_history_put(p+4,1);scene_history_put(p+8,inner_bytes);scene_history_put(p+12,scene_turret_count);
-    for(i=0;i<scene_turret_count;i++) {
+    scene_history_put(p+4,1);scene_history_put(p+8,inner_bytes);scene_history_put(p+12,scene_turret_authored_count);
+    for(i=0;i<scene_turret_authored_count;i++) {
         status=scene_turret_checkpoint_capture_row(i,frame,&row);if(status)return status;
         scene_turret_checkpoint_encode_row(p+SCENE_TURRET_CHECKPOINT_HEADER+inner_bytes+i*SCENE_TURRET_CHECKPOINT_ROW,&row);
     }
@@ -162,7 +171,8 @@ static int scene_turret_checkpoint_prepare(const unsigned char *p,uint32_t bytes
     status=scene_turret_checkpoint_inner(p,bytes,&body,&size,&count);if(status)return status;
     if(!count){*inner=body;*inner_bytes=size;return RF_OK;}
     allocated=sizeof(*stage)+(uint64_t)count*sizeof(*stage->rows);
-    if(count!=scene_turret_count||allocated>budget||allocated>UINT32_MAX)return RF_FORMAT;
+    if(count!=scene_turret_authored_count||scene_turret_authored_count>scene_turret_count||
+       scene_turret_count>SCENE_TURRET_OWNER_LIMIT||allocated>budget||allocated>UINT32_MAX)return RF_FORMAT;
     stage=calloc(1,(size_t)allocated);if(!stage)return RF_IO;
     stage->count=count;stage->inner_bytes=size;stage->allocated_bytes=(uint32_t)allocated;stage->frame=frame;
     for(i=0;i<count;i++) {
@@ -192,7 +202,7 @@ fail:
 static int scene_turret_checkpoint_validate(const scene_turret_checkpoint_stage *stage)
 {
     uint32_t i,target;int status;if(!stage)return RF_OK;
-    if(stage->count!=scene_turret_count)return RF_FORMAT;
+    if(stage->count!=scene_turret_authored_count||scene_turret_authored_count>scene_turret_count)return RF_FORMAT;
     for(i=0;i<stage->count;i++) {
         const scene_turret_saved *v=stage->rows+i;
         status=scene_turret_checkpoint_row_valid(v,i);if(status)return status;

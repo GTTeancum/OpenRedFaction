@@ -1,5 +1,6 @@
-/* Authored static turret models and their replacement bodies. Included after
- * campaign_seeds and scene_stream declarations. Geometry/tags/material rows are
+/* Authored/dependent static turret models and their replacement bodies. Included
+ * after campaign_seeds, scene_stream and dependent-class resolver declarations.
+ * Geometry/tags/material rows are
  * level-owned; texture pixels transfer to the ordinary scene materials owner. */
 enum {SCENE_TURRET_MODEL_LIMIT=6,SCENE_TURRET_CLASS_LIMIT=3,
       SCENE_TURRET_MODEL_BUDGET=2*1024*1024};
@@ -73,12 +74,14 @@ static int scene_turret_models_open(rf_vpp *meshes,rf_vpp *maps,uint32_t map_cou
     if(campaign_seeds.class_count && (!campaign_seeds.classes || !campaign_seeds.records.items))return RF_RANGE;
     memset(rf_scene_turret_resources,0,sizeof(rf_scene_turret_resources));
     for(cls=0;cls<campaign_seeds.class_count;cls++) {
-        const rf_entity_seed_class *c=campaign_seeds.classes+cls;scene_turret_model_pair *pair;
+        const rf_entity_seed_class *c=campaign_seeds.classes+cls;scene_turret_model_pair *pair;const char *name;
         if(c->model_kind!=1)continue;
-        if(c->record_index>=campaign_seeds.records.count){status=RF_FORMAT;goto fail;}
-        /* The Auto Turret's static head has no authored replacement body. */
+        status=scene_turret_class_name(&campaign_seeds,cls,&name);if(status)goto fail;
+        /* The dependent Head has a real class but no authored record. Admit it
+         * once in this same budgeted pass, before publishing texture slots;
+         * no late generated-owner callback or duplicate resource load needed. */
         {const char *names[3]={"Stationary Turret","Stationary Turret_Plain","Auto Turret Head"};
-         if(rf_emitter_name_lookup(names,3,campaign_seeds.records.items[c->record_index].record.class_name)<0)continue;}
+         if(rf_emitter_name_lookup(names,3,name)<0)continue;}
         if(scene_turret_model_pair_count==SCENE_TURRET_CLASS_LIMIT){status=RF_RANGE;goto fail;}
         if(!file){file=malloc(sizeof(*file));if(!file){status=RF_IO;goto fail;}}
         pair=scene_turret_model_pairs+scene_turret_model_pair_count;pair->class_index=cls;

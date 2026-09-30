@@ -22,7 +22,7 @@ static int scene_turret_attack_checkpoint_handle(uint32_t uid,uint32_t *handle)
 {
     uint32_t i,resolved;int status;
     if(!handle||!uid||uid==UINT32_MAX)return RF_RANGE;
-    for(i=0;i<scene_turret_count;i++)if(scene_turrets[i].uid==uid) {
+    for(i=0;i<scene_turret_authored_count;i++)if(scene_turrets[i].uid==uid) {
         const scene_turret_owner *o=scene_turrets+i;
         /* Match owner identity first, then validate generation and liveness.
          * A dead/missing turret must not fall through to another owner type. */
@@ -40,12 +40,13 @@ static int scene_turret_attack_checkpoint_admit(
 {
     uint32_t i,j,handle;int status;
     if(!npcs)return RF_RANGE;
-    if(turrets&&turrets->count!=scene_turret_count)return RF_FORMAT;
+    if(scene_turret_authored_count>scene_turret_count||
+       (turrets&&turrets->count!=scene_turret_authored_count))return RF_FORMAT;
     for(i=0;i<npcs->count;i++) {
         const scene_npc_checkpoint_restore_entry *e=npcs->entries+i;
         uint32_t uid=e->saved.combat.event;
         if(e->saved.combat.active!=2)continue;
-        for(j=0;j<scene_turret_count;j++)if(scene_turrets[j].uid==uid) {
+        for(j=0;j<scene_turret_authored_count;j++)if(scene_turrets[j].uid==uid) {
             status=scene_turret_attack_checkpoint_handle(uid,&handle);
             if(status)return status;
             if(handle!=e->attack_target_handle)return RF_FORMAT;

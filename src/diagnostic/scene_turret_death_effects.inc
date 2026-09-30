@@ -91,8 +91,7 @@ static int scene_turret_death_effects_open(rf_vpp *tables,rf_vpp *maps,uint32_t 
         const rf_entity_seed_class *definition;const char *name;
         if(cls>=campaign_seeds.class_count){status=RF_FORMAT;goto unavailable;}
         definition=campaign_seeds.classes+cls;
-        if(definition->record_index>=campaign_seeds.records.count){status=RF_FORMAT;goto unavailable;}
-        name=campaign_seeds.records.items[definition->record_index].record.class_name;
+        status=scene_turret_class_name(&campaign_seeds,cls,&name);if(status)goto unavailable;
         status=scene_turret_death_read(text,entry.size,name,&p);
         if(status){++rf_scene_turret_death_effects[4];++rf_scene_turret_death_effects[7];continue;}
         p.class_index=cls;

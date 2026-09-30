@@ -74,7 +74,7 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
     ++rf_scene_turret_shots[0];++rf_scene_enemy_spread[0];
     if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
     {const char *auto_head="Auto Turret Head";
-     const char *name=campaign_seeds.records.items[shooter->seed].record.class_name;
+     const char *name;status=scene_turret_class_name(&campaign_seeds,shooter->class_index,&name);if(status)goto fail;
      combat_sound(rf_emitter_name_lookup(&auto_head,1,name)==0?"Vauss2 Fire":"Vauss5 Fire",muzzle);}
     /* Each candidate combines its body and held shield before comparing with
      * other actors. This preserves outstretched shields outside coarse spheres. */

@@ -13,7 +13,7 @@ typedef struct scene_turret_owner {
 } scene_turret_owner;
 static void scene_turret_death_effects_queue(scene_turret_owner *);
 static scene_turret_owner *scene_turrets;
-static uint32_t scene_turret_count;
+static uint32_t scene_turret_count,scene_turret_authored_count;
 uint32_t rf_scene_turret_owners[8]; /* count,bytes,damage calls,deaths,queries,hits,last UID,errors */
 static scene_turret_owner *scene_turret_lookup(uint32_t handle)
 {
@@ -28,7 +28,7 @@ static scene_turret_owner *scene_turret_lookup(uint32_t handle)
 }
 static uint32_t scene_turret_uid_handle(uint32_t uid)
 {
-    uint32_t i;
+    uint32_t i;if(uid==UINT32_MAX)return UINT32_MAX;
     for(i=0;i<scene_turret_count;i++)if(scene_turrets[i].uid==uid &&
         scene_turret_lookup(scene_turrets[i].registration.handle)==scene_turrets+i)return scene_turrets[i].registration.handle;
     return UINT32_MAX;
@@ -43,7 +43,7 @@ static int scene_turrets_close(void)
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&scene_turrets[i].registration);
         if(status)return status;
     }
-    free(scene_turrets);scene_turrets=NULL;scene_turret_count=0;return RF_OK;
+    free(scene_turrets);scene_turrets=NULL;scene_turret_count=scene_turret_authored_count=0;return RF_OK;
 }
 static int scene_turrets_open(rf_vpp *tables)
 {
@@ -55,7 +55,7 @@ static int scene_turrets_open(rf_vpp *tables)
         if(campaign_seeds.items[i].class_index==scene_turret_model_pairs[j].class_index){++count;break;}
     if(count>SCENE_TURRET_OWNER_LIMIT)return RF_RANGE;
     if(!count)return RF_OK;
-    scene_turrets=calloc(count,sizeof(*scene_turrets));if(!scene_turrets)return RF_IO;scene_turret_count=count;
+    scene_turrets=calloc(count,sizeof(*scene_turrets));if(!scene_turrets)return RF_IO;scene_turret_count=scene_turret_authored_count=count;
     for(i=0;i<campaign_seeds.records.count;i++) {
         uint32_t cls=campaign_seeds.items[i].class_index;
         const rf_entity_seed_class *definition;const rf_level_entity *record;
