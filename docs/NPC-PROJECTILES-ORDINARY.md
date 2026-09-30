@@ -43,5 +43,7 @@ the shallow player/prop restore allowance is now 10 cm, the same bound used
 for NPCs, so this legal native position can load.
 
 Open: an active flight whose source NPC has already retired cannot yet be
-captured, broader natural campaign encounters remain untested, and exact
+captured; retirement clears the runtime handle used for damage attribution,
+so UID rebinding alone would change combat behavior. Broader natural campaign
+encounters remain untested, and exact
 grenade terminal effects after reload remain unverified.

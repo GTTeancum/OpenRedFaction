@@ -67,7 +67,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     rf_checkpoint_file_selection selection={0};rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
     rf_weapon_modes_checkpoint modes;rf_campaign_triggers *triggers=NULL;rf_level_uid_object *objects=NULL;
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
-    uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending())?
+    uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending()||scene_player_rocket_pending(s))?
         RF_WORLD_CHECKPOINT_PREFIX_V3:RF_WORLD_CHECKPOINT_PREFIX;
     uint32_t bytes=0,total=0,i,slot,object_count=0,omissions=0,stage=0;
     int status=RF_OK;int32_t now;const char *part="identity";
@@ -180,8 +180,8 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     SNAP_START("campaign_history");omissions=scene_campaign_history_checkpoint_omissions();
     status=scene_campaign_history_checkpoint_encode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CAMPAIGN_HISTORY);
     SNAP_START("environment");status=scene_world_environment_encode(identity.bytes,campaign_blackout_now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_ENVIRONMENT);
-    SNAP_START("npc_projectiles");
-    status=scene_ai_projectile_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);
+    SNAP_START("projectiles");
+    status=scene_ai_projectile_checkpoint_capture(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);
     SNAP_END(RF_WORLD_PROJECTILES);
     part="envelope";status=rf_world_checkpoint_encode(&bundle,0,buffer,RF_CHECKPOINT_FILE_MAX,&total);if(status)goto done;
     (void)scene_world_restore_probe(s,buffer,total,identity.bytes,now);

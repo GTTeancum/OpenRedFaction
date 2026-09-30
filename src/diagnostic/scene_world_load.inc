@@ -156,9 +156,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_campaign_history_checkpoint_rebind_prepare(history,budget-cost,&bindings);if(status)goto done;cost+=bindings->bytes;
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
-    phase="npc_projectiles";v=envelope.sections+RF_WORLD_PROJECTILES-1;
-    if(v->bytes){status=scene_ai_projectile_checkpoint_prepare(v->data,v->bytes,budget-cost,&projectiles);
-        if(status)goto done;cost+=scene_ai_projectile_checkpoint_stage_bytes();}
+    phase="projectiles";v=envelope.sections+RF_WORLD_PROJECTILES-1;
+    if(v->bytes){status=scene_ai_projectile_checkpoint_prepare(stream,v->data,v->bytes,budget-cost,&projectiles);
+        if(status)goto done;cost+=scene_ai_projectile_checkpoint_stage_bytes();
+        if(scene_ai_projectile_checkpoint_trigger_pending(projectiles)&&
+           player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_preflight(stream,v->data,v->bytes);if(status)goto done;
     /* Static-world attachments are stable in this unchanged-world profile.
@@ -181,7 +183,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
      * driver possession needs the saved player body and health in place. */
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
-    scene_ai_projectile_checkpoint_assign(projectiles);
+    scene_ai_projectile_checkpoint_assign(stream,projectiles);
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
     if(vehicle_present)scene_world_vehicle_route_assign(&vehicle_route);
     scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);

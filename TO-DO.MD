@@ -14,7 +14,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At and actor-targeted Attack, resumed guard combat, moving-ground and close-contact player save/reload on Xbox, including an optical L1S2 shallow-prop player fixture; other active orders and further authored contacts remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At and actor-targeted Attack, resumed guard combat, live player rockets, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
 
 - NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
 
@@ -92,7 +92,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - NPC rockets: Authored instance loadouts and ordinary-level resource demand enable finite-ammo enemy rockets outside DEV; controlled PC/Xbox encounter matches three launches/impacts with19.51MiB native headroom, while campaign integration and visual verification remain (docs/NPC-PROJECTILES-ORDINARY.md).
 
-- NPC grenades: Authored instance loadouts and ordinary resource demand now support enemy throws outside DEV;650-frame PC/Xbox encounter matches four launches/two detonations with20.36MiB native headroom; authored release timing, general flight saves and campaign integration remain (docs/NPC-PROJECTILES-ORDINARY.md).
+- NPC grenades: Authored instance loadouts and ordinary resource demand support enemy throws outside DEV; Xbox saves/reloads one active throw, while authored release timing, dead-source flight saves and campaign integration remain (docs/NPC-PROJECTILES-ORDINARY.md).
 
 - Flamethrower: Ordinary pickup/import/script demand now supports stream and alternate canister with finite fuel; PC primary/alternate passes and native canister explosion matches with14.29MiB free; NPC encounters, saves, continuous audio and visual refinement remain (docs/FLAME-PICKUP-FIRST-PASS.md).
 
@@ -100,7 +100,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Player grenades: Ordinary pickup/import/script demand now enables throw models, timed flight and detonation; non-DEV PC/Xbox finite-ammo throw/bounce/fuse matches with12.04MiB native headroom; liquid behavior, flight saves and broader campaign terrain remain (docs/GRENADE-PICKUP-FIRST-PASS.md).
 
-- Rocket launcher: Ordinary pickup/import/script demand now loads selection, flight and impact resources; non-DEV PC/Xbox acquisition/fire/impact matches with13.05MiB native headroom; enemy rocket resources and broader campaign terrain remain (docs/ROCKET-PICKUP-FIRST-PASS.md).
+- Rocket launcher: Ordinary pickup/import/script demand loads selection, flight and impact resources; Xbox now saves a live player rocket and its cooldown, then reloads and reaches impact with13.72MiB free; broader campaign terrain and visual/audio refinement remain (docs/ROCKET-PICKUP-FIRST-PASS.md).
 
 - Precision weapons: Sniper and rail acquisition/selection/fire now work outside DEV; native rail matches PC with14.26MiB free, and enemy/persistent drops request matching view resources; live enemy-drop encounters and broader campaign handoffs remain (docs/PRECISION-PICKUP-FIRST-PASS.md).
 

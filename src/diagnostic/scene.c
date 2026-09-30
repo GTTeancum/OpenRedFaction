@@ -12150,11 +12150,13 @@ static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,sc
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
 static int scene_vehicle_checkpoint_publish(scene_stream *);
 typedef struct scene_ai_projectile_checkpoint_stage scene_ai_projectile_checkpoint_stage;
-static int scene_ai_projectile_checkpoint_capture(void *,uint32_t,uint32_t *);
-static int scene_ai_projectile_checkpoint_prepare(const void *,uint32_t,uint32_t,
+static uint32_t scene_player_rocket_pending(const scene_stream *);
+static int scene_ai_projectile_checkpoint_capture(const scene_stream *,void *,uint32_t,uint32_t *);
+static int scene_ai_projectile_checkpoint_prepare(const scene_stream *,const void *,uint32_t,uint32_t,
     scene_ai_projectile_checkpoint_stage **);
 static uint32_t scene_ai_projectile_checkpoint_stage_bytes(void);
-static void scene_ai_projectile_checkpoint_assign(const scene_ai_projectile_checkpoint_stage *);
+static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *);
+static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
 #include "scene_player_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
