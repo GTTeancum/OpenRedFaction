@@ -133,7 +133,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
     v=envelope.sections+RF_WORLD_VEHICLE-1;vehicle_data=v->data;vehicle_bytes=v->bytes;
     if(cost>budget){status=RF_RANGE;goto done;}
-    status=scene_turret_generated_checkpoint_prepare(vehicle_data,vehicle_bytes,0,budget-cost,&generated,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    status=scene_turret_retirement_checkpoint_prepare(vehicle_data,vehicle_bytes,0,budget-cost,&generated,&vehicle_data,&vehicle_bytes);if(status)goto done;
     if(generated)cost+=generated->allocated_bytes;
     if(cost>budget){status=RF_RANGE;goto done;}
     status=scene_turret_checkpoint_prepare(vehicle_data,vehicle_bytes,0,budget-cost,&turrets,&vehicle_data,&vehicle_bytes);if(status)goto done;
@@ -212,7 +212,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_passive_vehicle_checkpoint_assign(passive);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
     scene_turret_checkpoint_assign(turrets);
-    scene_turret_generated_checkpoint_assign(generated);
+    scene_turret_retirement_checkpoint_assign(generated);
     scene_turret_generated_activation_reset();
     scene_npc_seat_checkpoint_assign(seats);
     scene_turret_death_effects_reset_pending();

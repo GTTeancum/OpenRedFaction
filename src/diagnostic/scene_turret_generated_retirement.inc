@@ -11,6 +11,53 @@ typedef struct scene_turret_generated_retirement_state {
 } scene_turret_generated_retirement_state;
 static scene_turret_generated_retirement_state scene_turret_generated_retirements[SCENE_TURRET_OWNER_LIMIT];
 uint32_t rf_scene_turret_retirement[6]; /* base removals,head removals,idempotent calls,last base UID,last reason,error */
+uint32_t rf_scene_turret_retirement_probe[8]; /* UID,base registered,head registered,head flags,link,health bits,dead,shots */
+
+static void scene_turret_generated_retirement_probe(uint32_t index,uint32_t reason)
+{
+    const scene_turret_generated_binding *b=scene_turret_generated+index;
+    const scene_turret_owner *head=scene_turret_lookup(b->head_handle);
+    const campaign_npc_body *base=campaign_npc_bodies+b->base_slot;
+    uint32_t *p=rf_scene_turret_retirement_probe;(void)reason;
+    p[0]=b->key.base_uid;p[1]=base->registration.view!=NULL;p[2]=head->registration.view!=NULL;
+    p[3]=head->view.flags_7c;p[4]=(uint32_t)head->view.linked_handle;
+    memcpy(p+5,&head->damage.effects.health,4);p[6]=head->dead;p[7]=rf_scene_turret_shots[0];
+}
+
+/* Checkpoint code appears earlier in scene.c. These narrow APIs keep runtime
+ * sidecar storage private while sharing the admitted generation identities. */
+static int scene_turret_generated_retirement_read(uint32_t index,uint32_t *reason)
+{
+    const scene_turret_generated_binding *b;const scene_turret_generated_retirement_state *r;
+    if(!reason||index>=scene_turret_generated_count)return RF_RANGE;
+    b=scene_turret_generated+index;r=scene_turret_generated_retirements+index;
+    if(r->reason>SCENE_TURRET_GENERATED_HEAD_REMOVED ||
+       (r->reason&&(r->base!=b->base_handle||r->head!=b->head_handle)))return RF_FORMAT;
+    *reason=r->reason;return RF_OK;
+}
+/* Assignment-only: caller admitted row/index before NPC publication. A removed
+ * base's registration can now be absent; the stable binding/array slots remain.
+ * No unregister, damage, presentation or fallible callbacks during commit. */
+static void scene_turret_generated_retirement_assign(uint32_t index,uint32_t reason)
+{
+    const scene_turret_generated_binding *b=scene_turret_generated+index;
+    scene_turret_generated_retirement_state *r=scene_turret_generated_retirements+index;
+    const scene_turret_owner *head=scene_turret_lookup(b->head_handle);
+    uint32_t slot=(uint32_t)(head-scene_turrets);
+    memset(r,0,sizeof(*r));
+    if(reason){
+        campaign_npc_body *base=campaign_npc_bodies+b->base_slot;
+        r->base=b->base_handle;r->head=b->head_handle;r->reason=reason;
+        /* RFNC owns action/vitals; explicitly clear the ready mirror that its
+         * generic actor codec does not represent. Never revive an orphan. */
+        base->view.flags_7d0&=~1u;base->firing.flags_7d0=base->view.flags_7d0;
+        base->view.flags_810&=~0x10u;
+        base->damage.effects.flags_810=base->firing.flags_810=base->view.flags_810;
+    }
+    memset(scene_turret_death_pending_rows+slot,0,sizeof(scene_turret_death_pending_rows[slot]));
+    memset(scene_turret_generated_activation+index,0,sizeof(scene_turret_generated_activation[index]));
+    scene_turret_generated_retirement_probe(index,reason);
+}
 
 /* Before new generated factory startup, or after generated_close at teardown.
  * Never erase a removed-pair marker while those level bindings remain live. */
@@ -18,7 +65,8 @@ static int scene_turret_generated_retirement_reset(void)
 {
     if(scene_turret_generated_count)return RF_RANGE;
     memset(scene_turret_generated_retirements,0,sizeof(scene_turret_generated_retirements));
-    memset(rf_scene_turret_retirement,0,sizeof(rf_scene_turret_retirement));return RF_OK;
+    memset(rf_scene_turret_retirement,0,sizeof(rf_scene_turret_retirement));
+    memset(rf_scene_turret_retirement_probe,0,sizeof(rf_scene_turret_retirement_probe));return RF_OK;
 }
 static uint32_t scene_turret_generated_retired(uint32_t head)
 {
@@ -85,16 +133,8 @@ static int scene_turret_generated_remove(uint32_t actor,int32_t now,uint32_t *ha
         if(reason==SCENE_TURRET_GENERATED_BASE_REMOVED)scene_burning_extinguish(b->base_handle);
     }
     rf_scene_turret_retirement[3]=b->key.base_uid;rf_scene_turret_retirement[4]=r->reason;
+    scene_turret_generated_retirement_probe(i,r->reason);
     *handled=reason==SCENE_TURRET_GENERATED_HEAD_REMOVED;return RF_OK;
 fail:rf_scene_turret_retirement[5]=(uint32_t)status;return status;
-}
-/* RFTU2 currently represents death, not script removal, and requires a live
- * base registration. Do not encode a tombstone as fake health0/death reason.
- * A future version must retain this separate terminal state explicitly. */
-static int scene_turret_generated_retirement_checkpoint_admit(void)
-{
-    for(uint32_t i=0;i<scene_turret_generated_count;i++)
-        if(scene_turret_generated_retired(scene_turret_generated[i].head_handle))return RF_NOT_FOUND;
-    return RF_OK;
 }
 #endif

@@ -5336,7 +5336,6 @@ static int campaign_script_look_at(void *context,const rf_level_event *event,
 }
 static int scene_turret_generated_remove(uint32_t actor,int32_t now,uint32_t *handled);
 static uint32_t scene_turret_generated_retired(uint32_t head);
-static int scene_turret_generated_retirement_checkpoint_admit(void);
 static int campaign_remove_object(void *context,uint32_t handle)
 {
     uint32_t i,handled;int status;(void)context;
@@ -12888,6 +12887,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_turret_checkpoint.inc"
 #include "scene_turret_generated_checkpoint.inc"
+#include "scene_turret_generated_retirement_checkpoint.inc"
 #include "scene_turret_attack_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
@@ -15903,6 +15903,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_runtime.inc"
 #include "scene_npc_seat_bind.inc"
 #include "scene_npc_seat_checkpoint.inc"
+#include "scene_npc_jeep_seat_save_admit.inc"
 #include "scene_apc_primary_runtime.inc"
 #include "scene_apc_aim_runtime.inc"
 #include "scene_apc_secondary_runtime.inc"
@@ -15936,6 +15937,9 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_submarine_checkpoint_live.inc"
 #include "scene_fighter_checkpoint_live.inc"
 #include "scene_driller_checkpoint_live.inc"
+static uint32_t scene_npc_jeep_seat_save_dead_contact(
+    const scene_npc_seat_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *,
+    const scene_vehicle_checkpoint_record *,uint32_t,uint32_t);
 #include "scene_world_vehicle_restore.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {

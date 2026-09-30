@@ -21,7 +21,7 @@ static int scene_turret_generated_world_base(void *context,uint32_t uid,
         const scene_npc_checkpoint_restore_entry *e=c->npcs->entries+i;
         const rf_npc_checkpoint_record *r=&e->saved;
         if(r->uid!=uid)continue;
-        if(!scene_turret_generated_is_base(e->slot)||r->retired)return RF_NOT_FOUND;
+        if(!scene_turret_generated_is_base(e->slot))return RF_NOT_FOUND;
         if(!isfinite(r->health))return RF_FORMAT;
         out->health=r->health;out->flags_810=r->health<=0?1u:0;
         out->flags_7d0=0;out->retired=r->retired;return RF_OK;
@@ -83,7 +83,7 @@ static int scene_turret_generated_world_admit(const scene_turret_generated_check
     const scene_passive_vehicle_checkpoint_stage *passive,const scene_turret_checkpoint_stage *turrets)
 {
     scene_turret_generated_world_context c={npcs,player,vehicle,passive,turrets,generated,vehicle_uid};
-    return scene_turret_generated_checkpoint_admit(generated,scene_turret_generated_world_base,
+    return scene_turret_retirement_checkpoint_admit(generated,scene_turret_generated_world_base,
         scene_turret_generated_world_target,&c);
 }
 
@@ -97,7 +97,7 @@ static int scene_turret_generated_world_capture(unsigned char *p,uint32_t capaci
     rf_npc_checkpoint_catalog *catalog=NULL;rf_npc_checkpoint_record *rows=NULL;
     uint32_t count=0,i,j;uint64_t allocated;int status;
     if(!scene_turret_generated_count)
-        return scene_turret_generated_checkpoint_capture(p,capacity,inner_bytes,frame,budget,written);
+        return scene_turret_retirement_checkpoint_capture(p,capacity,inner_bytes,frame,budget,written);
     if(!identity||!npc_data||!npc_bytes||budget<sizeof(*catalog))return RF_RANGE;
     catalog=calloc(1,sizeof(*catalog));if(!catalog)return RF_IO;
     catalog->hash=rf_scene_weapon_supply[3];catalog->count=campaign_weapon_supply.names.count;
@@ -117,14 +117,15 @@ static int scene_turret_generated_world_capture(unsigned char *p,uint32_t capaci
         const scene_turret_generated_binding *b=scene_turret_generated+i;
         scene_turret_generated_base_saved live={0};
         for(j=0;j<count;j++)if(rows[j].uid==b->key.base_uid)break;
-        if(j==count||rows[j].retired){status=RF_NOT_FOUND;goto done;}
-        status=scene_turret_generated_checkpoint_live_base(NULL,b->key.base_uid,&live);if(status)goto done;
-        if(live.health!=rows[j].health||!!(live.flags_810&1u)!=(rows[j].health<=0)){
+        if(j==count){status=RF_NOT_FOUND;goto done;}
+        status=scene_turret_retirement_checkpoint_capture_base(NULL,b->key.base_uid,&live);if(status)goto done;
+        if(live.health!=rows[j].health||live.retired!=rows[j].retired||
+           !!(live.flags_810&1u)!=(rows[j].health<=0)){
             status=RF_FORMAT;goto done;
         }
     }
     free(rows);rows=NULL;free(catalog);catalog=NULL;
-    return scene_turret_generated_checkpoint_capture(p,capacity,inner_bytes,frame,budget,written);
+    return scene_turret_retirement_checkpoint_capture(p,capacity,inner_bytes,frame,budget,written);
 done:
     free(rows);free(catalog);return status;
 }

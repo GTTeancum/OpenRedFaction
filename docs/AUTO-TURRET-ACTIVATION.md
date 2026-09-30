@@ -172,3 +172,17 @@ through the existing owner service before base unregister; head-only removal
 does not extinguish unrelated damage still acting on the surviving base.
 `rf_scene_turret_retirement[6]` records base/head removals, repeated calls,
 last base UID, removal reason and error. No native success is claimed.
+
+## Bounded native removal fixture
+
+Prepared, not yet run: `tools/xemu_auto_turret_remove.py` reuses the real L3S2 Auto Turret base UID1994 staged in CTF06. It adds a harmless Delay setup event at frame0 and a synthetic Remove_Object event linked to that authored base at frame60. The existing runtime factory must still generate the only head; no Head record or fake damage is introduced. The run is120 neutral frames with a live post-removal sample after frame75.
+
+Exact assertions are one generated creation and normal readiness/fire before removal; one base-origin retirement and zero head-only/repeated removals; head hidden/noncolliding flags2|0x4000, linked handle-1, unchanged60 health and dead0; one later completed NPC unregister/body-close retirement; and no further turret shots or head draw submissions between the live post-removal sample and final completion. Generated death-dispatch counts, Slay counters, terminal-death probe and turret death-effect counters must all remain zero. Actor/combat/retirement errors must remain zero and stock64MiB must retain free pages.
+
+The narrow `rf_scene_turret_retirement_probe[8]` records base UID, base-registration presence, head-registration presence, head flags7c, linked handle, health bits, dead state and current turret shot count. It is published when the head becomes a tombstone, before the caller unregisters the base, so expected registration flags there are1/1. The later `rf_scene_actor_retirement[1]==1` proves the ordinary base unregister/body-close branch completed; it increments only after those operations. This avoids mislabeling the earlier snapshot as a post-unregister registry read. The head retains its stable registration until level teardown.
+
+This fixture claims only base Remove_Object cleanup and absence of manufactured death. Head-only removal, removal persistence, visual disappearance and audible output are separate checks. No PC runtime, host input, images or campaign route is used. Parent owns serial build/native execution.
+
+## Scripted removal Xbox result (2026-09-30)
+
+`artifacts/xemu/auto-turret-remove-20260930-140210/report.json` passed120 frames on stock64MiB. The real base UID1994 fired five head shots before Remove_Object at frame60; afterward the base retired, its head remained registered but hidden/detached with health60 and no dead flag, and no more shots or death effects occurred. Minimum free pages3515; fixture inputs were restored. Head-only removal and save/load are separate checks.

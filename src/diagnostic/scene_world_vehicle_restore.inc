@@ -7,6 +7,7 @@ typedef struct scene_world_vehicle_pair_context {
     const scene_world_player_stage *player;
     const scene_npc_checkpoint_restore_stage *npcs;
     const scene_npc_seat_checkpoint_stage *seats;
+    const scene_vehicle_checkpoint_record *record;
     uint32_t occupied,host_uid;
 } scene_world_vehicle_pair_context;
 static int scene_world_vehicle_pair(void *context,uint32_t index,rf_checkpoint_placement *out,uint32_t *retired)
@@ -27,8 +28,10 @@ static int scene_world_vehicle_other_pair(void *context,uint32_t i,uint32_t j,
     if(i!=0)return 1;
     if(j==1)return pairs->occupied;
     return j>=2 && pairs->npcs && j-2<pairs->npcs->count &&
-        scene_npc_seat_checkpoint_owns(pairs->seats,pairs->host_uid,
-            pairs->npcs->entries[j-2].saved.uid);
+        (scene_npc_seat_checkpoint_owns(pairs->seats,pairs->host_uid,
+            pairs->npcs->entries[j-2].saved.uid) ||
+         scene_npc_jeep_seat_save_dead_contact(pairs->seats,pairs->npcs,pairs->record,
+            pairs->host_uid,j-2));
 }
 static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_restore_stage *world,
     const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record,
@@ -92,7 +95,7 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
         }
     }
     pairs.player=player;pairs.npcs=world->npcs;pairs.occupied=record->value.vehicle.player_occupied;
-    pairs.seats=seats;pairs.host_uid=(uint32_t)campaign_authored_vehicle_uid;
+    pairs.seats=seats;pairs.record=record;pairs.host_uid=(uint32_t)campaign_authored_vehicle_uid;
     return scene_npc_checkpoint_pair_fit_allowed(world->npcs->count+2,scene_world_vehicle_pair,&pairs,
         scene_world_vehicle_other_pair);
 }

@@ -13,6 +13,7 @@ typedef struct scene_turret_generated_saved {
     scene_turret_saved value;
     scene_turret_generated_base_saved base;
     uint32_t death_dispatched,target_role,head_flags_7d0,index,base_handle;
+    uint32_t removal_reason; /* RFTU3 only; version2 decode/capture keep zero. */
 } scene_turret_generated_saved;
 typedef struct scene_turret_generated_checkpoint_stage {
     uint32_t count,frame,allocated_bytes;
@@ -87,7 +88,7 @@ static int scene_turret_generated_checkpoint_target(uint32_t value,uint32_t deco
 }
 /* Independent saved mount is retained, not replaced by a newly loaded base
  * basis. It must be a finite right-handed orthonormal frame. */
-static int scene_turret_generated_checkpoint_valid(const scene_turret_generated_saved *row,uint32_t frame)
+static int scene_turret_generated_checkpoint_valid_common(const scene_turret_generated_saved *row,uint32_t frame)
 {
     const scene_turret_saved *v=&row->value;scene_turret_generated_binding *binding;
     const scene_turret_owner *o;const rf_entity_seed_class *c;float local[9],basis[9],cross[3],dot;
@@ -105,9 +106,8 @@ static int scene_turret_generated_checkpoint_valid(const scene_turret_generated_
        !isfinite(v->armor) || v->armor<0 || v->armor>1e7f ||
        v->dead!=(v->health<=0) || !!(v->flags_810&1u)!=v->dead || !(v->flags&0x100u) ||
        !!row->death_dispatched!=v->dead ||
-       row->base.retired || !isfinite(row->base.health) || fabsf(row->base.health)>1e7f ||
+       !isfinite(row->base.health) || fabsf(row->base.health)>1e7f ||
        !!(row->base.flags_810&1u)!=(row->base.health<=0) ||
-       (row->base.health<=0 && !v->dead) ||
        v->action< -1 || v->action>13 || v->combat_action< -1 || v->combat_action>13 ||
        v->primary!=scene_turret_vauss_id || v->secondary!=-1 ||
        v->remaining>36000 || v->remaining>UINT32_MAX-frame || v->burst>scene_turret_primary.burst_count ||
@@ -132,15 +132,22 @@ static int scene_turret_generated_checkpoint_valid(const scene_turret_generated_
     for(i=0;i<9;i++)if(fabsf(v->basis[i]-basis[i])>.0001f)return RF_FORMAT;
     return RF_OK;
 }
-static int scene_turret_generated_checkpoint_capture_row(uint32_t binding_index,uint32_t frame,
+static int scene_turret_generated_checkpoint_valid(const scene_turret_generated_saved *row,uint32_t frame)
+{
+    int status=scene_turret_generated_checkpoint_valid_common(row,frame);if(status)return status;
+    if(row->removal_reason || row->base.retired || (row->base.health<=0 && !row->value.dead))return RF_FORMAT;
+    return RF_OK;
+}
+/* Scalar capture is shared with explicit terminal-removal persistence. Its
+ * caller supplies real base facts and admits the lifecycle/link separately. */
+static int scene_turret_generated_checkpoint_capture_head(uint32_t binding_index,uint32_t frame,
     scene_turret_generated_saved *row)
 {
     scene_turret_generated_binding *b;scene_turret_owner *o;scene_turret_combat_state *s;
     scene_turret_saved *v;int status;
     if(!row || binding_index>=scene_turret_generated_count)return RF_RANGE;
     b=scene_turret_generated+binding_index;o=scene_turret_lookup(b->head_handle);if(!o)return RF_NOT_FOUND;
-    if(o->damage.effects.burn || o->view.occupant_count || o->view.weapon_owner ||
-       o->view.linked_handle!=(o->dead?-1:(int32_t)b->base_handle))return RF_NOT_FOUND;
+    if(o->damage.effects.burn || o->view.occupant_count || o->view.weapon_owner)return RF_NOT_FOUND;
     if(o->model!=(o->dead?o->dead_model:o->live_model))return RF_FORMAT;
     memset(row,0,sizeof(*row));row->index=(uint32_t)(o-scene_turrets);row->key=b->key;
     row->death_dispatched=b->death_dispatched;row->base_handle=b->base_handle;row->head_flags_7d0=o->view.flags_7d0;
@@ -157,6 +164,15 @@ static int scene_turret_generated_checkpoint_capture_row(uint32_t binding_index,
         status=scene_turret_generated_checkpoint_target(o->target,0,&row->target_role,&v->target_uid);if(status)return status;
         v->target_handle=o->target;v->remaining=o->fire_due>frame?o->fire_due-frame:0;v->burst=s->burst;
     }
+    return RF_OK;
+}
+static int scene_turret_generated_checkpoint_capture_row(uint32_t binding_index,uint32_t frame,
+    scene_turret_generated_saved *row)
+{
+    scene_turret_generated_binding *b;scene_turret_owner *o;int status;
+    status=scene_turret_generated_checkpoint_capture_head(binding_index,frame,row);if(status)return status;
+    b=scene_turret_generated+binding_index;o=scene_turrets+row->index;
+    if(o->view.linked_handle!=(o->dead?-1:(int32_t)b->base_handle))return RF_NOT_FOUND;
     status=scene_turret_generated_checkpoint_live_base(NULL,b->key.base_uid,&row->base);if(status)return status;
     return scene_turret_generated_checkpoint_valid(row,frame);
 }
@@ -205,6 +221,7 @@ static int scene_turret_generated_checkpoint_decode(const unsigned char *p,scene
     r->base.health=scene_history_float(p+192);r->base.flags_7d0=scene_history_word(p+196);
     r->base.flags_810=scene_history_word(p+200);r->death_dispatched=scene_history_word(p+204);
     r->base.retired=0; /* Not a serialized field; pending NPC admission proves it. */
+    r->removal_reason=0;
     r->target_role=scene_history_word(p+208);return RF_OK;
 }
 /* Parse/resolve only. No live owner or pose changes. Dead generated owners must
@@ -280,11 +297,10 @@ static int scene_turret_generated_checkpoint_admit(const scene_turret_generated_
  * stage first and prohibit registry changes between admission and commit.
  * Assign NPC/base pose first; then heads; then republish live tag positions. */
 uint32_t rf_scene_turret_generated_restore_probe[32]; /* Last committed generated row, captured before simulation. */
-static void scene_turret_generated_checkpoint_assign(const scene_turret_generated_checkpoint_stage *stage)
+static void scene_turret_generated_checkpoint_assign_row(const scene_turret_generated_saved *r,
+    uint32_t frame,int32_t linked_handle)
 {
-    uint32_t i;if(!stage)return;
-    for(i=0;i<stage->count;i++) {
-        const scene_turret_generated_saved *r=stage->rows+i;const scene_turret_saved *v=&r->value;
+        const scene_turret_saved *v=&r->value;
         scene_turret_owner *o=scene_turrets+r->index;scene_turret_combat_state *s=scene_turret_combat_states+r->index;
         scene_turret_generated_binding *b=scene_turret_generated_find(v->handle);
         campaign_npc_body *base=campaign_npc_bodies+b->base_slot;
@@ -292,13 +308,13 @@ static void scene_turret_generated_checkpoint_assign(const scene_turret_generate
         o->damage.effects.health=v->health;o->damage.effects.armor=v->armor;
         o->view.flags_7c=v->flags;o->view.flags_810=o->damage.effects.flags_810=v->flags_810;
         o->view.flags_814=o->damage.effects.flags_814=v->flags_814;
-        o->view.flags_7d0=r->head_flags_7d0;o->view.linked_handle=v->dead?-1:(int32_t)b->base_handle;
+        o->view.flags_7d0=r->head_flags_7d0;o->view.linked_handle=linked_handle;
         o->damage.effects.affiliation=v->affiliation;o->damage.effects.burn=0;
         o->damage.effects.voice=o->damage.responsible_handle=o->damage.burn_source=UINT32_MAX;
         o->damage.last_damage_time=0;o->view.action_520=v->action;
         o->view.weapons[0]=v->primary;o->view.weapons[1]=v->secondary;
         memcpy(o->position,v->position,12);memcpy(o->basis,v->basis,36);
-        o->target=v->target_handle;o->fire_due=v->remaining?stage->frame+v->remaining:0;
+        o->target=v->target_handle;o->fire_due=v->remaining?frame+v->remaining:0;
         s->last_frame=UINT32_MAX;s->action=v->combat_action;s->burst=v->burst;
         memcpy(s->angles,v->angles,12);memcpy(s->mount,v->mount,36);s->angular=v->angular;
         b->death_dispatched=r->death_dispatched;
@@ -309,8 +325,14 @@ static void scene_turret_generated_checkpoint_assign(const scene_turret_generate
          ++p[0];p[1]=r->key.base_uid;p[2]=r->key.role;p[3]=v->handle;p[4]=b->base_handle;
          p[5]=o->dead;memcpy(p+6,&o->damage.effects.health,4);memcpy(p+7,&o->damage.effects.armor,4);
          p[8]=r->target_role;p[9]=v->target_uid;p[10]=o->target;p[11]=v->remaining;p[12]=o->fire_due;
-         p[13]=stage->frame;p[14]=s->burst;p[15]=(uint32_t)s->action;
+         p[13]=frame;p[14]=s->burst;p[15]=(uint32_t)s->action;
          memcpy(p+16,o->basis,36);memcpy(p+25,s->angles,12);memcpy(p+28,o->position,12);p[31]=b->death_dispatched;}
-
+}
+static void scene_turret_generated_checkpoint_assign(const scene_turret_generated_checkpoint_stage *stage)
+{
+    uint32_t i;if(!stage)return;
+    for(i=0;i<stage->count;i++) {
+        const scene_turret_generated_saved *r=stage->rows+i;
+        scene_turret_generated_checkpoint_assign_row(r,stage->frame,r->value.dead?-1:(int32_t)r->base_handle);
     }
 }

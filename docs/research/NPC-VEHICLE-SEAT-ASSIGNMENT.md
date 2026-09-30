@@ -145,3 +145,56 @@ against independent installed-byte decoding for 1,610 entities in 66 sections
 This establishes parser output, not live boarding or driving; those require
 the post-registration ownership and control adapters. The legacy verifier now
 accounts for the full24-byte spawn result and supports Xbox-only checking.
+
+## Jeep save audit and detached corpse admission (2026-09-30)
+
+The live L12S1 miner7646 / Jeep7629 ordinary-save implementation is already
+connected. `scene_npc_seat_checkpoint_hosts` reconstructs the driver's tag
+transform from the pending RFCP Jeep pose. RFNC restore applies that basis and
+position with a narrowly admitted no-floor seat; the world vehicle pair checker
+allows only its own staged occupant overlap. Parked host publication retains
+the fresh authored pair until every stage is admitted. RFNS detach/assign then
+replaces the pair with saved ownership, and RFVR assign plus
+`campaign_vehicle_mode_publish` restores the route index, active bit and AI mode
+without dispatching Follow_Waypoints or Set_AI_Mode again. The existing
+`scene_npc_seat_driver_admits` gate keeps an absent/dead driver from advancing a
+retained route. An inactive route with a saved waiting/catatonic action remains
+suspended. This is source integration evidence, not a new native Jeep save run.
+
+The concrete remaining admission hole is a settled detached driver's corpse
+still occupying the Jeep's seat volume. RFNS correctly saves `active=0`, but
+the ordinary vehicle pair checker consequently rejects that overlap. New
+`src/diagnostic/scene_npc_jeep_seat_save_admit.inc` supplies a read-only predicate
+for that contact. It requires the inactive authored RFNS actor/host/tag identity,
+a pending RFNC terminal corpse (not retired/hidden, health <=0, no action13,
+orders or support), and matching published corpse position/basis at the tag
+computed from the **saved** Jeep pose. Position tolerance is .001 and basis
+tolerance is .0001, matching the existing active-seat checks. Generation checks
+resolve immutable tags only; fresh actor health never establishes saved death.
+Displaced bodies, moving-support bodies and arbitrary live detached actors keep
+ordinary clearance. No ownership, AI, route or event state is changed.
+
+Exact parent integration (the helper does not edit these shared files):
+
+1. Include `scene_npc_jeep_seat_save_admit.inc` immediately after
+   `scene_npc_seat_checkpoint.inc` in `scene.c`; both are before
+   `scene_world_vehicle_restore.inc`, so this predicate needs no early prototype.
+2. Add `const scene_vehicle_checkpoint_record *record;` to
+   `scene_world_vehicle_pair_context`, and assign `pairs.record=record` in
+   `scene_world_vehicle_prepare` beside `pairs.seats=seats`.
+3. In `scene_world_vehicle_other_pair`, retain the existing player case and
+   bounds guard. For `j>=2`, return the existing
+   `scene_npc_seat_checkpoint_owns(pairs->seats,pairs->host_uid,
+   pairs->npcs->entries[j-2].saved.uid)` **or**
+   `scene_npc_jeep_seat_save_dead_contact(pairs->seats,pairs->npcs,
+   pairs->record,pairs->host_uid,j-2)`.
+4. Keep RFNS inactive through `_admit`, `_detach` and `_assign`; do not set
+   `pose_ready` or `active` for this contact. All existing NPC/world placement,
+   corpse playback, non-Jeep pairs and final transaction validation still run.
+
+This slice changes no wire format or scratch budget and does not loosen floor
+or static-world placement. RFNC's existing yaw-only detached-body representation
+still cannot preserve an independently tilted detached corpse; displaced or
+falling corpses remain outside this narrow exception. No build, emulator run or
+gameplay script was performed in this helper slice. Parent owns integration and
+proportional Xbox verification.

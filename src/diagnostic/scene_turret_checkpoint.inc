@@ -149,7 +149,6 @@ static int scene_turret_checkpoint_capture(unsigned char *p,uint32_t capacity,
 {
     scene_turret_saved row;uint32_t i;int status;
     status=scene_turret_generated_activation_checkpoint_admit();if(status)return status;
-    status=scene_turret_generated_retirement_checkpoint_admit();if(status)return status;
     uint64_t required=SCENE_TURRET_CHECKPOINT_HEADER+(uint64_t)inner_bytes+(uint64_t)scene_turret_authored_count*SCENE_TURRET_CHECKPOINT_ROW;
     if(!p||!written||inner_bytes>capacity||frame==UINT32_MAX)return RF_RANGE;
     if(scene_turret_authored_count>scene_turret_count)return RF_RANGE;
