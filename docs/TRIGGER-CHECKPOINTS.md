@@ -17,9 +17,21 @@ length are rebuilt by normal loading and are never copied from a prior section.
 
 This is practical session checkpoint policy, not full original level-state
 restoration. Startup dispatch still runs before restore; auto-start actions can
-repeat non-inventory side effects. Pending event timers, switch state, removed
-object identity, moved trigger volumes and mover/controller state remain open.
-The first-entry inventory policy is separate. No on-disk save/load is added.
+repeat non-inventory side effects. Event timers and switch state now have
+separate section histories and ordinary-save codecs. Removed non-trigger
+objects, moved trigger volumes and mover/controller state remain open.
+The first-entry inventory policy is separate.
+
+The section history now also records whether an authored one-use trigger has
+been removed from the object registry. Its existing disk transport bit is
+stripped before restoring live flags; a returned section removes the rebuilt
+trigger owner again. If startup has removed a trigger that the saved history
+requires to be live, loading the section fails rather than assigning a new
+handle without rebuilding linked references. NXDK and shared PC compilation
+pass; an Xbox return-to-section runtime check remains open. A bounded Xbox
+ordinary-save check on 2026-09-30 booted but stopped at the player
+snapshot stage with RF_NOT_FOUND, before trigger capture; it does not verify
+this history change.
 
 The owner reserves172,040 bytes:128 section names,4096 UID keys and4096 compact
 activation snapshots. Existing authored inventory reports2367 triggers across93

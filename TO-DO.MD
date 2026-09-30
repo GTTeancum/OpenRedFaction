@@ -395,7 +395,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
-- ACTIVE: Preserve remaining mission state on section revisits after the first-entry inventory fix: delayed/startup side effects, event timers, removed objects and movers; extend local-goal coverage beyond the lab round trip.
+- ACTIVE: Preserve mission state on section revisits after the one-use trigger retirement change, including delayed/startup effects, other removed objects, movers and wider local goals, and verify trigger return behavior on Xbox.
 - TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
 - TO COMPLETE: Investigate the PC/native actor-follow renderer-summary mismatch in replay-20260914-162753; its broad parity check failed after both level handoffs.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.

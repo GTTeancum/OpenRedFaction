@@ -1268,6 +1268,8 @@ static int campaign_bolt_state(void *context,const uint32_t *uids,uint32_t count
     return RF_OK;
 }
 static rf_campaign_triggers campaign_trigger_history;
+/* Transport-only bit in trigger history; never publish it to live flags. */
+#define SCENE_WORLD_TRIGGER_REMOVED 0x80000000u
 static rf_campaign_pickups campaign_switch_history;
 static rf_switch_state campaign_switch_saved[RF_CAMPAIGN_PICKUP_SLOTS];
 uint32_t rf_scene_switch_history[4];
@@ -1310,12 +1312,28 @@ static int campaign_trigger_checkpoint(uint32_t save,int32_t now)
     uint32_t i,slot;int status;
     for(i=0;i<campaign_triggers.count;i++) {
         rf_runtime_trigger *trigger=campaign_triggers.items+i;
+        rf_campaign_trigger_state *saved;void *registered;
         status=rf_campaign_trigger_register(&campaign_trigger_history,campaign_current_level,trigger->authored->record.uid,&slot);if(status)return status;
+        saved=campaign_trigger_history.states+slot;
+        registered=rf_object_registry_lookup(&campaign_registry,trigger->handle);
+        if(registered&&registered!=trigger)return RF_FORMAT;
         if(save) {
-            status=rf_runtime_trigger_save(trigger,now,campaign_trigger_history.states+slot);if(status)return status;
+            status=rf_runtime_trigger_save(trigger,now,saved);if(status)return status;
+            if(!registered){
+                if(!(trigger->state.flags&16u)||!(trigger->activation.object_flags&2u))return RF_FORMAT;
+                saved->object_flags|=SCENE_WORLD_TRIGGER_REMOVED;
+            }
             campaign_trigger_history.items[slot].retired=1;++rf_scene_trigger_history[2];
         } else if(campaign_trigger_history.items[slot].retired) {
-            status=rf_runtime_trigger_restore(trigger,now,campaign_trigger_history.states+slot);if(status)return status;
+            rf_campaign_trigger_state value=*saved;
+            uint32_t removed=!!(value.object_flags&SCENE_WORLD_TRIGGER_REMOVED);
+            value.object_flags&=~SCENE_WORLD_TRIGGER_REMOVED;
+            if(removed&&(!(value.flags&16u)||!(value.object_flags&2u)))return RF_FORMAT;
+            /* A repeated startup action may already have removed this owner.
+             * Resurrection requires rebuilding handle-linked references. */
+            if(!removed&&!registered)return RF_NOT_FOUND;
+            status=rf_runtime_trigger_restore(trigger,now,&value);if(status)return status;
+            if(removed&&registered){status=rf_object_registry_remove(&campaign_registry,trigger->handle);if(status)return status;}
             ++rf_scene_trigger_history[1];
         }
     }

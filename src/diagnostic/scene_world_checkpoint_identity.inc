@@ -5,7 +5,6 @@
  * authored objects/items may not use it. Keys are aliases to controller UIDs,
  * never additional canonical handle identities. */
 #define SCENE_WORLD_CHECKPOINT_PLAYER_UID (UINT32_MAX-1u)
-#define SCENE_WORLD_TRIGGER_REMOVED 0x80000000u
 static int scene_world_checkpoint_uid_add(rf_level_uid_object *rows,uint32_t *count,
     uint32_t uid,uint32_t handle,uint32_t flags,const void *expected,uint32_t absent)
 {
