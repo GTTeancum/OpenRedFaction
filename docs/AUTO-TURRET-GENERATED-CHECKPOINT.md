@@ -345,3 +345,38 @@ resets transient tracking while preserving saved readiness flags and playback.
 No build, emulator run, image or broad test was performed for this isolated
 slice. Parent integration must establish bounded live aim/cadence restore and
 coupled dead-state restore before claiming generated-head persistence works.
+
+## Bounded ordinary-save harness
+
+`tools/xemu_auto_turret_save.py` reuses the existing copied L3S2 Auto Turret
+base1994 in isolated CTF06. Parent runs `python tools/xemu_auto_turret_save.py`
+serially after confirming no project XEMU session is open. The script builds and
+runs a 60-frame neutral source save, then a fresh 12-frame neutral load on its
+owned test HDD; it restores disc inputs and repacks in `finally`. The earlier
+combat check observed player death at frame86, so this continuation deliberately
+ends after 72 simulated frames and treats any player death as failure.
+
+It requires `rf_scene_turret_generated_restore_probe[32]` at generated assignment:
+restore count, base UID, role, head handle, base handle, dead, health bits, armor
+bits, target role, target UID, target handle, remaining cadence, rebased fire due,
+restore frame, burst, combat action, basis9, angles3, position3, death dispatch.
+This immutable probe proves exact saved aim/position/cadence restoration before
+normal simulation advances. The ordinary live generated probe proves actual
+parent linkage, evaluated interface position, preserved health/readiness, one
+created head and no replayed death effects. Source telemetry samples before aim,
+so its basis is not incorrectly compared to the later post-combat wire basis.
+
+The harness decodes the real 216-byte RFTU2 row inside the exported RFWC file,
+checks stock64MiB completion and ordinary loader success, then verifies target
+continuation without reacquisition and damage when the saved cadence becomes due
+during the bounded load. Coupled-dead saves are deferred: this existing generated
+fixture has no clean damage injection, and this slice adds no new gameplay probe.
+No screenshots, host input, campaign routes or PC execution are used.
+
+`python tools/xemu_auto_turret_save.py --validate-existing <artifact-folder>`
+only rechecks recorded JSON/save bytes after confirming disc restoration. The
+helper has not run the harness; native execution belongs to the parent.
+
+## Native live-head continuation (2026-09-30)
+
+`artifacts/xemu/auto-turret-save-20260930-134916/report.json` passed on stock64MiB: the RFTU2 row from a60-frame source restored a unique linked head, exact saved aim and cadence, and resumed for12 frames with three more shots. The source fired five shots. There were no duplicate death effects; minimum free pages3356. Disc inputs restored. Dead or removed heads remain separate persistence work.

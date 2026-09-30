@@ -19655,6 +19655,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              scene_driller_damage passive_damage[6]={{0}};uint32_t passive_ready[6]={0};
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              scene_turret_generated_activation_reset();
+             memset(rf_scene_turret_generated_death_probe,0,sizeof(rf_scene_turret_generated_death_probe));
              status=scene_turret_generated_retirement_reset();
              if(status){rf_vpp_close(&tables);goto done;}
              status=scene_turrets_open(&tables);

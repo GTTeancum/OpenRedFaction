@@ -9,6 +9,24 @@ typedef struct scene_turret_generated_death_context {
     combat_feedback feedback;
     rf_damage_effect_backend effects;
 } scene_turret_generated_death_context;
+/* Shot owner is included later; counters are read only, never synthesized. */
+extern uint32_t rf_scene_turret_shots[8];
+extern uint32_t rf_scene_turret_death_effects[8];
+uint32_t rf_scene_turret_generated_death_probe[10];
+static void scene_turret_generated_death_record(const scene_turret_generated_binding *binding,
+    const campaign_npc_body *base,const scene_turret_owner *head,uint32_t reason)
+{
+    rf_scene_turret_generated_death_probe[0]=binding->key.base_uid;
+    rf_scene_turret_generated_death_probe[1]=binding->key.role;
+    rf_scene_turret_generated_death_probe[2]=reason;
+    memcpy(rf_scene_turret_generated_death_probe+3,&base->damage.effects.health,4);
+    memcpy(rf_scene_turret_generated_death_probe+4,&head->damage.effects.health,4);
+    rf_scene_turret_generated_death_probe[5]=head->dead;
+    rf_scene_turret_generated_death_probe[6]=(uint32_t)head->view.linked_handle;
+    rf_scene_turret_generated_death_probe[7]=rf_scene_turret_shots[0];
+    rf_scene_turret_generated_death_probe[8]=rf_scene_turret_death_effects[0];
+    rf_scene_turret_generated_death_probe[9]=0;
+}
 
 static int scene_turret_generated_death_dispatch(void *context,uint32_t base_handle,
     uint32_t head_handle,uint32_t reason)
@@ -25,17 +43,18 @@ static int scene_turret_generated_death_dispatch(void *context,uint32_t base_han
          * orphan head alive. A zero request then runs the ordinary turret
          * terminal transition/model/effect code, without invented damage. */
         rf_damage_request request={0,UINT32_MAX,-1,0,UINT32_MAX,0};
-        if(head->dead)return RF_OK;
+        if(head->dead){scene_turret_generated_death_record(binding,base,head,reason);return RF_OK;}
         head->damage.effects.health=0;
         status=scene_turret_damage_receive(head_handle,&request,1,c->clock_bits,&c->effects,&amount);
         if(!status)status=c->feedback.status;
         if(status)return status;
-        return head->dead&&head->damage.effects.health<=0?RF_OK:RF_FORMAT;
+        if(!head->dead||head->damage.effects.health>0)return RF_FORMAT;
+        scene_turret_generated_death_record(binding,base,head,reason);return RF_OK;
     }
     if(reason!=SCENE_TURRET_GENERATED_HEAD_DIED)return RF_RANGE;
     /* Preserve the original request, including normal immunity handling.
      * Do not increase1000 to class life or force an invulnerable base dead. */
-    if(base->view.flags_810&1u)return RF_OK;
+    if(base->view.flags_810&1u){scene_turret_generated_death_record(binding,base,head,reason);return RF_OK;}
     if(base->damage.effects.health>0) {
         rf_damage_request request={1000,UINT32_MAX,-1,0,UINT32_MAX,0};
         status=rf_scene_npc_damage(base_handle,&request,1,c->clock_bits,&c->effects,&amount);
@@ -45,7 +64,7 @@ static int scene_turret_generated_death_dispatch(void *context,uint32_t base_han
         status=rf_scene_npc_death_entry(base_handle,&entered);if(status)return status;
         if(entered){base->script_move.active=0;status=combat_death_start(binding->base_slot);if(status)return status;}
     }
-    return RF_OK;
+    scene_turret_generated_death_record(binding,base,head,reason);return RF_OK;
 }
 
 /* Call only for a real terminal transition, before unregistering either side.
