@@ -4,6 +4,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 Current platform priority (user direction,2026-09-29): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks, keep the shared PC build compiling when needed, and do not run PC gameplay tests or campaign-route replays.
 
+- PRIORITY Vehicle and platform attachments: Bind authored general-object children to moving groups, then implement the five Detach events with world-pose preservation on Xbox (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+
 - Scripted movers: Authored Reverse_Mover now reverses six moving L7S4 doors on stock-64-MiB Xbox; direction-zero lift, natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md).
 
 - Final nuke defusal: L20S3's Xbox puzzle pauses world simulation, reaches credits on completion and applies ordinary player damage on timeout; original art/audio, RNG seed and timeout transition presentation remain open (docs/DEFUSE-FIRST-PASS.md).
