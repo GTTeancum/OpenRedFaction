@@ -10,7 +10,7 @@ A walkable support query accepts static floors or a registered mover and
 restores normal or slow stance. Before restoring stance, the live landing writes its contact and calls
 the reconstructed NPC impact handler with actual body velocity, damage/foley
 services and a lethal-death handoff. Authored Goto actors now use the same
-body-velocity gravity and landing path. Idle NPCs on translating movers now
+body-velocity gravity and landing path. Idle and Goto-style NPCs on translating movers now
 step each frame: current mover velocity carries the body through a bounded
 collision sweep, and the following ground contact refreshes the support
 handle/material. This is a first-pass live scheduler; rotating-platform carry,
@@ -67,6 +67,18 @@ three units over 60 frames. It finished with 1,678 free physical pages and
 restored the isolated test disc. This verifies translational support state and
 position in guest memory; rotating support, live player/NPC interactions and
 visual appearance were not checked.
+
+The carry step is now shared by idle and scripted movement. A second Xbox-only
+fixture directly activates a Goto-style walk during the generated platform's
+translation, keeping its navigation target beyond the test interval. The
+stock-64-MiB run `artifacts/xemu/npc-script-platform-20260929-200808/`
+completed 485 frames with 40 scripted carry commits, 44 scripted walking
+steps, 44 moving-ground checks and zero idle-ground errors. The NPC finished
+at x=13.524 after starting at 9.449, consistent with three units of platform
+travel plus about 1.1 units of walking. It retained 1,678 free physical pages
+and restored the test disc. This fixture exercises the scripted movement path;
+it does not prove an authored campaign Goto event rides a mover, rotating
+support, or visual presentation.
 
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared

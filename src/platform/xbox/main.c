@@ -569,7 +569,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     stream_flag=fopen("D:\\vehicle-test.flag","rb");rf_scene_vehicle_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4' || mode=='5')rf_scene_vehicle_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\firearms-test.flag","rb");rf_scene_firearms_enabled=0;if(stream_flag){int mode=fgetc(stream_flag);fclose(stream_flag);if(mode<'1' || mode>'4')return RF_FORMAT;rf_scene_firearms_enabled=(uint32_t)(mode-'0');}
     stream_flag=fopen("D:\\fusion-test.flag","rb");rf_scene_fusion_enabled=stream_flag!=NULL;if(stream_flag)fclose(stream_flag);
-    stream_flag=fopen("D:\\dev-npc.flag","rb");rf_scene_dev_npc_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2' && mode<='8')rf_scene_dev_npc_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
+    stream_flag=fopen("D:\\dev-npc.flag","rb");rf_scene_dev_npc_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2' && mode<='9')rf_scene_dev_npc_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\fragment-platform-test.flag","rb");rf_scene_fragment_platform_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4')rf_scene_fragment_platform_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\moving-support-test.flag","rb");rf_scene_moving_support_enabled=stream_flag!=NULL;
     if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2'&&mode<='4')rf_scene_moving_support_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
