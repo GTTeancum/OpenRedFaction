@@ -7,7 +7,7 @@ int main(void)
     scene_undercover_resources undercover={0};rf_campaign_player_state player={0};
     rf_weapon_modes_checkpoint saved={3u,0x12345678u},captured={0},before;
     rf_weapon_inventory inventory;uint32_t i,j;
-    campaign_extra_ids[0]=2;campaign_machine_special_id=3;campaign_extra_ids[3]=4;
+    campaign_shield_id=5;campaign_extra_ids[0]=2;campaign_machine_special_id=3;campaign_extra_ids[3]=4;
     s.player_weapon[13]=views;s.player_weapon[17]=views+1;s.player_weapon[16]=views+2;
     s.machine_custom[0]=actions;s.machine_custom[1]=actions+1;s.machine_transition_ticks[0]=12;s.machine_transition_ticks[1]=15;
     s.undercover=&undercover;s.undercover_textures=2;undercover.actions=actions+2;

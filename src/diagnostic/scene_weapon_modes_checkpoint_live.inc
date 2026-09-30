@@ -17,11 +17,17 @@ static int scene_weapon_modes_checkpoint_prepare(scene_stream *s,const rf_campai
 {
     int32_t base=campaign_extra_ids[0],special=campaign_machine_special_id,undercover=campaign_extra_ids[3];
     uint32_t i;int status;
-    if(!s || !player || !value || (value->flags&~3u) || base<0 || base>=64 || special<0 || special>=64 ||
+    if(!s || !player || !value || (value->flags&~7u) || base<0 || base>=64 || special<0 || special>=64 ||
        undercover<0 || undercover>=64 || base==special || base==undercover || special==undercover)return RF_RANGE;
     if(player->inventory.owned[special] || player->weapon==(uint32_t)special ||
        (((value->flags&RF_WEAPON_MODES_MACHINE_PISTOL_SPECIAL) || player->inventory.loaded[special]) && !player->inventory.owned[base]) ||
        ((value->flags&RF_WEAPON_MODES_UNDERCOVER_SUPPRESSOR_ATTACHED) && !player->inventory.owned[undercover]))return RF_FORMAT;
+    if(campaign_shield_id<0 || campaign_shield_id>=64 || !isfinite(value->shield_life))return RF_RANGE;
+    if(!!(value->flags&RF_WEAPON_MODES_PLAYER_SHIELD)!=!!player->inventory.owned[campaign_shield_id])return RF_FORMAT;
+    if(value->flags&RF_WEAPON_MODES_PLAYER_SHIELD){
+        if(!s->player_weapon[11] || value->shield_life<=0 ||
+           value->shield_life>scene_npc_shields.definition.life)return RF_FORMAT;
+    }else if(value->shield_life!=0)return RF_FORMAT;
     if(campaign_machine_mode.pending || (s->undercover && s->undercover->mode.pending))return RF_RANGE;
     if(player->inventory.owned[base]){
         for(i=0;i<2;i++){
@@ -43,6 +49,10 @@ static int scene_weapon_modes_checkpoint_capture(scene_stream *s,rf_weapon_modes
     if(!s || !out || campaign_machine_mode.special>1 || (s->undercover && s->undercover->mode.attached>1))return RF_RANGE;
     value.flags=campaign_machine_mode.special?RF_WEAPON_MODES_MACHINE_PISTOL_SPECIAL:0;
     if(s->undercover && s->undercover->mode.attached)value.flags|=RF_WEAPON_MODES_UNDERCOVER_SUPPRESSOR_ATTACHED;
+    if(campaign_shield_id>=0 && campaign_shield_id<64 && campaign_player_inventory.owned[campaign_shield_id]){
+        if(!scene_player_shield_damage_state.owned || scene_player_shield_damage_state.broken)return RF_RANGE;
+        value.flags|=RF_WEAPON_MODES_PLAYER_SHIELD;value.shield_life=scene_player_shield_damage_state.damage.health;
+    }
     value.conventional_rng=campaign_conventional_random.value;player.inventory=campaign_player_inventory;
     player.weapon=campaign_explicit_unarmed?UINT32_MAX:(uint32_t)campaign_slot_weapon(campaign_equipped_slot);
     status=scene_weapon_modes_checkpoint_prepare(s,&player,&value);if(status)return status;
@@ -58,6 +68,14 @@ static void scene_weapon_modes_checkpoint_assign(scene_stream *s,const rf_weapon
     if(s->undercover){
         s->undercover->mode.attached=s->undercover->mode.target=!!(value->flags&RF_WEAPON_MODES_UNDERCOVER_SUPPRESSOR_ATTACHED);
         s->undercover->mode.pending=0;s->undercover_alt_held=!!player_input.alt_fire;
+    }
+    scene_player_shield_damage_reset();scene_player_shield_bash_restore_reset();scene_fusion_restore_reset();
+    if(value->flags&RF_WEAPON_MODES_PLAYER_SHIELD){
+        scene_player_shield_damage_state.owned=1;
+        scene_player_shield_damage_state.selected=campaign_equipped_slot==11 && !campaign_explicit_unarmed;
+        scene_player_shield_damage_state.damage.health=value->shield_life;
+        scene_player_shield_damage_state.damage.object_flags=value->shield_life<scene_npc_shields.definition.life?0x200000u:0;
+        memcpy(rf_scene_player_shield+2,&value->shield_life,4);
     }
     campaign_conventional_random.value=value->conventional_rng;
 }

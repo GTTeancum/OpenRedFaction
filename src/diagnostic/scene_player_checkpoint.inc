@@ -9,9 +9,14 @@ static int scene_checkpoint_player_catalog_mode(rf_player_checkpoint_catalog *c,
     memcpy(c->weapons,campaign_weapon_supply.definitions,sizeof(c->weapons));
     c->health_capacity=campaign_player_damage.state.effects.class_health;c->armor_capacity=campaign_player_damage.state.effects.class_armor;
     for(i=0;i<SCENE_WEAPON_SLOTS;i++){
-        if(i==9 || i==11 || i==12 || (!modes && (i==13 || i>=16)))continue;
+        if(i==9 || (!modes && (i==11 || i==12 || i==13 || i>=16)))continue;
         int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[i]);const rf_weapon_acquire_definition *d;
         if(id<0||(uint32_t)id>=c->count)return RF_FORMAT;c->supported[id]=1;d=c->weapons+id;
+        if(i==11){
+            if(d->ammo_type!=-1 || d->capacity!=0)return RF_FORMAT;
+            /* Authored shield magazine32 is neither ammunition nor durability. */
+            c->weapons[id].magazine=0;continue;
+        }
         if(d->ammo_type<0||d->ammo_type>=32||d->capacity<0)return RF_FORMAT;
         if(d->capacity>c->reserve_capacity[d->ammo_type])c->reserve_capacity[d->ammo_type]=d->capacity;
     }
@@ -53,11 +58,11 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
 {
     uint32_t i,support_uid,rocket_trigger;
     if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
-    if(campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
+    if(!modes && campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
-    if(scene_player_shield_damage_save_pending()||scene_player_grenade_save_blocked())return RF_RANGE;
+    if((!modes && scene_player_shield_damage_save_pending())||scene_player_shield_bash_save_pending()||scene_player_grenade_save_blocked())return RF_RANGE;
     if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
-    if(campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
+    if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
     if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
     rocket_trigger=modes&&campaign_equipped_slot==4&&scene_player_rocket_pending(s)&&
@@ -67,7 +72,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
        campaign_climb.region||campaign_player_view.linked_handle!=-1||rf_scene_actor_landing[1]!=1||
        ((!rocket_trigger)&&(combat_trigger.cooldown||combat_trigger.held))||
        combat_trigger.remaining||combat_trigger.delay||rf_scene_combat[6]||
-       riot_charge_remainder||(!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||scene_fusion_projectile_pending()||scene_burning_save_pending()||scene_flame_input_pending()||scene_flame_canister_save_pending())return RF_RANGE;
+       riot_charge_remainder||(!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||scene_fusion_save_pending()||scene_burning_save_pending()||scene_flame_input_pending()||scene_flame_canister_save_pending())return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.velocity[i])||fabsf(scene_actor_body.state.velocity[i])>32.f||
         actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
     if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;

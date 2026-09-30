@@ -1,6 +1,11 @@
 #include "scene_fusion_input.inc"
 #include "scene_fusion_projectile.inc"
 static scene_fusion_input_state scene_fusion_input;
+static uint32_t scene_fusion_save_pending(void)
+{return scene_fusion_projectile_pending() || scene_fusion_input.reloading ||
+    (scene_fusion_input.cooling && (int32_t)(combat_frame-scene_fusion_input.next_fire)<0);}
+static void scene_fusion_restore_reset(void)
+{scene_fusion_input_reset(&scene_fusion_input);scene_fusion_projectile_reset();}
 typedef struct scene_fusion_launch_context {const float *position,*forward;} scene_fusion_launch_context;
 static int scene_fusion_input_launch(void *context,uint32_t *spawned)
 {

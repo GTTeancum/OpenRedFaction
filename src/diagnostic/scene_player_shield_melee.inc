@@ -1,6 +1,11 @@
 /* Shield primary uses authored delayed melee contact, with no ammo debit.
  * First-pass contact is the same finite body ray used by the riot stick. */
 static scene_player_shield_bash scene_player_shield_bash_state;
+static uint32_t scene_player_shield_bash_save_pending(void)
+{return scene_player_shield_bash_state.pending || (scene_player_shield_bash_state.cooling &&
+    (int32_t)(combat_frame-scene_player_shield_bash_state.next_attack)<0);}
+static void scene_player_shield_bash_restore_reset(void)
+{scene_player_shield_bash_reset(&scene_player_shield_bash_state);}
 static int scene_player_shield_bash_impact(scene_stream *stream,uint32_t frame,
     const float position[3],const float direction[3],const scene_player_shield_bash_event *event)
 {

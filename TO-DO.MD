@@ -20,7 +20,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, NPC-bound remote charges, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, NPC-bound remote charges, damaged Riot Shield/Fusion ownership, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
 
 - NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
 
@@ -94,9 +94,9 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
-- Fusion launcher: Authored pickup/script/import demand now loads the weapon without DEV auto-ownership; PC grants, selection and finite-ammo fire pass, native acquisition/fire state matches but projectile-render checksum differs; saves, wider campaign encounters and effect polish remain (docs/FUSION-PICKUP-FIRST-PASS.md).
+- Fusion launcher: Authored pickup/script/import demand now loads the weapon without DEV auto-ownership; PC grants, selection and finite-ammo fire pass, native acquisition/fire state matches but projectile-render checksum differs; settled ownership/ammo now saves and reloads on Xbox, while active-flight saves, wider campaign encounters and effect polish remain (docs/FUSION-PICKUP-FIRST-PASS.md, docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
 
-- Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; world/script shield pickups and demand-based view resources are now wired; native bash view now passes175frames with7.05MiB free; broader attacks, saves and native break continuation remain.
+- Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; world/script shield pickups and demand-based view resources are now wired; native bash view now passes175frames with7.05MiB free; damaged durability now survives ordinary Xbox save/load and breaks on further admitted damage; pending-bash saves, broader attacks and live contact/break presentation remain (docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
 
 - Riot shields: Live PC now blocks9shots without NPC damage and a longer encounter blocks32shots, breaks the shield and permits subsequent damage/fallback; exact posed-model ordering fixes coarse body overlap; native650-frame blocking replay passes with exact PC/Xbox counters and7.78MiB free, in-memory durability/break history now binds across revisits with focused checks and PC/Xbox builds passing; ordinary NPC bullets and shotgun pellets now resolve shield-only silhouettes before cover/damage; live round-trip verification and disk persistence remain.
 
@@ -5962,3 +5962,10 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Stock64MiB Xbox saves one charge attached to Capek UID8359, boots again, restores its exact position, switches to the detonator and detonates exactly once with no replacement launch or residual charge.
 - Report: artifacts/xemu/remote-host-save-20260930-110757/report.json; world30536 bytes, minimum endpoint4538 free pages (17.73MiB), original disc restored. NXDK build passes.
 - Mover admission is implemented but not separately live checked; dead-host transitions, fragment attachment saves and broader encounters remain. No PC test, images or campaign route was run.
+
+### Riot Shield and Fusion ordinary saves (2026-09-30)
+
+- Removed blanket ownership rejection for settled special weapons, normalized the ammo-free shield catalog, and added RFWM2 shield life in the existing32-byte payload while preserving RFWM1 reads/writes without shields.
+- Restoring a shield preserves damage and ordinary break/removal/fallback; load resets bash and Fusion transient state. Active bash, Fusion reload/cooldown and live Fusion projectile saves remain temporarily unavailable.
+- Stock64MiB Xbox saves shield625/Fusion1, reloads shield625, damages it to312.5, breaks/removes it, and launches the saved Fusion shell with loaded0. Report: artifacts/xemu/special-weapon-save-20260930-111454/report.json; minimum endpoint4478 free pages (17.49MiB), disc restored.
+- Final NXDK build and compiled RFWM1/RFWM2 codec checks pass; no PC runtime, campaign route or image capture. Admitted shield damage tests durability integration, not mesh interception; active-shot in-session load clearing is implemented but not separately live checked.
