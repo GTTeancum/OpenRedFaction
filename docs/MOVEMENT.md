@@ -93,7 +93,17 @@ contact at the fragment top (Y=0.4, upward normal 1), two landing updates, no
 ground errors, and 796 free physical pages; the isolated disc was restored.
 The authored edit clone needed a measured 32 KiB extraction margin after the
 source-face scratch increase, while initial terrain reservations remain at their
-previous size. Carry by a moving fragment is still open.
+previous size.
+NPCs now retain the extracted support's registry identity while grounded and
+invalidate it when its publication changes or the piece retires. The ordinary
+carry step uses that fragment's velocity before the next ground query. The
+bounded Xbox moving-fragment fixture at
+`artifacts/xemu/npc-rubble-carry-20260929-214238/` translated the fragment
+after landing: the guard moved from X=-1.50 to X=-0.30 with 80 carry commits,
+remained grounded, and finished with 796 free physical pages. The test disc
+was restored. Rotating support, collision with a second fragment during a
+carry translation, reacquiring a moving fragment after save/reload, and
+authored Goto carry behavior remain unverified.
 The existing stock-64-MiB translating-mover fixture remains green after this
 change: `artifacts/xemu/npc-platform-20260929-202052/` completed 500 frames,
 recorded 455 grounded checks and 60 carry commits, ended at x=12.449 with

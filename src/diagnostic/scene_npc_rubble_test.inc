@@ -4,10 +4,11 @@
 uint32_t rf_scene_dev_npc_cover[6][8];
 static uint32_t npc_cover_tag,npc_cover_piece,npc_cover_ready;
 static float npc_cover_position[3];
-/* Xbox-only support fixture: real extracted piece, held still for a bounded
- * interval while the normal NPC gravity and ground paths run. */
-uint32_t rf_scene_dev_npc_rubble_support[16];
+/* Xbox-only support fixture: an extracted piece is held for landing, then
+ * mode 11 translates it under the ordinary NPC carry path. */
+uint32_t rf_scene_dev_npc_rubble_support[20];
 extern uint32_t rf_scene_npc_idle_ground[6];
+extern uint32_t rf_scene_npc_mover_support[8];
 static uint32_t npc_support_tag,npc_support_piece,npc_support_ready;
 static float npc_support_position[3];
 static int scene_npc_rubble_support_stimulus(scene_stream *s,uint32_t frame)
@@ -16,7 +17,7 @@ static int scene_npc_rubble_support_stimulus(scene_stream *s,uint32_t frame)
     rf_geomod_owned_piece part;rf_physics_body *body;campaign_npc_body *npc;
     rf_physics_ground_probe probe;rf_collision_actor_contact contact={0};
     uint32_t source,b,p,k,found;int status;
-    if(rf_scene_dev_npc_enabled!=10)return RF_OK;
+    if(rf_scene_dev_npc_enabled!=10 && rf_scene_dev_npc_enabled!=11)return RF_OK;
     if(!rf_scene_dev_room_enabled || campaign_npc_body_count!=1)return RF_RANGE;
     if(!frame){npc_support_ready=0;memset(rf_scene_dev_npc_rubble_support,0,sizeof(rf_scene_dev_npc_rubble_support));}
     if(frame<300 || frame>420)return RF_OK;
@@ -60,13 +61,17 @@ selected:
         rf_scene_dev_npc_rubble_support[0]=1;rf_scene_dev_npc_rubble_support[1]=npc_support_tag;
         rf_scene_dev_npc_rubble_support[2]=npc_support_piece;
         memcpy(rf_scene_dev_npc_rubble_support+3,&body->state.bounds.radius,4);
+        memcpy(rf_scene_dev_npc_rubble_support+16,npc->body.state.position,4);
     }
+    if(rf_scene_dev_npc_enabled==11 && frame>=340)npc_support_position[0]+=.015f;
     for(k=0;k<3;k++) {
         float delta=npc_support_position[k]-body->state.position[k];
         body->state.position[k]=body->state.next_position[k]=npc_support_position[k];
         body->state.bounds.minimum[k]+=delta;body->state.bounds.maximum[k]+=delta;
     }
-    memset(body->state.velocity,0,12);body->state.flags&=~0x80000000u;
+    memset(body->state.velocity,0,12);
+    if(rf_scene_dev_npc_enabled==11 && frame>=340)body->state.velocity[0]=.9f;
+    body->state.flags&=~0x80000000u;
     memset(body->state.orientation,0,sizeof(body->state.orientation));
     memset(body->state.next_orientation,0,sizeof(body->state.next_orientation));
     for(k=0;k<3;k++)body->state.orientation[k*3+k]=body->state.next_orientation[k*3+k]=1;
@@ -95,6 +100,9 @@ selected:
     rf_scene_dev_npc_rubble_support[9]=campaign_modes[npc->movement_slot].index;
     memcpy(rf_scene_dev_npc_rubble_support+10,npc->body.state.position+1,4);
     rf_scene_dev_npc_rubble_support[11]=rf_scene_npc_idle_ground[4];
+    memcpy(rf_scene_dev_npc_rubble_support+17,npc->body.state.position,4);
+    memcpy(rf_scene_dev_npc_rubble_support+18,body->state.position,4);
+    rf_scene_dev_npc_rubble_support[19]=rf_scene_npc_mover_support[2];
     return RF_OK;
 }
 static int scene_npc_rubble_stimulus(scene_stream *s,uint32_t frame,const float eye[3])
