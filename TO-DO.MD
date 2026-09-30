@@ -2,7 +2,7 @@
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately95%; GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
-Current platform priority (user direction,2026-09-29): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks, keep the shared PC build compiling when needed, and do not run PC gameplay tests or campaign-route replays.
+Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
 
 - PC build maintenance: The `rf_pc_play` target compiles, but the all-target CMake build still has a stale two-argument `campaign_script_step` call in `tests/scene_ai_mode_gameplay_tests.c`.
 

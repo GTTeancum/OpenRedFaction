@@ -4,7 +4,7 @@
 
 - Read and maintain `TO-DO.MD`; keep one-sentence open milestones at the top and mark review dependencies with `USER`.
 - Xbox is primary: stock 64 MiB only, NXDK, C/C++, PS2-level visual parity, single-player first.
-- Keep the PC build available as a shared-code build path, but direct implementation and validation effort to the Xbox target.
+- Keep the PC build available as a shared-code staging path; compile it only when a specific shared-code change needs that compatibility check. Direct implementation and runtime validation effort to Xbox.
 - Current mandate: pause campaign-route progression and prioritize core gameplay in an enemy-free developer testbed for weapons, animations, GeoMod and movement; resume campaign integration after the core systems are usable.
 - GeoMod fidelity is now the top priority: treat faceted craters as prototypes, validate against original-game evidence, and prioritize destruction shape, materials, lighting, debris, collision and repeated cuts before returning to other systems.
 - Product first: deliver a playable first pass with movement, combat, AI, mission events and level progression; exact 1:1 RE is not required.
@@ -31,7 +31,7 @@
 - User update (2026-09-18): Prioritize a working, integrated engine and core gameplay; polish comes after the engine is assembled.
 - Keep testing proportional: use focused checks to establish that changed behavior works and catch material regressions; do not repeatedly run broad suites or expand edge-case testing without a concrete need.
 - User update (2026-09-27): Do not play through campaign routes as part of development; implement systems and use bounded functional checks instead. Keep existing route scripts in the repository, but stop running them unless the user requests that work again.
-- User update (2026-09-29): Xbox is the sole runtime implementation and validation target. Keep the PC build compiling as a shared-code staging path when changes require it, but do not run or tune PC gameplay; use focused stock-64-MiB XEMU checks for changed behavior.
+- User update (2026-09-30): Xbox is the sole runtime implementation and validation target. Do not perform routine PC builds or PC gameplay tests; compile the PC staging target only when a specific shared-code change requires a compatibility check. Use focused stock-64-MiB XEMU checks for changed behavior.
 - Do not let exhaustive validation, minor fidelity details or isolated edge cases monopolize progress on missing engine systems. Record remaining issues in TO-DO.MD and continue integration unless they block basic gameplay, stability or the stock 64 MiB Xbox target.
 - GeoMod remains a core priority, but its polish and exhaustive coverage must not delay assembling the rest of the engine.
 
