@@ -226,6 +226,15 @@ class multiplier, while edge falloff, simultaneous vehicles, destructible
 world cover, NPC-held explosives and visual effects remain open. NPC support
 saves require a candidate-world checkpoint change because NPC placement is
 currently validated before the saved passive-vehicle poses are staged.
+The follow-up stock-64-MiB Xbox run
+`artifacts/xemu/vehicle-player-shot-20260930-091911` placed existing L20S2
+armed NPC UID4726 at the fixture's cover-checked firing pose and issued its
+ordinary scripted Attack order against Fighter UID4801. The NPC fired at
+frames65 and95 and both hits passed hull contact, cover and class damage:
+health fell805 to767.5, with18.75 applied per shot. Damage journal type2
+identifies each as NPC-to-vehicle rather than player damage;3,544 physical
+pages remained free and test disc state was restored. Natural travel into
+range, blocked-cover rejection and save/reload of the active order remain open.
 The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.

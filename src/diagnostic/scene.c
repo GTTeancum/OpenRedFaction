@@ -10916,7 +10916,8 @@ static int campaign_enemy_fire_presentation(uint32_t slot,uint32_t animate)
     return RF_OK;
 }
 /* Bounded damage journal for process-local replay/native memory inspection.
- * type0: player damages NPC or vehicle; type1: NPC damages player. No gameplay mutation. */
+ * type0: player damages NPC or vehicle; type1: NPC damages player;
+ * type2: NPC damages vehicle. No gameplay mutation. */
 uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
 static void campaign_combat_event(uint32_t frame,uint32_t type,uint32_t actor,float amount,float health)
 {
@@ -11005,7 +11006,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
-        uint32_t point_spread_ready=0,once;
+        uint32_t point_spread_ready=0,once,vehicle_damage_applied=0;
         uint32_t *single_report=owner->script_once.mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;
         if(owner->script_once.count && frame>owner->script_once.expires){owner->script_once.count=0;single_report[5]=0;}
         once=owner->script_once.count>0;
@@ -11241,10 +11242,11 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             blocked=0;
             if(!selected.penetrates_world){status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
-            if(vehicle_hit){uint32_t handled;float applied;
+            if(vehicle_hit){uint32_t handled=0;float applied=0;
                 if(!selected.penetrates_world){status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,fraction,&blocked);if(status)return status;}
                 if(!blocked){status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
-                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return status;}
+                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return status;
+                    if(handled&&applied>0){amount=applied;vehicle_damage_applied=1;}}
                 goto enemy_shot_done;
             }
             if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
@@ -11285,9 +11287,10 @@ enemy_shot_done:
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
         }
         if(amount>0){++rf_scene_enemy_combat[3];
-            if(weapon!=campaign_shotgun_id && !victim)player_amount=amount;
+            if(weapon!=campaign_shotgun_id && !victim && !vehicle_damage_applied)player_amount=amount;
             if(point_target && !once && player_amount>0)++rf_scene_script_shoot_at[7];
-            if(player_amount>0)campaign_combat_event(frame,1,owner->registration.handle,player_amount,campaign_player_damage.state.effects.health);}
+            if(player_amount>0)campaign_combat_event(frame,1,owner->registration.handle,player_amount,campaign_player_damage.state.effects.health);
+            if(vehicle_damage_applied)campaign_combat_event(frame,2,owner->registration.handle,amount,vehicle_health);}
     }
     memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
@@ -15060,13 +15063,15 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
  * authored passive hull. The normal combat tick still selects cover, debits
  * ammo, and applies damage; only its eye pose/input are staged for this frame. */
 uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[16];
+static float campaign_vehicle_shot_clear_eye[3];
+static uint32_t campaign_vehicle_shot_clear_eye_valid;
 static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
     const float original_orientation[3][3],float eye[3],float basis[3][3],uint32_t *staged)
 {
     uint32_t owner_index,sphere,axis;scene_passive_vehicle *owner=NULL;
     if(!stream||!original_orientation||!eye||!basis||!staged)return RF_RANGE;
     *staged=0;
-    if(!frame)memset(rf_scene_vehicle_shot_probe,0,sizeof(rf_scene_vehicle_shot_probe));
+    if(!frame){memset(rf_scene_vehicle_shot_probe,0,sizeof(rf_scene_vehicle_shot_probe));campaign_vehicle_shot_clear_eye_valid=0;}
     if(!rf_scene_vehicle_shot_uid||frame!=30)return RF_OK;
     for(owner_index=0;owner_index<campaign_passive_vehicle_count;owner_index++)
         if(campaign_passive_vehicles[owner_index].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+owner_index;break;}
@@ -15118,6 +15123,7 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
                 memcpy(rf_scene_vehicle_shot_probe+6,&owner->damage.state.effects.armor,4);
                 rf_scene_vehicle_shot_probe[7]=(uint32_t)campaign_player_inventory.loaded[weapon];
             }
+            memcpy(campaign_vehicle_shot_clear_eye,eye,12);campaign_vehicle_shot_clear_eye_valid=1;
             rf_scene_vehicle_shot_probe[4]=*staged=1;
             return RF_OK;
         }
@@ -15142,11 +15148,11 @@ static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 }
 /* Process-local diagnostic: issue an Attack event to a living authored NPC
  * against the staged Fighter. The normal AI/steering ticks own subsequent fire. */
-uint32_t rf_scene_vehicle_attack_probe[8]; /* target UID, attacker UID/handle, target handle, status, pre-aim, eligible NPCs, reserved */
+uint32_t rf_scene_vehicle_attack_probe[8]; /* target UID, attacker UID/handle, target handle, status, pre-aim, eligible NPCs, placed */
 static int campaign_vehicle_attack_fixture(uint32_t frame)
 {
     scene_passive_vehicle *target=NULL;campaign_npc_body *attacker=NULL;
-    uint32_t i,attacker_uid=0;float best=FLT_MAX;int status;
+    uint32_t i,attacker_uid=0,attacker_slot=UINT32_MAX;float best=FLT_MAX;int status;
     if(!frame)memset(rf_scene_vehicle_attack_probe,0,sizeof(rf_scene_vehicle_attack_probe));
     if(!rf_scene_vehicle_shot_uid||frame!=65)return RF_OK;
     for(i=0;i<campaign_passive_vehicle_count;i++)
@@ -15164,13 +15170,16 @@ static int campaign_vehicle_attack_fixture(uint32_t frame)
             campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(candidate->view.weapons[0],
             &campaign_weapon_supply,&selected);
-        if(status||!selected.primary)continue;
+        if(status||!selected.primary||selected.melee||
+            candidate->view.weapons[0]==campaign_grenade_id||
+            candidate->view.weapons[0]==campaign_rocket_id)continue;
         ++rf_scene_vehicle_attack_probe[6];
         for(axis=0;axis<3;axis++){
             float delta=candidate->body.state.position[axis]-target->pose.position[axis];
             distance+=delta*delta;
         }
-        if(distance<best){best=distance;attacker=candidate;attacker_uid=(uint32_t)campaign_seeds.records.items[i].record.uid;}
+        if(distance<best){best=distance;attacker=candidate;attacker_slot=i;
+            attacker_uid=(uint32_t)campaign_seeds.records.items[i].record.uid;}
     }
     rf_scene_vehicle_attack_probe[0]=target->uid;
     rf_scene_vehicle_attack_probe[1]=attacker_uid;
@@ -15178,6 +15187,20 @@ static int campaign_vehicle_attack_fixture(uint32_t frame)
     rf_scene_vehicle_attack_probe[5]=rf_scene_enemy_aim[0];
     if(!attacker){rf_scene_vehicle_attack_probe[4]=(uint32_t)RF_NOT_FOUND;return RF_OK;}
     rf_scene_vehicle_attack_probe[2]=attacker->registration.handle;
+    if(!campaign_vehicle_shot_clear_eye_valid)return RF_NOT_FOUND;
+    /* Put the fixture NPC at a cover-checked pose beside the hull. This is
+     * diagnostic placement only; the Attack order, turn, shot and damage stay
+     * on the ordinary runtime paths. */
+    for(i=0;i<3;i++){
+        float offset=attacker->eye_position[i]-attacker->body.state.position[i];
+        float placed=campaign_vehicle_shot_clear_eye[i]-offset;
+        attacker->body.state.position[i]=attacker->body.state.next_position[i]=placed;
+        attacker->published[i]=attacker->previous[i]=placed;
+        campaign_model_owners[attacker_slot].position[i]=placed;
+        attacker->body.state.velocity[i]=0;
+    }
+    status=campaign_npc_eye_update(attacker_slot);if(status)return status;
+    rf_scene_vehicle_attack_probe[7]=1;
     {
         rf_level_event event={0};rf_level_link_target link={target->handle,1,0};
         event.uid=0x5641544bu;event.words[0]=attacker_uid;event.link_count=1;

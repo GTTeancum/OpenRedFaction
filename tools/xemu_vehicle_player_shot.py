@@ -54,13 +54,15 @@ def main():
         (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 4717))
         (DISC / 'campaign-vehicle-shot.bin').write_bytes(struct.pack('<I', 4801))
         (DISC / 'player-replay.bin').write_bytes(
-            b'RFI5' + struct.pack('<I', 44) + bytes(85 * 44))
+            b'RFI5' + struct.pack('<I', 44) + bytes(110 * 44))
         build(folder, 'run')
-        guest = run_guest(folder, 'run', hdd, 85, 300, snapshot=True,
+        guest = run_guest(folder, 'run', hdd, 110, 300, snapshot=True,
                           extra_symbols={'rf_scene_vehicle_shot_probe': 16,
                                          'rf_scene_vehicle_attack_probe': 8,
                                          'rf_scene_script_attack': 12,
                                          'rf_scene_enemy_aim': 4,
+                                         'rf_scene_enemy_combat': 8,
+                                         'rf_scene_combat_events': 160,
                                          'rf_scene_passive_damage': 8,
                                          'rf_scene_rocket_blast': 8,
                                          'rf_scene_combat_event_count': 1,
@@ -82,7 +84,9 @@ def main():
         attack = guest['extra']['rf_scene_vehicle_attack_probe']
         order = guest['extra']['rf_scene_script_attack']
         aim = guest['extra']['rf_scene_enemy_aim']
-        report['attack'] = {'probe': attack, 'order': order, 'aim': aim}
+        report['attack'] = {'probe': attack, 'order': order, 'aim': aim,
+                            'enemy_combat': guest['extra']['rf_scene_enemy_combat'],
+                            'events': guest['extra']['rf_scene_combat_events']}
         if probe[0] != 4801 or not probe[1] or not probe[2] or probe[4] != 1 or \
            probe[11] or combat[0] < 1 or probe[10] != probe[7] - 1 or \
            sum(after) >= sum(before) or damage[2] < 2 or damage[4] != 4801 or \
@@ -90,10 +94,14 @@ def main():
            report['shot']['blast'][2] < 1 or report['shot']['events'][0] < 2:
             raise RuntimeError(f'Player shot and blast did not damage Fighter: {report["shot"]}')
         if attack[0] != 4801 or not attack[1] or not attack[2] or not attack[3] or \
-           attack[4] or not attack[6] or order[2] != attack[1] or \
+           attack[4] or not attack[6] or not attack[7] or order[2] != attack[1] or \
            order[3] != attack[3] or order[4] != 1 or order[11] != attack[2] or \
-           order[10] != 1 or (order[9] == 0 and aim[0] <= attack[5]):
-            raise RuntimeError(f'NPC Attack did not track living Fighter: {report["attack"]}')
+           order[10] != 1 or not order[5] or as_float(order[6]) <= 0 or \
+           as_float(order[8]) >= as_float(order[7]) or damage[2] <= 2 or \
+           not any(row[1] == 2 and row[2] == attack[2]
+                   for row in [report['attack']['events'][i:i+5]
+                               for i in range(0, 160, 5)]):
+            raise RuntimeError(f'NPC Attack did not damage Fighter: {report["attack"]}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():
