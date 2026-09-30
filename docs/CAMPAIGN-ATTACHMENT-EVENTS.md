@@ -211,6 +211,21 @@ installed `Fighter01` damage factors are zero for bash and ordinary bullets,
 handgun shot consumed ammo and correctly left health at 900. The passing
 fixture proves one clear player-sourced precision shot, not player navigation
 and aiming from an unstaged pose or a wall-blocked negative case.
+The shared explosion scan now includes living ordinary vehicle owners. It uses
+the same authored-center distance falloff and compiled-world cover ray as the
+existing NPC and boardable-vehicle blast paths, then dispatches each accepted
+amount through the vehicle's class damage factors and registered identity.
+Applied player-sourced hits also update the ordinary recent-hit marker and
+damage journal. The focused stock-64-MiB Xbox run
+`artifacts/xemu/vehicle-player-shot-20260930-084546` combined the staged
+Sniper Rifle hit (900 to 825 health, one round spent) with a later 40-damage
+explosion centered on Fighter01 UID 4801. Its 0.5 explosive factor reduced
+health to 805; both hits appeared in the damage journal, and 3,578 physical
+pages remained free. This verifies one direct center blast and the ordinary
+class multiplier, while edge falloff, simultaneous vehicles, destructible
+world cover, NPC-held explosives and visual effects remain open. NPC support
+saves require a candidate-world checkpoint change because NPC placement is
+currently validated before the saved passive-vehicle poses are staged.
 The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.

@@ -1,4 +1,4 @@
-"""Exercise one staged player sniper shot against an authored Fighter on Xbox.
+"""Exercise staged player sniper and explosion damage against a Fighter on Xbox.
 
 The eye pose is placed by the process-local game fixture beside the hull; the
 ordinary player combat tick must select the hit, check world cover, spend ammo
@@ -44,7 +44,7 @@ def main():
     names |= {'campaign-vehicle-shot.bin', 'player-replay.bin'}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'Xbox player sniper versus authored Fighter hull'}
+    report = {'result': 'FAIL', 'scope': 'Xbox player sniper and blast versus authored Fighter hull'}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -54,11 +54,13 @@ def main():
         (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 4717))
         (DISC / 'campaign-vehicle-shot.bin').write_bytes(struct.pack('<I', 4801))
         (DISC / 'player-replay.bin').write_bytes(
-            b'RFI5' + struct.pack('<I', 44) + bytes(45 * 44))
+            b'RFI5' + struct.pack('<I', 44) + bytes(75 * 44))
         build(folder, 'run')
-        guest = run_guest(folder, 'run', hdd, 45, 300, snapshot=True,
-                          extra_symbols={'rf_scene_vehicle_shot_probe': 12,
+        guest = run_guest(folder, 'run', hdd, 75, 300, snapshot=True,
+                          extra_symbols={'rf_scene_vehicle_shot_probe': 16,
                                          'rf_scene_passive_damage': 8,
+                                         'rf_scene_rocket_blast': 8,
+                                         'rf_scene_combat_event_count': 1,
                                          'rf_scene_combat': 8,
                                          'rf_scene_player_ammo': 8},
                           allow_guest_error=True)
@@ -71,11 +73,15 @@ def main():
         before = (as_float(probe[5]), as_float(probe[6]))
         after = (as_float(probe[8]), as_float(probe[9]))
         report['shot'] = {'probe': probe, 'damage': damage, 'combat': combat,
-                          'before': before, 'after': after}
+                          'before': before, 'after': after,
+                          'blast': guest['extra']['rf_scene_rocket_blast'],
+                          'events': guest['extra']['rf_scene_combat_event_count']}
         if probe[0] != 4801 or not probe[1] or not probe[2] or probe[4] != 1 or \
            probe[11] or combat[0] < 1 or probe[10] != probe[7] - 1 or \
-           sum(after) >= sum(before) or damage[2] < 1 or damage[4] != 4801:
-            raise RuntimeError(f'Player shot did not damage Fighter through combat: {report["shot"]}')
+           sum(after) >= sum(before) or damage[2] < 2 or damage[4] != 4801 or \
+           probe[15] or as_float(probe[13]) >= as_float(probe[12]) or \
+           report['shot']['blast'][2] < 1 or report['shot']['events'][0] < 2:
+            raise RuntimeError(f'Player shot and blast did not damage Fighter: {report["shot"]}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():

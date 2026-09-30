@@ -125,6 +125,10 @@ static int scene_driller_projectile_damage(const rf_weapon_flight_contact *conta
         ++rf_scene_passive_damage[2];rf_scene_passive_damage[3]+=!was_destroyed&&passive->damage.destroyed;
         rf_scene_passive_damage[4]=passive->uid;
         memcpy(rf_scene_passive_damage+5,&passive->damage.state.effects.health,4);
+        if(*amount>0 && source==campaign_player_object.handle){
+            combat_hit_frame=frame;
+            campaign_combat_event(frame,0,passive->handle,*amount,passive->damage.state.effects.health);
+        }
         return RF_OK;
     }
     return RF_OK;

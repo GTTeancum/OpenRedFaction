@@ -10908,7 +10908,7 @@ static int campaign_enemy_fire_presentation(uint32_t slot,uint32_t animate)
     return RF_OK;
 }
 /* Bounded damage journal for process-local replay/native memory inspection.
- * type0: player damages NPC; type1: NPC damages player. No gameplay mutation. */
+ * type0: player damages NPC or vehicle; type1: NPC damages player. No gameplay mutation. */
 uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
 static void campaign_combat_event(uint32_t frame,uint32_t type,uint32_t actor,float amount,float health)
 {
@@ -14213,11 +14213,40 @@ static int scene_clutter_blast_damage(void *context,const scene_clutter_blast_ca
             return campaign_clutter_firearm_damage(i,amount,type); /* Service revalidates registry generation. */
     return RF_NOT_FOUND;
 }
+/* Ordinary placed vehicles share the class damage path with direct projectiles.
+ * The authored center uses the same world-cover and falloff policy as NPCs and
+ * the player-boardable host; each live vehicle receives at most one pulse. */
+static int scene_passive_vehicle_blast(scene_stream *s,uint32_t frame,
+    const float origin[3],float damage,float radius,uint32_t source,int32_t kind)
+{
+    uint32_t i;int status;
+    if(!s||!origin||!isfinite(damage)||!isfinite(radius))return RF_RANGE;
+    for(i=0;i<campaign_passive_vehicle_count;i++){
+        scene_passive_vehicle *owner=campaign_passive_vehicles+i;
+        rf_physics_body body={0};rf_weapon_flight_contact contact={0};
+        uint32_t handled=0;float amount=0,applied=0;
+        if(owner->handle==source||owner->damage.destroyed||
+           owner->damage.state.effects.health<=0||
+           (owner->damage.object_flags&(2u|0x4000u)))continue;
+        memcpy(body.state.position,owner->pose.position,12);
+        ++rf_scene_rocket_blast[1];
+        status=scene_blast_amount(s,origin,&body,damage,radius,&amount);if(status)return status;
+        if(amount<=0)continue;
+        contact.object=SCENE_DRILLER_PROJECTILE_OWNER;contact.face=owner->handle;
+        status=scene_driller_projectile_damage(&contact,source,amount,kind,frame,&handled,&applied);
+        if(status)return status;
+        if(handled&&applied>0){
+            ++rf_scene_rocket_blast[2];memcpy(rf_scene_rocket_blast+5,&applied,4);
+        }
+    }
+    return RF_OK;
+}
 static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const float origin[3],float damage,float radius,uint32_t source,int32_t kind)
 {
     float seconds=(float)frame/60;uint32_t i,bits,rocket=source!=UINT32_MAX;int status;
     if(rocket)++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
     status=scene_driller_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
+    status=scene_passive_vehicle_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
     {scene_clutter_blast_result result;
         scene_clutter_blast_backend backend={scene_clutter_blast_view,scene_clutter_blast_cover,scene_clutter_blast_damage,s};
         status=scene_clutter_blast_scan(origin,damage,radius,source,kind,campaign_clutter_records.count,&backend,&result);if(status)return status;
@@ -15021,7 +15050,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 /* Process-local Xbox fixture: stage one clear, player-sourced sniper shot at an
  * authored passive hull. The normal combat tick still selects cover, debits
  * ammo, and applies damage; only its eye pose/input are staged for this frame. */
-uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[12];
+uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[16];
 static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
     const float original_orientation[3][3],float eye[3],float basis[3][3],uint32_t *staged)
 {
@@ -15086,6 +15115,21 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
     }
     rf_scene_vehicle_shot_probe[11]=(uint32_t)RF_NOT_FOUND;
     return RF_NOT_FOUND;
+}
+static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
+{
+    scene_passive_vehicle *owner=NULL;uint32_t i;int status;
+    if(!rf_scene_vehicle_shot_uid||frame!=60)return RF_OK;
+    for(i=0;i<campaign_passive_vehicle_count;i++)
+        if(campaign_passive_vehicles[i].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+i;break;}
+    if(!owner)return RF_NOT_FOUND;
+    memcpy(rf_scene_vehicle_shot_probe+12,&owner->damage.state.effects.health,4);
+    status=scene_explosion_blast_source(stream,frame,owner->pose.position,40.0f,3.0f,
+        campaign_player_object.handle,3);
+    rf_scene_vehicle_shot_probe[15]=(uint32_t)status;
+    memcpy(rf_scene_vehicle_shot_probe+13,&owner->damage.state.effects.health,4);
+    rf_scene_vehicle_shot_probe[14]=rf_scene_passive_damage[2];
+    return status;
 }
 /* Process-local fixture: damage one linked actor/vehicle at frames30 and60. */
 uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_watch_vitals[8],rf_scene_watch_ray[6],rf_scene_watch_links[40],rf_scene_death_watches[97];
@@ -18503,6 +18547,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                  * after physics; full wall-clock/whole-frame parity is open. */
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
                 status=campaign_watch_fixture(frame);if(status)return status;
+                status=campaign_vehicle_blast_fixture(stream,frame);if(status)return status;
                 status=rf_campaign_countdown_step(&rf_scene_campaign_countdown,scene_step_seconds);if(status)return status;
                 campaign_triggers.vehicle_player_present=campaign_spawn && campaign_player_view.handle>=0;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
