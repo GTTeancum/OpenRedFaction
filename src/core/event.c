@@ -598,6 +598,20 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         }
         return;
     }
+    if(state->type==89) {
+        uint32_t direction=c->event->authored->record.words[0]&255u;
+        if(action!=1)return;
+        if(!c->triggers->reverse_mover){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->reverse_mover(c->triggers->reverse_mover_context,
+                link->value,direction);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==79) {
         if(action!=1)return;
         if(!c->triggers->fire_no_animation){++c->report->unsupported_actions;return;}

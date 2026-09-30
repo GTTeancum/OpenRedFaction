@@ -357,6 +357,9 @@ typedef struct rf_runtime_triggers {
     /* Borrowed controller activation; on links only, no owner destruction. */
     int (*activate_mover)(void *context,uint32_t handle,uint32_t source,uint32_t actor,int32_t now);
     void *mover_context;
+    /* Reverse_Mover89: authored low byte selects the active direction to flip. */
+    int (*reverse_mover)(void *context,uint32_t handle,uint32_t authored_direction);
+    void *reverse_mover_context;
     int (*move_npc)(void *context,uint32_t handle,const rf_level_event *event,uint32_t on);
     void *move_context;
     int (*play_animation)(void *,uint32_t,const rf_level_event *);
