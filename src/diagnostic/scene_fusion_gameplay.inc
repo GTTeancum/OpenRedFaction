@@ -1,6 +1,7 @@
 #include "scene_fusion_input.inc"
 #include "scene_fusion_projectile.inc"
 static scene_fusion_input_state scene_fusion_input;
+uint32_t rf_scene_fusion_motion[6]; /* frame, first live slot+1, position, remaining seconds bits */
 static uint32_t scene_fusion_save_pending(void)
 {return scene_fusion_projectile_pending() || scene_fusion_input.reloading ||
     (scene_fusion_input.cooling && (int32_t)(combat_frame-scene_fusion_input.next_fire)<0);}
@@ -26,5 +27,11 @@ static int scene_fusion_gameplay_tick(scene_stream *s,uint32_t frame,const float
     if(event.shot){++rf_scene_combat[0];campaign_last_alt=0;combat_sound("Shoulder Launch",position);}
     if(event.reload_started)combat_sound("Shoulder Reload",position);
     if(selected){rf_scene_combat[6]=scene_fusion_input.reloading?scene_fusion_input.reload_due-frame:0;campaign_ammo_publish();}
+    memset(rf_scene_fusion_motion,0,sizeof(rf_scene_fusion_motion));rf_scene_fusion_motion[0]=frame;
+    for(uint32_t i=0;i<SCENE_FUSION_CAPACITY;i++)if(scene_fusion_projectiles[i].flight.active){
+        float remaining=(float)scene_fusion_projectiles[i].flight.remaining;
+        rf_scene_fusion_motion[1]=i+1;memcpy(rf_scene_fusion_motion+2,scene_fusion_projectiles[i].flight.position,12);
+        memcpy(rf_scene_fusion_motion+5,&remaining,4);break;
+    }
     return RF_OK;
 }

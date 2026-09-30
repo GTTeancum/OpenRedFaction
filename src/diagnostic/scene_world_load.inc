@@ -170,6 +170,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(status)goto done;cost+=scene_ai_projectile_checkpoint_stage_bytes();
         if(scene_ai_projectile_checkpoint_trigger_pending(projectiles)&&
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
+    status=scene_ai_projectile_checkpoint_fusion_admit(projectiles,&player.player.player);if(status)goto done;
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
     phase="validate";
@@ -190,7 +191,6 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_passive_vehicle_checkpoint_assign(passive);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
-    scene_ai_projectile_checkpoint_assign(stream,projectiles);
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
     if(vehicle_present)scene_world_vehicle_route_assign(&vehicle_route);
     scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);
@@ -204,6 +204,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     campaign_explicit_unarmed=player.player.player.weapon==UINT32_MAX;
     scene_remote_checkpoint_world_selection();
     scene_weapon_modes_checkpoint_assign(stream,&player.modes);
+    scene_ai_projectile_checkpoint_assign(stream,projectiles);
     campaign_player_form=campaign_player_form_carry=environment->form_next;
     memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));
     if(campaign_player_form.active){

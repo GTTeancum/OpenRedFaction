@@ -5,6 +5,17 @@ static int scene_special_save_stage(uint32_t frame)
 {
     uint32_t phase,*row,accepted,broken;int status;
     if(!rf_scene_special_save_mode)return RF_OK;
+    if(rf_scene_special_save_mode==4){
+        /* Isolate reload completion from the test corridor's close blast. */
+        return frame==1?campaign_set_invulnerable(NULL,(uint32_t)campaign_player_view.handle,1):RF_OK;
+    }
+    if(rf_scene_special_save_mode==3){
+        if(frame==30){campaign_item_grant grant={0};grant.weapon=campaign_fusion_id;grant.quantity=2;grant.gives_weapon=1;
+            status=campaign_apply_item_grant(&grant);if(status)return status;campaign_select_primary(12);campaign_ammo_publish();}
+        if(frame==60)player_input.fire=1;
+        if(frame==70)player_input.reload=1;
+        return RF_OK;
+    }
     if(frame==60 && rf_scene_special_save_mode==2){
         campaign_select_primary(12);campaign_ammo_publish();player_input.fire=1;return RF_OK;
     }

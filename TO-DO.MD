@@ -20,7 +20,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, NPC-bound remote charges, damaged Riot Shield/Fusion ownership, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades/Fusion shots and Fusion reload, NPC-bound remote charges, damaged Riot Shield/Fusion ownership, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
 
 - NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
 
@@ -94,7 +94,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
-- Fusion launcher: Authored pickup/script/import demand now loads the weapon without DEV auto-ownership; PC grants, selection and finite-ammo fire pass, native acquisition/fire state matches but projectile-render checksum differs; settled ownership/ammo now saves and reloads on Xbox, while active-flight saves, wider campaign encounters and effect polish remain (docs/FUSION-PICKUP-FIRST-PASS.md, docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
+- Fusion launcher: Authored pickup/script/import demand now loads the weapon without DEV auto-ownership; PC grants, selection and finite-ammo fire pass, native acquisition/fire state matches but projectile-render checksum differs; ownership/ammo, active flight and reload/cooldown now save and resume on Xbox, while controller-only/mixed-flight coverage, wider campaign encounters and effect polish remain (docs/FUSION-PICKUP-FIRST-PASS.md, docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
 
 - Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; world/script shield pickups and demand-based view resources are now wired; native bash view now passes175frames with7.05MiB free; damaged durability now survives ordinary Xbox save/load and breaks on further admitted damage; pending-bash saves, broader attacks and live contact/break presentation remain (docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
 
@@ -5969,3 +5969,11 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Restoring a shield preserves damage and ordinary break/removal/fallback; load resets bash and Fusion transient state. Active bash, Fusion reload/cooldown and live Fusion projectile saves remain temporarily unavailable.
 - Stock64MiB Xbox saves shield625/Fusion1, reloads shield625, damages it to312.5, breaks/removes it, and launches the saved Fusion shell with loaded0. Report: artifacts/xemu/special-weapon-save-20260930-111454/report.json; minimum endpoint4478 free pages (17.49MiB), disc restored.
 - Final NXDK build and compiled RFWM1/RFWM2 codec checks pass; no PC runtime, campaign route or image capture. Admitted shield damage tests durability integration, not mesh interception; active-shot in-session load clearing is implemented but not separately live checked.
+
+### Active Fusion world saves (2026-09-30)
+
+- RFAP2 adds active Fusion slots and input-only rows with durable player source, authored-definition rebinding and relative cooldown/reload deadlines; RFAP1 remains readable and is still emitted without Fusion state.
+- Boot resource demand includes saved Fusion flights, and world restore now publishes flights after weapon-state reset. Ordinary saves admit flight/reload/cooldown; legacy composed RFCP remains settled-only.
+- Stock64MiB source saves at80frames with one flight, cooldown29 and reload51; the unprotected reload confirms one impact/player death, then a protected fixture reload of the same payload completes exactly one shell transfer without launching a replacement shot.
+- PASS: artifacts/xemu/fusion-flight-save-20260930-112559/report.json, source artifacts/xemu/fusion-flight-save-20260930-112154/save/xbox-world.rfwc. World30448 bytes, flight component128 bytes, endpoint headroom at least4621 pages (18.05MiB), disc restored and NXDK build passed.
+- Controller-only rows, mixed flights, in-session rewind, underwater impact and animation/effect presentation remain outside this bounded check; no PC runtime, images or campaign traversal.

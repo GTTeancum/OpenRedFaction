@@ -42,6 +42,8 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
         int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[i]);
         if(id>=0&&player.player.inventory.owned[id])*mask|=1u<<i;
     }
+    status=scene_ai_projectile_checkpoint_weapon_mask(world.sections[RF_WORLD_PROJECTILES-1].data,
+        world.sections[RF_WORLD_PROJECTILES-1].bytes,mask);if(status)goto done;
     printf("WORLD_BOOT_WEAPONS mask%u\n",*mask);
  done:
 #ifdef RF_IMAGE_XBOX_NATIVE

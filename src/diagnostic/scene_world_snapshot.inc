@@ -68,7 +68,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     rf_weapon_modes_checkpoint modes;rf_campaign_triggers *triggers=NULL;rf_level_uid_object *objects=NULL;
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
     uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending()||
-        scene_player_rocket_pending(s)||scene_player_grenade_pending())?
+        scene_player_rocket_pending(s)||scene_player_grenade_pending()||scene_fusion_save_pending())?
         RF_WORLD_CHECKPOINT_PREFIX_V3:RF_WORLD_CHECKPOINT_PREFIX;
     uint32_t bytes=0,total=0,i,slot,object_count=0,omissions=0,stage=0;
     int status=RF_OK;int32_t now;const char *part="identity";
@@ -97,7 +97,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #define SNAP_START(name) do{part=name;bytes=0;rf_scene_world_checkpoint_state[7]=++stage;}while(0)
 #define SNAP_END(type) do{if(status)goto done;if(bytes>RF_CHECKPOINT_FILE_MAX-at){status=RF_RANGE;goto done;}     bundle.sections[(type)-1]=(rf_world_checkpoint_slice){bytes?buffer+at:NULL,bytes};at+=bytes;     printf("WORLD_SNAPSHOT_COMPONENT %s %u\n",part,bytes);}while(0)
     SNAP_START("player");status=scene_driller_active(s)?scene_world_vehicle_player_capture(s,&player,&catalog):
-        scene_checkpoint_player_snapshot(s,1,&player,&catalog);
+        scene_checkpoint_player_snapshot(s,2,&player,&catalog);
     if(status)printf("WORLD_SNAPSHOT_PLAYER_STATE %d shield%u fusion%u support%u landing%u cooldown%u remaining%u delay%u held%u charge%u velocity %.6g %.6g %.6g\n",
         status,scene_player_shield_damage_save_pending(),
         campaign_fusion_id>=0?campaign_player_inventory.owned[campaign_fusion_id]:0,
