@@ -46,7 +46,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
-- Xbox weapon input: A stock64MiB process-contained L4S5 check collects the authored rifle, switches forward/back/forward and fires it; physical shoulder/D-pad behavior and interactive pickup feel remain unverified, while PC hands-on testing stays deferred (docs/INPUT.md).
+- Xbox weapon input: Stock64MiB L4S5 checks collect the authored rifle, switch forward/back/forward with and without release frames, and fire it; physical shoulder/D-pad behavior and interactive pickup feel remain unverified, while PC hands-on testing stays deferred (docs/INPUT.md).
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 

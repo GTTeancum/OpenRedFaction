@@ -14260,13 +14260,14 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_rockets_tick(stream,frame);rf_scene_rockets[7]=(uint32_t)status;if(status)return status;
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status){printf("PICKUP_ERROR %u %d\n",frame,status);return status;}
-    if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
+    if(player_input.cycle_weapon && player_input.cycle_weapon!=weapon_cycle_held &&
+       campaign_player_damage.state.effects.health>0) {
         if(campaign_cycle_primary(player_input.cycle_weapon)) {
             memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
             rf_scene_combat[6]=0;++rf_scene_weapon_selection[1];campaign_ammo_publish();
         }
     }
-    weapon_cycle_held=!!player_input.cycle_weapon;
+    weapon_cycle_held=player_input.cycle_weapon;
     status=scene_machine_mode_input(stream,frame,position);if(status)return status;
     status=scene_undercover_input(stream,position);if(status)return status;
     if(!frame){scene_scanner_enabled=scene_scanner_held=0;memset(rf_scene_scanner,0,sizeof(rf_scene_scanner));}

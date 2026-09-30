@@ -1,5 +1,6 @@
 """Xbox-only authored rifle pickup, switch and fire; no PC run or images."""
 import datetime
+import argparse
 import json
 import os
 from pathlib import Path
@@ -15,12 +16,13 @@ DISC = ROOT / 'build/xbox/disc'
 FRAMES = 140
 
 
-def replay():
+def replay(direct_switch=False):
     commands = []
     for frame in range(FRAMES):
         forward = float(10 <= frame < 25)
-        fire = int(frame in (60, 115))
-        cycle = 1 if frame in (40, 105) else 2 if frame == 90 else 0
+        fire = int(frame in ((80, 115) if direct_switch else (60, 115)))
+        cycle = ((1 if 40 <= frame < 50 or 60 <= frame < 70 else 2 if 50 <= frame < 60 else 0)
+                 if direct_switch else (1 if frame in (40, 105) else 2 if frame == 90 else 0))
         commands.append(struct.pack('<5f6I', 0, 0, forward, 0, 0,
                                     0, 0, 0, fire, 0, cycle))
     return b'RFI5' + struct.pack('<I', 44) + b''.join(commands)
@@ -35,18 +37,23 @@ def build(folder, phase):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--direct-switch', action='store_true',
+                        help='hold next, then previous, then next with no neutral input frames')
+    args = parser.parse_args()
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / ('weapon-pickup-' +
+    folder = ROOT / 'artifacts/xemu' / (('weapon-direct-switch-' if args.direct_switch else 'weapon-pickup-') +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names |= {'campaign-item.bin', 'player-control.flag'}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox authored rifle pickup/switch/fire'}
+    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox authored rifle pickup/switch/fire',
+              'direct_switch': args.direct_switch}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -55,7 +62,7 @@ def main():
             b'levels1.vpp'.ljust(64, b'\0') + b'L4S5.rfl'.ljust(64, b'\0'))
         (DISC / 'campaign-item.bin').write_bytes(struct.pack('<I', 3415))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(replay())
+        (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch))
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
                           extra_symbols={'rf_scene_pickups': 8,

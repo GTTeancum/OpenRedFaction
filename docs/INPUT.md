@@ -96,6 +96,13 @@ Verification:
   `artifacts/xemu/weapon-pickup-20260927-153108/report.json`; no PC game or
   image was used. This exercises the shared gameplay input path with replayed
   commands, not the physical SDL shoulder/D-pad mapping.
+- Directional cycle edges now accept Next→Previous→Next without an intervening
+  neutral frame. `python -B tools/xemu_weapon_pickup.py --direct-switch` passed
+  a stock-64-MiB 140-frame L4S5 check: rifle UID3415 was collected, three
+  switches registered, the rifle fired, and the test disc was restored
+  (`artifacts/xemu/weapon-direct-switch-20260929-215842/report.json`). This
+  verifies the gameplay selection path; physical shoulder/D-pad operation and
+  hands-on pickup feel remain unverified.
 
 Physical crouch/reconnect/exit behavior remains to be checked by the user.
 Original player spawning/identity, timer ownership, camera collision and full
