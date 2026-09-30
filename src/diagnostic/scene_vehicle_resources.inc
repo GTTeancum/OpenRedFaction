@@ -5,8 +5,8 @@
  * existing Driller layout for shared drawing/material/physics consumers.
  * Movement5/7/9 is metadata admission, not a claim that all driving modes
  * have live solvers. Only authored use_kind1 vehicles are admitted. Required
- * seat_name is exact and has no fallback; callers choose the actual driver
- * seat, never infer ownership from tag order. Same bounded sequential loading
+ * seat_name is exact and has no fallback for boardable hosts; NULL loads a
+ * static body without a seat for group-linked secondary instances. Same bounded sequential loading
  * and resident/peak accounting as Driller. Close with
  * scene_driller_resources_close; place with scene_driller_seat_pose.
  * Source archives may be closed once loading succeeds. */
@@ -15,7 +15,7 @@ static int scene_vehicle_resources_open(const char *tables_path,const char *clas
 {
     scene_driller_resources *o=NULL;rf_model_file *file=NULL;rf_vpp tables={0};rf_vpp_entry entry;
     const char *overrides[64];void *table_text=NULL;uint32_t used,i,table_bytes;int status;
-    if(!tables_path || !class_name || !*class_name || !seat_name || !*seat_name || !meshes || !maps || !map_count || !result || *result || budget<sizeof(*o)+sizeof(*file))return RF_RANGE;
+    if(!tables_path || !class_name || !*class_name || (seat_name && !*seat_name) || !meshes || !maps || !map_count || !result || *result || budget<sizeof(*o)+sizeof(*file))return RF_RANGE;
     o=calloc(1,sizeof(*o));if(!o)return RF_IO;o->seat=-1;used=sizeof(*o);
     status=rf_vpp_open(&tables,tables_path);if(status)goto fail;
     status=rf_vpp_find(&tables,"entity.tbl",&entry);if(status)goto fail;table_bytes=entry.size;
@@ -36,8 +36,10 @@ static int scene_vehicle_resources_open(const char *tables_path,const char *clas
     status=rf_model_file_open(file,meshes,o->model);if(status)goto fail;
     status=rf_static_render_resource_open(file,budget-used,&o->render);if(status)goto fail;used+=o->render.allocated_bytes;
     status=rf_static_model_tags_open(file,budget-used,&o->tags);if(status)goto fail;used+=o->tags.allocated_bytes;
-    for(i=0;i<o->tags.count;i++)if(!strcmp(o->tags.items[i].name,seat_name)){o->seat=(int32_t)i;break;}
-    if(o->seat<0){status=RF_NOT_FOUND;goto fail;}
+    if(seat_name) {
+        for(i=0;i<o->tags.count;i++)if(!strcmp(o->tags.items[i].name,seat_name)){o->seat=(int32_t)i;break;}
+        if(o->seat<0){status=RF_NOT_FOUND;goto fail;}
+    }
     if(o->assets.texture_count>64){status=RF_RANGE;goto fail;}
     for(i=0;i<o->assets.texture_count;i++)overrides[i]=o->assets.textures[i];
     status=rf_model_materials_open_skin(&o->materials,file,overrides,o->assets.texture_count,maps,map_count,budget-used);if(status)goto fail;

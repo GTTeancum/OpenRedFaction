@@ -29,9 +29,11 @@ group-linked vehicle entities outside the single player-boardable host. It
 binds the first general-object UID list to those handles, propagates the
 group's translation or rotation into their world poses, and removes all of a
 linked child's group memberships on `Detach` ON. The detached pose stays live
-and unchanged. Event links resolve to the same registered owner. This is
-ownership and kinematic motion, not yet a rendered, collidable or steerable
-secondary vehicle.
+and unchanged. Event links resolve to the same registered owner. Secondary
+instances now load one static chassis resource per class, share it across
+instances, merge its authored materials into the Xbox renderer, and submit
+room-visible models at their live group poses. They are not yet collidable or
+steerable secondary vehicles.
 They use a port-internal registry type so NPC-only event effects cannot treat
 their lightweight pose records as full actor views.
 
@@ -50,7 +52,21 @@ The L5S3 10-frame fixture
 boardable submarine separate from group child 3977; it registered one passive
 owner and one binding with 5,755 free pages.
 
-The remaining work is to publish secondary vehicle models and collision,
+The renderer pass reuses the already loaded player-boardable `sub` chassis,
+while L20S1's three Fighters share one `Fighter01` resource and L20S2's
+`masako_fighter` loads `Fighter02.v3m` without requiring a driver seat. Staged
+nearby actor cameras on stock-64-MiB XEMU yielded four retained model batches
+for the submarine (`vehicle-group-submarine-20260930-032618`), nine for the
+three Fighters (`vehicle-group-inventory-20260930-032138`), and three for
+Masako's fighter (`vehicle-group-masako-20260930-031921`). The latter two
+finished with 4,802 and 3,835 free pages respectively. The native retained
+renderer submits these batches without appending CPU preview vertices; the
+per-batch path and resource ownership are verified, while final pixels and
+PS2-level visual parity remain unverified under the current no-images rule.
+The 90-frame L20S2 lift-and-Detach regression also passed with the secondary
+draw path enabled (`vehicle-group-detach-20260930-032346`, 3,856 free pages).
+
+The remaining work is to give secondary vehicles collision,
 support their scripted movement and combat, save attachment state, and connect
 the authored natural event sources.
 The selected player-boardable host is still separate from this passive-owner

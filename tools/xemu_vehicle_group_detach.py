@@ -35,14 +35,16 @@ def position(row):
 def main():
     inventory = sys.argv[1:] == ['--inventory']
     submarine = sys.argv[1:] == ['--submarine']
-    short = inventory or submarine
+    masako = sys.argv[1:] == ['--masako']
+    short = inventory or submarine or masako
     if sys.argv[1:] and not short:
-        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine]')
+        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako]')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-submarine-' if submarine else
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-masako-' if masako else
+             'vehicle-group-submarine-' if submarine else
              'vehicle-group-inventory-' if inventory
              else 'vehicle-group-detach-') +
              datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
@@ -50,7 +52,8 @@ def main():
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'L5S3 group-owned submarine3977' if submarine
+    report = {'result': 'FAIL', 'scope': 'L20S2 group-owned masako_fighter4717' if masako
+              else 'L5S3 group-owned submarine3977' if submarine
               else 'L20S1 three group-owned Fighters' if inventory
               else 'L20S2 vehicle4717 lift pose and Detach18377'}
     try:
@@ -60,6 +63,9 @@ def main():
         (DISC / 'campaign-level.bin').write_bytes(
             (b'levels1.vpp' if submarine else b'levels2.vpp').ljust(64, b'\0') +
             (b'L5S3.rfl' if submarine else b'L20S1.rfl' if inventory else b'L20S2.rfl').ljust(64, b'\0'))
+        if short:
+            (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I',
+                3977 if submarine else 1490 if inventory else 4717))
         if not short:
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 18354, 18377))
         (DISC / 'player-replay.bin').write_bytes(
@@ -71,7 +77,8 @@ def main():
                            stderr=subprocess.STDOUT, check=True)
         guest = run_guest(folder, 'run', hdd, 10 if short else 90, 420, snapshot=True,
                           probe=None if short else attachment_probe, probe_frame=35,
-                          extra_symbols={'rf_scene_passive_attachment': 14},
+                          extra_symbols={'rf_scene_passive_attachment': 14,
+                                         'rf_scene_passive_draw': 6},
                           allow_guest_error=True)
         report['guest'] = guest
         if guest['guest_phase'] & 0x80000000:
@@ -80,9 +87,21 @@ def main():
         if inventory:
             if final[0:2] != [3, 6] or final[13]:
                 raise RuntimeError(f'Three Fighter owners/six bindings absent: {final}')
+            draw = guest['extra']['rf_scene_passive_draw']
+            if draw[0] != 3 or draw[1] < 1 or draw[2] < 1 or draw[5]:
+                raise RuntimeError(f'Fighter chassis did not submit: {draw}')
         elif submarine:
             if final[0:2] != [1, 1] or final[4] != 3977 or final[13]:
                 raise RuntimeError(f'Moving submarine owner/binding absent: {final}')
+            draw = guest['extra']['rf_scene_passive_draw']
+            if draw[0] != 1 or draw[1] != 1 or draw[2] < 1 or draw[4] != 3977 or draw[5]:
+                raise RuntimeError(f'Submarine chassis did not submit: {draw}')
+        elif masako:
+            if final[0:2] != [1, 1] or final[4] != 4717 or final[13]:
+                raise RuntimeError(f'Masako fighter owner/binding absent: {final}')
+            draw = guest['extra']['rf_scene_passive_draw']
+            if draw[0] != 1 or draw[1] != 1 or draw[2] < 1 or draw[4] != 4717 or draw[5]:
+                raise RuntimeError(f'Masako fighter chassis did not submit: {draw}')
         else:
             first = guest['probe']
             if first[0] < 1 or first[1] < 1 or first[2] < 1 or first[3] or first[4] != 4717:

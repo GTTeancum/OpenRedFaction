@@ -856,6 +856,7 @@ typedef struct scene_stream {
     scene_vehicle_aim apc_aim;rf_entity_eye_limits apc_aim_limits;float apc_aim_eye[3],apc_aim_basis[9];uint32_t apc_aim_active;
     scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
     scene_driller_resources *apc_mortar;uint32_t apc_mortar_base,apc_mortar_textures;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
+    scene_driller_resources *passive_vehicle_resources[6];uint32_t passive_vehicle_base[6],passive_vehicle_textures[6];
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
@@ -1505,12 +1506,20 @@ static rf_group_object *campaign_mover_bindings;
 static rf_group_mover_memberships campaign_memberships;
 uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes, ordered binding hash */
 typedef struct scene_passive_vehicle {
-    uint32_t object_kind,handle,uid,attached; /* Kind 11 is port-internal, not a skeletal entity view. */
+    uint32_t object_kind,handle,uid,attached,resource_kind; /* Kind 11 is port-internal, not a skeletal entity view. */
     rf_group_attached_pose pose;
 } scene_passive_vehicle;
+static const char *const campaign_passive_vehicle_classes[6]={
+    "sub","Fighter01","masako_fighter","Driller01","APC","Jeep01"};
+static uint32_t campaign_selected_vehicle_resource_kind(void)
+{
+    static const uint32_t kinds[6]={6,3,4,5,0,1};
+    return rf_scene_vehicle_enabled<6?kinds[rf_scene_vehicle_enabled]:6;
+}
 static scene_passive_vehicle *campaign_passive_vehicles;
 static uint32_t campaign_passive_vehicle_count,*campaign_general_handles;
 uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,handle,parent,live XYZ,detached XYZ,errors */
+uint32_t rf_scene_passive_draw[6]; /* owners,visible,batches,vertices,last UID,error */
 static int campaign_passive_vehicle_tick(void);
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 
@@ -5849,7 +5858,7 @@ static int campaign_bind_passive_vehicles(void)
         if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
         view->general_handles=campaign_general_handles+used;
         for(ref=0;ref<entry->source->record.ids_count[0];++ref) {
-            uint32_t uid=entry->source->ids[0][ref],source,owner_index,parent_index;
+            uint32_t uid=entry->source->ids[0][ref],source,owner_index,parent_index,resource_kind;
             scene_passive_vehicle *owner;
             if((int32_t)uid==campaign_authored_vehicle_uid)continue;
             for(source=0;source<campaign_seeds.records.count;++source)
@@ -5857,16 +5866,16 @@ static int campaign_bind_passive_vehicles(void)
             if(source==campaign_seeds.records.count)continue;
             {
                 const char *name=campaign_seeds.records.items[source].record.class_name;
-                if(strcmp(name,"sub") && strcmp(name,"Fighter01") &&
-                   strcmp(name,"masako_fighter") && strcmp(name,"Driller01") &&
-                   strcmp(name,"APC") && strcmp(name,"Jeep01"))continue;
+                for(resource_kind=0;resource_kind<6;++resource_kind)
+                    if(!strcmp(name,campaign_passive_vehicle_classes[resource_kind]))break;
+                if(resource_kind==6)continue;
             }
             for(owner_index=0;owner_index<campaign_passive_vehicle_count;++owner_index)
                 if(campaign_passive_vehicles[owner_index].uid==uid)break;
             if(owner_index==campaign_passive_vehicle_count) {
                 const rf_level_entity *record=&campaign_seeds.records.items[source].record;
                 owner=campaign_passive_vehicles+campaign_passive_vehicle_count;
-                owner->object_kind=11;owner->uid=uid;owner->attached=1;
+                owner->object_kind=11;owner->uid=uid;owner->attached=1;owner->resource_kind=resource_kind;
                 owner->pose.radius=0;
                 memcpy(owner->pose.base_position,record->position,12);
                 memcpy(owner->pose.base_matrix,record->orientation,36);
@@ -17150,6 +17159,39 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
 #include "scene_remote_checkpoint.inc"
 #include "scene_flame_canister_draw.inc"
 #include "scene_driller_draw.inc"
+static int scene_passive_vehicle_draw(scene_stream *stream)
+{
+    uint32_t index,kind,base,textures,submissions,vertices;int status;
+    rf_scene_passive_draw[0]=campaign_passive_vehicle_count;
+    rf_scene_passive_draw[1]=rf_scene_passive_draw[2]=rf_scene_passive_draw[3]=
+        rf_scene_passive_draw[4]=rf_scene_passive_draw[5]=0;
+    for(index=0;index<campaign_passive_vehicle_count;++index) {
+        const scene_passive_vehicle *owner=campaign_passive_vehicles+index;
+        const scene_driller_resources *resource;
+        kind=owner->resource_kind;
+        if(kind>=6){rf_scene_passive_draw[5]=RF_FORMAT;return RF_FORMAT;}
+        if(stream->driller && campaign_selected_vehicle_resource_kind()==kind) {
+            resource=stream->driller;base=stream->driller_base;textures=stream->driller_textures;
+        } else {
+            resource=stream->passive_vehicle_resources[kind];
+            base=stream->passive_vehicle_base[kind];textures=stream->passive_vehicle_textures[kind];
+        }
+        if(!resource || !textures){rf_scene_passive_draw[5]=RF_NOT_FOUND;return RF_NOT_FOUND;}
+        if(stream->visibility.storage) {
+            rf_collision_room_location room;
+            status=rf_geometry_collision_world_locate(stream->collision,owner->pose.position,&room);
+            if(status){rf_scene_passive_draw[5]=(uint32_t)status;return status;}
+            if(room.room<stream->visibility.state.count &&
+               !stream->visibility.state.rooms[room.room].visible)continue;
+        }
+        status=scene_driller_draw(stream,resource,owner->pose.position,owner->pose.input_matrix,
+            base,textures,&submissions,&vertices);
+        if(status){rf_scene_passive_draw[5]=(uint32_t)status;return status;}
+        ++rf_scene_passive_draw[1];rf_scene_passive_draw[2]+=submissions;
+        rf_scene_passive_draw[3]+=vertices;rf_scene_passive_draw[4]=owner->uid;
+    }
+    return RF_OK;
+}
 #include "scene_apc_secondary_visual.inc"
 static int scene_grenades_draw(scene_stream *stream)
 {
@@ -18053,6 +18095,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
+        status=scene_passive_vehicle_draw(stream);if(status)return status;
         if(stream->driller && (!scene_driller_active(stream) || (rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat)))){uint32_t submissions,vertices;
             status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
             if(status)return status;
@@ -18969,6 +19012,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_damage_open(rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC",&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024):scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
              }
+             for(i=0;i<campaign_passive_vehicle_count && !status;++i) {
+                 uint32_t kind=campaign_passive_vehicles[i].resource_kind;
+                 if(kind>=6){status=RF_FORMAT;break;}
+                 if(stream->passive_vehicle_resources[kind] ||
+                    (stream->driller && campaign_selected_vehicle_resource_kind()==kind))continue;
+                 status=scene_vehicle_resources_open(tables_path,campaign_passive_vehicle_classes[kind],NULL,
+                     &archive,maps,map_count,3*1024*1024,&stream->passive_vehicle_resources[kind]);
+             }
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;
             status=scene_npc_shields_load(tables_path);if(status)goto done;
@@ -19106,6 +19157,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
             if(stream->driller_bits)status=scene_driller_materials_merge(&stream->driller_bits->model,materials,&stream->driller_bit_base,&stream->driller_bit_textures);if(status)goto done;
             status=scene_driller_cockpit_merge(stream->driller_cockpit,materials,RF_CAMPAIGN_TEXTURE_SLOTS);if(status)goto done;}
+        for(i=0;i<6;++i)if(stream->passive_vehicle_resources[i]) {
+            status=scene_driller_materials_merge(stream->passive_vehicle_resources[i],materials,
+                &stream->passive_vehicle_base[i],&stream->passive_vehicle_textures[i]);if(status)goto done;
+        }
         if(rf_scene_dev_room_enabled || scene_fusion_resources || scene_rocket_resources) {
             uint32_t visual;
             for(visual=0;visual<(rf_scene_vehicle_enabled==5?4u:scene_fusion_resources?3u:2u);visual++) {
@@ -19359,6 +19414,7 @@ done:
     scene_jeep_gun_resources_close(&stream->jeep_gun);
     scene_apc_secondary_visual_close(&stream->apc_mortar);
     scene_driller_resources_close(&stream->driller);
+    for(i=0;i<6;++i)scene_driller_resources_close(&stream->passive_vehicle_resources[i]);
     {int closed=scene_undercover_close(stream);if(closed && !status)status=closed;}
     for(i=0;i<2;i++)if(stream->machine_custom[i]){int closed=scene_weapon_custom_actions_close(&stream->machine_custom[i],stream->player_weapon[i?17:13]);if(closed && !status)status=closed;}
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);
