@@ -174,10 +174,8 @@ the player X `423.00952→422.56274`. The existing unseeded rising-roof carry
 fixture still passed after this change
 (`artifacts/xemu/vehicle-group-rising-20260930-062301`). Rotating hosts,
 wall crush, other passive hosts as clearance blockers and naturally staged
-side encounters remain open. NPC ordinary saves also remain open: RFNC8
-rejects nonzero support velocity and has no authored support UID field, so
-that work needs an explicit checkpoint-format extension rather than merely a
-restore-time reprobe.
+side encounters remain open. RFNC8 rejected nonzero support velocity and had no authored support UID;
+the RFNC9 extension below now handles the first idle attached-vehicle rider.
 
 The earlier lift fixture directly fires event 18354. Its natural `When_Dead`
 source links Fighter01 UIDs 4801 and 18353, which are ordinary vehicle
@@ -224,8 +222,8 @@ health to 805; both hits appeared in the damage journal, and 3,578 physical
 pages remained free. This verifies one direct center blast and the ordinary
 class multiplier, while edge falloff, simultaneous vehicles, destructible
 world cover, NPC-held explosives and visual effects remain open. NPC support
-saves require a candidate-world checkpoint change because NPC placement is
-currently validated before the saved passive-vehicle poses are staged.
+saves now stage saved passive-vehicle poses before NPC candidate placement,
+as described below.
 The follow-up stock-64-MiB Xbox run
 `artifacts/xemu/vehicle-player-shot-20260930-091911` placed existing L20S2
 armed NPC UID4726 at the fixture's cover-checked firing pose and issued its
@@ -241,10 +239,9 @@ at its authored grounded pose, issued Attack toward Fighter UID4801 and held
 pursuit until reload. The62,044-byte world checkpoint captured the active
 order with805 hull health; a fresh process restored the same attacker, target
 and health, leaving3,130 physical pages free. This establishes RFNC target UID
-rebinding against a living RFVA2 passive owner. It does not establish save of
-an NPC riding a moved vehicle: that placement still needs staged passive
-poses before NPC candidate-world validation. Post-load pursuit and firing
-continuation also remain unverified.
+rebinding against a living RFVA2 passive owner. That Attack check does not establish rider saves; the separate RFNC9
+rider check below covers idle support. Post-load Attack pursuit and firing
+continuation remain unverified.
 The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.
@@ -261,3 +258,32 @@ respectively, and disc flags were restored. Native loading of an older
 `RFVA1` file has not been checked. Active burn/audio and attribution state,
 wreck effects, live player-shot encounters and final visual content
 remain open.
+
+
+## Idle NPC rider save/reload on Xbox
+
+RFNC9 adds an authored support UID and three support-velocity floats to each
+NPC row (16 additional bytes). The loader stages RFVA vehicle poses before
+NPC placement, validates contact with the exact saved living chassis, and
+restores support after vehicle publication. Static geometry, candidate movers
+and props still participate in clearance checks. NPCs with their own nonzero
+body velocity, falling bodies and unsupported support owners remain rejected.
+The same candidate-contact helper serves player and NPC riders.
+
+The stock-64-MiB XEMU check
+`artifacts/xemu/vehicle-npc-riding-save-20260930-095234/report.json` passed.
+It placed idle NPC UID4716 on attached Fighter UID4717, started the authored
+lift and saved after 90 frames. The 62,484-byte checkpoint retained support
+UID4717 and velocity (-1.75049,1.74992,0). A fresh process loaded with the
+placement fixture removed; over 20 frames the NPC moved approximately
+(-0.52515,+0.52499,0), matching the chassis displacement, with 18 continuing
+support/carry updates and 3,438 physical pages free (13.43 MiB). This establishes
+one translating, idle rider across ordinary save/reload; walking riders,
+rotating supports, other vehicle placements and visual presentation remain open.
+
+`tools/check_xbox_npc_support_codec.py` executes the compiled NXDK codec under
+x86 emulation. Basic RFNC1-9 records decode and re-encode as RFNC9 without
+field changes; invalid support IDs, nonfinite velocities and velocity without
+a support UID are rejected. These checks cover format migration only, not
+legacy whole-world gameplay saves. The focused live harness is
+`python tools/xemu_vehicle_attachment_save.py --npc`.

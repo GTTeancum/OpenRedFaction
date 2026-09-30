@@ -12660,9 +12660,10 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
-#include "scene_world_restore.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
 #include "scene_driller_actor_collision.inc"
+#include "scene_world_passive_support.inc"
+#include "scene_world_restore.inc"
 #include "scene_world_player_restore.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,

@@ -41,10 +41,15 @@ def main():
     attached_mode = sys.argv[1:] == ['--attached']
     riding_mode = sys.argv[1:] == ['--riding']
     dead_mode = sys.argv[1:] == ['--dead']
-    if sys.argv[1:] and not (attached_mode or riding_mode or dead_mode):
-        raise SystemExit('usage: xemu_vehicle_attachment_save.py [--attached|--riding|--dead]')
-    linked_mode = attached_mode or riding_mode or dead_mode
+    npc_mode = sys.argv[1:] == ['--npc']
+    if sys.argv[1:] and not (attached_mode or riding_mode or dead_mode or npc_mode):
+        raise SystemExit('usage: xemu_vehicle_attachment_save.py [--attached|--riding|--dead|--npc]')
+    linked_mode = attached_mode or riding_mode or dead_mode or npc_mode
     symbols = dict(SYMBOLS)
+    if npc_mode:
+        symbols.update(rf_scene_passive_npc_fixture=10,rf_scene_npc_mover_support=8,
+                       rf_scene_npc_checkpoint_reject_state=6,rf_scene_world_load_reject=3,
+                       rf_scene_checkpoint_world_reject=9)
     if dead_mode:
         symbols.update(rf_scene_watch_links=40,rf_scene_death_watches=97,
                        rf_scene_passive_damage=8,rf_scene_watch_test=4,
@@ -59,7 +64,7 @@ def main():
     if not base.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
     hdd = prepare(ROOT, base)
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-death-save-' if dead_mode else
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-npc-riding-save-' if npc_mode else 'vehicle-death-save-' if dead_mode else
              'vehicle-riding-save-' if riding_mode else
              'vehicle-attached-save-' if attached_mode
              else 'vehicle-attachment-save-') +
@@ -68,7 +73,7 @@ def main():
     names = set(FLAGS) | {'campaign-watch.bin'} | {p.name for p in DISC.glob('campaign-*') if p.is_file()}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': ('L20S2 two dead Fighters ordinary save/reload'
+    report = {'result': 'FAIL', 'scope': ('L20S2 NPC riding attached Fighter ordinary save/reload' if npc_mode else 'L20S2 two dead Fighters ordinary save/reload'
               if dead_mode else 'L20S2 rider on attached fighter ordinary save/reload'
               if riding_mode else 'L20S2 attached fighter ordinary save/reload'
               if attached_mode else 'L20S2 group-owned fighter detach ordinary save/reload'),
@@ -86,8 +91,10 @@ def main():
                                                                  *((18354,) if linked_mode else (18354, 18377))))
         if riding_mode:
             (DISC / 'campaign-passive-roof.bin').write_bytes(struct.pack('<3I', 4717, 30, 2))
+        if npc_mode:
+            (DISC / 'campaign-passive-roof.bin').write_bytes(struct.pack('<3I', 4717, 30, 5))
         (DISC / 'world-hdd-save.flag').write_bytes(b'1')
-        save_frames = 90 if riding_mode or dead_mode else 40 if attached_mode else 90
+        save_frames = 90 if riding_mode or dead_mode or npc_mode else 40 if attached_mode else 90
         load_frames = 20 if linked_mode else 10
         (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(save_frames * 44))
         build(folder, 'save')
@@ -97,7 +104,13 @@ def main():
         state = saved['checkpoint_state']
         if state[9] != 1 or state[3] or state[4] < 320:
             raise RuntimeError(f'Xbox save failed: {state}, event probe '
-                               f'{saved["extra"]["rf_scene_world_snapshot_event_probe"]}')
+                               f'{saved["extra"]["rf_scene_world_snapshot_event_probe"]}, '
+                               f'NPC {saved["extra"].get("rf_scene_npc_checkpoint_reject_state")}')
+        if npc_mode:
+            npc=saved['extra']['rf_scene_passive_npc_fixture']
+            if not npc[0] or npc[1]!=saved['extra']['rf_scene_passive_attachment'][5] or npc[5]:
+                raise RuntimeError(f'NPC was not idle on Fighter before save: {npc}')
+            report['saved_npc']=struct.unpack('<3f',struct.pack('<3I',*npc[2:5]))
         if saved['extra']['rf_scene_passive_attachment'][3] != (0 if linked_mode else 1):
             raise RuntimeError('Fighter attachment state was wrong before save')
         if dead_mode:
@@ -149,18 +162,18 @@ def main():
                 raise RuntimeError(f'Rider support UID not saved: {support_uid}')
             report['saved_actor'] = actor_pose(saved['extra']['rf_scene_actor_pose'])
         (DISC / 'campaign-setup.bin').unlink(missing_ok=True)
-        if riding_mode:(DISC / 'campaign-passive-roof.bin').unlink()
+        if riding_mode or npc_mode:(DISC / 'campaign-passive-roof.bin').unlink()
         (DISC / 'world-hdd-save.flag').unlink()
         (DISC / 'world-hdd-load.flag').write_bytes(b'1')
         (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(load_frames * 44))
         build(folder, 'load')
         loaded = run_guest(folder, 'load', hdd, load_frames, 420, snapshot=True,
-                           extra_symbols=symbols)
+                           extra_symbols=symbols,allow_guest_error=True)
         report['phases']['load'] = loaded
         loaded_state = loaded['checkpoint_state']
         attachment = loaded['extra']['rf_scene_passive_attachment']
         if loaded_state[8] != 1 or loaded_state[0] or loaded_state[1] != state[4]:
-            raise RuntimeError(f'Xbox load failed: {loaded_state}')
+            raise RuntimeError(f'Xbox load failed: {loaded_state}, {loaded["extra"]}')
         if attachment[3] != (0 if linked_mode else 1) or attachment[4] != 4717:
             raise RuntimeError(f'Attachment not restored: {attachment}')
         if dead_mode:
@@ -178,6 +191,14 @@ def main():
             if attachment[2] < 1 or not .01 < distance < 10:
                 raise RuntimeError(f'Attached child did not continue smoothly: '
                                    f'{pose(attachment)} vs {saved_pose}, moves {attachment[2]}')
+            if npc_mode:
+                npc=loaded['extra']['rf_scene_passive_npc_fixture']
+                npc_pose=struct.unpack('<3f',struct.pack('<3I',*npc[2:5]))
+                report['loaded_npc']=npc_pose
+                if not npc[0] or npc[1]!=attachment[5] or npc[5] or not npc[7] or \
+                   any(abs((npc_pose[i]-report['saved_npc'][i])-
+                           (pose(attachment)[i]-saved_pose[i]))>.2 for i in (0,1,2)):
+                    raise RuntimeError(f'NPC did not continue riding Fighter: {npc}, {report["saved_npc"]} -> {npc_pose}')
             if riding_mode:
                 loaded_actor=actor_pose(loaded['extra']['rf_scene_actor_pose'])
                 report['loaded_actor']=loaded_actor

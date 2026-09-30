@@ -128,9 +128,6 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         context.modified_rooms[context.modified_room_count++]=stream->campaign_wall->overlay[0].room;
         context.modified_rooms[context.modified_room_count++]=stream->campaign_wall->overlay[1].room;
     }
-    phase="world";status=scene_world_restore_prepare(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget,&world);if(status)goto done;cost=world->allocated_bytes;
-    phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
-    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     v=envelope.sections+RF_WORLD_VEHICLE-1;vehicle_data=v->data;vehicle_bytes=v->bytes;
     if(vehicle_bytes>=4&&!memcmp(vehicle_data,"RFVA",4)){
         phase="passive_vehicle";
@@ -138,6 +135,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(status)goto done;cost+=passive->allocated_bytes;
         vehicle_data+=SCENE_PASSIVE_VEHICLE_HEADER;vehicle_bytes=passive->host_bytes;
     }else if(campaign_passive_vehicle_count){status=RF_FORMAT;goto done;}
+    phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive);if(status)goto done;cost+=world->allocated_bytes;
+    phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
+    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     vehicle_present=vehicle_bytes!=0;
     if(vehicle_present){
         vehicle_base=(rf_scene_vehicle_enabled==3||rf_scene_vehicle_enabled==5)?160u:128u;

@@ -95,6 +95,9 @@ static void write_animation(unsigned char *p,const rf_npc_checkpoint_record *r)
 static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catalog *c)
 {
     uint32_t i,j;uint8_t used[32]={0};rf_npc_checkpoint_move zero_move={0};rf_npc_checkpoint_look zero_look={0};rf_npc_checkpoint_combat zero_combat={0};
+    if(r->support_uid==UINT32_MAX||(r->support_uid&&(r->retired||r->dead_pose||r->health<=0)))return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(r->support_velocity[i])||fabsf(r->support_velocity[i])>10000.f||
+        (!r->support_uid&&r->support_velocity[i]!=0))return RF_FORMAT;
     if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->controller_uid==UINT32_MAX||r->retired>1||r->combat_alert>1||r->dead_pose>1||
        (r->retired&&r->combat_alert)||(r->flags&~0x4004u)||
        !isfinite(r->health)||(!r->retired&&!r->dead_pose&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
@@ -163,7 +166,7 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
 }
 static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_record *r)
 {
-    uint32_t i,move_at=version>=8?572:568,combat_at=0;memset(r,0,sizeof(*r));r->uid=word(p);r->class_id=word(p+4);r->retired=word(p+8);
+    uint32_t i,move_at=version>=9?588:version>=8?572:568,combat_at=0;memset(r,0,sizeof(*r));r->uid=word(p);r->class_id=word(p+4);r->retired=word(p+8);
     r->flags=word(p+12);r->affiliation=word(p+16);r->health=real(p+20);r->armor=real(p+24);
     for(i=0;i<3;i++)r->position[i]=real(p+28+i*4);r->yaw=real(p+40);
     r->primary=signed_word(p+44);r->secondary=signed_word(p+48);
@@ -177,6 +180,7 @@ static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_r
     if(version>=4)r->controller_uid=word(p+544);
     if(version>=5)r->combat_alert=word(p+548);
     if(version>=6){r->dead_pose=word(p+552);r->death_flags_810=word(p+556);r->death_action=signed_word(p+560);}
+    if(version>=9){r->support_uid=word(p+572);for(i=0;i<3;i++)r->support_velocity[i]=real(p+576+4*i);}
     if(version>=7&&word(p+564)){
         uint32_t *fields[14]={&r->move.active,&r->move.event,&r->move.follow,&r->move.path_index,
             &r->move.path_mode,&r->move.path_reverse,&r->move.path_count,&r->move.route_index,
@@ -192,14 +196,14 @@ static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_r
         r->look.active=word(p+move_at+144);r->look.event=word(p+move_at+148);r->look.target_uid=word(p+move_at+152);
     }
     if(version>=8&&word(p+568)){
-        combat_at=572+word(p+564);
+        combat_at=move_at+word(p+564);
         r->combat.active=word(p+combat_at);r->combat.event=word(p+combat_at+4);
         r->combat.burst=word(p+combat_at+8);r->combat.due_remaining=word(p+combat_at+12);
         r->combat.reload_remaining=word(p+combat_at+16);r->combat.reload_weapon=signed_word(p+combat_at+20);
         for(i=0;i<3;i++)r->combat.point[i]=real(p+combat_at+24+4*i);
         r->combat.spread_rng=word(p+combat_at+36);
     }
-    if(version>=3&&word(p+540))read_animation(p+(version>=8?572+word(p+564)+word(p+568):version>=7?568+word(p+564):version>=6?564:version>=5?552:version>=4?548:544),r);
+    if(version>=3&&word(p+540))read_animation(p+(version>=8?move_at+word(p+564)+word(p+568):version>=7?568+word(p+564):version>=6?564:version>=5?552:version>=4?548:544),r);
 }
 static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
 {
@@ -214,18 +218,19 @@ static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
     put(p+540,animation_bytes(r));put(p+544,r->controller_uid);put(p+548,r->combat_alert);
     put(p+552,r->dead_pose);put(p+556,r->death_flags_810);put(p+560,(uint32_t)r->death_action);
     put(p+564,extension_bytes(r));put(p+568,combat_bytes(r));
+    put(p+572,r->support_uid);for(i=0;i<3;i++)put_real(p+576+4*i,r->support_velocity[i]);
     if(extension_bytes(r)){
      const uint32_t *fields[14]={&r->move.active,&r->move.event,&r->move.follow,&r->move.path_index,
         &r->move.path_mode,&r->move.path_reverse,&r->move.path_count,&r->move.route_index,
         &r->move.retry,&r->move.retained_count,&r->move.retained_nodes[0],&r->move.retained_nodes[1],
         &r->move.retained_nodes[2],&r->move.retained_nodes[3]};
-     for(i=0;i<14;i++)put(p+572+4*i,*fields[i]);
-     for(i=0;i<3;i++)put_real(p+628+4*i,r->move.target[i]);put_real(p+640,r->move.fall_speed);
-     for(i=0;i<3;i++){put_real(p+644+4*i,r->move.route_start[i]);put_real(p+656+4*i,r->move.route_goal[i]);
-         put_real(p+668+4*i,r->look_command[i]);put_real(p+680+4*i,r->look_delta[i]);
-         put_real(p+692+4*i,r->look_offset[i]);put_real(p+704+4*i,r->look_vector[i]);
-         put_real(p+728+4*i,r->look.position[i]);}
-     put(p+716,r->look.active);put(p+720,r->look.event);put(p+724,r->look.target_uid);
+     for(i=0;i<14;i++)put(p+588+4*i,*fields[i]);
+     for(i=0;i<3;i++)put_real(p+644+4*i,r->move.target[i]);put_real(p+656,r->move.fall_speed);
+     for(i=0;i<3;i++){put_real(p+660+4*i,r->move.route_start[i]);put_real(p+672+4*i,r->move.route_goal[i]);
+         put_real(p+684+4*i,r->look_command[i]);put_real(p+696+4*i,r->look_delta[i]);
+         put_real(p+708+4*i,r->look_offset[i]);put_real(p+720+4*i,r->look_vector[i]);
+         put_real(p+744+4*i,r->look.position[i]);}
+     put(p+732,r->look.active);put(p+736,r->look.event);put(p+740,r->look.target_uid);
     }
     if(combat_bytes(r)){
         put(p+combat_at,r->combat.active);put(p+combat_at+4,r->combat.event);
@@ -245,13 +250,13 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     bytes=64+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
     for(i=0;i<count;i++){status=valid(rows+i,c);if(status)return status;if(i&&rows[i-1].uid>=rows[i].uid)return RF_FORMAT;bytes+=extension_bytes(rows+i)+combat_bytes(rows+i)+animation_bytes(rows+i);}
     if(bytes>capacity)return RF_RANGE;
-    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,8);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
+    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,9);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
     for(i=0,at=64;i<count;i++){write_row(p+at,rows+i);at+=RF_NPC_CHECKPOINT_ROW+extension_bytes(rows+i)+combat_bytes(rows+i)+animation_bytes(rows+i);}
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
 static int row_span(const unsigned char *p,uint32_t available,uint32_t version,uint32_t *span)
 {
-    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:version==4?RF_NPC_CHECKPOINT_ROW_V4:version==5?RF_NPC_CHECKPOINT_ROW_V5:version==6?RF_NPC_CHECKPOINT_ROW_V6:version==7?RF_NPC_CHECKPOINT_ROW_V7:RF_NPC_CHECKPOINT_ROW,n=0,extension=0,combat=0;
+    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:version==4?RF_NPC_CHECKPOINT_ROW_V4:version==5?RF_NPC_CHECKPOINT_ROW_V5:version==6?RF_NPC_CHECKPOINT_ROW_V6:version==7?RF_NPC_CHECKPOINT_ROW_V7:version==8?RF_NPC_CHECKPOINT_ROW_V8:RF_NPC_CHECKPOINT_ROW,n=0,extension=0,combat=0;
     if(available<base)return RF_FORMAT;
     if(version>=7){extension=word(p+564);if((extension!=0&&extension!=RF_NPC_CHECKPOINT_EXTENSION_BYTES)||extension>available-base)return RF_FORMAT;}
     if(version>=8){combat=word(p+568);if((combat!=0&&combat!=RF_NPC_CHECKPOINT_COMBAT_BYTES)||combat>available-base-extension)return RF_FORMAT;}
@@ -267,7 +272,7 @@ static int decode(const void *data,uint32_t bytes,const unsigned char identity[3
     const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,span,at,previous=0;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
-    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>8||
+    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>9||
        word(p+8)!=bytes||word(p+20)||word(p+60)||word(p+56)!=c->hash||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
     version=word(p+4);count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_FORMAT;
     if(publish&&(count>capacity||(count&&!rows)))return RF_RANGE;

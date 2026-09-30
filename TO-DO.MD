@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PC build maintenance: The `rf_pc_play` target compiles, but the all-target CMake build still has a stale two-argument `campaign_script_step` call in `tests/scene_ai_mode_gameplay_tests.c`.
 
-- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger and an active passive-Fighter Attack target through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy-save migration, broader landing/pushes, moving-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger an active passive-Fighter Attack target and an idle NPC riding the moved lift Fighter through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy gameplay-save migration, broader landing/pushes, walking/rotating-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
 - Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
 

@@ -173,7 +173,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose;
-    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0;int pending,status;
+    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,support_uid=0;int pending,status;
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
@@ -288,11 +288,26 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
         if(o->body.spheres.count>8||(o->body.spheres.count&&!o->body.spheres.items)||
            (!o->body.spheres.count&&o->body.spheres.items))
             return scene_npc_checkpoint_reject(index,"body_sphere_storage",0,o->body.spheres.count,RF_FORMAT);
+        if(o->support.handle){
+            for(i=0;i<campaign_passive_vehicle_count;i++){
+                const scene_passive_vehicle *host=campaign_passive_vehicles+i;
+                if(host->handle!=o->support.handle)continue;
+                if(!terminal_dead&&host->attached&&!host->damage.destroyed&&
+                   host->damage.state.effects.health>0&&o->support.material>=0&&
+                   !(o->body.state.flags&1u)&&
+                   rf_object_registry_lookup(&campaign_registry,host->handle)==host)support_uid=host->uid;
+                break;
+            }
+            if(!support_uid)return scene_npc_checkpoint_reject(index,"support_owner",0,o->support.handle,RF_NOT_FOUND);
+        }
         for(i=0;i<3;i++){
             if(!isfinite(o->body.state.velocity[i])||fabsf(o->body.state.velocity[i])>.001f)
                 return scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
 #define NPC_CAPTURE_AXIS(field) do{if(o->field[i]!=0)return scene_npc_checkpoint_reject(index,#field,i,o->field[i],RF_RANGE);}while(0)
-            NPC_CAPTURE_AXIS(command_714);NPC_CAPTURE_AXIS(support_velocity);
+            NPC_CAPTURE_AXIS(command_714);
+            if(!isfinite(o->support_velocity[i])||fabsf(o->support_velocity[i])>10000.f||
+               (!support_uid&&o->support_velocity[i]!=0))
+                return scene_npc_checkpoint_reject(index,"support_velocity",i,o->support_velocity[i],RF_RANGE);
 #undef NPC_CAPTURE_AXIS
         }
         if(o->script_animation.active){
@@ -305,6 +320,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     }
     for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0)return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
     memset(row,0,sizeof(*row));row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
+    row->support_uid=support_uid;if(support_uid)memcpy(row->support_velocity,o->support_velocity,12);
     row->retired=key->retired;row->flags=o->object_flags&0x4004u;row->affiliation=o->damage.effects.affiliation;
     row->health=o->damage.effects.health;row->armor=o->damage.effects.armor;
     memcpy(row->position,o->registration.view?o->body.state.position:o->published,12);

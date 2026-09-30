@@ -265,9 +265,11 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         placement.query_flags=(o->body.state.state_124&~0x1000u)|4u;
         memcpy(placement.position,e->published,12);memcpy(placement.basis,e->basis,36);
         detail="placement";status=place(context,&placement,&e->room,&e->support);if(status)goto fail;
-        if(memcmp(e->room.query_position,e->published,12)||e->support.handle||!e->room.room||
+        if(memcmp(e->room.query_position,e->published,12)||
+           (!!e->support.handle!=!!rows[i].support_uid)||!e->room.room||
            e->support.material< -1||(!placement.count&&e->support.material!=-1)||
            (placement.count&&e->support.material==-1&&((o->body.state.flags&(1u|0x400000u))||o->support.handle))){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
+        if(rows[i].support_uid){e->body.flags&=~1u;e->body.flags|=0x400000u;}
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&e->selection);if(status)goto fail;
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
         if(e->selection.mapping.skeleton!=campaign_poses.items[j].skeleton){status=RF_FORMAT;goto fail;}
@@ -463,6 +465,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             rf_physics_body_close(&o->body);o->object_flags|=2|0x4000u;o->view.flags_810|=1;o->damage.effects.flags_810=o->view.flags_810;
         }else{
             o->body.state=e->body;o->room=e->room;o->support=e->support;o->selection=e->selection;memcpy(o->eye_position,e->eye,12);
+            memcpy(o->support_velocity,e->saved.support_velocity,12);
             memcpy(campaign_model_owners[e->slot].position,e->published,12);memcpy(campaign_model_owners[e->slot].basis,e->basis,36);
             campaign_model_owners[e->slot].room=e->room.room?e->room.room-1:UINT32_MAX;
         }

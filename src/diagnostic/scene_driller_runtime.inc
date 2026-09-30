@@ -233,9 +233,10 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     kind=owner->resource_kind;
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
     body_spheres=&scene_actor_body.spheres;
-    if(rf_scene_passive_roof_fixture[9]==3) {
+    if(rf_scene_passive_roof_fixture[9]==3 || rf_scene_passive_roof_fixture[9]==5) {
         for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view &&
             campaign_npc_bodies[i].damage.effects.health>0 && campaign_npc_bodies[i].body.spheres.count &&
+            campaign_npc_bodies[i].view.linked_handle==-1 &&
             !(campaign_npc_bodies[i].object_flags&(2u|8u|0x4000u))) {
             npc=campaign_npc_bodies+i;break;
         }
@@ -280,11 +281,16 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
         memset(&npc->piece_support,0,sizeof(npc->piece_support));
         status=rf_scene_npc_normal(s->collision,handle,NULL);if(status)return status;
-        npc->script_move.active=1;npc->script_move.follow=0;
-        npc->script_move.retry=UINT32_MAX;
-        npc->script_move.target[0]=actor->position[0]+100.f;
-        npc->script_move.target[1]=actor->position[1];
-        npc->script_move.target[2]=actor->position[2];
+        if(rf_scene_passive_roof_fixture[9]==5){
+            campaign_pursuit_stop(npc);memset(&npc->script_move,0,sizeof(npc->script_move));
+            npc->combat_alert=npc->combat_scripted=npc->combat_target=npc->combat_due=npc->combat_navigation_due=0;
+        }else{
+            npc->script_move.active=1;npc->script_move.follow=0;
+            npc->script_move.retry=UINT32_MAX;
+            npc->script_move.target[0]=actor->position[0]+100.f;
+            npc->script_move.target[1]=actor->position[1];
+            npc->script_move.target[2]=actor->position[2];
+        }
         rf_scene_passive_npc_fixture[0]=handle;
     } else if(rf_scene_passive_roof_fixture[9]==2 || rf_scene_passive_roof_fixture[9]==4) {
         actor->flags|=1u;rf_scene_actor_landing[1]=3;campaign_support_handle=0;
@@ -305,6 +311,12 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
 static void scene_passive_vehicle_npc_fixture_probe(void)
 {
     uint32_t i,handle=rf_scene_passive_npc_fixture[0];
+    if(!handle)for(i=0;i<campaign_npc_body_count&&!handle;i++){
+        const campaign_npc_body *npc=campaign_npc_bodies+i;uint32_t j;
+        if(!npc->registration.view||npc->damage.effects.health<=0||!npc->support.handle)continue;
+        for(j=0;j<campaign_passive_vehicle_count;j++)if(npc->support.handle==campaign_passive_vehicles[j].handle){
+            handle=npc->registration.handle;rf_scene_passive_npc_fixture[0]=handle;break;}
+    }
     if(!handle)return;
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.handle==handle) {
         const campaign_npc_body *npc=campaign_npc_bodies+i;
