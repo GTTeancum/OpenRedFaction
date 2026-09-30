@@ -200,6 +200,16 @@ selection against these hulls is integrated but has not been independently
 verified. The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.
-`RFVA1` still saves pose/attachment only: damaged and destroyed vehicle
-health, armor and death state must be added to ordinary saves. Wreck effects,
-actual combat encounters and final visual content remain open.
+`RFVA2` now writes 80-byte rows with pose, attachment, health, armor, object
+flags, damage flags and destroyed state. The loader accepts older `RFVA1`
+56-byte pose rows by authored UID; vehicles absent from an old row set retain
+their authored initial state. A stock-64-MiB Xbox save/load run
+`artifacts/xemu/vehicle-death-save-20260930-075209` passed after the same two
+Fighter deaths. The checkpoint stored both at -49,100 health with destroyed
+state set; after loading, both remained nonliving and `When_Dead` remained
+fired at 1016 ms without another damage event. The attached lift fighter
+continued moving. Save and load ended with 3,633 and 3,441 free pages,
+respectively, and disc flags were restored. Native loading of an older
+`RFVA1` file has not been checked. Active burn/audio and attribution state,
+wreck effects, actual projectile-ray encounters and final visual content
+remain open.

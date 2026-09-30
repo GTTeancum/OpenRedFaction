@@ -6,6 +6,8 @@ and vehicle presence and living state, including retained defeated actors on sec
 Unknown object classes defer the watcher instead of being treated as deaths.
 The scene now also queries registered ordinary and group-owned vehicle health;
 linked event, trigger, controller and mover outputs are nonliving targets.
+An Xbox ordinary save now retains the two L20S2 Fighter deaths and the
+watcher's fired state; the loaded watcher does not fire again.
 
 Original RF.exe evidence (the repository's recorded SHA256): factory4b69d0 maps
 16 through4b6c95 to constructor4be6c0 and vtable5899ec. Its update method4bb3a0
