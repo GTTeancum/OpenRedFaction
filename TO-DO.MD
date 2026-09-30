@@ -108,7 +108,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; a real pistol hit now drives Goal_Set exactly once on PC/Xbox with matching state and20.48MiB free; live authored button/mover scenarios remain (docs/HIT-EVENTS-FIRST-PASS.md).
 
-- Player grenades: Ordinary pickup/import/script demand enables throw models, timed flight and detonation; Xbox now saves a live grenade and cooldown, then reloads through11 bounces and detonation with13.71MiB free; liquid behavior and broader campaign terrain remain (docs/GRENADE-PICKUP-FIRST-PASS.md).
+- Player grenades: Xbox live-flight saves work, and isolated normal/alternate shield contacts plus an unshielded actor hit now consume grenades once with direct/radial damage; player/prop/vehicle victims, NPC-source contacts, post-save contacts, liquids/support and grenade-specific effects remain (docs/GRENADE-OBJECT-CONTACT-FIRST-PASS.md).
 
 - Rocket launcher: Ordinary pickup/import/script demand loads selection, flight and impact resources; Xbox now saves a live player rocket and its cooldown, then reloads and reaches impact with13.72MiB free; broader campaign terrain and visual/audio refinement remain (docs/ROCKET-PICKUP-FIRST-PASS.md).
 
@@ -120,7 +120,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Remote charges: Ordinary pickup/import/script demand and planted-charge updates work; a charge now survives ordinary quick-load and detonates on PC/Xbox with12.06MiB native headroom, while moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
-- Shield combat: Stock-64-MiB Xbox firearm and rocket contacts now deplete Capek armor without health spill on the breaking hit, and a later shot damages/kills him; NPC rockets/Tankbot missiles and Fusion share the prepass, while grenade/remote rules, shield effects/audio, boss movement reconciliation, live toggle/save behavior and player-targeted persistence remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
+- Shield combat: Stock-64-MiB Xbox firearm and rocket contacts now deplete Capek armor without health spill on the breaking hit, and a later shot damages/kills him; NPC rockets/Tankbot missiles and Fusion share the prepass, normal/alternate grenades now consume with zero/full armor debit before ordinary explosions; remote rules, shield effects/audio, boss movement reconciliation, live toggle/save behavior and player-targeted persistence remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
 - AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
 
@@ -5942,3 +5942,10 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Player rockets, NPC rockets/Tankbot missiles and Fusion flights now consume active NPC nano-shield contacts before ordinary direct damage, impact, blast and terrain-cut processing, matching the original early return at0x4c5b54..0x4c5b5d.
 - NXDK build and isolated stock64MiB XEMU check pass: two real player rockets debit400 armor each (600→200→0), leave health100 unchanged, retire both flights without blasts/cuts, and the subsequent sniper shot kills the unshielded actor. Finite ammo consumption passes; disc flags restored. Report: artifacts/xemu/nano-shield-rockets-20260930-104615/report.json.
 - The fixture hides other NPCs, selects actual finite-radius clearance, and stages eye/input/ammunition/initial armor; this is contact functionality, not an ordinary encounter or visual/audio check. NPC/Fusion routing is built but not independently exercised in XEMU.
+
+### Grenade object-contact integration (2026-09-30)
+
+- Added explicit consumed-object events to the shared flight integrator and player/NPC scene adapters, covering actor/player/prop/vehicle victims without changing serialized flight state. Direct damage precedes radial/impact; object contact retires the grenade with no later fuse explosion and no object-contact terrain cut.
+- Normal grenade shield contact drains0 armor; alternate bit0x10 permits full debit. Both are consumed before ordinary effects.
+- NXDK build passes; compiled NXDK integrator checks preserve world bounce/alternate expiry and prove one-shot retirement/error rollback. Isolated stock64MiB XEMU110-frame check passes three staged grenade flights: shield armor100→100→0, health100 retained until the unshielded hit applies150 damage, one blast, no surviving flights,4878free pages (19.05MiB), disc restored.
+- Reports: artifacts/xbox-grenade-contacts.json and artifacts/xemu/nano-shield-grenades-20260930-105156/report.json. Throw input/release timing and other victim/source/save combinations were not exercised; no images or PC runtime.

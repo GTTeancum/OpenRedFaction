@@ -10,7 +10,9 @@ typedef struct rf_grenade_flight_event {
     uint32_t detonate,contacts,limited;
     float position[3];
     rf_weapon_flight_contact contact;
+    uint32_t object_contact; /* Consumed contact; caller owns direct/blast effects. */
 } rf_grenade_flight_event;
+typedef uint32_t (*rf_grenade_object_contact)(void *,const rf_weapon_flight_contact *);
 /* Practical swept-sphere, semi-implicit gravity/bounce policy, not retail rigid
  * body reconstruction. Zero initialize before launch; active slots are rejected.
  * Flags are forwarded to retained grenade lifecycle. Life initializes to10.
@@ -30,4 +32,9 @@ int rf_grenade_flight_launch(rf_grenade_flight *,const float position[3],
  * Resting support removal/rotating attachment/liquids are later refinements. */
 int rf_grenade_flight_step(rf_grenade_flight *,float dt,const float gravity[3],
     float restitution,rf_weapon_flight_sweep,void *,rf_grenade_flight_event *);
+/* Optional pure classifier:1 consumes an object contact before bounce/fuse
+ * publication,0 retains world response. Exactly one object contact is returned;
+ * the retired flight cannot also emit a later fuse explosion. */
+int rf_grenade_flight_step_objects(rf_grenade_flight *,float dt,const float gravity[3],
+    float restitution,rf_weapon_flight_sweep,rf_grenade_object_contact,void *,rf_grenade_flight_event *);
 #endif

@@ -1,7 +1,8 @@
-"""Three process-local Xbox firearm contacts on authored L8S4 Capek.
+"""Three process-local Xbox weapon contacts on authored L8S4 Capek.
 
 No campaign traversal, PC runtime, screenshots, or host input. The guest stages
-aim and finite ammunition, then uses ordinary player weapon/collision routing.
+aim and finite ammunition; grenade mode stages releases and reserve debits,
+then uses actual flight/contact handling. Other modes use player weapon routing.
 """
 import argparse
 import datetime
@@ -23,21 +24,24 @@ def floating(word):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--rockets', action='store_true',
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--rockets', action='store_true',
                         help='Two real rocket flights, then a sniper health hit')
+    mode.add_argument('--grenades', action='store_true',
+                      help='Staged normal/alternate shield contacts, then an ordinary actor hit')
     args = parser.parse_args()
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
     folder = ROOT / 'artifacts/xemu' / (
-        ('nano-shield-rockets-' if args.rockets else 'nano-shield-') + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+        ('nano-shield-grenades-' if args.grenades else 'nano-shield-rockets-' if args.rockets else 'nano-shield-') + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names.add('player-control.flag')
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox Capek shield depletion', 'rockets': args.rockets}
+    report = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox Capek shield depletion', 'rockets': args.rockets, 'grenades': args.grenades}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
@@ -45,7 +49,7 @@ def main():
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels2.vpp'.ljust(64, b'\0') + b'L8S4.rfl'.ljust(64, b'\0'))
         (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 10358))
-        (DISC / 'campaign-nano-shield.bin').write_bytes(struct.pack('<2I', 8359, int(args.rockets)))
+        (DISC / 'campaign-nano-shield.bin').write_bytes(struct.pack('<2I', 8359, 2 if args.grenades else int(args.rockets)))
         (DISC / 'player-control.flag').write_bytes(b'')
         neutral = struct.pack('<5f7I', *([0] * 12))
         (DISC / 'player-replay.bin').write_bytes(
@@ -55,6 +59,8 @@ def main():
                           extra_symbols={'rf_scene_nano_fixture': 25,
                                          'rf_scene_nano_contact': 8,
                                          'rf_scene_nano_aim': 12,
+                                         'rf_scene_grenade_contacts': 8,
+                                         'rf_scene_grenades': 8,
                                          'rf_scene_combat': 8,
                                          'rf_scene_player_ammo': 8,
                                          'rf_scene_rockets': 8,
@@ -72,18 +78,26 @@ def main():
             [floating(x) for x in row[:4]] + row[4:])) for row in rows]
         if fixture[0] != 3:
             raise RuntimeError(f'Missing staged contacts: {fixture}')
-        debit = floating(contact[4]) if args.rockets else 100
-        slot = 4 if args.rockets else 7
+        debit = floating(contact[4]) if args.rockets or args.grenades else 100
+        slot = 5 if args.grenades else 4 if args.rockets else 7
         for i, row in enumerate(rows):
             hb, ab, ha, aa = map(floating, row[:4])
-            if row[4] - row[5] != 1 or row[6:] != [[slot, 30], [slot, 60], [6, 90]][i]:
+            if row[4] - row[5] != 1 or row[6:] != [[slot, 30], [slot, 60], [5 if args.grenades else 6, 90]][i]:
                 raise RuntimeError(f'Finite ammunition/weapon mismatch: {row}')
-            if i < 2 and (hb != ha or [ab, aa] != [[debit * 1.5, debit * .5], [debit * .5, 0]][i]):
+            expected_armor = [[100, 100], [100, 0]] if args.grenades else [[debit * 1.5, debit * .5], [debit * .5, 0]]
+            if i < 2 and (hb != ha or [ab, aa] != expected_armor[i]):
                 raise RuntimeError(f'Shield contact leaked health or wrong armor debit: {row}')
             if i == 2 and (ab != 0 or aa != 0 or not ha < hb):
                 raise RuntimeError(f'Unshielded contact failed to damage health: {row}')
         if contact[:4] != [2, 1, 0, 8359] or debit <= 0 or floating(contact[4]) != debit:
             raise RuntimeError(f'Shield contact ownership mismatch: {contact}')
+        if args.grenades:
+            grenades = guest['extra']['rf_scene_grenades']
+            hits = guest['extra']['rf_scene_grenade_contacts']
+            if grenades[1:5] != [3, 0, 1, 0] or hits[:4] != [3, 2, 1, 8359] or floating(hits[4]) <= 0:
+                raise RuntimeError(f'Grenade retirement, direct damage or burst mismatch: {grenades}, {hits}')
+            if guest['extra']['rf_scene_rocket_blast'][0] != 1 or guest['extra']['rf_scene_rockets'][4]:
+                raise RuntimeError('Grenade shield contact leaked a blast or object contact cut terrain')
         if args.rockets:
             flights = guest['extra']['rf_scene_rockets']
             blasts = guest['extra']['rf_scene_rocket_blast']

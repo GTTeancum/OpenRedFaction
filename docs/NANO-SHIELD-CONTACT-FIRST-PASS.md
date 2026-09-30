@@ -77,7 +77,9 @@ NPC missile and Fusion adapters compile but were not independently exercised.
 
 ## Remaining work
 
-- Remote/grenade shield-contact rules and other projectile families.
+- Remote-charge shield-contact rules and other projectile families.
+- Normal/alternate grenade contacts now pass the isolated Xbox check documented
+  in [Grenade object contacts](GRENADE-OBJECT-CONTACT-FIRST-PASS.md); other victim/source/save combinations remain.
 - Shield constant/hit/break presentation and associated sound.
 - Capek's hover/run and class-speed reconciliation when his shield breaks.
 - Live NPC-fire, Fusion and invulnerable-contact coverage, shield toggles and ordinary

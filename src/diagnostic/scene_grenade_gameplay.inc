@@ -4,6 +4,7 @@
  * Projectile rendering, liquid response and removed resting support are separate. */
 #include "rf/grenade_flight.h"
 #include "rf/grenade_throw.h"
+#include "scene_grenade_contact.inc"
 #define SCENE_GRENADE_CAPACITY 8u
 typedef struct scene_grenade_projectile {
     rf_grenade_flight flight;
@@ -54,9 +55,14 @@ static int scene_grenades_tick(scene_stream *s,uint32_t frame,const float positi
     rf_scene_grenades[4]=0;
     for(i=0;i<SCENE_GRENADE_CAPACITY;i++)if(scene_grenades[i].flight.lifecycle.active){
         rf_grenade_flight_event event;
-        status=rf_grenade_flight_step(&scene_grenades[i].flight,1.f/60,scene_gravity.vector,
-            .45f,scene_grenade_sweep,s,&event);
+        status=rf_grenade_flight_step_objects(&scene_grenades[i].flight,1.f/60,scene_gravity.vector,
+            .45f,scene_grenade_sweep,scene_grenade_object_contact,s,&event);
         if(status){rf_scene_grenades[7]=(uint32_t)status;return status;}
+        if(event.object_contact){uint32_t exploded;
+            status=scene_grenade_contact_damage(s,frame,&event.contact,scene_grenades[i].flight.lifecycle.instance_flags,
+                campaign_player_object.handle,campaign_primary[5].damage,&exploded);if(status)return status;
+            rf_scene_grenades[3]+=exploded;continue;
+        }
         if(event.contacts){scene_grenades[i].last_contact=event.contact;scene_grenades[i].has_contact=1;
             rf_scene_grenades[2]+=event.contacts;combat_sound("Grenade Bounce",event.position);}
         rf_scene_grenades[6]+=event.limited;

@@ -55,7 +55,13 @@ static int scene_ai_grenade_tick(scene_stream *stream,uint32_t frame)
         scene_ai_grenade_projectile *shot=scene_ai_grenades+i;rf_grenade_flight_event event;
         scene_ai_projectile_query query={stream,shot->source};
         if(!shot->projectile.flight.lifecycle.active)continue;
-        status=rf_grenade_flight_step(&shot->projectile.flight,1.f/60,scene_gravity.vector,.45f,scene_ai_projectile_solid_sweep,&query,&event);if(status)return status;
+        status=rf_grenade_flight_step_objects(&shot->projectile.flight,1.f/60,scene_gravity.vector,.45f,scene_ai_projectile_solid_sweep,scene_grenade_object_contact,&query,&event);if(status)return status;
+        if(event.object_contact){uint32_t exploded;
+            rf_scene_ai_grenades[1]+=event.contacts;
+            status=scene_grenade_contact_damage(stream,frame,&event.contact,shot->projectile.flight.lifecycle.instance_flags,
+                shot->source,shot->damage,&exploded);if(status)return status;
+            rf_scene_ai_grenades[2]+=exploded;continue;
+        }
         if(event.contacts){rf_scene_ai_grenades[1]+=event.contacts;shot->projectile.last_contact=event.contact;shot->projectile.has_contact=1;combat_sound("Grenade Bounce",event.position);}
         if(shot->projectile.flight.lifecycle.active)++rf_scene_ai_grenades[3];
         if(event.detonate) {

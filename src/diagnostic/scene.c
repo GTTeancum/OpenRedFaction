@@ -14717,8 +14717,8 @@ static int campaign_inventory_initialize(void)
     return RF_OK;
 }
 #include "scene_ai_hearing.inc"
-#include "scene_grenade_gameplay.inc"
 #include "scene_ai_projectile_collision.inc"
+#include "scene_grenade_gameplay.inc"
 #include "scene_ai_grenade.inc"
 #include "scene_ai_rocket.inc"
 #include "scene_ai_projectile_checkpoint.inc"
@@ -15807,7 +15807,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=campaign_combat_tick(stream,frame,staged?shot_eye:position,
             staged?(const float (*)[3])shot_basis:(const float (*)[3])orientation);
         rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}
-        if(staged==2 || rf_scene_nano_test_mode==1){status=scene_nano_shot_result(frame);if(status)return status;}
+        if(staged==2 || rf_scene_nano_test_mode>=1){status=scene_nano_shot_result(frame);if(status)return status;}
         if(staged==1){
             scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
             for(uint32_t index=0;index<campaign_passive_vehicle_count;index++)
@@ -19411,7 +19411,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources);
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
-              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_nano_test_mode==1?1u<<4:0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
+              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   /* NPC-only demand loads flights and effects without player views or ownership. */

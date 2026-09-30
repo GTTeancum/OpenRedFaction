@@ -11,8 +11,9 @@ int rf_grenade_flight_launch(rf_grenade_flight *g,const float p[3],const float d
     next.radius=radius;next.lifecycle=(rf_grenade_lifecycle){fuse,10,1,cls,flags};
     *g=next;return RF_OK;
 }
-int rf_grenade_flight_step(rf_grenade_flight *g,float dt,const float gravity[3],
-    float restitution,rf_weapon_flight_sweep sweep,void *context,rf_grenade_flight_event *out)
+int rf_grenade_flight_step_objects(rf_grenade_flight *g,float dt,const float gravity[3],
+    float restitution,rf_weapon_flight_sweep sweep,rf_grenade_object_contact object_contact,
+    void *context,rf_grenade_flight_event *out)
 {
     rf_grenade_flight next;rf_grenade_flight_event event={0};float remaining;
     uint32_t i,fire;int status;
@@ -50,6 +51,14 @@ int rf_grenade_flight_step(rf_grenade_flight *g,float dt,const float gravity[3],
                     next.position[i]+=delta[i]*hit.hit.fraction+normal[i]*.0001f;}
                 ++event.contacts;event.contact=hit;
                 remaining*=1-hit.hit.fraction;
+                if(object_contact){
+                    uint32_t consumed=object_contact(context,&hit);
+                    if(consumed>1)return RF_RANGE;
+                    if(consumed){
+                        next.lifecycle.active=0;next.resting=1;memset(next.velocity,0,12);
+                        event.object_contact=1;event.detonate=0;remaining=0;break;
+                    }
+                }
                 /* A fuse due this tick takes precedence over deferred contact. */
                 if(!event.detonate){status=rf_grenade_lifecycle_contact(&next.lifecycle,&response);if(status)return status;}
                 if(response==1){next.resting=1;memset(next.velocity,0,12);remaining=0;break;}
@@ -65,3 +74,6 @@ int rf_grenade_flight_step(rf_grenade_flight *g,float dt,const float gravity[3],
     for(i=0;i<3;++i){if(!isfinite(next.position[i]) || !isfinite(next.velocity[i]))return RF_RANGE;event.position[i]=next.position[i];}
     *g=next;*out=event;return RF_OK;
 }
+int rf_grenade_flight_step(rf_grenade_flight *g,float dt,const float gravity[3],
+    float restitution,rf_weapon_flight_sweep sweep,void *context,rf_grenade_flight_event *out)
+{return rf_grenade_flight_step_objects(g,dt,gravity,restitution,sweep,NULL,context,out);}
