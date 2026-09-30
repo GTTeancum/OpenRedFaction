@@ -11,7 +11,7 @@
 static uint32_t scene_driller_projectile_source_excluded(const scene_driller_damage_runtime *owner,uint32_t source)
 {
     const scene_driller_entry_exit *entry=owner->entry;
-    return source==entry->host.handle||
+    return source==entry->host.handle||scene_npc_seat_related(source,entry->host.handle)||
         (entry->session.active&&source==entry->host.driver)||
         (source==campaign_player_object.handle&&campaign_player_view.linked_handle==(int32_t)entry->host.handle);
 }

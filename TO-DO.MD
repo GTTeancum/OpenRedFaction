@@ -12,7 +12,7 @@ Remaining first-playable work, grouped for planning:
 - Xbox usability: Address material performance/memory problems and missing audio/HUD/animation feedback; retain visual polish and hardware feedback as separate later work.
 
 - Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
-- Authored NPC seating: The original seat-host UID now decodes in the Xbox parser for all1,610 installed entities; Jeep driver and three turret operator ownership/control integration remains open (docs/research/NPC-VEHICLE-SEAT-ASSIGNMENT.md).
+- Authored NPC seating: The original seat-host UID now decodes in the Xbox parser for all1,610 installed entities; Jeep driver and turret operator ownership/control are integrated; Xbox turret seat/save continuation passes, while Jeep runtime and detached-seat saves remain open (docs/research/NPC-VEHICLE-SEAT-ASSIGNMENT.md).
 - Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving and preserves the suspended route through ordinary Xbox saves; waypoint-mode resume, NPC seats/turrets remain open (docs/VEHICLE-AI-MODES.md).
 - Stationary turrets: Authored static turret damage, wreck selection and autonomous player attacks work on Xbox; destroyed turrets restore correctly through ordinary saves without replaying their authored death-effect requests, while runtime-generated Auto Turret heads, possession and native NPC Attack-target save coverage remain open (docs/STATIONARY-TURRETS.md).
 - NPC rotating support: Grounded carry and support-loss velocity are integrated, with compiled Xbox transform and carry/fall/contact checks passing; live collision scheduling remains unverified (docs/NPC-ROTATING-SUPPORT.md).

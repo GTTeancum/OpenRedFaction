@@ -6,7 +6,8 @@ typedef struct scene_world_vehicle_pair_context {
     rf_checkpoint_placement vehicle;
     const scene_world_player_stage *player;
     const scene_npc_checkpoint_restore_stage *npcs;
-    uint32_t occupied;
+    const scene_npc_seat_checkpoint_stage *seats;
+    uint32_t occupied,host_uid;
 } scene_world_vehicle_pair_context;
 static int scene_world_vehicle_pair(void *context,uint32_t index,rf_checkpoint_placement *out,uint32_t *retired)
 {
@@ -20,12 +21,18 @@ static int scene_world_vehicle_other_pair(void *context,uint32_t i,uint32_t j,
 {
     const scene_world_vehicle_pair_context *pairs=context;
     (void)a;(void)b;(void)distance2;(void)radius;
-    /* Only a seated player's overlap with their own host is intentional.
-     * Player/NPC and NPC/NPC pairs were admitted separately. */
-    return i!=0 || (j==1 && pairs->occupied);
+    /* Player/NPC and NPC/NPC pairs were admitted separately. Vehicle overlap
+     * is allowed only for its saved player or an explicitly staged own NPC
+     * seat whose exact tag pose was admitted by the seat/NPC transaction. */
+    if(i!=0)return 1;
+    if(j==1)return pairs->occupied;
+    return j>=2 && pairs->npcs && j-2<pairs->npcs->count &&
+        scene_npc_seat_checkpoint_owns(pairs->seats,pairs->host_uid,
+            pairs->npcs->entries[j-2].saved.uid);
 }
 static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_restore_stage *world,
-    const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record)
+    const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record,
+    const scene_npc_seat_checkpoint_stage *seats)
 {
     scene_driller_physics physics;scene_checkpoint_world_context context;
     scene_world_vehicle_pair_context pairs={0};rf_collision_room_location location;
@@ -85,6 +92,7 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
         }
     }
     pairs.player=player;pairs.npcs=world->npcs;pairs.occupied=record->value.vehicle.player_occupied;
+    pairs.seats=seats;pairs.host_uid=(uint32_t)campaign_authored_vehicle_uid;
     return scene_npc_checkpoint_pair_fit_allowed(world->npcs->count+2,scene_world_vehicle_pair,&pairs,
         scene_world_vehicle_other_pair);
 }

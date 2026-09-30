@@ -127,3 +127,14 @@ shots. `--validate-existing` checked the same captured outputs and wrote
 No native rerun or alteration of the archived fixture was used to obtain it.
 Appearance, sound output, allied-NPC target choice and moving-base aiming remain
 unverified; this is not a campaign encounter or weapon-ammunition test.
+
+## Pitch convention correction
+
+The occupied save/load check exposed a shared turret aiming error: the previous
+`atan2(-y,horizontal)` pitch pointed upward at a settled player below the gun.
+`rf_look_orientation` constructs its forward vector from
+`((1-abs(sin(p)))*sin(h), sin(p), (1-abs(sin(p)))*cos(h))`, then normalizes.
+The controller now uses the matching inverse
+`asin(y/(horizontal+abs(y)))`, with yaw `atan2(x,z)` and existing authored limits.
+The failed run remains recorded under npc-turret-seat-save-20260930-132350.
+This correction changes aiming, not saved state or the five-degree firing gate.

@@ -21,6 +21,7 @@ typedef struct scene_world_restore_stage {
     scene_checkpoint_world_context world;
     scene_stream *stream;
     const scene_passive_vehicle_checkpoint_stage *passive;
+    const scene_npc_seat_checkpoint_stage *seats;
     const rf_npc_checkpoint_record *placement_rows;uint32_t placement_count,placement_next;
 } scene_world_restore_stage;
 static inline int scene_world_event_probe(scene_stream *,const scene_world_restore_stage *,int32_t);
@@ -46,7 +47,7 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     rf_entity_room_state *room,rf_physics_support_contact *support)
 {
     scene_world_restore_stage *s=context;scene_checkpoint_world_context world=s->world;
-    rf_collision_room_location location;uint32_t i,uid=UINT32_MAX,support_uid;int status;
+    rf_collision_room_location location;uint32_t i,uid=UINT32_MAX,support_uid,seat_handled=0;int status;
     while(s->placement_next<s->placement_count&&s->placement_rows[s->placement_next].retired)s->placement_next++;
     if(s->placement_next>=s->placement_count)return RF_FORMAT;
     uid=s->placement_rows[s->placement_next].uid;
@@ -55,6 +56,8 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     world.npc_route_contact=s->placement_rows[s->placement_next].move.active&&
         s->placement_rows[s->placement_next].move.follow<=2;
     s->placement_next++;
+    status=scene_npc_seat_checkpoint_place(s->seats,uid,&world,placement,room,support,&seat_handled);
+    if(status||seat_handled)return status;
     if(support_uid){
         uint32_t actor=UINT32_MAX,host;
         if(!s->passive||!s->stream)return RF_NOT_FOUND;
@@ -130,7 +133,8 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
 static inline int scene_world_restore_prepare_with_passive(const void *data,uint32_t bytes,
     const unsigned char identity[32],uint32_t required_mask,const rf_npc_checkpoint_catalog *catalog,
     int32_t now,const scene_checkpoint_world_context *world,uint32_t budget,scene_world_restore_stage **out,
-    scene_stream *stream,const scene_passive_vehicle_checkpoint_stage *passive)
+    scene_stream *stream,const scene_passive_vehicle_checkpoint_stage *passive,
+    const scene_npc_seat_checkpoint_stage *seats)
 {
     const uint32_t mask=RF_WORLD_CHECKPOINT_MASK(RF_WORLD_NPC)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_MOVER)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_CLUTTER);
     rf_world_checkpoint envelope;scene_world_restore_stage *s=NULL;
@@ -154,7 +158,7 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     temp=(uint64_t)prop_count*sizeof(rf_clutter_checkpoint_record);
     if(fixed+resident+temp>budget||fixed+resident>UINT32_MAX)return RF_RANGE;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;s->envelope=envelope;s->allocated_bytes=(uint32_t)fixed;
-    s->stream=stream;s->passive=passive;
+    s->stream=stream;s->passive=passive;s->seats=seats;
     if(prop_count){s->candidate_props=calloc(prop_count,sizeof(*s->candidate_props));s->prop_views=calloc(prop_count,sizeof(*s->prop_views));s->authored_prop_views=calloc(prop_count,sizeof(*s->authored_prop_views));}
     if(campaign_movers.count)s->scratch=calloc(campaign_movers.count,sizeof(*s->scratch));
     if((prop_count&&(!s->candidate_props||!s->prop_views||!s->authored_prop_views))||(campaign_movers.count&&!s->scratch)){status=RF_IO;goto fail;}
@@ -189,7 +193,7 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     phase="npc_stage";status=rf_npc_checkpoint_decode(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count);if(status)goto fail;
     s->placement_rows=npc_rows;s->placement_count=npc_count;
     status=scene_npc_checkpoint_restore_prepare_mode(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,
-        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs);if(status)goto fail;
+        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs,seats);if(status)goto fail;
     s->allocated_bytes+=s->npcs->bytes;s->placement_rows=NULL;s->placement_count=s->placement_next=0;free(npc_rows);npc_rows=NULL;
     s->semantic_mask=mask;*out=s;return RF_OK;
 fail:
@@ -198,7 +202,7 @@ fail:
 static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
     const unsigned char identity[32],uint32_t required_mask,const rf_npc_checkpoint_catalog *catalog,
     int32_t now,const scene_checkpoint_world_context *world,uint32_t budget,scene_world_restore_stage **out)
-{return scene_world_restore_prepare_with_passive(data,bytes,identity,required_mask,catalog,now,world,budget,out,NULL,NULL);}
+{return scene_world_restore_prepare_with_passive(data,bytes,identity,required_mask,catalog,now,world,budget,out,NULL,NULL,NULL);}
 /* Read-only real-scene endpoint probe. A successful result proves this subset
  * staged against real resources/geometry; nothing is published or loaded. */
 static inline int scene_world_restore_probe(scene_stream *stream,const void *data,uint32_t bytes,

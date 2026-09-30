@@ -104,7 +104,7 @@ static int scene_turret_checkpoint_capture_row(uint32_t index,uint32_t frame,sce
 {
     const scene_turret_owner *o=scene_turrets+index;const scene_turret_combat_state *s=scene_turret_combat_states+index;
     int status;
-    if(o->damage.effects.burn||o->view.linked_handle!=-1||o->view.occupant_count)return RF_NOT_FOUND;
+    if(o->damage.effects.burn||o->view.linked_handle!=-1||(o->view.occupant_count&&!scene_npc_seat_checkpoint_host(o->registration.handle)))return RF_NOT_FOUND;
     if(o->model!=(o->dead?o->dead_model:o->live_model))return RF_FORMAT;
     memset(v,0,sizeof(*v));v->uid=o->uid;v->class_index=o->class_index;v->dead=o->dead;
     v->health=o->damage.effects.health;v->armor=o->damage.effects.armor;
@@ -203,6 +203,7 @@ static int scene_turret_checkpoint_validate(const scene_turret_checkpoint_stage 
     return RF_OK;
 }
 
+uint32_t rf_scene_turret_restore_probe[8];
 static void scene_turret_checkpoint_assign(const scene_turret_checkpoint_stage *stage)
 {
     uint32_t i;if(!stage)return;
@@ -220,6 +221,10 @@ static void scene_turret_checkpoint_assign(const scene_turret_checkpoint_stage *
         memcpy(o->position,v->position,12);memcpy(o->basis,v->basis,36);
         o->target=v->target_handle;o->fire_due=v->remaining?stage->frame+v->remaining:0;
         s->last_frame=UINT32_MAX;s->action=v->combat_action;s->burst=v->burst;
+        rf_scene_turret_restore_probe[0]=v->uid;rf_scene_turret_restore_probe[1]=v->target_uid;
+        rf_scene_turret_restore_probe[2]=o->target;rf_scene_turret_restore_probe[3]=v->remaining;
+        rf_scene_turret_restore_probe[4]=o->fire_due;rf_scene_turret_restore_probe[5]=stage->frame;
+        rf_scene_turret_restore_probe[6]=s->burst;rf_scene_turret_restore_probe[7]=(uint32_t)s->action;
         memcpy(s->angles,v->angles,12);s->angular=v->angular;
         rf_scene_turret_checkpoint[3]+=v->dead;rf_scene_turret_checkpoint[4]+=v->target_uid!=UINT32_MAX;
     }

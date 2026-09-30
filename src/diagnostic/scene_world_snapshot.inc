@@ -174,6 +174,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         if(!status)bytes=wrapped;
     }
     if(!status){uint32_t wrapped=0;
+        status=scene_npc_seat_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
         status=scene_turret_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,combat_frame,&wrapped);
         if(!status)bytes=wrapped;
     }

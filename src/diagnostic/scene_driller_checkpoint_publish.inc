@@ -11,8 +11,11 @@ static int scene_vehicle_checkpoint_parked_owner(scene_stream *s,uint32_t occupi
     r=s->driller_runtime;
     if(!r||!scene_driller_damage_runtime_valid(&r->damage)||r->damage.entry!=&r->entry||
        r->entry.physics!=&r->physics)return RF_NOT_FOUND;
-    if(occupied||r->entry.session.active||r->entry.host.driver!=UINT32_MAX||
-       r->entry.occupant!=-1||r->player.saved||
+    /* Keep the fresh authored NPC pair intact until all staged world/seat
+     * admission succeeds. Player possession and arbitrary occupants still fail. */
+    if(occupied||r->entry.session.active||
+       ((r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1)&&
+        !scene_npc_seat_checkpoint_host(r->entry.registration.handle))||r->player.saved||
        r->entry.player_view->linked_handle==(int32_t)r->entry.host.handle)return RF_RANGE;
     if(r->damage.damage.state.effects.burn)return RF_NOT_FOUND;
     return RF_OK;

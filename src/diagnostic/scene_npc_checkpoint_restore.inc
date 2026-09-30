@@ -164,7 +164,8 @@ static int scene_npc_checkpoint_restore_clip(uint32_t skeleton,int32_t id,uint32
 }
 static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpoint_record *rows,uint32_t count,
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
-    uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out)
+    uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out,
+    const scene_npc_seat_checkpoint_stage *seats)
 {
     scene_npc_checkpoint_restore_stage *stage=NULL;rf_npc_checkpoint_record current;
     unsigned char identity[32]={0},wire[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX];
@@ -198,7 +199,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         detail="row";
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o;
         const rf_entity_creation_vitals_class *vitals;rf_checkpoint_placement placement={0};
-        rf_motion_playback_resource clip;rf_entity_playback_model *model;float angles[3]={0};int32_t id;uint32_t cls;
+        rf_motion_playback_resource clip;rf_entity_playback_model *model;float angles[3]={0};int32_t id;uint32_t cls,seated=0;
         status=rf_npc_checkpoint_encode(identity,catalog,rows+i,1,wire,sizeof(wire),&written);if(status)goto fail;
         if(i&&rows[i-1].uid>=rows[i].uid){status=RF_FORMAT;goto fail;}
         for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].persistence_registered&&
@@ -264,6 +265,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         e->flags=(o->object_flags&~0x4004u)|rows[i].flags;
         memcpy(e->published,rows[i].position,12);angles[1]=rows[i].yaw;
         status=rf_look_orientation(angles,e->basis);if(status)goto fail;
+        detail="seat_basis";status=scene_npc_seat_checkpoint_basis(seats,rows+i,e->basis,&seated);if(status)goto fail;
         {rf_eye_angle_state eye_angles={0};
          memcpy(eye_angles.angles_87c,rows[i].eye_angles,12);
          status=rf_eye_physics_orientation(e->basis,&eye_angles,e->look_basis);if(status)goto fail;}
@@ -271,6 +273,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         if(rows[i].retired)continue;
         if(!campaign_model_owners||j>=campaign_model_owner_count||!campaign_poses.items||j>=campaign_poses.count){status=RF_RANGE;goto fail;}
         e->body=o->body.state;memcpy(e->body.position,rows[i].position,12);memcpy(e->body.next_position,rows[i].position,12);
+        if(seated)e->body.flags&=~(1u|0x400000u);
         memcpy(e->body.orientation,e->basis,36);memcpy(e->body.next_orientation,e->basis,36);memset(e->body.velocity,0,12);
         status=rf_physics_spheres_bounds(o->body.spheres.items,o->body.spheres.count,e->body.position,&e->body.bounds);if(status)goto fail;
         status=rf_physics_tensor_world(e->body.local_tensor,e->basis,e->body.world_tensor);if(status)goto fail;
@@ -282,7 +285,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         if(memcmp(e->room.query_position,e->published,12)||
            (!!e->support.handle!=!!rows[i].support_uid)||!e->room.room||
            e->support.material< -1||(!placement.count&&e->support.material!=-1)||
-           (placement.count&&e->support.material==-1&&((o->body.state.flags&(1u|0x400000u))||o->support.handle))){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
+           (!seated&&placement.count&&e->support.material==-1&&((o->body.state.flags&(1u|0x400000u))||o->support.handle))){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
         if(rows[i].support_uid){e->body.flags&=~1u;e->body.flags|=0x400000u;}
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&e->selection);if(status)goto fail;
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
@@ -354,7 +357,7 @@ fail:
 static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_record *rows,uint32_t count,
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
     uint32_t budget,scene_npc_checkpoint_restore_stage **out)
-{return scene_npc_checkpoint_restore_prepare_mode(rows,count,catalog,now,place,context,budget,0,out);}
+{return scene_npc_checkpoint_restore_prepare_mode(rows,count,catalog,now,place,context,budget,0,out,NULL);}
 /* All fallible work finishes before the first actor assignment. The caller
  * keeps scene/resource ownership stable between prepare and commit. */
 static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoint_restore_stage *stage)

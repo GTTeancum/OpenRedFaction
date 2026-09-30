@@ -34,8 +34,8 @@ establish that an installed campaign sequence needs a turret-specific adapter.
 | Level | Event | Links to static turrets | Required behavior |
 |---|---|---|---|
 | L14S1 | Make_Invulnerable 10185 | 9712, 3674 | Toggle owner object flag bit4 |
-| L14S1 | Set_AI_Mode 10192, word0=0 | 9712, 3674 | Resume ordinary AI |
-| L14S1 | Set_AI_Mode 10194, word0=1 | 3674, 9712 | Catatonic AI |
+| L14S1 | Set_AI_Mode 10192, word0=0 | 9712, 3674 | Catatonic AI (runtime1) |
+| L14S1 | Set_AI_Mode 10194, word0=1 | 3674, 9712 | Waiting/resume AI (runtime2) |
 | L19S1 | Set_Friendliness 9939, word0=0 | 9877, 9879 | Change neutral turrets to hostile |
 
 Set_Friendliness9939 also links skeletal merc_grunt9930. Both static turret

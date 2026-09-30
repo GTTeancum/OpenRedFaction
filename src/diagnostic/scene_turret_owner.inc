@@ -180,7 +180,7 @@ static int scene_turret_contact_query(uint32_t source,const float start[3],const
     for(i=0;i<scene_turret_count;i++) {
         scene_turret_owner *o=scene_turrets+i;const rf_model_collision_resource *geometry;
         rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};float point[3],normal[3];uint32_t accepted;
-        if(o->registration.handle==source || o->dead || (o->view.flags_7c&(2u|0x4000u)) ||
+        if(o->registration.handle==source || scene_npc_seat_related(source,o->registration.handle) || o->dead || (o->view.flags_7c&(2u|0x4000u)) ||
            scene_turret_lookup(o->registration.handle)!=o)continue;
         if(o->model>=scene_turret_model_count)return RF_FORMAT;
         geometry=&scene_turret_models[o->model].collision;

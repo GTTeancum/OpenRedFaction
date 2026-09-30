@@ -112,7 +112,7 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
        (r->retired&&r->combat_alert)||(r->flags&~0x4004u)||
        !isfinite(r->health)||(!r->retired&&!r->dead_pose&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
        !isfinite(r->yaw)||
-       (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=11))return RF_FORMAT;
+       (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=11&&r->ai_mode!=13))return RF_FORMAT;
     if(r->dead_pose){
         if(r->retired||r->health>0||r->combat_alert||!(r->death_flags_810&1u)||
            r->death_action<0||r->death_action>=45||!r->animation_present||

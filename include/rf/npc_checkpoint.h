@@ -72,7 +72,9 @@ typedef struct rf_npc_checkpoint_catalog {
  * Offset596 retains the NPC damage-owner shield-disable bit (0/1); 2 retains
  * authored initialization for legacy rows without this state.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
- * Supported basic modes -1/0/1/2/11 only. Scene must reject other scripted combat,
+ * Supported basic modes -1/0/1/2/11 and seated mode13. The composed scene must
+ * admit mode13 against explicit saved seat ownership; the codec alone does not
+ * establish a valid linked actor. Scene must reject other scripted combat,
  * unsupported movement, reload/pain/death transitions, projectiles, linked/carried objects
  * and other unsaved state; validate UID/class, class vitals, affiliation,
  * pose clearance and resource availability before any publication.

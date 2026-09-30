@@ -519,6 +519,7 @@ static void scene_driller_runtime_audio_start(scene_stream *s)
 static int scene_campaign_vehicle_route_command(const scene_driller_runtime *r,rf_vehicle_rigid_command *command)
 {
     uint32_t visited=0,node;const float *target;float dx,dz,distance,forward_x,forward_z,angle;
+    if(r->entry.session.active||!scene_npc_seat_driver_admits(r->entry.host.handle))return RF_OK;
     if(!campaign_vehicle_route.active || campaign_vehicle_route.pursuit ||
        r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
     if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;

@@ -1554,6 +1554,11 @@ static int scene_turret_uid_life(uint32_t,uint32_t *,uint32_t *);
 static int scene_turret_set_ai_mode(uint32_t,int32_t);
 static int scene_turret_set_friendliness(uint32_t,uint32_t);
 static void scene_turret_combat_close(void);
+static uint32_t scene_npc_seat_attached(uint32_t);
+static int scene_npc_seat_unbind(uint32_t,int32_t);
+static uint32_t scene_npc_seat_driver_admits(uint32_t);
+static uint32_t scene_npc_seat_requires_operator(uint32_t);
+static uint32_t scene_npc_seat_related(uint32_t,uint32_t);
 static void scene_turret_death_effects_reset_pending(void);
 static rf_entity_skeletons campaign_skeletons;
 static rf_entity_poses campaign_poses;
@@ -5334,6 +5339,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        status=scene_npc_seat_unbind(handle,0);if(status)return status;
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);if(status)return status;
         owner->script_move.active=0;owner->navigation.retained.count=0;
         owner->damage.effects.health=0;owner->view.flags_810|=1;
@@ -6615,6 +6621,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     /* Embedded physics starts at actor88: bc/c8 map to actor144/150. */
     memcpy(state.vector_144,owner->body.state.velocity,12);memcpy(state.vector_150,owner->body.state.vector_c8,12);
     status=campaign_animation_cancel(owner);if(status)return status;
+    status=scene_npc_seat_unbind(handle,0);if(status)return status;
     *entered=rf_entity_death_entry_sp(&state,falling);
     owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
     memcpy(owner->command_714,state.vector_714,12);
@@ -8085,6 +8092,7 @@ static int campaign_npc_refresh_support_tick(void)
 {
     uint32_t i;int status;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        if(scene_npc_seat_attached(campaign_npc_bodies[i].registration.handle))continue;
         status=rf_scene_npc_refresh_support(campaign_npc_bodies[i].registration.handle);
         if(status){++rf_scene_npc_support_refresh[5];return status;}
     }
@@ -10898,6 +10906,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
         owner=campaign_npc_bodies+i;break;
     }
     if(!owner || !owner->registration.view || owner->damage.effects.health<=0)return RF_NOT_FOUND;
+    if(on&&scene_npc_seat_attached(owner->registration.handle))return RF_NOT_FOUND;
     if(!on){if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
@@ -10945,6 +10954,7 @@ static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mo
 {
     uint32_t i,j,*report=mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;(void)context;
     if(mode>2)return RF_RANGE;
+    if(scene_npc_seat_attached(handle))return RF_NOT_FOUND;
     for(i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *owner=campaign_npc_bodies+i;float length=0;
         if(!owner->registration.view || owner->registration.handle!=handle ||
@@ -11012,6 +11022,7 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
             campaign_npc_body *owner=campaign_npc_bodies+j;
             int status;
             if(!owner->registration.view || owner->registration.handle!=link->value)continue;
+            if(on&&scene_npc_seat_attached(owner->registration.handle))return RF_NOT_FOUND;
             if(!on) {
                 if(owner->script_shoot.active && owner->script_shoot.event==event->uid) {
                     owner->script_shoot.active=0;campaign_pursuit_stop(owner);
@@ -11091,7 +11102,10 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+static int scene_turret_operator_controls(uint32_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *);
+static uint32_t scene_turret_operator_motion_only(uint32_t);
 #include "scene_turret_combat.inc"
+#include "scene_turret_operator.inc"
 static int scene_turret_set_friendliness(uint32_t handle,uint32_t value)
 {
     scene_turret_owner *o=scene_turret_lookup(handle);if(!o)return RF_NOT_FOUND;
@@ -11163,6 +11177,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
         uint32_t point_spread_ready=0,once,vehicle_damage_applied=0;
         campaign_single_fire_request *single=owner->script_once.requests;
+        if(scene_turret_operator_suppresses(owner->registration.handle)||scene_npc_seat_attached(owner->registration.handle))continue;
         while(owner->script_once.count && frame>single->expires)campaign_script_single_pop(owner,0);
         once=owner->script_once.count>0;
         if(once && single->mode==1){
@@ -12790,6 +12805,7 @@ static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoin
 static int scene_burning_checkpoint_owner_admit(uint32_t);
 static int scene_turret_attack_checkpoint_uid(uint32_t,uint32_t *);
 static int scene_turret_attack_checkpoint_handle(uint32_t,uint32_t *);
+#include "scene_npc_seat_checkpoint_decl.inc"
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
@@ -12865,7 +12881,7 @@ static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,u
 #include "scene_world_player_restore.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
-    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *);
+    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_storage.inc"
@@ -15860,6 +15876,8 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_excavation.inc"
 #include "scene_driller_live_contact.inc"
 #include "scene_driller_runtime.inc"
+#include "scene_npc_seat_bind.inc"
+#include "scene_npc_seat_checkpoint.inc"
 #include "scene_apc_primary_runtime.inc"
 #include "scene_apc_aim_runtime.inc"
 #include "scene_apc_secondary_runtime.inc"
@@ -17275,6 +17293,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn,vehicle_aim[3];int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
+        if(scene_npc_seat_attached(o->registration.handle))continue;
         if(rf_scene_dev_npc_enabled==9 && campaign_npc_body_count==1 && frame==440) {
             /* Exercise Goto-style walking while the DEV platform
              * translates; the target stays beyond its travel interval. */
@@ -18763,6 +18782,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     {
         int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5);
         if(profile_clock && profile_active)presentation_clock=profile_clock();
+        status=scene_npc_seats_tick(frame,(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD));if(status)return status;
         status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status){rf_scene_profile_stage[1]=201;return status;}
         status=scene_turrets_draw(stream,frame);if(status)return status;
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
@@ -19252,6 +19272,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_extra_pickups_resources_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
+    memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
+    memset(rf_scene_npc_seat_checkpoint,0,sizeof(rf_scene_npc_seat_checkpoint));
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
     memset(rf_scene_vehicle_ai_mode,0,sizeof(rf_scene_vehicle_ai_mode));
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
@@ -20107,6 +20129,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             stream->world_checkpoint_level=level;stream->world_checkpoint_tables=tables_path;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }
+        scene_turret_operator_reset();
+        status=scene_npc_seats_open(stream,0);if(status)goto done;
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,stream);
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(stream);
@@ -20128,6 +20152,7 @@ done:
         if(!status)status=scene_npc_shield_history_capture();
         if(!status)campaign_actors_capture();
     }
+    {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
     scene_driller_resources_close(&stream->submarine_torpedo);
     scene_driller_cockpit_close(&stream->driller_cockpit);

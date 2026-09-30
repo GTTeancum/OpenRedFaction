@@ -83,7 +83,12 @@ static int scene_turret_combat_turn(scene_turret_owner *o,scene_turret_combat_st
     *reachable=1;
     for(i=0;i<3;i++)delta[i]=target[i]-eye[i];
     for(i=0;i<3;i++)local[i]=s->mount[i*3]*delta[0]+s->mount[i*3+1]*delta[1]+s->mount[i*3+2]*delta[2];
-    desired[0]=atan2f(-local[1],sqrtf(local[0]*local[0]+local[2]*local[2]));desired[1]=atan2f(local[0],local[2]);
+    /* rf_look_orientation uses normalized forward ((1-|sin p|)*sin h,
+     * sin p,(1-|sin p|)*cos h), so invert that convention exactly. */
+    {float horizontal=sqrtf(local[0]*local[0]+local[2]*local[2]);
+     float span=horizontal+fabsf(local[1]);
+     desired[0]=span>0?asinf(fmaxf(-1,fminf(1,local[1]/span))):0;
+     desired[1]=atan2f(local[0],local[2]);}
     for(i=0;i<2;i++) {
         if(desired[i]<c->eye_limits.minimum[i] || desired[i]>c->eye_limits.maximum[i])*reachable=0;
         desired[i]=fmaxf(c->eye_limits.minimum[i],fminf(c->eye_limits.maximum[i],desired[i]));
@@ -115,7 +120,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         scene_turret_owner *o=scene_turrets+i;scene_turret_combat_state *s=scene_turret_combat_states+i;
         const rf_entity_seed_class *c=campaign_seeds.classes+o->class_index;
         scene_turret_combat_target chosen={0};float eye[3],delta[3],best=scene_turret_primary.ai_attack_range;
-        uint32_t alive,affiliation,found=0,blocked,reachable;float cone;
+        uint32_t alive,affiliation,found=0,blocked,reachable,operator_bound,operator_eligible,operator_actor;float cone;
         if(s->handle!=o->registration.handle || scene_turret_lookup(s->handle)!=o)return RF_FORMAT;
         if(s->last_frame==frame)continue;
         if(s->last_frame!=UINT32_MAX && frame<s->last_frame)scene_turret_combat_release(o,s);
@@ -124,7 +129,8 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         status=scene_turret_target(s->handle,eye,&affiliation,&alive);if(status)goto fail;
         /* Waiting2 can acquire, matching ordinary NPC semantics. Catatonic1,
          * scripted-look/fire modes and player/occupant control suspend auto-AI. */
-        if(!alive || o->view.linked_handle!=-1 || o->view.weapons[0]!=scene_turret_vauss_id ||
+        status=scene_turret_operator_controls(s->handle,&operator_bound,&operator_eligible,&affiliation,&operator_actor);if(status)goto fail;
+        if((operator_bound&&!operator_eligible) || !alive || o->view.linked_handle!=-1 || o->view.weapons[0]!=scene_turret_vauss_id ||
            (s->action!=0 && s->action!=-1 && s->action!=2 && s->action!=3 && s->action!=11)) {
             scene_turret_combat_release(o,s);++rf_scene_turret_combat[6];continue;
         }
@@ -139,7 +145,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
             }
             if(distance<.0001f || distance>scene_turret_primary.ai_attack_range*scene_turret_primary.ai_attack_range)continue;
             if(candidate.handle!=o->target) {
-                if(s->action==11 && !candidate.moving)continue;
+                if((s->action==11||scene_turret_operator_motion_only(s->handle)) && !candidate.moving)continue;
                 if(dot<cone*sqrtf(distance))continue;
             }
             if(found && chosen.handle==o->target)continue;

@@ -190,7 +190,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
-    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,support_uid=0;int pending,status;
+    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,support_uid=0,seated=0;int pending,status;
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
@@ -238,7 +238,9 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
        !(o->script_move.active&&index<campaign_poses.count&&campaign_poses.items&&
          !campaign_poses.items[index].playback.completion.frozen))
         return scene_npc_checkpoint_reject(index,"inactive_script_freeze",0,o->script_animation.freeze,RF_RANGE);
-    if(o->view.linked_handle!=-1)return scene_npc_checkpoint_reject(index,"linked_handle",0,o->view.linked_handle,RF_RANGE);
+    seated=scene_npc_seat_checkpoint_actor(o->registration.handle);
+    if(o->view.linked_handle!=-1&&!seated)return scene_npc_checkpoint_reject(index,"linked_handle",0,o->view.linked_handle,RF_RANGE);
+    if(o->ai_mode.action_280==13&&!seated)return scene_npc_checkpoint_reject(index,"seat_mode_without_owner",0,13,RF_RANGE);
     NPC_CAPTURE_ZERO(view.occupant_count);
     if(o->attachment_75c!=-1)return scene_npc_checkpoint_reject(index,"attachment_75c",0,o->attachment_75c,RF_RANGE);
     status=scene_npc_checkpoint_controller_uid(o->controller_handle,&controller_uid);
@@ -346,7 +348,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
             if(!model->resources||(uint32_t)motion>=model->count||model->resources[motion].looping!=o->script_animation.loop)return RF_FORMAT;
         }
     }
-    for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0)return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
+    /* RFNS reconstructs the full admitted host/tag basis, not yaw alone. */
+    for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated)return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
     memset(row,0,sizeof(*row));row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
     row->support_uid=support_uid;if(support_uid)memcpy(row->support_velocity,o->support_velocity,12);
     row->retired=key->retired;row->flags=o->object_flags&0x4004u;row->affiliation=o->damage.effects.affiliation;

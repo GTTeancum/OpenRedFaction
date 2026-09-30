@@ -28,6 +28,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_turret_checkpoint_stage *turrets=NULL;
+    scene_npc_seat_checkpoint_stage *seats=NULL;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
     uint32_t vehicle_present=0,vehicle_base=0,vehicle_bytes=0,authored_terrain=0,authored_cuts=0;
     const unsigned char *vehicle_data=NULL;
@@ -133,15 +134,14 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(cost>budget){status=RF_RANGE;goto done;}
     status=scene_turret_checkpoint_prepare(vehicle_data,vehicle_bytes,0,budget-cost,&turrets,&vehicle_data,&vehicle_bytes);if(status)goto done;
     if(turrets)cost+=turrets->allocated_bytes;
+    status=scene_npc_seat_checkpoint_prepare(vehicle_data,vehicle_bytes,budget-cost,&seats,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    cost+=scene_npc_seat_checkpoint_bytes(seats);
     if(vehicle_bytes>=4&&!memcmp(vehicle_data,"RFVA",4)){
         phase="passive_vehicle";
         status=scene_passive_vehicle_checkpoint_prepare(vehicle_data,vehicle_bytes,budget-cost,&passive);
         if(status)goto done;cost+=passive->allocated_bytes;
         vehicle_data+=SCENE_PASSIVE_VEHICLE_HEADER;vehicle_bytes=passive->host_bytes;
     }else if(campaign_passive_vehicle_count){status=RF_FORMAT;goto done;}
-    phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive);if(status)goto done;cost+=world->allocated_bytes;
-    phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
-    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     vehicle_present=vehicle_bytes!=0;
     if(vehicle_present){
         vehicle_base=(rf_scene_vehicle_enabled==3||rf_scene_vehicle_enabled==5)?160u:128u;
@@ -150,9 +150,13 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         phase="vehicle_route";status=scene_world_vehicle_route_read(vehicle_data,vehicle_bytes,vehicle_base,&vehicle_route);if(status)goto done;
         if(vehicle_route.active&&!vehicle.value.vehicle.alive){status=RF_FORMAT;goto done;}
     }
+    status=scene_npc_seat_checkpoint_hosts(seats,turrets,vehicle_present?&vehicle:NULL);if(status)goto done;
+    phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive,seats);if(status)goto done;cost+=world->allocated_bytes;
+    phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
+    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
         vehicle_present?&vehicle:NULL,passive,&player);if(status)goto done;
-    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle);if(status)goto done;}
+    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle,seats);if(status)goto done;}
     if(player.player.player.weapon==UINT32_MAX)found=1;
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){
         selected=i;found=1;break;}
@@ -185,6 +189,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_passive_vehicle_checkpoint_validate(passive);if(status)goto done;
     status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
     status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
+    status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
     status=scene_clutter_checkpoint_targets_valid(world->clutter);if(status)goto done;
     status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
     status=scene_world_mission_validate(mission);if(status)goto done;
@@ -196,10 +201,12 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         status=scene_vehicle_checkpoint_publish(stream);if(status)goto done;}
     /* Publish validated world owners before restoring the occupied vehicle:
      * driver possession needs the saved player body and health in place. */
+    scene_npc_seat_checkpoint_detach(seats);
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_passive_vehicle_checkpoint_assign(passive);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
     scene_turret_checkpoint_assign(turrets);
+    scene_npc_seat_checkpoint_assign(seats);
     scene_turret_death_effects_reset_pending();
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
     if(vehicle_present){scene_world_vehicle_route_assign(&vehicle_route);campaign_vehicle_mode_publish(stream);}
@@ -259,7 +266,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
     scene_ai_projectile_checkpoint_discard(&projectiles);
-    scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);
+    scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_npc_seat_checkpoint_close(&seats);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
 }
 #endif

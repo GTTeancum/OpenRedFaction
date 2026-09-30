@@ -52,7 +52,9 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
          (rf_scene_dev_room_enabled&&rf_scene_vehicle_enabled==4)))return RF_FORMAT;
     if(s->driller_runtime && !scene_driller_active(s)){const scene_driller_runtime *r=s->driller_runtime;
         if(!scene_driller_damage_runtime_valid(&r->damage)||r->damage.entry!=&r->entry||r->entry.physics!=&r->physics||
-           r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->player.saved||r->damage.damage.state.effects.burn||
+           ((r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1)&&
+            !scene_npc_seat_checkpoint_host(r->entry.registration.handle))||
+           r->player.saved||r->damage.damage.state.effects.burn||
            r->entry.player_view->linked_handle==(int32_t)r->entry.host.handle)return RF_FORMAT;
     }
     record.profile=rf_scene_vehicle_enabled;
