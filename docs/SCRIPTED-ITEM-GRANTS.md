@@ -15,7 +15,8 @@ requests add allowed ammo without reacquiring an owned weapon. The live9870
 regression grants Riot Stick ID2 with one loaded unit; a second request adds
 one reserve unit. This does not equip Riot Stick: usable selection, melee,
 first-person presentation and authored Strip_Player_Weapons remain critical
-open work. Non-weapon item grants are unsupported. All37 PC tests and both
+open work. Miner Envirosuit and Doctor Uniform now take a separate notice-only
+path; other non-weapon item grants remain unsupported. All37 PC tests and both
 startup/repeated-grant replays pass. Original4bb690 creates a temporary item
 through459100 before pickup dispatch; this practical path reuses decoded item
 benefits without creating that object. Reproduce:python tools/replay_script_grants.py.

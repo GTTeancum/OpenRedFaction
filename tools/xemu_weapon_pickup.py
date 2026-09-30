@@ -16,12 +16,12 @@ DISC = ROOT / 'build/xbox/disc'
 FRAMES = 140
 
 
-def replay(direct_switch=False):
+def replay(direct_switch=False, nonweapon=False):
     commands = []
     for frame in range(FRAMES):
-        forward = float(10 <= frame < 25)
-        fire = int(frame in ((80, 115) if direct_switch else (60, 115)))
-        cycle = ((1 if 40 <= frame < 50 or 60 <= frame < 70 else 2 if 50 <= frame < 60 else 0)
+        forward = float(10 <= frame < (40 if nonweapon else 25))
+        fire = 0 if nonweapon else int(frame in ((80, 115) if direct_switch else (60, 115)))
+        cycle = 0 if nonweapon else ((1 if 40 <= frame < 50 or 60 <= frame < 70 else 2 if 50 <= frame < 60 else 0)
                  if direct_switch else (1 if frame in (40, 105) else 2 if frame == 90 else 0))
         commands.append(struct.pack('<5f6I', 0, 0, forward, 0, 0,
                                     0, 0, 0, fire, 0, cycle))
@@ -40,32 +40,40 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--direct-switch', action='store_true',
                         help='hold next, then previous, then next with no neutral input frames')
+    parser.add_argument('--nonweapon', action='store_true',
+                        help='stage the authored L6S3 Miner Envirosuit scripted grant')
     args = parser.parse_args()
+    if args.direct_switch and args.nonweapon:
+        parser.error('Choose only one focused fixture')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('weapon-direct-switch-' if args.direct_switch else 'weapon-pickup-') +
+    folder = ROOT / 'artifacts/xemu' / (('nonweapon-pickup-' if args.nonweapon else
+                                       'weapon-direct-switch-' if args.direct_switch else 'weapon-pickup-') +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     names |= {'campaign-item.bin', 'player-control.flag'}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox authored rifle pickup/switch/fire',
-              'direct_switch': args.direct_switch}
+    result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox authored item grant',
+              'direct_switch': args.direct_switch, 'nonweapon': args.nonweapon}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
-            b'levels1.vpp'.ljust(64, b'\0') + b'L4S5.rfl'.ljust(64, b'\0'))
-        (DISC / 'campaign-item.bin').write_bytes(struct.pack('<I', 3415))
+            b'levels1.vpp'.ljust(64, b'\0') +
+            (b'L6S3.rfl' if args.nonweapon else b'L4S5.rfl').ljust(64, b'\0'))
+        (DISC / 'campaign-item.bin').write_bytes(struct.pack('<I', 6935 if args.nonweapon else 3415))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch))
+        (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch, args.nonweapon))
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
                           extra_symbols={'rf_scene_pickups': 8,
+                                         'rf_scene_nonweapon_items': 4,
+                                         'rf_scene_script_grants': 8,
                                          'rf_scene_weapon_selection': 8,
                                          'rf_scene_player_ammo': 8,
                                          'rf_scene_combat': 8})
@@ -74,6 +82,14 @@ def main():
         selection = guest['extra']['rf_scene_weapon_selection']
         ammo = guest['extra']['rf_scene_player_ammo']
         combat = guest['extra']['rf_scene_combat']
+        if args.nonweapon:
+            nonweapon = guest['extra']['rf_scene_nonweapon_items']
+            script = guest['extra']['rf_scene_script_grants']
+            if nonweapon[2] != 1 or nonweapon[3] != 28 or script[0] < 1 or script[3] != 0xfffffffe:
+                raise RuntimeError(f'Miner Envirosuit scripted grant failed: {nonweapon}, {script}')
+            result['placed_pickup_collected'] = pickup[3] == 1 and pickup[5] == 6935
+            result['result'] = 'PASS'
+            return
         if pickup[3:6] != [1, 42, 3415]:
             raise RuntimeError(f'Rifle was not collected: {pickup}')
         if selection[0] != 1 or selection[1] != 3 or selection[3] != 1:

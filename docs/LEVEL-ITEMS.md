@@ -71,6 +71,25 @@ and pickup sound/event integration remain open; no XEMU collection is claimed.
 
 ## Live Handgun pickup path
 
+The installed campaign item audit finds 593 placed items in 31 classes.
+The first-pass class table now recognizes Miner Envirosuit and Doctor Uniform,
+which account for ten formerly unsupported placed items. Both are static
+models with no weapon declaration in `items.tbl`. The original default grant
+at `0x45a3d0` branches to `0x45a100` when both weapon and ammo IDs are absent;
+that service handles the player pickup notice and returns without changing
+weapon inventory. The port accordingly retires an accepted placed suit item
+and submits its authored English pickup notice, and accepts the same names in
+`Give_Item_To_Player`. Suit-specific hazard protection or disguise effects
+have not been established or implemented.
+
+The stock-64-MiB L6S3 Xbox run at
+`artifacts/xemu/nonweapon-pickup-20260929-220900/report.json` completed 140
+frames with one scripted Miner Envirosuit grant and 4,847 free pages; the test
+disc was restored. The staged player never entered range of placed UID6935,
+so that run does not verify placed-item retirement or the rendered notice.
+Doctor Uniform and the remaining unsupported Silenced 12mm Handgun and
+animated Demo_K000 classes are still unverified or unimplemented.
+
 Campaign scenes retain authored item records plus one availability byte per
 record. The first supported class is Handgun. Its table definition is checked
 against the existing pistol world-model resource, and the pistol model is
