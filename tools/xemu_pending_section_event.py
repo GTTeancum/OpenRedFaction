@@ -39,6 +39,7 @@ def main():
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') + b'L1S2.rfl'.ljust(64, b'\0'))
         (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<3I', 9725, 9728, 9732))
+        (DISC / 'campaign-disable-auto.bin').write_bytes(struct.pack('<I', 10078))
         (DISC / 'campaign-exit.bin').write_bytes(struct.pack('<I', 9346))
         (DISC / 'campaign-return.bin').write_bytes(struct.pack('<2I', 9019, 0))
         (DISC / 'player-replay.bin').write_bytes(
@@ -50,6 +51,7 @@ def main():
                            stderr=subprocess.STDOUT, check=True)
         guest = run_guest(folder, 'run', hdd, FRAMES, 480, snapshot=True,
                           extra_symbols={'rf_xbox_event_handoff_probe': 2,
+                                         'rf_scene_startup_events': 9,
                                          'campaign_subtitle_uid': 1,
                                          'campaign_subtitle_deadline': 1},
                           allow_guest_error=True)
@@ -65,6 +67,8 @@ def main():
         if guest['extra']['campaign_subtitle_uid'][0] != 9725 or \
            guest['extra']['campaign_subtitle_deadline'][0] == 0xffffffff:
             raise RuntimeError(f'Delayed Message did not present after return: {guest["extra"]}')
+        if guest['extra']['rf_scene_startup_events'][0] != 5:
+            raise RuntimeError(f'Disabled auto trigger repeated on return: {guest["extra"]}')
         report['result'] = 'PASS'
     finally:
         for name, data in original.items():

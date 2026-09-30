@@ -128,6 +128,8 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Delayed section events: RFCH4 saves pending deadlines, modes and UID-tagged references; stock64MiB Xbox L1S2→L1S1→L1S2 restores live UID9728/9732 references and later dispatches Message9725, while broader event types, missing owners and startup side effects remain open.
 
+- Auto-start triggers: Previously disabled L1S2 auto trigger10078 now stays suppressed on a stock64MiB Xbox section return; enabled trigger effects and other startup side effects remain open.
+
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 
 - AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.

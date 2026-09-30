@@ -1399,6 +1399,22 @@ int rf_scene_fire_npc_event(uint32_t uid,int32_t now)
     return RF_NOT_FOUND;
 }
 
+/* Rebuilt auto triggers must honor a saved disable before the startup sweep.
+ * Their remaining state still restores through the ordinary checkpoint path. */
+static int campaign_trigger_startup_disable(void)
+{
+    uint32_t i,slot;int status;
+    for(i=0;i<campaign_triggers.count;i++){
+        rf_runtime_trigger *trigger=campaign_triggers.items+i;
+        if(!(trigger->state.flags&8u))continue;
+        status=rf_campaign_trigger_register(&campaign_trigger_history,campaign_current_level,
+            trigger->authored->record.uid,&slot);if(status)return status;
+        if(campaign_trigger_history.items[slot].retired &&
+           (campaign_trigger_history.states[slot].flags&16u))trigger->state.flags|=16u;
+    }
+    return RF_OK;
+}
+
 int rf_scene_fire_setup_event_with_refs(uint32_t uid,uint32_t source_uid,uint32_t actor_uid,int32_t now)
 {
     uint32_t i,source=0,actor=0;rf_runtime_event *target=NULL;rf_startup_events_report report;
@@ -1434,6 +1450,19 @@ uint32_t rf_scene_event_ref_probe(uint32_t uid,uint32_t source_uid,uint32_t acto
        rf_object_registry_lookup(&campaign_registry,actor->handle)==actor)mask|=4u;
     if(target->state.deadline>=0)mask|=8u;
     return mask;
+}
+
+int rf_scene_disable_auto_trigger(uint32_t uid)
+{
+    uint32_t i;
+    for(i=0;i<campaign_triggers.count;i++){
+        rf_runtime_trigger *trigger=campaign_triggers.items+i;
+        if(trigger->authored->record.uid!=uid)continue;
+        if(!(trigger->state.flags&8u)||
+           rf_object_registry_lookup(&campaign_registry,trigger->handle)!=trigger)return RF_NOT_FOUND;
+        trigger->state.flags|=16u;return RF_OK;
+    }
+    return RF_NOT_FOUND;
 }
 
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now)
@@ -19018,7 +19047,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              rf_scene_startup_inventory[0]=campaign_startup_inventory.items[slot].retired;
              rf_scene_startup_inventory[3]=sizeof(campaign_startup_inventory);
              campaign_startup_inventory_replay=rf_scene_startup_inventory[0];
-             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream->particles, &campaign_forces,&rf_scene_startup_events);
+             status=campaign_trigger_startup_disable();if(!status)
+                 status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream->particles, &campaign_forces,&rf_scene_startup_events);
              campaign_startup_inventory_replay=0;
              if(status)goto done;
              campaign_startup_inventory.items[slot].retired=1;}

@@ -16,11 +16,19 @@ Runtime handles, owner pointers, authored links, geometry and authored cooldown
 length are rebuilt by normal loading and are never copied from a prior section.
 
 This is practical session checkpoint policy, not full original level-state
-restoration. Startup dispatch still runs before restore; auto-start actions can
-repeat non-inventory side effects. Event timers and switch state now have
+restoration. Startup dispatch still runs before full restore, but a saved disabled
+bit is applied to rebuilt auto triggers before that sweep. Enabled auto-start
+actions can still repeat non-inventory side effects. Event timers and switch state now have
 separate section histories and ordinary-save codecs. Removed non-trigger
 objects, moved trigger volumes and mover/controller state remain open.
 The first-entry inventory policy is separate.
+
+A bounded stock-64-MiB Xbox L1S2→L1S1→L1S2 run disabled authored auto trigger
+UID10078 before leaving. On return, five of the six authored L1S2 auto triggers
+ran; the disabled one stayed suppressed. The same run preserved and dispatched
+a delayed Message with live references, completed360 frames and retained3,466
+free pages (`artifacts/xemu/pending-section-event-20260930-005602`). This does
+not settle enabled startup effect replay or removed linked owners.
 
 The section history now also records whether an authored one-use trigger has
 been removed from the object registry. Its existing disk transport bit is
