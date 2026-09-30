@@ -64,8 +64,17 @@ matched PC byte-for-byte (`artifacts/xemu/render-20260926-204039/report.json`).
 A separate XEMU load ran 64 frames with the driver seated and `VEHICLE_ROUTE`
 matching PC at active node 1; 3,033 physical pages (11.85 MiB) were free
 (`artifacts/xemu/render-20260926-204254/report.json`). Later route nodes,
-native post-load exit and more campaign vehicle owners remain open. A separate
+and more campaign vehicle owners remain open. A separate
 stock-64-MiB L12S1 Xbox run already verified ordinary boarding and driver exit
 without a reload: `render-20260926-183240/report.json` records one entry,
-one exit and no active seat after 180 frames. That result does not verify exit
-from a restored checkpoint.
+one exit and no active seat after 180 frames.
+
+A focused Xbox-only optical restore of that byte-equal 35,756-byte Jeep world
+checkpoint then sent one process-local Use edge at frame 20. The 120-frame run
+recorded one exit, no active vehicle seat, no runtime error and 3,024 free
+physical pages (11.81 MiB) on stock 64 MiB
+(`artifacts/xemu/native-world-20260929-225219/report.json`). The source RFSG
+fixture's payload is byte-identical to the native `xbox-world.rfwc` emitted by
+`render-20260926-204039`; the harness neither ran the PC executable nor
+captured images. This verifies a driver exit after ordinary checkpoint restore,
+not its visual presentation, gunner exit or exact route-motion continuation.

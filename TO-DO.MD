@@ -72,7 +72,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicle saves: DEV APC/Jeep save/load retains motion, ammo, RNG, aiming and Jeep seat/reference; seated L1S3 APC, L1S2 Driller and route-following L12S1 Jeep save/reload through ordinary campaign persistence on PC/Xbox, while other campaign seats, exact Jeep travel continuation and Xbox Jeep exit after checkpoint reload remain (docs/CAMPAIGN-VEHICLE-SAVE-FIRST-PASS.md).
+- Vehicle saves: DEV APC/Jeep save/load retains motion, ammo, RNG, aiming and Jeep seat/reference; seated L1S3 APC, L1S2 Driller and route-following L12S1 Jeep save/reload through ordinary campaign persistence on PC/Xbox, and an Xbox L12S1 Jeep exits after reload, while other campaign seats and exact Jeep travel continuation remain (docs/CAMPAIGN-VEHICLE-SAVE-FIRST-PASS.md).
 
 - Jeep: Driver/gunner roles, parked seat switching, independent gunner camera and finite-ammo fire pass PC/Xbox; L12S1 boarding, exit and initial scripted driving match PC/Xbox with at least12.54MiB free, while live NPC combat, destruction coverage and other level placements remain (see docs/JEEP-FIRST-PASS.md).
 

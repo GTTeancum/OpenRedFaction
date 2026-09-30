@@ -2,6 +2,7 @@
 
 No PC executable, screenshot, host input, campaign route, or user HDD is used.
 The default saves an authored L1S2 spawn on the owned test HDD, then reloads it.
+Jeep exit mode checks a restored L12S1 driver with one process-local Use edge.
 """
 
 import argparse
@@ -202,6 +203,7 @@ def main():
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--fixture', type=Path,
                         help='Read-only native load from an existing RFSG .0/.1 file on the test disc')
+    parser.add_argument('--fixture-mode', choices=('shallow', 'jeep-exit'), default='shallow')
     args = parser.parse_args()
     if not 32 <= args.frames <= 600 or not 30 <= args.seconds <= 3600:
         parser.error('Require 32..600 frames and 30..3600 seconds')
@@ -214,6 +216,8 @@ def main():
            struct.unpack_from('<I', fixture_data, 4)[0] != 1 or \
            len(fixture_data) != 24 + struct.unpack_from('<I', fixture_data, 12)[0]:
             parser.error('Fixture has an invalid RFSG header or payload length')
+    elif args.fixture_mode != 'shallow':
+        parser.error('--fixture-mode requires --fixture')
     require_no_project_xemu(ROOT)
     base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not base.is_file():
@@ -228,17 +232,27 @@ def main():
     (run / 'disc-restore.json').write_text(json.dumps({
         name: value.hex() if value is not None else None
         for name, value in original.items()}, indent=2) + '\n')
-    report = dict(result='FAIL', scope='Xbox-only ordinary L1S2 fixture restore' if fixture_data is not None
-                  else 'Xbox-only ordinary L1S2 spawn save/reload',
+    report = dict(result='FAIL', scope=('Xbox-only ordinary L12S1 Jeep post-load exit'
+                  if args.fixture_mode == 'jeep-exit' else
+                  'Xbox-only ordinary L1S2 fixture restore' if fixture_data is not None
+                  else 'Xbox-only ordinary L1S2 spawn save/reload'),
                   hdd=str(hdd), frames=args.frames, phases={})
     try:
         for name in original:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
-            b'levels1.vpp'.ljust(64, b'\0') + b'L1S2.rfl'.ljust(64, b'\0'))
-        (DISC / 'player-replay.bin').write_bytes(
-            b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44))
+            (b'levels2.vpp' if args.fixture_mode == 'jeep-exit' else b'levels1.vpp').ljust(64, b'\0') +
+            (b'L12S1.rfl' if args.fixture_mode == 'jeep-exit' else b'L1S2.rfl').ljust(64, b'\0'))
+        if args.fixture_mode == 'jeep-exit':
+            rows = [struct.pack('<5f7I', 0, 0, 0, 0, 0, 0, 0,
+                                int(frame == 20), 0, 0, 0, 0)
+                    for frame in range(args.frames)]
+            (DISC / 'player-replay.bin').write_bytes(
+                b'RFI6' + struct.pack('<I', 48) + b''.join(rows))
+        else:
+            (DISC / 'player-replay.bin').write_bytes(
+                b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44))
         if fixture_data is not None:
             (DISC / 'world-fixture-load.flag').write_bytes(b'1')
             (DISC / ('world-fixture' + args.fixture.suffix)).write_bytes(fixture_data)
@@ -246,12 +260,21 @@ def main():
                                      sha256=hashlib.sha256(fixture_data).hexdigest(),
                                      payload_bytes=len(fixture_data)-24)
             build(run, 'fixture')
-            loaded = run_guest(run, 'fixture', hdd, args.frames, args.seconds, snapshot=True)
+            loaded = run_guest(run, 'fixture', hdd, args.frames, args.seconds,
+                               snapshot=True, extra_symbols=(
+                                   {'rf_scene_vehicle_state': 16,
+                                    'rf_scene_jeep_seats': 8}
+                                   if args.fixture_mode == 'jeep-exit' else None))
             report['phases']['fixture'] = loaded
             state = loaded['checkpoint_state']
             if state[8] != 1 or state[0] != 0 or state[1] != len(fixture_data)-24:
                 raise RuntimeError('Xbox optical ordinary fixture restore failed')
-            if loaded['shallow_contacts']['player'] < 1:
+            if args.fixture_mode == 'jeep-exit':
+                vehicle = loaded['extra']['rf_scene_vehicle_state']
+                seats = loaded['extra']['rf_scene_jeep_seats']
+                if vehicle[2] != 1 or vehicle[3] != 0 or vehicle[5] != 0 or seats[4] != 0:
+                    raise RuntimeError(f'Xbox restored Jeep did not exit cleanly: {vehicle}, {seats}')
+            elif loaded['shallow_contacts']['player'] < 1:
                 raise RuntimeError('Xbox fixture did not exercise the player shallow-contact rule')
         else:
             (DISC / 'world-hdd-save.flag').write_bytes(b'1')
