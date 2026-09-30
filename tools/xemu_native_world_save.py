@@ -220,6 +220,8 @@ def main():
     parser.add_argument('--fixture', type=Path,
                         help='Read-only native load from an existing RFSG .0/.1 file on the test disc')
     parser.add_argument('--fixture-mode', choices=('shallow', 'jeep-exit'), default='shallow')
+    parser.add_argument('--setup-uid', type=int,
+                        help='Fire one authored L1S2 event at frame zero before ordinary save')
     args = parser.parse_args()
     if not 32 <= args.frames <= 600 or not 30 <= args.seconds <= 3600:
         parser.error('Require 32..600 frames and 30..3600 seconds')
@@ -234,6 +236,8 @@ def main():
             parser.error('Fixture has an invalid RFSG header or payload length')
     elif args.fixture_mode != 'shallow':
         parser.error('--fixture-mode requires --fixture')
+    if args.setup_uid is not None and (fixture_data is not None or args.setup_uid <= 0):
+        parser.error('--setup-uid requires ordinary L1S2 save mode and a positive UID')
     require_no_project_xemu(ROOT)
     base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not base.is_file():
@@ -251,6 +255,7 @@ def main():
     report = dict(result='FAIL', scope=('Xbox-only ordinary L12S1 Jeep post-load exit'
                   if args.fixture_mode == 'jeep-exit' else
                   'Xbox-only ordinary L1S2 fixture restore' if fixture_data is not None
+                  else 'Xbox-only ordinary L1S2 pending event save/reload' if args.setup_uid
                   else 'Xbox-only ordinary L1S2 spawn save/reload'),
                   hdd=str(hdd), frames=args.frames, phases={})
     try:
@@ -269,6 +274,8 @@ def main():
         else:
             (DISC / 'player-replay.bin').write_bytes(
                 b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44))
+        if args.setup_uid is not None:
+            (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', args.setup_uid))
         if fixture_data is not None:
             (DISC / 'world-fixture-load.flag').write_bytes(b'1')
             (DISC / ('world-fixture' + args.fixture.suffix)).write_bytes(fixture_data)
@@ -295,11 +302,31 @@ def main():
         else:
             (DISC / 'world-hdd-save.flag').write_bytes(b'1')
             build(run, 'save')
-            saved = run_guest(run, 'save', hdd, args.frames, args.seconds)
+            saved = run_guest(run, 'save', hdd, args.frames, args.seconds,
+                              capture_world=args.setup_uid is not None)
             report['phases']['save'] = saved
             save_state = saved['checkpoint_state']
             if save_state[9] != 1 or save_state[3] != 0 or not 320 <= save_state[4] <= 110524:
                 raise RuntimeError('Xbox ordinary save failed')
+            if args.setup_uid is not None:
+                payload = (run / 'save/xbox-world.rfwc').read_bytes()
+                section = 128 + (15 - 1) * 12
+                offset, length = struct.unpack_from('<II', payload, section + 4)
+                history = payload[offset:offset + length]
+                if len(history) != length or history[:4] != b'RFCH' or \
+                   struct.unpack_from('<I', history, 4)[0] != 4:
+                    raise RuntimeError('Xbox save lacks RFCH4 section history')
+                switch_levels, switch_count, event_levels, event_count = \
+                    struct.unpack_from('<4I', history, 48)
+                rows = 96 + switch_levels * 64 + switch_count * 32 + event_levels * 64
+                matched = [struct.unpack_from('<14I', history, rows + i * 56)
+                           for i in range(event_count)
+                           if struct.unpack_from('<I', history, rows + i * 56 + 4)[0] == args.setup_uid]
+                if len(matched) != 1 or not 0 < matched[0][8] < 10000:
+                    raise RuntimeError(f'Xbox pending event was not saved in RFCH4: {matched}')
+                report['pending_event_history'] = dict(uid=args.setup_uid,
+                    remaining_ms=matched[0][8], mode=matched[0][9],
+                    source_kind=matched[0][10], actor_kind=matched[0][12])
             (DISC / 'world-hdd-save.flag').unlink()
             (DISC / 'world-hdd-load.flag').write_bytes(b'1')
             build(run, 'load')

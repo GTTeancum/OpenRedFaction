@@ -124,7 +124,9 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Scripted timers: Cyclic_Timer drives finite/unlimited event/mover pulses; level/UID revisit history and the ordinary-event disk codec/load path preserve count, enabled state and remaining deadline, while a focused Xbox save/reload check and broader live route checks remain.
 
-- Scripted event retirement: Destroy_Object-retired event owners now persist by section UID through revisits and RFCH3 ordinary saves; a focused Xbox return-to-section behavior check and other removed object classes remain.
+- Scripted event retirement: Destroy_Object-retired event owners now persist by section UID through revisits and RFCH4 ordinary saves; a focused Xbox return-to-section behavior check and other removed object classes remain.
+
+- Delayed section events: RFCH4 now saves pending deadlines, modes and UID-tagged source/actor references for section revisits; Xbox UID9727 save/reload passes, while a real-handle return and post-return dispatch remain open.
 
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 
@@ -397,7 +399,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
-- ACTIVE: Preserve mission state on section revisits after trigger/event retirement changes, including delayed/startup effects, other removed objects, movers and wider local goals, and verify retirement behavior on Xbox.
+- ACTIVE: Preserve mission state on section revisits after trigger/event retirement and delayed-event history changes, including startup effects, other removed objects, movers and wider local goals, and verify return behavior on Xbox.
 - TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
 - TO COMPLETE: Investigate the PC/native actor-follow renderer-summary mismatch in replay-20260914-162753; its broad parity check failed after both level handoffs.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.

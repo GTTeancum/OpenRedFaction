@@ -1289,7 +1289,6 @@ uint32_t rf_scene_actor_revisit[8]; /* compared living actors; health/armor/alle
 uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured deaths, status */
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
-#include "scene_event_history.inc"
 static int campaign_switch_checkpoint(uint32_t save)
 {
     uint32_t i,slot;int status;
@@ -12235,6 +12234,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 }
 
 #include "scene_world_checkpoint_identity.inc"
+#include "scene_event_history.inc"
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
@@ -18990,7 +18990,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_switch_checkpoint(0);if(status)goto done;
             memset(rf_scene_trigger_history,0,sizeof(rf_scene_trigger_history));
             status=campaign_trigger_checkpoint(0,0);if(status)goto done;
-            status=campaign_event_checkpoint(0,0);if(status)goto done;
+            status=campaign_event_checkpoint(0,0,stream);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
             stream->world_checkpoint_level=level;stream->world_checkpoint_tables=tables_path;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
@@ -19012,7 +19012,7 @@ done:
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
         if(!status)status=campaign_switch_checkpoint(1);
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
-        if(!status)status=campaign_event_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
+        if(!status)status=campaign_event_checkpoint(1,(int32_t)rf_scene_event_ticks[1],stream);
         if(!status)status=scene_npc_shield_history_capture();
         if(!status)campaign_actors_capture();
     }

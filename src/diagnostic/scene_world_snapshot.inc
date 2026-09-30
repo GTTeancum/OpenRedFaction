@@ -179,7 +179,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     /* Switch records are held by CAMPAIGN_HISTORY instead of duplicated. */
     SNAP_START("startup");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&campaign_startup_inventory,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_STARTUP);
     SNAP_START("campaign_history");omissions=scene_campaign_history_checkpoint_omissions();
-    status=scene_campaign_history_checkpoint_encode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CAMPAIGN_HISTORY);
+    status=scene_campaign_history_checkpoint_encode(s,identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CAMPAIGN_HISTORY);
     SNAP_START("environment");status=scene_world_environment_encode(identity.bytes,campaign_blackout_now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_ENVIRONMENT);
     SNAP_START("projectiles");
     status=scene_ai_projectile_checkpoint_capture(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);

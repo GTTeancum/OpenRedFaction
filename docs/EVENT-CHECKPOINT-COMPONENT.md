@@ -2,17 +2,25 @@
 
 RFEC3 preserves one supported event's represented runtime fields. It is not ordinary-scene save admission. The composer must capture associated world state, preflight every component, rebuild references, publish state and remove retired owners from the registry before gameplay resumes. Restore itself dispatches no effects or sounds.
 
-Section history now also preserves `Destroy_Object` retirement of scripted event
-owners, including event types that have no timer or threshold history. It keys
-the event by section and authored UID, records a retirement bit in the existing
-RFCH3 history row, and removes the rebuilt owner from the new section's object
-registry before play resumes. The record carries no runtime handle. Active
-delayed dispatch and source/actor references across section handoffs remain
-outside this history. The NXDK and shared PC compile builds pass; a bounded
-64-frame stock-64-MiB Xbox ordinary L1S2 save/reload also passes with 3,346
-free pages after load (`artifacts/xemu/native-world-20260930-001818`). That
-fixture checks codec compatibility, not a destroyed event on a section return;
-the latter remains open.
+Section history now preserves `Destroy_Object` retirement of scripted event
+owners, including types with no timer or threshold history. It keys each event
+by section and authored UID, records a retirement bit in RFCH4, and removes
+the rebuilt owner from the new section's registry before play resumes.
+
+RFCH4 also freezes a pending event's remaining delay at section exit, retaining
+its activation mode and source/actor as sentinel tags or authored UIDs. A
+revisited section resolves UIDs to fresh handles before rescheduling. Completed
+generic events clear their old pending history so they cannot fire twice on a
+later return. RFCH1..3 decode remains supported. Missing source/actor identity
+still rejects the handoff; active effects already produced by startup before
+history restoration are not rolled back.
+
+NXDK and shared PC compilation pass. A bounded 64-frame stock-64-MiB Xbox
+ordinary L1S2 save/reload with authored Message UID9727 pending passes. The
+saved RFCH4 row contains 8,950 ms remaining, mode1 and sentinel source/actor;
+reload leaves 3,339 free pages (`artifacts/xemu/native-world-20260930-003325`).
+This verifies actual delayed-row serialization and ordinary reload, but not
+real-handle UID rebinding or a section-return dispatch; both remain open.
 
 Read-only inspection of installed `levels1.vpp/L1S1.rfl` found 184 events across 32 types. All 32 types now have event-local field representation. This is static inventory coverage, not a claim that every gameplay event is implemented or that a full scene save has passed.
 

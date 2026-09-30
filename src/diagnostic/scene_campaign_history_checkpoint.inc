@@ -3,14 +3,14 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-/* RFCH3 is session history, not the current-level NPC/event payload. Include
+/* RFCH4 is session history, not the current-level NPC/event payload. Include
  * after all campaign stores/carry declarations. Caller identity must bind the
  * installed campaign/catalogs, not merely the current level. Current owners
  * merge into private copies; no session capture side effects. Max disk207720B.
  * Separate goals/pickups/triggers/startup/current-player and omitted sidecars must be
  * composed independently. Restore replaces store indices: dependent NPC/shield/
  * AI slots require composition-level UID rebinding before gameplay resumes. */
-enum { SCENE_CAMPAIGN_HISTORY_MAX_BYTES=207720,
+enum { SCENE_CAMPAIGN_HISTORY_MAX_BYTES=207720+RF_CAMPAIGN_PICKUP_SLOTS*24,
     SCENE_CAMPAIGN_HISTORY_OMIT_PLAYER=1,SCENE_CAMPAIGN_HISTORY_OMIT_WEAPON_MODES=2,
     SCENE_CAMPAIGN_HISTORY_OMIT_NPC_SHIELDS=4,SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES=8 };
 typedef struct scene_campaign_history_checkpoint_stage {
@@ -57,7 +57,7 @@ static int scene_history_keys(const unsigned char *levels,uint32_t nl,const unsi
     }
     return RF_OK;
 }
-/* RFCH3 header72 mask: import/export player, import/export MP, import/export
+/* RFCH3/4 header72 mask: import/export player, import/export MP, import/export
  * Undercover. Header76 tail size; header80 remaining float bits, 84 expiry
  * pulse, 88 difficulty; 92 reserved. RFCH1/2 restore a stopped countdown.
  * Each present player
@@ -121,18 +121,19 @@ static void scene_history_carry_write(unsigned char *p,const scene_campaign_hist
 }
 /* Header96: magic/version/bytes/checksum, identity32, three level/count pairs,
  * reserved24. Each section: level names64, then rows. Switch rows32=key12+
- * disabled/limit/unlimited/activations/mode. Event rows32=key12+type/count/
- * enabled/fired/remaining. Actor rows56=key12+valid/health/armor/affiliation/
+ * disabled/limit/unlimited/activations/mode. RFCH4 event rows56 add common
+ * remaining/mode and source/actor UID tags to RFCH1..3's 32-byte event row.
+ * Actor rows56=key12+valid/health/armor/affiliation/
  * flags/dropstate/weapon/quantity/position3. All integers/float bits LE. */
 static int scene_campaign_history_checkpoint_preflight(const unsigned char identity[32],const void *data,uint32_t bytes)
 {
     const unsigned char *p=data,*r,*levels;uint32_t counts[6],i,j,k,v,at=96;uint64_t expected=96;int status;
     if(!identity||!data)return RF_RANGE;
-    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)<1||scene_history_word(p+4)>3)||
+    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)<1||scene_history_word(p+4)>4)||
        scene_history_word(p+8)!=bytes||memcmp(p+16,identity,32)||scene_history_word(p+12)!=scene_history_hash(p,bytes))return RF_FORMAT;
     v=scene_history_word(p+4);
     for(i=v==1?72:v==2?80:92;i<96;i+=4)if(scene_history_word(p+i))return RF_FORMAT;
-    if(v==3 && (!isfinite(scene_history_float(p+80))||scene_history_float(p+80)<0||
+    if(v>=3 && (!isfinite(scene_history_float(p+80))||scene_history_float(p+80)<0||
         scene_history_word(p+84)>1||scene_history_word(p+88)>3))return RF_FORMAT;
     if(v>=2){
         if((scene_history_word(p+72)&~63u)||scene_history_word(p+76)!=scene_history_carry_bytes(scene_history_word(p+72)))return RF_FORMAT;
@@ -141,21 +142,30 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
     for(i=0;i<6;i++)counts[i]=scene_history_word(p+48+i*4);
     for(i=0;i<3;i++){
         if(counts[i*2]>RF_CAMPAIGN_PICKUP_LEVELS||counts[i*2+1]>(i==2?RF_CAMPAIGN_ACTOR_SLOTS:RF_CAMPAIGN_PICKUP_SLOTS))return RF_FORMAT;
-        expected+=(uint64_t)counts[i*2]*64+(uint64_t)counts[i*2+1]*(i==2?56:32);
+        expected+=(uint64_t)counts[i*2]*64+(uint64_t)counts[i*2+1]*(i==2||(i==1&&v>=4)?56:32);
     }
     if(expected!=bytes)return RF_FORMAT;
     for(k=0;k<3;k++){
-        uint32_t stride=k==2?56:32,n=counts[k*2+1];levels=p+at;at+=counts[k*2]*64;r=p+at;
+        uint32_t stride=k==2||(k==1&&v>=4)?56:32,n=counts[k*2+1];levels=p+at;at+=counts[k*2]*64;r=p+at;
         status=scene_history_keys(levels,counts[k*2],r,n,stride);if(status)return status;
         for(i=0;i<n;i++,r+=stride){
             if(k==0){if(scene_history_word(r+20)>255)return RF_FORMAT;}
             else if(k==1){uint32_t type=scene_history_word(r+12),fired=scene_history_word(r+24);
-                if(!scene_history_word(r+8)){for(j=12;j<32;j+=4)if(scene_history_word(r+j))return RF_FORMAT;}
-                else if(fired==CAMPAIGN_EVENT_SAVED_RETIRED){if(type>255||scene_history_word(r+16)||scene_history_word(r+20)||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
+                int32_t common=v>=4?scene_history_signed(r+32):-1;
+                if(!scene_history_word(r+8)){for(j=12;j<stride;j+=4)if(scene_history_word(r+j))return RF_FORMAT;continue;}
+                if(type>255||common<-1||common>RF_TIMER_PERIOD)return RF_FORMAT;
+                if(v>=4){uint32_t source_kind=scene_history_word(r+40),source_uid=scene_history_word(r+44),
+                    actor_kind=scene_history_word(r+48),actor_uid=scene_history_word(r+52);
+                    if(source_kind>2||actor_kind>2||(source_kind<2&&source_uid)||(actor_kind<2&&actor_uid)||
+                       (source_kind==2&&source_uid==UINT32_MAX)||(actor_kind==2&&actor_uid==UINT32_MAX))return RF_FORMAT;
+                    if(common<0){if(scene_history_word(r+36)||source_kind!=1||actor_kind!=1||source_uid||actor_uid)return RF_FORMAT;}
+                    else if(scene_history_word(r+36)>255)return RF_FORMAT;
+                }
+                if(fired==CAMPAIGN_EVENT_SAVED_RETIRED){if(scene_history_word(r+16)||scene_history_word(r+20)||scene_history_signed(r+28)!=-1||common!=-1)return RF_FORMAT;}
                 else if(type==20){if(scene_history_word(r+20)>1||scene_history_word(r+24)||scene_history_signed(r+28)<-1||scene_history_signed(r+28)>RF_TIMER_PERIOD)return RF_FORMAT;}
                 else if(type==87||type==88){if(scene_history_word(r+16)||scene_history_word(r+20)||scene_history_word(r+24)>1||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
                 else if(type==84){if(scene_history_word(r+16)||scene_history_word(r+20)>1||scene_history_word(r+24)>1||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
-                else return RF_FORMAT;
+                else if(common<0||scene_history_word(r+16)||scene_history_word(r+20)||fired||scene_history_signed(r+28)!=-1)return RF_FORMAT;
             } else {
                 if(scene_history_word(r+12)>1||!isfinite(scene_history_float(r+16))||!isfinite(scene_history_float(r+20))||scene_history_float(r+20)<0||
                    (scene_history_word(r+28)&~0x4004u)||scene_history_word(r+32)>2)return RF_FORMAT;
@@ -167,10 +177,11 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
     }
     return v>=2?scene_history_carry_read(p+at,scene_history_word(p+72),NULL):RF_OK;
 }
-static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int32_t now)
+static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,const scene_stream *stream,int32_t now)
 {
-    uint32_t i,slot;int status;
-    if(now<0||now>RF_TIMER_PERIOD||campaign_events.count>RF_OBJECT_CAPACITY||
+    rf_level_uid_object *objects=NULL;scene_event_checkpoint_map map={0};rf_event_checkpoint_refs refs={0};
+    uint32_t i,slot,object_count=0,needs_refs=0;int status=RF_OK;
+    if(!stream||now<0||now>RF_TIMER_PERIOD||campaign_events.count>RF_OBJECT_CAPACITY||
        (campaign_events.count&&!campaign_events.items)||campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items)))return RF_RANGE;
     if(campaign_import_pending>1||campaign_export_valid>1||campaign_machine_import_sidecar.valid>1||
@@ -186,20 +197,29 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int
     memcpy(s->switch_saved,campaign_switch_saved,sizeof(s->switch_saved));memcpy(s->event_saved,campaign_event_saved_states,sizeof(s->event_saved));
     if(s->switches.count>RF_CAMPAIGN_PICKUP_SLOTS||s->events.count>RF_CAMPAIGN_PICKUP_SLOTS||s->actors.count>RF_CAMPAIGN_ACTOR_SLOTS||
        s->switches.level_count>128||s->events.level_count>128||s->actors.level_count>128)return RF_FORMAT;
+    for(i=0;i<campaign_events.count;i++)if(!campaign_events.items[i].retired&&campaign_events.items[i].state.deadline>=0){needs_refs=1;break;}
+    if(needs_refs){status=scene_world_checkpoint_uid_map_open(stream,&objects,&object_count,RF_CHECKPOINT_FILE_MAX);if(status)return status;
+        map=(scene_event_checkpoint_map){objects,object_count,&campaign_registry};
+        refs=(rf_event_checkpoint_refs){scene_event_checkpoint_export,scene_event_checkpoint_import,&map};}
     for(i=0;i<campaign_events.count;i++){
-        const rf_runtime_event *e=campaign_events.items+i;if(!e->authored)return RF_FORMAT;
-        if(e->retired && rf_object_registry_lookup(&campaign_registry,e->handle))return RF_FORMAT;
+        const rf_runtime_event *e=campaign_events.items+i;if(!e->authored){status=RF_FORMAT;goto event_done;}
+        if(e->retired && rf_object_registry_lookup(&campaign_registry,e->handle)){status=RF_FORMAT;goto event_done;}
         if(e->retired){campaign_event_saved value;
-            status=campaign_event_capture(e,now,&value);if(status)return status;
-            status=rf_campaign_pickup_register(&s->events,campaign_current_level,e->authored->record.uid,&slot);if(status)return status;
+            status=campaign_event_capture(e,now,&refs,&value);if(status)goto event_done;
+            status=rf_campaign_pickup_register(&s->events,campaign_current_level,e->authored->record.uid,&slot);if(status)goto event_done;
             s->event_saved[slot]=value;s->events.items[slot].retired=1;continue;}
-        if(e->switch_state){status=rf_campaign_pickup_register(&s->switches,campaign_current_level,e->authored->record.uid,&slot);if(status)return status;
+        if(e->switch_state){status=rf_campaign_pickup_register(&s->switches,campaign_current_level,e->authored->record.uid,&slot);if(status)goto event_done;
             s->switch_saved[slot]=*e->switch_state;s->switches.items[slot].retired=1;}
-        if(e->state.type==20||e->state.type==84||e->state.type==87||e->state.type==88){campaign_event_saved value;
-            status=campaign_event_capture(e,now,&value);if(status)return status;
-            status=rf_campaign_pickup_register(&s->events,campaign_current_level,e->authored->record.uid,&slot);if(status)return status;
+        if(e->state.deadline>=0||e->state.type==20||e->state.type==84||e->state.type==87||e->state.type==88){campaign_event_saved value;
+            status=campaign_event_capture(e,now,&refs,&value);if(status)goto event_done;
+            status=rf_campaign_pickup_register(&s->events,campaign_current_level,e->authored->record.uid,&slot);if(status)goto event_done;
             s->event_saved[slot]=value;s->events.items[slot].retired=1;}
+        else {status=campaign_event_history_find(&s->events,campaign_current_level,e->authored->record.uid,&slot);
+            if(status==RF_NOT_FOUND)status=RF_OK;
+            else if(status)goto event_done;
+            else {s->events.items[slot].retired=0;memset(s->event_saved+slot,0,sizeof(s->event_saved[slot]));}}
     }
+event_done:free(objects);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;const rf_campaign_object_record *key;
         if(!o->persistence_registered)continue;slot=o->persistence_slot;if(slot>=s->actors.count||i>=campaign_seeds.records.count||
@@ -222,17 +242,17 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int
 }
 static void scene_history_write_keys(unsigned char *r,const rf_campaign_object_record *key)
 {scene_history_put(r,key->level);scene_history_put(r+4,key->uid);scene_history_put(r+8,key->retired);}
-static int scene_campaign_history_checkpoint_encode(const unsigned char identity[32],int32_t now,
+static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,const unsigned char identity[32],int32_t now,
     void *out,uint32_t capacity,uint32_t *written)
 {
     scene_campaign_history_checkpoint_stage *s;unsigned char *p=NULL,*r;uint32_t bytes,i,k,at=96;int status;
     if(!identity||!out||!written)return RF_RANGE;
-    s=calloc(1,sizeof(*s));if(!s)return RF_IO;status=scene_history_snapshot(s,now);if(status)goto done;
+    s=calloc(1,sizeof(*s));if(!s)return RF_IO;status=scene_history_snapshot(s,stream,now);if(status)goto done;
     bytes=96+(s->switches.level_count+s->events.level_count+s->actors.level_count)*64+
-        (s->switches.count+s->events.count)*32+s->actors.count*56+scene_history_carry_bytes(s->carry_mask);
+        s->switches.count*32+(s->events.count+s->actors.count)*56+scene_history_carry_bytes(s->carry_mask);
     if(bytes>capacity||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES){status=RF_RANGE;goto done;}
     p=calloc(1,bytes);if(!p){status=RF_IO;goto done;}
-    memcpy(p,"RFCH",4);scene_history_put(p+4,3);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
+    memcpy(p,"RFCH",4);scene_history_put(p+4,4);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
     scene_history_put(p+48,s->switches.level_count);scene_history_put(p+52,s->switches.count);
     scene_history_put(p+56,s->events.level_count);scene_history_put(p+60,s->events.count);
     scene_history_put(p+64,s->actors.level_count);scene_history_put(p+68,s->actors.count);
@@ -249,12 +269,15 @@ static int scene_campaign_history_checkpoint_encode(const unsigned char identity
             if(k==0){const rf_switch_state *v=s->switch_saved+i;scene_history_put(r+12,v->disabled);scene_history_put(r+16,(uint32_t)v->limit);
                 scene_history_put(r+20,v->unlimited);scene_history_put(r+24,v->activations);scene_history_put(r+28,(uint32_t)v->mode);}
             else if(k==1){const campaign_event_saved *v=s->event_saved+i;scene_history_put(r+12,v->type);scene_history_put(r+16,v->count);
-                scene_history_put(r+20,v->enabled);scene_history_put(r+24,v->fired);scene_history_put(r+28,(uint32_t)v->cycle_remaining);}
+                scene_history_put(r+20,v->enabled);scene_history_put(r+24,v->fired);scene_history_put(r+28,(uint32_t)v->cycle_remaining);
+                scene_history_put(r+32,(uint32_t)v->common_remaining);scene_history_put(r+36,v->mode);
+                scene_history_put(r+40,v->source_kind);scene_history_put(r+44,v->source_uid);
+                scene_history_put(r+48,v->actor_kind);scene_history_put(r+52,v->actor_uid);}
             else {const rf_campaign_weapon_drop *d=s->actors.drops+i;uint32_t j;
                 scene_history_put(r+12,s->actors.vitals[i].valid);scene_history_put_float(r+16,s->actors.vitals[i].health);scene_history_put_float(r+20,s->actors.vitals[i].armor);
                 scene_history_put(r+24,s->actors.mission[i].affiliation);scene_history_put(r+28,s->actors.mission[i].flags);scene_history_put(r+32,d->state);
                 scene_history_put(r+36,(uint32_t)d->weapon);scene_history_put(r+40,(uint32_t)d->quantity);for(j=0;j<3;j++)scene_history_put_float(r+44+j*4,d->position[j]);}
-            at+=k==2?56:32;
+            at+=k==0?32:56;
         }
     }
     scene_history_carry_write(p+at,s);
@@ -271,7 +294,7 @@ static inline int scene_campaign_history_checkpoint_prepare(const unsigned char 
     if(!out||*out)return RF_RANGE;status=scene_campaign_history_checkpoint_preflight(identity,data,bytes);if(status)return status;
     if(sizeof(*s)>budget)return RF_RANGE;s=calloc(1,sizeof(*s));if(!s)return RF_IO;
     s->countdown.difficulty=1;
-    if(scene_history_word(p+4)==3){s->countdown.remaining=scene_history_float(p+80);
+    if(scene_history_word(p+4)>=3){s->countdown.remaining=scene_history_float(p+80);
         s->countdown.expiry_pending=scene_history_word(p+84);s->countdown.difficulty=scene_history_word(p+88);}
     for(k=0;k<3;k++){
         uint32_t nl=scene_history_word(p+48+k*8),nr=scene_history_word(p+52+k*8);
@@ -282,10 +305,14 @@ static inline int scene_campaign_history_checkpoint_prepare(const unsigned char 
             rf_campaign_object_record *key=k==0?s->switches.items+i:k==1?s->events.items+i:s->actors.items+i;
             r=p+at;key->level=scene_history_word(r);key->uid=scene_history_word(r+4);key->retired=scene_history_word(r+8);
             if(k==0){rf_switch_state *v=s->switch_saved+i;v->disabled=scene_history_word(r+12);v->limit=scene_history_signed(r+16);v->unlimited=scene_history_word(r+20);v->activations=scene_history_word(r+24);v->mode=scene_history_signed(r+28);}
-            else if(k==1){campaign_event_saved *v=s->event_saved+i;v->type=scene_history_word(r+12);v->count=scene_history_word(r+16);v->enabled=scene_history_word(r+20);v->fired=scene_history_word(r+24);v->cycle_remaining=scene_history_signed(r+28);}
+            else if(k==1&&key->retired){campaign_event_saved *v=s->event_saved+i;v->type=scene_history_word(r+12);v->count=scene_history_word(r+16);v->enabled=scene_history_word(r+20);v->fired=scene_history_word(r+24);v->cycle_remaining=scene_history_signed(r+28);
+                v->common_remaining=-1;v->source_kind=v->actor_kind=1;
+                if(scene_history_word(p+4)>=4){v->common_remaining=scene_history_signed(r+32);v->mode=scene_history_word(r+36);
+                    v->source_kind=scene_history_word(r+40);v->source_uid=scene_history_word(r+44);
+                    v->actor_kind=scene_history_word(r+48);v->actor_uid=scene_history_word(r+52);}}
             else {rf_campaign_weapon_drop *d=s->actors.drops+i;s->actors.vitals[i].valid=scene_history_word(r+12);s->actors.vitals[i].health=scene_history_float(r+16);s->actors.vitals[i].armor=scene_history_float(r+20);
                 s->actors.mission[i].affiliation=scene_history_word(r+24);s->actors.mission[i].flags=scene_history_word(r+28);d->state=scene_history_word(r+32);d->weapon=scene_history_signed(r+36);d->quantity=scene_history_signed(r+40);for(j=0;j<3;j++)d->position[j]=scene_history_float(r+44+j*4);}
-            at+=k==2?56:32;
+            at+=k==2||(k==1&&scene_history_word(p+4)>=4)?56:32;
         }
     }
     if(scene_history_word(p+4)>=2){status=scene_history_carry_read(p+at,scene_history_word(p+72),s);if(status){free(s);return status;}}
