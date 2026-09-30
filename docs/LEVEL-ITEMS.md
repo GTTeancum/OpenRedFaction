@@ -73,8 +73,9 @@ and pickup sound/event integration remain open; no XEMU collection is claimed.
 ## Live Handgun pickup path
 
 The installed campaign item audit finds 593 placed items in 31 classes.
-The first-pass class table now recognizes Miner Envirosuit and Doctor Uniform,
-which account for ten formerly unsupported placed items. Both are static
+The first-pass class table now recognizes Miner Envirosuit, Doctor Uniform and
+Silenced 12mm Handgun. The two suit classes account for ten formerly unsupported
+placed items. Both are static
 models with no weapon declaration in `items.tbl`. The original default grant
 at `0x45a3d0` branches to `0x45a100` when both weapon and ammo IDs are absent;
 that service handles the player pickup notice and returns without changing
@@ -88,8 +89,8 @@ The stock-64-MiB L6S3 Xbox run at
 frames with one scripted Miner Envirosuit grant and 4,847 free pages; the test
 disc was restored. The staged player never entered range of placed UID6935,
 so that run does not verify placed-item retirement or the rendered notice.
-Doctor Uniform and the remaining unsupported Silenced 12mm Handgun and
-animated Demo_K000 classes are still unverified or unimplemented.
+Doctor Uniform placed collection and animated Demo_K000 remain unverified or
+unimplemented.
 
 The follow-up Xbox run
 `artifacts/xemu/nonweapon-pickup-20260929-221526/report.json` confirms that
@@ -98,6 +99,18 @@ Envirosuit picked up” in guest memory, with the disc restored. Accepted
 ordinary and scripted grants now select the authored singular, plural or
 weapon-and-ammo notice from the actual grant amount. The native HUD pixels and
 pickup audio were not inspected; placed suit collection is still open.
+
+The Silenced 12mm Handgun is authored once in `train02.rfl` as UID6596. Its
+installed table entry uses a static `weapon_silenced.v3d` world model and maps
+to the existing `12mm handgun` weapon. The first-pass class binding therefore
+uses that weapon's ownership and ammunition path; whether it also attaches a
+suppressor or selects a distinct first-person view remains open. The Xbox
+fixture at `artifacts/xemu/silenced-pickup-20260929-222342/report.json` loaded
+the level and model for 140 frames with 4,859 free physical pages. It did not
+collect the item: the staged player logged zero pickup-radius candidates and
+fell below the item's height during the approach. This confirms resource
+residency, not pickup behavior. The isolated fixture needs a closer safe spawn
+before collection, notice and suppressor behavior can be checked.
 
 Campaign scenes retain authored item records plus one availability byte per
 record. The first supported class is Handgun. Its table definition is checked

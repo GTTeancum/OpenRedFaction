@@ -15,6 +15,11 @@ int main(int argc,char **argv)
     for(kind=11;kind<SCENE_PICKUP_CLASSES;kind++) {
         int slot=scene_pickup_weapon_slot(kind);
         CHECK(rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&item)==RF_OK);
+        if(kind==SCENE_PICKUP_SILENCED_HANDGUN){
+            CHECK(slot==0 && item.mesh_kind==1 && scene_pickup_name_equal(item.weapon,"12mm handgun"));
+            CHECK(item.gives_weapon && item.pickup_messages[0][0]);
+            continue;
+        }
         if(kind>=28){
             CHECK(slot==-1 && item.mesh_kind==1 && !item.weapon[0] && !item.gives_weapon);
             CHECK(item.pickup_messages[0][0]);

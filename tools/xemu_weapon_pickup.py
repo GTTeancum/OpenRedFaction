@@ -1,4 +1,4 @@
-"""Xbox-only authored rifle pickup, switch and fire; no PC run or images."""
+"""Xbox-only authored weapon and suit pickup checks; no PC run or images."""
 import datetime
 import argparse
 import json
@@ -16,12 +16,12 @@ DISC = ROOT / 'build/xbox/disc'
 FRAMES = 140
 
 
-def replay(direct_switch=False, nonweapon=False):
+def replay(direct_switch=False, nonweapon=False, silenced=False):
     commands = []
     for frame in range(FRAMES):
-        forward = float(10 <= frame < (40 if nonweapon else 25))
-        fire = 0 if nonweapon else int(frame in ((80, 115) if direct_switch else (60, 115)))
-        cycle = 0 if nonweapon else ((1 if 40 <= frame < 50 or 60 <= frame < 70 else 2 if 50 <= frame < 60 else 0)
+        forward = float(10 <= frame < (80 if silenced else 40 if nonweapon else 25))
+        fire = 0 if nonweapon or silenced else int(frame in ((80, 115) if direct_switch else (60, 115)))
+        cycle = 0 if nonweapon or silenced else ((1 if 40 <= frame < 50 or 60 <= frame < 70 else 2 if 50 <= frame < 60 else 0)
                  if direct_switch else (1 if frame in (40, 105) else 2 if frame == 90 else 0))
         commands.append(struct.pack('<5f6I', 0, 0, forward, 0, 0,
                                     0, 0, 0, fire, 0, cycle))
@@ -42,14 +42,17 @@ def main():
                         help='hold next, then previous, then next with no neutral input frames')
     parser.add_argument('--nonweapon', action='store_true',
                         help='stage the authored L6S3 Miner Envirosuit scripted grant')
+    parser.add_argument('--silenced', action='store_true',
+                        help='stage the authored train02 Silenced 12mm Handgun pickup')
     args = parser.parse_args()
-    if args.direct_switch and args.nonweapon:
+    if sum((args.direct_switch, args.nonweapon, args.silenced)) > 1:
         parser.error('Choose only one focused fixture')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('nonweapon-pickup-' if args.nonweapon else
+    folder = ROOT / 'artifacts/xemu' / (('silenced-pickup-' if args.silenced else
+                                       'nonweapon-pickup-' if args.nonweapon else
                                        'weapon-direct-switch-' if args.direct_switch else 'weapon-pickup-') +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
@@ -58,20 +61,24 @@ def main():
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
     result = {'result': 'FAIL', 'scope': 'Stock-64-MiB Xbox authored item grant',
-              'direct_switch': args.direct_switch, 'nonweapon': args.nonweapon}
+              'direct_switch': args.direct_switch, 'nonweapon': args.nonweapon,
+              'silenced': args.silenced}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') +
-            (b'L6S3.rfl' if args.nonweapon else b'L4S5.rfl').ljust(64, b'\0'))
-        (DISC / 'campaign-item.bin').write_bytes(struct.pack('<I', 6935 if args.nonweapon else 3415))
+            (b'L6S3.rfl' if args.nonweapon else b'train02.rfl' if args.silenced else b'L4S5.rfl').ljust(64, b'\0'))
+        (DISC / 'campaign-item.bin').write_bytes(struct.pack('<I',
+            6935 if args.nonweapon else 6596 if args.silenced else 3415))
         (DISC / 'player-control.flag').write_bytes(b'')
-        (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch, args.nonweapon))
+        (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch, args.nonweapon, args.silenced))
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
                           extra_symbols={'rf_scene_pickups': 8,
+                                         'rf_scene_player_spawn_diagnostic': 19,
+                                         'rf_scene_actor_follow_frames': 896,
                                          'rf_scene_nonweapon_items': 4,
                                          'rf_scene_script_grants': 8,
                                          'rf_scene_pickup_notice': 16,
@@ -92,6 +99,11 @@ def main():
             if notice != b'Miner Envirosuit picked up':
                 raise RuntimeError(f'Authored pickup notice not published: {notice!r}')
             result['placed_pickup_collected'] = pickup[3] == 1 and pickup[5] == 6935
+            result['result'] = 'PASS'
+            return
+        if args.silenced:
+            if pickup[3] != 1 or pickup[5] != 6596:
+                raise RuntimeError(f'Silenced handgun was not collected: {pickup}')
             result['result'] = 'PASS'
             return
         if pickup[3:6] != [1, 42, 3415]:

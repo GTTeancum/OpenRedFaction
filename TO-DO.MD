@@ -48,7 +48,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - USER Xbox weapon input: Stock64MiB L4S5 checks collect the authored rifle, switch forward/back/forward with and without release frames, and fire it; physical shoulder/D-pad behavior and interactive pickup feel need a later user check, while PC hands-on testing stays deferred (docs/INPUT.md).
 
-- Campaign pickups: Authored singular/plural and weapon-plus-ammo notices now load for supported items, and stock64MiB L6S3 confirms the Envirosuit scripted grant and notice text; placed suit collection, rendered notice, pickup audio, Doctor Uniform, suit effects, Silenced 12mm Handgun and Demo_K000 remain open (docs/LEVEL-ITEMS.md).
+- Campaign pickups: Authored notices and the Envirosuit scripted grant run on stock64MiB Xbox; Silenced 12mm Handgun resources now load, while its safe-spawn collection and suppressor behavior, placed suit collection, rendered notice, pickup audio, Doctor Uniform effects and animated Demo_K000 remain open (docs/LEVEL-ITEMS.md).
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
