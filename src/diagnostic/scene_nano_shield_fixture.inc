@@ -60,7 +60,7 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
              int32_t weapon=campaign_slot_weapon(slot);
              if(weapon<0||weapon>=64)return RF_FORMAT;
              campaign_player_inventory.owned[weapon]=1;
-             if(!phase||phase==2)campaign_player_inventory.loaded[weapon]=2;
+             if(!phase||phase==2)campaign_player_inventory.loaded[weapon]=rf_scene_nano_test_mode>=2?0:2;
              campaign_select_primary(slot);campaign_ammo_publish();
              memset(&combat_trigger,0,sizeof(combat_trigger));rf_scene_combat[6]=0;player_input.fire=1;
              memcpy(row,&owner->damage.effects.health,4);memcpy(row+1,&owner->damage.effects.armor,4);

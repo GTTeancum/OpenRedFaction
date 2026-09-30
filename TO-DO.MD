@@ -20,7 +20,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, NPC-bound remote charges, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
 
 - NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
 
@@ -118,7 +118,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - AI mode events: Collectable shard eligibility is wired and hauling destination/reservation/release helpers are prepared; no collecting events or drop markers were found in94 installed levels, so automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md). Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
 
-- Remote charges: Static planted-charge saves work, and stock64MiB Xbox now consumes active-shield hits without attachment/damage while shield-OFF hits attach and detonate normally; moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md, docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
+- Remote charges: Static and NPC-bound charges survive ordinary Xbox save/load and detonate; active-shield hits are consumed without attachment/damage, while mover-host live checks, dead-host transitions, fragment-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md, docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
 - Shield combat: Xbox firearm, rocket, grenade and remote-charge contacts work in isolated checks; NPC/Fusion encounter coverage, shield effects/audio, boss movement reconciliation and broader save behavior remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
@@ -5955,3 +5955,10 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Added zero-amount shield admission before remote host publication; consumed charges become inactive/dead and retain no attachment/host, so normal draw/save/detonator scans skip them. Inactive shields keep the ordinary sticky path.
 - NXDK build passes. Isolated stock64MiB XEMU110-frame check stages two ordinary launch/ammo calls, toggles shield OFF for the second, and uses a process-local detonator input edge: one absorbed charge, one attachment, one detonation, no remaining active charges, and reserve3→2→1 with no detonator debit. Armor/health remain100/100 through shield absorption and ordinary attachment.
 - Report: artifacts/xemu/nano-shield-remotes-20260930-105746/report.json; disc flags restored. Moving-host saves, ordinary throw input/animation timing and presentation remain unverified by this check.
+
+### Attached remote ordinary saves (2026-09-30)
+
+- Replaced the blanket NPC/mover attachment rejection with admission against prepared world-host poses; durable IDs, local offsets and orientations rebind before the assignment-only world publication, without changing the save format.
+- Stock64MiB Xbox saves one charge attached to Capek UID8359, boots again, restores its exact position, switches to the detonator and detonates exactly once with no replacement launch or residual charge.
+- Report: artifacts/xemu/remote-host-save-20260930-110757/report.json; world30536 bytes, minimum endpoint4538 free pages (17.73MiB), original disc restored. NXDK build passes.
+- Mover admission is implemented but not separately live checked; dead-host transitions, fragment attachment saves and broader encounters remain. No PC test, images or campaign route was run.

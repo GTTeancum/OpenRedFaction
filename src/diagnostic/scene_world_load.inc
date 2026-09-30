@@ -171,11 +171,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(scene_ai_projectile_checkpoint_trigger_pending(projectiles)&&
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
-    status=scene_remote_checkpoint_preflight(stream,v->data,v->bytes);if(status)goto done;
-    /* Static-world attachments are stable in this unchanged-world profile.
-     * NPC/mover host poses are still candidates until the later commit, so
-     * reject those charges until host admission uses the staged world. */
-    status=scene_remote_checkpoint_static_world_only();if(status)goto done;
+    status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
     phase="validate";
     status=scene_npc_checkpoint_restore_validate(world->npcs);if(status)goto done;
     status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;

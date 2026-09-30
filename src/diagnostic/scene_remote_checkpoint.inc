@@ -77,7 +77,40 @@ static int scene_remote_checkpoint_capture(void *output,uint32_t capacity,uint32
 }
 static void scene_remote_checkpoint_discard(void)
 {scene_remote_restore_ready=0;}
-static int scene_remote_checkpoint_preflight(scene_stream *stream,const void *data,uint32_t bytes)
+/* Resolve attachment transport against the same candidate poses that the world
+ * transaction will publish. Live poses may differ after travel or a fresh boot. */
+static int scene_remote_checkpoint_world_host(const scene_world_restore_stage *world,
+    uint32_t tag,uint32_t expected,rf_remote_charge_host *host)
+{
+    uint32_t index=tag&0xffffu,i;
+    if(!world || !host)return RF_RANGE;
+    memset(host,0,sizeof(*host));host->handle=expected;
+    if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
+        if(!world->npcs)return RF_FORMAT;
+        for(i=0;i<world->npcs->count;i++){
+            const scene_npc_checkpoint_restore_entry *e=world->npcs->entries+i;
+            if(e->slot!=index)continue;
+            if(!e->registered || e->handle!=expected || e->saved.retired ||
+               e->saved.class_id>=campaign_seeds.class_count)return RF_FORMAT;
+            host->found=host->entity=1;
+            host->entity_flags=e->saved.death_flags_810|(e->saved.health<=0?1u:0u);
+            host->class_flags=campaign_seeds.classes[e->saved.class_id].physics.flags;
+            memcpy(host->position,e->body.position,12);memcpy(host->orientation,e->body.orientation,36);
+            return RF_OK;
+        }
+        return RF_FORMAT;
+    }
+    if((tag&0xffff0000u)==SCENE_MOVER_ROCKET_OWNER){
+        const rf_collision_solid_view *view;
+        if(index>=world->movers.mover_count || !world->movers.views)return RF_FORMAT;
+        view=world->movers.views+index;if(view->object_id!=expected)return RF_FORMAT;
+        host->found=1;memcpy(host->position,view->output_origin,12);memcpy(host->orientation,view->output_matrix,36);
+        return RF_OK;
+    }
+    return RF_FORMAT;
+}
+static int scene_remote_checkpoint_prepare(scene_stream *stream,const void *data,uint32_t bytes,
+    const scene_world_restore_stage *world)
 {
     rf_remote_checkpoint *state=&scene_remote_restore_state;uint32_t i,index,handle;int status;
     int32_t remote_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge");
@@ -101,7 +134,8 @@ static int scene_remote_checkpoint_preflight(scene_stream *stream,const void *da
                 if(!found || handle==UINT32_MAX)return RF_FORMAT;state->tags[i]=SCENE_MOVER_ROCKET_OWNER|index;
             }else return RF_FORMAT;
             charge->host=handle;charge->contact.object=state->tags[i];
-            status=scene_remote_host(stream,state->tags[i],handle,&host);if(status || !host.found)return status?status:RF_FORMAT;
+            status=world?scene_remote_checkpoint_world_host(world,state->tags[i],handle,&host):
+                scene_remote_host(stream,state->tags[i],handle,&host);if(status || !host.found)return status?status:RF_FORMAT;
             status=rf_remote_charge_update_host(charge,&host,&action);if(status || action!=1)return status?status:RF_FORMAT;
         }else{
             if(state->tags[i]!=UINT32_MAX || state->host_keys[i]!=UINT32_MAX || charge->contact.object!=UINT32_MAX)return RF_FORMAT;
@@ -110,15 +144,13 @@ static int scene_remote_checkpoint_preflight(scene_stream *stream,const void *da
     }
     scene_remote_restore_ready=1;return RF_OK;
 }
-static int scene_remote_checkpoint_static_world_only(void)
-{
-    uint32_t i;
-    if(!scene_remote_restore_ready)return RF_RANGE;
-    for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)
-        if(scene_remote_restore_state.charges[i].flight.lifecycle.active &&
-           scene_remote_restore_state.charges[i].host_bound)return RF_NOT_FOUND;
-    return RF_OK;
-}
+static int scene_remote_checkpoint_preflight(scene_stream *stream,const void *data,uint32_t bytes)
+{return scene_remote_checkpoint_prepare(stream,data,bytes,NULL);}
+static int scene_remote_checkpoint_world_preflight(scene_stream *stream,const void *data,uint32_t bytes,
+    const scene_world_restore_stage *world)
+{if(!world)return RF_RANGE;return scene_remote_checkpoint_prepare(stream,data,bytes,world);}
+/* Publication evidence: active, bound, first durable host UID, first position. */
+volatile uint32_t rf_scene_remote_restored[6];
 /* Infallible after successful preflight; call only once all other stage checks
  * pass. No callbacks, allocation, lookup or geometry mutation on publication. */
 static void scene_remote_checkpoint_publish(void)
@@ -129,6 +161,17 @@ static void scene_remote_checkpoint_publish(void)
     scene_remote_held=scene_remote_restore_state.held;scene_remote_pending=scene_remote_restore_state.pending;
     scene_remote_delay=scene_remote_restore_state.delay;scene_remote_cooldown=scene_remote_restore_state.cooldown;
     memset(rf_scene_remote,0,sizeof(rf_scene_remote));for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)rf_scene_remote[4]+=scene_remote_charges[i].flight.lifecycle.active!=0;
+    memset((void *)rf_scene_remote_restored,0,sizeof(rf_scene_remote_restored));
+    for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)if(scene_remote_charges[i].flight.lifecycle.active){
+        ++rf_scene_remote_restored[0];
+        if(scene_remote_charges[i].host_bound){
+            if(!rf_scene_remote_restored[1]){
+                rf_scene_remote_restored[2]=scene_remote_restore_state.host_keys[i];
+                memcpy((void *)(rf_scene_remote_restored+3),scene_remote_charges[i].flight.position,12);
+            }
+            ++rf_scene_remote_restored[1];
+        }
+    }
     scene_remote_restore_ready=0;scene_remote_restore_keep=scene_remote_restore_select=1;
 }
 /* Parent's frame0 reset becomes if(!keep_restored())scene_remote_reset(). */

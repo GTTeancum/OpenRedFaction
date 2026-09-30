@@ -12626,7 +12626,6 @@ static uint32_t scene_remote_checkpoint_level_hash(void);
 static uint32_t scene_remote_checkpoint_catalog_hash(void);
 static int scene_remote_checkpoint_capture(void *,uint32_t,uint32_t *);
 static int scene_remote_checkpoint_preflight(scene_stream *,const void *,uint32_t);
-static int scene_remote_checkpoint_static_world_only(void);
 static void scene_remote_checkpoint_publish(void);
 static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
@@ -12714,6 +12713,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_driller_actor_collision.inc"
 #include "scene_world_passive_support.inc"
 #include "scene_world_restore.inc"
+static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,uint32_t,const scene_world_restore_stage *);
 #include "scene_world_player_restore.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
