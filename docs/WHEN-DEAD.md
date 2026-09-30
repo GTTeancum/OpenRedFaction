@@ -35,8 +35,8 @@ Contained C tests cover all-linked death gating, optional missing-object gating,
 one-shot behavior, pending timers, downstream trigger activation and unknown
 objects. The existing rendered rifle round trip remains a regression check;
 it is not proof of a complete authored death-triggered mission chain. A later
-focused Xbox check proves L20S2's two Fighter deaths start its lift; real
-projectile-ray encounters and wider object-family coverage remain open.
+focused Xbox check proves L20S2's two ray-selected Fighter deaths start its
+lift; live player aiming, world cover and wider object-family coverage remain open.
 
 Validation: PC and NXDK builds pass, all36 CTests pass (including expanded
 mission_goal_dispatch), and the rendered240-frame rifle section round trip

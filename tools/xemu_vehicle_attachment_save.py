@@ -47,7 +47,8 @@ def main():
     symbols = dict(SYMBOLS)
     if dead_mode:
         symbols.update(rf_scene_watch_links=40,rf_scene_death_watches=97,
-                       rf_scene_passive_damage=8,rf_scene_watch_test=4)
+                       rf_scene_passive_damage=8,rf_scene_watch_test=4,
+                       rf_scene_watch_ray=6)
     if riding_mode:
         symbols.update(rf_scene_actor_pose=59, rf_scene_actor_landing=8,
                        rf_scene_passive_rising_support=6,
@@ -104,7 +105,8 @@ def main():
             rows=[watch[i:i+3] for i in range(1,1+watch[0]*3,3)]
             death=next((row for row in rows if row[0]==18354),None)
             if not death or death[1]!=1 or saved['extra']['rf_scene_passive_damage'][3]!=2 or \
-               saved['extra']['rf_scene_watch_test']!=[2,18353,60,0]:
+               saved['extra']['rf_scene_watch_test']!=[2,18353,60,0] or \
+               saved['extra']['rf_scene_watch_ray'][1]!=2:
                 raise RuntimeError(f'Fighters did not die before save: {death}')
         if riding_mode:
             if saved['extra']['rf_scene_actor_landing'][1] != 1 or \

@@ -2,8 +2,8 @@
 
 L20S2 When_Dead18354 is process-locally fired to activate Hanger Lift001;
 Detach18377 is fired at frame 60 for its masako_fighter4717 child. No
-desktop input or capture is used. --natural instead stages damage to the
-two linked Fighter01 vehicles and lets When_Dead18354 fire itself.
+desktop input or capture is used. --natural selects two linked Fighter01
+hulls with short rays, damages them and lets When_Dead18354 fire itself.
 """
 
 import datetime
@@ -131,6 +131,7 @@ def main():
                                          **({'rf_scene_passive_damage': 8,
                                              'rf_scene_watch_test': 4,
                                              'rf_scene_watch_vitals': 8,
+                                             'rf_scene_watch_ray': 6,
                                              'rf_scene_watch_links': 40,
                                              'rf_scene_death_watches': 97} if natural else {}),
                                          **({'rf_scene_passive_npc_fixture': 10,
@@ -169,12 +170,16 @@ def main():
                 rows=[watched[i:i+3] for i in range(1,1+watched[0]*3,3)]
                 death=next((row for row in rows if row[0]==18354),None)
                 damage=guest['extra']['rf_scene_passive_damage']
+                ray=guest['extra']['rf_scene_watch_ray']
+                entry=struct.unpack('<f',struct.pack('<I',ray[4]))[0]
                 result=guest['extra']['rf_scene_watch_test']
-                report['natural']={'death':death,'damage':damage,'fixture':result,
+                report['natural']={'death':death,'damage':damage,'ray':ray,'entry':entry,'fixture':result,
                                    'lift':final,'draw':draw,
                                    'links':guest['extra']['rf_scene_watch_links']}
                 if result!=[2,18353,60,0] or not death or death[1]!=1 or \
-                   damage[2]<2 or damage[3]<2 or damage[6] or draw[0]<3 or \
+                   damage[0]<2 or damage[1]<2 or damage[2]<2 or damage[3]<2 or \
+                   ray[1]!=2 or ray[2]!=18353 or not 0<entry<1 or ray[5] or \
+                   damage[6] or draw[0]<3 or \
                    final[2]<1 or position(final)[0]<ORIGINAL_X+.2:
                     raise RuntimeError(f'Fighter deaths did not start authored lift: {report["natural"]}')
             if contact and (guest['extra']['rf_scene_passive_collision'][1] < 1 or

@@ -15018,12 +15018,12 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     } /* per-shell projectiles */
     return RF_OK;
 }
-/* Process-local fixture: damage one linked NPC at frames30 and60. */
-uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_watch_vitals[8],rf_scene_watch_links[40],rf_scene_death_watches[97];
+/* Process-local fixture: damage one linked actor/vehicle at frames30 and60. */
+uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_watch_vitals[8],rf_scene_watch_ray[6],rf_scene_watch_links[40],rf_scene_death_watches[97];
 static int campaign_watch_fixture(uint32_t frame)
 {
     uint32_t i,j,k=0,wanted=frame==30?0:1;rf_runtime_event *watch=NULL;
-    if(!frame){memset(rf_scene_watch_test,0,sizeof(rf_scene_watch_test));memset(rf_scene_watch_vitals,0,sizeof(rf_scene_watch_vitals));}
+    if(!frame){memset(rf_scene_watch_test,0,sizeof(rf_scene_watch_test));memset(rf_scene_watch_vitals,0,sizeof(rf_scene_watch_vitals));memset(rf_scene_watch_ray,0,sizeof(rf_scene_watch_ray));}
     if(!rf_scene_watch_test_uid || (frame!=30 && frame!=60))return RF_OK;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==rf_scene_watch_test_uid)watch=campaign_events.items+i;
     if(!watch || watch->state.type!=16)return RF_NOT_FOUND;
@@ -15046,9 +15046,13 @@ static int campaign_watch_fixture(uint32_t frame)
     for(i=0;i<watch->authored->record.link_count;i++)for(j=0;j<campaign_passive_vehicle_count;j++)
         if(campaign_passive_vehicles[j].uid==watch->authored->links[i]) {
             scene_passive_vehicle *owner=campaign_passive_vehicles+j;
-            rf_weapon_flight_contact contact={0};uint32_t handled;float amount;int status;
+            scene_stream *stream=scene_actor_collision_owner;
+            rf_weapon_flight_contact contact={0};uint32_t handled,matched=0,sphere,axis,kind=owner->resource_kind;
+            float amount;int status=RF_OK;
             if(k++!=wanted)continue;
             if(owner->damage.destroyed||owner->damage.state.effects.health<=0)return RF_FORMAT;
+            if(!stream||kind>=6||!stream->passive_vehicle_sphere_count[kind]||
+               stream->passive_vehicle_sphere_count[kind]>8)return RF_FORMAT;
             rf_scene_watch_vitals[0]=owner->uid;
             rf_scene_watch_vitals[1]=owner->damage.object_flags;
             rf_scene_watch_vitals[2]=owner->damage.class_flags;
@@ -15056,7 +15060,47 @@ static int campaign_watch_fixture(uint32_t frame)
             memcpy(rf_scene_watch_vitals+4,&owner->damage.state.effects.armor,4);
             memcpy(rf_scene_watch_vitals+5,&owner->damage.factors[0],4);
             memcpy(rf_scene_watch_vitals+6,&owner->damage.factors[3],4);
-            contact.object=SCENE_DRILLER_PROJECTILE_OWNER;contact.face=owner->handle;
+            /* Find a short unobstructed hull ray in the actual vehicle-hit
+             * selector. This isolates hit selection from player aiming while
+             * still requiring the ordinary contact identity and damage path. */
+            for(sphere=0;sphere<stream->passive_vehicle_sphere_count[kind]&&!matched;sphere++) {
+                const rf_collision_body_sphere *shape=stream->passive_vehicle_spheres[kind]+sphere;
+                float center[3];uint32_t coordinate;
+                for(coordinate=0;coordinate<3;coordinate++)
+                    center[coordinate]=owner->pose.position[coordinate]+
+                        shape->center[0]*owner->pose.input_matrix[coordinate]+
+                        shape->center[1]*owner->pose.input_matrix[3+coordinate]+
+                        shape->center[2]*owner->pose.input_matrix[6+coordinate];
+                for(axis=0;axis<6&&!matched;axis++) {
+                    float start[3],delta[3]={0},reach=shape->radius*1.5f+.1f;
+                    uint32_t selected=0,coordinate=axis/2,other;
+                    /* Start outside the whole owned hull, not merely the
+                     * selected sphere: overlapping spheres can give time0. */
+                    for(other=0;other<stream->passive_vehicle_sphere_count[kind];other++) {
+                        const rf_collision_body_sphere *peer=stream->passive_vehicle_spheres[kind]+other;
+                        float peer_center=owner->pose.position[coordinate]+
+                            peer->center[0]*owner->pose.input_matrix[coordinate]+
+                            peer->center[1]*owner->pose.input_matrix[3+coordinate]+
+                            peer->center[2]*owner->pose.input_matrix[6+coordinate];
+                        float extent=fabsf(peer_center-center[coordinate])+peer->radius+.1f;
+                        if(reach<extent)reach=extent;
+                    }
+                    memcpy(start,center,12);
+                    start[coordinate]+=axis%2?-reach:reach;
+                    delta[coordinate]=axis%2?2*reach:-2*reach;
+                    ++rf_scene_watch_ray[0];
+                    status=scene_driller_firearm_select(campaign_player_object.handle,
+                        start,delta,1,&contact,&selected);
+                    if(status){rf_scene_watch_ray[5]=(uint32_t)status;return status;}
+                    matched=selected&&contact.object==SCENE_DRILLER_PROJECTILE_OWNER&&
+                        contact.face==owner->handle&&contact.hit.fraction>0.0001f&&
+                        contact.hit.fraction<1;
+                }
+            }
+            if(!matched){rf_scene_watch_ray[5]=(uint32_t)RF_NOT_FOUND;return RF_NOT_FOUND;}
+            ++rf_scene_watch_ray[1];rf_scene_watch_ray[2]=owner->uid;
+            rf_scene_watch_ray[3]=contact.face;
+            memcpy(rf_scene_watch_ray+4,&contact.hit.fraction,4);
             status=scene_driller_projectile_damage(&contact,campaign_player_object.handle,
                 100000,3,frame,&handled,&amount);
             memcpy(rf_scene_watch_vitals+7,&owner->damage.state.effects.health,4);

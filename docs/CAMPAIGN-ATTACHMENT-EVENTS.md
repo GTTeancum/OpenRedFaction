@@ -189,15 +189,18 @@ the retained wreck identity exposes death to `campaign_death_query`. The
 shared watcher treats linked event/trigger/controller/mover outputs as
 nonliving, so the two Fighter deaths determine when its lift output fires.
 
-The process-local stock-64-MiB Xbox `--natural` fixture applied fatal
-rocket-class damage through that vehicle damage service at frames 30 and 60.
-It did not fire event 18354 directly. The 90-frame run
-`artifacts/xemu/vehicle-group-natural-20260930-072752` passed: both Fighters
-were destroyed, `When_Dead` fired once at 1016 ms, the lift-linked fighter
-registered 24 movement commits, and 3,612 free pages remained. The fixture
-supplies a synthetic contact for those hits; actual player projectile-ray
-selection against these hulls is integrated but has not been independently
-verified. The Xbox `--attached` save/load run
+The process-local stock-64-MiB Xbox `--natural` fixture now constructs short
+rays against the authored Fighter hull spheres at frames 30 and 60, selects
+each vehicle through the ordinary firearm vehicle-hit query, and applies
+fatal rocket-class damage using the returned contact. It does not fire event
+18354 directly. The 90-frame run
+`artifacts/xemu/vehicle-group-natural-20260930-080957` passed: both rays
+entered the hull from outside and selected their intended Fighter, both
+vehicles were destroyed, `When_Dead`
+fired once at 1016 ms, the lift moved, and 3,612 free pages remained. This
+proves the shared ray-selection/contact/damage path in a contained case;
+full player aiming, world cover and actual weapon flight remain unverified.
+The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.
 `RFVA2` now writes 80-byte rows with pose, attachment, health, armor, object
@@ -211,5 +214,5 @@ fired at 1016 ms without another damage event. The attached lift fighter
 continued moving. Save and load ended with 3,633 and 3,441 free pages,
 respectively, and disc flags were restored. Native loading of an older
 `RFVA1` file has not been checked. Active burn/audio and attribution state,
-wreck effects, actual projectile-ray encounters and final visual content
+wreck effects, live player-shot encounters and final visual content
 remain open.
