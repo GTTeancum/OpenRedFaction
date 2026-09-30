@@ -35,15 +35,17 @@ def position(row):
 def main():
     inventory = sys.argv[1:] == ['--inventory']
     submarine = sys.argv[1:] == ['--submarine']
-    masako = sys.argv[1:] == ['--masako']
+    contact = sys.argv[1:] == ['--contact']
+    masako = sys.argv[1:] == ['--masako'] or contact
     short = inventory or submarine or masako
     if sys.argv[1:] and not short:
-        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako]')
+        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact]')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-masako-' if masako else
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-contact-' if contact else
+             'vehicle-group-masako-' if masako else
              'vehicle-group-submarine-' if submarine else
              'vehicle-group-inventory-' if inventory
              else 'vehicle-group-detach-') +
@@ -68,17 +70,21 @@ def main():
                 3977 if submarine else 1490 if inventory else 4717))
         if not short:
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 18354, 18377))
+        frames = 120 if contact else 10 if short else 90
         (DISC / 'player-replay.bin').write_bytes(
-            b'RFI5' + struct.pack('<I', 44) + bytes((10 if short else 90) * 44))
+            b'RFI5' + struct.pack('<I', 44) +
+            (struct.pack('<5f6I', 0, 0, 1, 0, 0, *([0] * 6)) * frames
+             if contact else bytes(frames * 44)))
         with (folder / 'build.log').open('wb') as log:
             subprocess.run(['C:/msys64/usr/bin/bash.exe', '--noprofile', '--norc',
                             'tools/build-xbox.sh', '--repack'], cwd=ROOT,
                            env=dict(os.environ, MSYSTEM='CLANG64'), stdout=log,
                            stderr=subprocess.STDOUT, check=True)
-        guest = run_guest(folder, 'run', hdd, 10 if short else 90, 420, snapshot=True,
+        guest = run_guest(folder, 'run', hdd, frames, 420, snapshot=True,
                           probe=None if short else attachment_probe, probe_frame=35,
                           extra_symbols={'rf_scene_passive_attachment': 14,
-                                         'rf_scene_passive_draw': 6},
+                                         'rf_scene_passive_draw': 6,
+                                         'rf_scene_passive_collision': 8},
                           allow_guest_error=True)
         report['guest'] = guest
         if guest['guest_phase'] & 0x80000000:
@@ -102,6 +108,9 @@ def main():
             draw = guest['extra']['rf_scene_passive_draw']
             if draw[0] != 1 or draw[1] != 1 or draw[2] < 1 or draw[4] != 4717 or draw[5]:
                 raise RuntimeError(f'Masako fighter chassis did not submit: {draw}')
+            if contact and (guest['extra']['rf_scene_passive_collision'][1] < 1 or
+                            guest['extra']['rf_scene_passive_collision'][4] != 4717):
+                raise RuntimeError(f'Actor did not contact fighter chassis: {guest["extra"]["rf_scene_passive_collision"]}')
         else:
             first = guest['probe']
             if first[0] < 1 or first[1] < 1 or first[2] < 1 or first[3] or first[4] != 4717:

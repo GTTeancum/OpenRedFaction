@@ -32,8 +32,11 @@ linked child's group memberships on `Detach` ON. The detached pose stays live
 and unchanged. Event links resolve to the same registered owner. Secondary
 instances now load one static chassis resource per class, share it across
 instances, merge its authored materials into the Xbox renderer, and submit
-room-visible models at their live group poses. They are not yet collidable or
-steerable secondary vehicles.
+room-visible models at their live group poses. One body-local set of model
+collision spheres per class is overlaid with authored `entity.tbl` sphere
+settings, then queried at each secondary instance's current pose for player
+and NPC body/ground sweeps. Its committed group velocity is available to the
+ordinary support resolver. These remain passive rather than steerable vehicles.
 They use a port-internal registry type so NPC-only event effects cannot treat
 their lightweight pose records as full actor views.
 
@@ -66,8 +69,17 @@ PS2-level visual parity remain unverified under the current no-images rule.
 The 90-frame L20S2 lift-and-Detach regression also passed with the secondary
 draw path enabled (`vehicle-group-detach-20260930-032346`, 3,856 free pages).
 
-The remaining work is to give secondary vehicles collision,
-support their scripted movement and combat, save attachment state, and connect
-the authored natural event sources.
+The stock-64-MiB contact fixture walks the staged player toward L20S2's
+Masako fighter for 120 frames. The final generic actor-collision build
+(`vehicle-group-contact-20260930-034111`) reported 234 chassis hits, including
+43 player ground contacts, and ended with 3,834 free pages. L20S1's
+three-Fighter load (`vehicle-group-inventory-20260930-033916`) also passed
+with 4,801 free pages and authored-sphere contact. This establishes Xbox
+player-to-secondary-body contact; NPC use of the common query, moving-platform
+carry and body motion against a stationary actor still need live checks.
+
+The remaining work is to verify and finish moving collision/support, support
+scripted vehicle movement and combat, save attachment state, and connect the
+authored natural event sources.
 The selected player-boardable host is still separate from this passive-owner
 collection. Other first-list object families remain unbound.

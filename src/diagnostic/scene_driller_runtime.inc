@@ -71,6 +71,66 @@ static int scene_driller_player_collision(scene_stream *s,const rf_collision_bod
     if(!status && *matched && hit->contact.object_id==host.handle)++rf_scene_vehicle_state[15];
     return status;
 }
+/* One authored collision-sphere set per static vehicle class. The shape is
+ * body-local, so every group-owned instance can reuse it at its live pose. */
+static int scene_passive_vehicle_collision_open(scene_stream *s,uint32_t kind,
+    const scene_driller_resources *resource)
+{
+    rf_entity_class_sphere resolved[8]={0};uint32_t i,count;int status;
+    if(!s || kind>=6 || !resource || !resource->render.spheres ||
+       !(count=resource->render.sphere_count) || count>8 || s->passive_vehicle_sphere_count[kind])return RF_RANGE;
+    for(i=0;i<count;++i) {
+        const rf_model_collision_sphere *sphere=resource->render.spheres+i;
+        float posed[4];
+        if(!memchr(sphere->name,0,sizeof(sphere->name)) ||
+           strlen(sphere->name)>=sizeof(resolved[i].name) || sphere->parent!=-1)return RF_FORMAT;
+        status=rf_model_collision_sphere_pose(sphere,NULL,0,posed);if(status)return status;
+        strcpy(resolved[i].name,sphere->name);memcpy(resolved[i].center,posed,12);
+        if(resource->physics.authored.flags&0x24000)
+            resolved[i].center[0]=resolved[i].center[2]=0;
+        resolved[i].radius=posed[3];resolved[i].selected_scalar=1;
+        resolved[i].parameter_10=-1;resolved[i].model_index=(int32_t)i;
+    }
+    status=rf_entity_sphere_overrides(resolved,count,resource->physics.spheres.items,
+        resource->physics.spheres.count,0);if(status)return status;
+    for(i=0;i<count;++i) {
+        if(!isfinite(resolved[i].radius) || resolved[i].radius<=0)return RF_FORMAT;
+        memcpy(s->passive_vehicle_spheres[kind][i].center,resolved[i].center,12);
+        s->passive_vehicle_spheres[kind][i].radius=resolved[i].radius;
+    }
+    s->passive_vehicle_sphere_count[kind]=count;return RF_OK;
+}
+static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,uint32_t linked,
+    const rf_collision_body_query *query,rf_geometry_body_hit *hit,uint32_t *matched)
+{
+    uint32_t index;int status;
+    if(!s || !campaign_passive_vehicle_count)return RF_OK;
+    for(index=0;index<campaign_passive_vehicle_count;++index) {
+        const scene_passive_vehicle *owner=campaign_passive_vehicles+index;
+        scene_driller_actor_collision body={0};const scene_driller_resources *resource;
+        uint32_t kind=owner->resource_kind;
+        if(kind>=6 || !s->passive_vehicle_sphere_count[kind]) {
+            rf_scene_passive_collision[7]=RF_FORMAT;return RF_FORMAT;
+        }
+        resource=s->passive_vehicle_resources[kind];
+        if(!resource && s->driller && campaign_selected_vehicle_resource_kind()==kind)resource=s->driller;
+        if(!resource){rf_scene_passive_collision[7]=RF_NOT_FOUND;return RF_NOT_FOUND;}
+        body.spheres=s->passive_vehicle_spheres[kind];body.count=s->passive_vehicle_sphere_count[kind];
+        body.handle=owner->handle;body.material=resource->physics.material.index;
+        memcpy(body.position,owner->pose.position,12);memcpy(body.next_position,body.position,12);
+        memcpy(body.orientation,owner->pose.input_matrix,36);
+        memcpy(body.next_orientation,body.orientation,36);
+        memcpy(body.velocity,owner->velocity,12);
+        ++rf_scene_passive_collision[0];
+        status=scene_driller_actor_compose(&body,actor,linked,query,hit,matched);
+        if(status){rf_scene_passive_collision[7]=(uint32_t)status;return status;}
+        if(*matched && hit->contact.object_id==body.handle) {
+            ++rf_scene_passive_collision[1];rf_scene_passive_collision[4]=owner->uid;
+            rf_scene_passive_collision[5]=body.handle;rf_scene_passive_collision[6]=body.count;
+        }
+    }
+    return RF_OK;
+}
 static int scene_driller_runtime_support(void *context,const rf_vehicle_rigid_state *state,rf_vehicle_rigid_support *out)
 {return scene_driller_support_sample(&((scene_driller_runtime*)context)->support,state,out);}
 static int scene_driller_runtime_resolve(void *context,const rf_vehicle_rigid_state *state,const rf_vehicle_rigid_proposal *proposal,rf_vehicle_rigid_proposal *out)
