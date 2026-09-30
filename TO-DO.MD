@@ -13,9 +13,9 @@ Remaining first-playable work, grouped for planning:
 
 - Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
 - Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving and preserves the suspended route through ordinary Xbox saves; waypoint-mode resume, NPC seats/turrets remain open (docs/VEHICLE-AI-MODES.md).
-- Stationary turrets: Static turret classes currently skip ordinary NPC body ownership; integrate their combat/damage owner before adding their replacement-model death bodies.
-- NPC rotating support: Grounded actors now use mover start/end transforms with existing collision admission; eight compiled-NXDK cases pass, while live rotation and idle support-loss velocity remain open (docs/NPC-ROTATING-SUPPORT.md).
-- Flame persistence: An active canister and sustained stream now resume through ordinary Xbox saves with correct impact/fuel behavior; pending-throw/reload coverage, burning targets and audio/visual refinement remain open.
+- Stationary turrets: Helpers have implemented model resources and static damage/contact owners; integrate and build them with aiming/fire behavior, then connect scripts and saves.
+- NPC rotating support: Grounded carry and support-loss velocity are integrated, with compiled Xbox transform and carry/fall/contact checks passing; live collision scheduling remains unverified (docs/NPC-ROTATING-SUPPORT.md).
+- Flame persistence: Burning-target saves now restore damage cadence and pain state on Xbox alongside canister/stream saves; removed-source attribution, pending-throw/reload coverage and presentation remain open (docs/FLAME-PICKUP-FIRST-PASS.md).
 - Corpse persistence: A settled skeletal death pose now saves and restores its owned body on Xbox without duplicate death effects; corpse age/fade/effects, unsettled deaths and static turret bodies remain open.
 
 Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
@@ -42,7 +42,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
-- NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and a stock-64-MiB Xbox guard lands on and follows a translating rocket-extracted fragment; fragment velocity refresh and post-checkpoint reprobe are wired, and grounded rotation now uses mover transforms with compiled-NXDK math checks; live rotating support, idle support-loss velocity, multi-fragment contacts and broader carry remain open (docs/MOVEMENT.md, docs/NPC-ROTATING-SUPPORT.md).
+- NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and a stock-64-MiB Xbox guard lands on and follows a translating rocket-extracted fragment; fragment velocity refresh and post-checkpoint reprobe are wired, and grounded rotation now uses mover transforms with compiled-NXDK math checks; live rotating support, multi-fragment contacts and broader carry remain open (docs/MOVEMENT.md, docs/NPC-ROTATING-SUPPORT.md).
 
 - Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
 

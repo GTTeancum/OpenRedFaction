@@ -80,3 +80,77 @@ revalidation of the same native data passes in `validation.json`; the original
 `report.json` FAIL is retained and no extra native run was needed. Both native
 sessions and the final disc-restoration build completed. No images or audible
 output were inspected, so particle submission is functional evidence only.
+
+
+## Burning NPC save owners (2026-09-30, source implementation)
+
+Ordinary RFWC3 saves now carry NPC burning owners through RFAP4 row10. RFNC
+continues to own health, armor and actor pose; RFAP owns the64-slot burn table.
+Each112-byte row stores kind10, slot, authored target UID, source kind, authored
+source UID where applicable, remaining lifetime and damage phase at offsets0..24;
+offsets28..40 preserve three relative pain deadlines and the selected pain action,
+and offset44 preserves the shared pain RNG. The remaining bytes are zero. The
+current300-frame lifetime and15-frame cadence
+are retained port policy. Per-pulse damage remains class_health*(0.25/6.5), based
+on retained42f1dc/rf_burn_owner_tick evidence; this change does not retune it.
+
+Source kinds distinguish absent, local player, authored NPC, ordinary vehicle and
+passive vehicle. Registered dead NPC sources retain their authored identity instead of writing
+a registry handle into the save. Sources removed after ignition currently reject
+capture because unregistration clears their handle; stable attribution captured
+at ignition remains open. Unknown sources reject capture;
+there is no fabricated fallback actor. Preflight resolves identities and checks
+that every target is a saved, live, registered NPC before assignment. Source NPCs
+must also have a saved NPC record and a recoverable live or registered-dead
+owner. Missing/unsupported actor states retain their
+existing save restrictions.
+
+NPC export now has an explicit burning profile only for composed ordinary saves;
+standalone NPC export retains its previous refusal. The world prefix includes
+burn-only state, boot resource demand includes flame effects, and publication
+restores the target's burn backlink and source without re-running ignition.
+Lifetime/phase continue directly; expiry clears both target backlink and source.
+Player ignition remains excluded by the current damage-effects admission and
+is not invented by this serializer. Attached particle history is regenerated,
+not persisted.
+
+`tools/xemu_burning_save.py` is a bounded source-save/fresh-load harness for
+L8S4 guard10318. Its opt-in fixture stages zero armor and catatonic AI, then calls
+the ordinary kind4 damage pipeline with damage1 atframe30. Source70frames saves
+remaining life/phase; load270frames is intended to verify remaining damage pulses,
+health arithmetic and terminal retirement without another ignition; this target
+has authored health300 below its class health500, so it dies before expiry. Native
+evidence and the independent player-death limitation are recorded below. No
+campaign route, PC runtime, images or audible inspection are involved.
+
+
+Initial native burn save `artifacts/xemu/burning-save-20260930-123541` reached
+one active burn with260 frames left and phase10 but rejected the target's pending
+pain.animation_lock (1450ms at current1150ms). The elite class has500 base health,
+so each burn pulse triggers ordinary pain animation; ignoring that timer would
+lose gameplay state. RFAP4 now serializes the three pain deadlines as relative
+milliseconds, including distinct disabled/expired states, the selected action
+and shared pain RNG. Ordinary NPC capture permits pending pain timers and the
+matching pain clip only when the burn owner is included; RFNC already stores the
+clip playback. Deadlines are rebased during final assignment after NPC pose restore.
+Original L8S4 record UID10318 names class `elite` at uncompressed offset1331095;
+entity.tbl has no fire-factor override for that class, so the parser's default1
+applies to the bounded health-arithmetic check.
+
+
+The corrected native run `artifacts/xemu/burning-save-20260930-123956` completed
+its70-frame save and270-frame load. It saved target10318 with260 burn frames left,
+phase10, health260.538452 and player-source identity. Pending pain deadlines were
+0/300/624ms, selected action22 and pain RNG2745024. The restored burn produced
+exactly14 further pulses, one retirement and one target death, with final health
+-8.69236755 matching binary32 damage arithmetic; its burn backlink/source cleared.
+Minimum endpoint memory is4503 free pages (17.59MiB). Disc restoration passed.
+
+The generic native harness still failed because the player-death counter was1
+during the load run. That original `report.json` remains FAIL, and the generic
+runtime gate was not relaxed. `tools/xemu_burning_save.py --validate-existing
+artifacts/xemu/burning-save-20260930-123956` rechecks all burn-specific assertions
+against the recorded checkpoint and source/load telemetry without another native
+run, writing `validation.json` with result `PASS_BURN_CONTINUITY`. This supports
+NPC burn save continuity only; it does not establish player survival or explain
+the separate player death. No images, audio output or campaign routes were used.

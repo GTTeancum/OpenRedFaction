@@ -172,6 +172,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
     status=scene_ai_projectile_checkpoint_fusion_admit(projectiles,&player.player.player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_flame_admit(projectiles,&player.player.player);if(status)goto done;
+    status=scene_ai_projectile_checkpoint_burning_admit(projectiles,world->npcs);if(status)goto done;
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
     phase="validate";

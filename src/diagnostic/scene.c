@@ -6397,11 +6397,13 @@ int rf_scene_npc_reset_ai_animation(uint32_t handle,uint32_t secondary)
     owner->ai_override.word_834=(int32_t)state.word_834;owner->ai_override.action_1364=state.action_1364;owner->ai_override.motion_1368=state.motion_1368;
     return status;
 }
+#include "scene_npc_support_lifecycle.inc"
 int rf_scene_npc_fall(uint32_t handle)
 {
     campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
     status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
     if(!campaign_seeds.classes)return RF_RANGE;
+    status=campaign_npc_support_release(owner);if(status)return status;
     owner->movement_slot=rf_movement_fall(campaign_modes,campaign_seeds.classes[cls].physics.flags,&owner->body.state.flags);
     owner->movement_orientation=campaign_identity[0];return RF_OK;
 }
@@ -12731,9 +12733,11 @@ static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_pr
 static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
 #include "scene_player_checkpoint.inc"
+static int scene_burning_checkpoint_owner_admit(uint32_t);
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
+static int scene_ai_projectile_checkpoint_burning_admit(const scene_ai_projectile_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *);
 #include "scene_mover_checkpoint.inc"
 #include "scene_event_checkpoint.inc"
 #include "scene_checkpoint_world.inc"
@@ -12763,8 +12767,8 @@ int rf_scene_mover_checkpoint_export(const unsigned char identity[32],int32_t no
 
 /* Component export for ordinary save composition. Does not write a complete
  * save or relax world admission; caller supplies its authored source identity. */
-int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
-    void *output,uint32_t capacity,uint32_t *written)
+static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int32_t now,
+    void *output,uint32_t capacity,uint32_t *written,uint32_t burning_profile)
 {
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
     uint32_t count=0,limit,i;int status;
@@ -12781,10 +12785,14 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
     limit=(capacity-RF_NPC_CHECKPOINT_HEADER)/RF_NPC_CHECKPOINT_ROW;
     if(limit>campaign_npc_body_count)limit=campaign_npc_body_count;
     if(limit){rows=malloc((size_t)limit*sizeof(*rows));if(!rows)return RF_IO;}
-    status=scene_npc_checkpoint_capture(&catalog,now,rows,limit,&count);
+    status=scene_npc_checkpoint_capture_mode(&catalog,now,rows,limit,&count,burning_profile);
     if(!status)status=rf_npc_checkpoint_encode(identity,&catalog,rows,count,output,capacity,written);
     free(rows);return status;
 }
+
+int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
+    void *output,uint32_t capacity,uint32_t *written)
+{return scene_npc_checkpoint_export_mode(identity,now,output,capacity,written,0);}
 
 #include "scene_world_checkpoint_identity.inc"
 #include "scene_event_history.inc"
@@ -14821,6 +14829,7 @@ static int scene_undercover_after_advance(scene_stream *);
 #include "scene_player_shield_melee.inc"
 #include "scene_fusion_gameplay.inc"
 #include "scene_flame_checkpoint.inc"
+#include "scene_burning_checkpoint.inc"
 #include "scene_ai_projectile_checkpoint.inc"
 #include "scene_conventional_fire_policy.inc"
 static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const float position[3])
@@ -15279,6 +15288,7 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
 }
 #include "scene_nano_shield_fixture.inc"
 #include "scene_special_save_fixture.inc"
+#include "scene_burning_save_fixture.inc"
 #include "scene_item_effect_fixture.inc"
 static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 {
@@ -15889,11 +15899,13 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(status){rf_scene_profile_stage[1]=108;return status;}
         status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
         if(status){rf_scene_profile_stage[1]=108;return status;}
+        status=scene_burning_save_fixture(frame);if(status)return status;
         status=scene_special_save_stage(frame);if(status)return status;
         status=scene_item_effect_stage(stream,frame);if(status)return status;
         status=campaign_combat_tick(stream,frame,staged?shot_eye:position,
             staged?(const float (*)[3])shot_basis:(const float (*)[3])orientation);
         rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}
+        scene_burning_save_probe(frame);
         if(staged==2 || rf_scene_nano_test_mode>=1){status=scene_nano_shot_result(frame);if(status)return status;}
         if(staged==1){
             scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
@@ -16939,6 +16951,7 @@ static int campaign_npc_land(scene_stream *stream,campaign_npc_body *owner,uint3
     memcpy(&clock_bits,&seconds,4);impact.clock_bits=clock_bits;
     status=rf_physics_support_accept(&owner->body.state,probe,contact->time,moving,contact->velocity[1],
         object_handle,(int32_t)contact->material,&owner->support,owner->published);if(status)return status;
+    status=campaign_npc_support_contact(owner,contact->velocity,moving);if(status)return status;
     status=rf_collision_contact_write(&owner->body.state,&owner->collision_contact,contact);if(status)return status;
     ++rf_scene_npc_idle_impact[0];
     status=rf_scene_npc_impact(handle,speed,&impact);
@@ -17046,6 +17059,7 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
                 hit.contact.velocity[1],moving?hit.contact.object_id:0,
                 (int32_t)hit.contact.material,&owner->support,owner->published);
             if(status)return status;
+            status=campaign_npc_support_contact(owner,hit.contact.velocity,moving);if(status)return status;
             owner->piece_support=piece_support;
             if(moving) {
                 ++rf_scene_npc_script_mover[1];rf_scene_npc_script_mover[5]=hit.contact.object_id;
@@ -17056,7 +17070,7 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
         if(carried){++rf_scene_passive_npc_fixture[9];goto grounded;}
         memset(&owner->piece_support,0,sizeof(owner->piece_support));
         if(!falling){status=rf_scene_npc_fall(owner->registration.handle);if(status)return status;
-            ++rf_scene_npc_script_ground[1];}
+            ++rf_scene_npc_script_ground[1];goto grounded;}
         proposal=owner->body.state;
         status=rf_physics_fall_propose(&proposal,elapsed,scene_gravity.acceleration,owner->support_velocity);
         if(status)return status;
@@ -17166,6 +17180,7 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
             if(moving)++rf_scene_npc_mover_support[1];
         }
         else owner->piece_support=piece_support;
+        if(!falling){status=campaign_npc_support_contact(owner,contact.velocity,moving);if(status)goto failed;}
         if(moving) {++rf_scene_npc_mover_support[3];rf_scene_npc_mover_support[7]=contact.handle;}
     } else {
         status=scene_passive_vehicle_npc_retain(stream,owner,&carried);if(status)goto failed;
@@ -19151,6 +19166,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
     memset(rf_scene_vehicle_ai_mode,0,sizeof(rf_scene_vehicle_ai_mode));
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
+    memset(rf_scene_npc_support_lifecycle,0,sizeof(rf_scene_npc_support_lifecycle));
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
     scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=scene_live_save_until=0;scene_live_save_status=RF_OK;
     scene_section_autosave_pending=0;
@@ -19503,7 +19519,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources);
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
-              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
+              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   /* NPC-only demand loads flights and effects without player views or ownership. */

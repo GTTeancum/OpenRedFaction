@@ -903,6 +903,7 @@ extern uint32_t rf_scene_player_spawn_diagnostic[19];
 extern uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_watches[97];
 extern uint32_t rf_scene_nano_test_uid,rf_scene_nano_test_mode;
 extern uint32_t rf_scene_special_save_mode;
+extern uint32_t rf_scene_burning_test_uid;
 extern uint32_t rf_scene_item_effect_mode;
 extern uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[16];
 extern uint32_t rf_scene_vehicle_shot_mode; /* process-local diagnostic: 1 keeps Attack NPC at its authored pose for ordinary save */
