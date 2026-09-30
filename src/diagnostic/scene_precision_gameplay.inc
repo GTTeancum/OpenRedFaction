@@ -127,7 +127,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
              * ownership changed. Rail continues with later ordered owners. */
             continue;
         }
-        {uint32_t consumed;status=scene_nano_firearm_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
+        {uint32_t consumed;status=scene_nano_weapon_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
          if(status)return status;if(consumed){combat_hit_frame=frame;if(rail)return RF_OK;continue;}}
         memcpy(&bits,&seconds,4);
         status=rf_scene_npc_damage(handle,&request,1,bits,&effects,&amount);

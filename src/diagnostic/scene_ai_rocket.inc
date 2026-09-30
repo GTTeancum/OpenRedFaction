@@ -69,7 +69,16 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
         if(move.terminal.kind==2){++rf_scene_ai_rockets[2];rf_scene_ai_rocket_timing[2]=frame;}
         if(move.terminal.kind==1){
             rf_weapon_flight_contact *contact=&move.terminal.contact;uint32_t tag=contact->object;
-            ++rf_scene_ai_rockets[1];rf_scene_ai_rocket_timing[1]=frame;status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);
+            ++rf_scene_ai_rockets[1];rf_scene_ai_rocket_timing[1]=frame;
+            if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
+                uint32_t index=tag&0xffffu,consumed;
+                int32_t weapon=definition==&campaign_tankbot_missile?
+                    rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile"):campaign_rocket_id;
+                if(index>=campaign_npc_body_count)return RF_RANGE;
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,weapon,shot->damage,&consumed);
+                if(status)return status;if(consumed)continue;
+            }
+            status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);
             if(tag!=UINT32_MAX && (tag&SCENE_DETACHED_ROCKET_OWNER)){
                 status=scene_detached_sources_damage(stream,(tag>>16)&0x7fff,tag&0xffff,shot->damage);if(status)return status;
             }

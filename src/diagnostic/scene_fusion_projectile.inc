@@ -55,7 +55,14 @@ static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scen
         if(movement.terminal.kind==2)++rf_scene_fusion_projectiles[2];
         if(movement.terminal.kind==1){
             rf_weapon_flight_contact *contact=&movement.terminal.contact;uint32_t tag=contact->object,k;float blast[3];
-            ++rf_scene_fusion_projectiles[1];status=visual(stream,contact,frame,shot->definition.impact_radius[0]);if(status)return status;
+            ++rf_scene_fusion_projectiles[1];
+            if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
+                uint32_t index=tag&0xffffu,consumed;
+                if(index>=campaign_npc_body_count)return RF_RANGE;
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_fusion_id,shot->damage,&consumed);
+                if(status)return status;if(consumed)continue;
+            }
+            status=visual(stream,contact,frame,shot->definition.impact_radius[0]);if(status)return status;
             if(tag!=UINT32_MAX && (tag&SCENE_DETACHED_ROCKET_OWNER)){
                 status=scene_detached_sources_damage(stream,(tag>>16)&0x7fff,tag&0xffff,shot->damage);if(status)return status;}
             if(tag==SCENE_AI_PROJECTILE_PLAYER || (tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){

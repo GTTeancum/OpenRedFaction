@@ -22,12 +22,13 @@ static int campaign_set_nano_shield(void *context,uint32_t handle,uint32_t enabl
     return RF_OK;
 }
 /* 4c5a90..4c5b5e: contact-owned shield debit precedes generic damage.
- * Firearms currently use this prepass; projectile contact/bursts remain separate.
+ * Firearms and straight-flight missiles use this prepass; grenades/remotes
+ * and radial-only damage remain separate.
  * Rail consumes100 armor regardless of its ordinary health damage. The contact
  * that breaks the shield is still consumed, with no health spill-through.
  * Exhausted armor is clamped to0 for the port's nonnegative save/vitals contract. */
 uint32_t rf_scene_nano_contact[8]; /* contacts,breaks,invulnerable,last UID,amount,armor,health,last weapon */
-static int scene_nano_firearm_contact(campaign_npc_body *owner,int32_t weapon,float amount,uint32_t *consumed)
+static int scene_nano_weapon_contact(campaign_npc_body *owner,int32_t weapon,float amount,uint32_t *consumed)
 {
     uint32_t cls;float adjusted;
     if(!owner||!consumed||!isfinite(amount)||amount<0)return RF_RANGE;

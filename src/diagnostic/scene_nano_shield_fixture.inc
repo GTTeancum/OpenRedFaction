@@ -1,7 +1,8 @@
-/* Process-local check: two rail contacts deplete a150-armor shield; a sniper
- * shot then reaches health. Only eye/input, finite ammo and initial armor are
- * staged. The normal player weapon, collision and damage paths do the work. */
-uint32_t rf_scene_nano_test_uid,rf_scene_nano_fixture[25];
+/* Process-local check: two rail/rocket contacts deplete a shield; a sniper
+ * shot then reaches health. Eye/input, finite ammo and initial armor are staged;
+ * other actors are hidden to isolate contact from encounter choreography.
+ * The normal player weapon, collision and damage paths do the work. */
+uint32_t rf_scene_nano_test_uid,rf_scene_nano_test_mode,rf_scene_nano_fixture[25],rf_scene_nano_aim[12];
 static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
     const float original[3][3],float eye[3],float basis[3][3],uint32_t *staged)
 {
@@ -10,10 +11,17 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
     phase=frame/30-1;
     for(index=0;index<campaign_npc_body_count;index++)if((uint32_t)campaign_seeds.records.items[index].record.uid==rf_scene_nano_test_uid){owner=campaign_npc_bodies+index;break;}
     if(!owner||!owner->registration.view||!owner->body.spheres.count)return RF_NOT_FOUND;
+    for(uint32_t other=0;other<campaign_npc_body_count;other++)if(other!=index && campaign_npc_bodies[other].registration.view){
+        status=campaign_set_visible(NULL,campaign_npc_bodies[other].registration.handle,0);if(status)return status;
+    }
+    rf_scene_nano_aim[0]=phase;rf_scene_nano_aim[1]=owner->object_flags;
+    rf_scene_nano_aim[2]=owner->view.flags_810;rf_scene_nano_aim[3]=owner->body.allocated_bytes;
+    memcpy(rf_scene_nano_aim+4,owner->body.state.position,12);
+    rf_scene_nano_aim[7]=owner->body.spheres.count;
     if(!phase){
         status=campaign_set_invulnerable(NULL,owner->registration.handle,0);if(status)return status;
         status=campaign_set_nano_shield(NULL,owner->registration.handle,1);if(status)return status;
-        owner->damage.effects.armor=150;
+        owner->damage.effects.armor=rf_scene_nano_test_mode==1?campaign_primary[4].damage*1.5f:150;
     }
     for(sphere=0;sphere<owner->body.spheres.count;sphere++){
         const rf_physics_sphere *shape=owner->body.spheres.items+sphere;float center[3];
@@ -21,19 +29,32 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
             center[j]=owner->body.state.position[j];
             for(uint32_t k=0;k<3;k++)center[j]+=shape->center[k]*owner->body.state.orientation[k*3+j];
         }
-        for(axis=0;axis<6;axis++){
-            float ray[3]={0};uint32_t blocked,direction=axis/2;
+        for(axis=0;axis<12;axis++){
+            float ray[3]={0};uint32_t blocked,direction=(axis/2)%3;
             rf_hitscan_candidate candidate={owner->registration.handle,1,&owner->registration,&owner->body,NULL};
             rf_weapon_precision_result hit;
-            memcpy(eye,center,12);eye[direction]+=(axis%2?-1.f:1.f)*(shape->radius+2.f);
+            memcpy(eye,center,12);eye[direction]+=(axis%2?-1.f:1.f)*(shape->radius+(axis<6?2.f:.05f));
             ray[direction]=axis%2?100.f:-100.f;
             status=rf_weapon_precision_select(&campaign_registry,&candidate,1,eye,ray,1,
                 RF_WEAPON_PRECISION_SNIPER,NULL,NULL,&hit);if(status)return status;
             if(!hit.count)continue;
-            status=combat_shot_obstructed(stream,eye,ray,hit.hits[0].fraction,&blocked);if(status)return status;
+            ++rf_scene_nano_aim[8];
+            status=combat_shot_obstructed(stream,eye,ray,hit.hits[0].fraction,&blocked);
+            if(status==RF_NOT_FOUND)continue;if(status)return status;
             if(blocked)continue;
+            ++rf_scene_nano_aim[9];
+            {
+                float radius=rf_scene_nano_test_mode==1 && phase<2?campaign_rocket.collision_radius:0;
+                rf_weapon_flight_contact contact={0};uint32_t liquid=0,matched=0;
+                /* The thin-ray preflight needs no alpha-texture sampler. */
+                status=scene_rocket_sweep(stream,eye,ray,radius,
+                    0x1004u|(radius>0 && radius<.05f?0x100u:0),&contact,&liquid,&matched);
+                if(status==RF_NOT_FOUND)continue;if(status)return status;
+                rf_scene_nano_aim[10]=matched;rf_scene_nano_aim[11]=contact.object;
+                if(!matched||liquid||contact.object!=(SCENE_ACTOR_ROCKET_OWNER|index))continue;
+            }
             memcpy(basis,original,36);memset(basis[2],0,12);basis[2][direction]=axis%2?1.f:-1.f;
-            {uint32_t slot=phase==2?6:7,*row=rf_scene_nano_fixture+1+phase*8;
+            {uint32_t slot=phase==2?6:rf_scene_nano_test_mode==1?4:7,*row=rf_scene_nano_fixture+1+phase*8;
              int32_t weapon=campaign_slot_weapon(slot);
              if(weapon<0||weapon>=64)return RF_FORMAT;
              campaign_player_inventory.owned[weapon]=1;
@@ -49,7 +70,9 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
 }
 static int scene_nano_shot_result(uint32_t frame)
 {
-    uint32_t *row=rf_scene_nano_fixture+1+(frame/30-1)*8;
+    uint32_t phase,*row;
+    if(rf_scene_nano_test_mode==1 && frame!=59 && frame!=89 && frame!=109)return RF_OK;
+    phase=frame==109?2:frame/30-1;row=rf_scene_nano_fixture+1+phase*8;
     for(uint32_t i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_nano_test_uid){
         memcpy(row+2,&campaign_npc_bodies[i].damage.effects.health,4);
         memcpy(row+3,&campaign_npc_bodies[i].damage.effects.armor,4);

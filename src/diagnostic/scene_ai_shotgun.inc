@@ -83,7 +83,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
         if(pellet_victim) {
             uint32_t entered;
-            uint32_t consumed;status=scene_nano_firearm_contact(pellet_victim,owner->view.weapons[0],request.amount,&consumed);
+            uint32_t consumed;status=scene_nano_weapon_contact(pellet_victim,owner->view.weapons[0],request.amount,&consumed);
             if(status)return status;if(consumed)continue;
             status=rf_scene_npc_damage(pellet_victim->registration.handle,&request,1,clock_bits,effects,&applied);
             if(!status)status=feedback->status;if(status)return status;

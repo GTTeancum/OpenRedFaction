@@ -120,7 +120,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Remote charges: Ordinary pickup/import/script demand and planted-charge updates work; a charge now survives ordinary quick-load and detonates on PC/Xbox with12.06MiB native headroom, while moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
-- Shield combat: Activate_Capek_Shield toggles actor immunity and RFNC10 retains its disable bit; stock-64-MiB Xbox firearm contacts now deplete Capek armor without health spill on the breaking shot, and a later shot damages/kills him; projectile rules, shield effects/audio, boss movement reconciliation, live toggle/save behavior and player-targeted persistence remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
+- Shield combat: Stock-64-MiB Xbox firearm and rocket contacts now deplete Capek armor without health spill on the breaking hit, and a later shot damages/kills him; NPC rockets/Tankbot missiles and Fusion share the prepass, while grenade/remote rules, shield effects/audio, boss movement reconciliation, live toggle/save behavior and player-targeted persistence remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
 - AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
 
@@ -5936,3 +5936,9 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Invulnerable targets retain armor; exhausted armor clamps to0 for the existing save/vitals contract. Projectile/explosion behavior stays separate, and original shield effects/audio and hover/run reconciliation remain open.
 - NXDK build passes. Focused stock64MiB XEMU L8S4 check passes110frames: armor150→50→0 with health100 unchanged, then sniper health100→-150/death; each shot consumes one finite round,4772free pages (18.64MiB), disc restored. Report: artifacts/xemu/nano-shield-20260930-102647/report.json.
 - No PC runtime, campaign traversal, images or host input. Broader NPC/invulnerable/toggle/save coverage is deferred.
+
+### Capek missile shield interception (2026-09-30)
+
+- Player rockets, NPC rockets/Tankbot missiles and Fusion flights now consume active NPC nano-shield contacts before ordinary direct damage, impact, blast and terrain-cut processing, matching the original early return at0x4c5b54..0x4c5b5d.
+- NXDK build and isolated stock64MiB XEMU check pass: two real player rockets debit400 armor each (600→200→0), leave health100 unchanged, retire both flights without blasts/cuts, and the subsequent sniper shot kills the unshielded actor. Finite ammo consumption passes; disc flags restored. Report: artifacts/xemu/nano-shield-rockets-20260930-104615/report.json.
+- The fixture hides other NPCs, selects actual finite-radius clearance, and stages eye/input/ammunition/initial armor; this is contact functionality, not an ordinary encounter or visual/audio check. NPC/Fusion routing is built but not independently exercised in XEMU.

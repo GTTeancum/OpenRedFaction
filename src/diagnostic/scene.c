@@ -11319,7 +11319,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
          rf_damage_request request={shot_damage,owner->registration.handle,kind,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
-             if(!melee){uint32_t consumed;status=scene_nano_firearm_contact(victim,weapon,request.amount,&consumed);
+             if(!melee){uint32_t consumed;status=scene_nano_weapon_contact(victim,weapon,request.amount,&consumed);
                  if(status)return status;if(consumed)goto enemy_shot_done;}
              status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
              if(victim->damage.effects.health<=0) {
@@ -14574,6 +14574,14 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
         if(event.kind==2)++rf_scene_rockets[2];
         if(event.kind==1) {
             ++rf_scene_rockets[1];
+            /* 4c5b54 returns consumed before ordinary impact/radial/terrain work. */
+            if((event.contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
+                uint32_t index=event.contact.object&0xffffu,consumed;
+                if(index>=campaign_npc_body_count)return RF_RANGE;
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_rocket_id,
+                    campaign_primary[4].damage,&consumed);if(status)return status;
+                if(consumed)continue;
+            }
             status=scene_impact_start(s,&event.contact,frame);if(status)return status;
             scene_impact_sound(event.contact.hit.point,frame);
             if(event.contact.object!=UINT32_MAX && (event.contact.object&0x80000000u)) {
@@ -15091,7 +15099,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
                 scene_npc_shield_receive(target,position,end,nearest,request.amount,request.kind,&accepted,&broken);if(status)return status;
             if(accepted)continue;
         }
-        if(campaign_equipped_slot!=2){uint32_t consumed;status=scene_nano_firearm_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
+        if(campaign_equipped_slot!=2){uint32_t consumed;status=scene_nano_weapon_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
          if(status)return status;if(consumed){combat_hit_frame=frame;continue;}}
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
         if(amount>0){combat_hit_frame=frame;
@@ -15799,7 +15807,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=campaign_combat_tick(stream,frame,staged?shot_eye:position,
             staged?(const float (*)[3])shot_basis:(const float (*)[3])orientation);
         rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}
-        if(staged==2){status=scene_nano_shot_result(frame);if(status)return status;}
+        if(staged==2 || rf_scene_nano_test_mode==1){status=scene_nano_shot_result(frame);if(status)return status;}
         if(staged==1){
             scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
             for(uint32_t index=0;index<campaign_passive_vehicle_count;index++)
@@ -19403,7 +19411,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources);
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
-              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
+              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_nano_test_mode==1?1u<<4:0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   /* NPC-only demand loads flights and effects without player views or ownership. */
