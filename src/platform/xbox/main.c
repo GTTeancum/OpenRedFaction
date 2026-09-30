@@ -1065,9 +1065,16 @@ int main(void)
             if(result==RF_OK) {
                 FILE *item_file=fopen("D:\\campaign-item.bin","rb");
                 if(item_file) {
-                    uint32_t uid;FILE *actor_file=fopen("D:\\campaign-actor.bin","rb"),*force_file=fopen("D:\\campaign-force.bin","rb");
-                    if(staged_door || staged_climb || staged_lift || actor_file || force_file || fread(&uid,4,1,item_file)!=1 || fgetc(item_file)!=EOF)result=RF_FORMAT;
-                    else result=rf_scene_stage_item(&level,uid);
+                    uint8_t raw[9];size_t size=fread(raw,1,sizeof(raw),item_file);uint32_t uid=0;float approach=0;
+                    FILE *actor_file=fopen("D:\\campaign-actor.bin","rb"),*force_file=fopen("D:\\campaign-force.bin","rb");
+                    if(size==4 || size==8){memcpy(&uid,raw,4);if(size==8)memcpy(&approach,raw+4,4);}
+                    if(staged_door || staged_climb || staged_lift || actor_file || force_file ||
+                       (size!=4 && size!=8) || !(approach>=0 && approach<=2.5f))result=RF_FORMAT;
+                    else {
+                        result=rf_scene_stage_item(&level,uid);
+                        /* Optional process-local approach shortens the staged gap for items over a ledge. */
+                        if(result==RF_OK)level.player_position[2]+=approach;
+                    }
                     if(actor_file)fclose(actor_file);if(force_file)fclose(force_file);fclose(item_file);
                 }
             }

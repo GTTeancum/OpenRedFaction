@@ -19,12 +19,13 @@ FRAMES = 140
 def replay(direct_switch=False, nonweapon=False, silenced=False):
     commands = []
     for frame in range(FRAMES):
-        forward = float(10 <= frame < (80 if silenced else 40 if nonweapon else 25))
-        fire = 0 if nonweapon or silenced else int(frame in ((80, 115) if direct_switch else (60, 115)))
+        forward = float(not silenced and 10 <= frame < (40 if nonweapon else 25))
+        fire = int(10 <= frame < 62) if silenced else 0 if nonweapon else int(frame in ((80, 115) if direct_switch else (60, 115)))
+        reload = int(frame in (65, 105)) if silenced else 0
         cycle = 0 if nonweapon or silenced else ((1 if 40 <= frame < 50 or 60 <= frame < 70 else 2 if 50 <= frame < 60 else 0)
                  if direct_switch else (1 if frame in (40, 105) else 2 if frame == 90 else 0))
         commands.append(struct.pack('<5f6I', 0, 0, forward, 0, 0,
-                                    0, 0, 0, fire, 0, cycle))
+                                    0, 0, 0, fire, reload, cycle))
     return b'RFI5' + struct.pack('<I', 44) + b''.join(commands)
 
 
@@ -70,8 +71,9 @@ def main():
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') +
             (b'L6S3.rfl' if args.nonweapon else b'train02.rfl' if args.silenced else b'L4S5.rfl').ljust(64, b'\0'))
-        (DISC / 'campaign-item.bin').write_bytes(struct.pack('<I',
-            6935 if args.nonweapon else 6596 if args.silenced else 3415))
+        (DISC / 'campaign-item.bin').write_bytes(
+            struct.pack('<If', 6596, 1.5) if args.silenced else
+            struct.pack('<I', 6935 if args.nonweapon else 3415))
         (DISC / 'player-control.flag').write_bytes(b'')
         (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch, args.nonweapon, args.silenced))
         build(folder, 'run')
@@ -102,8 +104,11 @@ def main():
             result['result'] = 'PASS'
             return
         if args.silenced:
-            if pickup[3] != 1 or pickup[5] != 6596:
-                raise RuntimeError(f'Silenced handgun was not collected: {pickup}')
+            notice = struct.pack('<16I', *guest['extra']['rf_scene_pickup_notice']).split(b'\0', 1)[0]
+            if pickup[3] < 2 or pickup[5] != 6596 or combat[0] < 1 or ammo[4] < 1:
+                raise RuntimeError(f'Silenced handgun was not collected after pistol fire/reload: {pickup}, {combat}, {ammo}')
+            if notice != b'12mm pistol with silencer picked up':
+                raise RuntimeError(f'Silenced handgun notice does not match items.tbl: {notice!r}')
             result['result'] = 'PASS'
             return
         if pickup[3:6] != [1, 42, 3415]:

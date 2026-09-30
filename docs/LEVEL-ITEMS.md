@@ -104,19 +104,24 @@ The Silenced 12mm Handgun is authored once in `train02.rfl` as UID6596. Its
 installed table entry uses a static `weapon_silenced.v3d` world model and maps
 to the existing `12mm handgun` weapon. The first-pass class binding therefore
 uses that weapon's ownership and ammunition path; whether it also attaches a
-suppressor or selects a distinct first-person view remains open. The Xbox
-fixture at `artifacts/xemu/silenced-pickup-20260929-222342/report.json` loaded
-the level and model for 140 frames with 4,859 free physical pages. It did not
-collect the item: the staged player logged zero pickup-radius candidates and
-fell below the item's height during the approach. This confirms resource
-residency, not pickup behavior. The isolated fixture needs a closer safe spawn
-before collection, notice and suppressor behavior can be checked.
+suppressor or selects a distinct first-person view remains open. The
+stock-64-MiB Xbox fixture at
+`artifacts/xemu/silenced-pickup-20260929-223037/report.json` loaded the model
+and collected UID6596 during a 140-frame run with 4,842 free physical pages.
+The neighboring Sniper Rifle is placed less than 0.4 units away and collects first.
+The starting pistol has a full reserve, so the fixture fired and reloaded it
+before the silenced item's ordinary ammo grant could retire it. The final
+guest pickup counter recorded both items and published the installed text
+“12mm pistol with silencer picked up”; the test disc was restored. This
+verifies inventory collection and notice publication, not that a suppressor
+was attached or rendered on the first-person pistol.
 
 Campaign scenes retain authored item records plus one availability byte per
-record. The first supported class is Handgun. Its table definition is checked
+record. The initial supported class was Handgun. Its table definition is checked
 against the existing pistol world-model resource, and the pistol model is
 included in resource selection even when no NPC carries it. No duplicate model
-or texture allocation is introduced. Other item classes remain unsupported.
+or texture allocation is introduced. The current class list is in
+`src/diagnostic/scene_pickup_class_names.inc`; animated Demo_K000 remains open.
 
 Available handguns draw at their authored position/orientation through the
 shared static-model renderer and existing NPC scratch. Before combat, live
