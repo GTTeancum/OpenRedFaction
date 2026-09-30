@@ -12,19 +12,21 @@ int main(void)
 {
     rf_world_checkpoint input={0},decoded,before;
     unsigned char pieces[RF_WORLD_CHECKPOINT_SECTIONS][3];
-    uint32_t i,bytes=99,full=RF_WORLD_CHECKPOINT_ALL_MASK;
+    uint32_t i,bytes=99,full=RF_WORLD_CHECKPOINT_ALL_MASK&~RF_WORLD_CHECKPOINT_MASK(RF_WORLD_PROJECTILES);
     memcpy(input.level,"L1S1.rfl",9);input.identity[0]=42;
-    for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS;i++){
+    for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS_V2;i++){
         memset(pieces[i],(int)i+1,3);input.sections[i].data=pieces[i];input.sections[i].bytes=3;
     }
     CHECK(rf_world_checkpoint_encode(&input,full,wire,sizeof(wire),&bytes)==RF_OK);
-    CHECK(bytes==RF_WORLD_CHECKPOINT_PREFIX+3*RF_WORLD_CHECKPOINT_SECTIONS);
+    CHECK(bytes==RF_WORLD_CHECKPOINT_PREFIX+3*RF_WORLD_CHECKPOINT_SECTIONS_V2&&wire[4]==2);
     CHECK(rf_world_checkpoint_decode(wire,bytes,full,&decoded)==RF_OK);
+    CHECK(rf_world_checkpoint_preflight(wire,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_PROJECTILES))==RF_FORMAT);
     CHECK(!memcmp(input.identity,decoded.identity,32)&&!strcmp(input.level,decoded.level));
-    for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS;i++){
+    for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS_V2;i++){
         CHECK(decoded.sections[i].data==wire+RF_WORLD_CHECKPOINT_PREFIX+3*i);
         CHECK(decoded.sections[i].bytes==3&&!memcmp(decoded.sections[i].data,pieces[i],3));
     }
+    CHECK(!decoded.sections[RF_WORLD_PROJECTILES-1].data&&!decoded.sections[RF_WORLD_PROJECTILES-1].bytes);
     /* Legacy v1 keeps its15 payloads and leaves new environment absent. */
     memcpy(saved,wire,128+15*12);put32(saved+4,1);put32(saved+16,15);
     for(i=0;i<15;i++)put32(saved+128+12*i+4,RF_WORLD_CHECKPOINT_PREFIX_V1+3*i);
@@ -69,6 +71,16 @@ int main(void)
     input.sections[0].data=wire+RF_WORLD_CHECKPOINT_PREFIX+1;
     CHECK(rf_world_checkpoint_encode(&input,1,wire,sizeof(wire),&i)==RF_RANGE);
     CHECK(i==bytes&&!memcmp(saved,wire,bytes));
+    /* Projectile payload selects v3; older envelopes remain readable. */
+    input.sections[0]=(rf_world_checkpoint_slice){pieces[0],3};
+    memset(pieces[RF_WORLD_PROJECTILES-1],17,3);
+    input.sections[RF_WORLD_PROJECTILES-1]=(rf_world_checkpoint_slice){pieces[RF_WORLD_PROJECTILES-1],3};
+    CHECK(rf_world_checkpoint_encode(&input,1|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_PROJECTILES),wire,sizeof(wire),&bytes)==RF_OK);
+    CHECK(bytes==RF_WORLD_CHECKPOINT_PREFIX_V3+6&&wire[4]==3);
+    CHECK(rf_world_checkpoint_decode(wire,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_PROJECTILES),&decoded)==RF_OK);
+    CHECK(decoded.sections[RF_WORLD_PROJECTILES-1].bytes==3&&
+          !memcmp(decoded.sections[RF_WORLD_PROJECTILES-1].data,pieces[RF_WORLD_PROJECTILES-1],3));
+    input.sections[RF_WORLD_PROJECTILES-1]=(rf_world_checkpoint_slice){0};
     /* The existing transport ceiling is unchanged, including envelope overhead. */
     input.sections[0]=(rf_world_checkpoint_slice){payload,RF_CHECKPOINT_FILE_MAX-RF_WORLD_CHECKPOINT_PREFIX};
     CHECK(rf_world_checkpoint_encode(&input,1,wire,sizeof(wire),&bytes)==RF_OK&&bytes==RF_CHECKPOINT_FILE_MAX);

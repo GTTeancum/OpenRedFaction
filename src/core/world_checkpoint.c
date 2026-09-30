@@ -17,10 +17,14 @@ static int overlap(const void *a,uint32_t an,const void *b,uint32_t bn)
 int rf_world_checkpoint_encode(const rf_world_checkpoint *input,uint32_t required,
     void *output,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=output;uint32_t i,at=RF_WORLD_CHECKPOINT_PREFIX,bytes,n;uint64_t total=RF_WORLD_CHECKPOINT_PREFIX;
+    unsigned char *p=output;uint32_t i,at,bytes,n,sections,version;
+    uint64_t total;
     const char *end;
     if(!input||!output||!written||(required&~RF_WORLD_CHECKPOINT_ALL_MASK))return RF_RANGE;
     end=memchr(input->level,0,64);if(!end||end==input->level)return RF_FORMAT;n=(uint32_t)(end-input->level);
+    version=input->sections[RF_WORLD_PROJECTILES-1].bytes?3:2;
+    sections=version==3?RF_WORLD_CHECKPOINT_SECTIONS:RF_WORLD_CHECKPOINT_SECTIONS_V2;
+    at=128+12*sections;total=at;
     for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS;i++){
         uint32_t size=input->sections[i].bytes;
         if(size&&!input->sections[i].data)return RF_RANGE;
@@ -37,10 +41,10 @@ int rf_world_checkpoint_encode(const rf_world_checkpoint *input,uint32_t require
         at+=s->bytes;
     }
     /* All failure paths precede writes; only clear metadata, never staged slices. */
-    memset(p,0,RF_WORLD_CHECKPOINT_PREFIX);memcpy(p,"RFWC",4);put(p+4,2);put(p+8,bytes);
-    put(p+16,RF_WORLD_CHECKPOINT_SECTIONS);memcpy(p+24,input->identity,32);memcpy(p+56,input->level,n);
-    at=RF_WORLD_CHECKPOINT_PREFIX;
-    for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS;i++){
+    memset(p,0,128+12*sections);memcpy(p,"RFWC",4);put(p+4,version);put(p+8,bytes);
+    put(p+16,sections);memcpy(p+24,input->identity,32);memcpy(p+56,input->level,n);
+    at=128+12*sections;
+    for(i=0;i<sections;i++){
         const rf_world_checkpoint_slice *s=input->sections+i;unsigned char *d=p+128+i*12;
         put(d,i+1);put(d+4,at);put(d+8,s->bytes);
         if(s->bytes&&s->data!=p+at)memcpy(p+at,s->data,s->bytes);at+=s->bytes;
@@ -54,9 +58,12 @@ static int decode(const void *input,uint32_t bytes,uint32_t required,rf_world_ch
     if(output&&overlap(input,bytes,output,sizeof(*output)))return RF_RANGE;
     if(bytes<RF_WORLD_CHECKPOINT_PREFIX_V1||bytes>RF_CHECKPOINT_FILE_MAX||memcmp(p,"RFWC",4)||
        word(p+8)!=bytes||word(p+20)||word(p+120)||word(p+124)||word(p+12)!=checksum(p,bytes))return RF_FORMAT;
-    version=word(p+4);if(version!=1&&version!=2)return RF_FORMAT;
-    sections=version==1?15:RF_WORLD_CHECKPOINT_SECTIONS;at=128+12*sections;
-    if(bytes<at||word(p+16)!=sections||(version==1&&(required&RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT))))return RF_FORMAT;
+    version=word(p+4);if(version<1||version>3)return RF_FORMAT;
+    sections=version==1?15:version==2?RF_WORLD_CHECKPOINT_SECTIONS_V2:RF_WORLD_CHECKPOINT_SECTIONS;
+    at=128+12*sections;
+    if(bytes<at||word(p+16)!=sections||
+       (version==1&&(required&RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT)))||
+       (version<3&&(required&RF_WORLD_CHECKPOINT_MASK(RF_WORLD_PROJECTILES))))return RF_FORMAT;
     for(n=0;n<64&&p[56+n];n++){}if(!n||n==64)return RF_FORMAT;
     for(i=n;i<64;i++)if(p[56+i])return RF_FORMAT;
     memcpy(result.identity,p+24,32);memcpy(result.level,p+56,64);

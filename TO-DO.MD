@@ -16,6 +16,8 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At and actor-targeted Attack, resumed guard combat, moving-ground and close-contact player save/reload on Xbox, including an optical L1S2 shallow-prop player fixture; other active orders and further authored contacts remain open (saves approximately99%).
 
+- NPC projectile saves: Ordinary saves still reject active enemy grenades and rockets; the optional RFWC3 projectile directory is ready, but flight capture, source rebinding and Xbox reload continuation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
+
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
 - NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and a stock-64-MiB Xbox guard lands on and follows a translating rocket-extracted fragment; fragment velocity refresh and post-checkpoint reprobe are wired, while carry after reload, rotating support, multi-fragment contacts, Goto carry, natural high falls and other modes remain open (docs/MOVEMENT.md).

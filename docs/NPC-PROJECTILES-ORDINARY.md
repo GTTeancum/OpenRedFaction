@@ -23,9 +23,9 @@ Full campaign integration, secondary-weapon AI policy, general persistence of in
 
 Active NPC grenade and rocket flights currently block ordinary player/vehicle
 checkpoint admission (`scene_player_checkpoint.inc` and
-`scene_driller_checkpoint_live.inc`). The world checkpoint has 16 canonical
-sections and none owns projectile state. A working save needs a versioned
-projectile component for the fixed flight pools, validated source attribution,
-and staged restore before publication; the existing RFWC1/2 decoders must
-remain readable. Removing the admission guard without this state would erase
-live grenades on load.
+`scene_driller_checkpoint_live.inc`). The envelope codec now reserves a
+17th PROJECTILES section in RFWC3; it emits unchanged RFWC2 when that section
+is empty and still decodes RFWC1/2. The live snapshot does not yet populate
+the new section. A working save still needs flight capture, validated source
+attribution/rebinding, and staged restore before publication. Removing the
+admission guard without those steps would erase live projectiles on load.
