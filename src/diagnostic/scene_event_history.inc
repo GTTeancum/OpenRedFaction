@@ -146,7 +146,7 @@ static int campaign_event_checkpoint(uint32_t save,int32_t now,scene_stream *str
     }
     status=RF_OK;
     for(i=0;i<campaign_events.count;i++) {
-        rf_runtime_event *event=campaign_events.items+i;campaign_event_saved captured;
+        rf_runtime_event *event=campaign_events.items+i;campaign_event_saved captured={0};
         uint32_t tracked=event->state.type==20 || event->state.type==84 || event->state.type==87 || event->state.type==88;
         if(!event->authored){status=RF_FORMAT;goto done;}
         if(save){

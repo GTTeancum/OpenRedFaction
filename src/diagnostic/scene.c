@@ -1399,6 +1399,25 @@ int rf_scene_fire_npc_event(uint32_t uid,int32_t now)
     return RF_NOT_FOUND;
 }
 
+int rf_scene_fire_setup_event_with_refs(uint32_t uid,uint32_t source_uid,uint32_t actor_uid,int32_t now)
+{
+    uint32_t i,source=0,actor=0;rf_runtime_event *target=NULL;rf_startup_events_report report;
+    if(!uid||!source_uid||!actor_uid)return RF_RANGE;
+    for(i=0;i<campaign_events.count;i++){
+        rf_runtime_event *event=campaign_events.items+i;
+        if(event->authored->record.uid==uid)target=event;
+        if(event->authored->record.uid==source_uid)source=event->handle;
+        if(event->authored->record.uid==actor_uid)actor=event->handle;
+    }
+    /* A bounded Xbox checkpoint fixture: only delayed Message activation is
+     * permitted, and both references must be live registered authored owners. */
+    if(!target||target->state.type!=15||target->state.delay<=0||!source||!actor||
+       !rf_object_registry_lookup(&campaign_registry,source)||
+       !rf_object_registry_lookup(&campaign_registry,actor))return RF_NOT_FOUND;
+    return rf_runtime_event_fire(&campaign_triggers,target->handle,source,actor,now,
+        &scene_gravity,NULL,NULL,&report);
+}
+
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;

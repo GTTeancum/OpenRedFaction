@@ -19,8 +19,12 @@ NXDK and shared PC compilation pass. A bounded 64-frame stock-64-MiB Xbox
 ordinary L1S2 save/reload with authored Message UID9727 pending passes. The
 saved RFCH4 row contains 8,950 ms remaining, mode1 and sentinel source/actor;
 reload leaves 3,339 free pages (`artifacts/xemu/native-world-20260930-003325`).
-This verifies actual delayed-row serialization and ordinary reload, but not
-real-handle UID rebinding or a section-return dispatch; both remain open.
+An additional bounded Xbox-only run activates that event with live authored
+event handles UID9728 and UID9732. Its RFCH4 row contains source/actor tags2
+and those respective UIDs, and ordinary reload succeeds with3,339 free pages
+(`artifacts/xemu/native-world-20260930-004000`). This establishes real-handle
+UID serialization and ordinary reload admission. Live reference state after
+reload and a section-return dispatch remain unverified.
 
 Read-only inspection of installed `levels1.vpp/L1S1.rfl` found 184 events across 32 types. All 32 types now have event-local field representation. This is static inventory coverage, not a claim that every gameplay event is implemented or that a full scene save has passed.
 

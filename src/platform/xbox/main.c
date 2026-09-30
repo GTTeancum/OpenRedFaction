@@ -40,7 +40,7 @@ uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,availabl
 char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
-static uint32_t campaign_setup_next_uid,campaign_goto_frame;
+static uint32_t campaign_setup_next_uid,campaign_setup_source_uid,campaign_setup_actor_uid,campaign_goto_frame;
 static uint32_t campaign_npc_drop_uid,campaign_npc_drop_frame;
 static float campaign_npc_drop_speed;
 static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
@@ -59,7 +59,9 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         campaign_npc_drop_uid=0;
     }
     if(campaign_setup_uid && !campaign_total_frames) {
-        int status=rf_scene_fire_setup_event(campaign_setup_uid,0);if(status)return status;
+        int status=campaign_setup_source_uid?
+            rf_scene_fire_setup_event_with_refs(campaign_setup_uid,campaign_setup_source_uid,campaign_setup_actor_uid,0):
+            rf_scene_fire_setup_event(campaign_setup_uid,0);if(status)return status;
     }
     if(campaign_setup_next_uid && campaign_total_frames==60) {
         int status=rf_scene_fire_setup_event(campaign_setup_next_uid,1000);if(status)return status;
@@ -526,8 +528,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(exit_file){int invalid=fread(&rf_scene_watch_test_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-setup.bin","rb");
         if(exit_file){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),exit_file);fclose(exit_file);
-            if((bytes!=4 && bytes!=8) || !values[0] || (bytes==8 && !values[1]))return RF_FORMAT;
-            campaign_setup_uid=values[0];campaign_setup_next_uid=values[1];}
+            if((bytes!=4 && bytes!=8 && bytes!=12) || !values[0] ||
+               (bytes==8 && !values[1]) || (bytes==12 && (!values[1]||!values[2])))return RF_FORMAT;
+            campaign_setup_uid=values[0];
+            if(bytes==12){campaign_setup_source_uid=values[1];campaign_setup_actor_uid=values[2];}
+            else campaign_setup_next_uid=values[1];}
         exit_file=fopen("D:\\campaign-follow.bin","rb");
         if(exit_file){int invalid=fread(&rf_scene_follow_npc_uid,4,1,exit_file)!=1 || !rf_scene_follow_npc_uid || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-goto.bin","rb");

@@ -222,6 +222,10 @@ def main():
     parser.add_argument('--fixture-mode', choices=('shallow', 'jeep-exit'), default='shallow')
     parser.add_argument('--setup-uid', type=int,
                         help='Fire one authored L1S2 event at frame zero before ordinary save')
+    parser.add_argument('--setup-source-uid', type=int,
+                        help='Live authored event UID passed as source to delayed Message setup')
+    parser.add_argument('--setup-actor-uid', type=int,
+                        help='Live authored event UID passed as actor to delayed Message setup')
     args = parser.parse_args()
     if not 32 <= args.frames <= 600 or not 30 <= args.seconds <= 3600:
         parser.error('Require 32..600 frames and 30..3600 seconds')
@@ -238,6 +242,10 @@ def main():
         parser.error('--fixture-mode requires --fixture')
     if args.setup_uid is not None and (fixture_data is not None or args.setup_uid <= 0):
         parser.error('--setup-uid requires ordinary L1S2 save mode and a positive UID')
+    if (args.setup_source_uid is None) != (args.setup_actor_uid is None) or \
+       (args.setup_source_uid is not None and
+        (args.setup_uid is None or args.setup_source_uid <= 0 or args.setup_actor_uid <= 0)):
+        parser.error('Source and actor UIDs must both be positive and require --setup-uid')
     require_no_project_xemu(ROOT)
     base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not base.is_file():
@@ -275,7 +283,9 @@ def main():
             (DISC / 'player-replay.bin').write_bytes(
                 b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44))
         if args.setup_uid is not None:
-            (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', args.setup_uid))
+            setup = (args.setup_uid,) if args.setup_source_uid is None else \
+                    (args.setup_uid, args.setup_source_uid, args.setup_actor_uid)
+            (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<' + 'I' * len(setup), *setup))
         if fixture_data is not None:
             (DISC / 'world-fixture-load.flag').write_bytes(b'1')
             (DISC / ('world-fixture' + args.fixture.suffix)).write_bytes(fixture_data)
@@ -324,9 +334,13 @@ def main():
                            if struct.unpack_from('<I', history, rows + i * 56 + 4)[0] == args.setup_uid]
                 if len(matched) != 1 or not 0 < matched[0][8] < 10000:
                     raise RuntimeError(f'Xbox pending event was not saved in RFCH4: {matched}')
+                if args.setup_source_uid is not None and \
+                   (matched[0][10:14] != (2, args.setup_source_uid, 2, args.setup_actor_uid)):
+                    raise RuntimeError(f'Xbox pending references were not UID mapped: {matched}')
                 report['pending_event_history'] = dict(uid=args.setup_uid,
                     remaining_ms=matched[0][8], mode=matched[0][9],
-                    source_kind=matched[0][10], actor_kind=matched[0][12])
+                    source_kind=matched[0][10], source_uid=matched[0][11],
+                    actor_kind=matched[0][12], actor_uid=matched[0][13])
             (DISC / 'world-hdd-save.flag').unlink()
             (DISC / 'world-hdd-load.flag').write_bytes(b'1')
             build(run, 'load')
