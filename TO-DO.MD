@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - PRIORITY Vehicle and platform attachments: Own linked campaign vehicles beyond the single selected host, bind general-object children to moving groups, then implement five Detach events with world-pose preservation on Xbox (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
-- Scripted movers: Authored Reverse_Mover now reverses six moving L7S4 doors on stock-64-MiB Xbox; direction-zero lift, natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md).
+- Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
 
 - Final nuke defusal: L20S3's Xbox puzzle pauses world simulation, reaches credits on completion and applies ordinary player damage on timeout; original art/audio, RNG seed and timeout transition presentation remain open (docs/DEFUSE-FIRST-PASS.md).
 

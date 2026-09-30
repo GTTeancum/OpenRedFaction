@@ -1382,6 +1382,9 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
            campaign_events.items[i].state.type==50)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
+        if(campaign_events.items[i].state.type==72)
+            return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
+                UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47 && campaign_events.items[i].state.type!=86 && campaign_events.items[i].state.type!=89)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
@@ -3125,6 +3128,38 @@ static int campaign_reverse_mover(void *context,uint32_t handle,uint32_t authore
         if(status)return status;
         ++rf_scene_reverse_mover[1];
     }
+    return RF_OK;
+}
+uint32_t rf_scene_mover_pause[6]; /* ON, OFF, stops, last handle, flags, next key */
+static int campaign_pause_mover(void *context,uint32_t handle,uint32_t paused)
+{
+    rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
+    rf_group_translation_runtime *runtime;
+    (void)context;
+    if(!controller || controller->object_kind!=8 || !controller->runtime ||
+       controller->runtime->kind==RF_GROUP_RUNTIME_EMPTY)return RF_NOT_FOUND;
+    runtime=&controller->runtime->translation;
+    if(paused){runtime->motion.flags|=0x80u;++rf_scene_mover_pause[0];}
+    else {runtime->motion.flags&=~0x80u;++rf_scene_mover_pause[1];}
+    rf_scene_mover_pause[3]=handle;rf_scene_mover_pause[4]=runtime->motion.flags;
+    rf_scene_mover_pause[5]=(uint32_t)runtime->motion.next_key;
+    return RF_OK;
+}
+static int campaign_stop_mover(void *context,uint32_t handle)
+{
+    rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
+    rf_group_translation_runtime *runtime;float unused=0;int status;
+    (void)context;
+    if(!controller || controller->object_kind!=8 || !controller->runtime ||
+       controller->runtime->kind==RF_GROUP_RUNTIME_EMPTY)return RF_NOT_FOUND;
+    runtime=&controller->runtime->translation;
+    if(controller->runtime->kind==RF_GROUP_RUNTIME_ROTATION_PENDING)
+        status=rf_group_motion_stop(&runtime->motion,&unused,&runtime->speed);
+    else status=rf_group_motion_stop(&runtime->motion,&runtime->speed,&unused);
+    if(status)return status;
+    ++rf_scene_mover_pause[2];rf_scene_mover_pause[3]=handle;
+    rf_scene_mover_pause[4]=runtime->motion.flags;
+    rf_scene_mover_pause[5]=(uint32_t)runtime->motion.next_key;
     return RF_OK;
 }
 #include "scene_switch_movers.inc"
@@ -5758,6 +5793,7 @@ static int campaign_bind_movers(void)
     if(!campaign_controller_views)return RF_RANGE;
     memset(campaign_pose_slots,0,sizeof(campaign_pose_slots));memset(rf_scene_live_motion,0,sizeof(rf_scene_live_motion));
     memset(rf_scene_rotating_doors,0,sizeof(rf_scene_rotating_doors));
+    memset(rf_scene_mover_pause,0,sizeof(rf_scene_mover_pause));
     memset(rf_scene_live_door_positions,0,sizeof(rf_scene_live_door_positions));
     for(i=0;i<campaign_group_runtime.count;++i) {
         campaign_controller_views[i].runtime=&campaign_group_runtime.items[i].translation;
@@ -19119,6 +19155,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
             campaign_triggers.reverse_mover=campaign_reverse_mover;
+            campaign_triggers.pause_mover=campaign_pause_mover;
+            campaign_triggers.stop_mover=campaign_stop_mover;
             memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {

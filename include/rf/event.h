@@ -360,6 +360,11 @@ typedef struct rf_runtime_triggers {
     /* Reverse_Mover89: authored low byte selects the active direction to flip. */
     int (*reverse_mover)(void *context,uint32_t handle,uint32_t authored_direction);
     void *reverse_mover_context;
+    /* Mover_Pause72 toggles bit 0x80; ordinary OFF links stop linked movers. */
+    int (*pause_mover)(void *context,uint32_t handle,uint32_t paused);
+    void *pause_mover_context;
+    int (*stop_mover)(void *context,uint32_t handle);
+    void *stop_mover_context;
     int (*move_npc)(void *context,uint32_t handle,const rf_level_event *event,uint32_t on);
     void *move_context;
     int (*play_animation)(void *,uint32_t,const rf_level_event *);

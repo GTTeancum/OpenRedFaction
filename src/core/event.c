@@ -783,6 +783,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         }
         return;
     }
+    if(state->type==72 && action!=2) {
+        if(!c->triggers->pause_mover){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->pause_mover(c->triggers->pause_mover_context,
+                link->value,action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(action==2) {
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
@@ -1030,7 +1042,12 @@ static void startup_target(startup_context *c,const rf_level_link_target *target
         return;
     }
     if(kind==8) {
-        if(!on)return;
+        if(!on) {
+            if(!c->triggers->stop_mover){++c->report->other_targets;return;}
+            status=c->triggers->stop_mover(c->triggers->stop_mover_context,target->value);
+            if(status==RF_NOT_FOUND)++c->report->other_targets;else c->status=status;
+            return;
+        }
         if(!c->triggers->activate_mover){++c->report->other_targets;return;}
         status=c->triggers->activate_mover(c->triggers->mover_context,target->value,source,actor,c->now);
         if(status==RF_NOT_FOUND)++c->report->other_targets;else c->status=status;
