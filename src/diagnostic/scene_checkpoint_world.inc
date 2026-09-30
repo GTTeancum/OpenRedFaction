@@ -47,6 +47,7 @@ typedef struct scene_checkpoint_world_context {
     uint32_t support_uid; /* Authored mover UID for a saved player; zero requires static support. */
 } scene_checkpoint_world_context;
 uint32_t rf_scene_checkpoint_world_route_contact[2]; /* admitted NPC,player shallow prop contacts */
+uint32_t rf_scene_checkpoint_world_reject[9]; /* phase, reason/owner, sphere, detail, status, overlap depth bits, authored prop, static world, route */
 static int scene_checkpoint_world_outside_modified(const scene_checkpoint_world_context *c,
     const rf_checkpoint_placement *p)
 {
@@ -107,7 +108,7 @@ static int scene_checkpoint_world_shallow_route_prop(const scene_checkpoint_worl
      * same room; the prop's immutable pose is checked independently here. */
     if(!c->fresh_boot||(!c->npc_route_contact&&!c->player_route_contact)||
        !scene_checkpoint_world_authored_prop(c,slot,prop)||
-       radius-sqrt(distance)>(c->player_route_contact?.025:.1))return 0;
+       radius-sqrt(distance)>.1)return 0;
     ++rf_scene_checkpoint_world_route_contact[c->player_route_contact?1:0];return 1;
 }
 /* Some authored NPC spawn spheres intersect an unadvanced mover. Preserve
@@ -237,6 +238,16 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
                         prop->uid,i,k,distance,radius*radius,radius-sqrt(distance),c->npc_route_contact,c->player_route_contact,c->fresh_boot,
                         c->authored_static_unchanged,scene_checkpoint_world_authored_prop(c,j,prop),RF_NOT_FOUND);
 #endif
+                    rf_scene_checkpoint_world_reject[0]=2;
+                    rf_scene_checkpoint_world_reject[1]=prop->uid;
+                    rf_scene_checkpoint_world_reject[2]=i;
+                    rf_scene_checkpoint_world_reject[3]=k;
+                    rf_scene_checkpoint_world_reject[4]=(uint32_t)RF_NOT_FOUND;
+                    {float depth=(float)(radius-sqrt(distance));
+                        memcpy(&rf_scene_checkpoint_world_reject[5],&depth,4);}
+                    rf_scene_checkpoint_world_reject[6]=scene_checkpoint_world_authored_prop(c,j,prop);
+                    rf_scene_checkpoint_world_reject[7]=c->authored_static_unchanged;
+                    rf_scene_checkpoint_world_reject[8]=c->player_route_contact;
                     return RF_NOT_FOUND;
                 }
             }
@@ -294,15 +305,22 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
      if(status&&scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phasestanding sphere%u reason%u retries%u room%u dt%.9g speed%.9g flags%u status%d\n",
         reason.sphere,reason.reason,reason.retries,c->reference_room,(double)c->dt,(double)c->class_speed,p.query_flags,status);
 #endif
-     if(status)return status;}
-    status=scene_checkpoint_world_obstacles(c,&p);if(status)return status;
-    status=rf_physics_ground_prepare(p.spheres,p.count,p.position,p.query_flags,0,c->dt,c->class_speed,0,&probe);if(status)return status;
+     if(status){rf_scene_checkpoint_world_reject[0]=1;
+         rf_scene_checkpoint_world_reject[1]=reason.reason;
+         rf_scene_checkpoint_world_reject[2]=reason.sphere;
+         rf_scene_checkpoint_world_reject[3]=reason.retries;
+         rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}}
+    rf_scene_checkpoint_world_reject[0]=2;
+    status=scene_checkpoint_world_obstacles(c,&p);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
+    rf_scene_checkpoint_world_reject[0]=3;
+    status=rf_physics_ground_prepare(p.spheres,p.count,p.position,p.query_flags,0,c->dt,c->class_speed,0,&probe);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
     memcpy(sphere.center,probe.sphere.center,12);sphere.radius=probe.sphere.radius;
     memcpy(query.start,probe.start,12);memcpy(query.end,probe.end,12);
     for(i=0;i<3;i++)query.matrix[i][i]=1;
     query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
+    rf_scene_checkpoint_world_reject[0]=4;
     status=rf_geometry_collision_body_sweep(c->world,c->movers,&query,c->scratch,c->scratch_count,
-        c->metadata,c->metadata_context,&hit,&matched);if(status)return status;
+        c->metadata,c->metadata_context,&hit,&matched);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
     if(matched&&(!isfinite(hit.contact.fraction)||!isfinite(hit.contact.normal[1])||hit.contact.material>INT32_MAX))return RF_FORMAT;
     if(!matched||(hit.solid!=UINT32_MAX&&!c->support_uid)||hit.contact.fraction>=1||hit.contact.normal[1]<.5f){
         /* Original stationary NPCs need not have run a support query. Absence
@@ -318,6 +336,11 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
             else printf("WORLD_RESTORE_PLACEMENT phasefloor matched0 start_y%.9g end_y%.9g status%d\n",(double)probe.start[1],(double)probe.end[1],RF_NOT_FOUND);
         }
 #endif
+        rf_scene_checkpoint_world_reject[0]=5;
+        rf_scene_checkpoint_world_reject[1]=matched;
+        rf_scene_checkpoint_world_reject[2]=matched?hit.solid:UINT32_MAX;
+        rf_scene_checkpoint_world_reject[3]=matched?hit.contact.material:UINT32_MAX;
+        rf_scene_checkpoint_world_reject[4]=(uint32_t)RF_NOT_FOUND;
         return RF_NOT_FOUND;
     }
     next_support.handle=0;next_support.material=(int32_t)hit.contact.material;

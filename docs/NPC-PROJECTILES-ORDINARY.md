@@ -19,13 +19,29 @@ The former DEV-only attack gates now require prepared projectile resources. Auth
 
 ## Remaining first-pass work
 
-Full campaign integration, secondary-weapon AI policy, general persistence of in-flight projectiles and authored grenade release timing remain open. Aggregate live logs do not prove exact remaining NPC rounds or exhaustion; finite debit is verified by focused implementation tests. Audio dispatch has not been auditioned. Broader encounters and presentation are deferred to integration/testing feedback.
+Full campaign integration, secondary-weapon AI policy and authored grenade release timing remain open. Aggregate live logs do not prove exact remaining NPC rounds or exhaustion; finite debit is verified by focused implementation tests. Audio dispatch has not been auditioned. Broader encounters and presentation are deferred to integration/testing feedback. Current runtime checks are Xbox-only; the PC target is compiled but gameplay is not run.
 
-Active NPC grenade and rocket flights currently block ordinary player/vehicle
-checkpoint admission (`scene_player_checkpoint.inc` and
-`scene_driller_checkpoint_live.inc`). The envelope codec now reserves a
-17th PROJECTILES section in RFWC3; it emits unchanged RFWC2 when that section
-is empty and still decodes RFWC1/2. The live snapshot does not yet populate
-the new section. A working save still needs flight capture, validated source
-attribution/rebinding, and staged restore before publication. Removing the
-admission guard without those steps would erase live projectiles on load.
+Ordinary player/vehicle saves now capture live NPC grenades and rockets into
+the optional 17th PROJECTILES section of RFWC3. Each fixed-pool row persists
+flight motion, remaining lifetime/fuse, damage, the authored source UID and
+the projectile-specific contact or orientation state. Restore validates all
+rows and rebinds the source before publishing them with the staged NPC state.
+The envelope still emits RFWC2 without active flights and reads RFWC1/2.
+DEV checkpoint admission retains its earlier in-flight guard.
+
+Stock-64-MiB XEMU saved one active grenade at frame 200 and one rocket at
+frame 34 in controlled, ordinary L1S1 encounters. Both RFWC3 payloads
+reloaded and advanced 60 frames. The grenade remained active while the guard
+launched another; rocket telemetry recorded the restored impact and a later
+new impact. The guest reported no checkpoint failure, with at least 4688 free
+physical pages at the endpoints. The initial harness reports label these runs
+FAIL because their continuation accounting incorrectly rejected legitimate new
+launches or omitted rocket impacts; the harness logic has since been fixed.
+These checks establish numeric continuation only, not visual or audio quality.
+The unchanged authored prop UID 8785 overlapped the saved player by 7.7 cm;
+the shallow player/prop restore allowance is now 10 cm, the same bound used
+for NPCs, so this legal native position can load.
+
+Open: an active flight whose source NPC has already retired cannot yet be
+captured, broader natural campaign encounters remain untested, and exact
+grenade terminal effects after reload remain unverified.

@@ -56,7 +56,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||campaign_player_view.linked_handle!=-1||rf_scene_actor_landing[1]!=1||
        combat_trigger.cooldown||combat_trigger.remaining||combat_trigger.delay||combat_trigger.held||rf_scene_combat[6]||
-       riot_charge_remainder||rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()||scene_fusion_projectile_pending()||scene_burning_save_pending()||scene_flame_input_pending()||scene_flame_canister_save_pending())return RF_RANGE;
+       riot_charge_remainder||rf_scene_rockets[3]||(!modes&&(scene_ai_grenade_pending()||scene_ai_rocket_pending()))||scene_fusion_projectile_pending()||scene_burning_save_pending()||scene_flame_input_pending()||scene_flame_canister_save_pending())return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.velocity[i])||fabsf(scene_actor_body.state.velocity[i])>32.f||
         actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
     if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;

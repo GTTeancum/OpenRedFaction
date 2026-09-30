@@ -9,6 +9,7 @@ typedef struct scene_world_player_stage {
     float basis[9],eye[9];rf_checkpoint_placement placement;rf_physics_sphere seat_scratch;
     const scene_npc_checkpoint_restore_stage *npcs;
 } scene_world_player_stage;
+uint32_t rf_scene_world_player_probe[3]; /* prepare step, status, room */
 static int scene_world_player_pair(void *context,uint32_t index,rf_checkpoint_placement *p,uint32_t *retired)
 {
     const scene_world_player_stage *s=context;
@@ -45,15 +46,19 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     scene_world_player_stage s={0};rf_player_checkpoint_catalog catalog;scene_checkpoint_world_context context;
     rf_collision_room_location location;const rf_world_checkpoint_slice *v;int status;
     if(!stream||!world||!world->npcs||!out||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count)return RF_RANGE;
+    rf_scene_world_player_probe[0]=1;
     status=scene_checkpoint_player_catalog_mode(&catalog,1);if(status)return status;
+    rf_scene_world_player_probe[0]=2;
     v=world->envelope.sections+RF_WORLD_PLAYER-1;status=rf_player_checkpoint_decode(v->data,v->bytes,&catalog,&s.player);if(status)return status;
     if(vehicle && vehicle->value.vehicle.player_occupied){
         status=rf_player_checkpoint_seated_profile_validate(&s.player,&catalog,vehicle->profile,
             scene_vehicle_checkpoint_typed(vehicle));
         if(status)return status;
     }else{status=rf_player_checkpoint_validate(&s.player,&catalog,s.basis,s.eye);if(status)return status;}
+    rf_scene_world_player_probe[0]=3;
     v=world->envelope.sections+RF_WORLD_WEAPON_MODES-1;
     status=rf_weapon_modes_checkpoint_decode(v->data,v->bytes,scene_remote_checkpoint_catalog_hash(),&s.modes);if(status)return status;
+    rf_scene_world_player_probe[0]=4;
     status=scene_weapon_modes_checkpoint_prepare(stream,&s.player.player,&s.modes);if(status)return status;
     if(vehicle && vehicle->value.vehicle.player_occupied){
         if(support_uid)return RF_FORMAT;
@@ -80,7 +85,9 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         context.spawn_shell_position=stream->world_checkpoint_level->player_position;
     }
     context.dt=scene_step_seconds;context.class_speed=rf_scene_actor_movement_values.speed;
+    rf_scene_world_player_probe[0]=5;
     status=rf_geometry_collision_world_locate(context.world,s.player.position,&location);if(status)return status;
+    rf_scene_world_player_probe[1]=location.room;
     if(location.room==UINT32_MAX||location.room>=context.world->room_count)return RF_NOT_FOUND;
     context.reference_room=location.room;
     if(vehicle && vehicle->value.vehicle.player_occupied){
@@ -88,7 +95,8 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         status=rf_checkpoint_world_placement_check(&s.placement,NULL);if(status)return status;
         s.room.room=location.room;
         memcpy(s.room.query_position,s.player.position,12);
-    }else{status=scene_checkpoint_world_place(&context,&s.placement,&s.room,&s.support);if(status)return status;}
+    }else{rf_scene_world_player_probe[0]=6;
+        status=scene_checkpoint_world_place(&context,&s.placement,&s.room,&s.support);if(status)return status;}
     if(support_uid){
         uint32_t i,found=0;
         for(i=0;i<context.movers->count;i++)if((uint32_t)context.movers->uids[i]==support_uid &&
@@ -97,8 +105,10 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         }
         if(found!=1)return RF_FORMAT;
     }
+    rf_scene_world_player_probe[0]=7;
     s.npcs=world->npcs;status=scene_npc_checkpoint_pair_fit_allowed(s.npcs->count+1,scene_world_player_pair,
         &s,scene_world_player_npc_overlap_allowed);if(status)return status;
+    rf_scene_world_player_probe[0]=8;
     s.body=scene_actor_body.state;memcpy(s.body.position,s.player.position,12);memcpy(s.body.next_position,s.player.position,12);
     memcpy(s.body.orientation,s.basis,36);memcpy(s.body.next_orientation,s.basis,36);memcpy(s.body.velocity,s.player.velocity,12);
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,s.body.position,&s.body.bounds);if(status)return status;

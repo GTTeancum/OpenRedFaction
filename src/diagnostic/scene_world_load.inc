@@ -5,6 +5,7 @@
  * Called once after frame-zero initialization, before the next input tick.
  * All gameplay owners validate before assignment; cache demand may remain on
  * an aborted load and is owned by normal scene cleanup. */
+uint32_t rf_scene_world_load_reject[3]; /* phase FNV1a, status, staged bytes */
 static int scene_world_load(scene_stream *stream,const rf_level *level,const char *tables_path)
 {
     extern rf_entity_room_state rf_scene_actor_room_state;
@@ -24,6 +25,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_authored_collection_stage *collection_stage=NULL;
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
+    scene_ai_projectile_checkpoint_stage *projectiles=NULL;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
     uint32_t vehicle_present=0,vehicle_base=0,authored_terrain=0,authored_cuts=0;
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
@@ -154,6 +156,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_campaign_history_checkpoint_rebind_prepare(history,budget-cost,&bindings);if(status)goto done;cost+=bindings->bytes;
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
+    phase="npc_projectiles";v=envelope.sections+RF_WORLD_PROJECTILES-1;
+    if(v->bytes){status=scene_ai_projectile_checkpoint_prepare(v->data,v->bytes,budget-cost,&projectiles);
+        if(status)goto done;cost+=scene_ai_projectile_checkpoint_stage_bytes();}
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_preflight(stream,v->data,v->bytes);if(status)goto done;
     /* Static-world attachments are stable in this unchanged-world profile.
@@ -176,6 +181,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
      * driver possession needs the saved player body and health in place. */
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
+    scene_ai_projectile_checkpoint_assign(projectiles);
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
     if(vehicle_present)scene_world_vehicle_route_assign(&vehicle_route);
     scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);
@@ -218,6 +224,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
     scene_world_startup_snapshot_consumed=1;
  done:
+    if(status){const unsigned char *name=(const unsigned char *)phase;uint32_t hash=2166136261u;
+        while(*name)hash=(hash^*name++)*16777619u;
+        rf_scene_world_load_reject[0]=hash;rf_scene_world_load_reject[1]=(uint32_t)status;
+        rf_scene_world_load_reject[2]=cost;}
     rf_scene_world_checkpoint_state[0]=(uint32_t)status;rf_scene_world_checkpoint_state[1]=status?0:bytes;
     rf_scene_world_checkpoint_state[2]=status?0:cost;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -228,6 +238,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_authored_collection_stage_discard(&collection_stage);
     scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
+    scene_ai_projectile_checkpoint_discard(&projectiles);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
 }
 #endif

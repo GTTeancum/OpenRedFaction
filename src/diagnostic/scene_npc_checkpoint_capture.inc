@@ -18,8 +18,19 @@ static int scene_npc_checkpoint_level_equal(const char *a,const char *b)
     }
     return 0;
 }
+uint32_t rf_scene_npc_checkpoint_reject_state[6]; /* UID, reason hash, part, value bits, status, frame */
 static int scene_npc_checkpoint_reject(uint32_t index,const char *reason,uint32_t part,double value,int status)
 {
+    uint32_t hash=2166136261u,bits;float reduced=(float)value;
+    const unsigned char *text=(const unsigned char *)reason;
+    while(*text){hash=(hash^*text++)*16777619u;}
+    memcpy(&bits,&reduced,4);
+    rf_scene_npc_checkpoint_reject_state[0]=(uint32_t)campaign_seeds.records.items[index].record.uid;
+    rf_scene_npc_checkpoint_reject_state[1]=hash;
+    rf_scene_npc_checkpoint_reject_state[2]=part;
+    rf_scene_npc_checkpoint_reject_state[3]=bits;
+    rf_scene_npc_checkpoint_reject_state[4]=(uint32_t)status;
+    rf_scene_npc_checkpoint_reject_state[5]=combat_frame;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *enabled=getenv("RF_REPLAY_WORLD_CHECKPOINT_PROBE");
     if(enabled&&!strcmp(enabled,"1"))printf("WORLD_CHECKPOINT_NPC_ADMISSION uid%u reason%s part%u value%.9g status%d\n",
@@ -256,8 +267,9 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
                !campaign_playback_resources.models[pose->skeleton].resources||
                (!initializing&&!o->script_animation.active&&!terminal_dead&&
                 !campaign_playback_resources.models[pose->skeleton].resources[motion].looping&&
-                !((o->combat_scripted==3||o->combat_scripted==1)&&(motion==o->selection.mapping.actions[2]||
-                  motion==o->selection.mapping.actions[39])))||
+                !((o->combat_alert==1||o->combat_scripted==3||o->combat_scripted==1)&&
+                  (motion==o->selection.mapping.actions[2]||
+                   motion==o->selection.mapping.actions[39])))||
                (terminal_dead&&campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
         }

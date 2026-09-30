@@ -57,7 +57,7 @@ def address(mapping, name):
 
 
 def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
-              allow_guest_error=False, allow_player_dead=False):
+              allow_guest_error=False, allow_player_dead=False, capture_world=False):
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -97,6 +97,8 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 'rf_xbox_level_transitions', 'rf_player_replay_diagnostic',
                 'rf_scene_actor_frame_count', 'rf_scene_campaign_load_stage',
                 'rf_scene_follow_level_exits', 'rf_scene_level_transition')}
+    if capture_world:
+        symbols['rf_scene_world_checkpoint_data'] = address(mapping, 'rf_scene_world_checkpoint_data')
     extra_symbols = extra_symbols or {}
     extra_addresses = {key: address(mapping, key) for key in extra_symbols}
     monitor = process = None
@@ -140,8 +142,6 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 if stage != last:
                     print(f'{name}: phase {stage[0]}, frame {diagnostic[37]}', flush=True)
                     last = stage
-                if diagnostic[2] & 0x80000000 and not allow_guest_error:
-                    raise RuntimeError(f'{name}: guest error {diagnostic[2]:08x}')
                 if diagnostic[2] == 5 or diagnostic[2] & 0x80000000:
                     break
                 time.sleep(.5)
@@ -170,7 +170,23 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
             if extra_addresses:
                 result['extra'] = {key: words(monitor, extra_addresses[key], count)
                                    for key, count in extra_symbols.items()}
+            if capture_world and not (diagnostic[2] & 0x80000000):
+                pointer = words(monitor, symbols['rf_scene_world_checkpoint_data'], 1)[0]
+                if state[3] != 0 or not 320 <= state[4] <= 110524 or not pointer:
+                    raise RuntimeError(f'{name}: Xbox world checkpoint unavailable: {state}')
+                data = bytearray()
+                for offset in range(0, state[4], 4096):
+                    count = (min(4096, state[4] - offset) + 3) // 4
+                    data.extend(struct.pack('<' + 'I' * count,
+                                            *words(monitor, pointer + offset, count)))
+                payload = bytes(data[:state[4]])
+                (phase_dir / 'xbox-world.rfwc').write_bytes(payload)
+                result['world_checkpoint_sha256'] = hashlib.sha256(payload).hexdigest()
             (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+            if diagnostic[2] & 0x80000000 and not allow_guest_error:
+                raise RuntimeError(f'{name}: guest error {diagnostic[2]:08x}, '
+                                   f'world checkpoint {state}, '
+                                   f'NPC projectile telemetry {result.get("extra")}')
             if allow_guest_error and diagnostic[2] & 0x80000000:
                 return result
             if diagnostic[37] != frames:
