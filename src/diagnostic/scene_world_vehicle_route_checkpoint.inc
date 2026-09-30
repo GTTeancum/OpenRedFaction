@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_WORLD_VEHICLE_ROUTE_CHECKPOINT_INC
 #define RF_SCENE_WORLD_VEHICLE_ROUTE_CHECKPOINT_INC
+#include "scene_vehicle_route_retention.inc"
 /* Ordinary vehicle trailer. The RFWC source identity pins the authored event
  * and waypoint bytes; runtime handles and borrowed path pointers stay on the
  * new scene. Legacy128/160-byte vehicle records mean no active route or
@@ -114,11 +115,11 @@ static int scene_world_vehicle_route_write(void *data,uint32_t capacity,uint32_t
 {
     unsigned char encoded[SCENE_WORLD_VEHICLE_ROUTE_BYTES]={0};
     unsigned char roundtrip[1+SCENE_WORLD_VEHICLE_ROUTE_BYTES]={0};
-    scene_campaign_vehicle_route checked;uint32_t kind;int status;
+    scene_campaign_vehicle_route checked;uint32_t kind,present;int status;
     if(!data||!written)return RF_RANGE;*written=0;
-    if(!campaign_vehicle_route.active && !campaign_vehicle_route.ai_action)return RF_OK;
+    status=scene_world_vehicle_route_capture_shape(&campaign_vehicle_route,&present,&kind);
+    if(status)return status;if(!present)return RF_OK;
     if(capacity<SCENE_WORLD_VEHICLE_ROUTE_BYTES)return RF_RANGE;
-    kind=campaign_vehicle_route.pursuit?2:campaign_vehicle_route.path.count?1:0;
     memcpy(encoded,"RFVR",4);scene_world_route_put(encoded+4,3);
     if(kind){
         scene_world_route_put(encoded+8,campaign_vehicle_route.event);

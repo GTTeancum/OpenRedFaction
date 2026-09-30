@@ -55,7 +55,7 @@ typedef struct rf_npc_checkpoint_catalog {
  * at offset544 rebinds the actor's mover-controller backlink; zero means none.
  * Ordinary combat alert at offset548 survives as awareness only: scene restores
  * it with a fresh attack delay, not the original burst/reload deadline.
- * Terminal frozen dead poses use offsets552/556/560 for presence, death flags
+ * Terminal single-clip dead poses, settled or in progress, use offsets552/556/560 for presence, death flags
  * and action. They require one retained frozen clip and no pending death timer.
  * Offset564 gives extension length (0 or168). The extension retains active movement,
  * borrowed route node ordinals, active Look_At command and per-frame look state.

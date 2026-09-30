@@ -116,7 +116,7 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
     if(r->dead_pose){
         if(r->retired||r->health>0||r->combat_alert||!(r->death_flags_810&1u)||
            r->death_action<0||r->death_action>=45||!r->animation_present||
-           !r->playback.completion.frozen||r->playback.completion.active.count!=1||r->script_animation.active)return RF_FORMAT;
+           r->playback.completion.active.count!=1||r->script_animation.active)return RF_FORMAT;
     }else if(r->death_flags_810||r->death_action)return RF_FORMAT;
     if(r->move.active>1)return RF_FORMAT;
     if(!r->move.active){if(memcmp(&r->move,&zero_move,sizeof(zero_move)))return RF_FORMAT;}

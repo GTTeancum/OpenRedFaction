@@ -315,6 +315,10 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
             for(k=0;k<rows[i].playback.completion.active.count;k++){
                 detail="clip";status=scene_npc_checkpoint_restore_clip(skeleton,rows[i].playback.completion.active.slots[k].motion,count);if(status)goto fail;
             }
+            if(rows[i].dead_pose){
+                detail="death_clip";
+                status=scene_corpse_checkpoint_death_restore(rows+i,&e->selection);if(status)goto fail;
+            }
             e->playback=rows[i].playback;
             if(campaign_poses.items[j].bone_count){
                 rf_entity_pose candidate=campaign_poses.items[j];float displacement[3]={0};uint32_t k;

@@ -7,6 +7,204 @@ respawn and Xbox campaign save-or-restart recovery. Full original
 death-start/dying-update, game-over presentation and authored checkpoints
 remain unfinished.
 
+## Bounded live corpse retention and fade submission (2026-09-30)
+
+`scene_corpse_lifecycle.inc` is prepared, not yet integrated or Xbox-validated.
+It connects the existing corpse retention/update state to actual opacity.
+The existing constructor already retains the newest five eligible bodies,
+selects the oldest excess by creation time/list order and starts fade298 at1.
+The ordinary corpse update decrements that timer and deletes the pool/model
+owner when it expires. No invented age timeout or second lifecycle is added.
+
+The new draw wrapper preserves the retained GPU path for opaque bodies. During
+the final nonopaque interval only, it uses the existing bounded CPU skin/clip
+path and tags its emitted triangles with `RF_PREVIEW_FADE_TAG|alpha`. The Xbox
+renderer already recognizes that tag and applies source-alpha blending. Linear
+opacity over the existing one-second timer is a first-pass rendering policy;
+the original retention/deletion state remains unchanged. Negative-health and
+hidden/deleted corpses submit no geometry. The wrapper restores the previous
+model backend on every return and rolls back partial CPU mesh counts on error.
+
+Parent hooks, with no other owner/renderer changes:
+
+1. Include `scene_corpse_lifecycle.inc` immediately after
+   `scene_npc_render_family` and before `scene_npc_draw`.
+2. Forward-declare `static void scene_corpse_lifecycle_reset(void);` before
+   `campaign_live_corpses_open`; call it after successful pool initialization.
+3. In `scene_npc_draw`'s existing owned-corpse loop, replace only
+   `scene_npc_render_family(&context,0)` with
+   `scene_corpse_lifecycle_draw(&context,corpse)`. Keep visibility, ownership,
+   ordinary NPC drawing, submitted-model counters and error handling intact.
+4. Keep the existing post-update dirty-pose refresh and expiry/deletion path.
+   This helper neither advances the corpse clock nor frees its resources.
+
+Added resident memory is36 telemetry bytes, with no heap/model/texture copies.
+Fading geometry uses the existing scene preview capacity and existing NPC
+scratch, including its4096-vertex bounds. Ordinary bodies do not incur CPU
+skinning. The brief fade's CPU cost remains a native performance limitation;
+the helper makes no FPS claim.
+
+`tools/xemu_corpse_lifecycle.py` prepares six complete copies of the real
+L1S1 miner8432 record in enemy-free CTF06. Only UID/transform change, with
+explicit fixture UIDs913100..913105. One ordinary Slay event913110 targets
+them in order. A read-only guest probe at frame20 expects all six corpse/model
+owners still present and decreasing nonopaque submitted geometry for the first
+body. At frame120 it expects exactly five retained owners, one model release,
+reduced owned-pose bytes and zero lifecycle errors. Pool prefixes and existing
+model registration counters verify actual resource ownership, not merely a
+frame counter. It also checks stock64MiB and restores the disc/build inputs.
+`--prepare-only` validated the copied asset/event structure; Python syntax
+passed. The harness has not run XEMU. Native submission telemetry cannot prove
+visual appearance and no screenshots are requested.
+
+Functional retirement companion: `scene_corpse_source_retirement.inc` closes
+the case where visual corpse deletion frees the owned pose but leaves its dead
+source NPC registered/nonretired. That stale actor can make the next ordinary
+save reject the cleared pose and can retain invisible physics. The new helper
+is also source-only pending parent integration/native verification.
+
+After successful live corpse expiry, `scene_corpse_source_retire(model,uid)`
+verifies the exact model-slot/source-UID/persistence identity, fatal health and
+already released model. It reuses `campaign_remove_object` for ordinary NPC
+unregister, physics close, seat backlinks and generated-child retirement.
+It does not inflict damage or invoke death, loot, audio or event callbacks.
+The source's fatal health, armor, death action and persistent weapon-drop state
+are retained; the authored UID and campaign record are not deleted. Transient
+movement/aim/fire orders are cancelled, and the unregistered actor is marked
+catatonic with its RFNC retired fact set. Repeated calls succeed only when the
+same source is already retired and has no physics allocation.
+
+This deliberately uses the existing terminal actor representation:
+RFNC retains UID/class, fatal health, inventory and drop history with retired1
+and no nonexistent animation. A later fresh restore cannot revive the actor.
+The now-unused death action remains in the live source struct; RFNC does not
+serialize an action for a retired invisible actor. Existing When_Dead handling
+in `src/core/event.c` treats an already-resolved, unregistered identity as known
+absence/death. This helper does not issue a second watcher pulse; the event's
+existing death_fired guard remains authoritative.
+
+Exact retirement hooks:
+
+1. Include the source-retirement companion after generated retirement and the
+   NPC checkpoint helpers (the same late region as the runtime retirement
+   include is suitable). Add an early prototype for
+   `static int scene_corpse_source_retire(uint32_t model,uint32_t uid);` before
+   `campaign_live_corpses_tick`.
+2. In only the live `fade.object_flags_7c&2` expiry branch, copy
+   `owner->corpse.update.model` and `owner->corpse.uid` before
+   `rf_corpse_owned_delete`, since the pool slot is returned by that call.
+   After successful deletion, call `scene_corpse_source_retire(model,uid)` and
+   propagate its status through the existing corpse error path. Do not add
+   this callback to generic model cleanup, aborted construction or full scene
+   teardown. The ordinary five-body retention policy stays unchanged.
+3. Forward-declare and call `scene_corpse_source_retirement_reset()` at fresh
+   corpse-pool startup alongside the draw telemetry reset. The adapter adds48
+   resident bytes and no heap allocation.
+
+The lifecycle harness additionally captures one ordinary world save at the
+120-frame endpoint. It requires exactly the expired first actor to carry RFNC
+retired1/animation0, while the other five retain settled death poses. The source
+retirement telemetry must report one unregister, no errors, no live source
+registration/physics allocation and the retained retirement fact. This checks
+the save-admission consequence of cleanup in the same bounded run, without
+adding a second emulator/load pass. Corpse creation-age/fade save state,
+protected-body coverage and full30-slot saturation remain outside this slice.
+
+## Unsettled single-clip death checkpoint admission (2026-09-30)
+
+`scene_corpse_unsettled_checkpoint.inc` supplies source-only admission helpers
+for a working skeletal death animation. Parent integration and Xbox validation
+remain pending. This is a narrow extension of the existing ordinary RFNC10
+path, not a second animation serializer: RFNC already retains the active clip
+ID, exact tick, weight, frozen flag, phase, generation, marker state and motion
+controller. Restoring those fields resumes the current death instead of
+replaying lethal damage or seeking directly to a settled pose.
+
+The new live admission accepts an unfrozen pose only when one positive-weight,
+nonlooping death action5..16 is designated to freeze at its authored end. Its
+cursor must lie inside the actual resident clip range. It requires an existing
+owned skeletal corpse with matching source UID/class/model, no pending seek,
+fade, emitter, attached item, extra model or burn. Existing timer admission
+remains intact: actor death deadline must be-1, and pain/unholster transitions
+remain independently checked. Multi-clip blends and timed death tails remain
+unsupported. Existing frozen dead poses retain their previous admission.
+
+Exact parent hooks:
+
+1. Include the helper before `scene_npc_checkpoint_capture.inc`, after live
+   corpse ownership, model ownership and playback resources are declared.
+2. In `scene_npc_checkpoint_row_profile`, replace the combined
+   `death_unsettled` condition after selecting the original/owned pose with
+   `status=scene_corpse_checkpoint_death_capture(index,pose)`. On failure keep
+   the existing `scene_npc_checkpoint_reject` diagnostics. On success keep
+   `terminal_dead=1`; this means a death-owned record, not an invented frozen
+   pose. Do not change `row->playback`, its clock or `dead_pose` representation.
+3. In `src/core/npc_checkpoint.c`'s `valid()` dead-pose branch remove only the
+   `!r->playback.completion.frozen` rejection. Keep active count exactly1,
+   animation presence, death/health consistency and no scripted animation.
+   `animation_valid()` already bounds frozen to0/1. Optionally narrow the
+   new unfrozen case there to action5..16, freeze_slot0 and weight>0; resource
+   identity and clip cursor bounds remain the scene helper's responsibility.
+   Update the header's frozen-only description. This extends admitted values
+   of the existing RFNC10 fields without changing row offsets or lengths;
+   older readers reject these new unfrozen-death records rather than silently
+   discarding state. Existing settled RFNC1..10 files remain unchanged.
+4. In `scene_npc_checkpoint_restore_prepare`, after all saved active clips have
+   passed `scene_npc_checkpoint_restore_clip`, call
+   `scene_corpse_checkpoint_death_restore(&rows[i],&e->selection)` before
+   assigning `e->playback=rows[i].playback` and evaluating candidate matrices.
+   Retain the existing early selected-death-motion identity check. No new
+   mutation, allocation or effect dispatch occurs in the helper.
+5. Preserve existing publication/deferred transfer: NPC assignment copies the
+   admitted playback, restores death action and deadline-1, and schedules
+   `scene_corpse_checkpoint_tick`. The later transfer uses seek_motion0 and
+   motion_a44=-1, preserving the unfrozen cursor. The normal corpse update
+   advances it naturally. Do not call `combat_death_start`, a death selector,
+   `rf_motion_start`, or `rf_scene_corpse_play` during restoration.
+6. The current corpse tick advances playback but does not refresh matrices
+   after its final advance; the corpse draw consumes those cached matrices
+   directly. Add an early prototype for
+   `scene_corpse_checkpoint_pose_refresh(rf_corpse_owned *,float *)` before
+   `campaign_live_corpses_tick`. Immediately after successful
+   `rf_scene_corpse_update(owner,elapsed,now,NULL,0,pending,NULL)`, call
+   `scene_corpse_checkpoint_pose_refresh(owner,pending)` and propagate errors
+   through the existing corpse error counter. The helper skips expired owners
+   and unchanged bone generations, otherwise evaluates the admitted clock and
+   refreshes owned collision spheres. It never advances the clock a second
+   time. This makes an in-progress death continue its actual posed model,
+   instead of advancing a clock behind stale construction matrices.
+
+Memory addition is four telemetry words (16 bytes), plus bounded stack locals;
+no heap, stage expansion, wire expansion or extra animation resources. Existing
+snapshot and NPC stage budget accounting remains unchanged.
+`rf_scene_corpse_unsettled_checkpoint[4]` records accepted unfrozen captures,
+last UID, exact clip tick and last error. A focused Xbox check should save one
+actor during its single-clip death, reload the same cursor/frozen0 and observe
+later freeze completion with no repeated lethal hit, loot or death audio. No
+PC build, gameplay run or exhaustive animation coverage was performed here.
+
+Prepared native check: `python tools/xemu_corpse_unsettled_save.py` runs32
+neutral source frames with authored Slay9362 targeting miner8432, saves to the
+isolated harness HDD, then fresh-loads for120 neutral frames. The selected
+`tech01_death_leg_R.rfa` spans ticks160..6560 (80 simulation frames), so the
+source save occurs after transfer and before completion. The harness rejects
+a frozen source instead of silently accepting a settled save.
+
+It checks RFNC's one retained unfrozen clip, exact source tick/generation,
+the existing immutable transfer comparison (zero playback mismatches,
+frozen0), and a later frozen1 owner with advanced tick/generation and changed
+bone matrices. A read-only QMP probe follows the installed miner's entity slot4
+through `campaign_model_owners` to the real owned `rf_entity_pose`; every bone
+generation stamp must match the playback generation. Its x86 offsets are
+derived from the current80-byte model owner and304-byte pose declarations,
+with registration-pointer, bone-count and ownership guards. This requires no
+new compiled fixture or host input. Loaded Slay/death-audio/drop-emission
+counters must remain zero. Source and load run stock64MiB, and all disc inputs
+are restored/rebuilt in `finally`. `--validate-existing <artifact-folder>`
+rechecks saved evidence without a build or emulator. The older settled
+`tools/xemu_corpse_save.py` is unchanged. Syntax and installed actor identity
+were checked. Stock-64-MiB XEMU passed the focused source/load check in `artifacts/xemu/corpse-unsettled-save-20260930-144131` (32 source frames,120 load frames, full bone-stamp refresh, terminal frozen pose and no repeated death effects).
+
 ## Owned skeletal corpse save/load bridge (2026-09-30)
 
 Ordinary RFNC10 capture now reads a transferred corpse's published model pose,
@@ -45,12 +243,15 @@ body starts a new retention age; this is a first-pass presentation restore,
 not complete corpse persistence. Original RFNC saved death pose/animation is
 preserved, while these unsaved presentation fields remain open.
 
-Replacement-model audit: installed `entity.tbl` requests replacement V3D
+Replacement-model audit, updated2026-09-30: installed `entity.tbl` requests replacement V3D
 bodies only for `Stationary Turret` and `Stationary Turret_Plain`. These are
-static source models, and current NPC body construction skips
-`skeleton==UINT32_MAX`. Implementing only their dead-model loader would be
-unreachable until static turret actor ownership is implemented. That remains
-open; the current change closes the reachable skeletal-corpse continuity gap.
+static source models, and ordinary skeletal NPC body construction skips
+`skeleton==UINT32_MAX`. Both authored replacements are now selected and loaded
+by `scene_turret_models.inc` and published by static turret ownership; they do
+not need a second skeletal-corpse loader. The APC, Jeep and Driller corpse
+filenames in the installed table are comments, not declarations. No installed
+skeletal NPC class currently requests a replacement corpse model. Therefore
+new work targets the reachable death-save admission gap described above.
 
 ## Live NPC death motion and action audio (2026-09-29)
 

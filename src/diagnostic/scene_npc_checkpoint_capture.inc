@@ -211,11 +211,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         pose=(index<campaign_model_owner_count && campaign_model_owners &&
               campaign_model_owners[index].owned)?campaign_model_owners[index].pose:campaign_poses.items+index;
         if(!pose)return RF_FORMAT;
-        if(o->death.deadline_4b8!=-1||!(o->view.flags_810&1u)||o->death.action_824<0||o->death.action_824>=45||
-           o->script_animation.active||pose->playback.completion.frozen!=1||
-           pose->playback.completion.active.count!=1||
-           pose->playback.completion.active.slots[0].motion!=o->selection.mapping.actions[o->death.action_824])
-            return scene_npc_checkpoint_reject(index,"death_unsettled",0,o->death.action_824,RF_RANGE);
+        status=scene_corpse_checkpoint_death_capture(index,pose);
+        if(status)return scene_npc_checkpoint_reject(index,"death_unsettled",0,o->death.action_824,status);
         terminal_dead=1;
     }
     /* Live routes require a separate continuation record. Terminal corpses

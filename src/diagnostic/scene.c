@@ -4844,6 +4844,7 @@ static void campaign_live_corpse_create(uint32_t slot)
     ++rf_scene_live_corpses[0];rf_scene_live_corpses[1]=campaign_live_corpse_count;
 }
 #include "scene_corpse_checkpoint.inc"
+static int scene_corpse_checkpoint_pose_refresh(rf_corpse_owned *,float *);
 static int campaign_live_corpses_tick(float elapsed,int32_t now)
 {
     scene_corpse_checkpoint_tick();
@@ -4852,6 +4853,7 @@ static int campaign_live_corpses_tick(float elapsed,int32_t now)
         rf_corpse_owned *owner=campaign_live_corpses.slots+i;
         memset(pending,0,sizeof(pending));
         status=rf_scene_corpse_update(owner,elapsed,now,NULL,0,pending,NULL);
+        if(!status)status=scene_corpse_checkpoint_pose_refresh(owner,pending);
         if(status){++rf_scene_live_corpses[7];return status;}
         ++rf_scene_live_corpses[4];
         if(owner->corpse.update.fade.object_flags_7c&2u) {
@@ -12821,6 +12823,7 @@ static int scene_burning_checkpoint_owner_admit(uint32_t);
 static int scene_turret_attack_checkpoint_uid(uint32_t,uint32_t *);
 static int scene_turret_attack_checkpoint_handle(uint32_t,uint32_t *);
 #include "scene_npc_seat_checkpoint_decl.inc"
+#include "scene_corpse_unsettled_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
@@ -19305,6 +19308,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(rf_scene_npc_seat_checkpoint,0,sizeof(rf_scene_npc_seat_checkpoint));
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
     memset(rf_scene_vehicle_ai_mode,0,sizeof(rf_scene_vehicle_ai_mode));
+    memset(rf_scene_vehicle_resume_probe,0,sizeof(rf_scene_vehicle_resume_probe));
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
     memset(rf_scene_npc_support_lifecycle,0,sizeof(rf_scene_npc_support_lifecycle));
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
