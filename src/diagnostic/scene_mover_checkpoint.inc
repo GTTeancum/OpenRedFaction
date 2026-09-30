@@ -27,7 +27,8 @@ static void scene_mover_checkpoint_close(scene_mover_checkpoint_stage *s)
  * Call at a settled boundary; records with pending != position are rejected.
  * This service validates UID/registration/attachment identity and reconstructs
  * geometry, not world clearance, authored flag policy, queued effects or audio.
- * General-object/actor attachments require a separate owner and are rejected.
+ * General-object attachments are staged by their own owner. Keep live member
+ * identities unchanged while reconstructing only mover geometry here.
  * Failure leaves output and all live state unchanged. No registry mutations. */
 static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collection *runtime,
     const rf_group_registration *registration,const rf_group_controller_view *bindings,
@@ -47,6 +48,7 @@ static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collecti
     if(count!=active||registration->count!=active)return RF_FORMAT;
     for(i=0;i<runtime->count;i++){
         if(bindings[i].mover_count>RF_OBJECT_CAPACITY||(bindings[i].mover_count&&!bindings[i].mover_handles))return RF_RANGE;
+        if(bindings[i].general_count&&!bindings[i].general_handles)return RF_RANGE;
         members+=bindings[i].mover_count;
     }
     bytes=sizeof(s)+(uint64_t)runtime->count*(sizeof(*s.entries)+sizeof(*s.bindings)+12)+
@@ -61,6 +63,7 @@ static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collecti
     s.original_entries=runtime->items;s.original_poses=movers->poses;s.original_views=movers->views;
     s.original_controllers=registration->controllers;s.original_registry=registration->registry;
     if(runtime->count){memcpy(s.entries,runtime->items,runtime->count*sizeof(*s.entries));memcpy(s.bindings,bindings,runtime->count*sizeof(*s.bindings));}
+    for(i=0;i<runtime->count;i++){s.bindings[i].general_count=0;s.bindings[i].general_handles=NULL;}
     if(movers->count){memcpy(s.poses,movers->poses,movers->count*sizeof(*s.poses));memcpy(s.views,movers->views,movers->count*sizeof(*s.views));}
     for(i=0;i<movers->count;i++){
         uint32_t h=movers->views[i].object_id,slot=h&0xffffu;const rf_group_registered_mover *registered;
@@ -77,7 +80,7 @@ static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collecti
             if(bindings[i].mover_count||bindings[i].general_count){status=RF_FORMAT;goto fail;}continue;
         }
         if(!entry->source||!entry->source->keys||!entry->source->record.key_count||
-           bindings[i].runtime!=&live->translation||bindings[i].first_key!=entry->source->keys||bindings[i].general_count||
+           bindings[i].runtime!=&live->translation||bindings[i].first_key!=entry->source->keys||
            (bindings[i].mover_count&&!bindings[i].mover_handles)||
            (entry->kind==RF_GROUP_RUNTIME_ROTATION_PENDING&&bindings[i].rotation_sign!=1&&bindings[i].rotation_sign!=-1)){status=RF_FORMAT;goto fail;}
         for(j=0;j<registration->count;j++)if(registration->controllers[j].runtime==live){
@@ -133,9 +136,10 @@ static inline int scene_mover_checkpoint_validate(rf_group_runtime_collection *r
         if(live->kind==RF_GROUP_RUNTIME_EMPTY){if(b->mover_count||b->general_count)return RF_FORMAT;continue;}
         ++active;
         if(!live->source||!live->source->keys||live->source->record.key_count!=s->controller_key_counts[i]||live->source->keys[0].uid!=s->controller_uids[i]||
-           b->runtime!=&live->translation||b->first_key!=saved->first_key||b->first_key!=live->source->keys||b->general_count||
+           b->runtime!=&live->translation||b->first_key!=saved->first_key||b->first_key!=live->source->keys||
            b->mover_count!=saved->mover_count||b->rotation_sign!=saved->rotation_sign||
-           (b->mover_count&&(!b->mover_handles||memcmp(b->mover_handles,saved->mover_handles,b->mover_count*4))))return RF_FORMAT;
+           (b->mover_count&&(!b->mover_handles||memcmp(b->mover_handles,saved->mover_handles,b->mover_count*4)))||
+           (b->general_count&&!b->general_handles))return RF_FORMAT;
         for(j=0;j<registration->count;j++)if(registration->controllers[j].handle==s->controller_handles[i])break;
         if(j==registration->count||registration->controllers[j].runtime!=live||registration->controllers[j].object_kind!=8||
            rf_object_registry_lookup(registration->registry,s->controller_handles[i])!=registration->controllers+j)return RF_FORMAT;

@@ -78,8 +78,27 @@ with 4,801 free pages and authored-sphere contact. This establishes Xbox
 player-to-secondary-body contact; NPC use of the common query, moving-platform
 carry and body motion against a stationary actor still need live checks.
 
+Ordinary saves now wrap the optional boardable vehicle record in an `RFVA1`
+vehicle-section record when group-owned secondary vehicles exist. Each row
+stores an authored UID, attached flag and world pose; reload validates those
+identities, restores the poses and rebuilds group memberships from the level's
+authored first-list references. The separate mover candidate ignores those
+general-object members while reconstructing collision geometry, then the
+attachment owner publishes them in the same restore transaction. Existing
+vehicle sections without `RFVA1` remain readable in levels without passive
+attachments. `Reverse_Mover` type 89 is now admitted by the common event
+checkpoint codec; its persistent motion is owned by the mover section.
+
+The image-free stock-64-MiB L20S2 fixture
+`artifacts/xemu/vehicle-attachment-save-20260930-035804` fired the authored
+lift and Detach events, saved a 61,308-byte ordinary checkpoint, then loaded
+it in a fresh scene. UID 4717 stayed detached at exactly
+`(426.0252075, -10.4686127, -412.7147827)` with 3,662 free pages after load.
+Attached moving-child reloads, player/NPC support on the restored body, other
+sections and natural triggers remain unverified.
+
 The remaining work is to verify and finish moving collision/support, support
-scripted vehicle movement and combat, save attachment state, and connect the
+scripted vehicle movement and combat, extend save coverage, and connect the
 authored natural event sources.
 The selected player-boardable host is still separate from this passive-owner
 collection. Other first-list object families remain unbound.
