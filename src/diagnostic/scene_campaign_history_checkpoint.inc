@@ -149,8 +149,9 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
         status=scene_history_keys(levels,counts[k*2],r,n,stride);if(status)return status;
         for(i=0;i<n;i++,r+=stride){
             if(k==0){if(scene_history_word(r+20)>255)return RF_FORMAT;}
-            else if(k==1){uint32_t type=scene_history_word(r+12);
+            else if(k==1){uint32_t type=scene_history_word(r+12),fired=scene_history_word(r+24);
                 if(!scene_history_word(r+8)){for(j=12;j<32;j+=4)if(scene_history_word(r+j))return RF_FORMAT;}
+                else if(fired==CAMPAIGN_EVENT_SAVED_RETIRED){if(type>255||scene_history_word(r+16)||scene_history_word(r+20)||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
                 else if(type==20){if(scene_history_word(r+20)>1||scene_history_word(r+24)||scene_history_signed(r+28)<-1||scene_history_signed(r+28)>RF_TIMER_PERIOD)return RF_FORMAT;}
                 else if(type==87||type==88){if(scene_history_word(r+16)||scene_history_word(r+20)||scene_history_word(r+24)>1||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
                 else if(type==84){if(scene_history_word(r+16)||scene_history_word(r+20)>1||scene_history_word(r+24)>1||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
@@ -186,7 +187,12 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int
     if(s->switches.count>RF_CAMPAIGN_PICKUP_SLOTS||s->events.count>RF_CAMPAIGN_PICKUP_SLOTS||s->actors.count>RF_CAMPAIGN_ACTOR_SLOTS||
        s->switches.level_count>128||s->events.level_count>128||s->actors.level_count>128)return RF_FORMAT;
     for(i=0;i<campaign_events.count;i++){
-        const rf_runtime_event *e=campaign_events.items+i;if(e->retired)continue;if(!e->authored)return RF_FORMAT;
+        const rf_runtime_event *e=campaign_events.items+i;if(!e->authored)return RF_FORMAT;
+        if(e->retired && rf_object_registry_lookup(&campaign_registry,e->handle))return RF_FORMAT;
+        if(e->retired){campaign_event_saved value;
+            status=campaign_event_capture(e,now,&value);if(status)return status;
+            status=rf_campaign_pickup_register(&s->events,campaign_current_level,e->authored->record.uid,&slot);if(status)return status;
+            s->event_saved[slot]=value;s->events.items[slot].retired=1;continue;}
         if(e->switch_state){status=rf_campaign_pickup_register(&s->switches,campaign_current_level,e->authored->record.uid,&slot);if(status)return status;
             s->switch_saved[slot]=*e->switch_state;s->switches.items[slot].retired=1;}
         if(e->state.type==20||e->state.type==84||e->state.type==87||e->state.type==88){campaign_event_saved value;

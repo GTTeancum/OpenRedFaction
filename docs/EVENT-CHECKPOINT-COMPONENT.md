@@ -2,6 +2,18 @@
 
 RFEC3 preserves one supported event's represented runtime fields. It is not ordinary-scene save admission. The composer must capture associated world state, preflight every component, rebuild references, publish state and remove retired owners from the registry before gameplay resumes. Restore itself dispatches no effects or sounds.
 
+Section history now also preserves `Destroy_Object` retirement of scripted event
+owners, including event types that have no timer or threshold history. It keys
+the event by section and authored UID, records a retirement bit in the existing
+RFCH3 history row, and removes the rebuilt owner from the new section's object
+registry before play resumes. The record carries no runtime handle. Active
+delayed dispatch and source/actor references across section handoffs remain
+outside this history. The NXDK and shared PC compile builds pass; a bounded
+64-frame stock-64-MiB Xbox ordinary L1S2 save/reload also passes with 3,346
+free pages after load (`artifacts/xemu/native-world-20260930-001818`). That
+fixture checks codec compatibility, not a destroyed event on a section return;
+the latter remains open.
+
 Read-only inspection of installed `levels1.vpp/L1S1.rfl` found 184 events across 32 types. All 32 types now have event-local field representation. This is static inventory coverage, not a claim that every gameplay event is implemented or that a full scene save has passed.
 
 Supported state includes common flags/mode and delayed-dispatch remaining time; distinct zero/UINT32_MAX references or UID-mapped source/actor handles; retirement and death latches; cyclic timer count/enabled/remaining time; threshold latches; Switch disabled/activation count; and UnHide cooldown plus pending on/off requests. Authored cycle period/limit/unlimited, Switch limit/mode/unlimited and threshold must match. The source identity covers other authored settings. Expired deadlines become zero remaining time; disabled deadlines remain disabled. Remaining times rebase onto the restored clock. The diagnostic death stamp remains the saved observation stamp.
