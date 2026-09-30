@@ -6,12 +6,15 @@ Ordinary NPCs without a scripted move now recheck support on an eight-frame
 stagger. A lost static floor selects the existing falling movement mode; on
 following frames, `rf_physics_fall_propose` advances the owned body velocity
 with scene gravity, then the body sweeps, commits and publishes its position.
-A static walkable support query accepts the floor and restores normal or slow
-stance. Before restoring stance, the live landing writes its contact and calls
+A walkable support query accepts static floors or a registered mover and
+restores normal or slow stance. Before restoring stance, the live landing writes its contact and calls
 the reconstructed NPC impact handler with actual body velocity, damage/foley
 services and a lethal-death handoff. Authored Goto actors now use the same
-body-velocity gravity and landing path. This is a first-pass live scheduler:
-moving-platform support and the complete original wake/landing order remain
+body-velocity gravity and landing path. Idle NPCs on translating movers now
+step each frame: current mover velocity carries the body through a bounded
+collision sweep, and the following ground contact refreshes the support
+handle/material. This is a first-pass live scheduler; rotating-platform carry,
+the complete original wake/landing order and wider authored placement remain
 open.
 
 The focused stock-64-MiB XEMU L1S1 run
@@ -51,8 +54,19 @@ landing and one damage event with 4,065 free pages, while the lethal speed-20
 case `artifacts/xemu/npc-scripted-drop-20260929-193346/` recorded one scripted
 landing, one death, one impact-sound request and an owned corpse with 4,049
 free pages. Both restored their isolated test disc. These are synthetic
-velocity fixtures; natural fall distances, moving supports and other scripted
+velocity fixtures; natural fall distances, scripted moving supports and other scripted
 movement modes remain open.
+
+The Xbox-only `tools/xemu_npc_platform.py` fixture builds a generated CTF06
+platform above the static floor, drops one miner onto it and advances the
+ordinary scene for 500 frames. The stock-64-MiB run
+`artifacts/xemu/npc-platform-20260929-200024/` recorded one mover landing,
+455 grounded mover checks, 60 carry commits and zero idle-ground errors. The
+NPC's x position advanced from 9.449 to 12.449 while the platform translated
+three units over 60 frames. It finished with 1,678 free physical pages and
+restored the isolated test disc. This verifies translational support state and
+position in guest memory; rotating support, live player/NPC interactions and
+visual appearance were not checked.
 
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared

@@ -4,6 +4,7 @@ Generated archives contain local game assets and must remain untracked. Other
 VPPs are read-only hardlinks, not duplicate payloads. The platform uses the normal
 RFL mover loader/render/collision path. This script does not yet animate it.
 """
+import argparse
 import hashlib
 import io
 import json
@@ -62,7 +63,13 @@ def platform_geometry(texture):
 
 
 def main():
-    GAME.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--npc-platform', action='store_true',
+                        help='Place the same platform above the CTF06 floor for an NPC rider')
+    args = parser.parse_args()
+    out = ROOT / 'artifacts/npc-platform' if args.npc_platform else OUT
+    game = out / 'game'
+    game.mkdir(parents=True, exist_ok=True)
     original = read_entry(ROOT / 'Installed_Game/levelsm.vpp', 'ctf06.rfl')
     meta = inspect_level(io.BytesIO(original), dict(offset=0, size=len(original), name='ctf06.rfl'))
     section = next(s for s in meta['sections'] if s['type'] == '0x100')
@@ -76,7 +83,8 @@ def main():
         names.append(geometry[cursor:cursor+length]); cursor += length
     texture = next((n for n in names if b'metal' in n.lower()), names[0])
     # Disk orientation is forward/right/up; runtime basis is right/up/forward.
-    mover = U(1, 900001) + F(9.449,.55,2.5) + F(0,0,1,1,0,0,0,1,0)
+    center_y = 3.55 if args.npc_platform else .55
+    mover = U(1, 900001) + F(9.449,center_y,2.5) + F(0,0,1,1,0,0,0,1,0)
     mover += platform_geometry(texture) + U(0,0,0)
     data = bytearray(original[:meta['sections'][0]['offset']])
     offsets = {}; replaced = False
@@ -102,21 +110,21 @@ def main():
     archive[2048:2057] = b'ctf06.rfl'
     struct.pack_into('<I', archive, 2108, len(data))
     archive[4096:4096+len(data)] = data
-    target = GAME / 'levelsm.vpp'
+    target = game / 'levelsm.vpp'
     assert not target.exists() or target.stat().st_nlink == 1, 'Refusing to overwrite a linked original archive'
     target.write_bytes(archive)
     links = 0
     for source in [*(ROOT / 'Installed_Game').glob('*.vpp'), ROOT / 'Installed_Game/bluebeard.bty']:
         if source.name.lower() == 'levelsm.vpp': continue
-        destination = GAME / source.name
+        destination = game / source.name
         if destination.exists(): assert os.path.samefile(source, destination)
         else: os.link(source, destination)
         links += 1
     report = dict(source_sha256=hashlib.sha256(original).hexdigest(), fixture_sha256=hashlib.sha256(data).hexdigest(),
-                  mover_uid=900001, center=[9.449,.55,2.5], half_extent=[1.5,.1,1.5], texture=texture.decode('ascii'),
+                  mover_uid=900001, center=[9.449,center_y,2.5], half_extent=[1.5,.1,1.5], texture=texture.decode('ascii'),
                   archive_bytes=length, linked_inputs=links,
                   scope='Explicit static developer platform through normal mover ownership; motion and rubble acceptance remain pending.')
-    (OUT / 'build.json').write_text(json.dumps(report, indent=2)+'\n')
+    (out / 'build.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 
 if __name__ == '__main__': main()

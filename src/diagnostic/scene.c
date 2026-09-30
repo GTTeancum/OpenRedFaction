@@ -14248,7 +14248,9 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
     status=scene_player_shield_bash_input(stream,frame,position,orientation[2]);if(status)return status;
     if(campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return status;}
-    status=(rf_scene_dev_npc_enabled==1 || (rf_scene_dev_npc_enabled==2 && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    status=(rf_scene_dev_npc_enabled==1 || ((rf_scene_dev_npc_enabled==2 ||
+        rf_scene_dev_npc_enabled==8) && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);
+    rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
@@ -16003,16 +16005,17 @@ static int campaign_script_locomotion(uint32_t index,uint32_t moving)
     if(rf_motion_has_state(&pose->controller,desired))return RF_OK;
     return rf_motion_request_state(&pose->controller,owner->selection.mapping.states,desired,.25f);
 }
-/* Ordinary idle actors need the body's falling velocity, not the scripted
- * Goto adapter's separate fall-speed accumulator. Support checks are spread
- * across eight frames; a falling owner integrates and sweeps every frame. */
+/* Idle actors use body velocity for falls. Static support checks are spread
+ * across eight frames; a falling or mover-supported owner steps every frame. */
 uint32_t rf_scene_npc_idle_ground[6]; /* checks,fall entries,moved,landed,errors,last UID */
+uint32_t rf_scene_npc_mover_support[8]; /* landings,grounded hits,carry commits,contact hits,last x/y/z bits,handle */
+uint32_t rf_scene_npc_platform_probe[10]; /* fixture query count,hit,raw handle,time,normal y,start y,end y,body y,mover handle,frame */
 static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body *owner,
     uint32_t slot,float elapsed,uint32_t frame)
 {
     rf_physics_ground_probe probe;rf_collision_actor_contact contact={0};
     rf_physics_body_state proposal;rf_geometry_body_hit hit={0};rf_collision_body_sphere scratch[8];
-    uint32_t cls,falling,found=0,blocked=0,handle;int status;
+    uint32_t cls,falling,found=0,blocked=0,handle,moving;int status;
     if(!owner->registration.view || owner->damage.effects.health<=0 || !owner->body.spheres.count ||
        owner->body.spheres.count>8 || (owner->object_flags&(2|8|0x4000)) || owner->movement_slot>=16 ||
        (campaign_modes[owner->movement_slot].index!=1 && campaign_modes[owner->movement_slot].index!=3) ||
@@ -16020,8 +16023,40 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
     cls=campaign_seeds.items[slot].class_index;handle=owner->registration.handle;
     falling=rf_entity_falling((int32_t)campaign_modes[owner->movement_slot].index,
         campaign_seeds.classes[cls].physics.use_kind,owner->support.material);
-    if(!falling && ((frame+slot)&7u))return RF_OK;
+    if(!falling && !owner->support.handle && ((frame+slot)&7u))return RF_OK;
     ++rf_scene_npc_idle_ground[0];rf_scene_npc_idle_ground[5]=(uint32_t)campaign_seeds.records.items[slot].record.uid;
+    if(!falling && owner->support.handle) {
+        const float *velocity=campaign_object_velocity(owner->support.handle);
+        if(velocity) {
+            uint32_t axis;float before[3];rf_geometry_collision_movers stationary={0};
+            /* Controllers have committed their new pose by this point. Carry
+             * against current mover velocity, including descending lifts. */
+            memcpy(owner->support_velocity,velocity,12);
+            proposal=owner->body.state;memcpy(before,proposal.position,sizeof(before));
+            for(axis=0;axis<3;++axis)proposal.next_position[axis]=
+                proposal.position[axis]+owner->support_velocity[axis]*elapsed;
+            if(memcmp(proposal.next_position,proposal.position,sizeof(before))) {
+                status=rf_physics_body_prepare_sweep(&proposal);if(status)goto failed;
+                status=rf_scene_npc_body_sweep(stream->collision,handle,&proposal,0x460,scratch,8,&hit,&blocked);
+                if(status)goto failed;
+                if(blocked && hit.contact.object_id==owner->support.handle && hit.contact.normal[1]>=.5f) {
+                    /* A tangent sweep can report the platform under its own
+                     * rider. Recheck static world before accepting the carry. */
+                    status=campaign_physics_body_sweep_for(stream->collision,&proposal,&owner->body.spheres,
+                        0x460,scratch,8,&hit,&blocked,&stationary);if(status)goto failed;
+                }
+                if(blocked)for(axis=0;axis<3;++axis)proposal.next_position[axis]=
+                    before[axis]+(proposal.next_position[axis]-before[axis])*hit.contact.fraction;
+                memcpy(owner->body.state.next_position,proposal.next_position,sizeof(proposal.next_position));
+                owner->body.state.flags|=0x40000000u;
+                status=rf_scene_npc_commit_ordinary(handle,elapsed);if(status)goto failed;
+                status=rf_scene_npc_publish_position(handle);if(status)goto failed;
+                if(memcmp(before,owner->body.state.position,sizeof(before))) {
+                    ++rf_scene_npc_idle_ground[2];++rf_scene_npc_mover_support[2];
+                }
+            }
+        }
+    }
     if(falling) {
         uint32_t axis;float before[3];
         proposal=owner->body.state;memcpy(before,proposal.position,sizeof(before));
@@ -16041,17 +16076,42 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
     }
     status=rf_scene_npc_ground_query(stream->collision,handle,elapsed,&probe,&contact,&found);
     if(status)goto failed;
+    if(rf_scene_dev_npc_enabled==8) {
+        ++rf_scene_npc_platform_probe[0];rf_scene_npc_platform_probe[1]=found;
+        rf_scene_npc_platform_probe[2]=contact.handle;
+        memcpy(rf_scene_npc_platform_probe+3,&contact.time,4);
+        memcpy(rf_scene_npc_platform_probe+4,contact.normal+1,4);
+        memcpy(rf_scene_npc_platform_probe+5,probe.start+1,4);
+        memcpy(rf_scene_npc_platform_probe+6,probe.end+1,4);
+        memcpy(rf_scene_npc_platform_probe+7,owner->body.state.position+1,4);
+        rf_scene_npc_platform_probe[8]=campaign_mover_count?campaign_mover_wrappers[0].handle:0;
+        rf_scene_npc_platform_probe[9]=frame;
+    }
+    moving=found && contact.handle && contact.handle!=UINT32_MAX &&
+        campaign_object_velocity(contact.handle)!=NULL;
     if(found && contact.time<1 && contact.normal[1]>=.5f &&
-       (!contact.handle || contact.handle==UINT32_MAX)) {
+       (!contact.handle || contact.handle==UINT32_MAX || moving)) {
         if(falling) {
-            status=campaign_npc_land(stream,owner,slot,frame,&probe,&contact,0,0);if(status)goto failed;
+            status=campaign_npc_land(stream,owner,slot,frame,&probe,&contact,moving,
+                moving?contact.handle:0);if(status)goto failed;
             if(owner->damage.effects.health<=0)return RF_OK;
             ++rf_scene_npc_idle_ground[3];
+            if(moving)++rf_scene_npc_mover_support[0];
+        } else if(moving || owner->support.handle) {
+            status=rf_physics_support_accept(&owner->body.state,&probe,contact.time,moving,
+                contact.velocity[1],moving?contact.handle:0,(int32_t)contact.material,
+                &owner->support,owner->published);if(status)goto failed;
+            status=rf_collision_contact_write(&owner->body.state,&owner->collision_contact,&contact);
+            if(status)goto failed;
+            status=rf_scene_npc_publish_position(handle);if(status)goto failed;
+            if(moving)++rf_scene_npc_mover_support[1];
         }
+        if(moving) {++rf_scene_npc_mover_support[3];rf_scene_npc_mover_support[7]=contact.handle;}
     } else if(!falling) {
         status=rf_scene_npc_fall(handle);if(status)goto failed;
         ++rf_scene_npc_idle_ground[1];
     }
+    memcpy(rf_scene_npc_mover_support+4,owner->body.state.position,12);
     return RF_OK;
 failed:
     ++rf_scene_npc_idle_ground[4];return status;
@@ -17948,6 +18008,10 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
             record->position[0]=-24.7f;record->position[1]=-15.9f;record->position[2]=5.f;
             record->orientation[0][2]=1;record->orientation[2][0]=-1;
         }
+        if(rf_scene_dev_npc_enabled==8){
+            /* Isolated CTF06 translating-platform rider fixture. */
+            record->position[0]=9.449f;record->position[1]=7.f;record->position[2]=2.5f;
+        }
     }
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
     return RF_OK;
@@ -18732,7 +18796,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;
