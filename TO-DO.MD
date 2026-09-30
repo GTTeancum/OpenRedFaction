@@ -20,7 +20,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
 
 - NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
 
@@ -30,9 +30,9 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
 
-- Scripted Shoot_Once: Xbox L20S1 primary and L7S4 Tankbot secondary fire work; delayed-event coverage, active-request saves and Tankbot impact presentation remain (docs/SCRIPTED-SHOOT-ONCE-FIRST-PASS.md).
+- Scripted Shoot_Once: Xbox primary/secondary fire and mixed-request queues work; RFNC10 restores a pending no-animation shot and fires it exactly once on Xbox, while pending primary/secondary shots, broader delayed events and Tankbot impact presentation remain (docs/SCRIPTED-SHOOT-ONCE-FIRST-PASS.md).
 
-- Fire_Weapon_No_Anim: L8S4 Parker fires without a firing motion and mixed queues preserve animated/unanimated requests on Xbox; natural delayed sequence, other targets and active-request saves remain (docs/FIRE-WEAPON-NO-ANIM-FIRST-PASS.md).
+- Fire_Weapon_No_Anim: L8S4 Parker fires without a firing motion and mixed queues preserve animated/unanimated requests, and a pending authored shot survives ordinary Xbox save/load; natural delayed sequences, other targets and broader pending queues remain (docs/FIRE-WEAPON-NO-ANIM-FIRST-PASS.md).
 
 - Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
@@ -120,7 +120,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Remote charges: Ordinary pickup/import/script demand and planted-charge updates work; a charge now survives ordinary quick-load and detonates on PC/Xbox with12.06MiB native headroom, while moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
-- Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
+- Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; RFNC10 now retains the NPC shield-disable bit and the event scheduler accepts shield events; shield presentation, hit armor consumption, live toggle/save behavior and player-targeted persistence remain.
 
 - AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
 

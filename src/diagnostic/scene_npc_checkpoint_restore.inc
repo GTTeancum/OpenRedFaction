@@ -226,6 +226,17 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                 rows[i].look.target_uid,rows[i].look.position);
             if(status)goto fail;
         }
+        if(rows[i].shot_count){
+            detail="single_binding";
+            for(uint32_t k=0;k<rows[i].shot_count;k++){
+                const rf_npc_checkpoint_shot *shot=rows[i].shots+k;
+                status=scene_npc_checkpoint_single_binding(shot->event,e->handle,shot->mode);if(status)goto fail;
+                if(shot->mode==1?(!scene_tankbot_missile_resources||rows[i].secondary!=
+                    rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile")):rows[i].primary<0){status=RF_FORMAT;goto fail;}
+            }
+            if(spread_seen&&spread_saved!=rows[i].shot_rng){status=RF_FORMAT;goto fail;}
+            spread_seen=1;spread_saved=rows[i].shot_rng;
+        }
         if(rows[i].combat.active){
             if(rows[i].combat.active==1){
                 detail="shoot_binding";
@@ -367,6 +378,7 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
 }
 /* Full composition validates all owners first, then calls assignment-only
  * publications while simulation and resource ownership remain paused. */
+uint32_t rf_scene_single_fire_restored[4]; /* count, first event, remaining frames, mode */
 static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoint_restore_stage *stage)
 {
     uint32_t i,j;
@@ -399,8 +411,23 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             o->script_animation.active=e->saved.script_animation.active;o->script_animation.loop=e->saved.script_animation.loop;
             o->script_animation.freeze=e->saved.script_animation.freeze;o->script_animation.motion=e->saved.script_animation.motion;
         }
+        if(e->saved.shield_disabled<2)
+            o->damage.effects.flags_814=(o->damage.effects.flags_814&~0x20u)|(e->saved.shield_disabled?0x20u:0u);
         o->damage.effects.health=e->saved.health;o->damage.effects.armor=e->saved.armor;o->damage.effects.affiliation=e->saved.affiliation;
         memset(&o->script_move,0,sizeof(o->script_move));memset(&o->navigation,0,sizeof(o->navigation));
+        while(o->script_once.count)campaign_script_single_pop(o,0);
+        for(uint32_t k=0;k<e->saved.shot_count;k++){
+            const rf_npc_checkpoint_shot *shot=e->saved.shots+k;
+            campaign_single_fire_request *request=o->script_once.requests+k;
+            uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
+            request->event=shot->event;request->mode=shot->mode;request->expires=frame+shot->remaining;
+            memcpy(request->point,shot->point,12);++o->script_once.count;
+            ++(shot->mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once)[5];
+            ++rf_scene_single_fire_restored[0];
+            if(!k){rf_scene_single_fire_restored[1]=shot->event;rf_scene_single_fire_restored[2]=shot->remaining;
+                rf_scene_single_fire_restored[3]=shot->mode;}
+        }
+        if(e->saved.shot_count)campaign_enemy_spread_random.value=e->saved.shot_rng;
         o->script_look.active=0;o->script_shoot.active=0;
         if(e->saved.look.active){
             o->script_look.active=1;o->script_look.event=e->saved.look.event;

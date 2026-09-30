@@ -2,8 +2,8 @@
 #define RF_NPC_CHECKPOINT_H
 #include "rf/campaign.h"
 #include "rf/motion.h"
-enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW=588,
-    RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,RF_NPC_CHECKPOINT_ROW_MAX=1096,
+enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW_V9=588,RF_NPC_CHECKPOINT_ROW=600,
+    RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,RF_NPC_CHECKPOINT_ROW_MAX=1492,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 typedef struct rf_npc_checkpoint_move {
     uint32_t active,event,follow,path_index,path_mode,path_reverse,path_count,route_index,retry,retained_count;
@@ -16,6 +16,9 @@ typedef struct rf_npc_checkpoint_combat {
     uint32_t active,event,burst,due_remaining,reload_remaining;int32_t reload_weapon;
     float point[3];uint32_t spread_rng;
 } rf_npc_checkpoint_combat;
+typedef struct rf_npc_checkpoint_shot {
+    uint32_t event,remaining,mode;float point[3];
+} rf_npc_checkpoint_shot;
 typedef struct rf_npc_checkpoint_record {
     uint32_t uid,class_id,retired,flags,affiliation;
     float health,armor,position[3],yaw;
@@ -32,6 +35,7 @@ typedef struct rf_npc_checkpoint_record {
     rf_npc_checkpoint_combat combat; /* Active Shoot_At (1) or actor-targeted Attack (2); relative deadlines. */
     uint32_t support_uid; /* Grounded passive-vehicle support; zero retains legacy static placement. */
     float support_velocity[3];
+    uint32_t shot_count,shot_rng,shield_disabled;rf_npc_checkpoint_shot shots[16];
     float look_command[3],look_delta[3],look_offset[3],look_vector[3];
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
@@ -43,7 +47,7 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC9 component (RFNC1-8 remain readable), not a composed save/profile. UID sorted, 588-byte LE base rows followed by optional 168-byte movement/look and 40-byte combat extensions and optional108+12*slot_count
+/* RFNC10 component (RFNC1-9 remain readable), not a composed save/profile. UID sorted, 600-byte LE base rows followed by optional 168-byte movement/look and 40-byte combat extensions, optional24*shot_count queued-fire bytes and optional108+12*slot_count
  * animation bytes; no unused slots on wire. RF_NPC_CHECKPOINT_ROW_MAX bounds
  * one complete row. Absent animation must have zero script/playback/controller fields;
  * legacy1 supplies zero eye angles. Scene validates motion resource IDs,
@@ -63,6 +67,10 @@ typedef struct rf_npc_checkpoint_catalog {
  * fire/reload deadlines, burst and RNG.
  * Offset572 stores an authored support UID; offsets576..587 retain its velocity.
  * Nonzero support requires a living grounded owner and candidate chassis contact.
+ * Offset588 stores queued shot count, offset592 the shared shot RNG. Each
+ * queued row retains event UID, remaining frame lifetime, mode and aim point.
+ * Offset596 retains the NPC damage-owner shield-disable bit (0/1); 2 retains
+ * authored initialization for legacy rows without this state.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
  * Supported basic modes -1/0/1/2/11 only. Scene must reject other scripted combat,
  * unsupported movement, reload/pain/death transitions, projectiles, linked/carried objects

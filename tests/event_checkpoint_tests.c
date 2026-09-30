@@ -63,7 +63,7 @@ int main(void)
     CHECK(rf_event_checkpoint_restore(wire,192,identity,&fresh,1000)==RF_FORMAT&&!memcmp(&fresh,&before,sizeof(fresh)));
     live.countdown_armed=live.countdown_fired=0;
     {
-        static const uint32_t types[]={0,1,2,3,4,5,6,7,8,10,11,12,13,14,15,17,18,19,22,24,28,30,34,35,36,37,38,39,41,42,43,44,46,48,51,52,56,59,61,64,65,69,71,73,74,75,81,84};
+        static const uint32_t types[]={0,1,2,3,4,5,6,7,8,9,76,79,10,11,12,13,14,15,17,18,19,22,24,28,30,34,35,36,37,38,39,41,42,43,44,46,48,51,52,56,59,61,64,65,69,71,73,74,75,81,84};
         uint32_t i;rf_event_checkpoint_refs refs={export_ref,import_ref,NULL},missing={export_ref,missing_ref,NULL};
         live.state.source=0;live.state.actor=UINT32_MAX;live.state.flags=5;live.state.mode=7;
         for(i=0;i<sizeof(types)/sizeof(types[0]);i++){

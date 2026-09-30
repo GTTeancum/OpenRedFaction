@@ -154,7 +154,7 @@ int main(void)
         CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
         actor.move.retained_nodes[0]=UINT32_MAX;
         CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got));
-        {unsigned char legacy7[sizeof(wire)];uint32_t old_bytes=got-4;
+        {unsigned char legacy7[sizeof(wire)];uint32_t old_bytes=got-(RF_NPC_CHECKPOINT_ROW-RF_NPC_CHECKPOINT_ROW_V7);
          memcpy(legacy7,broken,64);memcpy(legacy7+64,broken+64,RF_NPC_CHECKPOINT_ROW_V7);
          memcpy(legacy7+64+RF_NPC_CHECKPOINT_ROW_V7,broken+64+RF_NPC_CHECKPOINT_ROW,
              got-64-RF_NPC_CHECKPOINT_ROW);

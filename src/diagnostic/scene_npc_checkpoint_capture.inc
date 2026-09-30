@@ -128,6 +128,23 @@ static int scene_npc_checkpoint_look_binding(uint32_t uid,uint32_t handle,uint32
     }
     return found==1?RF_OK:RF_NOT_FOUND;
 }
+static int scene_npc_checkpoint_single_binding(uint32_t uid,uint32_t handle,uint32_t mode)
+{
+    uint32_t i,j,found=0,linked;
+    if(!uid||mode>2)return RF_FORMAT;
+    for(i=0;i<campaign_events.count;i++){
+        const rf_runtime_event *runtime=campaign_events.items+i;const rf_level_event *record;
+        if(!runtime->authored||runtime->authored->record.uid!=uid)continue;
+        if(++found!=1)return RF_FORMAT;record=&runtime->authored->record;
+        if(mode==2?strcmp(record->type,"Fire_Weapon_No_Anim"):
+           (strcmp(record->type,"Shoot_Once")||record->words[0]!=mode))return RF_FORMAT;
+        if(record->link_count&&!runtime->links)return RF_FORMAT;
+        linked=0;for(j=0;j<record->link_count;j++)if((runtime->links[j].kind==1||runtime->links[j].kind==2)&&
+            runtime->links[j].value==handle)linked++;
+        if(linked!=1)return RF_FORMAT;
+    }
+    return found==1?RF_OK:RF_NOT_FOUND;
+}
 static int scene_npc_checkpoint_shoot_binding(uint32_t uid,uint32_t handle,const float point[3])
 {
     uint32_t i,j,found=0,linked;
@@ -202,7 +219,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
      * cannot travel, so their leftover route and steering state is discardable. */
 #define NPC_CAPTURE_ZERO(field) do{if(o->field)return scene_npc_checkpoint_reject(index,#field,0,(double)o->field,RF_RANGE);}while(0)
     if(!terminal_dead){
-        NPC_CAPTURE_ZERO(script_once.count);
+        if(o->script_once.count>16)return scene_npc_checkpoint_reject(index,"single_count",0,o->script_once.count,RF_RANGE);
         if(o->script_move.active){
             status=scene_npc_checkpoint_move_binding(o->script_move.event,o->registration.handle,
                 o->script_move.follow,&authored_path,&authored_mode);
@@ -327,6 +344,20 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     row->yaw=o->look.body_angles[1];memcpy(row->eye_angles,o->look.angles.angles_87c,12);
     row->primary=o->view.weapons[0];row->secondary=o->view.weapons[1];
     row->drop=rf_scene_defeated_actors.drops[slot];row->inventory=o->inventory;row->ai_mode=o->ai_mode.action_280;
+    if(!terminal_dead&&!key->retired){
+        uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
+        for(i=0;i<o->script_once.count;i++){
+            const campaign_single_fire_request *request=o->script_once.requests+i;rf_npc_checkpoint_shot *shot;
+            if(request->expires<frame)continue; /* Already expired requests cannot fire again. */
+            if(request->expires-frame>120)return scene_npc_checkpoint_reject(index,"single_lifetime",i,request->expires,RF_RANGE);
+            status=scene_npc_checkpoint_single_binding(request->event,o->registration.handle,request->mode);
+            if(status)return scene_npc_checkpoint_reject(index,"single_binding",i,request->event,status);
+            shot=row->shots+row->shot_count++;shot->event=request->event;
+            shot->remaining=request->expires-frame;shot->mode=request->mode;memcpy(shot->point,request->point,12);
+        }
+        if(row->shot_count)row->shot_rng=campaign_enemy_spread_random.value;
+    }
+    row->shield_disabled=!!(o->damage.effects.flags_814&0x20u);
     row->controller_uid=controller_uid;
     row->combat_alert=terminal_dead?0:o->combat_alert;
     row->dead_pose=terminal_dead;

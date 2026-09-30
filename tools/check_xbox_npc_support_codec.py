@@ -54,7 +54,7 @@ def main():
         return call('rf_npc_checkpoint_preflight', base, len(blob), identity, catalog, count)
 
     cases = []
-    for version, size in enumerate((528, 540, 544, 548, 552, 564, 568, 572, 588), 1):
+    for version, size in enumerate((528, 540, 544, 548, 552, 564, 568, 572, 588, 600), 1):
         blob = bytearray(64 + size)
         blob[:4] = b'RFNC'
         struct.pack_into('<I', blob, 4, version)
@@ -63,19 +63,33 @@ def main():
         struct.pack_into('<I', blob, 64, 1)
         struct.pack_into('<f', blob, 84, 100)
         struct.pack_into('<ii', blob, 108, -1, -1)
-        if version == 9:
+        if version >= 9:
             struct.pack_into('<I3f', blob, 64 + 572, 4717, -1.75, 1.75, 0)
+        if version==10:struct.pack_into('<I',blob,64+596,1)
         wire = seal(blob)
         assert preflight(wire) == 0, version
         assert call('rf_npc_checkpoint_decode', base, len(wire), identity, catalog, rows, 1, count) == 0, version
         assert call('rf_npc_checkpoint_encode', identity, catalog, rows, 1, output, 4096, count) == 0, version
         written = struct.unpack('<I', machine.mem_read(count, 4))[0]
         encoded = bytes(machine.mem_read(output, written))
-        expected = bytearray(blob[:64] + blob[64:] + bytes(588 - size))
-        struct.pack_into('<I', expected, 4, 9)
+        expected = bytearray(blob[:64] + blob[64:] + bytes(600 - size))
+        struct.pack_into('<I', expected, 4, 10)
+        if version<10:struct.pack_into('<I',expected,64+596,2)
         assert encoded == seal(expected), ('migration', version)
-        cases.append(f'RFNC{version} decode and RFNC9 re-encode')
+        cases.append(f'RFNC{version} decode and RFNC10 re-encode')
 
+    pending=bytearray(wire)
+    struct.pack_into('<II', pending,64+588,2,123456)
+    pending.extend(struct.pack('<III3f',8478,30,2,1,2,3))
+    pending.extend(struct.pack('<III3f',8479,60,0,-1,-2,-3))
+    pending_wire=seal(pending)
+    assert preflight(pending_wire)==0
+    assert call('rf_npc_checkpoint_decode',base,len(pending_wire),identity,catalog,rows,1,count)==0
+    assert call('rf_npc_checkpoint_encode',identity,catalog,rows,1,output,4096,count)==0
+    assert bytes(machine.mem_read(output,len(pending_wire)))==pending_wire
+    cases.append('mixed pending shots exact roundtrip')
+    assert preflight(seal(bytearray(pending_wire[:-1])))!=0
+    cases.append('reject truncated pending shots')
     for name, uid, velocity in (
         ('velocity without support', 0, (1, 0, 0)),
         ('invalid support UID', 0xffffffff, (0, 0, 0)),
@@ -86,7 +100,7 @@ def main():
         assert preflight(seal(malformed)) != 0, name
         cases.append('reject ' + name)
     report = dict(result='PASS', cases=cases,
-                  scope='Compiled NXDK RFNC codec only; legacy basic rows and new support fields. No legacy gameplay-load claim.')
+                  scope='Compiled NXDK RFNC codec only; legacy basic rows, support fields and queued firing. No legacy gameplay-load claim.')
     (ROOT / 'artifacts/xbox-npc-support-codec.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
 
