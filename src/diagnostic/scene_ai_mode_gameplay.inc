@@ -6,6 +6,8 @@
  * Waypoints4 resumes only a previously bound Follow_Waypoints path; no
  * implicit destination is invented. Collecting5 remains unsupported. Turret13 cleanup and
  * linked vehicle occupants remain deferred. Requires owner.ai_mode field. */
+/* applied, catatonic applied, last scheduler mode, last registered mode */
+uint32_t rf_scene_ai_mode_publication[4];
 static uint32_t campaign_enemy_mode_admits(const campaign_npc_body *owner,
     uint32_t target_moving,uint32_t gunshot)
 {
@@ -41,7 +43,14 @@ static int campaign_ai_mode_apply(campaign_npc_body *owner,int32_t action,int32_
         owner->script_move.route_index=1;owner->script_move.retry=0;owner->navigation.retained.count=0;
         memcpy(owner->script_move.target,campaign_navigation.nodes[node].candidate.position,12);
     }
-    owner->ai_mode=next;return RF_OK;
+    owner->ai_mode=next;
+    /* Both fields represent original entity+520 (AI-relative+280). Keep
+     * animation, pain and death consumers in sync with combat scheduling. */
+    owner->view.action_520=next.action_280;
+    ++rf_scene_ai_mode_publication[0];rf_scene_ai_mode_publication[1]+=next.action_280==1;
+    rf_scene_ai_mode_publication[2]=(uint32_t)next.action_280;
+    rf_scene_ai_mode_publication[3]=(uint32_t)owner->view.action_520;
+    return RF_OK;
 }
 static int campaign_set_ai_mode_live(void *context,uint32_t handle,int32_t action,int32_t now)
 {

@@ -17,3 +17,38 @@ Native `artifacts/xemu/render-20260922-182408` passed90frames with identical mov
 ## Remaining integration
 
 Full route arrival/loop/reversal encounters, richer moving fire/aim presentation, collecting AI, turret/vehicle transitions and general campaign disk persistence remain. Focused ownership checks are not proof of complete campaign pathfinding. No audio audition performed.
+
+
+## Consistent actor action publication (2026-09-30)
+
+The live mode adapter maintained two copies of the same original field:
+owner.ai_mode.action_280 and owner.view.action_520. RF.exe407e20 receives
+entity+0x2a0, so its write at+0x280 is exactly entity+0x520. Set_AI_Mode updated
+only the former copy. Combat scheduling saw the new mode while animation
+visibility gating, pain and death consumers continued seeing the old value.
+
+The accepted mode transition now publishes both copies together. The in-memory
+level-revisit adapter already uses that transition, so it inherits the fix.
+Ordinary NPC checkpoint assignment now also sets the registered actor view
+from the saved mode. This is derived state and requires no save-format change.
+Startup constructor zero values and unsupported-mode rejection are unchanged.
+The existing focused adapter test now asserts both copies and uses the current
+three-argument movement-step signature; PC tests were not run.
+
+
+The bounded setup-event entry point now admits type34, and exposes the last
+setup UID/type/status for diagnosing fixture dispatch failures. Initial native
+attempts did not enable player-control.flag, so the process-local replay setup
+callback never ran; their phase80000102 exits and zero mode counters are not
+AI-mode evidence. The corrected harness enables that runtime before dispatch.
+
+Stock64MiB check PASS: authored L8S4 Set_AI_Mode10327 applies catatonic mode1
+to six linked NPCs; both scheduler and registered-view modes are1. A30308-byte
+ordinary world save is restored in a fresh guest. The restore publishes
+9 actors, including six catatonic actors, with zero scheduler/view or saved-mode
+mismatches. Source64 frames, load32 frames; free memory5189/4997 pages
+(19.52MiB minimum endpoint headroom). Flags/ISO restored and NXDK builds passed.
+Evidence: artifacts/xemu/ai-mode-save-20260930-115850/report.json.
+This verifies mode dispatch, publication and ordinary persistence; it does not
+claim new turret/vehicle behavior, complete AI state reconstruction, inspected
+animation output or a campaign playthrough.

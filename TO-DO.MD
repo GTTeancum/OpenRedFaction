@@ -13,7 +13,7 @@ Remaining first-playable work, grouped for planning:
 
 Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
 
-- PC build maintenance: The `rf_pc_play` target compiles, but the all-target CMake build still has a stale two-argument `campaign_script_step` call in `tests/scene_ai_mode_gameplay_tests.c`.
+- PC build maintenance: The stale movement-step call in `tests/scene_ai_mode_gameplay_tests.c` is corrected; the PC all-target build remains unverified under the current Xbox-only validation policy.
 
 - PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger, an active passive-Fighter Attack target and an idle NPC riding the moved lift Fighter through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy gameplay-save migration, broader landing/pushes, walking/rotating-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
@@ -125,7 +125,9 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and finite-power-cell Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
 
-- AI mode events: Collectable shard eligibility is wired and hauling destination/reservation/release helpers are prepared; no collecting events or drop markers were found in94 installed levels, so automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md). Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
+- AI mode events: Authored transitions and ordinary Xbox saves now keep combat and registered actor modes consistent, including six saved L8S4 catatonic NPCs; vehicle/turret transitions, ambiguous waypoint bindings and broader behavior remain (docs/SCRIPTED-AI-MOVEMENT.md).
+
+- Deferred collecting AI: Shard eligibility and hauling helpers exist, but no collecting events or drop markers were found in94 installed levels; automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md).
 
 - Remote charges: Static and NPC-bound charges survive ordinary Xbox save/load and detonate; active-shield hits are consumed without attachment/damage, while mover-host live checks, dead-host transitions, fragment-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md, docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 

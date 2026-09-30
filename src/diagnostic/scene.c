@@ -1366,7 +1366,7 @@ int rf_scene_fire_level_exit(uint32_t uid,int32_t now)
     return RF_NOT_FOUND;
 }
 
-int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
+static int scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
@@ -1388,7 +1388,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type==72 || campaign_events.items[i].state.type==58 ||
-           campaign_events.items[i].state.type==16)
+           campaign_events.items[i].state.type==16 || campaign_events.items[i].state.type==34)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47 && campaign_events.items[i].state.type!=86 && campaign_events.items[i].state.type!=89)return RF_FORMAT;
@@ -1397,6 +1397,15 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
     return RF_NOT_FOUND;
 }
 
+uint32_t rf_scene_setup_result[4]; /* calls,UID,resolved type,status */
+int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
+{
+    uint32_t i;int status;
+    ++rf_scene_setup_result[0];rf_scene_setup_result[1]=uid;rf_scene_setup_result[2]=UINT32_MAX;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid){
+        rf_scene_setup_result[2]=campaign_events.items[i].state.type;break;}
+    status=scene_fire_setup_event(uid,now);rf_scene_setup_result[3]=(uint32_t)status;return status;
+}
 int rf_scene_fire_npc_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
@@ -19306,6 +19315,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.shoot_once=campaign_script_shoot_once;
             campaign_triggers.fire_no_animation=campaign_script_fire_no_animation;
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
+            memset(rf_scene_ai_mode_publication,0,sizeof(rf_scene_ai_mode_publication));memset(rf_scene_ai_mode_restored,0,sizeof(rf_scene_ai_mode_restored));
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
             campaign_triggers.set_player_form=campaign_set_player_form;campaign_triggers.player_form_context=stream;
             campaign_triggers.remove_object=campaign_remove_object;

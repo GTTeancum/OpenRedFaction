@@ -378,6 +378,8 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
 }
 /* Full composition validates all owners first, then calls assignment-only
  * publications while simulation and resource ownership remain paused. */
+/* restored actors, catatonic actors, scheduler/view mismatches, saved mode mismatches */
+uint32_t rf_scene_ai_mode_restored[4];
 uint32_t rf_scene_single_fire_restored[4]; /* count, first event, remaining frames, mode */
 static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoint_restore_stage *stage)
 {
@@ -453,6 +455,10 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
                 m->retained_nodes[j]==UINT32_MAX-1?&o->navigation.goal:e->move_nodes[j];
         }
         o->ai_mode.action_280=e->saved.ai_mode;o->ai_mode.clock_288=stage->now;
+        o->view.action_520=e->saved.ai_mode;
+        ++rf_scene_ai_mode_restored[0];rf_scene_ai_mode_restored[1]+=e->saved.ai_mode==1;
+        rf_scene_ai_mode_restored[2]+=o->view.action_520!=o->ai_mode.action_280;
+        rf_scene_ai_mode_restored[3]+=o->view.action_520!=e->saved.ai_mode;
         o->combat_alert=e->saved.combat_alert;
         o->combat_due=o->combat_alert?(combat_frame==UINT32_MAX?30u:combat_frame+30u):0u;
         o->combat_navigation_due=0;o->combat_burst_remaining=0;

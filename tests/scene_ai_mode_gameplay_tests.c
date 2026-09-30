@@ -14,7 +14,7 @@ int main(void)
     owner.view.linked_handle=-1;owner.damage.effects.health=100;owner.combat_alert=1;
     owner.script_move.active=1;owner.script_move.follow=2;
     CHECK(!campaign_set_ai_mode_live(NULL,owner.registration.handle,1,100));
-    CHECK(!owner.combat_alert && !owner.script_move.active && owner.ai_mode.action_280==1);
+    CHECK(!owner.combat_alert && !owner.script_move.active && owner.ai_mode.action_280==1 && owner.view.action_520==1);
     CHECK(!campaign_enemy_mode_admits(&owner,1,0) && !campaign_enemy_mode_admits(&owner,1,1));
     CHECK(!campaign_set_ai_mode_live(NULL,owner.registration.handle,2,101));
     CHECK(campaign_enemy_mode_admits(&owner,0,0));
@@ -39,7 +39,7 @@ int main(void)
     /* A later Goto/Attack or damage alert must not bypass the inert scheduler. */
     campaign_poses.items=&pose;campaign_poses.count=1;
     owner.script_move.follow=0;owner.script_move.active=1;
-    CHECK(!campaign_script_step(&stream,1.0f/60));
+    CHECK(!campaign_script_step(&stream,1.0f/60,1));
     CHECK(!owner.script_move.active && !rf_scene_enemy_aim[0]);
     CHECK(!campaign_enemy_hear_shot(eye,16,0,&alerted) && !alerted);
     /* Waiting restores real line-of-sight acquisition on its staggered tick. */
