@@ -59,6 +59,8 @@ int rf_weapon_view_load(rf_vpp *,const char *,uint32_t,rf_weapon_view_definition
  * mesh_kind:1 static,3 animated; flags bit0 no_pickup. SP count overrides base. */
 typedef struct rf_item_definition {
     char mesh[64],weapon[64];int32_t count;uint32_t gives_weapon,mesh_kind,flags;
+    /* Single, multi, weapon-and-ammo single, weapon-and-ammo multi. */
+    char pickup_messages[4][64];
 } rf_item_definition;
 int rf_item_definition_read(const void *,uint32_t bytes,const char *class_name,rf_item_definition *);
 int rf_item_definition_load(rf_vpp *,const char *class_name,uint32_t budget,rf_item_definition *);

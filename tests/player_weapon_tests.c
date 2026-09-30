@@ -171,8 +171,11 @@ int main(int argc,char **argv)
             rf_item_definition item,saved;
             CHECK(rf_item_definition_load(&tables,"Handgun",128*1024,&item)==RF_OK);
             CHECK(!strcmp(item.mesh,"weapon_ultorgun.v3d") && !strcmp(item.weapon,"12mm handgun") && item.count==16 && item.gives_weapon==1 && item.mesh_kind==1 && !item.flags);
+            CHECK(!strcmp(item.pickup_messages[0],"12mm pistol picked up"));
+            CHECK(!strcmp(item.pickup_messages[3],"12mm Pistol and %d 12mm rounds picked up"));
             CHECK(rf_item_definition_load(&tables,"12mm_ammo",128*1024,&item)==RF_OK);
             CHECK(!strcmp(item.weapon,"12mm handgun") && item.count==32 && !item.gives_weapon && item.mesh_kind==1);saved=item;
+            CHECK(!strcmp(item.pickup_messages[1],"%d 12mm rounds picked up"));
             CHECK(rf_item_definition_load(&tables,"missing",128*1024,&item)==RF_NOT_FOUND && !memcmp(&item,&saved,sizeof(item)));
             CHECK(!rf_item_definition_load(&tables,"riot_stick_battery",128*1024,&item));
             CHECK(item.count==100 && !item.gives_weapon && item.mesh_kind==1);

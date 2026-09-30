@@ -2180,13 +2180,13 @@ static uint32_t scene_flame_canister_save_pending(void);
 static uint32_t scene_flame_input_pending(void);
 static int scene_flame_visual_open(rf_vpp *tables);
 uint32_t rf_scene_weapon_selection[8];
-typedef struct campaign_item_grant {int32_t weapon,quantity;uint32_t gives_weapon;} campaign_item_grant;
+typedef struct campaign_item_grant {int32_t weapon,quantity;uint32_t gives_weapon;char pickup_messages[4][64];} campaign_item_grant;
 enum { CAMPAIGN_ITEM_MINER_SUIT=-2, CAMPAIGN_ITEM_DOCTOR_UNIFORM=-3 };
 static campaign_item_grant campaign_item_pending[32];
 static uint32_t campaign_item_pending_count,campaign_inventory_ready;
 uint32_t rf_scene_script_grants[8]; /* applied, acquired, rounds, weapon, owned, loaded, reserve, status */
 uint32_t rf_scene_nonweapon_items[4]; /* grants,placed,scripted,last class */
-static const char *campaign_pickup_notice;
+char rf_scene_pickup_notice[64];
 static uint32_t campaign_pickup_notice_frame;
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
 static rf_campaign_player_state campaign_player_import,campaign_player_export;
@@ -10249,6 +10249,14 @@ static int32_t campaign_item_charge(int32_t weapon,int32_t quantity,uint32_t giv
     return quantity;
 }
 #include "scene_player_shield_pickup.inc"
+static void campaign_pickup_notice_grant(const char messages[4][64],uint32_t acquired,uint32_t rounds)
+{
+    uint32_t index=acquired && rounds?(rounds==1?2:3):(rounds==1?0:1);
+    const char *message=messages[index][0]?messages[index]:messages[0];
+    if(!message[0])return;
+    snprintf(rf_scene_pickup_notice,sizeof(rf_scene_pickup_notice),message,(int)rounds);
+    campaign_pickup_notice_frame=combat_frame==UINT32_MAX?0:combat_frame;
+}
 static int campaign_apply_item_grant(const campaign_item_grant *request)
 {
     if(request->weapon==-1) {
@@ -10262,9 +10270,7 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
     if(request->weapon==CAMPAIGN_ITEM_MINER_SUIT || request->weapon==CAMPAIGN_ITEM_DOCTOR_UNIFORM){
         uint32_t kind=request->weapon==CAMPAIGN_ITEM_MINER_SUIT?
             SCENE_PICKUP_MINER_SUIT:SCENE_PICKUP_DOCTOR_UNIFORM;
-        campaign_pickup_notice=kind==SCENE_PICKUP_MINER_SUIT?
-            "MINER ENVIROSUIT PICKED UP":"DOCTOR'S CLOTHING PICKED UP";
-        campaign_pickup_notice_frame=combat_frame==UINT32_MAX?0:combat_frame;
+        campaign_pickup_notice_grant(request->pickup_messages,0,(uint32_t)request->quantity);
         ++rf_scene_nonweapon_items[0];++rf_scene_nonweapon_items[2];rf_scene_nonweapon_items[3]=kind;
         ++rf_scene_script_grants[0];rf_scene_script_grants[3]=(uint32_t)request->weapon;
         rf_scene_script_grants[4]=rf_scene_script_grants[5]=rf_scene_script_grants[6]=rf_scene_script_grants[7]=0;
@@ -10279,11 +10285,12 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
     ++rf_scene_script_grants[0];rf_scene_script_grants[1]+=grant.acquired;rf_scene_script_grants[2]+=grant.rounds;
     rf_scene_script_grants[3]=(uint32_t)request->weapon;rf_scene_script_grants[4]=campaign_player_inventory.owned[request->weapon];
     rf_scene_script_grants[5]=(uint32_t)campaign_player_inventory.loaded[request->weapon];rf_scene_script_grants[6]=d->ammo_type>=0 && d->ammo_type<32?(uint32_t)campaign_player_inventory.reserve[d->ammo_type]:0;
+    if(grant.acquired || grant.rounds)campaign_pickup_notice_grant(request->pickup_messages,grant.acquired,grant.rounds);
     campaign_ammo_publish();return request->weapon==campaign_shield_id?scene_player_shield_damage_sync():RF_OK;
 }
 static int campaign_strip_weapons(void *context)
 {
-    const campaign_item_grant request={-1,0,0};(void)context;
+    const campaign_item_grant request={.weapon=-1};(void)context;
     if(campaign_startup_inventory_replay){++rf_scene_startup_inventory[1];return RF_OK;}
     if(!campaign_inventory_ready) {
         if(campaign_item_pending_count==32)return RF_RANGE;
@@ -10306,6 +10313,7 @@ static int campaign_give_item(void *context,const char *name)
     }else {request.weapon=rf_weapon_name_find(&campaign_weapon_supply.names,item.weapon);
         if(request.weapon<0)return RF_NOT_FOUND;}
     request.quantity=item.count;request.gives_weapon=item.gives_weapon;
+    memcpy(request.pickup_messages,item.pickup_messages,sizeof(request.pickup_messages));
     if(!campaign_inventory_ready) {
         if(campaign_item_pending_count==32)return RF_RANGE;
         campaign_item_pending[campaign_item_pending_count++]=request;return RF_OK;
@@ -10911,9 +10919,6 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         if(blocked){++rf_scene_pickups[2];continue;}
         if(item->quantity<0)return RF_FORMAT;
         if(kind==SCENE_PICKUP_MINER_SUIT || kind==SCENE_PICKUP_DOCTOR_UNIFORM){
-            campaign_pickup_notice=kind==SCENE_PICKUP_MINER_SUIT?
-                "MINER ENVIROSUIT PICKED UP":"DOCTOR'S CLOTHING PICKED UP";
-            campaign_pickup_notice_frame=combat_frame==UINT32_MAX?0:combat_frame;
             ++rf_scene_nonweapon_items[0];++rf_scene_nonweapon_items[1];rf_scene_nonweapon_items[3]=kind;
             grant.acquired=1;
         } else if(kind==1 || kind==2 || kind==SCENE_PICKUP_FIRST_AID) {
@@ -10936,6 +10941,8 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         }
         stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired=1;
         ++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
+        campaign_pickup_notice_grant(definition->pickup_messages,grant.acquired,
+            grant.rounds?grant.rounds:(uint32_t)item->quantity);
         campaign_ammo_publish();
     }
     return RF_OK;
@@ -14698,8 +14705,8 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
      * to the player-controlled view. */
     if(campaign_cutscene_runtime.active)return RF_OK;
     status=scene_scanner_draw(sink,context);if(status)return status;
-    if(campaign_pickup_notice && combat_frame-campaign_pickup_notice_frame<180u){
-        status=combat_hud_text(sink,context,26,46,campaign_pickup_notice,0xff80ff80);
+    if(rf_scene_pickup_notice[0] && combat_frame-campaign_pickup_notice_frame<180u){
+        status=combat_hud_text(sink,context,26,46,rf_scene_pickup_notice,0xff80ff80);
         if(status)return status;
     }
     if(rf_scene_campaign_countdown.remaining>0 && !campaign_endgame.phase){
@@ -18357,7 +18364,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
-            campaign_pickup_notice=NULL;campaign_pickup_notice_frame=0;
+            rf_scene_pickup_notice[0]=0;campaign_pickup_notice_frame=0;
             memset(rf_scene_nonweapon_items,0,sizeof(rf_scene_nonweapon_items));
             memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));memset(rf_scene_endgame_text,0,sizeof(rf_scene_endgame_text));memset(rf_scene_endgame_clear,0,sizeof(rf_scene_endgame_clear));
             memset(&campaign_defuse,0,sizeof(campaign_defuse));memset(rf_scene_defuse,0,sizeof(rf_scene_defuse));

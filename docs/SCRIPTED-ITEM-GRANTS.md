@@ -9,7 +9,8 @@ see RIOT-STICK.md. The one-unit results below describe the earlier build.
 
 Give_Item_To_Player now resolves named items.tbl weapon/ammo definitions and
 applies the existing SP pickup grant to the shared inventory. Requests during
-startup wait in a fixed32-entry queue (384 bytes) until starting/imported
+startup wait in a fixed32-entry queue (now 8,576 bytes with authored notice
+text) until starting/imported
 inventory is ready, so frame0 initialization cannot erase the grant. Repeated
 requests add allowed ammo without reacquiring an owned weapon. The live9870
 regression grants Riot Stick ID2 with one loaded unit; a second request adds

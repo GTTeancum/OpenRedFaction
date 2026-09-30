@@ -403,6 +403,24 @@ static int metadata_string(lexer *l,char *destination,uint32_t capacity)
     if(destination)memcpy(destination,value,length+1);
     return RF_OK;
 }
+static int metadata_item_xstr(lexer *l,char destination[64])
+{
+    char token_value[256];int quoted;size_t length;uint32_t i,formats=0;
+    if(token(l,token_value,&quoted) || quoted || !same(token_value,"XSTR") ||
+       token(l,token_value,&quoted) || quoted || strcmp(token_value,"("))return RF_FORMAT;
+    if(token(l,token_value,&quoted) || quoted)return RF_FORMAT;
+    length=strlen(token_value);if(!length)return RF_FORMAT;
+    if(token_value[length-1]!=',')return RF_FORMAT;
+    token_value[--length]=0;if(!length)return RF_FORMAT;
+    for(i=0;i<length;i++)if(token_value[i]<'0' || token_value[i]>'9')return RF_FORMAT;
+    if(token(l,token_value,&quoted) || !quoted || strlen(token_value)>=64)return RF_FORMAT;
+    for(i=0;token_value[i];i++)if(token_value[i]=='%'){
+        if(token_value[++i]!='d' || ++formats>1)return RF_FORMAT;
+    }
+    memcpy(destination,token_value,strlen(token_value)+1);
+    if(token(l,token_value,&quoted) || quoted || strcmp(token_value,")"))return RF_FORMAT;
+    return RF_OK;
+}
 static int metadata_integer(lexer *l,uint32_t *result)
 {
     char value[256];uint32_t at=0,base=10,digit,digits=0;uint64_t number=0;int quoted,negative=0;
@@ -448,6 +466,19 @@ int rf_item_definition_read(const void *text,uint32_t bytes,const char *name,rf_
             int gives=same(t,"$Gives");
             if(token(&l,t,&q) || q || !same(t,gives?"Weapon:":"For:"))return RF_FORMAT;
             bit=16;if(mask&bit)return RF_FORMAT;if(metadata_string(&l,v.weapon,64))return RF_FORMAT;v.gives_weapon=(uint32_t)gives;
+        } else if(same(t,"$Pickup")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Msg")) {
+                uint32_t message;
+                if(token(&l,t,&q) || q)return RF_FORMAT;
+                if(same(t,"W&A")) {
+                    if(token(&l,t,&q) || q)return RF_FORMAT;
+                    message=same(t,"Single:")?2:same(t,"Multi:")?3:4;
+                } else message=same(t,"Single:")?0:same(t,"Multi:")?1:4;
+                if(message<4) {
+                    bit=64u<<message;if(mask&bit || metadata_item_xstr(&l,v.pickup_messages[message]))return RF_FORMAT;
+                }
+            }
         } else if(same(t,"$Flags:")) {
             bit=32;if(mask&bit)return RF_FORMAT;if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
             while(1){if(token(&l,t,&q))return RF_FORMAT;if(!q && !strcmp(t,")"))break;if(!q)return RF_FORMAT;if(same(t,"no_pickup"))v.flags|=1;}

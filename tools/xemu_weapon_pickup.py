@@ -74,6 +74,7 @@ def main():
                           extra_symbols={'rf_scene_pickups': 8,
                                          'rf_scene_nonweapon_items': 4,
                                          'rf_scene_script_grants': 8,
+                                         'rf_scene_pickup_notice': 16,
                                          'rf_scene_weapon_selection': 8,
                                          'rf_scene_player_ammo': 8,
                                          'rf_scene_combat': 8})
@@ -85,8 +86,11 @@ def main():
         if args.nonweapon:
             nonweapon = guest['extra']['rf_scene_nonweapon_items']
             script = guest['extra']['rf_scene_script_grants']
+            notice = struct.pack('<16I', *guest['extra']['rf_scene_pickup_notice']).split(b'\0', 1)[0]
             if nonweapon[2] != 1 or nonweapon[3] != 28 or script[0] < 1 or script[3] != 0xfffffffe:
                 raise RuntimeError(f'Miner Envirosuit scripted grant failed: {nonweapon}, {script}')
+            if notice != b'Miner Envirosuit picked up':
+                raise RuntimeError(f'Authored pickup notice not published: {notice!r}')
             result['placed_pickup_collected'] = pickup[3] == 1 and pickup[5] == 6935
             result['result'] = 'PASS'
             return

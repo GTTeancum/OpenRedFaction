@@ -41,9 +41,10 @@ or XEMU residency validation is claimed yet.
 
 ## Item definitions and inventory grants
 
-rf_item_definition_read/load resolves a named items.tbl class into a144-byte
+rf_item_definition_read/load resolves a named items.tbl class into a400-byte
 record: model name/type, associated weapon name, gives-weapon distinction,
-SP count and no_pickup flag. Count Single overrides Count regardless of order;
+SP count, no_pickup flag and four English pickup notices (single, multi,
+weapon-and-ammo single, weapon-and-ammo multi). Count Single overrides Count regardless of order;
 Count Multi is ignored. Unknown classes, duplicate modeled fields and invalid
 counts preserve output on failure. Table scratch is bounded and temporary.
 Non-weapon benefit callbacks and original item constructor state are not part
@@ -89,6 +90,14 @@ disc was restored. The staged player never entered range of placed UID6935,
 so that run does not verify placed-item retirement or the rendered notice.
 Doctor Uniform and the remaining unsupported Silenced 12mm Handgun and
 animated Demo_K000 classes are still unverified or unimplemented.
+
+The follow-up Xbox run
+`artifacts/xemu/nonweapon-pickup-20260929-221526/report.json` confirms that
+the L6S3 scripted grant publishes the exact installed-table text “Miner
+Envirosuit picked up” in guest memory, with the disc restored. Accepted
+ordinary and scripted grants now select the authored singular, plural or
+weapon-and-ammo notice from the actual grant amount. The native HUD pixels and
+pickup audio were not inspected; placed suit collection is still open.
 
 Campaign scenes retain authored item records plus one availability byte per
 record. The first supported class is Handgun. Its table definition is checked
