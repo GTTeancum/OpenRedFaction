@@ -126,7 +126,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.
 
-- Scripted visibility: Switch links now resolve/hide/show registered props as well as NPCs, including attached-effect suppression; real lamp hide/show passes PC and NXDK builds, while native verification, persistence and other object families remain (docs/SCRIPTED-PROP-VISIBILITY.md).
+- Scripted visibility: Xbox linked-lamp checks confirm hide/show target flags, 42 fewer hidden draw vertices and ordinary save→show→load restoration; native pixel appearance, scene revisits, wider saves and other object families remain (docs/SCRIPTED-PROP-VISIBILITY.md).
 
 - Scripted interactions: Switch-controlled doors/platforms now integrate start/stop/restart with focused checks and Xbox build passing; authored live switch verification remains.
 
