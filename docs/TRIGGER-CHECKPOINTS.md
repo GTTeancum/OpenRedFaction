@@ -28,10 +28,12 @@ stripped before restoring live flags; a returned section removes the rebuilt
 trigger owner again. If startup has removed a trigger that the saved history
 requires to be live, loading the section fails rather than assigning a new
 handle without rebuilding linked references. NXDK and shared PC compilation
-pass; an Xbox return-to-section runtime check remains open. A bounded Xbox
-ordinary-save check on 2026-09-30 booted but stopped at the player
-snapshot stage with RF_NOT_FOUND, before trigger capture; it does not verify
-this history change.
+pass; an Xbox return-to-section runtime check remains open. A 32-frame Xbox
+ordinary-save attempt on 2026-09-30 returned RF_RANGE at the player snapshot,
+before trigger capture; the exact player-state admission condition was not
+isolated. The established 64-frame stock-64-MiB save/reload fixture passes
+with 55,616 snapshot bytes and 3,346 free pages after reload. That checks
+ordinary-save compatibility, not section-return trigger behavior.
 
 The owner reserves172,040 bytes:128 section names,4096 UID keys and4096 compact
 activation snapshots. Existing authored inventory reports2367 triggers across93
