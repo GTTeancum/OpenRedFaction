@@ -110,6 +110,16 @@ recorded 455 grounded checks and 60 carry commits, ended at x=12.449 with
 1,678 free physical pages, and restored its isolated test disc. This is a
 movement regression check; it does not exercise a detached-fragment landing.
 
+The support refresh now reads velocity from a live detached fragment when an
+NPC is grounded on it. Checkpoint publication clears that runtime-only
+fragment reference and requests a ground query on the first resumed update.
+The bounded stock-64-MiB moving-fragment regression at
+`artifacts/xemu/npc-rubble-carry-20260929-214907/` completed 430 frames
+without ground errors and restored its isolated disc. Post-load fragment
+reacquisition is not yet verified: the CTF06 developer map is rejected by the
+existing L1S2-only authored-terrain save gate, so a separate native save/load
+fixture did not reach the restore path.
+
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared
 C state rather than writing a raw original entity structure. This is the

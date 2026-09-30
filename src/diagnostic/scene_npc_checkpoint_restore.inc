@@ -436,6 +436,8 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             campaign_enemy_spread_random.value=e->saved.combat.spread_rng;
         }
         o->controller_handle=e->controller_handle;
+        memset(&o->piece_support,0,sizeof(o->piece_support));
+        o->piece_reacquire=!e->saved.retired && !e->support.handle && e->support.material!=-1;
         o->object_flags=e->flags;memcpy(o->published,e->published,12);memcpy(o->previous,e->published,12);
         memset(o->look.body_angles,0,12);o->look.body_angles[1]=e->saved.yaw;memcpy(o->look.orientation,e->look_basis,36);
         memcpy(o->look.angles.angles_87c,e->saved.eye_angles,12);

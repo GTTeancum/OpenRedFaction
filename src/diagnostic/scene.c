@@ -4433,6 +4433,7 @@ typedef struct campaign_npc_route {
 } campaign_npc_route;
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;scene_piece_support piece_support;
+    uint32_t piece_reacquire; /* One ground query after checkpoint publication. */
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
     rf_entity_ai_transition_state ai_mode;
@@ -7603,14 +7604,20 @@ static const float *campaign_object_velocity(uint32_t handle)
 uint32_t rf_scene_npc_support_refresh[6]; /* ticks,actors,resolved,fixture cases/hash,errors */
 int rf_scene_npc_refresh_support(uint32_t handle)
 {
-    uint32_t i,mode;campaign_npc_body *owner;const float *velocity;
+    uint32_t i,mode;campaign_npc_body *owner;rf_physics_body *piece_body=NULL;const float *velocity=NULL;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
         campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
     if(owner->movement_slot>=16)return RF_RANGE;
     mode=campaign_modes[owner->movement_slot].index;
-    velocity=(mode==1 || mode==3)?campaign_object_velocity(owner->support.handle):NULL;
+    if(mode==1 || mode==3) {
+        if(owner->piece_support.tag) {
+            piece_body=campaign_piece_support_body(&owner->piece_support);
+            if(!piece_body)memset(&owner->piece_support,0,sizeof(owner->piece_support));
+        }
+        velocity=piece_body?piece_body->state.velocity:campaign_object_velocity(owner->support.handle);
+    }
     rf_physics_support_refresh(mode,velocity,owner->support_velocity,&owner->body.state.flags,&owner->object_flags);
     owner->view.flags_7c=owner->object_flags;
     ++rf_scene_npc_support_refresh[1];if(velocity)++rf_scene_npc_support_refresh[2];return RF_OK;
@@ -16051,6 +16058,7 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
     query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
     status=campaign_body_query(stream->collision,&query,&hit,&found);if(status)return status;
     status=campaign_npc_piece_ground(stream->collision,owner,&query,&hit,&found,&piece_support);if(status)return status;
+    owner->piece_reacquire=0;
     if(found && hit.contact.fraction<1 && hit.contact.normal[1]>=.5f) {
         if(falling) {
             rf_collision_actor_contact contact;
@@ -16123,7 +16131,8 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
     cls=campaign_seeds.items[slot].class_index;handle=owner->registration.handle;
     falling=rf_entity_falling((int32_t)campaign_modes[owner->movement_slot].index,
         campaign_seeds.classes[cls].physics.use_kind,owner->support.material);
-    if(!falling && !owner->support.handle && !owner->piece_support.tag && ((frame+slot)&7u))return RF_OK;
+    if(!falling && !owner->support.handle && !owner->piece_support.tag &&
+       !owner->piece_reacquire && ((frame+slot)&7u))return RF_OK;
     ++rf_scene_npc_idle_ground[0];rf_scene_npc_idle_ground[5]=(uint32_t)campaign_seeds.records.items[slot].record.uid;
     if(!falling && (owner->support.handle || owner->piece_support.tag)) {
         status=campaign_npc_mover_carry(stream,owner,elapsed,&carried);if(status)goto failed;
@@ -16148,6 +16157,7 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
     }
     status=scene_npc_ground_query_piece(stream->collision,handle,elapsed,&probe,&contact,&found,&piece_support);
     if(status)goto failed;
+    owner->piece_reacquire=0;
     if(rf_scene_dev_npc_enabled==8) {
         ++rf_scene_npc_platform_probe[0];rf_scene_npc_platform_probe[1]=found;
         rf_scene_npc_platform_probe[2]=contact.handle;
