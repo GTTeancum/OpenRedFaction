@@ -8189,7 +8189,6 @@ static int campaign_npc_piece_ground(const rf_geometry_collision_world *world,
        owner<campaign_npc_bodies || owner>=campaign_npc_bodies+campaign_npc_body_count)return RF_RANGE;
     k=(uint32_t)(owner-campaign_npc_bodies);
     if(k>=campaign_seeds.records.count || campaign_seeds.items[k].class_index>=campaign_seeds.class_count)return RF_RANGE;
-    if(campaign_seeds.classes[campaign_seeds.items[k].class_index].physics.use_kind!=1)return RF_OK;
     status=collision_body_response(&owner->body,&owner->collision_contact,owner->registration.handle,
         owner->collision_material,0,&actor);if(status)return status;
     memcpy(sphere.center,query->spheres[0].center,12);sphere.radius=query->spheres[0].radius;
@@ -8273,14 +8272,14 @@ int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t ha
        !(owner->object_flags&(2u|8u)) && owner->body.spheres.count) {
         if(!campaign_seeds.items || !campaign_seeds.classes || i>=campaign_seeds.records.count)return RF_RANGE;
         cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
-        if(campaign_seeds.classes[cls].physics.use_kind!=1){if(found)*hit=value;*matched=found;return RF_OK;}
         candidate=owner->body;candidate.state=*proposal;
         /* Clearance callers can change endpoints without updating sweep bounds. */
         status=rf_physics_body_prepare_sweep(&candidate.state);if(status)return status;
         status=collision_body_response(&candidate,&owner->collision_contact,handle,owner->collision_material,0,&actor);
         if(status)return status;
         actor.actor.contact.time=found?value.contact.fraction:1;
-        status=scene_detached_sources_npc(stream,&actor,1,1,&contact,&batch,&piece,&piece_found);
+        status=scene_detached_sources_npc(stream,&actor,campaign_seeds.classes[cls].physics.use_kind,
+            1,&contact,&batch,&piece,&piece_found);
         if(status)return status;
         if(piece_found) {
             if(rf_scene_dev_npc_enabled)++scene_dev_npc_contacts;
@@ -14277,10 +14276,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame)scene_burning_reset();
     status=scene_burning_tick(stream,frame);if(status)return status;
     status=scene_burning_visual_tick(stream,frame);if(status)return status;
+    status=scene_npc_rubble_support_stimulus(stream,frame);if(status)return status;
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
     status=scene_player_shield_bash_input(stream,frame,position,orientation[2]);if(status)return status;
     if(campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return status;}
-    status=(rf_scene_dev_npc_enabled==1 || ((rf_scene_dev_npc_enabled==2 ||
+    status=(rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
     rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;

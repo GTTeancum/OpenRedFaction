@@ -1,5 +1,6 @@
 /* All fallible preparation precedes publication; cloned core is discarded on rejection. */
 #include "rf/authored_reset_placement.h"
+#define SCENE_TERRAIN_EXTRACT_CLONE_MARGIN (32u*1024u)
 typedef struct scene_authored_edit_context {
     scene_stream *scene;const float *center,*basis;float scale;
     const rf_geomod_shallow_limit *limits;uint32_t count,reset;
@@ -80,7 +81,7 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
     scene_terrain_edit_callbacks ops={scene_authored_edit_create,scene_authored_edit_mutate,NULL,NULL};
     scene_terrain_edit_group_callbacks publication={scene_authored_group_publish,scene_authored_group_abort};
     scene_authored_group_publication context={s,indices,count};
-    uint64_t external;uint32_t i,j,active=UINT32_MAX;int status;
+    uint64_t external;uint32_t i,j,active=UINT32_MAX,clone_budget=SCENE_TERRAIN_CORE_BUDGET;int status;
     if(!s || !indices || !requests || !count || count>4 || !s->terrain_sources ||
        !s->terrain_source_count || s->terrain_source_count>4 || !s->geometry)return RF_RANGE;
     for(i=0;i<count;i++) {
@@ -116,11 +117,12 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
         scene_terrain_source_owner *owner=s->terrain_sources+indices[i];
         contexts[i]=requests[i];contexts[i].authored=owner->authored;
         sources[i]=(scene_terrain_edit_source){&owner->terrain,&ops,contexts+i,owner->pieces,contexts[i].reset,contexts[i].reset};
+        if(owner->pieces)clone_budget=SCENE_TERRAIN_CORE_BUDGET+SCENE_TERRAIN_EXTRACT_CLONE_MARGIN;
     }
-    budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
+    budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,clone_budget};
     status=scene_terrain_edit_transaction_group(sources,count,&s->terrain_publication_serial,&budget,&publication,&context,result);
     if(status && rf_scene_combat_trace) {
-        uint64_t reserved=external+(uint64_t)count*SCENE_TERRAIN_CORE_BUDGET+SCENE_TERRAIN_EDIT_HISTORY_BYTES;
+        uint64_t reserved=external+(uint64_t)count*clone_budget+SCENE_TERRAIN_EDIT_HISTORY_BYTES;
         for(i=0;i<count;i++){rf_geomod_terrain_view v;if(!rf_geomod_terrain_get(*sources[i].live,&v))reserved+=v.resident_bytes;}
         printf("AUTHORED_GROUP_REJECT status%d sources%u reserved%u budget%u external%u\n",status,count,(uint32_t)reserved,budget.total_budget,(uint32_t)external);
     }
@@ -150,7 +152,8 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
         1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+(uint64_t)s->geometry->faces*sizeof(uint32_t);
     if(external>UINT32_MAX)return RF_RANGE;
-    budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
+    budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,
+        SCENE_TERRAIN_CORE_BUDGET+(s->detached_pieces?SCENE_TERRAIN_EXTRACT_CLONE_MARGIN:0)};
     status=s->detached_pieces?scene_terrain_edit_transaction_pieces(&s->terrain,&s->terrain_publication_serial,
         &budget,&ops,context,&result,s->detached_pieces,context->reset):
         scene_terrain_edit_transaction(&s->terrain,&s->terrain_publication_serial,&budget,&ops,context,&result);

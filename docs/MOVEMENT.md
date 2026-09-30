@@ -82,12 +82,18 @@ support, or visual presentation.
 
 NPC ground probes now include the detached GeoMod registries through the same
 single-sphere fragment ground resolver used for player support. The idle and
-Goto-style paths both compare rubble contact distance with the compiled-world
-and mover contact before accepting a landing. The NPC body sweep already
-included detached pieces; this closes the separate ground-support lookup gap.
-The Xbox build compiles this adapter. A focused Xbox fixture with an NPC
-landing on an actual extracted fragment is still needed to verify contact and
-standing state. Carry by a moving fragment is also still open.
+Goto-style paths compare rubble contact distance with compiled-world and mover
+contact before accepting a landing. Both the NPC body sweep and ground probe
+now admit the actor's actual physics kind: the L1S1 env_guard has kind 9, so
+the former kind-1-only gate skipped its fragment collision entirely.
+`tools/xemu_npc_rubble_support.py` stages a real CTF06 rocket cut and holds one
+extracted face under that guard. The stock-64-MiB Xbox report at
+`artifacts/xemu/npc-rubble-support-20260929-213547/` recorded a ground
+contact at the fragment top (Y=0.4, upward normal 1), two landing updates, no
+ground errors, and 796 free physical pages; the isolated disc was restored.
+The authored edit clone needed a measured 32 KiB extraction margin after the
+source-face scratch increase, while initial terrain reservations remain at their
+previous size. Carry by a moving fragment is still open.
 The existing stock-64-MiB translating-mover fixture remains green after this
 change: `artifacts/xemu/npc-platform-20260929-202052/` completed 500 frames,
 recorded 455 grounded checks and 60 carry commits, ended at x=12.449 with
