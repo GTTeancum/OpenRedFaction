@@ -37,6 +37,8 @@ extern uint32_t rf_scene_player_form[8];
 extern uint32_t rf_scene_player_model[4]; /* class: miner/suit/scientist, compiled bytes, bones, live swaps */
 extern uint32_t rf_scene_player_impact[8];
 extern uint32_t rf_scene_moving_support_enabled,rf_scene_moving_support_test[10][16];
+/* Process-local Xbox fixture: UID, placement frame, placement count, then pose bits. */
+extern uint32_t rf_scene_passive_roof_fixture[10];
 /* Explicit same-level player + destruction checkpoint mode; legacy mode stays RFDS. */
 extern uint32_t rf_scene_player_checkpoint_enabled;
 extern uint32_t rf_scene_player_checkpoint_state[8];

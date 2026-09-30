@@ -102,7 +102,22 @@ the still-linked child into a fresh scene. Over 20 resumed frames it moved to
 3,662 free pages. Player/NPC support on a restored moving body, other sections
 and natural triggers remain unverified.
 
-The remaining work is to verify and finish moving collision/support, support
+The process-local `--carry` fixture in `tools/xemu_vehicle_group_detach.py`
+places the player on the live collision-sphere roof at frame 30 and seeds an
+already-supported state. Stock-64-MiB XEMU
+(`artifacts/xemu/vehicle-group-carry-20260930-045304`) kept the player grounded
+and alive through frame 120 with 3,833 free pages. From the frame-40 probe to
+frame 120, the chassis moved X `426.43365→424.30389` and Y
+`-10.87694→-8.74781`; the player moved X `425.53290→423.40314` and Y
+`-8.33747→-6.20833`, matching the two chassis displacements within float
+rounding. This verifies carrying an already-supported player, not natural
+landing. A separate unseeded placement
+(`artifacts/xemu/vehicle-group-carry-20260930-044844`) saw chassis contacts but
+stayed airborne while the fighter rose, so acquiring support from a moving
+chassis remains open.
+
+The remaining work is to acquire support on a rising chassis, verify NPC
+contact/carry and finish moving collision response, support
 scripted vehicle movement and combat, extend save coverage, and connect the
 authored natural event sources.
 The selected player-boardable host is still separate from this passive-owner
