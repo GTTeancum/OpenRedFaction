@@ -32,10 +32,23 @@ static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t han
     float position[3],float *health)
 {
     const scene_driller_runtime *r=s?s->driller_runtime:NULL;
-    if(!r || !handle || handle!=r->entry.host.handle || !position || !health)return 0;
-    memcpy(position,r->physics.state.position,12);
-    *health=r->damage.damage.state.effects.health;
-    return r->entry.host.alive && *health>0;
+    uint32_t i;
+    if(!s||!handle||!position||!health)return 0;
+    if(r&&handle==r->entry.host.handle){
+        memcpy(position,r->physics.state.position,12);
+        *health=r->damage.damage.state.effects.health;
+        return r->entry.host.alive && *health>0;
+    }
+    for(i=0;i<campaign_passive_vehicle_count;i++){
+        const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
+        if(owner->handle!=handle)continue;
+        if(rf_object_registry_lookup(&campaign_registry,handle)!=owner)return 0;
+        memcpy(position,owner->pose.position,12);
+        *health=owner->damage.state.effects.health;
+        return !owner->damage.destroyed && *health>0 &&
+            !(owner->damage.object_flags&(2u|0x4000u));
+    }
+    return 0;
 }
 static int scene_driller_runtime_cut(void *context,const float *center,const float *basis,
     const char *name,float radius,uint32_t flags,uint32_t source,uint32_t *accepted)

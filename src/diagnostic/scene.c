@@ -10348,7 +10348,9 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 static uint32_t combat_predicate(void *c,uint32_t kind,uint32_t handle)
 {(void)c;return (kind==RF_DAMAGE_PLAYER || kind==RF_DAMAGE_OBJECT_PLAYER_FLAG) && handle==campaign_player_object.handle;}
 static uint32_t combat_uid(void *c,int32_t uid)
-{uint32_t i;(void)c;for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)uid)return campaign_npc_bodies[i].registration.handle;return UINT32_MAX;}
+{uint32_t i;(void)c;for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)uid)return campaign_npc_bodies[i].registration.handle;
+ for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].uid==(uint32_t)uid)return campaign_passive_vehicles[i].handle;
+ return UINT32_MAX;}
 static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
 {
     if(scene_driller_damage_source(handle,affiliation))return 1;
@@ -10356,6 +10358,10 @@ static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
     if(campaign_player_object.view && handle==campaign_player_object.handle){*affiliation=campaign_player_damage.state.effects.affiliation;return 1;}
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
         *affiliation=campaign_npc_bodies[i].damage.effects.affiliation;return 1;
+    }
+    for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].handle==handle &&
+        rf_object_registry_lookup(&campaign_registry,handle)==campaign_passive_vehicles+i){
+        *affiliation=campaign_passive_vehicles[i].damage.state.effects.affiliation;return 1;
     }
     *affiliation=0;return 0;
 }
@@ -10794,10 +10800,12 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(!on){if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
-        else if(links[i].value==campaign_authored_vehicle_handle && campaign_authored_vehicle_handle)
-            target=links[i].value;
-        else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
-            campaign_npc_bodies[j].registration.handle==links[i].value){target=links[i].value;break;}
+        else {float aim[3],health;
+            if(scene_campaign_vehicle_target(scene_actor_collision_owner,links[i].value,aim,&health))
+                target=links[i].value;
+            else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+                campaign_npc_bodies[j].registration.handle==links[i].value){target=links[i].value;break;}
+        }
     }
     if(!strcmp(event->name,"player") && campaign_player_object.handle)target=campaign_player_object.handle;
     if(target==UINT32_MAX)return RF_NOT_FOUND;
@@ -11046,9 +11054,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         float vehicle_eye[3]={0},vehicle_health=0;
         const float *target_eye=player_eye;
         if(owner->combat_scripted && !point_target && owner->combat_target!=campaign_player_object.handle) {
-            if(owner->combat_target==campaign_authored_vehicle_handle)
-                vehicle_victim=scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
-            else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+            vehicle_victim=scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
+            if(!vehicle_victim)for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
                 campaign_npc_bodies[j].registration.handle==owner->combat_target){victim=campaign_npc_bodies+j;victim_slot=j;break;}
             /* Practical campaign behavior: finished targets release the order back to
              * ordinary affiliation/sight checks. Hidden living targets may return. */
@@ -14703,6 +14710,7 @@ static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const fl
         event.started,event.changed,event.special,rf_scene_machine_mode[3],rf_scene_machine_mode[4]);
     return RF_OK;
 }
+static int campaign_vehicle_attack_fixture(uint32_t frame);
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
@@ -14804,6 +14812,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
     status=scene_player_shield_bash_input(stream,frame,position,orientation[2]);if(status)return status;
     if(campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return status;}
+    status=campaign_vehicle_attack_fixture(frame);if(status)return status;
     status=(rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
@@ -15129,6 +15138,53 @@ static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
     rf_scene_vehicle_shot_probe[15]=(uint32_t)status;
     memcpy(rf_scene_vehicle_shot_probe+13,&owner->damage.state.effects.health,4);
     rf_scene_vehicle_shot_probe[14]=rf_scene_passive_damage[2];
+    return status;
+}
+/* Process-local diagnostic: issue an Attack event to a living authored NPC
+ * against the staged Fighter. The normal AI/steering ticks own subsequent fire. */
+uint32_t rf_scene_vehicle_attack_probe[8]; /* target UID, attacker UID/handle, target handle, status, pre-aim, eligible NPCs, reserved */
+static int campaign_vehicle_attack_fixture(uint32_t frame)
+{
+    scene_passive_vehicle *target=NULL;campaign_npc_body *attacker=NULL;
+    uint32_t i,attacker_uid=0;float best=FLT_MAX;int status;
+    if(!frame)memset(rf_scene_vehicle_attack_probe,0,sizeof(rf_scene_vehicle_attack_probe));
+    if(!rf_scene_vehicle_shot_uid||frame!=65)return RF_OK;
+    for(i=0;i<campaign_passive_vehicle_count;i++)
+        if(campaign_passive_vehicles[i].uid==rf_scene_vehicle_shot_uid){target=campaign_passive_vehicles+i;break;}
+    if(!target)return RF_NOT_FOUND;
+    for(i=0;i<campaign_npc_body_count;i++){
+        campaign_npc_body *candidate=campaign_npc_bodies+i;float distance=0;uint32_t axis;
+        const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
+            campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
+        campaign_enemy_weapon_selection selected={0};
+        if(!candidate->registration.view||candidate->damage.effects.health<=0||
+            (candidate->object_flags&(2u|0x4000u))||(candidate->view.flags_810&1)||
+            candidate->view.weapons[0]<0||candidate->ai_mode.action_280==1)continue;
+        status=campaign_enemy_weapon_select(candidate->view.weapons[0],ids,campaign_primary,
+            campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(candidate->view.weapons[0],
+            &campaign_weapon_supply,&selected);
+        if(status||!selected.primary)continue;
+        ++rf_scene_vehicle_attack_probe[6];
+        for(axis=0;axis<3;axis++){
+            float delta=candidate->body.state.position[axis]-target->pose.position[axis];
+            distance+=delta*delta;
+        }
+        if(distance<best){best=distance;attacker=candidate;attacker_uid=(uint32_t)campaign_seeds.records.items[i].record.uid;}
+    }
+    rf_scene_vehicle_attack_probe[0]=target->uid;
+    rf_scene_vehicle_attack_probe[1]=attacker_uid;
+    rf_scene_vehicle_attack_probe[3]=target->handle;
+    rf_scene_vehicle_attack_probe[5]=rf_scene_enemy_aim[0];
+    if(!attacker){rf_scene_vehicle_attack_probe[4]=(uint32_t)RF_NOT_FOUND;return RF_OK;}
+    rf_scene_vehicle_attack_probe[2]=attacker->registration.handle;
+    {
+        rf_level_event event={0};rf_level_link_target link={target->handle,1,0};
+        event.uid=0x5641544bu;event.words[0]=attacker_uid;event.link_count=1;
+        status=campaign_script_attack(NULL,&event,&link,1);
+    }
+    rf_scene_vehicle_attack_probe[4]=(uint32_t)status;
+    if(!status)attacker->combat_due=frame;
     return status;
 }
 /* Process-local fixture: damage one linked actor/vehicle at frames30 and60. */
@@ -16940,9 +16996,9 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             if(o->combat_scripted==3 && o->script_shoot.active)aim=o->script_shoot.point;
             else if(o->combat_scripted && o->combat_target!=campaign_player_object.handle) {
                 aim=NULL;
-                if(o->combat_target==campaign_authored_vehicle_handle){float health;
+                {float health;
                     if(scene_campaign_vehicle_target(stream,o->combat_target,vehicle_aim,&health))aim=vehicle_aim;}
-                else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+                if(!aim)for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
                     campaign_npc_bodies[j].registration.handle==o->combat_target && campaign_npc_bodies[j].damage.effects.health>0) {
                     aim=campaign_npc_bodies[j].body.state.position;break;}
             }

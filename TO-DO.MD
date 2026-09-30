@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PC build maintenance: The `rf_pc_play` target compiles, but the all-target CMake build still has a stale two-argument `campaign_script_step` call in `tests/scene_ai_mode_gameplay_tests.c`.
 
-- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper and radius-blast damage, and preserve two deaths plus the natural L20S2 lift trigger through ordinary Xbox save/reload; unstaged player aiming, blocked-cover encounters, legacy-save migration, broader landing/pushes, NPC support saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper and radius-blast damage, and preserve two deaths plus the natural L20S2 lift trigger through ordinary Xbox save/reload; scripted NPC Attack now binds a passive Fighter and pursues it on Xbox, while live NPC fire, unstaged player aiming, blocked-cover encounters, legacy-save migration, broader landing/pushes, NPC support saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
 - Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
 
@@ -72,7 +72,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; one pistol shot now triggers an authored three-prop chain in live PC; oil-drum chain explosions now pass PC/Xbox with inspected native flashes, exact damage parity and17.08MiB free; sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
 
-- Fighter: L13S3 boards/fires/follows its waypoint and L18S2 loads its sole fighter on stock-64-MiB Xbox; live NPC fire against a valid fighter target, broader placements, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
+- Fighter: L13S3 boards/fires/follows its waypoint, L18S2 loads its sole fighter, and a staged L20S2 NPC Attack order targets and pursues passive Fighter UID4801 on stock-64-MiB Xbox; live NPC fire against the hull, broader placements, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
 - Submarine saves/guidance: Stock-64-MiB Xbox saves/reloads the occupied DEV submarine and guides a torpedo into a submerged guard; active-shot saves and wider pursuit remain open.
 

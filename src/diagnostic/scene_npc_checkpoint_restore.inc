@@ -30,6 +30,14 @@ static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
         *handle=campaign_player_object.handle;return RF_OK;}
     if(campaign_authored_vehicle_uid && uid==(uint32_t)campaign_authored_vehicle_uid &&
        campaign_authored_vehicle_handle){*handle=campaign_authored_vehicle_handle;return RF_OK;}
+    for(i=0;i<campaign_passive_vehicle_count;i++){
+        const scene_passive_vehicle *target=campaign_passive_vehicles+i;
+        if(target->uid==uid&&!target->damage.destroyed&&
+           target->damage.state.effects.health>0&&
+           rf_object_registry_lookup(&campaign_registry,target->handle)==target){
+            *handle=target->handle;return RF_OK;
+        }
+    }
     for(i=0;i<count;i++)if(rows[i].uid==uid){
         if(rows[i].retired||rows[i].dead_pose||rows[i].health<=0)return RF_FORMAT;
         for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==uid){
