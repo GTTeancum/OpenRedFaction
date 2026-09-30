@@ -386,7 +386,8 @@ typedef struct rf_runtime_triggers {
     void *visibility_context;
     int (*set_invulnerable)(void *context,uint32_t handle,uint32_t enabled);
     void *invulnerability_context;
-    /* Borrowed deletion service for non-event objects; owns registry removal. */
+    /* Borrowed deletion service for non-event objects; owns their lifetime or
+     * retirement policy, including any registry removal. */
     int (*remove_object)(void *context,uint32_t handle);
     void *removal_context;
     /* Remove_Object2 may name a placed item with no registry handle. */

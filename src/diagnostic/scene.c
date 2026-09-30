@@ -5213,6 +5213,17 @@ static int campaign_remove_object(void *context,uint32_t handle)
         if(owner->persistence_registered)rf_scene_defeated_actors.items[owner->persistence_slot].retired=1;
         return RF_OK;
     }
+    for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++) {
+        rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
+        if(!owner || owner->state.handle!=handle)continue;
+        if(!scene_clutter_damage_identity(&campaign_registry,owner))return RF_FORMAT;
+        /* Keep the registered owner for ordinary prop checkpoint identity.
+         * Bit2 removes its draw and collision without damage-break effects. */
+        owner->state.flags|=2u;
+        if(campaign_clutter_damage_bindings)
+            campaign_clutter_damage_bindings[i].break_pending=0;
+        return RF_OK;
+    }
     return RF_NOT_FOUND;
 }
 static int campaign_pickup_saved_slot(uint32_t uid,uint32_t *slot)

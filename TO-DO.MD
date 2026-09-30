@@ -54,6 +54,8 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Scripted placed-item removal: Stock-64-MiB Xbox now retires authored L2S2a Demo_K000 and L8S4 Miner Envirosuit targets through Remove_Object and the pickup ledger; L6S3/L8S1 links and save/revisit behavior remain open.
 
+- Scripted prop removal: Stock-64-MiB Xbox now retires L20S1's authored console button through Remove_Object, preserving its registered owner for ordinary saves; the other console/vat links, effect-only clutter, save/revisit behavior and presentation remain open.
+
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
 - NPC death presentation: Live Xbox kills select an authored death motion and sound and hand ordinary skeletal bodies to an owned, updating/rendered corpse pool; replacement-model bodies, full effects, corpse saves and output verification remain open (docs/DEATH-LIFECYCLE.md).
