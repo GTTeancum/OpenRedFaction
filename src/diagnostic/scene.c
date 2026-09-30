@@ -4622,6 +4622,10 @@ typedef struct campaign_npc_route {
     rf_entity_navigation_candidate start,goal;
     rf_entity_navigation_retained_route retained;float cost;
 } campaign_npc_route;
+typedef struct campaign_single_fire_request {
+    uint32_t event,expires,mode;float point[3];
+} campaign_single_fire_request;
+
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;scene_piece_support piece_support;
     uint32_t piece_reacquire; /* One ground query after checkpoint publication. */
@@ -4633,7 +4637,7 @@ typedef struct campaign_npc_body {
         rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
     struct {uint32_t active,event,target_uid;float position[3];} script_look;
     struct {uint32_t active,event;float point[3];} script_shoot;
-    struct {uint32_t count,event,expires,mode;float point[3];} script_once;
+    struct {uint32_t count;campaign_single_fire_request requests[16];} script_once;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     uint32_t combat_alert,combat_due,combat_burst_remaining;
     uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
@@ -10818,9 +10822,32 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
 uint32_t rf_scene_script_shoot_at[8]; /* on,off,linked,shots,last event,last actor,last target hash,incidental player damage shots */
 uint32_t rf_scene_script_shoot_once[6]; /* queued, fired, unsupported, event, actor, pending */
 uint32_t rf_scene_script_fire_no_anim[6]; /* queued, fired, unsupported, event, actor, pending */
+uint32_t rf_scene_single_fire_fixture[7];
+uint32_t rf_scene_single_fire_trace[49]; /* fired count; first16 mode/event/aim-hash triples */
+static void campaign_script_single_pop(campaign_npc_body *owner,uint32_t fired)
+{
+    campaign_single_fire_request *request=owner->script_once.requests;
+    uint32_t *report=request->mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;
+    if(fired){
+        uint32_t index=rf_scene_single_fire_trace[0]++;
+        if(rf_scene_single_fire_fixture[0] &&
+           (uint32_t)campaign_seeds.records.items[owner-campaign_npc_bodies].record.uid==rf_scene_single_fire_fixture[6] &&
+           owner->view.weapons[0]>=0 && owner->view.weapons[0]<64)
+            rf_scene_single_fire_fixture[2]=(uint32_t)owner->inventory.loaded[owner->view.weapons[0]];
+        ++report[1];
+        if(index<16){uint32_t *row=rf_scene_single_fire_trace+1+index*3;
+            row[0]=request->mode;row[1]=request->event;
+            row[2]=npc_hash_bytes(2166136261u,request->point,12);}
+    }
+    if(report[5])--report[5];
+    --owner->script_once.count;
+    memmove(request,request+1,owner->script_once.count*sizeof(*request));
+    memset(request+owner->script_once.count,0,sizeof(*request));
+}
 static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mode,uint32_t event_uid)
 {
     uint32_t i,j,*report=mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;(void)context;
+    if(mode>2)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *owner=campaign_npc_bodies+i;float length=0;
         if(!owner->registration.view || owner->registration.handle!=handle ||
@@ -10835,14 +10862,37 @@ static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mo
         for(j=0;j<3;j++)length+=owner->look.orientation[6+j]*owner->look.orientation[6+j];
         if(!isfinite(length)||length<.25f||length>4.f)return RF_RANGE;
         if(owner->script_once.count>=16)return RF_RANGE;
-        for(j=0;j<3;j++)owner->script_once.point[j]=owner->eye_position[j]+
+        campaign_single_fire_request *request=owner->script_once.requests+owner->script_once.count;
+        for(j=0;j<3;j++)request->point[j]=owner->eye_position[j]+
             40.f*owner->look.orientation[6+j]/sqrtf(length);
-        owner->script_once.event=event_uid;
-        owner->script_once.mode=mode;
-        owner->script_once.expires=(combat_frame==UINT32_MAX?0:combat_frame)+120;
+        request->event=event_uid;request->mode=mode;
+        request->expires=(combat_frame==UINT32_MAX?0:combat_frame)+120;
         ++owner->script_once.count;++report[0];
         report[3]=event_uid;report[4]=campaign_seeds.records.items[i].record.uid;
-        report[5]=owner->script_once.count;
+        ++report[5];
+        return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
+/* Fixture: queued,initial ammo,final ammo,expected aim hashes[3],actor UID. */
+int rf_scene_npc_fixture_single_fire(uint32_t uid)
+{
+    static const uint32_t modes[3]={2,0,2};uint32_t i,j;int status;
+    for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){
+        campaign_npc_body *owner=campaign_npc_bodies+i;float forward[3];
+        int32_t weapon=owner->view.weapons[0];
+        if(weapon<0||weapon>=64||owner->script_once.count)return RF_RANGE;
+        memset(rf_scene_single_fire_fixture,0,sizeof(rf_scene_single_fire_fixture));
+        memcpy(forward,owner->look.orientation+6,12);
+        rf_scene_single_fire_fixture[1]=(uint32_t)owner->inventory.loaded[weapon];
+        rf_scene_single_fire_fixture[6]=uid;
+        for(j=0;j<3;j++){
+            for(uint32_t k=0;k<3;k++)owner->look.orientation[6+k]=forward[k]*(j==1?-1.f:1.f);
+            status=campaign_script_single_fire(NULL,owner->registration.handle,modes[j],0);
+            memcpy(owner->look.orientation+6,forward,12);if(status)return status;
+            rf_scene_single_fire_fixture[3+j]=npc_hash_bytes(2166136261u,owner->script_once.requests[j].point,12);
+            ++rf_scene_single_fire_fixture[0];
+        }
         return RF_OK;
     }
     return RF_NOT_FOUND;
@@ -11007,17 +11057,16 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
         uint32_t point_spread_ready=0,once,vehicle_damage_applied=0;
-        uint32_t *single_report=owner->script_once.mode==2?rf_scene_script_fire_no_anim:rf_scene_script_shoot_once;
-        if(owner->script_once.count && frame>owner->script_once.expires){owner->script_once.count=0;single_report[5]=0;}
+        campaign_single_fire_request *single=owner->script_once.requests;
+        while(owner->script_once.count && frame>single->expires)campaign_script_single_pop(owner,0);
         once=owner->script_once.count>0;
-        if(once && owner->script_once.mode==1){
+        if(once && single->mode==1){
             if(!owner->registration.view || (owner->object_flags&(2u|0x4000u)) ||
                owner->damage.effects.health<=0 || (owner->view.flags_810&1u))continue;
-            status=scene_ai_tankbot_missile_launch(owner,owner->script_once.point);
+            status=scene_ai_tankbot_missile_launch(owner,single->point);
             if(status==RF_NOT_FOUND)continue;
             if(status)return status;
-            ++rf_scene_enemy_combat[2];--owner->script_once.count;
-            ++single_report[1];single_report[5]=owner->script_once.count;
+            ++rf_scene_enemy_combat[2];campaign_script_single_pop(owner,1);
             continue;
         }
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
@@ -11077,7 +11126,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             } else target_eye=vehicle_eye;
         }
         if(!once && !campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
-        if(point_target)target_eye=once?owner->script_once.point:owner->script_shoot.point;
+        if(point_target)target_eye=once?single->point:owner->script_shoot.point;
         for(j=0;j<3;j++){delta[j]=target_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
         if(!owner->combat_alert && !once) {
             float forward=0;
@@ -11176,7 +11225,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
-        status=campaign_enemy_fire_presentation(i,!(once && owner->script_once.mode==2));rf_scene_enemy_fire[5]=(uint32_t)status;
+        status=campaign_enemy_fire_presentation(i,!(once && single->mode==2));rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
         if(weapon==campaign_grenade_id || weapon==campaign_rocket_id)goto enemy_shot_done;
         if(point_target && melee)goto enemy_shot_done;
@@ -11278,8 +11327,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
          } else {status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
         }
 enemy_shot_done:
-        if(once){--owner->script_once.count;++single_report[1];
-            single_report[5]=owner->script_once.count;}
+        if(once)campaign_script_single_pop(owner,1);
         if(owner->combat_scripted && owner->registration.handle==rf_scene_script_attack[11]) {
             if(vehicle_victim)scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
             float health=victim?victim->damage.effects.health:

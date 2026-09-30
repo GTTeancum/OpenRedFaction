@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PC build maintenance: The `rf_pc_play` target compiles, but the all-target CMake build still has a stale two-argument `campaign_script_step` call in `tests/scene_ai_mode_gameplay_tests.c`.
 
-- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger an active passive-Fighter Attack target and an idle NPC riding the moved lift Fighter through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy gameplay-save migration, broader landing/pushes, walking/rotating-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger, an active passive-Fighter Attack target and an idle NPC riding the moved lift Fighter through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy gameplay-save migration, broader landing/pushes, walking/rotating-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
 - Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
 
@@ -32,7 +32,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Scripted Shoot_Once: Xbox L20S1 primary and L7S4 Tankbot secondary fire work; delayed-event coverage, active-request saves and Tankbot impact presentation remain (docs/SCRIPTED-SHOOT-ONCE-FIRST-PASS.md).
 
-- Fire_Weapon_No_Anim: L8S4 Parker fires a finite-ammo handgun shot without a firing motion on Xbox; natural delayed sequence, other targets and active-request saves remain (docs/FIRE-WEAPON-NO-ANIM-FIRST-PASS.md).
+- Fire_Weapon_No_Anim: L8S4 Parker fires without a firing motion and mixed queues preserve animated/unanimated requests on Xbox; natural delayed sequence, other targets and active-request saves remain (docs/FIRE-WEAPON-NO-ANIM-FIRST-PASS.md).
 
 - Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 

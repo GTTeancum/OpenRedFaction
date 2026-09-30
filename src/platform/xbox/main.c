@@ -42,7 +42,7 @@ char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
 static uint32_t campaign_setup_next_uid,campaign_setup_source_uid,campaign_setup_actor_uid,campaign_setup_immediate,campaign_goto_frame;
-static uint32_t campaign_disable_auto_uid;
+static uint32_t campaign_disable_auto_uid,campaign_single_fire_uid;
 static uint32_t campaign_npc_drop_uid,campaign_npc_drop_frame;
 static float campaign_npc_drop_speed;
 static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
@@ -55,6 +55,10 @@ static void player_input_close(void)
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    if(campaign_single_fire_uid && campaign_total_frames==30){
+        int status=rf_scene_npc_fixture_single_fire(campaign_single_fire_uid);if(status)return status;
+        campaign_single_fire_uid=0;
+    }
     if(campaign_npc_drop_uid && campaign_total_frames==campaign_npc_drop_frame) {
         int status=rf_scene_npc_fixture_fall(campaign_npc_drop_uid,campaign_npc_drop_speed);
         if(status)return status;
@@ -572,6 +576,10 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
      quick_action_frames[0]=quick_action_frames[1]=UINT32_MAX;
      if(actions){int invalid=fread(quick_action_frames,sizeof(quick_action_frames),1,actions)!=1||fgetc(actions)!=EOF;
          fclose(actions);if(invalid)return RF_FORMAT;}}
+    {FILE *fixture=fopen("D:\\campaign-single-fire.bin","rb");
+     campaign_single_fire_uid=0;
+     if(fixture){int invalid=fread(&campaign_single_fire_uid,4,1,fixture)!=1||fgetc(fixture)!=EOF;
+         fclose(fixture);if(invalid||!campaign_single_fire_uid)return RF_FORMAT;}}
     campaign_scene_start=campaign_total_frames;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(profile_milliseconds);
