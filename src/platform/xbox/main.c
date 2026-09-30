@@ -37,6 +37,7 @@ rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,campaign_scene_start,campaign_frame_limit;
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
+uint32_t rf_xbox_event_handoff_probe[2]; /* live refs and pending state after return / after dispatch */
 char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
@@ -66,6 +67,10 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
     if(campaign_setup_next_uid && campaign_total_frames==60) {
         int status=rf_scene_fire_setup_event(campaign_setup_next_uid,1000);if(status)return status;
     }
+    if(campaign_setup_source_uid && campaign_total_frames==210)
+        rf_xbox_event_handoff_probe[0]=rf_scene_event_ref_probe(campaign_setup_uid,campaign_setup_source_uid,campaign_setup_actor_uid);
+    if(campaign_setup_source_uid && campaign_total_frames==330)
+        rf_xbox_event_handoff_probe[1]=rf_scene_event_ref_probe(campaign_setup_uid,campaign_setup_source_uid,campaign_setup_actor_uid);
     if(campaign_goto_uid && campaign_total_frames==(campaign_goto_frame?campaign_goto_frame:(campaign_setup_next_uid?360:(campaign_setup_uid?300:30)))) {
         int status=rf_scene_fire_npc_event(campaign_goto_uid,(int32_t)((uint64_t)frame*1000/60));
         campaign_goto_uid=0;if(status)return status;

@@ -24,7 +24,18 @@ event handles UID9728 and UID9732. Its RFCH4 row contains source/actor tags2
 and those respective UIDs, and ordinary reload succeeds with3,339 free pages
 (`artifacts/xemu/native-world-20260930-004000`). This establishes real-handle
 UID serialization and ordinary reload admission. Live reference state after
-reload and a section-return dispatch remain unverified.
+ordinary reload remains unverified.
+
+A separate bounded stock-64-MiB Xbox section-return run activated L1S2's
+2.5-second Message UID9725 with live source/actor event handles UID9728/9732,
+forced the authored L1S2→L1S1 exit at frame60, and returned through the
+authored L1S1→L1S2 exit at frame180. At frame210 the rebuilt pending event had
+both registered references (probe mask15). At frame330 its timer had cleared
+while both references remained live (mask7); Message UID9725 had presented by
+frame360. The run finished with3,466 free pages and restored its test-disc
+flags (`artifacts/xemu/pending-section-event-20260930-004726`). This covers
+one real-handle section return and delayed dispatch, not every event type or
+missing-reference policy.
 
 Read-only inspection of installed `levels1.vpp/L1S1.rfl` found 184 events across 32 types. All 32 types now have event-local field representation. This is static inventory coverage, not a claim that every gameplay event is implemented or that a full scene save has passed.
 

@@ -1418,6 +1418,24 @@ int rf_scene_fire_setup_event_with_refs(uint32_t uid,uint32_t source_uid,uint32_
         &scene_gravity,NULL,NULL,&report);
 }
 
+uint32_t rf_scene_event_ref_probe(uint32_t uid,uint32_t source_uid,uint32_t actor_uid)
+{
+    rf_runtime_event *target=NULL,*source=NULL,*actor=NULL;uint32_t i,mask=0;
+    for(i=0;i<campaign_events.count;i++){
+        rf_runtime_event *event=campaign_events.items+i;
+        if(event->authored->record.uid==uid)target=event;
+        if(event->authored->record.uid==source_uid)source=event;
+        if(event->authored->record.uid==actor_uid)actor=event;
+    }
+    if(!target)return 0;mask|=1u;
+    if(source&&target->state.source==source->handle&&
+       rf_object_registry_lookup(&campaign_registry,source->handle)==source)mask|=2u;
+    if(actor&&target->state.actor==actor->handle&&
+       rf_object_registry_lookup(&campaign_registry,actor->handle)==actor)mask|=4u;
+    if(target->state.deadline>=0)mask|=8u;
+    return mask;
+}
+
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
