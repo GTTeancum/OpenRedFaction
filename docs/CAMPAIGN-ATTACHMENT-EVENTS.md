@@ -113,11 +113,25 @@ frame 120, the chassis moved X `426.43365→424.30389` and Y
 rounding. This verifies carrying an already-supported player, not natural
 landing. A separate unseeded placement
 (`artifacts/xemu/vehicle-group-carry-20260930-044844`) saw chassis contacts but
-stayed airborne while the fighter rose, so acquiring support from a moving
-chassis remains open.
+stayed airborne while the fighter rose, exposing the missing moving-host
+support acquisition.
 
-The remaining work is to acquire support on a rising chassis, verify NPC
-contact/carry and finish moving collision response, support
+A first-pass moving-host acquisition now checks an airborne player's lowest
+body sphere against upward-facing authored spheres on rising passive vehicles.
+It accepts only a close foot-to-surface gap while the actor is not ascending,
+sets the ordinary support owner/velocity and lets the existing player movement
+path carry it. This is a practical port response rather than a recovered
+retail scheduler. The unseeded `--rising` Xbox fixture
+(`artifacts/xemu/vehicle-group-rising-20260930-050329`) placed the player near
+the live fighter roof without assigning support. The new path accepted support
+five times, ended grounded and alive, and matched fighter displacement from
+frame 40 to 120: fighter X `426.37531→424.30389`, Y `-10.81861→-8.74781`;
+player X `425.47455→423.40314`, Y `-8.28021→-6.20941`. Stock XEMU retained
+3,833 free pages. Repeated acquisition indicates contact can still drop between
+frames; broader falling arrivals, side push, ceilings and NPC support remain.
+
+The remaining work is to refine continuous rising-platform contact, verify NPC
+contact/carry and finish moving side collision response, support
 scripted vehicle movement and combat, extend save coverage, and connect the
 authored natural event sources.
 The selected player-boardable host is still separate from this passive-owner

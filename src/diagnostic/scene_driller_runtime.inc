@@ -165,14 +165,72 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     actor->position[1]=actor->next_position[1]=top-bottom+.06f;
     actor->position[2]=actor->next_position[2]=center[2];
     memset(actor->velocity,0,sizeof(actor->velocity));
-    actor->flags&=~1u;rf_scene_actor_landing[1]=1;
-    campaign_support_handle=owner->handle;
-    memcpy(campaign_support_velocity,owner->velocity,sizeof(campaign_support_velocity));
+    if(rf_scene_passive_roof_fixture[9]==2) {
+        actor->flags|=1u;rf_scene_actor_landing[1]=3;campaign_support_handle=0;
+        memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));
+    } else {
+        actor->flags&=~1u;rf_scene_actor_landing[1]=1;
+        campaign_support_handle=owner->handle;
+        memcpy(campaign_support_velocity,owner->velocity,sizeof(campaign_support_velocity));
+    }
     memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
     if(rf_physics_body_prepare_sweep(actor))return RF_FORMAT;
     ++rf_scene_passive_roof_fixture[2];
     memcpy(rf_scene_passive_roof_fixture+3,actor->position,12);
     memcpy(rf_scene_passive_roof_fixture+6,owner->pose.position,12);
+    return RF_OK;
+}
+/* Port first pass for a rising chassis reaching an airborne player's feet.
+ * Existing ground queries cover downward landings; this narrow proximity
+ * gate supplies the missing moving-host acquisition before actor integration. */
+static int scene_passive_vehicle_player_rising_support(scene_stream *s,
+    rf_physics_body_state *actor)
+{
+    const scene_passive_vehicle *selected=NULL;float foot[3]={0},foot_offset=FLT_MAX;
+    float best=FLT_MAX;uint32_t i,j;
+    if(!s || !actor)return RF_RANGE;
+    if(rf_scene_actor_landing[1]!=3 || actor->velocity[1]>0 || !campaign_passive_vehicle_count)
+        return RF_OK;
+    ++rf_scene_passive_rising_support[0];
+    for(i=0;i<scene_actor_body.spheres.count;++i) {
+        const rf_physics_sphere *sphere=scene_actor_body.spheres.items+i;
+        float point[3];
+        scene_driller_actor_point(actor->position,actor->orientation,sphere->center,point);
+        if(point[1]-sphere->radius<foot_offset) {
+            memcpy(foot,point,sizeof(foot));foot_offset=point[1]-sphere->radius;
+        }
+    }
+    if(foot_offset==FLT_MAX)return RF_OK;
+    for(i=0;i<campaign_passive_vehicle_count;++i) {
+        const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
+        uint32_t kind=owner->resource_kind;
+        if(!owner->attached || owner->velocity[1]<=.1f || kind>=6 ||
+           !s->passive_vehicle_sphere_count[kind])continue;
+        for(j=0;j<s->passive_vehicle_sphere_count[kind];++j) {
+            const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+j;
+            float center[3],dx,dz,lateral,vertical,gap;
+            scene_driller_actor_point(owner->pose.position,owner->pose.input_matrix,sphere->center,center);
+            dx=foot[0]-center[0];dz=foot[2]-center[2];lateral=dx*dx+dz*dz;
+            if(lateral>sphere->radius*sphere->radius*.64f)continue; /* upward normal >= .6 */
+            vertical=sqrtf(sphere->radius*sphere->radius-lateral);
+            gap=foot_offset-(center[1]+vertical);
+            if(gap<-.25f || gap>.12f)continue;
+            ++rf_scene_passive_rising_support[1];
+            if(fabsf(gap)<fabsf(best)){best=gap;selected=owner;}
+        }
+    }
+    if(!selected)return RF_OK;
+    actor->position[1]=(float)((double)actor->position[1]-(double)best+.02);
+    actor->next_position[1]=actor->position[1];
+    actor->velocity[1]=0;actor->flags&=~1u;rf_scene_actor_landing[1]=1;
+    campaign_support_handle=selected->handle;
+    memcpy(campaign_support_velocity,selected->velocity,sizeof(campaign_support_velocity));
+    memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
+    {int status=rf_physics_body_prepare_sweep(actor);if(status)return status;}
+    ++rf_scene_passive_rising_support[2];
+    rf_scene_passive_rising_support[3]=selected->uid;
+    rf_scene_passive_rising_support[4]=selected->handle;
+    memcpy(rf_scene_passive_rising_support+5,&best,4);
     return RF_OK;
 }
 static int scene_driller_runtime_support(void *context,const rf_vehicle_rigid_state *state,rf_vehicle_rigid_support *out)

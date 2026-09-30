@@ -1526,6 +1526,7 @@ uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,
 uint32_t rf_scene_passive_draw[6]; /* owners,visible,batches,vertices,last UID,error */
 uint32_t rf_scene_passive_collision[8]; /* queries,hits,ground queries,ground hits,last UID,last handle,spheres,error */
 uint32_t rf_scene_passive_roof_fixture[10];
+uint32_t rf_scene_passive_rising_support[6]; /* probes,candidates,accepted,UID,handle,gap bits */
 static int campaign_passive_vehicle_tick(void);
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 
@@ -18211,6 +18212,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
                 status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return status;
+                status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return status;
                 status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
                 status=campaign_npc_refresh_support_tick();if(status)return status;
                 campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);

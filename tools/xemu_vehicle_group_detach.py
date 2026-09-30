@@ -48,16 +48,18 @@ def main():
     inventory = sys.argv[1:] == ['--inventory']
     submarine = sys.argv[1:] == ['--submarine']
     contact = sys.argv[1:] == ['--contact']
-    carry = sys.argv[1:] == ['--carry']
+    rising = sys.argv[1:] == ['--rising']
+    carry = sys.argv[1:] == ['--carry'] or rising
     masako = sys.argv[1:] == ['--masako'] or contact or carry
     short = inventory or submarine or masako
     if sys.argv[1:] and not short:
-        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact|--carry]')
+        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact|--carry|--rising]')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-carry-' if carry else
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-rising-' if rising else
+             'vehicle-group-carry-' if carry else
              'vehicle-group-contact-' if contact else
              'vehicle-group-masako-' if masako else
              'vehicle-group-submarine-' if submarine else
@@ -83,7 +85,8 @@ def main():
             (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I',
                 3977 if submarine else 1490 if inventory else 4717))
         if carry:
-            (DISC / 'campaign-passive-roof.bin').write_bytes(struct.pack('<2I', 4717, 30))
+            (DISC / 'campaign-passive-roof.bin').write_bytes(
+                struct.pack('<3I', 4717, 30, 2) if rising else struct.pack('<2I', 4717, 30))
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 18354))
         if not short:
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 18354, 18377))
@@ -105,7 +108,8 @@ def main():
                                          'rf_scene_passive_collision': 8,
                                          **({'rf_scene_actor_pose': 59,
                                              'rf_scene_actor_landing': 8,
-                                             'rf_scene_passive_roof_fixture': 10} if carry else {})},
+                                             'rf_scene_passive_roof_fixture': 10,
+                                             'rf_scene_passive_rising_support': 6} if carry else {})},
                           allow_guest_error=True)
         report['guest'] = guest
         if guest['guest_phase'] & 0x80000000:
@@ -146,6 +150,7 @@ def main():
                                  'late_landing': late['rf_scene_actor_landing'][1],
                                  'placed': late['rf_scene_passive_roof_fixture'][2]}
                 if late['rf_scene_passive_roof_fixture'][2] != 1 or \
+                   (rising and late['rf_scene_passive_rising_support'][2] < 1) or \
                    abs(late_vehicle[1]-early_vehicle[1]) < .25 or \
                    early['rf_scene_actor_landing'][1] != 1 or late['rf_scene_actor_landing'][1] != 1 or \
                    any(abs((late_actor[i]-early_actor[i])-(late_vehicle[i]-early_vehicle[i])) > .75

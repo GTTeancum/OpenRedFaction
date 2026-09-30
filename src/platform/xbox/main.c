@@ -594,9 +594,12 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     stream_flag=fopen("D:\\moving-support-test.flag","rb");rf_scene_moving_support_enabled=stream_flag!=NULL;
     if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2'&&mode<='4')rf_scene_moving_support_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\campaign-passive-roof.bin","rb");
-    if(stream_flag){uint32_t values[2];int invalid=fread(values,4,2,stream_flag)!=2 || fgetc(stream_flag)!=EOF;
-        fclose(stream_flag);if(invalid || !values[0] || values[1]>1000)return RF_FORMAT;
-        rf_scene_passive_roof_fixture[0]=values[0];rf_scene_passive_roof_fixture[1]=values[1];}
+    if(stream_flag){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),stream_flag);
+        int invalid=fgetc(stream_flag)!=EOF;fclose(stream_flag);
+        if(invalid || (bytes!=8 && bytes!=12) || !values[0] || values[1]>1000 ||
+           (bytes==12 && values[2]!=2))return RF_FORMAT;
+        rf_scene_passive_roof_fixture[0]=values[0];rf_scene_passive_roof_fixture[1]=values[1];
+        rf_scene_passive_roof_fixture[9]=bytes==12?values[2]:1;}
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
     stream_flag=fopen("D:\\fragment-contact-test.flag","rb");
