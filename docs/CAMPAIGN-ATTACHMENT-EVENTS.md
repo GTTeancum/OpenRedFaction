@@ -24,15 +24,34 @@ child's parent reference. OFF uses the base method. The five authored Detach
 events link the L5S3 moving submarine (UID 3977), three L20S1 fighter
 attachments (1490, 12335, 12369), and an L20S2 hangar-lift child (4717).
 
-The reconstructed runtime currently owns mover memberships from each group's
-second ID list. `rf_group_mover_memberships_open` explicitly leaves the first
-general-object ID list unbound, and scene controller views have no general
-handles. The scene also selects at most one authored vehicle per supported
-section; L5S3's linked submarine UID 3977 is not that selected host, and the
-three L20S1 linked fighter vehicles are not registered as live campaign
-vehicle hosts. Consequently the parent-child graph and several child owners
-that `Detach` mutates are absent. The next implementation must own the linked
-vehicles, bind the general-object graph, propagate parent motion to children,
-then remove the exact child link while retaining its world pose. A callback
-that only clears a registry bit would not release these authored vehicles and
-platforms.
+The reconstructed runtime now registers passive pose owners for authored
+group-linked vehicle entities outside the single player-boardable host. It
+binds the first general-object UID list to those handles, propagates the
+group's translation or rotation into their world poses, and removes all of a
+linked child's group memberships on `Detach` ON. The detached pose stays live
+and unchanged. Event links resolve to the same registered owner. This is
+ownership and kinematic motion, not yet a rendered, collidable or steerable
+secondary vehicle.
+They use a port-internal registry type so NPC-only event effects cannot treat
+their lightweight pose records as full actor views.
+
+`tools/xemu_vehicle_group_detach.py` stages L20S2's authored `When_Dead`
+event 18354 to activate `Hanger Lift001`, then `Detach` 18377 at frame 60.
+Stock-64-MiB XEMU completed 90 frames: vehicle 4717 moved from authored
+X=416.25 to X=426.58 at the live probe, detached at X=426.03, and retained
+exactly that pose through frame 90. The final run is
+`artifacts/xemu/vehicle-group-detach-20260930-030536`, with 4,144 free pages.
+The 10-frame L20S1 inventory run
+`artifacts/xemu/vehicle-group-inventory-20260930-030006` registered all three
+Fighters and their six group bindings with 5,078 free pages. These are focused
+process-local fixtures, not campaign-route playthroughs or visual proof.
+The L5S3 10-frame fixture
+`artifacts/xemu/vehicle-group-submarine-20260930-030252` kept the selected
+boardable submarine separate from group child 3977; it registered one passive
+owner and one binding with 5,755 free pages.
+
+The remaining work is to publish secondary vehicle models and collision,
+support their scripted movement and combat, save attachment state, and connect
+the authored natural event sources.
+The selected player-boardable host is still separate from this passive-owner
+collection. Other first-list object families remain unbound.

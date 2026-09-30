@@ -1382,7 +1382,8 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
            campaign_events.items[i].state.type==50)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
-        if(campaign_events.items[i].state.type==72)
+        if(campaign_events.items[i].state.type==72 || campaign_events.items[i].state.type==58 ||
+           campaign_events.items[i].state.type==16)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47 && campaign_events.items[i].state.type!=86 && campaign_events.items[i].state.type!=89)return RF_FORMAT;
@@ -1503,6 +1504,15 @@ static rf_level_uid_object *campaign_mover_objects;
 static rf_group_object *campaign_mover_bindings;
 static rf_group_mover_memberships campaign_memberships;
 uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes, ordered binding hash */
+typedef struct scene_passive_vehicle {
+    uint32_t object_kind,handle,uid,attached; /* Kind 11 is port-internal, not a skeletal entity view. */
+    rf_group_attached_pose pose;
+} scene_passive_vehicle;
+static scene_passive_vehicle *campaign_passive_vehicles;
+static uint32_t campaign_passive_vehicle_count,*campaign_general_handles;
+uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,handle,parent,live XYZ,detached XYZ,errors */
+static int campaign_passive_vehicle_tick(void);
+static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 
 static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
@@ -3337,6 +3347,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
         }
         memcpy(entry->pose.pending,runtime->pending,12);entry->pose.flags=runtime->object_flags;
     }
+    status=campaign_passive_vehicle_tick();if(status)return status;
     status=rf_geometry_collision_movers_propagate(&campaign_movers,campaign_controller_views,campaign_group_runtime.count,1.0f/60,0);if(status)return status;
     ++rf_scene_live_motion[1];
     return RF_OK;
@@ -5714,6 +5725,9 @@ static void campaign_close_movers(void)
     rf_ambient_instances_close(&campaign_ambient_instances);
     if(campaign_player_object.view)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_player_object);
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
+    for(i=0;i<campaign_passive_vehicle_count;i++)rf_object_registry_remove(&campaign_registry,campaign_passive_vehicles[i].handle);
+    free(campaign_passive_vehicles);campaign_passive_vehicles=NULL;campaign_passive_vehicle_count=0;
+    free(campaign_general_handles);campaign_general_handles=NULL;
     rf_group_mover_memberships_close(&campaign_memberships);
     free(campaign_controller_requests);campaign_controller_requests=NULL;
     free(campaign_controller_views);campaign_controller_views=NULL;
@@ -5809,6 +5823,129 @@ static int campaign_bind_movers(void)
     }
     return RF_OK;
 }
+/* First-list group references in the installed campaign are vehicles: the
+ * moving submarine, three Fighters and Masako's fighter. Retain their authored
+ * world poses and handles even when none is the one player-boardable host. */
+static int campaign_bind_passive_vehicles(void)
+{
+    uint64_t capacity=0;uint32_t group,used=0;int status=RF_OK;
+    if(campaign_passive_vehicles || campaign_general_handles || !campaign_controller_views)return RF_RANGE;
+    memset(rf_scene_passive_attachment,0,sizeof(rf_scene_passive_attachment));
+    rf_scene_passive_attachment[6]=UINT32_MAX;
+    for(group=0;group<campaign_group_runtime.count;++group) {
+        const rf_group_runtime_entry *entry=campaign_group_runtime.items+group;
+        if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        capacity+=entry->source->record.ids_count[0];
+    }
+    if(!capacity)return RF_OK;
+    if(capacity>65536)return RF_RANGE;
+    campaign_passive_vehicles=calloc((size_t)capacity,sizeof(*campaign_passive_vehicles));
+    campaign_general_handles=malloc((size_t)capacity*sizeof(*campaign_general_handles));
+    if(!campaign_passive_vehicles || !campaign_general_handles){status=RF_RANGE;goto failed;}
+    for(group=0;group<campaign_group_runtime.count;++group) {
+        const rf_group_runtime_entry *entry=campaign_group_runtime.items+group;
+        rf_group_controller_view *view=campaign_controller_views+group;
+        uint32_t ref;
+        if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        view->general_handles=campaign_general_handles+used;
+        for(ref=0;ref<entry->source->record.ids_count[0];++ref) {
+            uint32_t uid=entry->source->ids[0][ref],source,owner_index,parent_index;
+            scene_passive_vehicle *owner;
+            if((int32_t)uid==campaign_authored_vehicle_uid)continue;
+            for(source=0;source<campaign_seeds.records.count;++source)
+                if((uint32_t)campaign_seeds.records.items[source].record.uid==uid)break;
+            if(source==campaign_seeds.records.count)continue;
+            {
+                const char *name=campaign_seeds.records.items[source].record.class_name;
+                if(strcmp(name,"sub") && strcmp(name,"Fighter01") &&
+                   strcmp(name,"masako_fighter") && strcmp(name,"Driller01") &&
+                   strcmp(name,"APC") && strcmp(name,"Jeep01"))continue;
+            }
+            for(owner_index=0;owner_index<campaign_passive_vehicle_count;++owner_index)
+                if(campaign_passive_vehicles[owner_index].uid==uid)break;
+            if(owner_index==campaign_passive_vehicle_count) {
+                const rf_level_entity *record=&campaign_seeds.records.items[source].record;
+                owner=campaign_passive_vehicles+campaign_passive_vehicle_count;
+                owner->object_kind=11;owner->uid=uid;owner->attached=1;
+                owner->pose.radius=0;
+                memcpy(owner->pose.base_position,record->position,12);
+                memcpy(owner->pose.base_matrix,record->orientation,36);
+                memcpy(owner->pose.input_matrix,record->orientation,36);
+                memcpy(owner->pose.output_matrix,record->orientation,36);
+                memcpy(owner->pose.pending_matrix,record->orientation,36);
+                status=rf_group_pose_set_position(&owner->pose,record->position);if(status)goto failed;
+                status=rf_object_registry_insert(&campaign_registry,owner,&owner->handle);if(status)goto failed;
+                ++campaign_passive_vehicle_count;++rf_scene_passive_attachment[0];
+            } else owner=campaign_passive_vehicles+owner_index;
+            campaign_general_handles[used++]=owner->handle;++view->general_count;
+            ++rf_scene_passive_attachment[1];
+            if(uid==4717u || !rf_scene_passive_attachment[4]) {
+                for(parent_index=0;parent_index<campaign_group_registration.count;++parent_index)
+                    if(campaign_group_registration.controllers[parent_index].runtime==entry)break;
+                if(parent_index==campaign_group_registration.count){status=RF_FORMAT;goto failed;}
+                rf_scene_passive_attachment[4]=uid;rf_scene_passive_attachment[5]=owner->handle;
+                rf_scene_passive_attachment[6]=campaign_group_registration.controllers[parent_index].handle;
+                memcpy(rf_scene_passive_attachment+7,owner->pose.position,12);
+            }
+        }
+        if(!view->general_count)view->general_handles=NULL;
+    }
+    return RF_OK;
+failed:
+    for(group=0;group<campaign_group_runtime.count;++group) {
+        campaign_controller_views[group].general_handles=NULL;
+        campaign_controller_views[group].general_count=0;
+    }
+    for(group=0;group<campaign_passive_vehicle_count;++group)
+        rf_object_registry_remove(&campaign_registry,campaign_passive_vehicles[group].handle);
+    free(campaign_passive_vehicles);campaign_passive_vehicles=NULL;campaign_passive_vehicle_count=0;
+    free(campaign_general_handles);campaign_general_handles=NULL;
+    return status;
+}
+static int campaign_passive_vehicle_tick(void)
+{
+    uint32_t index;int status;
+    for(index=0;index<campaign_passive_vehicle_count;++index) {
+        scene_passive_vehicle *owner=campaign_passive_vehicles+index;
+        float previous[3];
+        if(owner->uid==rf_scene_passive_attachment[4])
+            memcpy(rf_scene_passive_attachment+7,owner->pose.position,12);
+        if(!owner->attached)continue;
+        memcpy(previous,owner->pose.position,12);
+        status=rf_group_translation_bind_pose(&owner->pose,owner->handle,
+            campaign_controller_views,campaign_group_runtime.count,1.0f/60,1);
+        if(status){++rf_scene_passive_attachment[13];return status;}
+        if(memcmp(previous,owner->pose.position,12))++rf_scene_passive_attachment[2];
+        if(owner->uid==rf_scene_passive_attachment[4])
+            memcpy(rf_scene_passive_attachment+7,owner->pose.position,12);
+    }
+    return RF_OK;
+}
+static int campaign_passive_vehicle_detach(void *context,uint32_t handle)
+{
+    uint32_t index,group,removed=0;(void)context;
+    for(index=0;index<campaign_passive_vehicle_count;++index)
+        if(campaign_passive_vehicles[index].handle==handle && campaign_passive_vehicles[index].attached)break;
+    if(index==campaign_passive_vehicle_count)return RF_NOT_FOUND;
+    if(rf_object_registry_lookup(&campaign_registry,handle)!=campaign_passive_vehicles+index)return RF_NOT_FOUND;
+    for(group=0;group<campaign_group_runtime.count;++group) {
+        rf_group_controller_view *view=campaign_controller_views+group;
+        uint32_t read,write=0,*handles=(uint32_t *)view->general_handles;
+        for(read=0;read<view->general_count;++read) {
+            if(handles[read]==handle){++removed;continue;}
+            handles[write++]=handles[read];
+        }
+        view->general_count=write;
+    }
+    if(!removed)return RF_NOT_FOUND;
+    campaign_passive_vehicles[index].attached=0;
+    ++rf_scene_passive_attachment[3];
+    rf_scene_passive_attachment[4]=campaign_passive_vehicles[index].uid;
+    rf_scene_passive_attachment[5]=handle;rf_scene_passive_attachment[6]=UINT32_MAX;
+    memcpy(rf_scene_passive_attachment+7,campaign_passive_vehicles[index].pose.position,12);
+    memcpy(rf_scene_passive_attachment+10,campaign_passive_vehicles[index].pose.position,12);
+    return RF_OK;
+}
 uint32_t rf_scene_campaign_groups[5]; /* controllers, keys, source/runtime/registration bytes */
 rf_startup_events_report rf_scene_startup_events;
 uint32_t rf_scene_startup_gravity[4];
@@ -5840,7 +5977,7 @@ uint32_t rf_scene_npc_backlinks[4]; /* writes, linked actors, hash, retained byt
 uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+(campaign_authored_vehicle_uid?1u:0u);
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+campaign_passive_vehicle_count+(campaign_authored_vehicle_uid?1u:0u);
     rf_level_uid_object *objects;int status;
     for(j=0;campaign_clutter_bodies && j<campaign_clutter_records.count;j++)if(campaign_clutter_bodies[j])++n;
     objects=n?malloc((size_t)n*sizeof(*objects)):NULL;
@@ -5862,6 +5999,11 @@ static int campaign_resolve_trigger_links(void)
         objects[i].handle=campaign_authored_vehicle_handle;
         objects[i].flags=0;
         ++i;
+    }
+    for(j=0;j<campaign_passive_vehicle_count;++j,++i) {
+        objects[i].uid=campaign_passive_vehicles[j].uid;
+        objects[i].handle=campaign_passive_vehicles[j].handle;
+        objects[i].flags=0;
     }
     for(j=0;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view) {
         objects[i].uid=campaign_seeds.records.items[j].record.uid;
@@ -18656,6 +18798,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_actor_body_sweeps[4]=(campaign_movers.count?campaign_movers.count:1)*sizeof(*campaign_sweep_scratch)+
                 (campaign_movers.count+1)*sizeof(*campaign_surface_sources)+sizeof(*campaign_surface_palette);
             rf_scene_campaign_load_stage=17;status=campaign_bind_movers();if(status)goto done;
+            status=campaign_bind_passive_vehicles();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             rf_scene_campaign_load_stage=18;status=campaign_navigation_open(level);if(status)goto done;
@@ -19157,6 +19300,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.reverse_mover=campaign_reverse_mover;
             campaign_triggers.pause_mover=campaign_pause_mover;
             campaign_triggers.stop_mover=campaign_stop_mover;
+            campaign_triggers.detach_object=campaign_passive_vehicle_detach;
             memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {

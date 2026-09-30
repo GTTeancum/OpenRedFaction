@@ -365,6 +365,9 @@ typedef struct rf_runtime_triggers {
     void *pause_mover_context;
     int (*stop_mover)(void *context,uint32_t handle);
     void *stop_mover_context;
+    /* Detach58 ON removes a registered child from its moving-group parent. */
+    int (*detach_object)(void *context,uint32_t handle);
+    void *detach_context;
     int (*move_npc)(void *context,uint32_t handle,const rf_level_event *event,uint32_t on);
     void *move_context;
     int (*play_animation)(void *,uint32_t,const rf_level_event *);
