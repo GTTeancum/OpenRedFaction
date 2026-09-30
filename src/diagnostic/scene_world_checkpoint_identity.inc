@@ -60,6 +60,8 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
     }
     for(i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
+        scene_turret_owner *turret=scene_turret_lookup(scene_turret_uid_handle((uint32_t)campaign_seeds.records.items[i].record.uid));
+        if(turret){WORLD_UID(turret->uid,turret->registration.handle,turret->view.flags_7c,&turret->registration,0);continue;}
         if(campaign_authored_vehicle_uid &&
            (uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)campaign_authored_vehicle_uid){
             if(o->registration.view||o->persistence_registered){status=RF_FORMAT;goto fail;}

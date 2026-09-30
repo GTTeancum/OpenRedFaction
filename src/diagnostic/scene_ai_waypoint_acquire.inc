@@ -43,7 +43,8 @@ static int campaign_ai_waypoint_binding(uint32_t handle,rf_level_waypoint_path *
 }
 static int campaign_set_ai_mode_acquiring(void *context,uint32_t handle,int32_t action,int32_t now)
 {
-    uint32_t i;
+    uint32_t i;int turret_status=scene_turret_set_ai_mode(handle,action);
+    if(turret_status!=RF_NOT_FOUND)return turret_status;
     if(campaign_authored_vehicle_handle && handle==campaign_authored_vehicle_handle)
         return campaign_vehicle_set_ai_mode(context,handle,action,now);
     if(action!=4)return campaign_set_ai_mode_live(context,handle,action,now);

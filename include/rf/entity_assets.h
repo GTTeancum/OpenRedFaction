@@ -12,9 +12,10 @@
 #include "rf/audio.h"
 /* First-pass primary-fire settings from a named weapons.tbl declaration.
  * SP values only; finite positive fire timing/damage and a bounded magazine.
- * Explosives (including clipless secondary weapons identified by explosive
- * damage type) without both clip fields return magazine/reload_seconds zero;
- * callers consume reserve ammo directly and must not initiate reload.
+ * Explosives (including secondaries identified by explosive damage type) and
+ * explicitly continuous-fire weapons with both clip fields absent return
+ * magazine/reload_seconds zero. Partial clip pairs still reject. Callers own
+ * clipless supply policy and must not initiate magazine reload.
  * Output is preserved on malformed, duplicate or missing required fields. */
 typedef struct rf_weapon_primary_definition {
     uint32_t magazine,semi_automatic;float reload_seconds,fire_seconds,damage;int32_t damage_kind;

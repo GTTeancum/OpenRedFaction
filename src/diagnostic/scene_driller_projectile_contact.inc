@@ -60,6 +60,9 @@ static int scene_driller_projectile_query(uint32_t source,const float start[3],c
             ++rf_scene_passive_damage[1];rf_scene_passive_damage[4]=passive->uid;
         }
     }
+    {uint32_t handle,found;int status=scene_turret_contact_query(source,start,delta,radius,limit,&handle,&hit,&found);
+     if(status)return status;if(found){out->hit=hit;out->object=SCENE_TURRET_PROJECTILE_OWNER;
+        out->face=handle;out->room=UINT32_MAX;*matched=1;}}
     return RF_OK;
 }
 /* Append after ALL existing world/NPC/mover/detached candidates. A nearer
@@ -100,6 +103,19 @@ static int scene_driller_projectile_damage(const rf_weapon_flight_contact *conta
     rf_damage_request request={damage,source,kind,0,UINT32_MAX,0};
     if(!contact||!handled||!amount)return RF_RANGE;
     *handled=0;*amount=0;
+    if(contact->object==SCENE_TURRET_PROJECTILE_OWNER){
+        combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD),0};
+        rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
+            combat_random,combat_notify,combat_playing,combat_play,&feedback};
+        float seconds=(float)frame/60;uint32_t clock;int status;*handled=1;
+        if(source==contact->face||!scene_turret_lookup(contact->face))return RF_OK;
+        memcpy(&clock,&seconds,4);status=scene_turret_damage_receive(contact->face,&request,1,clock,&effects,amount);
+        if(!status)status=feedback.status;
+        if(!status&&*amount>0&&source==campaign_player_object.handle){
+            scene_turret_owner *o=scene_turret_lookup(contact->face);combat_hit_frame=frame;
+            campaign_combat_event(frame,0,contact->face,*amount,o->damage.effects.health);
+        }return status;
+    }
     if(contact->object!=SCENE_DRILLER_PROJECTILE_OWNER)return RF_OK;
     *handled=1;
     if(!isfinite(damage)||damage<0||kind< -1||kind>10)return RF_RANGE;

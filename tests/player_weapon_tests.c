@@ -38,6 +38,15 @@ int main(int argc,char **argv)
         CHECK(rf_weapon_primary_read(valid,(uint32_t)strlen(valid),"missing",&d)==RF_NOT_FOUND && !memcmp(&d,&saved,sizeof(d)));
         CHECK(d.ai_attack_range==0 && d.ai_spread_degrees==0);
         CHECK(d.ai_damage_scale[0]==1 && d.ai_damage_scale[1]==1);
+        {const char *vauss="$Name: \"Vauss\" $Flags: (\"continuous_fire\" \"from_eye\") $Fire Wait: .08 $Damage: 100 $Damage Type: \"bullet\" $AI attack range: 30 30 $AI Spread Degrees: 1.5 1.5 $AI Damage Scale: .2 .2";
+         char partial[512];rf_weapon_primary_definition turret={0},unchanged;
+         CHECK(rf_weapon_primary_read(vauss,(uint32_t)strlen(vauss),"Vauss",&turret)==RF_OK);
+         CHECK(!turret.magazine && !turret.reload_seconds && turret.fire_seconds==.08f &&
+               turret.damage==100 && turret.ai_damage_scale[0]==.2f && turret.ai_attack_range==30 && turret.ai_spread_degrees==1.5f);
+         unchanged=turret;snprintf(partial,sizeof(partial),"%s $Clip Size: 10 10",vauss);
+         CHECK(rf_weapon_primary_read(partial,(uint32_t)strlen(partial),"Vauss",&turret)==RF_FORMAT && !memcmp(&turret,&unchanged,sizeof(turret)));
+         const char *missing="$Name: \"Vauss\" $Fire Wait: .08 $Damage: 100 $Damage Type: \"bullet\"";
+         CHECK(rf_weapon_primary_read(missing,(uint32_t)strlen(missing),"Vauss",&turret)==RF_FORMAT && !memcmp(&turret,&unchanged,sizeof(turret)));}
         {char table[1024];const char *end=strstr(valid,"#End");
          const char *invalid[]={"-1 1","1 -1","1000001 1","1 1000001","nan 1","1 inf",".4",".4 .8 $AI Damage Scale: 1 1"};
          snprintf(table,sizeof(table),"%.*s $AI Damage Scale: .4 .8 #End",(int)(end-valid),valid);

@@ -48,6 +48,8 @@ static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t han
         return !owner->damage.destroyed && *health>0 &&
             !(owner->damage.object_flags&(2u|0x4000u));
     }
+    {uint32_t affiliation,alive;scene_turret_owner *o=scene_turret_lookup(handle);
+     if(o&&!scene_turret_target(handle,position,&affiliation,&alive)){*health=o->damage.effects.health;return alive;}}
     return 0;
 }
 static int scene_driller_runtime_cut(void *context,const float *center,const float *basis,
@@ -118,7 +120,7 @@ static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,
     const rf_collision_body_query *query,rf_geometry_body_hit *hit,uint32_t *matched)
 {
     uint32_t index;int status;
-    if(!s || !campaign_passive_vehicle_count)return RF_OK;
+    if(!s)return RF_OK;
     for(index=0;index<campaign_passive_vehicle_count;++index) {
         const scene_passive_vehicle *owner=campaign_passive_vehicles+index;
         scene_driller_actor_collision body={0};const scene_driller_resources *resource;
@@ -142,6 +144,21 @@ static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,
             ++rf_scene_passive_collision[1];rf_scene_passive_collision[4]=owner->uid;
             rf_scene_passive_collision[5]=body.handle;rf_scene_passive_collision[6]=body.count;
         }
+    }
+    for(index=0;index<scene_turret_count;index++){
+        scene_turret_owner *o=scene_turrets+index;scene_driller_actor_collision body={0};
+        rf_physics_sphere raw[8]={{0}};rf_collision_body_sphere spheres[8]={{0}};
+        const rf_static_render_resource *r=&scene_turret_models[o->live_model].render;
+        uint32_t n=r->sphere_count,j;
+        if(o->dead||(o->view.flags_7c&(2u|0x4000u)))continue;
+        if(n>8)return RF_RANGE;
+        if(n){status=rf_model_creation_spheres(r->spheres,n,1,NULL,0,raw,8);if(status)return status;}
+        else{n=1;memcpy(raw[0].center,r->bound,12);raw[0].radius=r->bound[3];}
+        for(j=0;j<n;j++){memcpy(spheres[j].center,raw[j].center,12);spheres[j].radius=raw[j].radius;}
+        body.spheres=spheres;body.count=n;body.handle=o->registration.handle;body.material=o->material;
+        memcpy(body.position,o->position,12);memcpy(body.next_position,o->position,12);
+        memcpy(body.orientation,o->basis,36);memcpy(body.next_orientation,o->basis,36);
+        status=scene_driller_actor_compose(&body,actor,linked,query,hit,matched);if(status)return status;
     }
     return RF_OK;
 }

@@ -574,7 +574,7 @@ int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapo
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
-    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0,explosive=0;int selected=0,found=0,q,status;
+    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0,explosive=0,continuous=0;int selected=0,found=0,q,status;
     if(!text || !name || !*name || !result)return RF_RANGE;
     v.burst_count=1;v.projectiles=1;v.ai_damage_scale[0]=v.ai_damage_scale[1]=1;
     while((status=token(&l,t,&q))==RF_OK) {
@@ -601,6 +601,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 if(!q && !strcmp(t,")"))break;
                 if(!q)return RF_FORMAT;
                 if(same(t,"semi_automatic"))v.semi_automatic=1;
+                if(same(t,"continuous_fire"))continuous=1;
             }
         } else if(same(t,"$AI")) {
             float paired;
@@ -717,7 +718,9 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;
-    if((mask&44)!=44 || ((mask&3)!=3 && (!explosive || (mask&3))))return RF_FORMAT;
+    /* Authored Vauss has continuous_fire and no magazine/reload declarations.
+     * Admit only a wholly absent clip pair; partial pairs still reject. */
+    if((mask&44)!=44 || ((mask&3)!=3 && (!(explosive || continuous) || (mask&3))))return RF_FORMAT;
     if(!(((mask&3)?v.reload_seconds>0 && v.reload_seconds<=60:v.reload_seconds==0) && v.fire_seconds>0 && v.fire_seconds<=60 && v.damage>0 && v.damage<=1000000))return RF_RANGE;
     if(burst_enabled && (mask&384)!=384)return RF_FORMAT;
     if(!burst_enabled || burst_alt){v.burst_count=1;v.burst_seconds=0;}

@@ -13,7 +13,7 @@ Remaining first-playable work, grouped for planning:
 
 - Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
 - Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving and preserves the suspended route through ordinary Xbox saves; waypoint-mode resume, NPC seats/turrets remain open (docs/VEHICLE-AI-MODES.md).
-- Stationary turrets: Helpers have implemented model resources and static damage/contact owners; integrate and build them with aiming/fire behavior, then connect scripts and saves.
+- Stationary turrets: Authored static turret damage, wreck selection and autonomous player attacks work on Xbox; destroyed turrets restore correctly through ordinary saves, while runtime-generated Auto Turret heads, possession and NPC Attack-target saves remain open (docs/STATIONARY-TURRETS.md).
 - NPC rotating support: Grounded carry and support-loss velocity are integrated, with compiled Xbox transform and carry/fall/contact checks passing; live collision scheduling remains unverified (docs/NPC-ROTATING-SUPPORT.md).
 - Flame persistence: Burning-target saves now restore damage cadence and pain state on Xbox alongside canister/stream saves; removed-source attribution, pending-throw/reload coverage and presentation remain open (docs/FLAME-PICKUP-FIRST-PASS.md).
 - Corpse persistence: A settled skeletal death pose now saves and restores its owned body on Xbox without duplicate death effects; corpse age/fade/effects, unsettled deaths and static turret bodies remain open.

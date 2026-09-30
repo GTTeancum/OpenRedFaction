@@ -876,6 +876,7 @@ typedef struct scene_stream {
 } scene_stream;
 static int scene_driller_damage_source(uint32_t,uint32_t *);
 #define SCENE_DRILLER_PROJECTILE_OWNER 0x08000000u
+#define SCENE_TURRET_PROJECTILE_OWNER 0x04000000u
 static int scene_driller_projectile_compose(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *,uint32_t *);
 static int scene_driller_firearm_select(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *);
 static int scene_driller_projectile_damage(const rf_weapon_flight_contact *,uint32_t,float,int32_t,uint32_t,uint32_t *,float *);
@@ -1548,6 +1549,11 @@ static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
 static rf_entity_seeds campaign_seeds;
+#include "scene_turret_models.inc"
+static int scene_turret_uid_life(uint32_t,uint32_t *,uint32_t *);
+static int scene_turret_set_ai_mode(uint32_t,int32_t);
+static int scene_turret_set_friendliness(uint32_t,uint32_t);
+static void scene_turret_combat_close(void);
 static rf_entity_skeletons campaign_skeletons;
 static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
@@ -5084,6 +5090,7 @@ static void campaign_npc_bodies_close(void)
 static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
 {
     uint32_t i;(void)context;
+    if(!scene_turret_uid_life(uid,present,alive))return RF_OK;
     for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid) {
         const campaign_npc_body *owner=campaign_npc_bodies+i;
         /* An entity slot without a skeletal body may have a separate vehicle
@@ -5455,6 +5462,18 @@ static void campaign_actors_capture(void)
 }
 #include "scene_npc_loadout.inc"
 #include "scene_npc_vitals.inc"
+#include "scene_turret_owner.inc"
+static int scene_turret_set_ai_mode(uint32_t handle,int32_t action)
+{
+    scene_turret_owner *o=scene_turret_lookup(handle);if(!o)return RF_NOT_FOUND;
+    if(action< -1||action>15)return RF_RANGE;if(o->dead)return RF_OK;
+    o->view.action_520=action;return RF_OK;
+}
+static int scene_turret_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
+{
+    scene_turret_owner *o=scene_turret_lookup(scene_turret_uid_handle(uid));
+    if(!o)return RF_NOT_FOUND;*present=1;*alive=!o->dead&&o->damage.effects.health>0;return RF_OK;
+}
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
     const uint32_t budget=640*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
@@ -5744,6 +5763,7 @@ static void campaign_close_movers(void)
     rf_clutter_classes_close(&campaign_clutter_classes);
     rf_clutter_catalogs_close(&campaign_clutter_catalogs);
     campaign_live_corpses_close();
+    scene_turret_combat_close();(void)scene_turrets_close();scene_turret_models_close();
     campaign_models_close();
     campaign_npc_bodies_close();
     if(campaign_playback_resources.models) {
@@ -6057,7 +6077,7 @@ uint32_t rf_scene_npc_backlinks[4]; /* writes, linked actors, hash, retained byt
 uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+campaign_passive_vehicle_count+(campaign_authored_vehicle_uid?1u:0u);
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+campaign_passive_vehicle_count+scene_turret_count+(campaign_authored_vehicle_uid?1u:0u);
     rf_level_uid_object *objects;int status;
     for(j=0;campaign_clutter_bodies && j<campaign_clutter_records.count;j++)if(campaign_clutter_bodies[j])++n;
     objects=n?malloc((size_t)n*sizeof(*objects)):NULL;
@@ -6084,6 +6104,9 @@ static int campaign_resolve_trigger_links(void)
         objects[i].uid=campaign_passive_vehicles[j].uid;
         objects[i].handle=campaign_passive_vehicles[j].handle;
         objects[i].flags=0;
+    }
+    for(j=0;j<scene_turret_count;j++,i++){
+        objects[i].uid=scene_turrets[j].uid;objects[i].handle=scene_turrets[j].registration.handle;objects[i].flags=scene_turrets[j].view.flags_7c;
     }
     for(j=0;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view) {
         objects[i].uid=campaign_seeds.records.items[j].record.uid;
@@ -10079,6 +10102,9 @@ static struct {
 static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enabled)
 {
     uint32_t i;(void)context;
+    {scene_turret_owner *o=scene_turret_lookup(handle);if(o){
+        if(enabled)o->view.flags_7c|=4u;else o->view.flags_7c&=~4u;return RF_OK;
+    }}
     if(handle==(uint32_t)campaign_player_view.handle) {
         if(enabled)campaign_player_view.flags_7c|=4;else campaign_player_view.flags_7c&=~4u;
         campaign_player_damage.object_flags=campaign_player_view.flags_7c;return RF_OK;
@@ -10200,6 +10226,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
 }
 static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t value)
 {
+    int turret_status=scene_turret_set_friendliness(handle,value);if(turret_status!=RF_NOT_FOUND)return turret_status;
     uint32_t i;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);(void)context;
     if(!view)return RF_NOT_FOUND;
     if(view==&campaign_player_view){campaign_player_damage.state.effects.affiliation=value;return RF_OK;}
@@ -10377,12 +10404,14 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 static uint32_t combat_predicate(void *c,uint32_t kind,uint32_t handle)
 {(void)c;return (kind==RF_DAMAGE_PLAYER || kind==RF_DAMAGE_OBJECT_PLAYER_FLAG) && handle==campaign_player_object.handle;}
 static uint32_t combat_uid(void *c,int32_t uid)
-{uint32_t i;(void)c;for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)uid)return campaign_npc_bodies[i].registration.handle;
+{uint32_t i,handle=scene_turret_uid_handle((uint32_t)uid);(void)c;if(handle!=UINT32_MAX)return handle;
+ for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view&&(uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)uid)return campaign_npc_bodies[i].registration.handle;
  for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].uid==(uint32_t)uid)return campaign_passive_vehicles[i].handle;
  return UINT32_MAX;}
 static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
 {
     if(scene_driller_damage_source(handle,affiliation))return 1;
+    {scene_turret_owner *o=scene_turret_lookup(handle);if(o){*affiliation=o->damage.effects.affiliation;return 1;}}
     uint32_t i;(void)c;
     if(campaign_player_object.view && handle==campaign_player_object.handle){*affiliation=campaign_player_damage.state.effects.affiliation;return 1;}
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
@@ -10679,6 +10708,14 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
     uint32_t i,entered,clock_bits;float amount,seconds=(float)now*.001f;int status;(void)context;
     combat_feedback feedback={now,0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    {scene_turret_owner *o=scene_turret_lookup(handle);if(o){
+        rf_damage_request request={o->damage.effects.health+fmaxf(0,o->damage.effects.armor)+1,source,-1,0,UINT32_MAX,1};
+        if(o->dead)return RF_OK;memcpy(&clock_bits,&seconds,4);++rf_scene_script_slays[0];
+        status=scene_turret_damage_receive(handle,&request,1,clock_bits,&effects,&amount);
+        if(!status)status=feedback.status;rf_scene_script_slays[1]+=o->dead;rf_scene_script_slays[2]=o->uid;
+        memcpy(rf_scene_script_slays+3,&o->damage.effects.health,4);rf_scene_script_slays[4]=now;rf_scene_script_slays[5]=status;
+        return status;
+    }}
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;rf_damage_request request;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
@@ -10821,17 +10858,19 @@ static int campaign_query_vitals(void *context,uint32_t handle,uint32_t armor,fl
             vitals=&owner->damage.effects;break;
         }
     }
+    if(!vitals){scene_turret_owner *o=scene_turret_lookup(handle);if(o)vitals=&o->damage.effects;}
     if(!vitals)return RF_NOT_FOUND;
     *value=armor?vitals->armor:vitals->health;return RF_OK;
 }
 static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,uint32_t armor)
 {
-    rf_damage_effect_state *vitals=NULL;campaign_npc_body *owner=NULL;uint32_t i,slot=0;float value,limit;
+    rf_damage_effect_state *vitals=NULL;campaign_npc_body *owner=NULL;scene_turret_owner *turret=scene_turret_lookup(handle);uint32_t i,slot=0;float value,limit;
     (void)context;if(armor>1)return RF_RANGE;
     if(handle==UINT32_MAX || (campaign_player_object.view && handle==campaign_player_object.handle))vitals=&campaign_player_damage.state.effects;
     else for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
         owner=campaign_npc_bodies+i;slot=i;vitals=&owner->damage.effects;break;
     }
+    if(!vitals&&turret)vitals=&turret->damage.effects;
     if(!vitals)return RF_NOT_FOUND;
     if(vitals->health<=0)return RF_OK; /* First pass does not reconstruct resurrection. */
     limit=armor?vitals->class_armor:vitals->class_health;
@@ -10839,6 +10878,11 @@ static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,u
     value=(armor?vitals->armor:vitals->health)+(float)amount;
     if(value<0)value=0;if(value>limit)value=limit;
     if(armor)vitals->armor=value;else vitals->health=value;
+    if(turret&&vitals->health<=0){
+        turret->dead=1;turret->model=turret->dead_model;turret->view.flags_810|=1u;
+        turret->damage.effects.flags_810=turret->view.flags_810;turret->target=UINT32_MAX;turret->fire_due=0;
+        ++rf_scene_turret_owners[3];
+    }
     if(owner && vitals->health<=0) {
         uint32_t entered;int status=rf_scene_npc_death_entry(owner->registration.handle,&entered);
         if(status)return status;if(entered){owner->script_move.active=0;return combat_death_start(slot);}
@@ -11046,6 +11090,14 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+#include "scene_turret_combat.inc"
+static int scene_turret_set_friendliness(uint32_t handle,uint32_t value)
+{
+    scene_turret_owner *o=scene_turret_lookup(handle);if(!o)return RF_NOT_FOUND;
+    o->damage.effects.affiliation=value;
+    if(scene_turret_combat_ready)scene_turret_combat_release(o,scene_turret_combat_states+(o-scene_turrets));
+    else{o->target=UINT32_MAX;o->fire_due=0;}return RF_OK;
+}
 #include "scene_ai_ammo_fallback.inc"
 #include "scene_ai_broken_shield.inc"
 #include "scene_riot_shield_gameplay.inc"
@@ -11428,6 +11480,7 @@ static void campaign_pickup_sound(const rf_item_definition *definition,const flo
     if(status)++rf_scene_pickup_audio[2];else ++rf_scene_pickup_audio[1];
     /* Missing audio must not roll back a successful inventory grant. */
 }
+#include "scene_turret_scene_combat.inc"
 static int campaign_pickups_restore(scene_stream *stream)
 {
     uint32_t i,slot;int status;
@@ -12798,6 +12851,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_event_history.inc"
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
+#include "scene_turret_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
 #include "scene_driller_actor_collision.inc"
@@ -14398,6 +14452,15 @@ static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const flo
     if(rocket)++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
     status=scene_driller_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
     status=scene_passive_vehicle_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
+    for(i=0;i<scene_turret_count;i++){
+        scene_turret_owner *o=scene_turrets+i;rf_physics_body body={0};rf_weapon_flight_contact contact={0};
+        float amount=0,applied=0;uint32_t handled;
+        if(o->dead||o->registration.handle==source||(o->view.flags_7c&(2u|0x4000u)))continue;
+        memcpy(body.state.position,o->position,12);
+        status=scene_blast_amount(s,origin,&body,damage,radius,&amount);if(status)return status;
+        if(amount<=0)continue;contact.object=SCENE_TURRET_PROJECTILE_OWNER;contact.face=o->registration.handle;
+        status=scene_driller_projectile_damage(&contact,source,amount,kind,frame,&handled,&applied);if(status)return status;
+    }
     {scene_clutter_blast_result result;
         scene_clutter_blast_backend backend={scene_clutter_blast_view,scene_clutter_blast_cover,scene_clutter_blast_damage,s};
         status=scene_clutter_blast_scan(origin,damage,radius,source,kind,campaign_clutter_records.count,&backend,&result);if(status)return status;
@@ -14973,6 +15036,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
     rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    status=scene_turret_scene_tick(stream,frame);if(status)return status;
     campaign_vehicle_attack_live_probe();
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
@@ -15289,6 +15353,7 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
 #include "scene_nano_shield_fixture.inc"
 #include "scene_special_save_fixture.inc"
 #include "scene_burning_save_fixture.inc"
+#include "scene_turret_fixture.inc"
 #include "scene_item_effect_fixture.inc"
 static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 {
@@ -15899,6 +15964,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(status){rf_scene_profile_stage[1]=108;return status;}
         status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
         if(status){rf_scene_profile_stage[1]=108;return status;}
+        status=scene_turret_fixture(stream,frame);if(status)return status;
         status=scene_burning_save_fixture(frame);if(status)return status;
         status=scene_special_save_stage(frame);if(status)return status;
         status=scene_item_effect_stage(stream,frame);if(status)return status;
@@ -17511,6 +17577,20 @@ static int scene_model_retain(scene_stream *stream,const rf_model_geometry *geom
     if(!model_backend || material>=stream->materials->count || !stream->materials->items[material].image.rgba)return RF_NOT_FOUND;
     return model_backend(geometry,batch,matrices,bones,view,material,stream->mesh->count);
 }
+#include "scene_turret_draw.inc"
+uint32_t rf_scene_turret_draw[4]; /* live/dead submissions,errors,last UID */
+static int scene_turrets_draw(scene_stream *stream,uint32_t frame)
+{
+    uint32_t i,draws,vertices;int status;
+    /* The ordinary load transaction publishes at the end of frame zero. */
+    if(!frame)return RF_OK;
+    for(i=0;i<scene_turret_count;i++){scene_turret_owner *o=scene_turrets+i;
+        if(o->model==UINT32_MAX||(o->view.flags_7c&(2u|0x4000u)))continue;
+        status=scene_turret_model_draw(stream,o->model,o->position,o->basis,&draws,&vertices);
+        if(status){++rf_scene_turret_draw[2];return status;}
+        rf_scene_turret_draw[o->dead?1:0]+=draws;rf_scene_turret_draw[3]=o->uid;
+    }return RF_OK;
+}
 static int scene_npc_render_family(void *context,uint32_t kind)
 {
     scene_npc_render_context *c=context;scene_stream *stream=c->stream;uint32_t actor=c->actor;
@@ -18679,6 +18759,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5);
         if(profile_clock && profile_active)presentation_clock=profile_clock();
         status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status){rf_scene_profile_stage[1]=201;return status;}
+        status=scene_turrets_draw(stream,frame);if(status)return status;
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
@@ -19163,6 +19244,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
+    memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
+    memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
     memset(rf_scene_vehicle_ai_mode,0,sizeof(rf_scene_vehicle_ai_mode));
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
@@ -19513,9 +19596,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             /* This diagnostic begins the simulation clock at zero. */
             rf_scene_campaign_load_stage=24;status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_live_corpses_open();if(status)goto done;
+            status=scene_turret_models_open(&archive,maps,map_count,materials);if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              scene_driller_damage passive_damage[6]={{0}};uint32_t passive_ready[6]={0};
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+             status=scene_turrets_open(&tables);
+             if(!status)status=scene_turret_combat_open(&tables,rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss"));
+             if(status){rf_vpp_close(&tables);goto done;}
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources);
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);

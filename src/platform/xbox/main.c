@@ -549,6 +549,10 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(exit_file){uint32_t mode=0;size_t bytes=fread(&mode,1,4,exit_file);
             int invalid=bytes!=4||fgetc(exit_file)!=EOF;fclose(exit_file);
             if(invalid||mode<1||mode>2)return RF_FORMAT;rf_scene_item_effect_mode=mode;}
+        exit_file=fopen("D:\\campaign-turret-test.bin","rb");
+        if(exit_file){uint32_t uid=0;int invalid=fread(&uid,1,4,exit_file)!=4;
+            if(fgetc(exit_file)!=EOF)invalid=1;fclose(exit_file);
+            if(invalid||!uid)return RF_FORMAT;rf_scene_turret_test_uid=uid;}
         exit_file=fopen("D:\\campaign-burning-save.bin","rb");
         if(exit_file){uint32_t uid=0;int invalid=fread(&uid,1,4,exit_file)!=4;
             if(fgetc(exit_file)!=EOF)invalid=1;fclose(exit_file);
