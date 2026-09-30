@@ -184,6 +184,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;
     status=scene_passive_vehicle_checkpoint_validate(passive);if(status)goto done;
     status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
+    status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
     status=scene_clutter_checkpoint_targets_valid(world->clutter);if(status)goto done;
     status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
     status=scene_world_mission_validate(mission);if(status)goto done;

@@ -12788,6 +12788,8 @@ static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
 #include "scene_player_checkpoint.inc"
 static int scene_burning_checkpoint_owner_admit(uint32_t);
+static int scene_turret_attack_checkpoint_uid(uint32_t,uint32_t *);
+static int scene_turret_attack_checkpoint_handle(uint32_t,uint32_t *);
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
@@ -12853,6 +12855,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_turret_checkpoint.inc"
+#include "scene_turret_attack_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
 #include "scene_driller_actor_collision.inc"

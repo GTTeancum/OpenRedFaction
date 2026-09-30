@@ -184,7 +184,7 @@ static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
            rf_object_registry_lookup(&campaign_registry,handle)==&target->registration&&
            candidate&&candidate!=UINT32_MAX){*uid=candidate;return RF_OK;}
     }
-    return RF_NOT_FOUND;
+    return scene_turret_attack_checkpoint_uid(handle,uid);
 }
 static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing,uint32_t burning_profile)
 {

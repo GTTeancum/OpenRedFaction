@@ -48,7 +48,7 @@ static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
         }
         return RF_FORMAT;
     }
-    return RF_FORMAT;
+    return scene_turret_attack_checkpoint_handle(uid,handle);
 }
 static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
     rf_checkpoint_placement *p,uint32_t *retired)

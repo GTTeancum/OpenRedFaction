@@ -88,8 +88,8 @@ functional damage, not visual appearance, audio or weapon-input handling.
 Autonomous aiming/firing is connected through `scene_turret_scene_combat.inc`;
 see STATIONARY-TURRET-COMBAT.md for its separate native evidence and policies.
 RFTU1 ordinary-save integration is implemented with staged validation; native
-save/load verification passed as recorded below. NPC Attack-to-turret
-save targets, active-target restore coverage, parent/base attachments, possession,
+save/load verification passed as recorded below. Native NPC Attack-to-turret
+save coverage, active-target restore coverage, parent/base attachments, possession,
 runtime-generated Auto Turret heads, death-effect appearance/audio verification and visual inspection
 remain open. No original-game runtime or screenshots were used.
 
@@ -119,3 +119,14 @@ TURRET-SCRIPT-ORDER-AUDIT.md for exact links and evidence.
 
 Authored death-effect scheduling is now connected and checked on Xbox, including
 no replay after loading a wreck; see TURRET-DEATH-EFFECTS.md.
+
+## NPC Attack target continuity
+
+NPC capture and restore now resolve registered stationary turret targets by
+stable authored UID. Ordinary world admission cross-checks the resolved handle
+against the staged RFTU row, requiring positive saved health and no dead flag.
+A fresh live spawn cannot authorize an attack against a saved wreck. Legacy
+unwrapped saves retain authored liveness. Generated Auto Head identity remains
+a separate pending extension. This branch is build-checked only; a native
+active NPC Attack-to-turret save/load has not been run, and the installed-level
+audit found no authored Attack event using a placed turret target.
