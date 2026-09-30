@@ -3,6 +3,7 @@
 Uses an isolated XEMU HDD and process-local setup; no host input or capture.
 """
 
+import argparse
 import datetime
 import json
 import os
@@ -16,28 +17,35 @@ from xemu_session_guard import require_no_project_xemu
 
 ROOT = Path(__file__).resolve().parents[1]
 DISC = ROOT / 'build/xbox/disc'
+CASES = {
+    'demo': ('levels1.vpp', 'L2S2a.rfl', 8479, 5453),
+    'miner-suit': ('levels2.vpp', 'L8S4.rfl', 10333, 8614),
+}
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--case', choices=CASES, default='demo')
+    args = parser.parse_args()
+    archive, level, event_uid, item_uid = CASES[args.case]
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / ('remove-item-' +
+    folder = ROOT / 'artifacts/xemu' / ('remove-item-' + args.case + '-' +
              datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'L2S2a Remove_Object8479 retires placed Demo_K0005453'}
+    report = {'result': 'FAIL', 'scope': f'{level} Remove_Object{event_uid} retires placed item{item_uid}'}
     try:
         for name in names:
             (DISC / name).unlink(missing_ok=True)
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
-            b'levels1.vpp'.ljust(64, b'\0') + b'L2S2a.rfl'.ljust(64, b'\0'))
-        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 8479))
-        (DISC / 'campaign-setup-immediate.flag').write_bytes(b'')
+            archive.encode('ascii').ljust(64, b'\0') + level.encode('ascii').ljust(64, b'\0'))
+        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', event_uid))
         (DISC / 'player-replay.bin').write_bytes(
             b'RFI5' + struct.pack('<I', 44) + bytes(60 * 44))
         with (folder / 'build.log').open('wb') as log:
@@ -59,9 +67,11 @@ def main():
         if count > 64:
             raise RuntimeError(f'Unexpected pickup ledger count {count}')
         records = [ledger[2050 + i*3:2053 + i*3] for i in range(count)]
-        matches = [record for record in records if record[1] == 5453]
+        matches = [record for record in records if record[1] == item_uid]
         if len(matches) != 1 or matches[0][2] != 1:
             raise RuntimeError(f'Authored item not retired: {matches}')
+        if guest['extra']['rf_scene_pickups'][3] != 0:
+            raise RuntimeError('Remove_Object unexpectedly granted a pickup')
         report.update(pickup_ledger_count=count,
                       retired_item_record=matches[0], result='PASS')
     finally:
