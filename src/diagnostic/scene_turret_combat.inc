@@ -120,7 +120,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         scene_turret_owner *o=scene_turrets+i;scene_turret_combat_state *s=scene_turret_combat_states+i;
         const rf_entity_seed_class *c=campaign_seeds.classes+o->class_index;
         scene_turret_combat_target chosen={0};float eye[3],delta[3],best=scene_turret_primary.ai_attack_range;
-        uint32_t alive,affiliation,found=0,blocked,reachable,operator_bound,operator_eligible,operator_actor;float cone;
+        uint32_t generated_ready=0,generated=0,alive,affiliation,found=0,blocked,reachable,operator_bound,operator_eligible,operator_actor;float cone;
         if(s->handle!=o->registration.handle || scene_turret_lookup(s->handle)!=o)return RF_FORMAT;
         if(s->last_frame==frame)continue;
         if(s->last_frame!=UINT32_MAX && frame<s->last_frame)scene_turret_combat_release(o,s);
@@ -130,7 +130,9 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         /* Waiting2 can acquire, matching ordinary NPC semantics. Catatonic1,
          * scripted-look/fire modes and player/occupant control suspend auto-AI. */
         status=scene_turret_operator_controls(s->handle,&operator_bound,&operator_eligible,&affiliation,&operator_actor);if(status)goto fail;
-        if((operator_bound&&!operator_eligible) || !alive || o->view.linked_handle!=-1 || o->view.weapons[0]!=scene_turret_vauss_id ||
+        status=scene_turret_generated_ready(s->handle,&generated_ready);
+        if(status!=RF_OK&&status!=RF_NOT_FOUND)goto fail;generated=status==RF_OK;
+        if((generated&&!generated_ready) || (operator_bound&&!operator_eligible) || !alive || (!generated&&o->view.linked_handle!=-1) || o->view.weapons[0]!=scene_turret_vauss_id ||
            (s->action!=0 && s->action!=-1 && s->action!=2 && s->action!=3 && s->action!=11)) {
             scene_turret_combat_release(o,s);++rf_scene_turret_combat[6];continue;
         }

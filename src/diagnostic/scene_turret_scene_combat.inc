@@ -35,7 +35,7 @@ static int scene_turret_scene_target(void *context,uint32_t source,uint32_t inde
         memcpy(next.point,c->player_eye,12);velocity=scene_actor_body.state.velocity;
     } else {
         const campaign_npc_body *npc=campaign_npc_bodies+index-1;uint32_t other=npc->damage.effects.affiliation;
-        if(!scene_turret_scene_npc_live(index-1)||scene_turret_operator_excludes(source,npc->registration.handle))return RF_NOT_FOUND;
+        if(!scene_turret_scene_npc_live(index-1)||(scene_turret_operator_excludes(source,npc->registration.handle)||scene_turret_generated_related(source,npc->registration.handle)))return RF_NOT_FOUND;
         next.handle=npc->registration.handle;next.alive=1;
         /* Opposed authored unfriendly/friendly affiliations; neutral actors
          * are not automatic targets. Unknown/outcast policy stays deferred. */
@@ -88,7 +88,7 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
     for(i=0;i<campaign_npc_body_count;i++) {
         scene_ai_shield_ray_selection shield={0};float hit_fraction=1;uint32_t hit;
         const campaign_npc_body *npc=campaign_npc_bodies+i;
-        if(!scene_turret_scene_npc_live(i) || npc->registration.handle==source || scene_turret_operator_excludes(source,npc->registration.handle))continue;
+        if(!scene_turret_scene_npc_live(i) || npc->registration.handle==source || (scene_turret_operator_excludes(source,npc->registration.handle)||scene_turret_generated_related(source,npc->registration.handle)))continue;
         hit=combat_body(eye,spread,&npc->body,1,&hit_fraction);
         status=scene_ai_shield_ray_select(i,eye,end,hit,hit_fraction,&shield);if(status)goto fail;
         if(shield.kind!=SCENE_AI_SHIELD_RAY_MISS && shield.fraction<fraction) {
@@ -160,5 +160,6 @@ static int scene_turret_scene_tick(scene_stream *stream,uint32_t frame)
     memcpy(context.player_eye,campaign_listener_position,12);
     backend=(scene_turret_combat_backend){campaign_npc_body_count+1,scene_turret_scene_target,
         scene_turret_scene_blocked,scene_turret_scene_shot,&context};
+    {int status=scene_turret_generated_activation_tick(frame,&backend);if(status)return status;}
     return scene_turret_combat_tick(frame,&backend);
 }

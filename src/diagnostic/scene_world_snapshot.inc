@@ -181,6 +181,12 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         status=scene_turret_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,combat_frame,&wrapped);
         if(!status)bytes=wrapped;
     }
+    if(!status){uint32_t wrapped=0;
+        const rf_world_checkpoint_slice *npc=bundle.sections+RF_WORLD_NPC-1;
+        status=scene_turret_generated_world_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,
+            bytes,combat_frame,2u*1024u*1024u,identity.bytes,npc->data,npc->bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
     SNAP_END(RF_WORLD_VEHICLE);
     SNAP_START("destruction");status=scene_world_l1s2_authored_terrain(s)?
         (s->terrain_source_count>1?

@@ -13,7 +13,8 @@ typedef struct scene_turret_owner {
 } scene_turret_owner;
 static void scene_turret_death_effects_queue(scene_turret_owner *);
 static scene_turret_owner *scene_turrets;
-static uint32_t scene_turret_count,scene_turret_authored_count;
+static uint32_t scene_turret_count,scene_turret_authored_count,scene_turret_capacity;
+static int scene_turret_generated_required(uint32_t *count);
 uint32_t rf_scene_turret_owners[8]; /* count,bytes,damage calls,deaths,queries,hits,last UID,errors */
 static scene_turret_owner *scene_turret_lookup(uint32_t handle)
 {
@@ -43,19 +44,21 @@ static int scene_turrets_close(void)
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&scene_turrets[i].registration);
         if(status)return status;
     }
-    free(scene_turrets);scene_turrets=NULL;scene_turret_count=scene_turret_authored_count=0;return RF_OK;
+    free(scene_turrets);scene_turrets=NULL;scene_turret_count=scene_turret_authored_count=scene_turret_capacity=0;return RF_OK;
 }
 static int scene_turrets_open(rf_vpp *tables)
 {
-    rf_entity_physics_config configs[SCENE_TURRET_CLASS_LIMIT];uint32_t loaded=0,count=0,i,j,n=0;int status;
+    rf_entity_physics_config configs[SCENE_TURRET_CLASS_LIMIT];uint32_t loaded=0,count=0,generated=0,i,j,n=0;int status;
     if(!tables || scene_turrets || scene_turret_count)return RF_RANGE;
     if(campaign_seeds.records.count && (!campaign_seeds.records.items || !campaign_seeds.items || !campaign_seeds.classes))return RF_RANGE;
     memset(rf_scene_turret_owners,0,sizeof(rf_scene_turret_owners));
     for(i=0;i<campaign_seeds.records.count;i++)for(j=0;j<scene_turret_model_pair_count;j++)
         if(campaign_seeds.items[i].class_index==scene_turret_model_pairs[j].class_index){++count;break;}
-    if(count>SCENE_TURRET_OWNER_LIMIT)return RF_RANGE;
-    if(!count)return RF_OK;
-    scene_turrets=calloc(count,sizeof(*scene_turrets));if(!scene_turrets)return RF_IO;scene_turret_count=scene_turret_authored_count=count;
+    status=scene_turret_generated_required(&generated);if(status)return status;
+    if(count>SCENE_TURRET_OWNER_LIMIT-generated)return RF_RANGE;
+    if(!count&&!generated)return RF_OK;
+    scene_turrets=calloc(count+generated,sizeof(*scene_turrets));if(!scene_turrets)return RF_IO;
+    scene_turret_capacity=count+generated;scene_turret_count=scene_turret_authored_count=count;
     for(i=0;i<campaign_seeds.records.count;i++) {
         uint32_t cls=campaign_seeds.items[i].class_index;
         const rf_entity_seed_class *definition;const rf_level_entity *record;
@@ -99,7 +102,7 @@ static int scene_turrets_open(rf_vpp *tables)
         status=rf_entity_view_register(&campaign_registry,&campaign_entities,&o->view,&o->registration);if(status)goto fail;
         o->damage.effects.handle=o->registration.handle;o->damage.effects.flags_810=o->view.flags_810;
     }
-    rf_scene_turret_owners[0]=count;rf_scene_turret_owners[1]=count*sizeof(*scene_turrets);return RF_OK;
+    rf_scene_turret_owners[0]=count;rf_scene_turret_owners[1]=scene_turret_capacity*sizeof(*scene_turrets);return RF_OK;
 fail:
     ++rf_scene_turret_owners[7];(void)scene_turrets_close();return status;
 }
@@ -152,7 +155,7 @@ static int scene_turret_damage_receive(uint32_t handle,const rf_damage_request *
        !effects->predicate || !effects->resolve_uid || !effects->source || !effects->create_burn ||
        !effects->random || !effects->notify || !effects->playing || !effects->play_kind6 ||
        !isfinite(request->amount) || request->amount<0 || !isfinite(difficulty) || difficulty<0)return RF_RANGE;
-    if(!o)return RF_NOT_FOUND;if(o->dead){*result=0;return RF_OK;}
+    if(!o)return RF_NOT_FOUND;if(o->dead||scene_turret_generated_retired(handle)){*result=0;return RF_OK;}
     ++rf_scene_turret_owners[2];rf_scene_turret_owners[6]=o->uid;
     o->damage.effects.flags_810=o->view.flags_810;o->damage.effects.flags_814=o->view.flags_814;
     c.owner=o;c.effects=effects;c.clock=clock;c.object=(rf_damage_object){0,o->view.flags_7c,o->damage.effects.health};
@@ -163,6 +166,7 @@ static int scene_turret_damage_receive(uint32_t handle,const rf_damage_request *
         o->dead=1;o->model=o->dead_model;o->view.flags_810|=1u;o->damage.effects.flags_810=o->view.flags_810;
         o->target=o->fire_due=0;++rf_scene_turret_owners[3];
         scene_turret_death_effects_queue(o);
+        {int joined=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(joined)return joined;}
     }
     if(c.status)status=c.status;
     if(status){++rf_scene_turret_owners[7];return status;}*result=value;return RF_OK;
@@ -180,7 +184,7 @@ static int scene_turret_contact_query(uint32_t source,const float start[3],const
     for(i=0;i<scene_turret_count;i++) {
         scene_turret_owner *o=scene_turrets+i;const rf_model_collision_resource *geometry;
         rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};float point[3],normal[3];uint32_t accepted;
-        if(o->registration.handle==source || scene_npc_seat_related(source,o->registration.handle) || o->dead || (o->view.flags_7c&(2u|0x4000u)) ||
+        if(o->registration.handle==source || scene_turret_generated_related(source,o->registration.handle) || scene_npc_seat_related(source,o->registration.handle) || o->dead || (o->view.flags_7c&(2u|0x4000u)) ||
            scene_turret_lookup(o->registration.handle)!=o)continue;
         if(o->model>=scene_turret_model_count)return RF_FORMAT;
         geometry=&scene_turret_models[o->model].collision;

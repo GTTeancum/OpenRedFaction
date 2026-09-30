@@ -5334,9 +5334,14 @@ static int campaign_script_look_at(void *context,const rf_level_event *event,
     if(!matched)++rf_scene_script_look_at[4];
     return RF_OK;
 }
+static int scene_turret_generated_remove(uint32_t actor,int32_t now,uint32_t *handled);
+static uint32_t scene_turret_generated_retired(uint32_t head);
+static int scene_turret_generated_retirement_checkpoint_admit(void);
 static int campaign_remove_object(void *context,uint32_t handle)
 {
-    uint32_t i;int status;(void)context;
+    uint32_t i,handled;int status;(void)context;
+    status=scene_turret_generated_remove(handle,(int32_t)((uint64_t)rf_scene_profile_stage[0]*1000/60%RF_TIMER_PERIOD),&handled);
+    if(status||handled)return status;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
@@ -5470,7 +5475,10 @@ static void campaign_actors_capture(void)
 }
 #include "scene_npc_loadout.inc"
 #include "scene_npc_vitals.inc"
+static int scene_turret_generated_death_join(uint32_t actor,uint32_t frame);
+static uint32_t scene_turret_generated_related(uint32_t a,uint32_t b);
 #include "scene_turret_owner.inc"
+#include "scene_turret_generated.inc"
 static int scene_turret_set_ai_mode(uint32_t handle,int32_t action)
 {
     scene_turret_owner *o=scene_turret_lookup(handle);if(!o)return RF_NOT_FOUND;
@@ -5772,7 +5780,7 @@ static void campaign_close_movers(void)
     rf_clutter_classes_close(&campaign_clutter_classes);
     rf_clutter_catalogs_close(&campaign_clutter_catalogs);
     campaign_live_corpses_close();
-    scene_turret_combat_close();(void)scene_turrets_close();scene_turret_models_close();
+    scene_turret_combat_close();(void)scene_turrets_close();(void)scene_turret_generated_close();scene_turret_models_close();
     campaign_models_close();
     campaign_npc_bodies_close();
     if(campaign_playback_resources.models) {
@@ -6087,7 +6095,7 @@ uint32_t rf_scene_npc_backlinks[4]; /* writes, linked actors, hash, retained byt
 uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+campaign_passive_vehicle_count+scene_turret_count+(campaign_authored_vehicle_uid?1u:0u);
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+campaign_passive_vehicle_count+scene_turret_authored_count+(campaign_authored_vehicle_uid?1u:0u);
     rf_level_uid_object *objects;int status;
     for(j=0;campaign_clutter_bodies && j<campaign_clutter_records.count;j++)if(campaign_clutter_bodies[j])++n;
     objects=n?malloc((size_t)n*sizeof(*objects)):NULL;
@@ -6115,7 +6123,7 @@ static int campaign_resolve_trigger_links(void)
         objects[i].handle=campaign_passive_vehicles[j].handle;
         objects[i].flags=0;
     }
-    for(j=0;j<scene_turret_count;j++,i++){
+    for(j=0;j<scene_turret_authored_count;j++,i++){
         objects[i].uid=scene_turrets[j].uid;objects[i].handle=scene_turrets[j].registration.handle;objects[i].flags=scene_turrets[j].view.flags_7c;
     }
     for(j=0;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view) {
@@ -6629,6 +6637,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
     memcpy(owner->command_714,state.vector_714,12);
     memcpy(owner->body.state.velocity,state.vector_144,12);memcpy(owner->body.state.vector_c8,state.vector_150,12);
+    if(*entered){status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
     return RF_OK;
 }
 
@@ -10714,6 +10723,7 @@ static int campaign_liquid_damage_tick(scene_stream *s,uint32_t frame,int32_t no
     memcpy(rf_scene_liquid_damage+5,&amount,4);memcpy(rf_scene_liquid_damage+6,&campaign_player_damage.state.effects.health,4);
     rf_scene_liquid_damage[7]=(uint32_t)status;return status;
 }
+#include "scene_turret_generated_death.inc"
 uint32_t rf_scene_script_slays[6]; /* requests,death entries,last UID,health bits,clock,status */
 static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,int32_t now)
 {
@@ -10878,6 +10888,7 @@ static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,u
 {
     rf_damage_effect_state *vitals=NULL;campaign_npc_body *owner=NULL;scene_turret_owner *turret=scene_turret_lookup(handle);uint32_t i,slot=0;float value,limit;
     (void)context;if(armor>1)return RF_RANGE;
+    if(turret&&scene_turret_generated_retired(handle))return RF_OK;
     if(handle==UINT32_MAX || (campaign_player_object.view && handle==campaign_player_object.handle))vitals=&campaign_player_damage.state.effects;
     else for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
         owner=campaign_npc_bodies+i;slot=i;vitals=&owner->damage.effects;break;
@@ -10894,6 +10905,7 @@ static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,u
         turret->dead=1;turret->model=turret->dead_model;turret->view.flags_810|=1u;
         turret->damage.effects.flags_810=turret->view.flags_810;turret->target=UINT32_MAX;turret->fire_due=0;
         ++rf_scene_turret_owners[3];scene_turret_death_effects_queue(turret);
+        {int status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
     }
     if(owner && vitals->health<=0) {
         uint32_t entered;int status=rf_scene_npc_death_entry(owner->registration.handle,&entered);
@@ -11108,6 +11120,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 static int scene_turret_operator_controls(uint32_t,uint32_t *,uint32_t *,uint32_t *,uint32_t *);
 static uint32_t scene_turret_operator_motion_only(uint32_t);
 #include "scene_turret_combat.inc"
+#include "scene_turret_generated_activation.inc"
 #include "scene_turret_operator.inc"
 static int scene_turret_set_friendliness(uint32_t handle,uint32_t value)
 {
@@ -11180,7 +11193,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
         uint32_t point_spread_ready=0,once,vehicle_damage_applied=0;
         campaign_single_fire_request *single=owner->script_once.requests;
-        if(scene_turret_operator_suppresses(owner->registration.handle)||scene_npc_seat_attached(owner->registration.handle))continue;
+        if(scene_turret_generated_activation_suppresses(owner->registration.handle)||scene_turret_operator_suppresses(owner->registration.handle)||scene_npc_seat_attached(owner->registration.handle))continue;
         while(owner->script_once.count && frame>single->expires)campaign_script_single_pop(owner,0);
         once=owner->script_once.count>0;
         if(once && single->mode==1){
@@ -12874,6 +12887,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_turret_checkpoint.inc"
+#include "scene_turret_generated_checkpoint.inc"
 #include "scene_turret_attack_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
@@ -12882,6 +12896,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_restore.inc"
 static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,uint32_t,const scene_world_restore_stage *);
 #include "scene_world_player_restore.inc"
+#include "scene_turret_generated_checkpoint_adapter.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
     const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *);
@@ -14653,6 +14668,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 #include "scene_clutter_break_runtime.inc"
 #include "scene_script_explode_runtime.inc"
 #include "scene_turret_death_effects.inc"
+#include "scene_turret_generated_retirement.inc"
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -15015,6 +15031,12 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(refill)player_input.reload=0; /* Do not start a normal reload with the chord. */
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
+    /* Update animated child positions before projectile or firearm contacts. */
+    for(uint32_t i=0;i<scene_turret_generated_count;i++){
+        int status=scene_turret_generated_publish(scene_turret_generated[i].head_handle);
+        if(status&&status!=RF_NOT_FOUND)return status;
+    }
+
     status=scene_terrain_input(stream,position,orientation);if(status)return status;
     status=scene_rockets_tick(stream,frame);rf_scene_rockets[7]=(uint32_t)status;if(status)return status;
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
@@ -19632,7 +19654,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             {rf_vpp tables={0};rf_weapon_view_definition view;
              scene_driller_damage passive_damage[6]={{0}};uint32_t passive_ready[6]={0};
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+             scene_turret_generated_activation_reset();
+             status=scene_turret_generated_retirement_reset();
+             if(status){rf_vpp_close(&tables);goto done;}
              status=scene_turrets_open(&tables);
+             if(!status)status=scene_turret_generated_open(rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss"));
+             if(!status)for(uint32_t g=0;g<scene_turret_generated_count;g++){
+                 status=scene_turret_generated_activation_initialize(scene_turret_generated[g].head_handle);if(status)break;}
              if(!status)status=scene_turret_combat_open(&tables,rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss"));
              if(status){rf_vpp_close(&tables);goto done;}
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
