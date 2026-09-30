@@ -36,6 +36,14 @@ def carry_probe(monitor, mapping):
                                 ('rf_scene_passive_roof_fixture', 10))}
 
 
+def npc_probe(monitor, mapping):
+    return {name: words(monitor, address(mapping, name), count)
+            for name, count in (('rf_scene_passive_attachment', 14),
+                                ('rf_scene_passive_npc_fixture', 10),
+                                ('rf_scene_npc_script_ground', 4),
+                                ('rf_scene_npc_script_mover', 6))}
+
+
 def position(row):
     return struct.unpack('<3f', struct.pack('<3I', *row[7:10]))
 
@@ -48,17 +56,19 @@ def main():
     inventory = sys.argv[1:] == ['--inventory']
     submarine = sys.argv[1:] == ['--submarine']
     contact = sys.argv[1:] == ['--contact']
+    npc = sys.argv[1:] == ['--npc']
     rising = sys.argv[1:] == ['--rising']
     carry = sys.argv[1:] == ['--carry'] or rising
-    masako = sys.argv[1:] == ['--masako'] or contact or carry
+    masako = sys.argv[1:] == ['--masako'] or contact or carry or npc
     short = inventory or submarine or masako
     if sys.argv[1:] and not short:
-        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact|--carry|--rising]')
+        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact|--carry|--rising|--npc]')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-rising-' if rising else
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-npc-' if npc else
+             'vehicle-group-rising-' if rising else
              'vehicle-group-carry-' if carry else
              'vehicle-group-contact-' if contact else
              'vehicle-group-masako-' if masako else
@@ -70,7 +80,8 @@ def main():
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'L20S2 group-owned masako_fighter4717' if masako
+    report = {'result': 'FAIL', 'scope': 'L20S2 scripted NPC on attached fighter4717' if npc
+              else 'L20S2 group-owned masako_fighter4717' if masako
               else 'L5S3 group-owned submarine3977' if submarine
               else 'L20S1 three group-owned Fighters' if inventory
               else 'L20S2 vehicle4717 lift pose and Detach18377'}
@@ -84,13 +95,14 @@ def main():
         if short:
             (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I',
                 3977 if submarine else 1490 if inventory else 4717))
-        if carry:
+        if carry or npc:
             (DISC / 'campaign-passive-roof.bin').write_bytes(
-                struct.pack('<3I', 4717, 30, 2) if rising else struct.pack('<2I', 4717, 30))
+                struct.pack('<3I', 4717, 30, 3 if npc else 2) if rising or npc
+                else struct.pack('<2I', 4717, 30))
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 18354))
         if not short:
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 18354, 18377))
-        frames = 120 if contact or carry else 10 if short else 90
+        frames = 65 if npc else 120 if contact or carry else 10 if short else 90
         (DISC / 'player-replay.bin').write_bytes(
             b'RFI5' + struct.pack('<I', 44) +
             (struct.pack('<5f6I', 0, 0, 1, 0, 0, *([0] * 6)) * frames
@@ -101,11 +113,14 @@ def main():
                            env=dict(os.environ, MSYSTEM='CLANG64'), stdout=log,
                            stderr=subprocess.STDOUT, check=True)
         guest = run_guest(folder, 'run', hdd, frames, 420, snapshot=True,
-                          probe=carry_probe if carry else None if short else attachment_probe,
-                          probe_frame=40 if carry else None if short else 35,
+                          probe=npc_probe if npc else carry_probe if carry else None if short else attachment_probe,
+                          probe_frame=40 if npc or carry else None if short else 35,
                           extra_symbols={'rf_scene_passive_attachment': 14,
                                          'rf_scene_passive_draw': 6,
                                          'rf_scene_passive_collision': 8,
+                                         **({'rf_scene_passive_npc_fixture': 10,
+                                             'rf_scene_npc_script_ground': 4,
+                                             'rf_scene_npc_script_mover': 6} if npc else {}),
                                          **({'rf_scene_actor_pose': 59,
                                              'rf_scene_actor_landing': 8,
                                              'rf_scene_passive_roof_fixture': 10,
@@ -156,6 +171,23 @@ def main():
                    any(abs((late_actor[i]-early_actor[i])-(late_vehicle[i]-early_vehicle[i])) > .75
                        for i in (0,1)):
                     raise RuntimeError(f'Actor did not ride moving fighter chassis: {report["carry"]}')
+            if npc:
+                early=guest['probe'];late=guest['extra']
+                a=early['rf_scene_passive_npc_fixture']
+                b=late['rf_scene_passive_npc_fixture']
+                early_vehicle=position(early['rf_scene_passive_attachment'])
+                late_vehicle=position(final)
+                early_y=struct.unpack('<f',struct.pack('<I',a[3]))[0]
+                late_y=struct.unpack('<f',struct.pack('<I',b[3]))[0]
+                report['npc']={'early':a,'late':b,'early_vehicle':early_vehicle,
+                               'late_vehicle':late_vehicle,'script_ground':late['rf_scene_npc_script_ground'],
+                               'script_mover':late['rf_scene_npc_script_mover']}
+                if not a[0] or a[0]!=b[0] or a[1]!=final[5] or b[1]!=final[5] or \
+                   late['rf_scene_npc_script_ground'][0]<1 or \
+                   late['rf_scene_npc_script_mover'][0]<2 or \
+                   late['rf_scene_npc_script_mover'][1]<2 or b[8]!=1 or b[9]<1 or \
+                   abs((late_y-early_y)-(late_vehicle[1]-early_vehicle[1]))>.75:
+                    raise RuntimeError(f'Scripted NPC did not ride attached fighter: {report["npc"]}')
         else:
             first = guest['probe']
             if first[0] < 1 or first[1] < 1 or first[2] < 1 or first[3] or first[4] != 4717:

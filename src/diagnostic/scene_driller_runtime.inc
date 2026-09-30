@@ -138,10 +138,11 @@ static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,
 static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_state *actor,
     uint32_t frame)
 {
-    const scene_passive_vehicle *owner=NULL;uint32_t i,j,kind;
+    const scene_passive_vehicle *owner=NULL;const rf_physics_spheres *body_spheres;
+    campaign_npc_body *npc=NULL;uint32_t i,j,kind;
     float top=-FLT_MAX,bottom=FLT_MAX,center[3]={0},point[3],zero[3]={0};
     if(!rf_scene_passive_roof_fixture[0] || frame!=rf_scene_passive_roof_fixture[1])return RF_OK;
-    if(!s || !actor || !scene_actor_body.spheres.count)return RF_RANGE;
+    if(!s || !actor)return RF_RANGE;
     for(i=0;i<campaign_passive_vehicle_count;++i)
         if(campaign_passive_vehicles[i].uid==rf_scene_passive_roof_fixture[0]) {
             owner=campaign_passive_vehicles+i;break;
@@ -149,6 +150,17 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     if(!owner || !owner->attached)return RF_NOT_FOUND;
     kind=owner->resource_kind;
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
+    body_spheres=&scene_actor_body.spheres;
+    if(rf_scene_passive_roof_fixture[9]==3) {
+        for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view &&
+            campaign_npc_bodies[i].damage.effects.health>0 && campaign_npc_bodies[i].body.spheres.count &&
+            !(campaign_npc_bodies[i].object_flags&(2u|8u|0x4000u))) {
+            npc=campaign_npc_bodies+i;break;
+        }
+        if(!npc)return RF_NOT_FOUND;
+        actor=&npc->body.state;body_spheres=&npc->body.spheres;
+    }
+    if(!body_spheres->count)return RF_RANGE;
     for(i=0;i<s->passive_vehicle_sphere_count[kind];++i) {
         const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+i;
         scene_driller_actor_point(owner->pose.position,owner->pose.input_matrix,sphere->center,point);
@@ -156,8 +168,8 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
             top=point[1]+sphere->radius;memcpy(center,point,sizeof(center));
         }
     }
-    for(j=0;j<scene_actor_body.spheres.count;++j) {
-        const rf_physics_sphere *sphere=scene_actor_body.spheres.items+j;
+    for(j=0;j<body_spheres->count;++j) {
+        const rf_physics_sphere *sphere=body_spheres->items+j;
         scene_driller_actor_point(zero,actor->orientation,sphere->center,point);
         if(point[1]-sphere->radius<bottom)bottom=point[1]-sphere->radius;
     }
@@ -165,7 +177,19 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     actor->position[1]=actor->next_position[1]=top-bottom+.06f;
     actor->position[2]=actor->next_position[2]=center[2];
     memset(actor->velocity,0,sizeof(actor->velocity));
-    if(rf_scene_passive_roof_fixture[9]==2) {
+    if(npc) {
+        uint32_t handle=npc->registration.handle;int status;
+        npc->support.handle=owner->handle;
+        memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
+        memset(&npc->piece_support,0,sizeof(npc->piece_support));
+        status=rf_scene_npc_normal(s->collision,handle,NULL);if(status)return status;
+        npc->script_move.active=1;npc->script_move.follow=0;
+        npc->script_move.retry=UINT32_MAX;
+        npc->script_move.target[0]=actor->position[0]+100.f;
+        npc->script_move.target[1]=actor->position[1];
+        npc->script_move.target[2]=actor->position[2];
+        rf_scene_passive_npc_fixture[0]=handle;
+    } else if(rf_scene_passive_roof_fixture[9]==2) {
         actor->flags|=1u;rf_scene_actor_landing[1]=3;campaign_support_handle=0;
         memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));
     } else {
@@ -173,12 +197,74 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         campaign_support_handle=owner->handle;
         memcpy(campaign_support_velocity,owner->velocity,sizeof(campaign_support_velocity));
     }
-    memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
+    if(!npc)memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
     if(rf_physics_body_prepare_sweep(actor))return RF_FORMAT;
+    if(npc){int status=rf_scene_npc_publish_position(npc->registration.handle);if(status)return status;}
     ++rf_scene_passive_roof_fixture[2];
     memcpy(rf_scene_passive_roof_fixture+3,actor->position,12);
     memcpy(rf_scene_passive_roof_fixture+6,owner->pose.position,12);
     return RF_OK;
+}
+static void scene_passive_vehicle_npc_fixture_probe(void)
+{
+    uint32_t i,handle=rf_scene_passive_npc_fixture[0];
+    if(!handle)return;
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.handle==handle) {
+        const campaign_npc_body *npc=campaign_npc_bodies+i;
+        rf_scene_passive_npc_fixture[1]=npc->support.handle;
+        memcpy(rf_scene_passive_npc_fixture+2,npc->body.state.position,12);
+        rf_scene_passive_npc_fixture[5]=npc->script_move.active;
+        memcpy(rf_scene_passive_npc_fixture+6,&npc->damage.effects.health,4);
+        rf_scene_passive_npc_fixture[8]=npc->movement_slot<16?
+            campaign_modes[npc->movement_slot].index:UINT32_MAX;
+        ++rf_scene_passive_npc_fixture[7];return;
+    }
+}
+/* Keep a previously attached NPC grounded when its downward sweep misses a
+ * translating spherical roof by a small gap. Reacquire only the exact
+ * registered support handle and a close, upward-facing surface. */
+static int scene_passive_vehicle_npc_retain(scene_stream *s,campaign_npc_body *npc,uint32_t *held)
+{
+    const scene_passive_vehicle *owner=NULL;const rf_physics_spheres *body;
+    rf_physics_body_state *actor;float foot[3]={0},foot_y=FLT_MAX,best=FLT_MAX;
+    uint32_t i,j,kind;int status;
+    if(!s || !npc || !held)return RF_RANGE;*held=0;
+    if(!npc->support.handle || !npc->body.spheres.count)return RF_OK;
+    for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].handle==npc->support.handle &&
+        rf_object_registry_lookup(&campaign_registry,npc->support.handle)==campaign_passive_vehicles+i) {
+        owner=campaign_passive_vehicles+i;break;
+    }
+    if(!owner || !owner->attached)return RF_OK;
+    kind=owner->resource_kind;
+    if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_OK;
+    actor=&npc->body.state;body=&npc->body.spheres;
+    for(i=0;i<body->count;i++) {
+        const rf_physics_sphere *sphere=body->items+i;float point[3];
+        scene_driller_actor_point(actor->position,actor->orientation,sphere->center,point);
+        if(point[1]-sphere->radius<foot_y) {
+            memcpy(foot,point,sizeof(foot));foot_y=point[1]-sphere->radius;
+        }
+    }
+    for(j=0;j<s->passive_vehicle_sphere_count[kind];j++) {
+        const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+j;
+        float center[3],dx,dz,lateral,gap;
+        scene_driller_actor_point(owner->pose.position,owner->pose.input_matrix,sphere->center,center);
+        dx=foot[0]-center[0];dz=foot[2]-center[2];lateral=dx*dx+dz*dz;
+        if(lateral>sphere->radius*sphere->radius*.64f)continue;
+        gap=foot_y-(center[1]+sqrtf(sphere->radius*sphere->radius-lateral));
+        if(gap<-.4f || gap>.4f)continue;
+        if(fabsf(gap)<fabsf(best))best=gap;
+    }
+    if(best==FLT_MAX)return RF_OK;
+    actor->position[1]=(float)((double)actor->position[1]-(double)best+.02);
+    actor->next_position[1]=actor->position[1];actor->velocity[1]=0;
+    actor->flags|=0x400000u;
+    memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
+    npc->script_move.fall_speed=0;
+    status=rf_physics_body_prepare_sweep(actor);if(status)return status;
+    status=rf_scene_npc_normal(s->collision,npc->registration.handle,NULL);if(status)return status;
+    status=rf_scene_npc_publish_position(npc->registration.handle);if(status)return status;
+    *held=1;return RF_OK;
 }
 /* Port first pass for a rising chassis reaching an airborne player's feet.
  * Existing ground queries cover downward landings; this narrow proximity

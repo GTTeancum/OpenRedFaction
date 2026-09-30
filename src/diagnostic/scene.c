@@ -1526,6 +1526,7 @@ uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,
 uint32_t rf_scene_passive_draw[6]; /* owners,visible,batches,vertices,last UID,error */
 uint32_t rf_scene_passive_collision[8]; /* queries,hits,ground queries,ground hits,last UID,last handle,spheres,error */
 uint32_t rf_scene_passive_roof_fixture[10];
+uint32_t rf_scene_passive_npc_fixture[10]; /* handle,support,XYZ,script active,health bits,updates,mode,retentions */
 uint32_t rf_scene_passive_rising_support[6]; /* probes,candidates,accepted,UID,handle,gap bits */
 static int campaign_passive_vehicle_tick(void);
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
@@ -16489,7 +16490,7 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
 {
     rf_physics_ground_probe probe;rf_collision_body_query query={0};rf_collision_body_sphere sphere,scratch[8];
     rf_geometry_body_hit hit={0};rf_physics_body_state proposal;scene_piece_support piece_support={0};
-    uint32_t found,i,falling,carried;int status;
+    uint32_t found,i,falling,carried,moving;int status;
     if(owner->object_flags&0x4000)return RF_OK;
     if(owner->movement_slot>=16)return RF_RANGE;
     if(campaign_modes[owner->movement_slot].index!=1 && campaign_modes[owner->movement_slot].index!=3)return RF_OK;
@@ -16508,28 +16509,35 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
     query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
     status=campaign_body_query(stream->collision,&query,&hit,&found);if(status)return status;
     status=campaign_npc_piece_ground(stream->collision,owner,&query,&hit,&found,&piece_support);if(status)return status;
+    status=scene_passive_vehicle_actor_collision(stream,owner->registration.handle,
+        (uint32_t)owner->view.linked_handle,&query,&hit,&found);if(status)return status;
     owner->piece_reacquire=0;
+    moving=found && hit.contact.object_id && hit.contact.object_id!=UINT32_MAX &&
+        campaign_object_velocity(hit.contact.object_id)!=NULL;
     if(found && hit.contact.fraction<1 && hit.contact.normal[1]>=.5f) {
         if(falling) {
             rf_collision_actor_contact contact;
             _Static_assert(sizeof(contact)==sizeof(hit.contact),"NPC ground contact payload");
             memcpy(&contact,&hit.contact,sizeof(contact));
             status=campaign_npc_land(stream,owner,slot,frame,&probe,&contact,
-                hit.solid!=UINT32_MAX,hit.contact.object_id);if(status)return status;
+                moving,moving?hit.contact.object_id:0);if(status)return status;
             owner->piece_support=piece_support;
             ++rf_scene_npc_script_ground[3];
             owner->script_move.fall_speed=0;
             if(owner->damage.effects.health<=0)return RF_OK;
         } else {
-            status=rf_physics_support_accept(&owner->body.state,&probe,hit.contact.fraction,hit.solid!=UINT32_MAX,
-                hit.contact.velocity[1],hit.contact.object_id,(int32_t)hit.contact.material,&owner->support,owner->published);
+            status=rf_physics_support_accept(&owner->body.state,&probe,hit.contact.fraction,moving,
+                hit.contact.velocity[1],moving?hit.contact.object_id:0,
+                (int32_t)hit.contact.material,&owner->support,owner->published);
             if(status)return status;
             owner->piece_support=piece_support;
-            if(hit.solid!=UINT32_MAX) {
+            if(moving) {
                 ++rf_scene_npc_script_mover[1];rf_scene_npc_script_mover[5]=hit.contact.object_id;
             }
         }
     } else {
+        status=scene_passive_vehicle_npc_retain(stream,owner,&carried);if(status)return status;
+        if(carried){++rf_scene_passive_npc_fixture[9];goto grounded;}
         memset(&owner->piece_support,0,sizeof(owner->piece_support));
         if(!falling){status=rf_scene_npc_fall(owner->registration.handle);if(status)return status;
             ++rf_scene_npc_script_ground[1];}
@@ -16546,6 +16554,7 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
         status=rf_scene_npc_commit_ordinary(owner->registration.handle,elapsed);if(status)return status;
         ++rf_scene_npc_script_ground[2];
     }
+grounded:
     status=rf_scene_npc_publish_position(owner->registration.handle);
     if(!status)memcpy(rf_scene_npc_script_mover+2,owner->body.state.position,12);
     return status;
@@ -16642,11 +16651,15 @@ static int campaign_npc_idle_ground_step(scene_stream *stream,campaign_npc_body 
         }
         else owner->piece_support=piece_support;
         if(moving) {++rf_scene_npc_mover_support[3];rf_scene_npc_mover_support[7]=contact.handle;}
-    } else if(!falling) {
-        memset(&owner->piece_support,0,sizeof(owner->piece_support));
-        status=rf_scene_npc_fall(handle);if(status)goto failed;
-        ++rf_scene_npc_idle_ground[1];
-    } else memset(&owner->piece_support,0,sizeof(owner->piece_support));
+    } else {
+        status=scene_passive_vehicle_npc_retain(stream,owner,&carried);if(status)goto failed;
+        if(carried)++rf_scene_passive_npc_fixture[9];
+        else if(!falling) {
+            memset(&owner->piece_support,0,sizeof(owner->piece_support));
+            status=rf_scene_npc_fall(handle);if(status)goto failed;
+            ++rf_scene_npc_idle_ground[1];
+        } else memset(&owner->piece_support,0,sizeof(owner->piece_support));
+    }
     memcpy(rf_scene_npc_mover_support+4,owner->body.state.position,12);
     return RF_OK;
 failed:
@@ -18343,6 +18356,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 }
                 status=campaign_script_step(stream,scene_step_seconds,frame);
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
+                scene_passive_vehicle_npc_fixture_probe();
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;

@@ -141,9 +141,22 @@ moved together after load, with 3,608 free pages at the end. This verifies a
 staged rider on L20S2's attached fighter, not naturally acquired support across
 other vehicles or the full campaign flow.
 
-The remaining work is to refine continuous rising-platform contact, verify NPC
-contact/carry and finish moving side collision response, support
-scripted vehicle movement and combat, extend save coverage, and connect the
+The remaining work is to refine continuous rising-platform contact and moving
+side collision response, support scripted vehicle movement and combat, extend
+NPC and player save coverage, and connect the
 authored natural event sources.
 The selected player-boardable host is still separate from this passive-owner
 collection. Other first-list object families remain unbound.
+
+Scripted NPC ground checks now include the registered passive-vehicle sphere
+query and retain the authored chassis support handle. A near-foot fallback
+reacquires that same handle when a translating spherical roof slips between
+successive downward probes; it does not grant support from unrelated objects.
+The focused L20S2 stock-64-MiB `--npc` fixture placed one live NPC on fighter
+4717 at frame 30 and ran 65 frames. At frame 40 and at completion the NPC had
+the fighter's support handle and normal ground mode. The run recorded 24
+moving-ground contacts and 23 carry commits; the NPC's vertical displacement
+matched the fighter's, with 3,832 free pages
+(`artifacts/xemu/vehicle-group-npc-20260930-055508`). This proves a staged
+scripted NPC contact/carry case; ordinary NPC save/reload, natural arrivals,
+side pushes and other chassis remain open.
