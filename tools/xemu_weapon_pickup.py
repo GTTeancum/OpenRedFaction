@@ -79,6 +79,7 @@ def main():
         build(folder, 'run')
         guest = run_guest(folder, 'run', hdd, FRAMES, 180, snapshot=True,
                           extra_symbols={'rf_scene_pickups': 8,
+                                         'rf_scene_pickup_audio': 10,
                                          'rf_scene_player_spawn_diagnostic': 19,
                                          'rf_scene_actor_follow_frames': 896,
                                          'rf_scene_nonweapon_items': 4,
@@ -117,6 +118,12 @@ def main():
             raise RuntimeError(f'Forward/back/forward weapon switches failed: {selection}')
         if ammo[0] != selection[2] or combat[0] < 1 or ammo[2] >= 42:
             raise RuntimeError(f'Equipped rifle did not fire: ammo {ammo}, combat {combat}')
+        audio = guest['extra']['rf_scene_pickup_audio']
+        if audio[:6] != [1, 1, 0, 0, 3415, 12] or audio[6] == 0 or audio[9] != 1:
+            raise RuntimeError(f'Accepted rifle must start exactly one spatial pickup sample: {audio}')
+        if struct.unpack('<2f', struct.pack('<2I', *audio[7:9])) != (5.0, struct.unpack('<f', struct.pack('<f', .7))[0]):
+            raise RuntimeError(f'Pickup sample lost authored distance/gain: {audio}')
+        result['audio_scope'] = 'PCM loaded and spatial voice started once; host audible output not inspected'
         result['result'] = 'PASS'
     finally:
         for name, data in original.items():

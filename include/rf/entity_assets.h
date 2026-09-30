@@ -61,6 +61,8 @@ typedef struct rf_item_definition {
     char mesh[64],weapon[64];int32_t count;uint32_t gives_weapon,mesh_kind,flags;
     /* Single, multi, weapon-and-ammo single, weapon-and-ammo multi. */
     char pickup_messages[4][64];
+    /* Optional items.tbl override; empty selects the weapon/powerup default. */
+    char pickup_sound[64];float pickup_sound_distance,pickup_sound_volume;
 } rf_item_definition;
 int rf_item_definition_read(const void *,uint32_t bytes,const char *class_name,rf_item_definition *);
 int rf_item_definition_load(rf_vpp *,const char *class_name,uint32_t budget,rf_item_definition *);

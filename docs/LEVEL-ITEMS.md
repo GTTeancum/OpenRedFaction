@@ -41,9 +41,9 @@ or XEMU residency validation is claimed yet.
 
 ## Item definitions and inventory grants
 
-rf_item_definition_read/load resolves a named items.tbl class into a400-byte
+rf_item_definition_read/load resolves a named items.tbl class into a472-byte
 record: model name/type, associated weapon name, gives-weapon distinction,
-SP count, no_pickup flag and four English pickup notices (single, multi,
+SP count, no_pickup flag, optional pickup sound/range/gain and four English pickup notices (single, multi,
 weapon-and-ammo single, weapon-and-ammo multi). Count Single overrides Count regardless of order;
 Count Multi is ignored. Unknown classes, duplicate modeled fields and invalid
 counts preserve output on failure. Table scratch is bounded and temporary.
@@ -185,3 +185,36 @@ Live Assault Rifle and5.56mm_ammo class handling is connected. L4S5 rifle3415
 grants ownership and42 loaded rounds, is removed once and can be selected with
 D-pad Right/Tab. PC and stock64MiB XEMU pickup/fire replay pass; ammo-box
 collection still needs an authored live replay. See FIRING-RUNTIME.md.
+
+
+## Xbox pickup audio (2026-09-30)
+
+Accepted placed-item collections now request spatial sound after committing the
+inventory/vitals grant and retiring the item. Rejected/full, occluded and already
+retired items do not reach this call. Missing audio remains nonfatal. Scripted
+Give_Item does not acquire an invented world-pickup sound side effect.
+
+Original RF.exe4594f0 selects class+0x28 when it has a registered sound, otherwise
+sound12 for class weapon/ammo fields+0x3c/+0x40 and sound0 for other items.
+RF.exe459520 plays that sound at item+0x3c with scale1 and category0. Installed
+sounds.tbl defines weapon_pickup.wav at slot12 (distance5, volume0.7) and
+powerup_pickup.wav at slot0 (distance2.5, volume0.7). The items.tbl Envirosuit
+override is envsuit_pickup.wav, distance5, volume0.9.
+
+The item reader owns override metadata and rejects malformed overrides without
+publishing partial output. PCM loads on demand through the existing budgeted,
+evictable sound bank and uses the normal spatial voice path; it does not enlarge
+the1280KiB sample budget. The definition grows by72 bytes per loaded class.
+
+Compiled NXDK parser check: tools/check_xbox_item_sound.py reads installed
+Handgun,12mm_ammo and Miner Envirosuit definitions and rejects a malformed
+sound override. Evidence: artifacts/xbox-item-sound.json. Placed Envirosuit and
+powerup playback, dropped-weapon feedback and audible device output remain
+unverified; no PC game, images or campaign playthrough is part of this check.
+
+Stock64MiB XEMU140-frame rifle3415 check PASS: one collection starts exactly
+one spatial slot12 voice, with nonempty PCM and authored distance5/volume0.7;
+forward/back/forward selection and firing still pass. Free memory at completion:
+7079 pages (27.65MiB). Harness flags and ISO were restored.
+Evidence: artifacts/xemu/weapon-pickup-20260930-113501/report.json. This proves
+sample loading and voice submission, not an independently inspected audible mix.

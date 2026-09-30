@@ -65,7 +65,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - USER Xbox weapon input: Stock64MiB L4S5 checks collect the authored rifle, switch forward/back/forward with and without release frames, and fire it; physical shoulder/D-pad behavior and interactive pickup feel need a later user check, while PC hands-on testing stays deferred (docs/INPUT.md).
 
-- Campaign pickups: Authored notices, the Envirosuit scripted grant and the Silenced 12mm Handgun's placed ammo grant now run on stock64MiB Xbox; its actual suppressor state, placed suit collection, rendered notice, pickup audio, Doctor Uniform effects and animated Demo_K000 remain open (docs/LEVEL-ITEMS.md).
+- Campaign pickups: Authored notices, Envirosuit scripted grant, Silenced Handgun ammo and rifle pickup sound now run on stock64MiB Xbox; actual suppressor state, placed suit effects/audio, dropped-weapon feedback, rendered notice, audible output, Doctor Uniform effects and animated Demo_K000 remain open (docs/LEVEL-ITEMS.md).
 
 - Scripted placed-item removal: Stock-64-MiB Xbox now retires authored L2S2a Demo_K000 and L8S4 Miner Envirosuit targets through Remove_Object and the pickup ledger; L6S3/L8S1 links and save/revisit behavior remain open.
 

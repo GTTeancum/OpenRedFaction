@@ -2799,7 +2799,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     foley_text=malloc(foley_entry.size);if(!foley_text){status=RF_RANGE;goto audio_done;}
     status=rf_vpp_read(&tables,&foley_entry,0,foley_text,foley_entry.size);if(status)goto audio_done;
     status=rf_foley_table_read(foley_text,foley_entry.size,NULL,0,NULL,0,&foley_groups,&foley_samples);if(status)goto audio_done;
-    capacity=declared+foley_samples+campaign_group_runtime.count*4+campaign_ambient.count;
+    capacity=declared+foley_samples+campaign_group_runtime.count*4+campaign_ambient.count+32; /* Item sound overrides. */
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].state.type==15)++capacity;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state) {
         ++rf_scene_switch_audio[0];
@@ -11352,6 +11352,34 @@ enemy_shot_done:
 }
 uint32_t rf_scene_pickups[8]; /* supported,checks,blocked,collected,rounds,last UID,draw vertices,status */
 uint32_t rf_scene_pickup_vitals[4]; /* health bits,armor bits,health restored bits,armor restored bits */
+/* attempts,started,failures,status,UID,sample,PCM bytes,near bits,gain bits,spatial */
+uint32_t rf_scene_pickup_audio[10];
+static void campaign_pickup_sound(const rf_item_definition *definition,const float position[3],uint32_t uid)
+{
+    uint32_t index=definition->weapon[0]?12:0;int status=RF_OK;
+    /* RF.exe4594f0: explicit class+28 sound, otherwise12 for weapon/ammo,
+     * zero for powerups.459520 starts spatial audio at the item with gain1. */
+    ++rf_scene_pickup_audio[0];rf_scene_pickup_audio[4]=uid;
+    if(definition->pickup_sound[0])status=rf_audio_bank_declare(&campaign_audio_bank,
+        definition->pickup_sound,definition->pickup_sound_distance,definition->pickup_sound_volume,1,&index);
+    if(!status && !rf_audio_bank_sample(&campaign_audio_bank,index)) {
+        status=campaign_ambient_reload(index);
+        if(!status){campaign_audio_evictable[index]=1;++rf_scene_sound_bank[1];
+            rf_scene_sound_bank[2]+=campaign_audio_bank.samples[index].bytes;rf_scene_live_audio[1]=campaign_audio_bank.bytes;}
+    }
+    rf_scene_pickup_audio[5]=index;
+    if(!status) {
+        const rf_audio_sample *sample=campaign_audio_bank.samples+index;
+        rf_scene_pickup_audio[6]=sample->bytes;
+        memcpy(rf_scene_pickup_audio+7,&sample->parameters.near_distance,4);
+        memcpy(rf_scene_pickup_audio+8,&sample->parameters.volume,4);
+        rf_scene_pickup_audio[9]=1;
+        if(campaign_sound_start((int32_t)index,position,1,0,1,0)<0)status=RF_RANGE;
+    }
+    rf_scene_pickup_audio[3]=(uint32_t)status;
+    if(status)++rf_scene_pickup_audio[2];else ++rf_scene_pickup_audio[1];
+    /* Missing audio must not roll back a successful inventory grant. */
+}
 static float pickup_restore(float *value,int32_t quantity)
 {
     float amount=100-*value;if(amount<=0 || quantity<=0)return 0;
@@ -11434,6 +11462,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         }
         stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired=1;
         ++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
+        campaign_pickup_sound(definition,item->position,item->uid);
         campaign_pickup_notice_grant(definition->pickup_messages,grant.acquired,
             grant.rounds?grant.rounds:(uint32_t)item->quantity);
         campaign_ammo_publish();
@@ -19301,7 +19330,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
             rf_scene_campaign_load_stage=10;status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             rf_scene_campaign_load_stage=11;status=campaign_clutter_open(tables_path,level);if(status)goto done;
-            memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(rf_scene_pickup_vitals,0,sizeof(rf_scene_pickup_vitals));
+            memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(rf_scene_pickup_audio,0,sizeof(rf_scene_pickup_audio));memset(rf_scene_pickup_vitals,0,sizeof(rf_scene_pickup_vitals));
             rf_scene_campaign_load_stage=12;status=rf_level_owned_items_open(level,256*1024,&stream->pickups);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             stream->pickup_taken=calloc(stream->pickups.count?stream->pickups.count:1,1);if(!stream->pickup_taken){status=RF_IO;goto done;}

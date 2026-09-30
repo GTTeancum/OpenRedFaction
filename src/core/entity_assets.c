@@ -468,7 +468,12 @@ int rf_item_definition_read(const void *text,uint32_t bytes,const char *name,rf_
             bit=16;if(mask&bit)return RF_FORMAT;if(metadata_string(&l,v.weapon,64))return RF_FORMAT;v.gives_weapon=(uint32_t)gives;
         } else if(same(t,"$Pickup")) {
             if(token(&l,t,&q) || q)return RF_FORMAT;
-            if(same(t,"Msg")) {
+            if(same(t,"Sound:")) {
+                bit=1024;if(mask&bit || metadata_string(&l,v.pickup_sound,64) ||
+                    sphere_number(&l,&v.pickup_sound_distance) || sphere_number(&l,&v.pickup_sound_volume))return RF_FORMAT;
+                if(!v.pickup_sound[0] || v.pickup_sound_distance<=0 ||
+                    v.pickup_sound_volume<0 || v.pickup_sound_volume>1)return RF_RANGE;
+            } else if(same(t,"Msg")) {
                 uint32_t message;
                 if(token(&l,t,&q) || q)return RF_FORMAT;
                 if(same(t,"W&A")) {
