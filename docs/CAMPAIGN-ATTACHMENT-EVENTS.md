@@ -94,8 +94,13 @@ The image-free stock-64-MiB L20S2 fixture
 lift and Detach events, saved a 61,308-byte ordinary checkpoint, then loaded
 it in a fresh scene. UID 4717 stayed detached at exactly
 `(426.0252075, -10.4686127, -412.7147827)` with 3,662 free pages after load.
-Attached moving-child reloads, player/NPC support on the restored body, other
-sections and natural triggers remain unverified.
+The companion `--attached` fixture
+`artifacts/xemu/vehicle-attached-save-20260930-040612` saved UID 4717 while
+the lift was moving at `(426.6378784, -11.0811043, -412.7147827)` and loaded
+the still-linked child into a fresh scene. Over 20 resumed frames it moved to
+`(426.1127319, -10.5561123, -412.7147827)`, with 18 movement updates and
+3,662 free pages. Player/NPC support on a restored moving body, other sections
+and natural triggers remain unverified.
 
 The remaining work is to verify and finish moving collision/support, support
 scripted vehicle movement and combat, extend save coverage, and connect the

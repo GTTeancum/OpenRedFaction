@@ -1,4 +1,4 @@
-"""Save and reload L20S2's detached fighter on stock-64-MiB Xbox.
+"""Save and reload L20S2's attached or detached fighter on stock-64-MiB Xbox.
 
 Uses only process-local campaign events and the owned ordinary-save HDD.
 No desktop input, capture, PC gameplay, or campaign-route replay.
@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 
 from xemu_native_world_save import FLAGS, run_guest
 from xemu_session_guard import require_no_project_xemu
@@ -33,18 +34,23 @@ def pose(words):
 
 
 def main():
+    attached_mode = sys.argv[1:] == ['--attached']
+    if sys.argv[1:] and not attached_mode:
+        raise SystemExit('usage: xemu_vehicle_attachment_save.py [--attached]')
     require_no_project_xemu(ROOT)
     base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not base.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
     hdd = prepare(ROOT, base)
-    folder = ROOT / 'artifacts/xemu' / ('vehicle-attachment-save-' +
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-attached-save-' if attached_mode
+             else 'vehicle-attachment-save-') +
              datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*') if p.is_file()}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'L20S2 group-owned fighter detach ordinary save/reload',
+    report = {'result': 'FAIL', 'scope': ('L20S2 attached fighter ordinary save/reload'
+              if attached_mode else 'L20S2 group-owned fighter detach ordinary save/reload'),
               'phases': {}}
     try:
         for name in names:
@@ -52,19 +58,22 @@ def main():
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels2.vpp'.ljust(64, b'\0') + b'L20S2.rfl'.ljust(64, b'\0'))
-        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 18354, 18377))
+        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I' if attached_mode else '<2I',
+                                                             *((18354,) if attached_mode else (18354, 18377))))
         (DISC / 'world-hdd-save.flag').write_bytes(b'1')
-        (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(90 * 44))
+        save_frames = 40 if attached_mode else 90
+        load_frames = 20 if attached_mode else 10
+        (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(save_frames * 44))
         build(folder, 'save')
-        saved = run_guest(folder, 'save', hdd, 90, 420, capture_world=True,
+        saved = run_guest(folder, 'save', hdd, save_frames, 420, capture_world=True,
                           extra_symbols=SYMBOLS, allow_guest_error=True)
         report['phases']['save'] = saved
         state = saved['checkpoint_state']
         if state[9] != 1 or state[3] or state[4] < 320:
             raise RuntimeError(f'Xbox save failed: {state}, event probe '
                                f'{saved["extra"]["rf_scene_world_snapshot_event_probe"]}')
-        if saved['extra']['rf_scene_passive_attachment'][3] != 1:
-            raise RuntimeError('Detached fighter was absent before save')
+        if saved['extra']['rf_scene_passive_attachment'][3] != (0 if attached_mode else 1):
+            raise RuntimeError('Fighter attachment state was wrong before save')
         payload = (folder / 'save/xbox-world.rfwc').read_bytes()
         directory = 128 + (11 - 1) * 12
         offset, length = struct.unpack_from('<II', payload, directory + 4)
@@ -76,24 +85,29 @@ def main():
             raise RuntimeError('Vehicle attachment section is malformed')
         uid, attached = struct.unpack_from('<2I', vehicle, 16 + host_bytes)
         saved_pose = struct.unpack_from('<3f', vehicle, 24 + host_bytes)
-        if uid != 4717 or attached:
-            raise RuntimeError(f'Detached vehicle state not saved: {uid}, {attached}')
+        if uid != 4717 or attached != int(attached_mode):
+            raise RuntimeError(f'Vehicle attachment state not saved: {uid}, {attached}')
         report['saved_pose'] = saved_pose
         (DISC / 'campaign-setup.bin').unlink()
         (DISC / 'world-hdd-save.flag').unlink()
         (DISC / 'world-hdd-load.flag').write_bytes(b'1')
-        (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(10 * 44))
+        (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(load_frames * 44))
         build(folder, 'load')
-        loaded = run_guest(folder, 'load', hdd, 10, 420, snapshot=True,
+        loaded = run_guest(folder, 'load', hdd, load_frames, 420, snapshot=True,
                            extra_symbols=SYMBOLS)
         report['phases']['load'] = loaded
         loaded_state = loaded['checkpoint_state']
         attachment = loaded['extra']['rf_scene_passive_attachment']
         if loaded_state[8] != 1 or loaded_state[0] or loaded_state[1] != state[4]:
             raise RuntimeError(f'Xbox load failed: {loaded_state}')
-        if attachment[3] != 1 or attachment[4] != 4717:
-            raise RuntimeError(f'Detachment not restored: {attachment}')
-        if any(abs(a - b) > 0.00001 for a, b in zip(pose(attachment), saved_pose)):
+        if attachment[3] != (0 if attached_mode else 1) or attachment[4] != 4717:
+            raise RuntimeError(f'Attachment not restored: {attachment}')
+        if attached_mode:
+            distance = sum((a - b) ** 2 for a, b in zip(pose(attachment), saved_pose)) ** .5
+            if attachment[2] < 1 or not .01 < distance < 10:
+                raise RuntimeError(f'Attached child did not continue smoothly: '
+                                   f'{pose(attachment)} vs {saved_pose}, moves {attachment[2]}')
+        elif any(abs(a - b) > 0.00001 for a, b in zip(pose(attachment), saved_pose)):
             raise RuntimeError(f'Detached world pose changed: {pose(attachment)} vs {saved_pose}')
         report['result'] = 'PASS'
     finally:

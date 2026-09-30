@@ -4,7 +4,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 Current platform priority (user direction,2026-09-29): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks, keep the shared PC build compiling when needed, and do not run PC gameplay tests or campaign-route replays.
 
-- PRIORITY Vehicle and platform attachments: Group-linked secondary vehicles draw, collide with the player, and retain L20S2 Detach pose through an Xbox ordinary save/reload; NPC contact, moving-platform response, attached-state saves, scripted behavior, natural triggers and other general-object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+- PRIORITY Vehicle and platform attachments: Group-linked secondary vehicles draw, collide with the player, and retain both attached motion and detached pose through Xbox ordinary save/reload; NPC contact, moving-platform response, scripted behavior, natural triggers and other general-object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
 - Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
 
