@@ -120,7 +120,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Remote charges: Ordinary pickup/import/script demand and planted-charge updates work; a charge now survives ordinary quick-load and detonates on PC/Xbox with12.06MiB native headroom, while moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
-- Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; RFNC10 now retains the NPC shield-disable bit and the event scheduler accepts shield events; shield presentation, hit armor consumption, live toggle/save behavior and player-targeted persistence remain.
+- Shield combat: Activate_Capek_Shield toggles actor immunity and RFNC10 retains its disable bit; stock-64-MiB Xbox firearm contacts now deplete Capek armor without health spill on the breaking shot, and a later shot damages/kills him; projectile rules, shield effects/audio, boss movement reconciliation, live toggle/save behavior and player-targeted persistence remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
 - AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
 
@@ -5929,3 +5929,10 @@ Expanded name-based death-drop policy to implemented guns/throwables/riotstick; 
 ##2026-09-22 Scripted AI movement ownership
 
 Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordinary sight pursuit, hearing, damage retaliation and alarms; ordinary default-mode firing stays available and explicit Attack supersedes the route. Actualscene scheduler/hearing/retaliation/alarm checks pass, as do PC/NXDK builds. OriginalRiotStick guard8456 in controlledL1S1 Goto fixture walks away from alerted player; native90-frame replay render-20260922-182408 matches movement/combat counters with5244freepages (20.48MiB), inspected capture and restored disc. Initial RF_FORMAT was fixtureusingwrongsetupentry, corrected toNPCevententry; noRiotloadoutfault. Addednative --goto-uid staging/restoration. CorrectedstaleTODO: unique linked waypoint acquisition alreadyimplemented32410c24. Fullrouteencounters/collecting/vehicles/disksaves remain. Overall~82%; Enemy AI~82%.
+
+### Capek firearm shield depletion (2026-09-30)
+
+- Added a contact-owned nano-shield armor prepass to player hitscan/precision and NPC direct/shotgun firearms; active shields consume the contact before generic health damage, including the breaking hit, while rail contacts debit100 armor.
+- Invulnerable targets retain armor; exhausted armor clamps to0 for the existing save/vitals contract. Projectile/explosion behavior stays separate, and original shield effects/audio and hover/run reconciliation remain open.
+- NXDK build passes. Focused stock64MiB XEMU L8S4 check passes110frames: armor150→50→0 with health100 unchanged, then sniper health100→-150/death; each shot consumes one finite round,4772free pages (18.64MiB), disc restored. Report: artifacts/xemu/nano-shield-20260930-102647/report.json.
+- No PC runtime, campaign traversal, images or host input. Broader NPC/invulnerable/toggle/save coverage is deferred.

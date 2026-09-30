@@ -11319,6 +11319,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
          rf_damage_request request={shot_damage,owner->registration.handle,kind,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
+             if(!melee){uint32_t consumed;status=scene_nano_firearm_contact(victim,weapon,request.amount,&consumed);
+                 if(status)return status;if(consumed)goto enemy_shot_done;}
              status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
              if(victim->damage.effects.health<=0) {
                  status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return status;
@@ -15089,6 +15091,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
                 scene_npc_shield_receive(target,position,end,nearest,request.amount,request.kind,&accepted,&broken);if(status)return status;
             if(accepted)continue;
         }
+        if(campaign_equipped_slot!=2){uint32_t consumed;status=scene_nano_firearm_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
+         if(status)return status;if(consumed){combat_hit_frame=frame;continue;}}
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
         if(amount>0){combat_hit_frame=frame;
             campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
@@ -15182,6 +15186,7 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
     rf_scene_vehicle_shot_probe[11]=(uint32_t)RF_NOT_FOUND;
     return RF_NOT_FOUND;
 }
+#include "scene_nano_shield_fixture.inc"
 static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 {
     scene_passive_vehicle *owner=NULL;uint32_t i;int status;
@@ -15789,10 +15794,13 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=campaign_vehicle_shot_stage(stream,frame,(const float (*)[3])orientation,
             shot_eye,shot_basis,&staged);
         if(status){rf_scene_profile_stage[1]=108;return status;}
+        status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
+        if(status){rf_scene_profile_stage[1]=108;return status;}
         status=campaign_combat_tick(stream,frame,staged?shot_eye:position,
             staged?(const float (*)[3])shot_basis:(const float (*)[3])orientation);
         rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}
-        if(staged){
+        if(staged==2){status=scene_nano_shot_result(frame);if(status)return status;}
+        if(staged==1){
             scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
             for(uint32_t index=0;index<campaign_passive_vehicle_count;index++)
                 if(campaign_passive_vehicles[index].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+index;break;}

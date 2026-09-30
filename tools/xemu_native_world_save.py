@@ -29,7 +29,7 @@ DISC = ROOT / 'build/xbox/disc'
 EMULATOR = Path('C:/Games/Emulators/Xemu')
 FLAGS = (
     'campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin',
-    'campaign-passive-roof.bin', 'campaign-single-fire.bin',
+    'campaign-passive-roof.bin', 'campaign-single-fire.bin', 'campaign-nano-shield.bin',
     'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin',
     'campaign-setup.bin', 'campaign-setup-immediate.flag', 'campaign-disable-auto.bin', 'campaign-goal.bin', 'campaign-goto.bin',
     'campaign-npc-drop.bin',
