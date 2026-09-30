@@ -83,7 +83,7 @@ def main():
         position_words = script[2:5] if args.scripted else support[4:7]
         position = struct.unpack('<3f', struct.pack('<3I', *position_words))
         report['npc_position'] = position
-        if frames < 480:
+        if frames < (480 if args.scripted else 500):
             report['result'] = 'OBSERVED'
             return
         if idle[4] or not support[1] or support[3] < 50:

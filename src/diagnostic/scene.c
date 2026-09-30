@@ -8174,6 +8174,37 @@ static int campaign_player_piece_query(const rf_geometry_collision_world *world,
     }
     return RF_OK;
 }
+/* Ground probes use the lowest NPC sphere and the same detached-piece ground
+ * resolver as the player. Body sweeps alone cannot establish standing support. */
+static int campaign_npc_piece_ground(const rf_geometry_collision_world *world,
+    campaign_npc_body *owner,const rf_collision_body_query *query,
+    rf_geometry_body_hit *contact,uint32_t *matched)
+{
+    scene_stream *s=scene_actor_collision_owner;rf_collision_actor_general_response actor;
+    rf_geomod_registry_body_hit piece;rf_physics_sphere sphere;rf_collision_body_query limited;
+    uint32_t found,k;int status;
+    if(!s || s->collision!=world || !scene_detached_sources_batch_count(s))return RF_OK;
+    if(!owner || !query || !contact || !matched || query->count!=1 || !query->spheres ||
+       !campaign_seeds.items || !campaign_seeds.classes || !campaign_npc_bodies ||
+       owner<campaign_npc_bodies || owner>=campaign_npc_bodies+campaign_npc_body_count)return RF_RANGE;
+    k=(uint32_t)(owner-campaign_npc_bodies);
+    if(k>=campaign_seeds.records.count || campaign_seeds.items[k].class_index>=campaign_seeds.class_count)return RF_RANGE;
+    if(campaign_seeds.classes[campaign_seeds.items[k].class_index].physics.use_kind!=1)return RF_OK;
+    status=collision_body_response(&owner->body,&owner->collision_contact,owner->registration.handle,
+        owner->collision_material,0,&actor);if(status)return status;
+    memcpy(sphere.center,query->spheres[0].center,12);sphere.radius=query->spheres[0].radius;
+    actor.actor.spheres=&sphere;actor.actor.sphere_count=1;actor.extent=query->radius;
+    memset(actor.orientation,0,sizeof(actor.orientation));
+    for(k=0;k<3;k++)actor.orientation[k*3+k]=1;
+    limited=*query;if(*matched)limited.limit=contact->contact.fraction;
+    status=scene_detached_sources_player(s,&actor,&limited,1,0,&piece,&found);if(status)return status;
+    if(found && (!*matched || piece.contact.fraction<contact->contact.fraction)) {
+        memset(contact,0,sizeof(*contact));contact->contact=piece.contact;
+        contact->solid=contact->sphere=contact->face=UINT32_MAX;
+        contact->room=s->terrain_collision.room;contact->hits=1;*matched=1;
+    }
+    return RF_OK;
+}
 int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t handle,float elapsed,
     rf_physics_ground_probe *probe,rf_collision_actor_contact *contact,uint32_t *matched)
 {
@@ -8193,6 +8224,7 @@ int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t 
     query.radius=prepared.bounds.radius;query.flags=prepared.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
     candidate=*contact;candidate.time=1;candidate.reserved_1ec=0;
     status=campaign_body_query(world,&query,&hit,&found);if(status)return status;
+    status=campaign_npc_piece_ground(world,owner,&query,&hit,&found);if(status)return status;
     _Static_assert(sizeof(hit.contact)==sizeof(candidate),"original contact payload wire");
     if(found)memcpy(&candidate,&hit.contact,sizeof(candidate));
     *probe=prepared;*contact=candidate;*matched=found;return RF_OK;
@@ -16000,6 +16032,7 @@ static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,
     for(i=0;i<3;i++)query.matrix[i][i]=1;
     query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
     status=campaign_body_query(stream->collision,&query,&hit,&found);if(status)return status;
+    status=campaign_npc_piece_ground(stream->collision,owner,&query,&hit,&found);if(status)return status;
     if(found && hit.contact.fraction<1 && hit.contact.normal[1]>=.5f) {
         if(falling) {
             rf_collision_actor_contact contact;

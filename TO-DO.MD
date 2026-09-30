@@ -18,7 +18,7 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
-- NPC gravity: Idle and Goto-style NPCs fall and land with impact, and both ride translating mover support on stock-64-MiB Xbox; rotating support, natural high falls and other movement modes remain open (docs/MOVEMENT.md).
+- NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and now query detached GeoMod pieces as ground; focused Xbox rubble-support acceptance, fragment carry, rotating support, natural high falls and other movement modes remain open (docs/MOVEMENT.md).
 
 - Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
 

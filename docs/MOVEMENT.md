@@ -80,6 +80,20 @@ and restored the test disc. This fixture exercises the scripted movement path;
 it does not prove an authored campaign Goto event rides a mover, rotating
 support, or visual presentation.
 
+NPC ground probes now include the detached GeoMod registries through the same
+single-sphere fragment ground resolver used for player support. The idle and
+Goto-style paths both compare rubble contact distance with the compiled-world
+and mover contact before accepting a landing. The NPC body sweep already
+included detached pieces; this closes the separate ground-support lookup gap.
+The Xbox build compiles this adapter. A focused Xbox fixture with an NPC
+landing on an actual extracted fragment is still needed to verify contact and
+standing state. Carry by a moving fragment is also still open.
+The existing stock-64-MiB translating-mover fixture remains green after this
+change: `artifacts/xemu/npc-platform-20260929-202052/` completed 500 frames,
+recorded 455 grounded checks and 60 carry commits, ended at x=12.449 with
+1,678 free physical pages, and restored its isolated test disc. This is a
+movement regression check; it does not exercise a detached-fragment landing.
+
 `rf_movement_set_mode` in src/core/movement.c reconstructs complete routine
 0x427450 and predicate 0x40a210. It returns entity settings as explicit shared
 C state rather than writing a raw original entity structure. This is the
