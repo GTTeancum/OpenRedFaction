@@ -116,13 +116,13 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; rail scanner markers now work in live PC with no ammo debit; Xbox builds; silhouette scanner presentation, scope overlay, trails and broader live targets remain.
 
-- Scripted thresholds: Health/armor monitors now read live player/NPC values and dispatch one-shot event/mover/trigger effects; focused runtime checks pass; in-memory revisit latch retention now passes focused checks; disk persistence and live authored scenarios remain.
+- Scripted thresholds: Health/armor monitors read live player/NPC values and dispatch one-shot event/mover/trigger effects; the revisit latch and ordinary-event disk codec/load path are implemented, while a focused Xbox save/reload check and live authored scenarios remain.
 
 - AI ammo fallback: Exhausted ordinary enemies now switch to an owned usable gun or riot stick without granting ammo; actual selection/reset adapter checks and Xbox build pass, rendered model switching remains unverified.
 
 - AI target lifecycle: Player death stops player-directed pursuit while independent NPC combat continues; focused state checks pass, live encounter coverage remains.
 
-- Scripted timers: Cyclic_Timer is integrated with finite/unlimited event/mover pulses and focused runtime checks passing; in-memory level/UID history now preserves count/enabled/deadline on revisit; disk persistence and broader live route checks remain.
+- Scripted timers: Cyclic_Timer drives finite/unlimited event/mover pulses; level/UID revisit history and the ordinary-event disk codec/load path preserve count, enabled state and remaining deadline, while a focused Xbox save/reload check and broader live route checks remain.
 
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 
