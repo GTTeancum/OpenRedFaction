@@ -1,6 +1,15 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately95%; GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88% (provisional85-90% range, recalibrated2026-09-30); GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+
+Estimate correction (2026-09-30): The previous95% overstated integrated late-alpha functionality by treating broad subsystem presence as completion. Remaining work is not merely the last5% of polish. This estimate includes missing gameplay behavior and integration, not exhaustive testing or retail fidelity; no campaign playthrough is required to earn implementation credit.
+
+Remaining first-playable work, grouped for planning:
+- Gameplay integration: Finish unsupported AI behaviors/vehicle-seat handling, remaining item effects and object interactions that currently stop at partial adapters.
+- Vehicles and moving objects: Complete remaining passenger/child ownership, moving-support interactions and campaign-specific vehicle behavior where code is missing.
+- Campaign assembly: Connect remaining authored event/object behaviors, section state and endgame/recovery paths; use bounded functional checks instead of campaign walkthroughs.
+- State continuity: Close material gaps in live weapon/effect/actor persistence and session transitions; defer isolated edge cases that do not block ordinary play.
+- Xbox usability: Address material performance/memory problems and missing audio/HUD/animation feedback; retain visual polish and hardware feedback as separate later work.
 
 Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
 
