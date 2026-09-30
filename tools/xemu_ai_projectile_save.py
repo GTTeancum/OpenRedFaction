@@ -1,7 +1,7 @@
 """Xbox-only bounded save/load of controlled NPC and player projectile flights.
 
-The original game is not run. A two-actor L1S1 asset fixture is prepared from
-the installed archive; guest input is process-local and neutral. No image,
+The original game is not run. An enemy-free CTF06 player fixture or controlled
+L1S1 NPC fixture is prepared from installed assets; guest input is process-local. No image,
 desktop control, campaign playthrough or persistent user HDD is involved.
 """
 import argparse
@@ -14,6 +14,7 @@ import struct
 
 from check_ai_projectile_ordinary import prepare as prepare_encounter
 from check_rocket_pickup import prepare as prepare_player_rocket
+from check_grenade_pickup import prepare as prepare_player_grenade
 from xemu_native_world_save import DISC, FLAGS, ROOT, build, run_guest
 from xemu_session_guard import require_no_project_xemu
 
@@ -43,7 +44,7 @@ def projectile_count(payload, kind):
         raise RuntimeError('Invalid projectile component')
     records = [struct.unpack_from('<I', part, 16 + 112 * index)[0]
                for index in range(count)]
-    wanted = {'grenade': 1, 'rocket': 2, 'player-rocket': 3}[kind]
+    wanted = {'grenade': 1, 'rocket': 2, 'player-rocket': 3, 'player-grenade': 4}[kind]
     if not records or any(value != wanted for value in records):
         raise RuntimeError('Unexpected mixed/empty projectile fixture')
     return count
@@ -51,14 +52,15 @@ def projectile_count(payload, kind):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--kind', choices=('grenade', 'rocket', 'player-rocket'), default='grenade')
+    parser.add_argument('--kind', choices=('grenade', 'rocket', 'player-rocket', 'player-grenade'), default='grenade')
     parser.add_argument('--save-frames', type=int)
     parser.add_argument('--load-frames', type=int, default=60)
     parser.add_argument('--seconds', type=int, default=360)
     parser.add_argument('--load-world', type=Path,
                         help='Retry an existing Xbox RFWC3 payload without running the encounter save')
     args = parser.parse_args()
-    save_frames = args.save_frames or {'grenade': 200, 'rocket': 34, 'player-rocket': 122}[args.kind]
+    save_frames = args.save_frames or {'grenade': 200, 'rocket': 34,
+        'player-rocket': 122, 'player-grenade': 225}[args.kind]
     if not 30 <= save_frames <= 1200 or not 1 <= args.load_frames <= 300:
         parser.error('Save frames 30..1200 and load frames 1..300 required')
     require_no_project_xemu(ROOT)
@@ -71,6 +73,9 @@ def main():
     if args.kind == 'player-rocket':
         recipe = prepare_player_rocket(run / 'encounter', 1)
         source = run / 'encounter/rocket/game/levelsm.vpp'
+    elif args.kind == 'player-grenade':
+        recipe = prepare_player_grenade(run / 'encounter', 1)
+        source = run / 'encounter/grenade/game/levelsm.vpp'
     else:
         recipe = prepare_encounter(run / 'encounter', save_frames)
         source = run / 'encounter' / args.kind / 'game' / 'levels1.vpp'
@@ -90,14 +95,17 @@ def main():
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'scene-fixture.vpp'.ljust(64, b'\0') +
-            (b'ctf06.rfl' if args.kind == 'player-rocket' else b'L1S1.rfl').ljust(64, b'\0'))
+            (b'ctf06.rfl' if args.kind.startswith('player-') else b'L1S1.rfl').ljust(64, b'\0'))
         if args.kind == 'player-rocket':
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 910510))
+        elif args.kind == 'player-grenade':
+            (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 910520))
         else:
             (DISC / 'campaign-actor.bin').write_bytes(struct.pack('<I', 8456))
         key = {'grenade': 'rf_scene_ai_grenades', 'rocket': 'rf_scene_ai_rockets',
-               'player-rocket': 'rf_scene_rockets'}[args.kind]
-        counters = {key: 8 if args.kind == 'player-rocket' else 5,
+               'player-rocket': 'rf_scene_rockets',
+               'player-grenade': 'rf_scene_grenades'}[args.kind]
+        counters = {key: 8 if args.kind.startswith('player-') else 5,
                     'rf_scene_npc_checkpoint_reject_state': 6,
                     'rf_scene_world_load_reject': 3,
                     'rf_scene_world_player_probe': 3,
@@ -107,11 +115,13 @@ def main():
         if args.kind == 'player-rocket':
             counters['combat_trigger'] = 4
             counters['rf_scene_combat'] = 8
+        if args.kind == 'player-grenade':
+            counters['scene_grenade_throw'] = 5
         if args.load_world:
             payload = args.load_world.read_bytes()
             report['existing_xbox_world'] = str(args.load_world.resolve())
         else:
-            if args.kind == 'player-rocket':
+            if args.kind.startswith('player-'):
                 replay = b''.join(struct.pack('<5f7I', 0, 0, 0, 0, 0, 0, 0, 0,
                     int(frame == 120), 0, int(frame == 30), 0)
                     for frame in range(save_frames))
@@ -140,9 +150,13 @@ def main():
         if state[8] != 1 or state[0] != 0 or state[1] != len(payload):
             raise RuntimeError('Xbox did not load the same ordinary checkpoint')
         values = loaded['extra'][key]
-        launches, contacts, terminal, live = values[:4]
-        refusals = values[6] if args.kind == 'player-rocket' else values[4]
-        accounted = terminal + live + (contacts if args.kind != 'grenade' else 0)
+        if args.kind == 'player-grenade':
+            launches, terminal, live, refusals = values[1], values[3], values[4], values[5]
+            accounted = terminal + live
+        else:
+            launches, contacts, terminal, live = values[:4]
+            refusals = values[6] if args.kind == 'player-rocket' else values[4]
+            accounted = terminal + live + (contacts if args.kind != 'grenade' else 0)
         # The restored NPC may legitimately fire again during the continuation.
         # Every new launch adds a flight; the saved flights must remain accounted
         # for by the active/terminal counts at the bounded endpoint.

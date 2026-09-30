@@ -47,7 +47,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
     if(campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
-    if(scene_player_shield_damage_save_pending())return RF_RANGE;
+    if(scene_player_shield_damage_save_pending()||scene_player_grenade_save_blocked())return RF_RANGE;
     if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
     if(campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;

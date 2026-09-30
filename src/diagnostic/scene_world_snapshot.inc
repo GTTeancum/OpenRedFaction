@@ -67,7 +67,8 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     rf_checkpoint_file_selection selection={0};rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
     rf_weapon_modes_checkpoint modes;rf_campaign_triggers *triggers=NULL;rf_level_uid_object *objects=NULL;
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
-    uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending()||scene_player_rocket_pending(s))?
+    uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending()||
+        scene_player_rocket_pending(s)||scene_player_grenade_pending())?
         RF_WORLD_CHECKPOINT_PREFIX_V3:RF_WORLD_CHECKPOINT_PREFIX;
     uint32_t bytes=0,total=0,i,slot,object_count=0,omissions=0,stage=0;
     int status=RF_OK;int32_t now;const char *part="identity";

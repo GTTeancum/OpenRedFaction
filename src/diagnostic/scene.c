@@ -12151,6 +12151,8 @@ static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection
 static int scene_vehicle_checkpoint_publish(scene_stream *);
 typedef struct scene_ai_projectile_checkpoint_stage scene_ai_projectile_checkpoint_stage;
 static uint32_t scene_player_rocket_pending(const scene_stream *);
+static uint32_t scene_player_grenade_pending(void);
+static uint32_t scene_player_grenade_save_blocked(void);
 static int scene_ai_projectile_checkpoint_capture(const scene_stream *,void *,uint32_t,uint32_t *);
 static int scene_ai_projectile_checkpoint_prepare(const scene_stream *,const void *,uint32_t,uint32_t,
     scene_ai_projectile_checkpoint_stage **);
