@@ -132,6 +132,74 @@ static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,
     }
     return RF_OK;
 }
+/* Sweep each translated secondary chassis through the stationary player body.
+ * A side contact moves the player by the remaining chassis translation, gated
+ * by the ordinary compiled-world, mover and detached-piece clearance. The
+ * pair's current chassis pose is excluded from that clearance sweep. */
+static int scene_passive_vehicle_player_push(scene_stream *s,rf_physics_body_state *actor)
+{
+    rf_collision_body_sphere spheres[8];rf_collision_body_query query={0};
+    uint32_t index,i,found;int status;
+    if(!s || !actor)return RF_RANGE;
+    if(!campaign_passive_vehicle_count || !scene_actor_body.spheres.count)return RF_OK;
+    if(scene_actor_body.spheres.count>8)return RF_RANGE;
+    for(i=0;i<scene_actor_body.spheres.count;i++) {
+        memcpy(spheres[i].center,scene_actor_body.spheres.items[i].center,12);
+        spheres[i].radius=scene_actor_body.spheres.items[i].radius;
+    }
+    memcpy(query.matrix,actor->orientation,36);query.spheres=spheres;
+    query.count=scene_actor_body.spheres.count;query.radius=actor->bounds.radius;
+    query.flags=0x460;query.limit=1;
+    for(index=0;index<campaign_passive_vehicle_count;index++) {
+        const scene_passive_vehicle *owner=campaign_passive_vehicles+index;
+        scene_driller_actor_collision host={0};const scene_driller_resources *resource;
+        rf_geometry_body_hit contact={0},obstacle={0};rf_physics_body_state motion;
+        float delta[3],approach=0,limit;uint32_t kind=owner->resource_kind;
+        if(!owner->attached || campaign_support_handle==owner->handle ||
+           (uint32_t)campaign_player_view.linked_handle==owner->handle)continue;
+        if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
+        resource=s->passive_vehicle_resources[kind];
+        if(!resource && s->driller && campaign_selected_vehicle_resource_kind()==kind)resource=s->driller;
+        if(!resource)return RF_NOT_FOUND;
+        for(i=0;i<3;i++)delta[i]=owner->velocity[i]*scene_step_seconds;
+        if(delta[0]*delta[0]+delta[1]*delta[1]+delta[2]*delta[2]<1e-8f)continue;
+        host.spheres=s->passive_vehicle_spheres[kind];host.count=s->passive_vehicle_sphere_count[kind];
+        host.handle=owner->handle;host.material=resource->physics.material.index;
+        memcpy(host.next_position,owner->pose.position,12);
+        for(i=0;i<3;i++)host.position[i]=host.next_position[i]-delta[i];
+        memcpy(host.orientation,owner->pose.input_matrix,36);
+        memcpy(host.next_orientation,host.orientation,36);
+        memcpy(host.velocity,owner->velocity,12);
+        memcpy(query.start,actor->position,12);memcpy(query.end,actor->position,12);
+        ++rf_scene_passive_side_push[0];
+        status=scene_driller_actor_query(&host,campaign_player_object.handle,
+            (uint32_t)campaign_player_view.linked_handle,&query,&contact,&found);if(status)return status;
+        if(!found || fabsf(contact.contact.normal[1])>=.5f)continue;
+        for(i=0;i<3;i++)approach+=delta[i]*contact.contact.normal[i];
+        if(approach<=0)continue;
+        ++rf_scene_passive_side_push[1];rf_scene_passive_side_push[4]=owner->uid;
+        motion=*actor;limit=fminf(1.f,1.f-contact.contact.fraction+.01f);
+        for(i=0;i<3;i++)motion.next_position[i]=motion.position[i]+delta[i]*limit;
+        status=rf_physics_body_prepare_sweep(&motion);if(status)return status;
+        memcpy(query.start,motion.position,12);memcpy(query.end,motion.next_position,12);
+        found=0;query.limit=1;
+        status=campaign_body_query_batch_for(s->collision,&query,&obstacle,&found,NULL,&campaign_movers);
+        if(status)return status;
+        status=campaign_player_piece_query(s->collision,&query,&motion,&obstacle,&found,NULL);
+        if(status)return status;
+        status=scene_driller_player_collision(s,&query,&obstacle,&found);if(status)return status;
+        if(found) {
+            ++rf_scene_passive_side_push[3];
+            limit=fmaxf(0.f,obstacle.contact.fraction-.001f);
+        } else limit=1;
+        for(i=0;i<3;i++)actor->position[i]=actor->next_position[i]=
+            motion.position[i]+(motion.next_position[i]-motion.position[i])*limit;
+        status=rf_physics_body_prepare_sweep(actor);if(status)return status;
+        if(limit>0)++rf_scene_passive_side_push[2];
+        memcpy(rf_scene_passive_side_push+5,actor->position,12);
+    }
+    return RF_OK;
+}
 /* Xbox-only process-local fixture. Place the player on a live attached
  * chassis after its authored controller has advanced. Seed the already
  * supported state so this checks carry independently of landing acquisition. */
@@ -141,6 +209,7 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     const scene_passive_vehicle *owner=NULL;const rf_physics_spheres *body_spheres;
     campaign_npc_body *npc=NULL;uint32_t i,j,kind;
     float top=-FLT_MAX,bottom=FLT_MAX,center[3]={0},point[3],zero[3]={0};
+    float side_center[3]={0},side_offset[3]={0},side_host_radius=0,side_actor_radius=0;
     if(!rf_scene_passive_roof_fixture[0] || frame!=rf_scene_passive_roof_fixture[1])return RF_OK;
     if(!s || !actor)return RF_RANGE;
     for(i=0;i<campaign_passive_vehicle_count;++i)
@@ -167,15 +236,30 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         if(point[1]+sphere->radius>top) {
             top=point[1]+sphere->radius;memcpy(center,point,sizeof(center));
         }
+        if(sphere->radius>side_host_radius){
+            side_host_radius=sphere->radius;memcpy(side_center,point,12);
+        }
     }
     for(j=0;j<body_spheres->count;++j) {
         const rf_physics_sphere *sphere=body_spheres->items+j;
         scene_driller_actor_point(zero,actor->orientation,sphere->center,point);
         if(point[1]-sphere->radius<bottom)bottom=point[1]-sphere->radius;
+        if(sphere->radius>side_actor_radius){
+            side_actor_radius=sphere->radius;memcpy(side_offset,point,12);
+        }
     }
-    actor->position[0]=actor->next_position[0]=center[0];
-    actor->position[1]=actor->next_position[1]=top-bottom+.06f;
-    actor->position[2]=actor->next_position[2]=center[2];
+    if(rf_scene_passive_roof_fixture[9]==4) {
+        float direction=owner->velocity[0]<0?-1.f:1.f;
+        actor->position[0]=actor->next_position[0]=side_center[0]+direction*
+            (side_host_radius+side_actor_radius+.08f)-side_offset[0];
+        actor->position[1]=actor->next_position[1]=side_center[1]-side_offset[1];
+        actor->position[2]=actor->next_position[2]=side_center[2]-side_offset[2];
+        ++rf_scene_passive_side_push[8];
+    } else {
+        actor->position[0]=actor->next_position[0]=center[0];
+        actor->position[1]=actor->next_position[1]=top-bottom+.06f;
+        actor->position[2]=actor->next_position[2]=center[2];
+    }
     memset(actor->velocity,0,sizeof(actor->velocity));
     if(npc) {
         uint32_t handle=npc->registration.handle;int status;
@@ -189,7 +273,7 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         npc->script_move.target[1]=actor->position[1];
         npc->script_move.target[2]=actor->position[2];
         rf_scene_passive_npc_fixture[0]=handle;
-    } else if(rf_scene_passive_roof_fixture[9]==2) {
+    } else if(rf_scene_passive_roof_fixture[9]==2 || rf_scene_passive_roof_fixture[9]==4) {
         actor->flags|=1u;rf_scene_actor_landing[1]=3;campaign_support_handle=0;
         memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));
     } else {

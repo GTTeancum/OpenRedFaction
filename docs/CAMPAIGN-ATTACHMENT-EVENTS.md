@@ -159,4 +159,22 @@ moving-ground contacts and 23 carry commits; the NPC's vertical displacement
 matched the fighter's, with 3,832 free pages
 (`artifacts/xemu/vehicle-group-npc-20260930-055508`). This proves a staged
 scripted NPC contact/carry case; ordinary NPC save/reload, natural arrivals,
-side pushes and other chassis remain open.
+NPC side pushes and other chassis remain open.
+
+A translation-only side-push pass now sweeps each attached secondary chassis
+from its previous to current position against a stationary player. It moves
+the player by the remaining chassis travel after a horizontal contact and
+checks compiled-world, mover, detached-piece and boardable-host clearance
+before committing. The stock-64-MiB `--side` L20S2 fixture placed the player
+beside fighter 4717 while the lift was moving left; over 75 frames it recorded
+19 side hits and 19 accepted pushes, with no blocked clearance and 3,831 free
+pages (`artifacts/xemu/vehicle-group-side-20260930-062010`). Between its
+frame-45 probe and completion the fighter moved X `426.22943→425.61676` and
+the player X `423.00952→422.56274`. The existing unseeded rising-roof carry
+fixture still passed after this change
+(`artifacts/xemu/vehicle-group-rising-20260930-062301`). Rotating hosts,
+wall crush, other passive hosts as clearance blockers and naturally staged
+side encounters remain open. NPC ordinary saves also remain open: RFNC8
+rejects nonzero support velocity and has no authored support UID field, so
+that work needs an explicit checkpoint-format extension rather than merely a
+restore-time reprobe.
