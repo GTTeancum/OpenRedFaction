@@ -553,6 +553,14 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(exit_file){uint32_t uid=0;int invalid=fread(&uid,1,4,exit_file)!=4;
             if(fgetc(exit_file)!=EOF)invalid=1;fclose(exit_file);
             if(invalid||!uid)return RF_FORMAT;rf_scene_turret_test_uid=uid;}
+        exit_file=fopen("D:\\campaign-auto-head-test.bin","rb");
+        if(exit_file){uint32_t uid=0;int invalid=fread(&uid,1,4,exit_file)!=4;
+            if(fgetc(exit_file)!=EOF)invalid=1;fclose(exit_file);
+            if(invalid||!uid)return RF_FORMAT;rf_scene_turret_generated_test_uid=uid;}
+        exit_file=fopen("D:\\campaign-auto-head-remove.bin","rb");
+        if(exit_file){uint32_t uid=0;int invalid=fread(&uid,1,4,exit_file)!=4;
+            if(fgetc(exit_file)!=EOF)invalid=1;fclose(exit_file);
+            if(invalid||!uid)return RF_FORMAT;rf_scene_turret_head_remove_uid=uid;}
         exit_file=fopen("D:\\campaign-burning-save.bin","rb");
         if(exit_file){uint32_t uid=0;int invalid=fread(&uid,1,4,exit_file)!=4;
             if(fgetc(exit_file)!=EOF)invalid=1;fclose(exit_file);

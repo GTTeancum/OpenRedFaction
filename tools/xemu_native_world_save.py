@@ -33,6 +33,7 @@ FLAGS = (
     'campaign-item.bin', 'campaign-item-effect.bin', 'campaign-exit.bin', 'campaign-return.bin',
     'campaign-setup.bin', 'campaign-setup-immediate.flag', 'campaign-disable-auto.bin', 'campaign-goal.bin', 'campaign-goto.bin',
     'campaign-npc-drop.bin',
+    'campaign-auto-head-test.bin', 'campaign-auto-head-remove.bin',
     'campaign-exit-start.bin', 'campaign-trigger-start.bin',
     'campaign-quick-actions.bin', 'player-replay.bin',
     'player-control-frames.txt', 'dev-room.flag', 'vehicle-test.flag',

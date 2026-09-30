@@ -15403,6 +15403,8 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
 #include "scene_special_save_fixture.inc"
 #include "scene_burning_save_fixture.inc"
 #include "scene_turret_fixture.inc"
+#include "scene_turret_generated_fixture.inc"
+#include "scene_turret_generated_remove_fixture.inc"
 #include "scene_item_effect_fixture.inc"
 static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 {
@@ -16020,6 +16022,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
         if(status){rf_scene_profile_stage[1]=108;return status;}
         status=scene_turret_fixture(stream,frame);if(status)return status;
+        status=scene_turret_generated_fixture(stream,frame);if(status)return status;
+        status=scene_turret_generated_remove_fixture(frame);if(status)return status;
         status=scene_burning_save_fixture(frame);if(status)return status;
         status=scene_special_save_stage(frame);if(status)return status;
         status=scene_item_effect_stage(stream,frame);if(status)return status;
@@ -19664,6 +19668,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              scene_turret_generated_activation_reset();
              memset(rf_scene_turret_generated_death_probe,0,sizeof(rf_scene_turret_generated_death_probe));
+             memset(rf_scene_turret_generated_damage_probe,0,sizeof(rf_scene_turret_generated_damage_probe));
              status=scene_turret_generated_retirement_reset();
              if(status){rf_vpp_close(&tables);goto done;}
              status=scene_turrets_open(&tables);

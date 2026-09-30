@@ -13,6 +13,9 @@ typedef struct scene_turret_generated_death_context {
 extern uint32_t rf_scene_turret_shots[8];
 extern uint32_t rf_scene_turret_death_effects[8];
 uint32_t rf_scene_turret_generated_death_probe[10];
+/* Actual head->base shared request: count,target,amount,source,kind,before,
+ * after,applied,status,entered. Reset beside the terminal probe per level. */
+uint32_t rf_scene_turret_generated_damage_probe[10];
 static void scene_turret_generated_death_record(const scene_turret_generated_binding *binding,
     const campaign_npc_body *base,const scene_turret_owner *head,uint32_t reason)
 {
@@ -57,11 +60,17 @@ static int scene_turret_generated_death_dispatch(void *context,uint32_t base_han
     if(base->view.flags_810&1u){scene_turret_generated_death_record(binding,base,head,reason);return RF_OK;}
     if(base->damage.effects.health>0) {
         rf_damage_request request={1000,UINT32_MAX,-1,0,UINT32_MAX,0};
+        uint32_t *p=rf_scene_turret_generated_damage_probe;
+        ++p[0];p[1]=base_handle;memcpy(p+2,&request.amount,4);p[3]=request.source;p[4]=(uint32_t)request.kind;
+        memcpy(p+5,&base->damage.effects.health,4);
         status=rf_scene_npc_damage(base_handle,&request,1,c->clock_bits,&c->effects,&amount);
-        if(!status)status=c->feedback.status;if(status)return status;
+        if(!status)status=c->feedback.status;
+        memcpy(p+6,&base->damage.effects.health,4);memcpy(p+7,&amount,4);p[8]=(uint32_t)status;
+        if(status)return status;
     }
     if(base->damage.effects.health<=0) {
         status=rf_scene_npc_death_entry(base_handle,&entered);if(status)return status;
+        rf_scene_turret_generated_damage_probe[9]+=entered;
         if(entered){base->script_move.active=0;status=combat_death_start(binding->base_slot);if(status)return status;}
     }
     scene_turret_generated_death_record(binding,base,head,reason);return RF_OK;
