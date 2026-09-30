@@ -722,6 +722,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(action!=1)return;
         for(i=0;i<c->event->authored->record.link_count;i++) {
             const rf_level_link_target *link=c->event->links+i;void *object;uint32_t kind;int status;
+            if(link->kind==0 && c->triggers->remove_item) {
+                status=c->triggers->remove_item(c->triggers->removal_item_context,
+                    c->event->authored->links[i]);
+                if(status==RF_NOT_FOUND)continue;
+                if(status){c->status=status;return;}
+                continue;
+            }
             if(link->kind!=1 && link->kind!=2)continue;
             object=rf_object_registry_lookup(c->triggers->registry,link->value);if(!object)continue;
             memcpy(&kind,object,4);

@@ -389,6 +389,9 @@ typedef struct rf_runtime_triggers {
     /* Borrowed deletion service for non-event objects; owns registry removal. */
     int (*remove_object)(void *context,uint32_t handle);
     void *removal_context;
+    /* Remove_Object2 may name a placed item with no registry handle. */
+    int (*remove_item)(void *context,uint32_t authored_uid);
+    void *removal_item_context;
     int (*slay_object)(void *context,uint32_t handle,uint32_t source,int32_t now);
     void *slay_context;
     /* Play_Sound0 service; on/off owns a voice keyed by authored event UID. */

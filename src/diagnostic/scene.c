@@ -5215,6 +5215,37 @@ static int campaign_remove_object(void *context,uint32_t handle)
     }
     return RF_NOT_FOUND;
 }
+static int campaign_pickup_saved_slot(uint32_t uid,uint32_t *slot)
+{
+    uint32_t i,j;
+    for(i=0;i<rf_scene_campaign_pickups.count;i++) {
+        const rf_campaign_pickup_record *record=rf_scene_campaign_pickups.items+i;
+        const char *saved,*current=campaign_current_level;
+        if(record->uid!=uid || record->level>=rf_scene_campaign_pickups.level_count)continue;
+        saved=rf_scene_campaign_pickups.levels[record->level];
+        for(j=0;j<64;j++){
+            unsigned char a=(unsigned char)saved[j],b=(unsigned char)current[j];
+            if(a>='A'&&a<='Z')a=(unsigned char)(a+32);
+            if(b>='A'&&b<='Z')b=(unsigned char)(b+32);
+            if(a!=b)break;
+            if(!a){*slot=i;return RF_OK;}
+        }
+    }
+    return RF_NOT_FOUND;
+}
+static int campaign_remove_item(void *context,uint32_t uid)
+{
+    scene_stream *stream=context;uint32_t i,slot;int status;
+    if(!stream)return RF_RANGE;
+    for(i=0;i<stream->pickups.count;i++)if(stream->pickups.items[i].uid==uid){
+        status=rf_campaign_pickup_register(&rf_scene_campaign_pickups,campaign_current_level,uid,&slot);
+        if(status)return status;
+        stream->pickup_slots[i]=slot;stream->pickup_taken[i]=1;
+        rf_scene_campaign_pickups.items[slot].retired=1;
+        return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 #include "scene_ai_mode_persistence.inc"
 static int campaign_actors_restore(void)
 {
@@ -10969,11 +11000,16 @@ static float pickup_restore(float *value,int32_t quantity)
 }
 static int campaign_pickups_restore(scene_stream *stream)
 {
-    uint32_t i;int status;
-    for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)>=0) {
-        status=rf_campaign_pickup_register(&rf_scene_campaign_pickups,campaign_current_level,stream->pickups.items[i].uid,stream->pickup_slots+i);
+    uint32_t i,slot;int status;
+    for(i=0;i<stream->pickups.count;i++) {
+        uint32_t uid=stream->pickups.items[i].uid;
+        if(pickup_class(stream->pickups.items[i].class_name)>=0)
+            status=rf_campaign_pickup_register(&rf_scene_campaign_pickups,campaign_current_level,uid,&slot);
+        else status=campaign_pickup_saved_slot(uid,&slot);
+        if(status==RF_NOT_FOUND)continue;
         if(status)return status;
-        stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired;
+        stream->pickup_slots[i]=slot;
+        stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[slot].retired;
     }
     return RF_OK;
 }
@@ -18463,6 +18499,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
             campaign_triggers.set_player_form=campaign_set_player_form;campaign_triggers.player_form_context=stream;
             campaign_triggers.remove_object=campaign_remove_object;
+            campaign_triggers.remove_item=campaign_remove_item;campaign_triggers.removal_item_context=stream;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;

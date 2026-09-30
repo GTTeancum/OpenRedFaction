@@ -52,6 +52,8 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Campaign pickups: Authored notices, the Envirosuit scripted grant and the Silenced 12mm Handgun's placed ammo grant now run on stock64MiB Xbox; its actual suppressor state, placed suit collection, rendered notice, pickup audio, Doctor Uniform effects and animated Demo_K000 remain open (docs/LEVEL-ITEMS.md).
 
+- Scripted placed-item removal: Remove_Object now retires authored item UIDs through the pickup ledger, but Xbox L6S3/L2S2a checks stop at material-merge load stage35 before dispatch, so live retirement and save/revisit behavior remain unverified.
+
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
 - NPC death presentation: Live Xbox kills select an authored death motion and sound and hand ordinary skeletal bodies to an owned, updating/rendered corpse pool; replacement-model bodies, full effects, corpse saves and output verification remain open (docs/DEATH-LIFECYCLE.md).
