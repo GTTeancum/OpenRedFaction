@@ -21,6 +21,7 @@ static scene_stream *scene_npc_seat_stream;
 /* requested,bound,unresolved,rejected,pose updates,detached,active,last actor UID,last host UID,last error */
 uint32_t rf_scene_npc_seats[10];
 uint32_t rf_scene_npc_seat_probe[12];
+uint32_t rf_scene_npc_jeep_detached_probe[16]; /* Authored inactive Jeep seat, live guest-state sample. */
 
 static campaign_npc_body *scene_npc_seat_actor(const scene_npc_seat_binding *b)
 {
@@ -193,6 +194,7 @@ static int scene_npc_seats_open(scene_stream *stream,int32_t now)
     uint32_t i;int status;
     if(!stream||scene_npc_seat_stream||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
     scene_npc_seat_stream=stream;memset(rf_scene_npc_seats,0,sizeof(rf_scene_npc_seats));memset(rf_scene_npc_seat_probe,0,sizeof(rf_scene_npc_seat_probe));
+    memset(rf_scene_npc_jeep_detached_probe,0,sizeof(rf_scene_npc_jeep_detached_probe));
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;scene_npc_seat_binding *b;scene_npc_seat_host h;
         int32_t host_uid=campaign_seeds.items[i].spawn.seat_host_uid,tag;float pose[12];uint32_t host;
@@ -231,6 +233,25 @@ static int scene_npc_seats_open(scene_stream *stream,int32_t now)
 fail:
     rf_scene_npc_seats[9]=(uint32_t)status;(void)scene_npc_seats_close(now);return status;
 }
+/* Inactive authored Jeep driver/corpse state for a bounded native save check.
+ * Sample from registered owners; never infer occupancy from stale seat probes. */
+static void scene_npc_jeep_detached_sample(void)
+{
+    for(uint32_t i=0;i<scene_npc_seat_count;i++) {
+        scene_npc_seat_binding *b=scene_npc_seats+i;scene_npc_seat_host h={0};
+        campaign_npc_body *o;uint32_t *p=rf_scene_npc_jeep_detached_probe;
+        if(b->kind!=SCENE_NPC_SEAT_JEEP||b->active)continue;
+        o=scene_npc_seat_actor(b);
+        if(!o||scene_npc_seat_host_read(b,&h)||!h.occupant||!h.driver)continue;
+        p[0]=(uint32_t)campaign_seeds.records.items[b->slot].record.uid;
+        p[1]=b->host_uid;p[2]=b->actor;p[3]=b->host;
+        memcpy(p+4,&o->damage.effects.health,4);
+        p[5]=(uint32_t)o->ai_mode.action_280;p[6]=(uint32_t)o->view.linked_handle;
+        p[7]=(uint32_t)*h.occupant;p[8]=*h.driver;p[9]=b->active;
+        p[10]=campaign_vehicle_route.active;p[11]=(uint32_t)campaign_vehicle_route.ai_action;
+        memcpy(p+12,o->body.state.position,12);p[15]=1;
+    }
+}
 /* Once after host movement/aim and before actor collision/render consumers.
  * Parent suppresses ordinary free NPC integration while attached. */
 static int scene_npc_seats_tick(uint32_t frame,int32_t now)
@@ -250,7 +271,7 @@ static int scene_npc_seats_tick(uint32_t frame,int32_t now)
         if(!attached){status=RF_FORMAT;goto fail;}
         status=scene_npc_seat_pose(b,&h);if(status)goto fail;b->last_frame=frame;
     }
-    return RF_OK;
+    scene_npc_jeep_detached_sample();return RF_OK;
 fail:rf_scene_npc_seats[9]=(uint32_t)status;return status;
 }
 #endif

@@ -2,6 +2,7 @@
 #define RF_SCENE_WORLD_VEHICLE_RESTORE_INCLUDED
 /* Static-world vehicle admission. The world and player/NPC candidates
  * are already staged; no live owner is changed by this check. */
+uint32_t rf_scene_vehicle_restore_trace[8]; /* stage,status,room,spheres,other UID,seat,corpse,other pair */
 typedef struct scene_world_vehicle_pair_context {
     rf_checkpoint_placement vehicle;
     const scene_world_player_stage *player;
@@ -27,11 +28,15 @@ static int scene_world_vehicle_other_pair(void *context,uint32_t i,uint32_t j,
      * seat whose exact tag pose was admitted by the seat/NPC transaction. */
     if(i!=0)return 1;
     if(j==1)return pairs->occupied;
-    return j>=2 && pairs->npcs && j-2<pairs->npcs->count &&
-        (scene_npc_seat_checkpoint_owns(pairs->seats,pairs->host_uid,
-            pairs->npcs->entries[j-2].saved.uid) ||
-         scene_npc_jeep_seat_save_dead_contact(pairs->seats,pairs->npcs,pairs->record,
-            pairs->host_uid,j-2));
+    if(j<2||!pairs->npcs||j-2>=pairs->npcs->count)return 0;
+    {uint32_t seat=scene_npc_seat_checkpoint_owns(pairs->seats,pairs->host_uid,
+          pairs->npcs->entries[j-2].saved.uid);
+     uint32_t corpse=scene_npc_jeep_seat_save_dead_contact(pairs->seats,pairs->npcs,
+          pairs->record,pairs->host_uid,j-2);
+     rf_scene_vehicle_restore_trace[4]=pairs->npcs->entries[j-2].saved.uid;
+     rf_scene_vehicle_restore_trace[5]=seat;rf_scene_vehicle_restore_trace[6]=corpse;
+     rf_scene_vehicle_restore_trace[7]=j;
+     return seat||corpse;}
 }
 static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_restore_stage *world,
     const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record,
@@ -44,8 +49,12 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     if(!stream||!world||!player||!record||!stream->driller||!stream->driller_runtime||
        ((!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)&&
         !(rf_scene_dev_room_enabled&&record->profile==4)))return RF_NOT_FOUND;
+    memset(rf_scene_vehicle_restore_trace,0,sizeof(rf_scene_vehicle_restore_trace));
+    rf_scene_vehicle_restore_trace[0]=1;
     dev_submarine=rf_scene_dev_room_enabled&&record->profile==4&&!campaign_authored_vehicle_uid;
-    status=scene_vehicle_checkpoint_physics(stream,&record->value.vehicle,&physics);if(status)return status;
+    status=scene_vehicle_checkpoint_physics(stream,&record->value.vehicle,&physics);
+    rf_scene_vehicle_restore_trace[0]=2;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
+    if(status)return status;rf_scene_vehicle_restore_trace[3]=physics.sphere_count;
     pairs.vehicle.spheres=physics.spheres;pairs.vehicle.count=physics.sphere_count;
     pairs.vehicle.query_flags=4;
     memcpy(pairs.vehicle.position,record->value.vehicle.position,12);
@@ -54,10 +63,13 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     context.class_speed=0;context.authored_position=dev_submarine?stream->driller_position:campaign_authored_vehicle_position;
     context.authored_basis=dev_submarine?stream->driller_basis:campaign_authored_vehicle_basis;
     context.authored_props=world->authored_prop_views;
-    status=rf_geometry_collision_world_locate(context.world,pairs.vehicle.position,&location);if(status)return status;
+    status=rf_geometry_collision_world_locate(context.world,pairs.vehicle.position,&location);
+    rf_scene_vehicle_restore_trace[0]=3;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
+    if(status)return status;rf_scene_vehicle_restore_trace[2]=location.room;
     if(location.room==UINT32_MAX||location.room>=context.world->room_count)return RF_NOT_FOUND;
     context.reference_room=location.room;
     status=scene_checkpoint_world_place(&context,&pairs.vehicle,&room,&support);
+    rf_scene_vehicle_restore_trace[0]=4;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
     if(status==RF_NOT_FOUND && record->profile==1 && physics.sphere_count==8 &&
        scene_world_l1s2_authored_terrain(stream) && stream->terrain_source_count==2 &&
        record->value.vehicle.player_occupied && record->value.vehicle.accepted_drill_cuts>=2){
@@ -96,7 +108,9 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     }
     pairs.player=player;pairs.npcs=world->npcs;pairs.occupied=record->value.vehicle.player_occupied;
     pairs.seats=seats;pairs.record=record;pairs.host_uid=(uint32_t)campaign_authored_vehicle_uid;
-    return scene_npc_checkpoint_pair_fit_allowed(world->npcs->count+2,scene_world_vehicle_pair,&pairs,
+    status=scene_npc_checkpoint_pair_fit_allowed(world->npcs->count+2,scene_world_vehicle_pair,&pairs,
         scene_world_vehicle_other_pair);
+    rf_scene_vehicle_restore_trace[0]=5;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
+    return status;
 }
 #endif

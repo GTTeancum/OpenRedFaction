@@ -40,13 +40,21 @@ static uint32_t scene_npc_jeep_seat_save_dead_contact(
     if(!binding||!scene_npc_seat_actor(binding)||scene_npc_seat_host_read(binding,&host)||
        rf_static_model_tag_place(host.tags,binding->tag,vehicle->value.jeep.vehicle.orientation,
            vehicle->value.jeep.vehicle.position,pose))return 0;
-    /* Only the retained seat pose qualifies. A body displaced by a blast or
-     * left behind by a moving host must pass normal vehicle/body clearance. */
-    for(i=0;i<3;i++)if(!isfinite(pose[9+i])||!isfinite(npc->saved.position[i])||
-        !isfinite(npc->published[i])||fabsf(npc->saved.position[i]-pose[9+i])>.001f||
-        fabsf(npc->published[i]-pose[9+i])>.001f)return 0;
-    for(i=0;i<9;i++)if(!isfinite(pose[i])||!isfinite(npc->basis[i])||
-        fabsf(npc->basis[i]-pose[i])>.0001f)return 0;
+    /* Death can settle the former driver a short distance within its seat.
+     * Admit only that authored pair within a quarter-unit seat envelope;
+     * farther blast displacement or host travel uses normal clearance. */
+    {float distance2=0;
+     for(i=0;i<3;i++) {
+         float offset=npc->saved.position[i]-pose[9+i];
+         if(!isfinite(pose[9+i])||!isfinite(npc->saved.position[i])||
+            !isfinite(npc->published[i])||fabsf(npc->published[i]-npc->saved.position[i])>.001f)return 0;
+         distance2+=offset*offset;
+     }
+     if(distance2>.25f*.25f)return 0;
+    }
+    /* A detached corpse keeps its independently staged RFNC yaw/basis; the
+     * former Jeep may remain pitched. No longer bind corpse rotation to it. */
+    for(i=0;i<9;i++)if(!isfinite(pose[i])||!isfinite(npc->basis[i]))return 0;
     return 1;
 }
 #endif

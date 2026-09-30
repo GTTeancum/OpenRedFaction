@@ -198,3 +198,32 @@ still cannot preserve an independently tilted detached corpse; displaced or
 falling corpses remain outside this narrow exception. No build, emulator run or
 gameplay script was performed in this helper slice. Parent owns integration and
 proportional Xbox verification.
+
+### Bounded detached-driver save harness
+
+`python tools/xemu_npc_jeep_detached_save.py` reuses the installed L12S1
+miner7646/Jeep7629 records in the enemy-free CTF06 fixture. Ordinary setup
+Set_AI_Mode at frame0 parks the Jeep; Slay_Object at frame60 detaches its driver.
+It runs240 neutral source frames for corpse settling, writes a real ordinary
+world save, then boots fresh for12 neutral frames with both setup events removed.
+There is no route activation, desktop input, screenshot or checkpoint editing.
+
+The harness checks RFNS inactive ownership, RFNC terminal death and settled
+playback, RFVC unoccupied Jeep pose and RFVR catatonic mode. The independent
+installed model tag must match the saved corpse position within .001. A mismatch
+is reported as a fixture limitation, with a proposal to delay Slay through
+another ordinary parked-mode setup event, rather than manufacturing save bytes.
+Restore assertions cover actual empty actor/occupant/driver links, dead health,
+no route-driving ticks, one restored corpse and no repeated Slay/death audio.
+
+It requires the parent-owned `rf_scene_npc_jeep_detached_probe[16]`, refreshed
+after seat processing: actor UID, host UID, actor handle, host handle, health
+bits, actor AI mode, actor linked handle, Jeep occupant, Jeep driver, seat active,
+route active, route AI mode, actor position(3 words), valid. Unlike the older
+active-seat pose probe, this must sample inactive bindings too. AST parsing and
+`--prepare-only artifacts/fixtures/npc-jeep-detached-save` pass; no build or
+emulator was run by the helper. Parent owns the one native save/load cycle.
+
+Detached Jeep corpses may settle within0.25 world units of the former authored seat tag; this narrow pair exception keeps the pending dead actor/Jeep overlap admissible after ordinary gravity while farther displacement still uses normal collision clearance. A first Xbox fixture at `artifacts/xemu/npc-jeep-detached-save-20260930-141324` rejected the former exact-position rule: the corpse had moved0.153 units from the tag. The revised envelope needs native continuation.
+
+A stock64MiB Xbox retry loaded the same real ordinary save after the seat-envelope and independent-corpse-basis fix: `artifacts/xemu/npc-jeep-detached-load-retry-20260930-01/validation.json` passes source240/load12 with former driver UID7646 health-1, inactive seat, empty occupant/driver links, parked mode1, no route activity or repeated death. The source is `artifacts/xemu/npc-jeep-detached-save-20260930-141625/save/result.json`. Its original full harness report remains FAIL (pre-fix load); the retry reuses the saved HDD and verifies disc restoration. The now-native-verified exception admits only this authored former driver within0.25 units of its saved seat position; it does not bind corpse rotation to the pitched Jeep. Moving routes and broader bodies remain open.
