@@ -1550,4 +1550,10 @@ typedef struct rf_entity_navigation_steering {
 int rf_entity_navigation_steer(rf_entity_navigation_steering *state,const float target[3],
     float frame_seconds,uint32_t clock_bits,float *result);
 
+/*45a1f0/45a2e0 SP health/armor amount and class cap. Authored nonnegative
+ * counts use593e34 difficulty scales2/1/.8/.7, rounded with +.5 then truncation.
+ * Full/zero-quantity pickups restore zero. Errors preserve both outputs. */
+int rf_entity_vital_pickup_sp(float *current,float maximum,int32_t quantity,
+    uint32_t difficulty,float *restored);
+
 #endif

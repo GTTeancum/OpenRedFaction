@@ -6,6 +6,21 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+int rf_entity_vital_pickup_sp(float *current,float maximum,int32_t quantity,
+    uint32_t difficulty,float *restored)
+{
+    /* Exact binary32 multipliers over2^24. Integer rounding avoids depending
+     * on the host/guest x87 precision mode for25*.7f+.5 (17, not18). */
+    static const uint32_t scales[4]={33554432,16777216,13421773,11744051};
+    uint64_t amount;float next;
+    if(!current || !restored || current==restored || difficulty>=4 || quantity<0 ||
+       !isfinite(*current) || !isfinite(maximum) || *current<0 || maximum<0)return RF_RANGE;
+    if(*current>=maximum || !quantity){*restored=0;return RF_OK;}
+    amount=((uint64_t)(uint32_t)quantity*scales[difficulty]+8388608u)>>24;
+    if(amount>2147483647u)return RF_RANGE;
+    next=*current+(float)(int32_t)amount;if(next>maximum)next=maximum;
+    *restored=next-*current;*current=next;return RF_OK;
+}
 int rf_entity_ai_set_action(rf_entity_ai_transition_state *s,int32_t action,
     uint32_t a,uint32_t b,float clock,uint32_t network_a,uint32_t network_b)
 {

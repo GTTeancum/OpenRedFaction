@@ -2317,7 +2317,8 @@ static uint32_t scene_flame_input_pending(void);
 static int scene_flame_visual_open(rf_vpp *tables);
 uint32_t rf_scene_weapon_selection[8];
 typedef struct campaign_item_grant {int32_t weapon,quantity;uint32_t gives_weapon;char pickup_messages[4][64];} campaign_item_grant;
-enum { CAMPAIGN_ITEM_MINER_SUIT=-2, CAMPAIGN_ITEM_DOCTOR_UNIFORM=-3 };
+enum { CAMPAIGN_ITEM_MINER_SUIT=-2, CAMPAIGN_ITEM_DOCTOR_UNIFORM=-3,
+       CAMPAIGN_ITEM_MEDICAL_KIT=-4,CAMPAIGN_ITEM_FIRST_AID=-5,CAMPAIGN_ITEM_SUIT_REPAIR=-6 };
 static campaign_item_grant campaign_item_pending[32];
 static uint32_t campaign_item_pending_count,campaign_inventory_ready;
 uint32_t rf_scene_script_grants[8]; /* applied, acquired, rounds, weapon, owned, loaded, reserve, status */
@@ -10724,6 +10725,20 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
         rf_scene_script_grants[4]=rf_scene_script_grants[5]=rf_scene_script_grants[6]=rf_scene_script_grants[7]=0;
         return RF_OK;
     }
+    if(request->weapon==CAMPAIGN_ITEM_MEDICAL_KIT || request->weapon==CAMPAIGN_ITEM_FIRST_AID ||
+       request->weapon==CAMPAIGN_ITEM_SUIT_REPAIR){
+        rf_damage_effect_state *v=&campaign_player_damage.state.effects;float restored;
+        uint32_t armor=request->weapon==CAMPAIGN_ITEM_SUIT_REPAIR;
+        int status=rf_entity_vital_pickup_sp(armor?&v->armor:&v->health,armor?v->class_armor:v->class_health,
+            request->quantity,rf_scene_campaign_countdown.difficulty,&restored);if(status)return status;
+        if(restored<=0)return RF_OK;
+        campaign_pickup_notice_grant(request->pickup_messages,0,(uint32_t)request->quantity);
+        ++rf_scene_nonweapon_items[0];++rf_scene_nonweapon_items[2];
+        rf_scene_nonweapon_items[3]=armor?2:request->weapon==CAMPAIGN_ITEM_FIRST_AID?SCENE_PICKUP_FIRST_AID:1;
+        ++rf_scene_script_grants[0];rf_scene_script_grants[3]=(uint32_t)request->weapon;
+        rf_scene_script_grants[4]=rf_scene_script_grants[5]=rf_scene_script_grants[6]=rf_scene_script_grants[7]=0;
+        return RF_OK;
+    }
     const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+request->weapon;
     int32_t quantity=campaign_item_charge(request->weapon,request->quantity,request->gives_weapon);
     rf_weapon_pickup_grant grant={0};int status=request->weapon==campaign_shield_id?
@@ -10756,8 +10771,11 @@ static int campaign_give_item(void *context,const char *name)
     if(item.flags&1)return RF_NOT_FOUND;
     if(!item.weapon[0]){
         request.weapon=scene_pickup_name_equal(name,"Miner Envirosuit")?CAMPAIGN_ITEM_MINER_SUIT:
-            scene_pickup_name_equal(name,"Doctor Uniform")?CAMPAIGN_ITEM_DOCTOR_UNIFORM:-4;
-        if(request.weapon==-4)return RF_NOT_FOUND;
+            scene_pickup_name_equal(name,"Doctor Uniform")?CAMPAIGN_ITEM_DOCTOR_UNIFORM:
+            scene_pickup_name_equal(name,"Medical Kit")?CAMPAIGN_ITEM_MEDICAL_KIT:
+            scene_pickup_name_equal(name,"First Aid Kit")?CAMPAIGN_ITEM_FIRST_AID:
+            scene_pickup_name_equal(name,"Suit Repair")?CAMPAIGN_ITEM_SUIT_REPAIR:-7;
+        if(request.weapon==-7)return RF_NOT_FOUND;
     }else {request.weapon=rf_weapon_name_find(&campaign_weapon_supply.names,item.weapon);
         if(request.weapon<0)return RF_NOT_FOUND;}
     request.quantity=item.count;request.gives_weapon=item.gives_weapon;
@@ -11390,11 +11408,6 @@ static void campaign_pickup_sound(const rf_item_definition *definition,const flo
     if(status)++rf_scene_pickup_audio[2];else ++rf_scene_pickup_audio[1];
     /* Missing audio must not roll back a successful inventory grant. */
 }
-static float pickup_restore(float *value,int32_t quantity)
-{
-    float amount=100-*value;if(amount<=0 || quantity<=0)return 0;
-    if(amount>(float)quantity)amount=(float)quantity;*value+=amount;return amount;
-}
 static int campaign_pickups_restore(scene_stream *stream)
 {
     uint32_t i,slot;int status;
@@ -11457,7 +11470,9 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
             grant.acquired=1;
         } else if(kind==1 || kind==2 || kind==SCENE_PICKUP_FIRST_AID) {
             uint32_t vital=kind==2?3:2;float total;
-            restored=pickup_restore(kind==2?&campaign_player_damage.state.effects.armor:&campaign_player_damage.state.effects.health,item->quantity);
+            rf_damage_effect_state *v=&campaign_player_damage.state.effects;
+            status=rf_entity_vital_pickup_sp(kind==2?&v->armor:&v->health,kind==2?v->class_armor:v->class_health,
+                item->quantity,rf_scene_campaign_countdown.difficulty,&restored);if(status)return status;
             if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+vital,4);total+=restored;memcpy(rf_scene_pickup_vitals+vital,&total,4);
         } else {
             uint32_t extra_handled=0;

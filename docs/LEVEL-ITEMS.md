@@ -260,3 +260,38 @@ initial assertion failure and guest data; validation.json records the corrected
 PASS.5217 free pages (20.38MiB), flags/ISO restored, NXDK build passed. Audible
 mix, images and natural campaign traversal were not inspected. General Medical
 Kit/Suit Repair class limits and difficulty multipliers remain a separate gap.
+
+
+## Health/armor class limits and scripted grants (2026-09-30)
+
+Medical Kit, First Aid Kit and Suit Repair now use the receiving player's class
+health/armor maximum instead of an unconditional100. Classes with no armor
+capacity cannot consume a repair pack. The same helper now handles scripted
+Give_Item grants for all three classes, which previously returned unsupported.
+Full or zero-quantity grants do not consume placed items or issue feedback.
+
+The shared rf_entity_vital_pickup_sp helper applies the installed593e34
+multipliers2,1,0.8f,0.7f for difficulty0..3, followed by the45a1f0/45a2e0
++0.5/truncation rule and class cap. It uses exact integer representations of
+these binary32 factors, avoiding x87 precision-mode dependence:25*0.7f rounds
+to17 under the original extended-precision path. Invalid quantities, limits or
+difficulty fail without publishing output. The live caller uses the retained
+campaign difficulty, currently normal on a fresh campaign; menu selection and
+the original global scale-bypass mode are not implemented here.
+
+Focused native90-frame L1S1 check PASS: a full-health class with maximum80 leaves
+Medical Kit9789 available; a staged deficit60 is restored to80 once, with one
+slot0 powerup sound submission. Scripted Medical Kit and First Aid grants use
+easy/hard multipliers; a zero-armor class rejects repair, a class with maximum150
+caps repair from140 at150, and the subsequent full-armor grant does nothing.
+Stock64MiB free memory3930 pages (15.35MiB), test flags/ISO restored.
+Evidence: artifacts/xemu/vital-pickups-20260930-114554/report.json.
+
+The final integer-rounding change was built during fixture restoration and
+checked against the original binary in14 focused health/armor cases (all four
+difficulties, fractional cap, zero cap, full cap) using compiled NXDK code.
+Evidence: artifacts/xbox-vital-pickup.json and tools/check_xbox_vital_pickup.py.
+Original lookup/player-notice boundaries are stubbed in that comparison; its
+actual amount, cap and float conversion code executes. The native integration
+run preceded only that arithmetic replacement; no second XEMU run, PC game,
+image capture, audible-output inspection or campaign playthrough was performed.

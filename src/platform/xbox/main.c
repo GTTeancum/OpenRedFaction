@@ -548,7 +548,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         exit_file=fopen("D:\\campaign-item-effect.bin","rb");
         if(exit_file){uint32_t mode=0;size_t bytes=fread(&mode,1,4,exit_file);
             int invalid=bytes!=4||fgetc(exit_file)!=EOF;fclose(exit_file);
-            if(invalid||mode!=1)return RF_FORMAT;rf_scene_item_effect_mode=mode;}
+            if(invalid||mode<1||mode>2)return RF_FORMAT;rf_scene_item_effect_mode=mode;}
         exit_file=fopen("D:\\campaign-special-save.bin","rb");
         if(exit_file){uint32_t mode=0;size_t bytes=fread(&mode,1,4,exit_file);
             int invalid=bytes!=4||fgetc(exit_file)!=EOF;fclose(exit_file);
