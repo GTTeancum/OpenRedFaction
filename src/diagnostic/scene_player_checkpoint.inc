@@ -23,21 +23,29 @@ static int scene_checkpoint_player_catalog_mode(rf_player_checkpoint_catalog *c,
     }
     return RF_OK;
 }
-/* Ordinary same-level saves retain authored mover identity, never the runtime
- * registry handle. The mover checkpoint carries its candidate pose/velocity. */
+/* Ordinary same-level saves retain authored support identity, never the runtime
+ * registry handle. The mover or passive-vehicle checkpoint carries its pose. */
 static int scene_checkpoint_player_support_uid(const scene_stream *s,uint32_t *uid)
 {
     uint32_t i;
     if(!uid)return RF_RANGE;*uid=0;
     if(!campaign_support_handle)return RF_OK;
     if(!s)return RF_RANGE;
-    if(s->terrain||!campaign_movers.uids||!campaign_movers.views||!campaign_movers.poses||
-       !(scene_actor_body.state.flags&0x400000u)||campaign_piece_support.tag)return RF_NOT_FOUND;
-    for(i=0;i<campaign_movers.count;i++)if(campaign_movers.views[i].object_id==campaign_support_handle){
+    if(s->terrain||!(scene_actor_body.state.flags&0x400000u)||campaign_piece_support.tag)return RF_NOT_FOUND;
+    for(i=0;i<campaign_movers.count;i++)if(campaign_movers.uids&&campaign_movers.views&&
+        campaign_movers.poses&&campaign_movers.views[i].object_id==campaign_support_handle){
         uint32_t value=(uint32_t)campaign_movers.uids[i];
         if(!value||value==UINT32_MAX||
            memcmp(campaign_movers.poses[i].velocity,campaign_support_velocity,12))return RF_NOT_FOUND;
         *uid=value;return RF_OK;
+    }
+    for(i=0;i<campaign_passive_vehicle_count;i++){
+        const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
+        if(owner->handle!=campaign_support_handle)continue;
+        if(!owner->uid||owner->uid==UINT32_MAX||
+           rf_object_registry_lookup(&campaign_registry,owner->handle)!=owner||
+           memcmp(owner->velocity,campaign_support_velocity,12))return RF_NOT_FOUND;
+        *uid=owner->uid;return RF_OK;
     }
     return RF_NOT_FOUND;
 }

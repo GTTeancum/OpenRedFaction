@@ -147,7 +147,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(vehicle_route.active&&!vehicle.value.vehicle.alive){status=RF_FORMAT;goto done;}
     }
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
-        vehicle_present?&vehicle:NULL,&player);if(status)goto done;
+        vehicle_present?&vehicle:NULL,passive,&player);if(status)goto done;
     if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle);if(status)goto done;}
     if(player.player.player.weapon==UINT32_MAX)found=1;
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){

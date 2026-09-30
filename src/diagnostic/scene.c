@@ -8922,10 +8922,15 @@ static float actor_piece_support_height(const rf_physics_body_state *actor,const
 static int actor_support_commit(rf_physics_body_state *state,const actor_ground_record *ground,
     const rf_geometry_body_hit *contact,uint32_t landing,const scene_piece_support *support)
 {
-    rf_physics_body_state next=*state;uint32_t handle;int status;rf_physics_body *piece_body=campaign_piece_support_body(support);
+    rf_physics_body_state next=*state;uint32_t handle,i,passive=0;int status;
+    rf_physics_body *piece_body=campaign_piece_support_body(support);
     if(!campaign_spawn)return landing?rf_physics_static_land(state,&ground->probe,ground->hit.hit.fraction):
         rf_physics_static_support(state,&ground->probe,ground->hit.hit.fraction);
-    status=rf_physics_support_commit(&next,&ground->probe,ground->hit.hit.fraction,contact->solid!=UINT32_MAX || (piece_body &&
+    for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].handle==contact->contact.object_id &&
+        rf_object_registry_lookup(&campaign_registry,campaign_passive_vehicles[i].handle)==campaign_passive_vehicles+i){
+        passive=1;break;
+    }
+    status=rf_physics_support_commit(&next,&ground->probe,ground->hit.hit.fraction,contact->solid!=UINT32_MAX || passive || (piece_body &&
         (contact->contact.velocity[0]!=0 || contact->contact.velocity[1]!=0 || contact->contact.velocity[2]!=0)),
         contact->contact.velocity[1],contact->contact.object_id,&handle);if(status)return status;
     /* The original ground-sphere gate can skip a shallow normal and select
@@ -12612,9 +12617,10 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_world_restore.inc"
+#include "scene_passive_vehicle_checkpoint.inc"
+#include "scene_driller_actor_collision.inc"
 #include "scene_world_player_restore.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
-#include "scene_passive_vehicle_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
     const scene_world_player_stage *,const scene_vehicle_checkpoint_record *);
 #include "scene_world_event_restore.inc"

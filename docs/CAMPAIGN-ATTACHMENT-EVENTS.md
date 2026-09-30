@@ -130,6 +130,17 @@ player X `425.47455→423.40314`, Y `-8.28021→-6.20941`. Stock XEMU retained
 3,833 free pages. Repeated acquisition indicates contact can still drop between
 frames; broader falling arrivals, side push, ceilings and NPC support remain.
 
+Ordinary player save state now resolves a passive vehicle support handle to its
+authored UID. The loader validates the saved rider against the staged `RFVA1`
+chassis pose before publishing either state, then restores the player's support
+handle so the vehicle's live velocity continues to carry the rider. The stock
+64-MiB `--riding` XEMU fixture saved at frame 90 and reloaded into a fresh scene
+for 20 frames (`artifacts/xemu/vehicle-riding-save-20260930-052811`). The
+checkpoint recorded support UID 4717; both the fighter and grounded rider
+moved together after load, with 3,608 free pages at the end. This verifies a
+staged rider on L20S2's attached fighter, not naturally acquired support across
+other vehicles or the full campaign flow.
+
 The remaining work is to refine continuous rising-platform contact, verify NPC
 contact/carry and finish moving side collision response, support
 scripted vehicle movement and combat, extend save coverage, and connect the

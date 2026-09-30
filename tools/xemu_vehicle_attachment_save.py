@@ -33,23 +33,37 @@ def pose(words):
     return struct.unpack('<3f', struct.pack('<3I', *words[7:10]))
 
 
+def actor_pose(words):
+    return struct.unpack('<3f', struct.pack('<3I', *words[14:17]))
+
+
 def main():
     attached_mode = sys.argv[1:] == ['--attached']
-    if sys.argv[1:] and not attached_mode:
-        raise SystemExit('usage: xemu_vehicle_attachment_save.py [--attached]')
+    riding_mode = sys.argv[1:] == ['--riding']
+    if sys.argv[1:] and not (attached_mode or riding_mode):
+        raise SystemExit('usage: xemu_vehicle_attachment_save.py [--attached|--riding]')
+    linked_mode = attached_mode or riding_mode
+    symbols = dict(SYMBOLS)
+    if riding_mode:
+        symbols.update(rf_scene_actor_pose=59, rf_scene_actor_landing=8,
+                       rf_scene_passive_rising_support=6,
+                       rf_scene_world_player_probe=3,
+                       campaign_support_handle=1,campaign_support_velocity=3)
     require_no_project_xemu(ROOT)
     base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not base.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
     hdd = prepare(ROOT, base)
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-attached-save-' if attached_mode
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-riding-save-' if riding_mode else
+             'vehicle-attached-save-' if attached_mode
              else 'vehicle-attachment-save-') +
              datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
     names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*') if p.is_file()}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': ('L20S2 attached fighter ordinary save/reload'
+    report = {'result': 'FAIL', 'scope': ('L20S2 rider on attached fighter ordinary save/reload'
+              if riding_mode else 'L20S2 attached fighter ordinary save/reload'
               if attached_mode else 'L20S2 group-owned fighter detach ordinary save/reload'),
               'phases': {}}
     try:
@@ -58,22 +72,28 @@ def main():
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels2.vpp'.ljust(64, b'\0') + b'L20S2.rfl'.ljust(64, b'\0'))
-        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I' if attached_mode else '<2I',
-                                                             *((18354,) if attached_mode else (18354, 18377))))
+        (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I' if linked_mode else '<2I',
+                                                             *((18354,) if linked_mode else (18354, 18377))))
+        if riding_mode:
+            (DISC / 'campaign-passive-roof.bin').write_bytes(struct.pack('<3I', 4717, 30, 2))
         (DISC / 'world-hdd-save.flag').write_bytes(b'1')
-        save_frames = 40 if attached_mode else 90
-        load_frames = 20 if attached_mode else 10
+        save_frames = 90 if riding_mode else 40 if attached_mode else 90
+        load_frames = 20 if linked_mode else 10
         (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(save_frames * 44))
         build(folder, 'save')
         saved = run_guest(folder, 'save', hdd, save_frames, 420, capture_world=True,
-                          extra_symbols=SYMBOLS, allow_guest_error=True)
+                          extra_symbols=symbols, allow_guest_error=True)
         report['phases']['save'] = saved
         state = saved['checkpoint_state']
         if state[9] != 1 or state[3] or state[4] < 320:
             raise RuntimeError(f'Xbox save failed: {state}, event probe '
                                f'{saved["extra"]["rf_scene_world_snapshot_event_probe"]}')
-        if saved['extra']['rf_scene_passive_attachment'][3] != (0 if attached_mode else 1):
+        if saved['extra']['rf_scene_passive_attachment'][3] != (0 if linked_mode else 1):
             raise RuntimeError('Fighter attachment state was wrong before save')
+        if riding_mode:
+            if saved['extra']['rf_scene_actor_landing'][1] != 1 or \
+               saved['extra']['rf_scene_passive_rising_support'][2] < 1:
+                raise RuntimeError('Player was not riding before save')
         payload = (folder / 'save/xbox-world.rfwc').read_bytes()
         directory = 128 + (11 - 1) * 12
         offset, length = struct.unpack_from('<II', payload, directory + 4)
@@ -85,28 +105,45 @@ def main():
             raise RuntimeError('Vehicle attachment section is malformed')
         uid, attached = struct.unpack_from('<2I', vehicle, 16 + host_bytes)
         saved_pose = struct.unpack_from('<3f', vehicle, 24 + host_bytes)
-        if uid != 4717 or attached != int(attached_mode):
+        if uid != 4717 or attached != int(linked_mode):
             raise RuntimeError(f'Vehicle attachment state not saved: {uid}, {attached}')
         report['saved_pose'] = saved_pose
+        if riding_mode:
+            environment_row = 128 + (16 - 1) * 12
+            env_offset, env_length = struct.unpack_from('<II', payload, environment_row + 4)
+            support_uid = struct.unpack_from('<I', payload, env_offset + 76)[0]
+            if env_length < 80 or support_uid != 4717:
+                raise RuntimeError(f'Rider support UID not saved: {support_uid}')
+            report['saved_actor'] = actor_pose(saved['extra']['rf_scene_actor_pose'])
         (DISC / 'campaign-setup.bin').unlink()
+        if riding_mode:(DISC / 'campaign-passive-roof.bin').unlink()
         (DISC / 'world-hdd-save.flag').unlink()
         (DISC / 'world-hdd-load.flag').write_bytes(b'1')
         (DISC / 'player-replay.bin').write_bytes(b'RFI5' + struct.pack('<I', 44) + bytes(load_frames * 44))
         build(folder, 'load')
         loaded = run_guest(folder, 'load', hdd, load_frames, 420, snapshot=True,
-                           extra_symbols=SYMBOLS)
+                           extra_symbols=symbols)
         report['phases']['load'] = loaded
         loaded_state = loaded['checkpoint_state']
         attachment = loaded['extra']['rf_scene_passive_attachment']
         if loaded_state[8] != 1 or loaded_state[0] or loaded_state[1] != state[4]:
             raise RuntimeError(f'Xbox load failed: {loaded_state}')
-        if attachment[3] != (0 if attached_mode else 1) or attachment[4] != 4717:
+        if attachment[3] != (0 if linked_mode else 1) or attachment[4] != 4717:
             raise RuntimeError(f'Attachment not restored: {attachment}')
-        if attached_mode:
+        if linked_mode:
             distance = sum((a - b) ** 2 for a, b in zip(pose(attachment), saved_pose)) ** .5
             if attachment[2] < 1 or not .01 < distance < 10:
                 raise RuntimeError(f'Attached child did not continue smoothly: '
                                    f'{pose(attachment)} vs {saved_pose}, moves {attachment[2]}')
+            if riding_mode:
+                loaded_actor=actor_pose(loaded['extra']['rf_scene_actor_pose'])
+                report['loaded_actor']=loaded_actor
+                if loaded['extra']['rf_scene_actor_landing'][1] != 1 or \
+                   any(abs((loaded_actor[i]-report['saved_actor'][i])-
+                           (pose(attachment)[i]-saved_pose[i]))>.75 for i in (0,1)):
+                    raise RuntimeError(f'Rider did not continue with attached fighter: '
+                                       f'{report["saved_actor"]} -> {loaded_actor}, '
+                                       f'{saved_pose} -> {pose(attachment)}')
         elif any(abs(a - b) > 0.00001 for a, b in zip(pose(attachment), saved_pose)):
             raise RuntimeError(f'Detached world pose changed: {pose(attachment)} vs {saved_pose}')
         report['result'] = 'PASS'
