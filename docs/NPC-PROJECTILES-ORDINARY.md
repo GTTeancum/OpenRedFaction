@@ -20,3 +20,12 @@ The former DEV-only attack gates now require prepared projectile resources. Auth
 ## Remaining first-pass work
 
 Full campaign integration, secondary-weapon AI policy, general persistence of in-flight projectiles and authored grenade release timing remain open. Aggregate live logs do not prove exact remaining NPC rounds or exhaustion; finite debit is verified by focused implementation tests. Audio dispatch has not been auditioned. Broader encounters and presentation are deferred to integration/testing feedback.
+
+Active NPC grenade and rocket flights currently block ordinary player/vehicle
+checkpoint admission (`scene_player_checkpoint.inc` and
+`scene_driller_checkpoint_live.inc`). The world checkpoint has 16 canonical
+sections and none owns projectile state. A working save needs a versioned
+projectile component for the fixed flight pools, validated source attribution,
+and staged restore before publication; the existing RFWC1/2 decoders must
+remain readable. Removing the admission guard without this state would erase
+live grenades on load.

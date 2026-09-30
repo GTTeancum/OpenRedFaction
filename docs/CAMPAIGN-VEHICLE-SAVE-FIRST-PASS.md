@@ -64,4 +64,8 @@ matched PC byte-for-byte (`artifacts/xemu/render-20260926-204039/report.json`).
 A separate XEMU load ran 64 frames with the driver seated and `VEHICLE_ROUTE`
 matching PC at active node 1; 3,033 physical pages (11.85 MiB) were free
 (`artifacts/xemu/render-20260926-204254/report.json`). Later route nodes,
-native post-load exit and more campaign vehicle owners remain open.
+native post-load exit and more campaign vehicle owners remain open. A separate
+stock-64-MiB L12S1 Xbox run already verified ordinary boarding and driver exit
+without a reload: `render-20260926-183240/report.json` records one entry,
+one exit and no active seat after 180 frames. That result does not verify exit
+from a restored checkpoint.
