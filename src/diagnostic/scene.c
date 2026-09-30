@@ -1554,6 +1554,7 @@ static int scene_turret_uid_life(uint32_t,uint32_t *,uint32_t *);
 static int scene_turret_set_ai_mode(uint32_t,int32_t);
 static int scene_turret_set_friendliness(uint32_t,uint32_t);
 static void scene_turret_combat_close(void);
+static void scene_turret_death_effects_reset_pending(void);
 static rf_entity_skeletons campaign_skeletons;
 static rf_entity_poses campaign_poses;
 static rf_entity_base_motions campaign_base_motions;
@@ -10878,10 +10879,10 @@ static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,u
     value=(armor?vitals->armor:vitals->health)+(float)amount;
     if(value<0)value=0;if(value>limit)value=limit;
     if(armor)vitals->armor=value;else vitals->health=value;
-    if(turret&&vitals->health<=0){
+    if(turret&&!turret->dead&&vitals->health<=0){
         turret->dead=1;turret->model=turret->dead_model;turret->view.flags_810|=1u;
         turret->damage.effects.flags_810=turret->view.flags_810;turret->target=UINT32_MAX;turret->fire_due=0;
-        ++rf_scene_turret_owners[3];
+        ++rf_scene_turret_owners[3];scene_turret_death_effects_queue(turret);
     }
     if(owner && vitals->health<=0) {
         uint32_t entered;int status=rf_scene_npc_death_entry(owner->registration.handle,&entered);
@@ -14629,6 +14630,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 #include "scene_fusion_effects_runtime.inc"
 #include "scene_clutter_break_runtime.inc"
 #include "scene_script_explode_runtime.inc"
+#include "scene_turret_death_effects.inc"
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -18925,6 +18927,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     rf_scene_endgame[5]=remaining>0?(uint32_t)remaining:0;
                 }
                 rf_scene_endgame[4]=campaign_endgame.phase;
+                status=scene_turret_death_effects_tick(stream,frame);if(status)return status;
                 status=scene_script_explode_effects_tick(stream,frame);if(status)return status;
                 campaign_hit_flags_clear();
                 status=campaign_watch_snapshot();if(status)return status;
@@ -19950,6 +19953,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                     int32_t clip=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,name);
                     if(clip>=0)status=scene_script_explode_effects_open(&effect_tables,maps,map_count,(uint32_t)clip,name);
                 }
+                if(!status)status=scene_turret_death_effects_open(&effect_tables,maps,map_count);
                 rf_vpp_close(&effect_tables);if(status)goto done;
             }
             for(i=0;i<campaign_clutter_records.count;i++)if(campaign_clutter_bodies&&campaign_clutter_bodies[i]){
@@ -20146,6 +20150,7 @@ done:
     rf_visibility_light_storage_close(&stream->light_storage);
     rf_level_owned_lights_close(&stream->lights);
     rf_level_particles_close(&stream->particles);
+    scene_turret_death_effects_close();
     scene_script_explode_effects_close();
     scene_clutter_break_effects_close();
     scene_fusion_effects_close();

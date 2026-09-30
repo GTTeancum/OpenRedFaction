@@ -11,6 +11,7 @@ typedef struct scene_turret_owner {
     float position[3],basis[9];
     uint32_t target,fire_due; /* Reserved for the parent's ordinary AI binding. */
 } scene_turret_owner;
+static void scene_turret_death_effects_queue(scene_turret_owner *);
 static scene_turret_owner *scene_turrets;
 static uint32_t scene_turret_count;
 uint32_t rf_scene_turret_owners[8]; /* count,bytes,damage calls,deaths,queries,hits,last UID,errors */
@@ -161,6 +162,7 @@ static int scene_turret_damage_receive(uint32_t handle,const rf_damage_request *
     if(o->damage.effects.health<=0) {
         o->dead=1;o->model=o->dead_model;o->view.flags_810|=1u;o->damage.effects.flags_810=o->view.flags_810;
         o->target=o->fire_due=0;++rf_scene_turret_owners[3];
+        scene_turret_death_effects_queue(o);
     }
     if(c.status)status=c.status;
     if(status){++rf_scene_turret_owners[7];return status;}*result=value;return RF_OK;

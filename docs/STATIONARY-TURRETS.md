@@ -90,7 +90,7 @@ see STATIONARY-TURRET-COMBAT.md for its separate native evidence and policies.
 RFTU1 ordinary-save integration is implemented with staged validation; native
 save/load verification passed as recorded below. NPC Attack-to-turret
 save targets, active-target restore coverage, parent/base attachments, possession,
-runtime-generated Auto Turret heads, turret death VFX/audio and visual inspection
+runtime-generated Auto Turret heads, death-effect appearance/audio verification and visual inspection
 remain open. No original-game runtime or screenshots were used.
 
 ## Ordinary save/load and authored controls
@@ -116,3 +116,6 @@ changes immediately clear target, burst and firing deadline; invulnerability
 uses the same objectflag4 as other entities. These branches compile on Xbox;
 natural authored trigger execution has not been checked. See
 TURRET-SCRIPT-ORDER-AUDIT.md for exact links and evidence.
+
+Authored death-effect scheduling is now connected and checked on Xbox, including
+no replay after loading a wreck; see TURRET-DEATH-EFFECTS.md.

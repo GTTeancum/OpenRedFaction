@@ -354,7 +354,11 @@ static int entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity
     for(i=0;i<2;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}
     status=entity_raw_skip(size,&cursor,29);if(status)return status;
     for(i=0;i<7;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}
-    status=entity_raw_skip(size,&cursor,18);if(status)return status;
+    start=cursor;status=entity_raw_skip(size,&cursor,18);if(status)return status;
+    /* v180: two AI bytes, empty scripted-action count, then host UID.
+     * Original 4643da reads it (since v98, default -1); 464dab stores +750.
+     * Keep unresolved references intact for the post-spawn ownership pass. */
+    {uint32_t bits=le32(raw+start+6);memcpy(&value.seat_host_uid,&bits,4);}
     start=cursor;status=entity_raw_skip(size,&cursor,17);if(status)return status;
     value.creation_flags=(raw[start+1]?2u:0u)|(raw[start+15]?4u:0u);
     /* 464455 -> 4648a3: the fourth authored entity switch sets +810 bit22. */

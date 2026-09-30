@@ -18,7 +18,7 @@ from xemu_turret_combat import UID, U, f, prepare_level, SYMBOLS as CONTACT_SYMB
 SAVE_FRAMES, LOAD_FRAMES = 60, 30
 SYMBOLS = dict(CONTACT_SYMBOLS, rf_scene_turret_checkpoint=6,
                rf_scene_turret_combat=10, rf_scene_world_load_reject=3,
-               rf_scene_npc_checkpoint_reject_state=6)
+               rf_scene_npc_checkpoint_reject_state=6, rf_scene_turret_death_effects=8)
 
 
 def dead_row(payload):
@@ -59,6 +59,9 @@ def validate_source(saved, payload):
         raise RuntimeError(f'Source owner/combat failed: {owners}, {combat}')
     if not draw[0] or not draw[1] or draw[2] or draw[3] != UID or t[11] == t[12] or t[13] != t[12]:
         raise RuntimeError(f'Source live/dead model selection failed: {draw}, {t}')
+    effects=x["rf_scene_turret_death_effects"]
+    if effects[0]!=1 or effects[1]<1 or effects[2]!=1 or any(effects[3:6]) or effects[6]!=UID or effects[7]:
+        raise RuntimeError(f"Death presentation scheduling failed: {effects}")
     row = dead_row(payload)
     if row['health'] != f(t[8]) or row['armor'] != f(t[10]) or f(t[7]) <= 0:
         raise RuntimeError('Saved vitals differ from damaged owner')
@@ -80,6 +83,8 @@ def validate(saved, loaded, payload):
         raise RuntimeError(f'Fresh load did not exclusively submit the dead model: {draw}')
     if not combat[0] or combat[1] or combat[3] or combat[9]:
         raise RuntimeError(f'Dead turret acquired/fired after restore: {combat}')
+    if any(x["rf_scene_turret_death_effects"]):
+        raise RuntimeError(f"Death presentation replayed/unavailable on load: {x['rf_scene_turret_death_effects']}")
     if any(x['rf_scene_world_load_reject']):
         raise RuntimeError(f'World load admission failed: {x["rf_scene_world_load_reject"]}')
     return dict(result='PASS', saved_turret=row,

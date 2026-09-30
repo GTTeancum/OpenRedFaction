@@ -199,6 +199,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_passive_vehicle_checkpoint_assign(passive);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
     scene_turret_checkpoint_assign(turrets);
+    scene_turret_death_effects_reset_pending();
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
     if(vehicle_present){scene_world_vehicle_route_assign(&vehicle_route);campaign_vehicle_mode_publish(stream);}
     scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);

@@ -56,6 +56,15 @@ int main(void)
             CHECK(rf_level_entity_spawn_read(&item,&fields)==RF_OK);
             CHECK(fields.relationship_51c==9 && fields.friendliness==0xffffffffu && fields.byte_28==0xef && fields.creation_flags==(flag?6u:0u) && fields.endgame_if_killed==(flag==1));
         }
+        /* Seat host is a signed authored UID, not an eagerly resolved actor.
+         * The block begins at116 in this empty-string v180 record. */
+        {const int32_t hosts[]={-1,0,7629,3958};unsigned h,k;
+         for(h=0;h<sizeof(hosts)/sizeof(hosts[0]);h++){
+             uint32_t bits=(uint32_t)hosts[h];
+             for(k=0;k<4;k++)raw[122+k]=(unsigned char)(bits>>(k*8));
+             CHECK(rf_level_entity_spawn_read(&item,&fields)==RF_OK);
+             CHECK(fields.seat_host_uid==hosts[h]);
+         }}
         memset(&fields,0xa5,sizeof(fields));saved=fields;
         for(cut=0;cut<155;++cut) {
             item.record.bytes=cut;CHECK(rf_level_entity_spawn_read(&item,&fields)!=RF_OK);
