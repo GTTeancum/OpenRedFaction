@@ -44,6 +44,8 @@ static int campaign_ai_waypoint_binding(uint32_t handle,rf_level_waypoint_path *
 static int campaign_set_ai_mode_acquiring(void *context,uint32_t handle,int32_t action,int32_t now)
 {
     uint32_t i;
+    if(campaign_authored_vehicle_handle && handle==campaign_authored_vehicle_handle)
+        return campaign_vehicle_set_ai_mode(context,handle,action,now);
     if(action!=4)return campaign_set_ai_mode_live(context,handle,action,now);
     if(now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;i++){

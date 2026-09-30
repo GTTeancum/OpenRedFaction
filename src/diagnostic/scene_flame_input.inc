@@ -5,8 +5,9 @@
  * Sound requests use existing combat_sound; continuous voice ownership remains
  * presentation work. Alternate canister launch is not implemented here. */
 static struct {uint32_t ignition,delay,reload_left,reload_elapsed,drained;} scene_flame_input;
-/* Checkpoint does not serialize ignition/reload or fractional gas drain.
- * Completed reload bookkeeping is historical, so it must not block saving. */
+/* Standalone RFCP admission still declines active input. Ordinary RFWC3
+ * stores ignition, reload and fractional fuel through RFAP3. Completed reload
+ * bookkeeping is historical, so it must not block saving. */
 static uint32_t scene_flame_input_pending(void)
 {
     return scene_flame_input.ignition!=0 || scene_flame_input.delay!=0 ||

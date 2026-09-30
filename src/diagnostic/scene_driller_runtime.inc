@@ -495,6 +495,7 @@ static void scene_driller_runtime_audio_start(scene_stream *s)
     else if(rf_scene_vehicle_enabled==3)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"Jeep_idle.wav",6,.8f,.6f);
     else if(rf_scene_vehicle_enabled==1)(void)scene_driller_audio_open(&r->audio,r->physics.state.position);
 }
+#include "scene_vehicle_ai_mode.inc"
 /* Shared rigid owner follows the event's authored waypoint path. This is a
  * bounded first-pass driver command; the rigid solver still owns contact,
  * suspension and speed. It does not teleport between authored nodes. */

@@ -174,6 +174,9 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
+    /* Ordinary quickload reconstructs a fresh scene. The component-only
+     * in-session API cannot overwrite slots whose poses belong to corpses. */
+    if(campaign_live_corpse_count)return RF_NOT_FOUND;
     status=rf_npc_checkpoint_encode(identity,catalog,NULL,0,wire,sizeof(wire),&written);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
         /* Fresh boot may still display its initialization clip; it may not
@@ -504,6 +507,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         }
         o->view.flags_7c=o->object_flags;
     }
+    scene_corpse_checkpoint_schedule();
 }
 static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_restore_stage *stage)
 {

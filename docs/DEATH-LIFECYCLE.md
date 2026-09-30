@@ -7,6 +7,51 @@ respawn and Xbox campaign save-or-restart recovery. Full original
 death-start/dying-update, game-over presentation and authored checkpoints
 remain unfinished.
 
+## Owned skeletal corpse save/load bridge (2026-09-30)
+
+Ordinary RFNC10 capture now reads a transferred corpse's published model pose,
+rather than the original actor-array slot cleared by
+`rf_entity_registered_pose_take`. That slot had no active clip after handoff,
+so it could not satisfy the existing settled-death save admission. The existing
+record carries the selected death action and settled playback; no wire-format
+change or invented animation is needed.
+
+After ordinary fresh-scene world load publishes the saved NPC pose, the first
+corpse update transfers it into the existing bounded owned-corpse pool. This
+presentation transfer does not rerun lethal damage, death selection, loot,
+action audio or script events. `corpse_create_with_name` only evaluates the
+current pose in this branch: `seek_motion=0` and `motion_a44=-1` prevent its
+seek/play branches. Telemetry compares the complete playback state immediately
+before and after transfer. The component-only in-session restore API rejects
+a nonempty corpse pool before mutation; normal quickload reconstructs a fresh
+scene and is unaffected by that restriction.
+
+`tools/xemu_corpse_save.py` is a bounded Xbox check: authored L1S1 Slay9362
+kills miner8432, an ordinary HDD save records its settled death, and a fresh
+32-frame load must recreate one corpse, preserve playback and continue its
+updates without playing death audio again. The stock-64-MiB Xbox check passed:
+`artifacts/xemu/corpse-save-20260930-122512/report.json`. Source180 frames saved
+one corpse with death action15 and a frozen one-clip120-byte RFNC animation.
+Fresh load restored one owned corpse with zero playback mismatches, completed
+30 corpse updates and submitted its retained model, with no repeated Slay or
+death audio. Source/load retained4002/3906 physical pages (15.63/15.26MiB);
+the isolated test disc flags were restored and the final NXDK restore build
+completed. No PC build, playthrough or image capture was performed. Draw
+submission confirms rendering-path participation, not visual parity.
+
+Limits: RFNC does not store corpse creation time, fade progress, corpse-only
+physics/effects or bodies already retired from the visual pool. The restored
+body starts a new retention age; this is a first-pass presentation restore,
+not complete corpse persistence. Original RFNC saved death pose/animation is
+preserved, while these unsaved presentation fields remain open.
+
+Replacement-model audit: installed `entity.tbl` requests replacement V3D
+bodies only for `Stationary Turret` and `Stationary Turret_Plain`. These are
+static source models, and current NPC body construction skips
+`skeleton==UINT32_MAX`. Implementing only their dead-model loader would be
+unreachable until static turret actor ownership is implemented. That remains
+open; the current change closes the reachable skeletal-corpse continuity gap.
+
 ## Live NPC death motion and action audio (2026-09-29)
 
 Live ordinary skeletal NPC deaths now construct an owned corpse in a bounded

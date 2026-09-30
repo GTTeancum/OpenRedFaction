@@ -52,3 +52,10 @@ Evidence: artifacts/xemu/ai-mode-save-20260930-115850/report.json.
 This verifies mode dispatch, publication and ordinary persistence; it does not
 claim new turret/vehicle behavior, complete AI state reconstruction, inspected
 animation output or a campaign playthrough.
+
+Vehicle integration follow-up (2026-09-30): active authored vehicle owners now
+accept supported AI mode events as well. L12S1 event9710 stops Jeep7629's autonomous
+route and preserves that suspended state through ordinary Xbox save/load;
+see VEHICLE-AI-MODES.md. NPC passenger propagation and turret transitions
+remain open; the earlier blanket vehicle-transition limitation is narrowed
+to those missing ownership/behavior paths.

@@ -189,7 +189,7 @@ static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
-    const rf_campaign_object_record *key;const rf_entity_pose *pose;
+    const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,support_uid=0;int pending,status;
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
@@ -207,7 +207,10 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
        rf_entity_lookup(&campaign_entities,(int32_t)o->registration.handle)!=&o->view))return RF_FORMAT;
     if(o->registration.view&&o->damage.effects.health<=0&&!key->retired){
         if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;
-        pose=campaign_poses.items+index;
+        /* Owned corpses transferred the original array pose at death. */
+        pose=(index<campaign_model_owner_count && campaign_model_owners &&
+              campaign_model_owners[index].owned)?campaign_model_owners[index].pose:campaign_poses.items+index;
+        if(!pose)return RF_FORMAT;
         if(o->death.deadline_4b8!=-1||!(o->view.flags_810&1u)||o->death.action_824<0||o->death.action_824>=45||
            o->script_animation.active||pose->playback.completion.frozen!=1||
            pose->playback.completion.active.count!=1||
@@ -274,7 +277,11 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     if(o->registration.view){
         for(i=0;i<5;i++){status=rf_timer_pending(deadlines[i],now,&pending);
             if(status||pending)return scene_npc_checkpoint_reject(index,"deadline",i,deadlines[i],status?status:RF_RANGE);}
-        if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;pose=campaign_poses.items+index;
+        if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;
+        /* Owned corpses transferred the original array pose at death. */
+        pose=(index<campaign_model_owner_count && campaign_model_owners &&
+              campaign_model_owners[index].owned)?campaign_model_owners[index].pose:campaign_poses.items+index;
+        if(!pose)return RF_FORMAT;
         if(pose->playback.completion.active.count>16)return scene_npc_checkpoint_reject(index,"motion_count",0,pose->playback.completion.active.count,RF_RANGE);
         if(!initializing&&!pose->playback.completion.active.count&&!o->script_animation.active&&
            (pose->controller.override_enabled||pose->controller.duration!=0||pose->controller.current>0||pose->controller.next>0))
@@ -400,12 +407,12 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
             }
         }
     }
-    if(o->registration.view&&(o->script_animation.active||campaign_poses.items[index].playback.completion.active.count)){
+    if(o->registration.view&&pose&&(o->script_animation.active||pose->playback.completion.active.count)){
         if(key->retired)return RF_RANGE;
         row->animation_present=1;row->script_animation.active=o->script_animation.active;
         row->script_animation.loop=o->script_animation.active?o->script_animation.loop:0;row->script_animation.freeze=o->script_animation.active?o->script_animation.freeze:0;
         row->script_animation.motion=o->script_animation.active?o->script_animation.motion:0;
-        row->playback=campaign_poses.items[index].playback;row->controller=campaign_poses.items[index].controller;
+        row->playback=pose->playback;row->controller=pose->controller;
         memset(row->playback.completion.active.slots+row->playback.completion.active.count,0,
             (16-row->playback.completion.active.count)*sizeof(row->playback.completion.active.slots[0]));
     }

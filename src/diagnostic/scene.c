@@ -1388,7 +1388,8 @@ static int scene_fire_setup_event(uint32_t uid,int32_t now)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type==72 || campaign_events.items[i].state.type==58 ||
-           campaign_events.items[i].state.type==16 || campaign_events.items[i].state.type==34)
+           campaign_events.items[i].state.type==16 || campaign_events.items[i].state.type==34 ||
+           campaign_events.items[i].state.type==28)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
         if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=8 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47 && campaign_events.items[i].state.type!=86 && campaign_events.items[i].state.type!=89)return RF_FORMAT;
@@ -2322,6 +2323,7 @@ static void scene_burning_extinguish(uint32_t);
 static void scene_burning_release_all(void);
 static uint32_t scene_flame_canister_model;
 static uint32_t scene_flame_canister_save_pending(void);
+static uint32_t scene_flame_checkpoint_count(void);
 static uint32_t scene_flame_input_pending(void);
 static int scene_flame_visual_open(rf_vpp *tables);
 uint32_t rf_scene_weapon_selection[8];
@@ -4753,6 +4755,7 @@ static uint32_t *campaign_live_corpse_item(void *context,int32_t id)
 {(void)context;(void)id;return NULL;}
 static const rf_corpse_delete_backend campaign_live_corpse_delete_backend={
     campaign_live_corpse_delete_effect,campaign_live_corpse_item,NULL};
+static void scene_corpse_checkpoint_reset(void);
 static int campaign_live_corpses_open(void)
 {
     int status=rf_corpse_owners_init(&campaign_live_corpses,sizeof(campaign_live_corpses)+32*1024);
@@ -4760,7 +4763,7 @@ static int campaign_live_corpses_open(void)
     campaign_live_corpse_head.next=campaign_live_corpse_head.previous=&campaign_live_corpse_head;
     campaign_live_corpse_objects.next=campaign_live_corpse_objects.previous=&campaign_live_corpse_objects;
     campaign_live_corpse_count=campaign_live_corpse_object_count=0;
-    memset(rf_scene_live_corpses,0,sizeof(rf_scene_live_corpses));return RF_OK;
+    memset(rf_scene_live_corpses,0,sizeof(rf_scene_live_corpses));scene_corpse_checkpoint_reset();return RF_OK;
 }
 static void campaign_live_corpses_close(void)
 {
@@ -4827,8 +4830,10 @@ static void campaign_live_corpse_create(uint32_t slot)
     actor->object_flags=source.object_flags;actor->view.flags_7c=actor->object_flags;
     ++rf_scene_live_corpses[0];rf_scene_live_corpses[1]=campaign_live_corpse_count;
 }
+#include "scene_corpse_checkpoint.inc"
 static int campaign_live_corpses_tick(float elapsed,int32_t now)
 {
+    scene_corpse_checkpoint_tick();
     uint32_t i;int status;float pending[3];
     for(i=0;i<RF_CORPSE_CAPACITY;++i)if(campaign_live_corpses.pool.active_mask&(1u<<i)) {
         rf_corpse_owned *owner=campaign_live_corpses.slots+i;
@@ -5201,6 +5206,8 @@ static void campaign_pursuit_stop(campaign_npc_body *owner)
     owner->script_move.active=0;owner->script_move.follow=0;owner->script_move.stop=1;
     owner->navigation.retained.count=0;owner->script_move.retry=0;
 }
+static int campaign_vehicle_set_ai_mode(void *context,uint32_t handle,int32_t action,int32_t now);
+static void campaign_vehicle_mode_publish(scene_stream *s);
 #include "scene_ai_mode_gameplay.inc"
 #include "scene_ai_waypoint_acquire.inc"
 static void campaign_pursuit_target(campaign_npc_body *owner,const float target[3])
@@ -5217,6 +5224,7 @@ typedef struct scene_campaign_vehicle_route {
     rf_level_waypoint_path path;uint32_t active,index,mode,reverse,event;
     uint32_t pursuit; /* 1: authored Goto point, 2: current player position */
     float target[3];
+    int32_t ai_action; /* Explicit vehicle AI mode, zero for legacy/scripted drive. */
 } scene_campaign_vehicle_route;
 static scene_campaign_vehicle_route campaign_vehicle_route;
 uint32_t rf_scene_vehicle_route_state[8]; /* active,index,count,drive ticks,arrivals,event,handle,status */
@@ -5247,7 +5255,8 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
             campaign_vehicle_route.path=path;campaign_vehicle_route.index=0;
             campaign_vehicle_route.mode=mode;campaign_vehicle_route.reverse=0;
             campaign_vehicle_route.event=event->uid;campaign_vehicle_route.active=1;
-            campaign_vehicle_route.pursuit=pursuit;
+            campaign_vehicle_route.pursuit=pursuit;campaign_vehicle_route.ai_action=0;
+            campaign_vehicle_mode_publish((scene_stream *)campaign_triggers.ai_mode_context);
             memcpy(campaign_vehicle_route.target,event->position,12);
             rf_scene_vehicle_route_state[2]=path.count;
             rf_scene_vehicle_route_state[5]=event->uid;
@@ -12717,6 +12726,7 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *,const voi
 static uint32_t scene_ai_projectile_checkpoint_stage_bytes(void);
 static int scene_ai_projectile_checkpoint_weapon_mask(const void *,uint32_t,uint32_t *);
 static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
+static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
@@ -14810,6 +14820,7 @@ static int scene_undercover_after_advance(scene_stream *);
 #include "scene_player_shield_bash.inc"
 #include "scene_player_shield_melee.inc"
 #include "scene_fusion_gameplay.inc"
+#include "scene_flame_checkpoint.inc"
 #include "scene_ai_projectile_checkpoint.inc"
 #include "scene_conventional_fire_policy.inc"
 static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const float position[3])
@@ -14972,7 +14983,6 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
     }
     if(scene_flame_resources){
-        if(!frame){scene_flame_input_reset();scene_flame_canister_reset();}
         status=scene_flame_canister_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],
             campaign_equipped_slot==10 && !campaign_explicit_unarmed,
             campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || !!rf_scene_combat[6],
@@ -16945,9 +16955,10 @@ static int campaign_npc_land(scene_stream *stream,campaign_npc_body *owner,uint3
         rf_scene_npc_normal(stream->collision,handle,NULL);if(status)return status;
     return rf_scene_npc_publish_position(handle);
 }
-/* Keep a grounded NPC with a translating support before either idle or Goto
+/* Keep a grounded NPC with its moving support before either idle or Goto
  * logic queries the floor. The supporting mover may report tangent self
  * contact; retry against static world in that case. */
+#include "scene_npc_rotating_support.inc"
 static int campaign_npc_mover_carry(scene_stream *stream,campaign_npc_body *owner,
     float elapsed,uint32_t *moved)
 {
@@ -16967,6 +16978,7 @@ static int campaign_npc_mover_carry(scene_stream *stream,campaign_npc_body *owne
     proposal=owner->body.state;memcpy(before,proposal.position,sizeof(before));
     for(axis=0;axis<3;++axis)proposal.next_position[axis]=
         proposal.position[axis]+owner->support_velocity[axis]*elapsed;
+    status=campaign_npc_rotating_support_target(owner,elapsed,proposal.next_position);if(status)return status;
     if(!memcmp(proposal.next_position,proposal.position,sizeof(before)))return RF_OK;
     status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
     /* Exclude the carrying fragment's tangent self-contact from the carry
@@ -19137,6 +19149,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
     memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
+    memset(rf_scene_vehicle_ai_mode,0,sizeof(rf_scene_vehicle_ai_mode));
+    memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
     scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=scene_live_save_until=0;scene_live_save_status=RF_OK;
     scene_section_autosave_pending=0;
@@ -19316,7 +19330,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.fire_no_animation=campaign_script_fire_no_animation;
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
             memset(rf_scene_ai_mode_publication,0,sizeof(rf_scene_ai_mode_publication));memset(rf_scene_ai_mode_restored,0,sizeof(rf_scene_ai_mode_restored));
-            campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
+            campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=stream;
             campaign_triggers.set_player_form=campaign_set_player_form;campaign_triggers.player_form_context=stream;
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.remove_item=campaign_remove_item;campaign_triggers.removal_item_context=stream;

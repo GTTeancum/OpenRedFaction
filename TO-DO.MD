@@ -11,6 +11,13 @@ Remaining first-playable work, grouped for planning:
 - State continuity: Close material gaps in live weapon/effect/actor persistence and session transitions; defer isolated edge cases that do not block ordinary play.
 - Xbox usability: Address material performance/memory problems and missing audio/HUD/animation feedback; retain visual polish and hardware feedback as separate later work.
 
+- Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
+- Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving and preserves the suspended route through ordinary Xbox saves; waypoint-mode resume, NPC seats/turrets remain open (docs/VEHICLE-AI-MODES.md).
+- Stationary turrets: Static turret classes currently skip ordinary NPC body ownership; integrate their combat/damage owner before adding their replacement-model death bodies.
+- NPC rotating support: Grounded actors now use mover start/end transforms with existing collision admission; eight compiled-NXDK cases pass, while live rotation and idle support-loss velocity remain open (docs/NPC-ROTATING-SUPPORT.md).
+- Flame persistence: An active canister and sustained stream now resume through ordinary Xbox saves with correct impact/fuel behavior; pending-throw/reload coverage, burning targets and audio/visual refinement remain open.
+- Corpse persistence: A settled skeletal death pose now saves and restores its owned body on Xbox without duplicate death effects; corpse age/fade/effects, unsettled deaths and static turret bodies remain open.
+
 Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
 
 - PC build maintenance: The stale movement-step call in `tests/scene_ai_mode_gameplay_tests.c` is corrected; the PC all-target build remains unverified under the current Xbox-only validation policy.
@@ -35,7 +42,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
-- NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and a stock-64-MiB Xbox guard lands on and follows a translating rocket-extracted fragment; fragment velocity refresh and post-checkpoint reprobe are wired, while carry after reload, rotating support, multi-fragment contacts, Goto carry, natural high falls and other modes remain open (docs/MOVEMENT.md).
+- NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and a stock-64-MiB Xbox guard lands on and follows a translating rocket-extracted fragment; fragment velocity refresh and post-checkpoint reprobe are wired, and grounded rotation now uses mover transforms with compiled-NXDK math checks; live rotating support, idle support-loss velocity, multi-fragment contacts and broader carry remain open (docs/MOVEMENT.md, docs/NPC-ROTATING-SUPPORT.md).
 
 - Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
 
@@ -73,7 +80,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
-- NPC death presentation: Live Xbox kills select an authored death motion and sound and hand ordinary skeletal bodies to an owned, updating/rendered corpse pool; replacement-model bodies, full effects, corpse saves and output verification remain open (docs/DEATH-LIFECYCLE.md).
+- NPC death presentation: Live Xbox kills select an authored death motion and sound and hand ordinary skeletal bodies to an owned, updating/rendered corpse pool; settled skeletal body poses now save/load on Xbox without duplicate death callbacks; replacement-model bodies, unsettled deaths, corpse age/fade/effects and output verification remain open (docs/DEATH-LIFECYCLE.md).
 
 - Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
 
@@ -113,7 +120,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - NPC grenades: Authored instance loadouts and ordinary resource demand support enemy throws outside DEV; Xbox saves/reloads one active throw, while authored release timing, dead-source flight saves and campaign integration remain (docs/NPC-PROJECTILES-ORDINARY.md).
 
-- Flamethrower: Ordinary pickup/import/script demand now supports stream and alternate canister with finite fuel; PC primary/alternate passes and native canister explosion matches with14.29MiB free; NPC encounters, saves, continuous audio and visual refinement remain (docs/FLAME-PICKUP-FIRST-PASS.md).
+- Flamethrower: Ordinary pickup/import/script demand now supports stream and alternate canister with finite fuel; PC primary/alternate passes and native canister explosion matches with14.29MiB free; an active canister now survives ordinary Xbox save/load and explodes once, sustained stream ignition and fractional fuel also resume correctly; burning-target saves, continuous audio and visual refinement remain (docs/FLAME-PICKUP-FIRST-PASS.md).
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; a real pistol hit now drives Goal_Set exactly once on PC/Xbox with matching state and20.48MiB free; live authored button/mover scenarios remain (docs/HIT-EVENTS-FIRST-PASS.md).
 
@@ -125,7 +132,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and finite-power-cell Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
 
-- AI mode events: Authored transitions and ordinary Xbox saves now keep combat and registered actor modes consistent, including six saved L8S4 catatonic NPCs; vehicle/turret transitions, ambiguous waypoint bindings and broader behavior remain (docs/SCRIPTED-AI-MOVEMENT.md).
+- AI mode events: Authored transitions and ordinary Xbox saves now keep combat and registered actor modes consistent, including six saved L8S4 catatonic NPCs; the authored Jeep catatonic transition also stops and saves its route, while passenger/turret transitions, ambiguous waypoint bindings and broader behavior remain (docs/SCRIPTED-AI-MOVEMENT.md, docs/VEHICLE-AI-MODES.md).
 
 - Deferred collecting AI: Shard eligibility and hauling helpers exist, but no collecting events or drop markers were found in94 installed levels; automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md).
 

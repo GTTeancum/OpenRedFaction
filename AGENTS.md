@@ -46,3 +46,5 @@
 - User update (2026-09-22): Pause all sub-agents to reduce token usage. Continue solo; do not restart helpers without explicit renewed authorization. Preserve work already written for parent integration. This supersedes the earlier three-agent authorization.
 
 - Estimate calibration (2026-09-30): Overall working-alpha implementation is provisionally85-90% (report approximately88%), superseding95%. Count integrated usable behavior, not merely the presence of a subsystem or adapter; missing gameplay integration belongs in the estimate, while exhaustive tests and retail polish do not. Do not increase the estimate automatically for every small fix.
+
+- User update (2026-09-30): Three implementation helpers are authorized again to accelerate bounded gameplay work; parent owns shared scene integration and serial Xbox builds/checks. This supersedes the September22 helper pause; do not restart a separate coordinator.
