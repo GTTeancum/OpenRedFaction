@@ -1,8 +1,9 @@
-"""Check a group-owned vehicle pose and Detach on stock-64-MiB Xbox.
+"""Check authored vehicle attachments and death-triggered motion on stock-64-MiB Xbox.
 
 L20S2 When_Dead18354 is process-locally fired to activate Hanger Lift001;
 Detach18377 is fired at frame 60 for its masako_fighter4717 child. No
-desktop input or capture is used.
+desktop input or capture is used. --natural instead stages damage to the
+two linked Fighter01 vehicles and lets When_Dead18354 fire itself.
 """
 
 import datetime
@@ -59,17 +60,19 @@ def main():
     contact = sys.argv[1:] == ['--contact']
     npc = sys.argv[1:] == ['--npc']
     side = sys.argv[1:] == ['--side']
+    natural = sys.argv[1:] == ['--natural']
     rising = sys.argv[1:] == ['--rising']
     carry = sys.argv[1:] == ['--carry'] or rising
-    masako = sys.argv[1:] == ['--masako'] or contact or carry or npc or side
+    masako = sys.argv[1:] == ['--masako'] or contact or carry or npc or side or natural
     short = inventory or submarine or masako
     if sys.argv[1:] and not short:
-        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact|--carry|--rising|--npc|--side]')
+        raise SystemExit('usage: xemu_vehicle_group_detach.py [--inventory|--submarine|--masako|--contact|--carry|--rising|--npc|--side|--natural]')
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
-    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-side-' if side else
+    folder = ROOT / 'artifacts/xemu' / (('vehicle-group-natural-' if natural else
+             'vehicle-group-side-' if side else
              'vehicle-group-npc-' if npc else
              'vehicle-group-rising-' if rising else
              'vehicle-group-carry-' if carry else
@@ -80,10 +83,11 @@ def main():
              else 'vehicle-group-detach-') +
              datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
-    names = set(FLAGS) | {p.name for p in DISC.glob('campaign-*')}
+    names = set(FLAGS) | {'campaign-watch.bin'} | {p.name for p in DISC.glob('campaign-*')}
     original = {name: (DISC / name).read_bytes() if (DISC / name).exists() else None
                 for name in sorted(names)}
-    report = {'result': 'FAIL', 'scope': 'L20S2 moving fighter side push against stationary player' if side
+    report = {'result': 'FAIL', 'scope': 'L20S2 natural Fighter deaths start Hanger Lift001' if natural
+              else 'L20S2 moving fighter side push against stationary player' if side
               else 'L20S2 scripted NPC on attached fighter4717' if npc
               else 'L20S2 group-owned masako_fighter4717' if masako
               else 'L5S3 group-owned submarine3977' if submarine
@@ -104,9 +108,11 @@ def main():
                 struct.pack('<3I', 4717, 40 if side else 30, 4 if side else 3 if npc else 2) if rising or npc or side
                 else struct.pack('<2I', 4717, 30))
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<I', 18354))
+        if natural:
+            (DISC / 'campaign-watch.bin').write_bytes(struct.pack('<I', 18354))
         if not short:
             (DISC / 'campaign-setup.bin').write_bytes(struct.pack('<2I', 18354, 18377))
-        frames = 75 if side else 65 if npc else 120 if contact or carry else 10 if short else 90
+        frames = 90 if natural else 75 if side else 65 if npc else 120 if contact or carry else 10 if short else 90
         (DISC / 'player-replay.bin').write_bytes(
             b'RFI5' + struct.pack('<I', 44) +
             (struct.pack('<5f6I', 0, 0, 1, 0, 0, *([0] * 6)) * frames
@@ -122,6 +128,11 @@ def main():
                           extra_symbols={'rf_scene_passive_attachment': 14,
                                          'rf_scene_passive_draw': 6,
                                          'rf_scene_passive_collision': 8,
+                                         **({'rf_scene_passive_damage': 8,
+                                             'rf_scene_watch_test': 4,
+                                             'rf_scene_watch_vitals': 8,
+                                             'rf_scene_watch_links': 40,
+                                             'rf_scene_death_watches': 97} if natural else {}),
                                          **({'rf_scene_passive_npc_fixture': 10,
                                              'rf_scene_npc_script_ground': 4,
                                              'rf_scene_npc_script_mover': 6} if npc else {}),
@@ -145,14 +156,27 @@ def main():
             if final[0:2] != [1, 1] or final[4] != 3977 or final[13]:
                 raise RuntimeError(f'Moving submarine owner/binding absent: {final}')
             draw = guest['extra']['rf_scene_passive_draw']
-            if draw[0] != 1 or draw[1] != 1 or draw[2] < 1 or draw[4] != 3977 or draw[5]:
+            if draw[0] < 1 or draw[1] < 1 or draw[2] < 1 or draw[5]:
                 raise RuntimeError(f'Submarine chassis did not submit: {draw}')
         elif masako:
             if final[0:2] != [1, 1] or final[4] != 4717 or final[13]:
                 raise RuntimeError(f'Masako fighter owner/binding absent: {final}')
             draw = guest['extra']['rf_scene_passive_draw']
-            if draw[0] != 1 or draw[1] != 1 or draw[2] < 1 or draw[4] != 4717 or draw[5]:
+            if draw[0] < 1 or draw[1] < 1 or draw[2] < 1 or draw[5]:
                 raise RuntimeError(f'Masako fighter chassis did not submit: {draw}')
+            if natural:
+                watched=guest['extra']['rf_scene_death_watches']
+                rows=[watched[i:i+3] for i in range(1,1+watched[0]*3,3)]
+                death=next((row for row in rows if row[0]==18354),None)
+                damage=guest['extra']['rf_scene_passive_damage']
+                result=guest['extra']['rf_scene_watch_test']
+                report['natural']={'death':death,'damage':damage,'fixture':result,
+                                   'lift':final,'draw':draw,
+                                   'links':guest['extra']['rf_scene_watch_links']}
+                if result!=[2,18353,60,0] or not death or death[1]!=1 or \
+                   damage[2]<2 or damage[3]<2 or damage[6] or draw[0]<3 or \
+                   final[2]<1 or position(final)[0]<ORIGINAL_X+.2:
+                    raise RuntimeError(f'Fighter deaths did not start authored lift: {report["natural"]}')
             if contact and (guest['extra']['rf_scene_passive_collision'][1] < 1 or
                             guest['extra']['rf_scene_passive_collision'][4] != 4717):
                 raise RuntimeError(f'Actor did not contact fighter chassis: {guest["extra"]["rf_scene_passive_collision"]}')

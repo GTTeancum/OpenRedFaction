@@ -72,7 +72,7 @@ static int scene_passive_vehicle_checkpoint_prepare(const unsigned char *p,uint3
         scene_passive_vehicle_saved *saved=stage->rows+i;
         const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
         saved->uid=scene_history_word(row);saved->attached=scene_history_word(row+4);
-        if(saved->uid!=owner->uid||saved->attached>1||
+        if(saved->uid!=owner->uid||saved->attached>1||(saved->attached&&!owner->group_owned)||
            rf_object_registry_lookup(&campaign_registry,owner->handle)!=owner){
             scene_passive_vehicle_checkpoint_close(&stage);return RF_FORMAT;
         }
@@ -97,7 +97,9 @@ static int scene_passive_vehicle_checkpoint_validate(const scene_passive_vehicle
         capacity+=entry->source->record.ids_count[0];
         if(view->general_count&&!view->general_handles)return RF_FORMAT;
     }
-    if(capacity<stage->count)return RF_FORMAT;
+    {uint32_t grouped=0;
+     for(i=0;i<stage->count;i++)grouped+=campaign_passive_vehicles[i].group_owned;
+     if(capacity<grouped)return RF_FORMAT;}
     for(i=0;i<stage->count;i++){
         rf_group_attached_pose candidate=campaign_passive_vehicles[i].pose;
         if(stage->rows[i].uid!=campaign_passive_vehicles[i].uid||
@@ -119,7 +121,7 @@ static void scene_passive_vehicle_checkpoint_assign(const scene_passive_vehicle_
         memcpy(owner->pose.input_matrix,saved->basis,36);
         memcpy(owner->pose.output_matrix,saved->basis,36);
         memcpy(owner->pose.pending_matrix,saved->basis,36);
-        memset(owner->velocity,0,12);detached+=!saved->attached;
+        memset(owner->velocity,0,12);detached+=owner->group_owned&&!saved->attached;
     }
     for(group=0;group<campaign_group_runtime.count;group++){
         const rf_group_runtime_entry *entry=campaign_group_runtime.items+group;

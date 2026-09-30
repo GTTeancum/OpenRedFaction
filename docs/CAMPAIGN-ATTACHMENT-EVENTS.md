@@ -179,14 +179,27 @@ rejects nonzero support velocity and has no authored support UID field, so
 that work needs an explicit checkpoint-format extension rather than merely a
 restore-time reprobe.
 
-The L20S2 lift fixture above directly fires event 18354. Its natural
-`When_Dead` source links Fighter01 UIDs 4801 and 18353. A focused Xbox attempt
-with a process-local NPC death fixture stopped at frame 31, before the first
-death: that fixture searches skeletal NPC bodies, but these Fighter01 objects
-are vehicle entities and have no registered NPC body to damage. The passive
-vehicle owners currently hold pose and attachment state only; they have no
-damage/death lifecycle for the scene's death query to observe. The fixture
-does not establish natural lift activation. Implement vehicle hit, health and
-death state, then include those linked vehicle UIDs in `campaign_death_query`
-and verify the event fires from actual deaths on stock-64-MiB Xbox. The failed
-diagnostic is retained only in `artifacts/xemu/vehicle-group-natural-20260930-064007`.
+The earlier lift fixture directly fires event 18354. Its natural `When_Dead`
+source links Fighter01 UIDs 4801 and 18353, which are ordinary vehicle
+entities rather than skeletal NPCs or group children. The scene now registers
+all authored non-boardable vehicles with distinct identities, shared class
+hulls and per-instance health/armor. Their hulls participate in the existing
+firearm and projectile hit selection and the common entity-damage service;
+the retained wreck identity exposes death to `campaign_death_query`. The
+shared watcher treats linked event/trigger/controller/mover outputs as
+nonliving, so the two Fighter deaths determine when its lift output fires.
+
+The process-local stock-64-MiB Xbox `--natural` fixture applied fatal
+rocket-class damage through that vehicle damage service at frames 30 and 60.
+It did not fire event 18354 directly. The 90-frame run
+`artifacts/xemu/vehicle-group-natural-20260930-072752` passed: both Fighters
+were destroyed, `When_Dead` fired once at 1016 ms, the lift-linked fighter
+registered 24 movement commits, and 3,612 free pages remained. The fixture
+supplies a synthetic contact for those hits; actual player projectile-ray
+selection against these hulls is integrated but has not been independently
+verified. The Xbox `--attached` save/load run
+`artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
+L20S2 vehicle records and the lift attachment continuing after reload.
+`RFVA1` still saves pose/attachment only: damaged and destroyed vehicle
+health, armor and death state must be added to ordinary saves. Wreck effects,
+actual combat encounters and final visual content remain open.

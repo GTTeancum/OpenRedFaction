@@ -1208,7 +1208,11 @@ static int runtime_death_poll(startup_context *c,rf_runtime_event *event)
             /* Previously resolved runtime identity, now removed. This is
              * known absence, unlike a never-resolved authored object. */
             present=alive=0;status=RF_OK;
-        } else if(kind==5 || kind==6) {present=1;status=RF_OK;}
+        } else if(kind==5 || kind==6 || kind==8 || kind==9) {
+            /* Events, triggers, controllers and mover solids are output links, not
+             * living actors whose death can gate this watcher. */
+            present=1;status=RF_OK;
+        }
         else if(c->triggers->death_query)status=c->triggers->death_query(c->triggers->death_context,
             event->authored->links[i],&present,&alive);
         if(status==RF_NOT_FOUND){unknown=1;continue;}

@@ -2,8 +2,10 @@
 
 The shared mission tick now polls type16 (`When_Dead`) and dispatches its linked
 mission events/triggers once per scene. A borrowed scene query supplies known NPC
-presence and living state, including retained defeated actors on section revisit.
+and vehicle presence and living state, including retained defeated actors on section revisit.
 Unknown object classes defer the watcher instead of being treated as deaths.
+The scene now also queries registered ordinary and group-owned vehicle health;
+linked event, trigger, controller and mover outputs are nonliving targets.
 
 Original RF.exe evidence (the repository's recorded SHA256): factory4b69d0 maps
 16 through4b6c95 to constructor4be6c0 and vtable5899ec. Its update method4bb3a0
@@ -20,18 +22,19 @@ have separate original effects at4bb474..4bb4bb; these remain unsupported in the
 port's existing target dispatcher. The watcher's own authored delay is not applied
 to automatic detection; downstream events retain their own delay scheduling.
 
-First-pass differences: the scene uses registered NPC health>0 as living state,
-rather than reproducing the original object's live-bit lifetime. Corpse cleanup
-can therefore affect the exact firing frame. Known retired NPCs are missing;
-unsupported classes, clutter and other unknown UID families defer evaluation.
+First-pass differences: the scene uses registered NPC and vehicle health>0 as
+living state, rather than reproducing the original object's live-bit lifetime.
+Corpse cleanup can therefore affect the exact firing frame. Known retired NPCs
+are missing; unsupported classes, clutter and other unknown UID families defer evaluation.
 This is an explicit gameplay implementation, not a claim of exact timing parity.
 An unattached query leaves polling disabled for standalone dispatcher clients.
 
 Contained C tests cover all-linked death gating, optional missing-object gating,
 one-shot behavior, pending timers, downstream trigger activation and unknown
 objects. The existing rendered rifle round trip remains a regression check;
-it is not proof of a complete authored death-triggered mission chain. Native
-XEMU gameplay verification and wider object-family coverage remain open.
+it is not proof of a complete authored death-triggered mission chain. A later
+focused Xbox check proves L20S2's two Fighter deaths start its lift; real
+projectile-ray encounters and wider object-family coverage remain open.
 
 Validation: PC and NXDK builds pass, all36 CTests pass (including expanded
 mission_goal_dispatch), and the rendered240-frame rifle section round trip

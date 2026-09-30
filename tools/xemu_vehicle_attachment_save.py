@@ -101,10 +101,16 @@ def main():
         if vehicle[:4] != b'RFVA':
             raise RuntimeError('Vehicle attachment section is absent')
         version, host_bytes, count = struct.unpack_from('<3I', vehicle, 4)
-        if version != 1 or count != 1 or len(vehicle) != 16 + host_bytes + 56:
+        if version != 1 or count != 8 or len(vehicle) != 16 + host_bytes + count * 56:
             raise RuntimeError('Vehicle attachment section is malformed')
-        uid, attached = struct.unpack_from('<2I', vehicle, 16 + host_bytes)
-        saved_pose = struct.unpack_from('<3f', vehicle, 24 + host_bytes)
+        rows = [(struct.unpack_from('<2I', vehicle, 16 + host_bytes + index * 56),
+                 struct.unpack_from('<3f', vehicle, 24 + host_bytes + index * 56))
+                for index in range(count)]
+        matches = [(identity[1], point) for identity, point in rows if identity[0] == 4717]
+        if len(matches) != 1:
+            raise RuntimeError(f'Expected one authored fighter4717 row, found {len(matches)}')
+        attached, saved_pose = matches[0]
+        uid = 4717
         if uid != 4717 or attached != int(linked_mode):
             raise RuntimeError(f'Vehicle attachment state not saved: {uid}, {attached}')
         report['saved_pose'] = saved_pose
