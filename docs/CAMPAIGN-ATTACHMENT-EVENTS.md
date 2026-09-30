@@ -27,8 +27,12 @@ attachments (1490, 12335, 12369), and an L20S2 hangar-lift child (4717).
 The reconstructed runtime currently owns mover memberships from each group's
 second ID list. `rf_group_mover_memberships_open` explicitly leaves the first
 general-object ID list unbound, and scene controller views have no general
-handles. Consequently the parent-child graph that `Detach` mutates is absent.
-The next implementation must bind that graph, propagate parent motion to
-children, then let Detach remove the exact child link while retaining the
-child's current world pose. A callback that only clears a registry bit would
-not release these authored vehicles and platforms.
+handles. The scene also selects at most one authored vehicle per supported
+section; L5S3's linked submarine UID 3977 is not that selected host, and the
+three L20S1 linked fighter vehicles are not registered as live campaign
+vehicle hosts. Consequently the parent-child graph and several child owners
+that `Detach` mutates are absent. The next implementation must own the linked
+vehicles, bind the general-object graph, propagate parent motion to children,
+then remove the exact child link while retaining its world pose. A callback
+that only clears a registry bit would not release these authored vehicles and
+platforms.
