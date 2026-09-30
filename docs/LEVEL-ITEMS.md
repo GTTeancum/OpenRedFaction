@@ -218,3 +218,45 @@ forward/back/forward selection and firing still pass. Free memory at completion:
 7079 pages (27.65MiB). Harness flags and ISO were restored.
 Evidence: artifacts/xemu/weapon-pickup-20260930-113501/report.json. This proves
 sample loading and voice submission, not an independently inspected audible mix.
+
+
+## Miner Envirosuit armor callback (2026-09-30)
+
+RF.exe458960 clears the item callback table.4589b9 registers45a050 for the
+Miner Envirosuit; Suit Repair uses45a1f0 and Medical/First Aid use45a2e0.
+For single-player,45a050 resolves the receiving entity and item, rejects when
+entity+0x38 armor is already at class+0x48 armor, otherwise copies the class
+maximum into current armor and publishes the ordinary pickup notice. Quantity
+is used for the notice, not the refill amount. This is a full refill, not one
+armor point and not a clothing/undercover transition.
+
+Placed-item4597c2 and scripted Give_Item4bb73e both dispatch class+0x48's
+callback when present; they call default45a3d0 only when it is absent. The live
+port now shares its suit refill helper between these paths. Full armor leaves
+the placed suit available and does not issue its sound/notice; successful
+collection retains the normal retirement and authored sound path. Scripted
+full-armor rejection is a nonfatal no-op and does not emit pickup audio.
+
+No Doctor Uniform or Silenced Handgun callback is registered by458960.
+Doctor Uniform therefore follows the no-weapon notice branch45a4cc; its name
+alone does not authorize an undercover state change. The installed Silenced
+12mm Handgun class grants ordinary12mm handgun through45a6d0, which receives
+weapon ID and quantity, not a suppressor flag. Its item model/name are distinct
+from the separately implemented Undercover weapon and suppressor mechanism.
+Do not add gameplay flags based on these item names without contrary evidence.
+
+Native90-frame L8S4 suit8614 check: armor100 leaves the suit available; after
+a process-local reduction to25, the ordinary collection restores100, retires
+it once and starts its envsuit_pickup.wav override (distance5, gain0.9).
+A scripted grant then restores50 to100, and a second full-armor scripted grant
+adds no accepted grant or sound. Two unrelated nearby pickups precede the suit;
+the first harness assertion incorrectly assumed zero other collections. The
+retained guest data passes corrected before/after assertions without rerunning
+the guest. tools/xemu_miner_suit.py now uses these assertions, and the existing
+xemu_weapon_pickup.py --nonweapon option invokes this focused check.
+
+Evidence: artifacts/xemu/miner-suit-20260930-114042/report.json retains the
+initial assertion failure and guest data; validation.json records the corrected
+PASS.5217 free pages (20.38MiB), flags/ISO restored, NXDK build passed. Audible
+mix, images and natural campaign traversal were not inspected. General Medical
+Kit/Suit Repair class limits and difficulty multipliers remain a separate gap.

@@ -42,18 +42,21 @@ def main():
     parser.add_argument('--direct-switch', action='store_true',
                         help='hold next, then previous, then next with no neutral input frames')
     parser.add_argument('--nonweapon', action='store_true',
-                        help='stage the authored L6S3 Miner Envirosuit scripted grant')
+                        help='check Envirosuit refill and full-armor rejection on Xbox')
     parser.add_argument('--silenced', action='store_true',
                         help='stage the authored train02 Silenced 12mm Handgun pickup')
     args = parser.parse_args()
     if sum((args.direct_switch, args.nonweapon, args.silenced)) > 1:
         parser.error('Choose only one focused fixture')
+    if args.nonweapon:
+        from xemu_miner_suit import main as check_suit
+        check_suit()
+        return
     require_no_project_xemu(ROOT)
     hdd = ROOT / 'local/xemu-harness/pacing-base.qcow2'
     if not hdd.is_file():
         raise RuntimeError('Missing isolated XEMU test HDD base')
     folder = ROOT / 'artifacts/xemu' / (('silenced-pickup-' if args.silenced else
-                                       'nonweapon-pickup-' if args.nonweapon else
                                        'weapon-direct-switch-' if args.direct_switch else 'weapon-pickup-') +
               datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     folder.mkdir(parents=True)
@@ -70,10 +73,10 @@ def main():
         (DISC / 'campaign-spawn.flag').write_bytes(b'')
         (DISC / 'campaign-level.bin').write_bytes(
             b'levels1.vpp'.ljust(64, b'\0') +
-            (b'L6S3.rfl' if args.nonweapon else b'train02.rfl' if args.silenced else b'L4S5.rfl').ljust(64, b'\0'))
+            (b'train02.rfl' if args.silenced else b'L4S5.rfl').ljust(64, b'\0'))
         (DISC / 'campaign-item.bin').write_bytes(
             struct.pack('<If', 6596, 1.5) if args.silenced else
-            struct.pack('<I', 6935 if args.nonweapon else 3415))
+            struct.pack('<I', 3415))
         (DISC / 'player-control.flag').write_bytes(b'')
         (DISC / 'player-replay.bin').write_bytes(replay(args.direct_switch, args.nonweapon, args.silenced))
         build(folder, 'run')
@@ -93,17 +96,6 @@ def main():
         selection = guest['extra']['rf_scene_weapon_selection']
         ammo = guest['extra']['rf_scene_player_ammo']
         combat = guest['extra']['rf_scene_combat']
-        if args.nonweapon:
-            nonweapon = guest['extra']['rf_scene_nonweapon_items']
-            script = guest['extra']['rf_scene_script_grants']
-            notice = struct.pack('<16I', *guest['extra']['rf_scene_pickup_notice']).split(b'\0', 1)[0]
-            if nonweapon[2] != 1 or nonweapon[3] != 28 or script[0] < 1 or script[3] != 0xfffffffe:
-                raise RuntimeError(f'Miner Envirosuit scripted grant failed: {nonweapon}, {script}')
-            if notice != b'Miner Envirosuit picked up':
-                raise RuntimeError(f'Authored pickup notice not published: {notice!r}')
-            result['placed_pickup_collected'] = pickup[3] == 1 and pickup[5] == 6935
-            result['result'] = 'PASS'
-            return
         if args.silenced:
             notice = struct.pack('<16I', *guest['extra']['rf_scene_pickup_notice']).split(b'\0', 1)[0]
             if pickup[3] < 2 or pickup[5] != 6596 or combat[0] < 1 or ammo[4] < 1:

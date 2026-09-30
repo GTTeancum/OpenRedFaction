@@ -10695,6 +10695,15 @@ static void campaign_pickup_notice_grant(const char messages[4][64],uint32_t acq
     snprintf(rf_scene_pickup_notice,sizeof(rf_scene_pickup_notice),message,(int)rounds);
     campaign_pickup_notice_frame=combat_frame==UINT32_MAX?0:combat_frame;
 }
+/* RF.exe45a050, registered for Miner Envirosuit at4589b9. Both world
+ * pickup4597d1 and Give_Item4bb78c invoke the class-specific callback. */
+static float campaign_miner_suit_grant(void)
+{
+    rf_damage_effect_state *v=&campaign_player_damage.state.effects;
+    float restored=v->class_armor-v->armor;
+    if(!isfinite(restored) || restored<=0)return 0;
+    v->armor=v->class_armor;return restored;
+}
 static int campaign_apply_item_grant(const campaign_item_grant *request)
 {
     if(request->weapon==-1) {
@@ -10703,11 +10712,12 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
         memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
         rf_scene_combat[6]=0;campaign_ammo_publish();return scene_player_shield_damage_sync();
     }
-    /* Original default grant 45a3d0 routes no-weapon/no-ammo items through
-     * 45a100 for pickup notice; no weapon inventory cell changes. */
+    /* The suit has a class-specific armor callback. Other no-weapon/no-ammo
+     * items use45a3d0/45a100 notices without mutating weapon inventory. */
     if(request->weapon==CAMPAIGN_ITEM_MINER_SUIT || request->weapon==CAMPAIGN_ITEM_DOCTOR_UNIFORM){
         uint32_t kind=request->weapon==CAMPAIGN_ITEM_MINER_SUIT?
             SCENE_PICKUP_MINER_SUIT:SCENE_PICKUP_DOCTOR_UNIFORM;
+        if(kind==SCENE_PICKUP_MINER_SUIT && campaign_miner_suit_grant()<=0)return RF_OK;
         campaign_pickup_notice_grant(request->pickup_messages,0,(uint32_t)request->quantity);
         ++rf_scene_nonweapon_items[0];++rf_scene_nonweapon_items[2];rf_scene_nonweapon_items[3]=kind;
         ++rf_scene_script_grants[0];rf_scene_script_grants[3]=(uint32_t)request->weapon;
@@ -11440,6 +11450,9 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         if(blocked){++rf_scene_pickups[2];continue;}
         if(item->quantity<0)return RF_FORMAT;
         if(kind==SCENE_PICKUP_MINER_SUIT || kind==SCENE_PICKUP_DOCTOR_UNIFORM){
+            if(kind==SCENE_PICKUP_MINER_SUIT){float total;
+                restored=campaign_miner_suit_grant();if(restored<=0)continue;
+                memcpy(&total,rf_scene_pickup_vitals+3,4);total+=restored;memcpy(rf_scene_pickup_vitals+3,&total,4);}
             ++rf_scene_nonweapon_items[0];++rf_scene_nonweapon_items[1];rf_scene_nonweapon_items[3]=kind;
             grant.acquired=1;
         } else if(kind==1 || kind==2 || kind==SCENE_PICKUP_FIRST_AID) {
@@ -15232,6 +15245,7 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
 }
 #include "scene_nano_shield_fixture.inc"
 #include "scene_special_save_fixture.inc"
+#include "scene_item_effect_fixture.inc"
 static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 {
     scene_passive_vehicle *owner=NULL;uint32_t i;int status;
@@ -15842,6 +15856,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
         if(status){rf_scene_profile_stage[1]=108;return status;}
         status=scene_special_save_stage(frame);if(status)return status;
+        status=scene_item_effect_stage(stream,frame);if(status)return status;
         status=campaign_combat_tick(stream,frame,staged?shot_eye:position,
             staged?(const float (*)[3])shot_basis:(const float (*)[3])orientation);
         rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}
