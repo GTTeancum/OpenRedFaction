@@ -6,7 +6,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PC build maintenance: The `rf_pc_play` target compiles, but the all-target CMake build still has a stale two-argument `campaign_script_step` call in `tests/scene_ai_mode_gameplay_tests.c`.
 
-- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths plus the natural L20S2 lift trigger through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy-save migration, broader landing/pushes, NPC support saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger and an active passive-Fighter Attack target through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy-save migration, broader landing/pushes, moving-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
 
 - Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
 
@@ -20,7 +20,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
 
-- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At and actor-targeted Attack, resumed guard combat, live player rockets/grenades, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
 
 - NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
 
@@ -72,7 +72,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; one pistol shot now triggers an authored three-prop chain in live PC; oil-drum chain explosions now pass PC/Xbox with inspected native flashes, exact damage parity and17.08MiB free; sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
 
-- Fighter: L13S3 boards/fires/follows its waypoint, L18S2 loads its sole fighter, and staged L20S2 NPC Attack fires twice into passive Fighter UID4801 on stock-64-MiB Xbox; natural NPC attacks, broader placements, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
+- Fighter: L13S3 boards/fires/follows its waypoint, L18S2 loads its sole fighter, and staged L20S2 NPC Attack fires twice into passive Fighter UID4801 and retains its target after ordinary Xbox save/reload; natural NPC attacks, broader placements, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
 - Submarine saves/guidance: Stock-64-MiB Xbox saves/reloads the occupied DEV submarine and guides a torpedo into a submerged guard; active-shot saves and wider pursuit remain open.
 

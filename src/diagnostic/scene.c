@@ -14714,6 +14714,7 @@ static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const fl
     return RF_OK;
 }
 static int campaign_vehicle_attack_fixture(uint32_t frame);
+static void campaign_vehicle_attack_live_probe(void);
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
@@ -14820,6 +14821,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
     rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    campaign_vehicle_attack_live_probe();
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
@@ -15062,7 +15064,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 /* Process-local Xbox fixture: stage one clear, player-sourced sniper shot at an
  * authored passive hull. The normal combat tick still selects cover, debits
  * ammo, and applies damage; only its eye pose/input are staged for this frame. */
-uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[16];
+uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_mode,rf_scene_vehicle_shot_probe[16];
 static float campaign_vehicle_shot_clear_eye[3];
 static uint32_t campaign_vehicle_shot_clear_eye_valid;
 static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
@@ -15149,6 +15151,32 @@ static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 /* Process-local diagnostic: issue an Attack event to a living authored NPC
  * against the staged Fighter. The normal AI/steering ticks own subsequent fire. */
 uint32_t rf_scene_vehicle_attack_probe[8]; /* target UID, attacker UID/handle, target handle, status, pre-aim, eligible NPCs, placed */
+uint32_t rf_scene_vehicle_attack_live[8]; /* active orders, attacker UID, target UID, attacker/target handles, alert, scripted, hull health bits */
+static void campaign_vehicle_attack_live_probe(void)
+{
+    uint32_t i,j;
+    memset(rf_scene_vehicle_attack_live,0,sizeof(rf_scene_vehicle_attack_live));
+    for(i=0;i<campaign_npc_body_count;i++){
+        const campaign_npc_body *attacker=campaign_npc_bodies+i;
+        if(!attacker->registration.view||attacker->damage.effects.health<=0||
+           attacker->combat_scripted!=1||!attacker->combat_alert)continue;
+        for(j=0;j<campaign_passive_vehicle_count;j++){
+            const scene_passive_vehicle *target=campaign_passive_vehicles+j;
+            if(attacker->combat_target!=target->handle||target->damage.destroyed||
+               target->damage.state.effects.health<=0||
+               rf_object_registry_lookup(&campaign_registry,target->handle)!=target)continue;
+            ++rf_scene_vehicle_attack_live[0];
+            rf_scene_vehicle_attack_live[1]=(uint32_t)campaign_seeds.records.items[i].record.uid;
+            rf_scene_vehicle_attack_live[2]=target->uid;
+            rf_scene_vehicle_attack_live[3]=attacker->registration.handle;
+            rf_scene_vehicle_attack_live[4]=target->handle;
+            rf_scene_vehicle_attack_live[5]=attacker->combat_alert;
+            rf_scene_vehicle_attack_live[6]=attacker->combat_scripted;
+            memcpy(rf_scene_vehicle_attack_live+7,&target->damage.state.effects.health,4);
+            break;
+        }
+    }
+}
 static int campaign_vehicle_attack_fixture(uint32_t frame)
 {
     scene_passive_vehicle *target=NULL;campaign_npc_body *attacker=NULL;
@@ -15187,27 +15215,33 @@ static int campaign_vehicle_attack_fixture(uint32_t frame)
     rf_scene_vehicle_attack_probe[5]=rf_scene_enemy_aim[0];
     if(!attacker){rf_scene_vehicle_attack_probe[4]=(uint32_t)RF_NOT_FOUND;return RF_OK;}
     rf_scene_vehicle_attack_probe[2]=attacker->registration.handle;
-    if(!campaign_vehicle_shot_clear_eye_valid)return RF_NOT_FOUND;
-    /* Put the fixture NPC at a cover-checked pose beside the hull. This is
-     * diagnostic placement only; the Attack order, turn, shot and damage stay
-     * on the ordinary runtime paths. */
-    for(i=0;i<3;i++){
-        float offset=attacker->eye_position[i]-attacker->body.state.position[i];
-        float placed=campaign_vehicle_shot_clear_eye[i]-offset;
-        attacker->body.state.position[i]=attacker->body.state.next_position[i]=placed;
-        attacker->published[i]=attacker->previous[i]=placed;
-        campaign_model_owners[attacker_slot].position[i]=placed;
-        attacker->body.state.velocity[i]=0;
+    if(rf_scene_vehicle_shot_mode==1){
+        /* Diagnostic save profile retains the authored ground pose. */
+        rf_scene_vehicle_attack_probe[7]=2;
+    }else{
+        if(!campaign_vehicle_shot_clear_eye_valid)return RF_NOT_FOUND;
+        /* Put the fixture NPC at a cover-checked pose beside the hull. This is
+         * diagnostic placement only; Attack, turn, shot and damage stay on
+         * the ordinary runtime paths. */
+        for(i=0;i<3;i++){
+            float offset=attacker->eye_position[i]-attacker->body.state.position[i];
+            float placed=campaign_vehicle_shot_clear_eye[i]-offset;
+            attacker->body.state.position[i]=attacker->body.state.next_position[i]=placed;
+            attacker->published[i]=attacker->previous[i]=placed;
+            campaign_model_owners[attacker_slot].position[i]=placed;
+            attacker->body.state.velocity[i]=0;
+        }
+        status=campaign_npc_eye_update(attacker_slot);if(status)return status;
+        rf_scene_vehicle_attack_probe[7]=1;
     }
-    status=campaign_npc_eye_update(attacker_slot);if(status)return status;
-    rf_scene_vehicle_attack_probe[7]=1;
     {
         rf_level_event event={0};rf_level_link_target link={target->handle,1,0};
         event.uid=0x5641544bu;event.words[0]=attacker_uid;event.link_count=1;
         status=campaign_script_attack(NULL,&event,&link,1);
     }
     rf_scene_vehicle_attack_probe[4]=(uint32_t)status;
-    if(!status)attacker->combat_due=frame;
+    if(!status){attacker->combat_due=frame;
+        if(rf_scene_vehicle_shot_mode==1)attacker->combat_navigation_due=UINT32_MAX;}
     return status;
 }
 /* Process-local fixture: damage one linked actor/vehicle at frames30 and60. */

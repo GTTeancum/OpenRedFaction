@@ -234,7 +234,17 @@ frames65 and95 and both hits passed hull contact, cover and class damage:
 health fell805 to767.5, with18.75 applied per shot. Damage journal type2
 identifies each as NPC-to-vehicle rather than player damage;3,544 physical
 pages remained free and test disc state was restored. Natural travel into
-range, blocked-cover rejection and save/reload of the active order remain open.
+range and blocked-cover rejection remain open.
+The ordinary stock-64-MiB save/reload check
+`artifacts/xemu/vehicle-npc-attack-save-20260930-094023` kept NPC UID4726
+at its authored grounded pose, issued Attack toward Fighter UID4801 and held
+pursuit until reload. The62,044-byte world checkpoint captured the active
+order with805 hull health; a fresh process restored the same attacker, target
+and health, leaving3,130 physical pages free. This establishes RFNC target UID
+rebinding against a living RFVA2 passive owner. It does not establish save of
+an NPC riding a moved vehicle: that placement still needs staged passive
+poses before NPC candidate-world validation. Post-load pursuit and firing
+continuation also remain unverified.
 The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.
