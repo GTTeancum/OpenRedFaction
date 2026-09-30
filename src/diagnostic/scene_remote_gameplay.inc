@@ -11,10 +11,12 @@ static uint32_t scene_remote_host_tags[RF_REMOTE_CHARGE_CAPACITY];
 static uint32_t scene_remote_held,scene_remote_pending,scene_remote_delay,scene_remote_cooldown;
 /* starts, launches, attaches, detonations, live, poolfull, missing hosts, status */
 uint32_t rf_scene_remote[8];
+uint32_t rf_scene_remote_shield[4]; /* consumed, target UID, frame, source */
 static void scene_remote_reset(void)
 {
     memset(scene_remote_charges,0,sizeof(scene_remote_charges));memset(scene_remote_host_tags,0xff,sizeof(scene_remote_host_tags));
     memset(rf_scene_remote,0,sizeof(rf_scene_remote));scene_remote_held=scene_remote_pending=scene_remote_delay=scene_remote_cooldown=0;
+    memset(rf_scene_remote_shield,0,sizeof(rf_scene_remote_shield));
 }
 /* Tags are dispatch tokens, never pointers. Actor bindings retain registry
  * identity. Mover view object_id is the available identity for that scene.
@@ -77,6 +79,22 @@ static int scene_remote_tick(scene_stream *s,uint32_t frame)
             status=rf_remote_charge_update_host(charge,&host,&action);if(status)return status;
             if(action==3){++rf_scene_remote[6];continue;}}
         status=rf_remote_charge_step(charge,1.f/60,scene_gravity.vector,scene_grenade_sweep,s,&event);if(status)return status;
+        if(event.attached && (event.contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
+            uint32_t index=event.contact.object&0xffffu,consumed;
+            if(index>=campaign_npc_body_count)return RF_RANGE;
+            /* Original4c5a90..4c5b5d consumes remote contact with amount0,
+             * before sticky-host publication, sound or any explosion request. */
+            status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_remote_id,0,&consumed);
+            if(status)return status;
+            if(consumed){
+                charge->flight.lifecycle.active=0;charge->object_flags|=2;
+                charge->attached=charge->host_bound=0;charge->host=UINT32_MAX;
+                scene_remote_host_tags[i]=UINT32_MAX;
+                ++rf_scene_remote_shield[0];rf_scene_remote_shield[1]=(uint32_t)campaign_seeds.records.items[index].record.uid;
+                rf_scene_remote_shield[2]=frame;rf_scene_remote_shield[3]=charge->owner;
+                continue;
+            }
+        }
         if(event.attached){rf_remote_charge_host host;++rf_scene_remote[2];
             scene_remote_host_tags[i]=event.contact.object;
             if(event.contact.object!=UINT32_MAX){

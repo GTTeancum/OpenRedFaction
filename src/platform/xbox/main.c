@@ -548,7 +548,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         exit_file=fopen("D:\\campaign-nano-shield.bin","rb");
         if(exit_file){uint32_t values[2]={0};size_t bytes=fread(values,1,sizeof(values),exit_file);
             int invalid=(bytes!=4&&bytes!=8)||fgetc(exit_file)!=EOF;
-            fclose(exit_file);if(invalid||!values[0]||values[1]>2)return RF_FORMAT;
+            fclose(exit_file);if(invalid||!values[0]||values[1]>3)return RF_FORMAT;
             rf_scene_nano_test_uid=values[0];rf_scene_nano_test_mode=values[1];}
         exit_file=fopen("D:\\campaign-setup.bin","rb");
         if(exit_file){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),exit_file);fclose(exit_file);

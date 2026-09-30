@@ -75,9 +75,38 @@ All three shots consume one round. The110-frame stock64MiB run retained
 4884 free pages (19.08MiB), restored the test disc, and used no images.
 NPC missile and Fusion adapters compile but were not independently exercised.
 
+## Remote-charge interception
+
+Remote actor contacts now run the shield prepass with adjusted amount0 before
+publishing a sticky host, impact sound or explosion. Active-shield contact marks
+the charge dead/inactive and clears attachment/host state, keeping it out of
+ordinary rendering, save capture and detonator selection. It does not debit
+armor or health. Shield-OFF actor contacts retain ordinary sticky attachment.
+
+The original contact branch at `0x4c5a90..0x4c5b5d` names Remote Charge as a
+zero-amount case and returns before the sticky branch. The scene adapter uses
+the existing flight/contact implementation; it does not change saved charge
+layout or introduce a second ammunition pool.
+
+`python tools/xemu_nano_shield.py --remotes` stages two releases using the
+ordinary launch/ammo service, toggles shield OFF before the second, then sends
+one process-local fire edge to the ordinary detonator. Capek is isolated from
+other actors, aim and initial armor are staged, and throw-animation timing is
+outside this check. Required outcomes: one absorbed charge, one attachment,
+one detonation, no remaining active charges, and armor/health unchanged until
+the unshielded detonation. No images or campaign traversal are used.
+
+Remote result: PASS in
+`artifacts/xemu/nano-shield-remotes-20260930-105746/report.json`.
+Two launches produced one shield absorption, one ordinary attachment and one
+ordinary detonation, with no remaining active charge. Reserve went3→2→1 and
+stayed1 on detonation. The110-frame run retained4699 free pages (18.36MiB), and
+the disc flags were restored. This does not prove moving-host save/reload,
+ordinary throw animation timing, shield effects or audio output.
+
 ## Remaining work
 
-- Remote-charge shield-contact rules and other projectile families.
+- Other projectile families and shield presentation remain separate from the verified contact paths.
 - Normal/alternate grenade contacts now pass the isolated Xbox check documented
   in [Grenade object contacts](GRENADE-OBJECT-CONTACT-FIRST-PASS.md); other victim/source/save combinations remain.
 - Shield constant/hit/break presentation and associated sound.

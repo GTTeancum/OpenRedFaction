@@ -22,8 +22,8 @@ static int campaign_set_nano_shield(void *context,uint32_t handle,uint32_t enabl
     return RF_OK;
 }
 /* 4c5a90..4c5b5e: contact-owned shield debit precedes generic damage.
- * Firearms and straight-flight missiles use this prepass; grenades/remotes
- * and radial-only damage remain separate.
+ * Firearm/missile, grenade and remote owners call this prepass; grenade/remote
+ * owners supply their adjusted amount. Radial-only damage stays separate.
  * Rail consumes100 armor regardless of its ordinary health damage. The contact
  * that breaks the shield is still consumed, with no health spill-through.
  * Exhausted armor is clamped to0 for the port's nonnegative save/vitals contract. */

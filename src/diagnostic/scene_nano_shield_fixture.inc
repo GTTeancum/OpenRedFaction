@@ -22,8 +22,9 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
     if(!phase){
         status=campaign_set_invulnerable(NULL,owner->registration.handle,0);if(status)return status;
         status=campaign_set_nano_shield(NULL,owner->registration.handle,1);if(status)return status;
-        owner->damage.effects.armor=rf_scene_nano_test_mode==2?100:rf_scene_nano_test_mode==1?campaign_primary[4].damage*1.5f:150;
+        owner->damage.effects.armor=rf_scene_nano_test_mode>=2?100:rf_scene_nano_test_mode==1?campaign_primary[4].damage*1.5f:150;
     }
+    if(rf_scene_nano_test_mode==3 && phase==1){status=campaign_set_nano_shield(NULL,owner->registration.handle,0);if(status)return status;}
     for(sphere=0;sphere<owner->body.spheres.count;sphere++){
         const rf_physics_sphere *shape=owner->body.spheres.items+sphere;float center[3];
         for(uint32_t j=0;j<3;j++){
@@ -45,7 +46,7 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
             if(blocked)continue;
             ++rf_scene_nano_aim[9];
             {
-                float radius=rf_scene_nano_test_mode==2?campaign_grenade.collision_radius:rf_scene_nano_test_mode==1 && phase<2?campaign_rocket.collision_radius:0;
+                float radius=rf_scene_nano_test_mode==3 && phase<2?campaign_remote.collision_radius:rf_scene_nano_test_mode==2?campaign_grenade.collision_radius:rf_scene_nano_test_mode==1 && phase<2?campaign_rocket.collision_radius:0;
                 rf_weapon_flight_contact contact={0};uint32_t liquid=0,matched=0;
                 /* The thin-ray preflight needs no alpha-texture sampler. */
                 status=scene_rocket_sweep(stream,eye,ray,radius,
@@ -55,7 +56,7 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
                 if(!matched||liquid||contact.object!=(SCENE_ACTOR_ROCKET_OWNER|index))continue;
             }
             memcpy(basis,original,36);memset(basis[2],0,12);basis[2][direction]=axis%2?1.f:-1.f;
-            {uint32_t slot=rf_scene_nano_test_mode==2?5:phase==2?6:rf_scene_nano_test_mode==1?4:7,*row=rf_scene_nano_fixture+1+phase*8;
+            {uint32_t slot=rf_scene_nano_test_mode==3?(phase==2?9:8):rf_scene_nano_test_mode==2?5:phase==2?6:rf_scene_nano_test_mode==1?4:7,*row=rf_scene_nano_fixture+1+phase*8;
              int32_t weapon=campaign_slot_weapon(slot);
              if(weapon<0||weapon>=64)return RF_FORMAT;
              campaign_player_inventory.owned[weapon]=1;
@@ -64,6 +65,16 @@ static int scene_nano_shot_stage(scene_stream *stream,uint32_t frame,
              memset(&combat_trigger,0,sizeof(combat_trigger));rf_scene_combat[6]=0;player_input.fire=1;
              memcpy(row,&owner->damage.effects.health,4);memcpy(row+1,&owner->damage.effects.armor,4);
              row[4]=(uint32_t)campaign_player_inventory.loaded[weapon];row[6]=slot;row[7]=frame;
+             if(rf_scene_nano_test_mode==3){
+                 uint32_t spawned;int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
+                 if(ammo<0||ammo>=32)return RF_FORMAT;
+                 if(!phase)campaign_player_inventory.reserve[ammo]=3;
+                 row[4]=(uint32_t)campaign_player_inventory.reserve[ammo];
+                 if(phase<2){
+                     status=scene_remote_launch(stream,frame,eye,basis[2],0,&spawned);if(status)return status;
+                     if(!spawned)return RF_NOT_FOUND;player_input.fire=0;
+                 }
+             }
              if(rf_scene_nano_test_mode==2){
                  uint32_t flight;int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
                  if(ammo<0||ammo>=32)return RF_FORMAT;
@@ -92,7 +103,7 @@ static int scene_nano_shot_result(uint32_t frame)
         memcpy(row+2,&campaign_npc_bodies[i].damage.effects.health,4);
         memcpy(row+3,&campaign_npc_bodies[i].damage.effects.armor,4);
         {int32_t weapon=campaign_slot_weapon(row[6]);
-         row[5]=(uint32_t)(rf_scene_nano_test_mode==2?
+         row[5]=(uint32_t)(rf_scene_nano_test_mode>=2?
              campaign_player_inventory.reserve[campaign_weapon_supply.definitions[weapon].ammo_type]:
              campaign_player_inventory.loaded[weapon]);}
         ++rf_scene_nano_fixture[0];return RF_OK;

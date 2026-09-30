@@ -118,9 +118,9 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - AI mode events: Collectable shard eligibility is wired and hauling destination/reservation/release helpers are prepared; no collecting events or drop markers were found in94 installed levels, so automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md). Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
 
-- Remote charges: Ordinary pickup/import/script demand and planted-charge updates work; a charge now survives ordinary quick-load and detonates on PC/Xbox with12.06MiB native headroom, while moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
+- Remote charges: Static planted-charge saves work, and stock64MiB Xbox now consumes active-shield hits without attachment/damage while shield-OFF hits attach and detonate normally; moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md, docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
-- Shield combat: Stock-64-MiB Xbox firearm and rocket contacts now deplete Capek armor without health spill on the breaking hit, and a later shot damages/kills him; NPC rockets/Tankbot missiles and Fusion share the prepass, normal/alternate grenades now consume with zero/full armor debit before ordinary explosions; remote rules, shield effects/audio, boss movement reconciliation, live toggle/save behavior and player-targeted persistence remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
+- Shield combat: Xbox firearm, rocket, grenade and remote-charge contacts work in isolated checks; NPC/Fusion encounter coverage, shield effects/audio, boss movement reconciliation and broader save behavior remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
 
 - AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
 
@@ -5949,3 +5949,9 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Normal grenade shield contact drains0 armor; alternate bit0x10 permits full debit. Both are consumed before ordinary effects.
 - NXDK build passes; compiled NXDK integrator checks preserve world bounce/alternate expiry and prove one-shot retirement/error rollback. Isolated stock64MiB XEMU110-frame check passes three staged grenade flights: shield armor100→100→0, health100 retained until the unshielded hit applies150 damage, one blast, no surviving flights,4878free pages (19.05MiB), disc restored.
 - Reports: artifacts/xbox-grenade-contacts.json and artifacts/xemu/nano-shield-grenades-20260930-105156/report.json. Throw input/release timing and other victim/source/save combinations were not exercised; no images or PC runtime.
+
+### Remote-charge nano-shield contacts (2026-09-30)
+
+- Added zero-amount shield admission before remote host publication; consumed charges become inactive/dead and retain no attachment/host, so normal draw/save/detonator scans skip them. Inactive shields keep the ordinary sticky path.
+- NXDK build passes. Isolated stock64MiB XEMU110-frame check stages two ordinary launch/ammo calls, toggles shield OFF for the second, and uses a process-local detonator input edge: one absorbed charge, one attachment, one detonation, no remaining active charges, and reserve3→2→1 with no detonator debit. Armor/health remain100/100 through shield absorption and ordinary attachment.
+- Report: artifacts/xemu/nano-shield-remotes-20260930-105746/report.json; disc flags restored. Moving-host saves, ordinary throw input/animation timing and presentation remain unverified by this check.

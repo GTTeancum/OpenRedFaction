@@ -9,3 +9,14 @@ The first load exceeded the shared20MiB image cap (21,908,036bytes). Ordinary no
 Focused paired-demand tests and PC/NXDK builds pass. Native run `artifacts/xemu/render-20260922-174127` passes360 frames and all harness comparisons without DEV mode. Exact remote counters match PC: one start, launch, attachment and detonation; zero live charges/errors. The inspected framebuffer shows the detonator and explosion smoke. Stock64MiB retains3623 free pages (14.15MiB); original disc restoration passes. Full campaign persistence/terrain, broader moving-host behavior, world pickup approaches and presentation refinement remain open.
 
 An image-free ordinary save/load continuation now preserves a planted charge on unchanged static geometry. The non-DEV CTF06 fixture grants charges, throws one at frame120, saves at260 with a276-byte remote section, quick-loads at280, switches to detonator and fires at340. `tools/check_ordinary_remote_reload.py` repeats the PC case; stock64MiB Xbox run `artifacts/xemu/render-20260926-153502/report.json` passes380 frames with matching save/load status, charge detonation, zero remaining live charges and exact PC/Xbox ammunition. The ordinary snapshot is17440 bytes, and the minimum sampled Xbox headroom is3088 pages (12.06MiB). Restore still rejects charges bound to NPC/mover hosts until their staged poses can be admitted; active GeoMod terrain, moving-host and broader campaign saves remain open. No image was captured.
+
+## Active nano-shield contact
+
+Stock64MiB Xbox now consumes remote charges that contact Capek's active shield
+without attaching, exploding or draining armor. With shield OFF, another charge
+attaches and detonates through the normal input/service path. The isolated
+110-frame check stages releases/aim and initial armor, then exercises actual
+flight, host binding and detonation. It records two launches, one absorption,
+one attachment, one detonation and no live charges afterward. See
+[Nano-shield contacts](NANO-SHIELD-CONTACT-FIRST-PASS.md) for evidence and limits.
+Moving-host save/reload remains open.
