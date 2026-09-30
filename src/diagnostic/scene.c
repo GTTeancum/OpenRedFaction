@@ -15018,6 +15018,75 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     } /* per-shell projectiles */
     return RF_OK;
 }
+/* Process-local Xbox fixture: stage one clear, player-sourced sniper shot at an
+ * authored passive hull. The normal combat tick still selects cover, debits
+ * ammo, and applies damage; only its eye pose/input are staged for this frame. */
+uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[12];
+static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
+    const float original_orientation[3][3],float eye[3],float basis[3][3],uint32_t *staged)
+{
+    uint32_t owner_index,sphere,axis;scene_passive_vehicle *owner=NULL;
+    if(!stream||!original_orientation||!eye||!basis||!staged)return RF_RANGE;
+    *staged=0;
+    if(!frame)memset(rf_scene_vehicle_shot_probe,0,sizeof(rf_scene_vehicle_shot_probe));
+    if(!rf_scene_vehicle_shot_uid||frame!=30)return RF_OK;
+    for(owner_index=0;owner_index<campaign_passive_vehicle_count;owner_index++)
+        if(campaign_passive_vehicles[owner_index].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+owner_index;break;}
+    if(!owner||owner->resource_kind>=6||
+       !stream->passive_vehicle_sphere_count[owner->resource_kind]||
+       stream->passive_vehicle_sphere_count[owner->resource_kind]>8)return RF_NOT_FOUND;
+    rf_scene_vehicle_shot_probe[0]=owner->uid;
+    for(sphere=0;sphere<stream->passive_vehicle_sphere_count[owner->resource_kind];sphere++) {
+        const rf_collision_body_sphere *shape=stream->passive_vehicle_spheres[owner->resource_kind]+sphere;
+        float center[3];uint32_t coordinate,other;
+        for(coordinate=0;coordinate<3;coordinate++)
+            center[coordinate]=owner->pose.position[coordinate]+
+                shape->center[0]*owner->pose.input_matrix[coordinate]+
+                shape->center[1]*owner->pose.input_matrix[3+coordinate]+
+                shape->center[2]*owner->pose.input_matrix[6+coordinate];
+        for(axis=0;axis<6;axis++) {
+            rf_weapon_flight_contact contact={0};float delta[3]={0},reach=shape->radius*1.5f+.1f;
+            uint32_t selected=0,blocked=0,direction=axis/2;int status;
+            for(other=0;other<stream->passive_vehicle_sphere_count[owner->resource_kind];other++) {
+                const rf_collision_body_sphere *peer=stream->passive_vehicle_spheres[owner->resource_kind]+other;
+                float peer_center=owner->pose.position[direction]+
+                    peer->center[0]*owner->pose.input_matrix[direction]+
+                    peer->center[1]*owner->pose.input_matrix[3+direction]+
+                    peer->center[2]*owner->pose.input_matrix[6+direction];
+                float extent=fabsf(peer_center-center[direction])+peer->radius+.1f;
+                if(reach<extent)reach=extent;
+            }
+            memcpy(eye,center,12);eye[direction]+=axis%2?-reach:reach;
+            delta[direction]=axis%2?100.0f:-100.0f;
+            ++rf_scene_vehicle_shot_probe[1];
+            status=scene_driller_firearm_select(campaign_player_object.handle,eye,delta,1,&contact,&selected);
+            if(status){rf_scene_vehicle_shot_probe[11]=(uint32_t)status;return status;}
+            if(!selected||contact.object!=SCENE_DRILLER_PROJECTILE_OWNER||
+               contact.face!=owner->handle||contact.hit.fraction<=0.0001f||contact.hit.fraction>=1)continue;
+            ++rf_scene_vehicle_shot_probe[2];
+            status=combat_shot_obstructed(stream,eye,delta,contact.hit.fraction,&blocked);
+            if(status){rf_scene_vehicle_shot_probe[11]=(uint32_t)status;return status;}
+            if(blocked){++rf_scene_vehicle_shot_probe[3];continue;}
+            memcpy(basis,original_orientation,36);
+            memset(basis[2],0,12);basis[2][direction]=axis%2?1.0f:-1.0f;
+            {
+                int32_t weapon=campaign_slot_weapon(6);
+                if(weapon<0||(uint32_t)weapon>=campaign_weapon_supply.names.count)return RF_FORMAT;
+                campaign_player_inventory.owned[weapon]=1;
+                if(campaign_player_inventory.loaded[weapon]<2)campaign_player_inventory.loaded[weapon]=2;
+                campaign_select_primary(6);campaign_ammo_publish();
+                memset(&combat_trigger,0,sizeof(combat_trigger));player_input.fire=1;
+                memcpy(rf_scene_vehicle_shot_probe+5,&owner->damage.state.effects.health,4);
+                memcpy(rf_scene_vehicle_shot_probe+6,&owner->damage.state.effects.armor,4);
+                rf_scene_vehicle_shot_probe[7]=(uint32_t)campaign_player_inventory.loaded[weapon];
+            }
+            rf_scene_vehicle_shot_probe[4]=*staged=1;
+            return RF_OK;
+        }
+    }
+    rf_scene_vehicle_shot_probe[11]=(uint32_t)RF_NOT_FOUND;
+    return RF_NOT_FOUND;
+}
 /* Process-local fixture: damage one linked actor/vehicle at frames30 and60. */
 uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_watch_vitals[8],rf_scene_watch_ray[6],rf_scene_watch_links[40],rf_scene_death_watches[97];
 static int campaign_watch_fixture(uint32_t frame)
@@ -15509,7 +15578,24 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         }
     }
     world_profile_mark(1,&world_clock);
-    if(campaign_spawn){status=campaign_combat_tick(stream,frame,position,orientation);rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}}
+    if(campaign_spawn){
+        float shot_eye[3],shot_basis[3][3];uint32_t staged=0;
+        status=campaign_vehicle_shot_stage(stream,frame,(const float (*)[3])orientation,
+            shot_eye,shot_basis,&staged);
+        if(status){rf_scene_profile_stage[1]=108;return status;}
+        status=campaign_combat_tick(stream,frame,staged?shot_eye:position,
+            staged?(const float (*)[3])shot_basis:(const float (*)[3])orientation);
+        rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}
+        if(staged){
+            scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
+            for(uint32_t index=0;index<campaign_passive_vehicle_count;index++)
+                if(campaign_passive_vehicles[index].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+index;break;}
+            if(!owner)return RF_NOT_FOUND;
+            memcpy(rf_scene_vehicle_shot_probe+8,&owner->damage.state.effects.health,4);
+            memcpy(rf_scene_vehicle_shot_probe+9,&owner->damage.state.effects.armor,4);
+            rf_scene_vehicle_shot_probe[10]=(uint32_t)campaign_player_inventory.loaded[weapon];
+        }
+    }
     if(campaign_cutscene_runtime.active){
         /* Combat updates the weapon scope each tick. Override its projection
          * after that update so authored FOV applies only to cinematic world

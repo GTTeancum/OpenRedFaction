@@ -900,6 +900,7 @@ int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid);
 int rf_scene_authored_post_place_group(rf_level *level,uint32_t uid,uint32_t count);
 extern uint32_t rf_scene_player_spawn_diagnostic[19];
 extern uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_watches[97];
+extern uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[12];
 extern uint32_t rf_scene_airlock[6];
 extern uint32_t rf_scene_script_animation[10];
 extern uint32_t rf_scene_rotating_doors[8];

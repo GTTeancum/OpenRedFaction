@@ -200,6 +200,17 @@ vehicles were destroyed, `When_Dead`
 fired once at 1016 ms, the lift moved, and 3,612 free pages remained. This
 proves the shared ray-selection/contact/damage path in a contained case;
 full player aiming, world cover and actual weapon flight remain unverified.
+The focused stock-64-MiB Xbox player-weapon fixture
+`artifacts/xemu/vehicle-player-shot-20260930-083146` staged one clear eye ray
+beside L20S2 Fighter01 UID 4801, then let the ordinary player Sniper Rifle
+combat tick select the hull, check world obstruction, consume one round and
+apply the class's armor-piercing bullet multiplier. Health fell from 900 to
+825, loaded ammo from 2 to 1, and 3,594 physical pages remained free. The
+installed `Fighter01` damage factors are zero for bash and ordinary bullets,
+0.3 for armor-piercing bullets and 0.5 for explosives; the earlier staged
+handgun shot consumed ammo and correctly left health at 900. The passing
+fixture proves one clear player-sourced precision shot, not player navigation
+and aiming from an unstaged pose or a wall-blocked negative case.
 The Xbox `--attached` save/load run
 `artifacts/xemu/vehicle-attached-save-20260930-073300` passed with all eight
 L20S2 vehicle records and the lift attachment continuing after reload.

@@ -536,6 +536,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             if(invalid || !data[0])return RF_FORMAT;campaign_return_exit_uid=data[0];campaign_return_item_uid=data[1];}
         exit_file=fopen("D:\\campaign-watch.bin","rb");
         if(exit_file){int invalid=fread(&rf_scene_watch_test_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
+        exit_file=fopen("D:\\campaign-vehicle-shot.bin","rb");
+        if(exit_file){int invalid=fread(&rf_scene_vehicle_shot_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid||!rf_scene_vehicle_shot_uid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-setup.bin","rb");
         if(exit_file){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),exit_file);fclose(exit_file);
             if((bytes!=4 && bytes!=8 && bytes!=12) || !values[0] ||
