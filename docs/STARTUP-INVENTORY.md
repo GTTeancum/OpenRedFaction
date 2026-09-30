@@ -62,4 +62,9 @@ The manual controller session was left untouched throughout these checks.
 Trigger activation counts and cooldown/contact deadlines now have separate
 section snapshots; see TRIGGER-CHECKPOINTS.md. Delayed event actions and a
 saved disabled auto trigger survive one bounded Xbox section return. Enabled
-auto-start effects and wider startup ownership remain open.
+auto-start effects and wider startup ownership remain open. Retired scripted
+event owners now restore before startup: a bounded Xbox L1S1 return with event
+UID8366 removed recorded zero repeated strip callbacks and one unresolved
+startup target (`artifacts/xemu/pending-section-event-20260930-010950`). The
+fixture explicitly bypassed Remove_Object UID8630's authored two-second delay
+to retire the owner before its first section exit.

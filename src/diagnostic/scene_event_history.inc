@@ -2,7 +2,7 @@
 #define RF_SCENE_EVENT_HISTORY_INC
 /* Level/UID section history, carried by RFCH4 ordinary saves. Runtime handles
  * become authored UIDs; active deadlines pause while their section is absent.
- * The high fired bit marks a Destroy_Object-retired event. */
+ * The high fired bit marks a Remove_Object-retired event. */
 #define CAMPAIGN_EVENT_SAVED_RETIRED 0x80000000u
 typedef struct campaign_event_saved {
     uint32_t type,count,enabled,fired;
@@ -124,6 +124,26 @@ static int campaign_event_history_find(const rf_campaign_pickups *history,const 
         }
     }
     return RF_NOT_FOUND;
+}
+/* Remove previously retired owners before switches and auto triggers perform
+ * their startup actions. The full event-state restore still runs afterward. */
+static int campaign_event_startup_retire(void)
+{
+    uint32_t i,slot;int status;
+    for(i=0;i<campaign_events.count;i++){
+        rf_runtime_event *event=campaign_events.items+i;
+        if(!event->authored)return RF_FORMAT;
+        status=campaign_event_history_find(&campaign_event_history,campaign_current_level,
+            event->authored->record.uid,&slot);
+        if(status==RF_NOT_FOUND)continue;
+        if(status)return status;
+        if(campaign_event_history.items[slot].retired &&
+           campaign_event_saved_states[slot].fired==CAMPAIGN_EVENT_SAVED_RETIRED){
+            status=campaign_event_restore(event,0,NULL,campaign_event_saved_states+slot);
+            if(status)return status;
+        }
+    }
+    return RF_OK;
 }
 static int campaign_event_checkpoint(uint32_t save,int32_t now,scene_stream *stream)
 {

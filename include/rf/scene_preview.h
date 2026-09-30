@@ -43,6 +43,7 @@ extern uint32_t rf_scene_player_checkpoint_state[8];
 /* Process-local fixture: dispatch an authored Load_Level UID at a given tick. */
 int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
 int rf_scene_fire_setup_event(uint32_t uid,int32_t now);
+int rf_scene_fire_setup_event_immediate(uint32_t uid,int32_t now);
 int rf_scene_fire_setup_event_with_refs(uint32_t uid,uint32_t source_uid,uint32_t actor_uid,int32_t now);
 uint32_t rf_scene_event_ref_probe(uint32_t uid,uint32_t source_uid,uint32_t actor_uid);
 int rf_scene_disable_auto_trigger(uint32_t uid);

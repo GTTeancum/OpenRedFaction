@@ -124,11 +124,11 @@ Current platform priority (user direction,2026-09-29): Xbox is the sole runtime 
 
 - Scripted timers: Cyclic_Timer drives finite/unlimited event/mover pulses; level/UID revisit history and the ordinary-event disk codec/load path preserve count, enabled state and remaining deadline, while a focused Xbox save/reload check and broader live route checks remain.
 
-- Scripted event retirement: Destroy_Object-retired event owners now persist by section UID through revisits and RFCH4 ordinary saves; a focused Xbox return-to-section behavior check and other removed object classes remain.
+- Scripted event retirement: Remove_Object-retired event owners now restore before section startup and persist through RFCH4; a bounded stock64MiB Xbox L1S1 return suppresses a retired startup strip event, while other removed object classes remain.
 
 - Delayed section events: RFCH4 saves pending deadlines, modes and UID-tagged references; stock64MiB Xbox L1S2→L1S1→L1S2 restores live UID9728/9732 references and later dispatches Message9725, while broader event types, missing owners and startup side effects remain open.
 
-- Auto-start triggers: Previously disabled L1S2 auto trigger10078 now stays suppressed on a stock64MiB Xbox section return; enabled trigger effects and other startup side effects remain open.
+- Auto-start triggers: Saved-disabled L1S2 trigger10078 and retired L1S1 strip event8366 now stay suppressed on stock64MiB Xbox section returns; enabled trigger effects and other startup side effects remain open.
 
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 

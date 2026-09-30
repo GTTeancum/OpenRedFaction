@@ -41,7 +41,7 @@ uint32_t rf_xbox_event_handoff_probe[2]; /* live refs and pending state after re
 char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
-static uint32_t campaign_setup_next_uid,campaign_setup_source_uid,campaign_setup_actor_uid,campaign_goto_frame;
+static uint32_t campaign_setup_next_uid,campaign_setup_source_uid,campaign_setup_actor_uid,campaign_setup_immediate,campaign_goto_frame;
 static uint32_t campaign_disable_auto_uid;
 static uint32_t campaign_npc_drop_uid,campaign_npc_drop_frame;
 static float campaign_npc_drop_speed;
@@ -61,7 +61,8 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         campaign_npc_drop_uid=0;
     }
     if(campaign_setup_uid && !campaign_total_frames) {
-        int status=campaign_setup_source_uid?
+        int status=campaign_setup_immediate?
+            rf_scene_fire_setup_event_immediate(campaign_setup_uid,0):campaign_setup_source_uid?
             rf_scene_fire_setup_event_with_refs(campaign_setup_uid,campaign_setup_source_uid,campaign_setup_actor_uid,0):
             rf_scene_fire_setup_event(campaign_setup_uid,0);if(status)return status;
     }
@@ -542,6 +543,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             campaign_setup_uid=values[0];
             if(bytes==12){campaign_setup_source_uid=values[1];campaign_setup_actor_uid=values[2];}
             else campaign_setup_next_uid=values[1];}
+        exit_file=fopen("D:\\campaign-setup-immediate.flag","rb");
+        if(exit_file){campaign_setup_immediate=1;fclose(exit_file);if(!campaign_setup_uid||campaign_setup_source_uid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-disable-auto.bin","rb");
         if(exit_file){int invalid=fread(&campaign_disable_auto_uid,4,1,exit_file)!=1 ||
             !campaign_disable_auto_uid || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}

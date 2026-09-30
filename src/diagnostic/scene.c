@@ -1434,6 +1434,21 @@ int rf_scene_fire_setup_event_with_refs(uint32_t uid,uint32_t source_uid,uint32_
         &scene_gravity,NULL,NULL,&report);
 }
 
+int rf_scene_fire_setup_event_immediate(uint32_t uid,int32_t now)
+{
+    uint32_t i;rf_startup_events_report report;
+    for(i=0;i<campaign_events.count;i++){
+        rf_runtime_event *event=campaign_events.items+i;float delay;int status;
+        if(event->authored->record.uid!=uid)continue;
+        if(event->state.type!=2 || event->state.delay<=0)return RF_FORMAT;
+        delay=event->state.delay;event->state.delay=0;
+        status=rf_runtime_event_fire(&campaign_triggers,event->handle,
+            UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
+        event->state.delay=delay;return status;
+    }
+    return RF_NOT_FOUND;
+}
+
 uint32_t rf_scene_event_ref_probe(uint32_t uid,uint32_t source_uid,uint32_t actor_uid)
 {
     rf_runtime_event *target=NULL,*source=NULL,*actor=NULL;uint32_t i,mask=0;
@@ -19030,6 +19045,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_switch_runtime,0,sizeof(rf_scene_switch_runtime));memset(rf_scene_switch_detail,0,sizeof(rf_scene_switch_detail));
             campaign_inventory_ready=campaign_item_pending_count=0;memset(rf_scene_script_grants,0,sizeof(rf_scene_script_grants));
             status=campaign_actors_restore();if(status)goto done;
+            status=campaign_event_startup_retire();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
             memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;

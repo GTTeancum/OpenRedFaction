@@ -2,10 +2,20 @@
 
 RFEC3 preserves one supported event's represented runtime fields. It is not ordinary-scene save admission. The composer must capture associated world state, preflight every component, rebuild references, publish state and remove retired owners from the registry before gameplay resumes. Restore itself dispatches no effects or sounds.
 
-Section history now preserves `Destroy_Object` retirement of scripted event
+Section history now preserves `Remove_Object` retirement of scripted event
 owners, including types with no timer or threshold history. It keys each event
 by section and authored UID, records a retirement bit in RFCH4, and removes
-the rebuilt owner from the new section's registry before play resumes.
+the rebuilt owner from the new section's registry before startup actions run.
+The late full history restore remains idempotent for that owner.
+
+A bounded stock-64-MiB Xbox L1S1→L1S2→L1S1 run retired authored startup
+Strip_Player_Weapons event UID8366 through Remove_Object UID8630 before leaving.
+The process-local fixture bypassed UID8630's authored two-second delay solely
+to place the retirement before the frame60 exit. On return, the auto trigger
+encountered one unresolved target and the first-entry inventory guard recorded
+zero repeated strip callbacks. The run completed240 frames with3,949 free pages
+(`artifacts/xemu/pending-section-event-20260930-010950`). Other removed object
+classes and natural timing remain open.
 
 RFCH4 also freezes a pending event's remaining delay at section exit, retaining
 its activation mode and source/actor as sentinel tags or authored UIDs. A

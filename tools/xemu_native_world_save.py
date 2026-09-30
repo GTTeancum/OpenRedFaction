@@ -30,7 +30,7 @@ EMULATOR = Path('C:/Games/Emulators/Xemu')
 FLAGS = (
     'campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin',
     'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin',
-    'campaign-setup.bin', 'campaign-disable-auto.bin', 'campaign-goal.bin', 'campaign-goto.bin',
+    'campaign-setup.bin', 'campaign-setup-immediate.flag', 'campaign-disable-auto.bin', 'campaign-goal.bin', 'campaign-goto.bin',
     'campaign-npc-drop.bin',
     'campaign-exit-start.bin', 'campaign-trigger-start.bin',
     'campaign-quick-actions.bin', 'player-replay.bin',
