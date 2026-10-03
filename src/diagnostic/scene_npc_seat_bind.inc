@@ -32,6 +32,42 @@ static campaign_npc_body *scene_npc_seat_actor(const scene_npc_seat_binding *b)
        rf_entity_lookup(&campaign_entities,(int32_t)b->actor)!=&o->view)return NULL;
     return o;
 }
+/* An inactive binding is an authored identity record, never occupancy. This
+ * resolves only a fully released same-class owner; unknown generations,
+ * parent links and real active seats remain blocking dependencies. */
+static scene_passive_vehicle *scene_npc_seat_passive_jeep(const scene_npc_seat_binding *b)
+{
+    scene_passive_vehicle *found=NULL;
+    if(!b||b->active||b->kind!=SCENE_NPC_SEAT_JEEP)return NULL;
+    for(uint32_t i=0;i<campaign_passive_vehicle_count;i++) {
+        scene_passive_vehicle *p=campaign_passive_vehicles+i;
+        if(p->uid!=b->host_uid||p->handle!=b->host)continue;
+        if(found||p->resource_kind!=5||p->attached||p->group_owned||
+           p->damage.state.effects.handle!=b->host||
+           rf_object_registry_lookup(&campaign_registry,b->host)!=p||
+           rf_entity_lookup(&campaign_entities,(int32_t)b->host))return NULL;
+        found=p;
+    }
+    return found;
+}
+static uint32_t scene_npc_seat_retired(const scene_npc_seat_binding *b)
+{
+    campaign_npc_body *o;scene_driller_runtime *r;
+    if(!b||b->active||b->kind!=SCENE_NPC_SEAT_JEEP||b->occupant!=-1||!scene_npc_seat_stream)return 0;
+    o=scene_npc_seat_actor(b);
+    if(!o||o->view.linked_handle!=-1||o->ai_mode.action_280==13||
+       (o->damage.effects.health>0&&o->view.action_520==13))return 0;
+    r=scene_npc_seat_stream->driller_runtime;
+    if(r&&r->entry.host.handle==b->host) {
+        return campaign_authored_vehicle_uid==(int32_t)b->host_uid&&
+            scene_npc_seat_stream->driller&&!strcmp(scene_npc_seat_stream->driller->model,"Jeep01.v3m")&&
+            r->entry.registration.handle==b->host&&
+            rf_object_registry_lookup(&campaign_registry,b->host)==&r->entry.registration&&
+            rf_entity_lookup(&campaign_entities,(int32_t)b->host)==&r->entry.view&&
+            r->entry.host.driver==UINT32_MAX&&r->entry.occupant==-1&&r->entry.gunner_occupant==-1;
+    }
+    return scene_npc_seat_passive_jeep(b)!=NULL;
+}
 static int scene_npc_seat_host_read(scene_npc_seat_binding *b,scene_npc_seat_host *out)
 {
     scene_npc_seat_host h={0};scene_stream *s=scene_npc_seat_stream;
@@ -209,7 +245,27 @@ static int scene_npc_seats_open(scene_stream *stream,int32_t now)
         else if(campaign_authored_vehicle_uid==host_uid&&stream->driller_runtime&&stream->driller&&
                 !strcmp(stream->driller->model,"Jeep01.v3m")) {
             b->kind=SCENE_NPC_SEAT_JEEP;b->host=stream->driller_runtime->entry.registration.handle;
-        }else{++rf_scene_npc_seats[2];continue;}
+        }else {
+            /* A fresh switched save can retain an authored former driver
+             * whose host is now passive. Only the source-validated inactive
+             * RFNS row admits this placeholder; ordinary unresolved spawns
+             * never become retired bindings. Full world admission follows. */
+            int32_t saved_tag=-1;scene_passive_vehicle *passive=NULL;
+            if(stream->driller&&!strcmp(stream->driller->model,"Jeep01.v3m")&&
+               scene_vehicle_switch_boot_retired_seat((uint32_t)campaign_seeds.records.items[i].record.uid,
+                   (uint32_t)host_uid,&saved_tag)) {
+                for(uint32_t j=0;j<campaign_passive_vehicle_count;j++)if(campaign_passive_vehicles[j].uid==(uint32_t)host_uid) {
+                    if(passive){status=RF_FORMAT;goto fail;}passive=campaign_passive_vehicles+j;
+                }
+                if(!passive){status=RF_NOT_FOUND;goto fail;}
+                b->kind=SCENE_NPC_SEAT_JEEP;b->host=passive->handle;
+                if(!scene_npc_seat_passive_jeep(b)||!scene_npc_seat_actor(b)||o->view.linked_handle!=-1){status=RF_NOT_FOUND;goto fail;}
+                status=rf_static_model_tags_find(&stream->driller->tags,(rf_model_name){"interface_1",11},&tag);
+                if(status)goto fail;if(tag!=saved_tag){status=RF_FORMAT;goto fail;}
+                b->tag=tag;++scene_npc_seat_count;continue;
+            }
+            ++rf_scene_npc_seats[2];continue;
+        }
         status=scene_npc_seat_host_read(b,&h);if(status)goto fail;
         if(!scene_npc_seat_actor(b)||!h.alive||o->damage.effects.health<=0||o->view.linked_handle!=-1||
            *h.occupant!=-1||(h.driver&&*h.driver!=UINT32_MAX)||
@@ -239,16 +295,21 @@ static void scene_npc_jeep_detached_sample(void)
 {
     for(uint32_t i=0;i<scene_npc_seat_count;i++) {
         scene_npc_seat_binding *b=scene_npc_seats+i;scene_npc_seat_host h={0};
-        campaign_npc_body *o;uint32_t *p=rf_scene_npc_jeep_detached_probe;
+        campaign_npc_body *o;scene_passive_vehicle *passive;uint32_t *p=rf_scene_npc_jeep_detached_probe;
         if(b->kind!=SCENE_NPC_SEAT_JEEP||b->active)continue;
-        o=scene_npc_seat_actor(b);
-        if(!o||scene_npc_seat_host_read(b,&h)||!h.occupant||!h.driver)continue;
+        o=scene_npc_seat_actor(b);passive=scene_npc_seat_passive_jeep(b);
+        if(!o)continue;
+        if(passive){if(!scene_npc_seat_retired(b))continue;}
+        else if(scene_npc_seat_host_read(b,&h)||!h.occupant||!h.driver)continue;
         p[0]=(uint32_t)campaign_seeds.records.items[b->slot].record.uid;
         p[1]=b->host_uid;p[2]=b->actor;p[3]=b->host;
         memcpy(p+4,&o->damage.effects.health,4);
         p[5]=(uint32_t)o->ai_mode.action_280;p[6]=(uint32_t)o->view.linked_handle;
-        p[7]=(uint32_t)*h.occupant;p[8]=*h.driver;p[9]=b->active;
-        p[10]=campaign_vehicle_route.active;p[11]=(uint32_t)campaign_vehicle_route.ai_action;
+        p[7]=passive?UINT32_MAX:(uint32_t)*h.occupant;p[8]=passive?UINT32_MAX:*h.driver;p[9]=b->active;
+        /* Passive owners have no live singleton route. UINTMAX marks that
+         * unavailable field rather than reporting another owner's mode. */
+        p[10]=passive?UINT32_MAX:campaign_vehicle_route.active;
+        p[11]=passive?UINT32_MAX:(uint32_t)campaign_vehicle_route.ai_action;
         memcpy(p+12,o->body.state.position,12);p[15]=1;
     }
 }

@@ -35,8 +35,21 @@ static int scene_vehicle_switch_seed(uint32_t uid,uint32_t *index)
 static uint32_t scene_vehicle_switch_dependency(uint32_t uid,uint32_t handle)
 {
     if(campaign_support_handle==handle)return 1;
-    for(uint32_t i=0;i<scene_npc_seat_count;i++)if(scene_npc_seats[i].host_uid==uid||scene_npc_seats[i].host==handle)return 1;
-    for(uint32_t i=0;i<campaign_seeds.records.count;i++)if(campaign_seeds.items[i].spawn.seat_host_uid==(int32_t)uid)return 1;
+    for(uint32_t i=0;i<scene_npc_seat_count;i++) {
+        const scene_npc_seat_binding *b=scene_npc_seats+i;
+        if((b->host_uid==uid||b->host==handle)&&
+           (b->host_uid!=uid||b->host!=handle||!scene_npc_seat_retired(b)))return 1;
+    }
+    /* A resolved, released original binding discharges only its own authored
+     * seat reference. Missing or future unresolved actors still block. */
+    for(uint32_t i=0;i<campaign_seeds.records.count;i++)if(campaign_seeds.items[i].spawn.seat_host_uid==(int32_t)uid) {
+        uint32_t matches=0;
+        for(uint32_t j=0;j<scene_npc_seat_count;j++) {
+            const scene_npc_seat_binding *b=scene_npc_seats+j;
+            if(b->slot==i&&b->host_uid==uid&&b->host==handle&&scene_npc_seat_retired(b))++matches;
+        }
+        if(matches!=1)return 1;
+    }
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
         if(o->view.linked_handle==(int32_t)handle||o->support.handle==handle||

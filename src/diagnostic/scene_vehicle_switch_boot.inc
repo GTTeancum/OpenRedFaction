@@ -1,6 +1,52 @@
 /* Early resource identity only; gameplay state still uses staged world load. */
 static uint32_t scene_vehicle_switch_boot_order[RF_OBJECT_CAPACITY];
 static uint32_t scene_vehicle_switch_boot_count,scene_vehicle_switch_boot_uid;
+/* Saved inactive seat identities are hints for constructing the fresh bank.
+ * Full RFNS/NPC semantic admission still precedes gameplay publication. */
+static uint32_t scene_vehicle_switch_boot_seats[SCENE_NPC_SEAT_LIMIT][3];
+static uint32_t scene_vehicle_switch_boot_seat_count;
+static int scene_vehicle_switch_boot_retired_seat(uint32_t actor,uint32_t host,int32_t *tag)
+{
+    if(!tag||!scene_vehicle_switch_boot_uid)return 0;
+    for(uint32_t i=0;i<scene_vehicle_switch_boot_seat_count;i++)
+        if(scene_vehicle_switch_boot_seats[i][0]==actor&&scene_vehicle_switch_boot_seats[i][1]==host){
+            *tag=(int32_t)scene_vehicle_switch_boot_seats[i][2];return 1;
+        }
+    return 0;
+}
+static int scene_vehicle_switch_boot_seats_read(const unsigned char *p,uint32_t bytes)
+{
+    /* RFSW has already passed its complete structural check. */
+    uint32_t n=scene_history_word(p+8);p+=SCENE_VEHICLE_SWITCH_HEADER;(void)bytes;
+    for(uint32_t depth=0;depth<6;depth++){
+        if(n<4)return RF_OK;
+        if(!memcmp(p,"RFNS",4)){
+            if(n<16)return RF_FORMAT;
+            uint32_t version=scene_history_word(p+4),inner=scene_history_word(p+8),count=scene_history_word(p+12);
+            if((version!=1&&version!=2)||!count||count>SCENE_NPC_SEAT_LIMIT||16ull+inner+24ull*count!=n)return RF_FORMAT;
+            const unsigned char *rows=p+16+inner;
+            for(uint32_t i=0;i<count;i++){
+                const unsigned char *r=rows+24*i;uint32_t actor=scene_history_word(r),host=scene_history_word(r+4);
+                uint32_t tag=scene_history_word(r+8),kind=scene_history_word(r+12),active=scene_history_word(r+16),control=scene_history_word(r+20);
+                if(!actor||actor>0x7fffffffu||!host||host>0x7fffffffu||tag>0x7fffffffu||active>1||control>1||
+                   (kind!=SCENE_NPC_SEAT_JEEP&&kind!=SCENE_NPC_SEAT_TURRET)||(!active&&control))return RF_FORMAT;
+                for(uint32_t j=0;j<i;j++)if(scene_history_word(rows+24*j)==actor)return RF_FORMAT;
+                if(kind==SCENE_NPC_SEAT_JEEP&&!active){uint32_t *out=scene_vehicle_switch_boot_seats[scene_vehicle_switch_boot_seat_count++];out[0]=actor;out[1]=host;out[2]=tag;}
+            }
+            return RF_OK;
+        }
+        uint32_t row=0,count,inner,version;
+        if(memcmp(p,"RFCL",4)&&memcmp(p,"RFTP",4)&&memcmp(p,"RFTU",4))return RF_OK;
+        if(n<16)return RF_FORMAT;
+        version=scene_history_word(p+4);inner=scene_history_word(p+8);count=scene_history_word(p+12);
+        if(!memcmp(p,"RFCL",4)){if(version!=1)return RF_FORMAT;row=SCENE_CORPSE_LIFETIME_ROW;}
+        else if(!memcmp(p,"RFTP",4)){if(version!=1||count!=SCENE_TURRET_PLAYER_CP_ROW)return RF_FORMAT;row=count;count=1;}
+        else {if(version==1)row=SCENE_TURRET_CHECKPOINT_ROW;else if(version==2)row=SCENE_TURRET_GENERATED_CHECKPOINT_ROW;else if(version==3)row=SCENE_TURRET_RETIREMENT_ROW;else return RF_FORMAT;}
+        if(16ull+inner+(uint64_t)count*row!=n)return RF_FORMAT;
+        p+=16;n=inner;
+    }
+    return RF_FORMAT;
+}
 /* Read-only ordinary-save resource demand. This does not grant inventory or
  * publish gameplay; the normal world transaction still validates every owner. */
 static int scene_vehicle_switch_boot_select(const rf_level *level,const char *tables_path)
@@ -15,7 +61,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
     uint32_t uid=0,profile=0,count=0,grouped=0;
     rf_checkpoint_file_selection selection={0};unsigned char *data=NULL;
     uint32_t bytes=0,i;int status=RF_OK;
-    scene_vehicle_switch_boot_count=0;scene_vehicle_switch_boot_uid=0;
+    scene_vehicle_switch_boot_count=0;scene_vehicle_switch_boot_uid=0;scene_vehicle_switch_boot_seat_count=0;
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!scene_live_load_active){
@@ -64,6 +110,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
         if(scene_vehicle_switch_boot_order[i]==uid){status=RF_FORMAT;goto done;}
         for(uint32_t j=0;j<i;j++)if(scene_vehicle_switch_boot_order[j]==scene_vehicle_switch_boot_order[i]){status=RF_FORMAT;goto done;}
     }
+    status=scene_vehicle_switch_boot_seats_read(slice->data,slice->bytes);if(status)goto done;
     /* Publish the selected resource identity only after transport, source and
      * full saved order admission. No passive/active vehicle owner has been
      * registered yet; existing groups and movers remain unchanged. */

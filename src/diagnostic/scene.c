@@ -15981,6 +15981,7 @@ static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
 static int scene_vehicle_wreck_exit_try(scene_stream *,uint32_t,uint32_t,uint32_t,int32_t,uint32_t *);
+static int scene_vehicle_switch_boot_retired_seat(uint32_t,uint32_t,int32_t *);
 #include "scene_npc_seat_bind.inc"
 #include "scene_npc_teleport.inc"
 #include "scene_npc_seat_checkpoint.inc"
