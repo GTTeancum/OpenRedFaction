@@ -12,6 +12,9 @@ Remaining first-playable work, grouped for planning:
 - Xbox usability: Address material performance/memory problems and missing audio/HUD/animation feedback; retain visual polish and hardware feedback as separate later work.
 
 - Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
+- Allied combat: Stock64MiB Xbox verifies autonomous hostile/allied acquisition, mutual weapon damage, death and survivor target release; reactive-target ordinary saves and broader tactics remain open (docs/NPC-OPPOSED-COMBAT.md).
+- Placed Fusion pickup: The missing shoulder-cannon registry entry is corrected and compiled; its ordinary collection harness is prepared but unrun (tools/xemu_fusion_world_pickup.py).
+- Empty Jeep driver seat: A parked gunner-to-driver transfer helper is prepared for a detached/dead NPC driver, but integration and Xbox validation remain (src/diagnostic/scene_jeep_gunner_driver_transfer.inc).
 - Authored NPC seating: The original seat-host UID decodes for all1,610 installed entities; Jeep/turret ownership and turret seat/save continuation work; a parked Jeep with its dead detached driver now restores from an ordinary Xbox save, while broader seats remain open; moving shared Jeep gunner saves now pass a focused Xbox continuation (docs/research/NPC-VEHICLE-SEAT-ASSIGNMENT.md).
 - Jeep player gunner: Stock-64-MiB Xbox verifies boarding beside the NPC driver, three gun launches, occupied-seat switch rejection and safe exit; RFNS2 shared-occupancy ordinary save/fresh-load now passes with motion/aim/ownership restored and two resumed shots; current-session gunner loads and broader ejection remain open (docs/JEEP-NPC-GUNNER.md).
 - Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving, preserves the suspended route through ordinary Xbox saves, and resumes a nonzero cursor without teleport on stock-64-MiB Xbox; authored NPC seats are integrated, while broader vehicle behavior remains open (docs/VEHICLE-AI-MODES.md).
@@ -6008,3 +6011,12 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Stock64MiB source92/load120 PASS restores six exact age/fade owners, expires UID913100 once, and writes a valid final save with its retired identity plus five retained bodies; no replayed death/audio/loot events.
 - Evidence: artifacts/xemu/corpse-fade-save-20261003-132725/report.json; NXDK build passes, minimum endpoint3126 free pages (12.21MiB), original disc inputs restored. No visual/audio playback claim or PC runtime test.
 - Burning/carried/moving bodies, timer-wrap age and broader retention cases remain deferred. Overall estimate stays approximately88%; current high-level work is AI and actor lifecycle (approximately90%).
+
+
+### Autonomous opposed NPC combat (2026-10-03)
+
+- Integrated staggered sight acquisition for hostile0 versus friendly2, preserving existing targets, authored orders, player sight priority, AI-mode gates and ordinary cover. Neutral/outcast actors are not automatically selected.
+- Stock64MiB180-frame encounter passes: two independent acquisitions, four shots/hits, bilateral damage, one death, survivor target release, no later shots and player health100. Minimum endpoint6094 free pages (23.80MiB).
+- Report: artifacts/xemu/npc-opposed-20261003-134033/report.json. Initial validator wrongly required nonfatal damage; corrected against retained native state without a rerun, preserving original failure. No images, PC run, campaign route or audio/visual claim.
+- Reactive-mode ordinary saves remain unsupported and are the next material AI continuity gap. Overall approximately88%; AI and actor lifecycle approximately91%.
+- Also compiled missing placed Fusion class registration (stable index31); dedicated collection harness prepared but unrun. Parked Jeep gunner-to-driver helper remains unintegrated for next vehicle slice.

@@ -1,5 +1,12 @@
 # First-pass enemy awareness and combat
 
+Current integration (2026-10-03): autonomous opposed-NPC sight now connects
+friendly allies and hostiles to the existing reactive combat path. A focused
+stock64MiB Xbox encounter verifies independent acquisition, bilateral damage,
+one death and survivor target release with no further fire. See
+[NPC-OPPOSED-COMBAT.md](NPC-OPPOSED-COMBAT.md) for scope and remaining reactive
+save support. Older sections below record earlier implementation stages.
+
 The shared scene now checks unalerted, visible, alive armed actors every30
 simulation frames, staggered by actor index. Authored affiliation0 can acquire
 the player within20 world units and a120-degree forward cone when the retained

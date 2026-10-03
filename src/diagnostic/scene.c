@@ -11207,6 +11207,7 @@ static void campaign_enemy_point_ray_target(const campaign_npc_body *shooter,
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
 static int scene_ai_rocket_launch(campaign_npc_body *,const float *);
 static int scene_ai_tankbot_missile_launch(campaign_npc_body *,const float *);
+#include "scene_ai_opposed_acquisition.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -11231,6 +11232,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             ++rf_scene_enemy_combat[2];campaign_script_single_pop(owner,1);
             continue;
         }
+        status=campaign_enemy_opposed_acquire(stream,i,frame,player_eye);if(status)return status;
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
          if(!once && !campaign_enemy_mode_admits(owner,speed2>.0001f,0)){campaign_pursuit_stop(owner);continue;}}
         /* First-pass disguise policy: unalerted ordinary guards do not acquire
@@ -15020,6 +15022,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;impact_sound_random.value=1;memset(rf_scene_impact_audio,0,sizeof(rf_scene_impact_audio));memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));campaign_enemy_sight_phase_offset=0;
+        campaign_enemy_opposed_reset();
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));
@@ -15122,6 +15125,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
     rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    scene_npc_opposed_probe();
     status=scene_turret_scene_tick(stream,frame);if(status)return status;
     campaign_vehicle_attack_live_probe();
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
@@ -17400,7 +17404,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                     campaign_npc_bodies[j].registration.handle==o->combat_target && campaign_npc_bodies[j].damage.effects.health>0) {
                     aim=campaign_npc_bodies[j].body.state.position;break;}
             }
-            if(aim && (o->combat_scripted==3 || campaign_player_damage.state.effects.health>0)) {
+            if(aim && (o->combat_scripted || campaign_player_damage.state.effects.health>0)) {
                 memcpy(o->body.state.next_position,o->body.state.position,12);
                 status=rf_scene_npc_steer(o->registration.handle,aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
                 status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;

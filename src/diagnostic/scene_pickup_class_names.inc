@@ -4,14 +4,14 @@
  * Slots match the shared implemented weapon list, not table weapon IDs. */
 enum { SCENE_PICKUP_FIRST_AID=10, SCENE_PICKUP_MINER_SUIT=28,
        SCENE_PICKUP_DOCTOR_UNIFORM=29, SCENE_PICKUP_SILENCED_HANDGUN=30,
-       SCENE_PICKUP_CLASSES=31 };
+       SCENE_PICKUP_FUSION=31, SCENE_PICKUP_CLASSES=32 };
 static const char *pickup_classes[SCENE_PICKUP_CLASSES]={
     "Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle",
     "5.56mm_ammo","Riot Stick","riot_stick_battery","Shotgun","10gauge_ammo","First Aid Kit",
     "Remote Charge","Remote Charges","Sniper Rifle","rocket launcher","grenades",
     "rail gun",".50cal_ammo","rocket_launcher_ammo","railgun_bolts","flamethrower","Napalm","riot shield",
     "Machine Pistol","heavy machine gun","scope assault rifle","7.62mm_ammo","explosive 5.56mm rounds",
-    "Miner Envirosuit","Doctor Uniform","Silenced 12mm Handgun"
+    "Miner Envirosuit","Doctor Uniform","Silenced 12mm Handgun","shoulder cannon"
 };
 static int scene_pickup_name_equal(const char *a,const char *b)
 {
@@ -28,7 +28,7 @@ static int pickup_class(const char *name)
 }
 static int scene_pickup_weapon_slot(int kind)
 {
-    static const signed char slots[SCENE_PICKUP_CLASSES]={0,-1,-1,0,1,1,2,2,3,3,-1,8,8,6,4,5,7,6,4,7,10,10,11,-1,-1,-1,-1,-1,-1,-1,0};
+    static const signed char slots[SCENE_PICKUP_CLASSES]={0,-1,-1,0,1,1,2,2,3,3,-1,8,8,6,4,5,7,6,4,7,10,10,11,-1,-1,-1,-1,-1,-1,-1,0,-1};
     return kind>=0 && kind<SCENE_PICKUP_CLASSES?slots[kind]:-1;
 }
 #endif
