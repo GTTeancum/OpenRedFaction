@@ -59,26 +59,35 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
     scene_turret_scene_context *c=context;scene_turret_owner *shooter=scene_turret_lookup(source);
     scene_ai_shield_ray_selection npc_shield={0};scene_player_shield_candidate player_shield={0};
     rf_weapon_flight_contact vehicle_contact={0};uint32_t i,blocked,vehicle=0,kind=0,slot=UINT32_MAX;
-    uint32_t body_hit=0,clock;float spread[3],end[3],fraction=1,body_fraction=1,damage,amount=0;
+    uint32_t body_hit=0,clock,player_source,damage_source;
+    float spread[3],end[3],fraction=1,body_fraction=1,damage,spread_degrees,amount=0;
     int status;float seconds;combat_feedback feedback;
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
         combat_random,combat_notify,combat_playing,combat_play,&feedback};
     (void)intended; /* The actual nearest hit, not the intended target, owns damage. */
     if(!c || !c->stream || !shooter || !definition || !eye || !muzzle || !ray ||
        weapon!=scene_turret_vauss_id || definition->damage_kind<0 || definition->damage_kind>8)return RF_RANGE;
-    damage=combat_enemy_primary_damage(definition);if(!isfinite(damage) || damage<0)return RF_FORMAT;
+    /* Collision identity stays the turret so its own mesh is excluded.
+     * A mounted player's actual handle owns damage and uses authored player
+     * values; an autonomous/NPC-operated turret retains the prior AI policy. */
+    player_source=scene_turret_player_source(source);
+    damage_source=player_source==UINT32_MAX?source:player_source;
+    damage=player_source==UINT32_MAX?combat_enemy_primary_damage(definition):definition->damage;
+    spread_degrees=player_source==UINT32_MAX?definition->ai_spread_degrees:definition->spread_degrees;
+    if(!isfinite(damage) || damage<0)return RF_FORMAT;
     seconds=(float)c->frame/60;memcpy(&clock,&seconds,4);
     feedback=(combat_feedback){(int32_t)((uint64_t)c->frame*1000/60%RF_TIMER_PERIOD),0};
-    status=rf_weapon_spread_ray(ray,definition->ai_spread_degrees,&campaign_enemy_spread_random,spread);if(status)return status;
+    status=rf_weapon_spread_ray(ray,spread_degrees,&campaign_enemy_spread_random,spread);if(status)return status;
     for(i=0;i<3;i++)end[i]=eye[i]+spread[i];
     ++rf_scene_turret_shots[0];++rf_scene_enemy_spread[0];
-    if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
+    if(spread_degrees>0)++rf_scene_enemy_spread[1];rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
     {const char *auto_head="Auto Turret Head";
      const char *name;status=scene_turret_class_name(&campaign_seeds,shooter->class_index,&name);if(status)goto fail;
      combat_sound(rf_emitter_name_lookup(&auto_head,1,name)==0?"Vauss2 Fire":"Vauss5 Fire",muzzle);}
     /* Each candidate combines its body and held shield before comparing with
      * other actors. This preserves outstretched shields outside coarse spheres. */
-    if(scene_turret_scene_player_live() && campaign_player_object.handle!=source) {
+    if(scene_turret_scene_player_live() && campaign_player_object.handle!=source &&
+       campaign_player_object.handle!=player_source) {
         float hit_fraction=1;uint32_t shield_hit;
         body_hit=combat_body(eye,spread,&scene_actor_body,1,&hit_fraction);body_fraction=hit_fraction;
         if(body_hit){fraction=hit_fraction;kind=1;}
@@ -105,11 +114,11 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
     if(blocked){++rf_scene_turret_shots[4];return RF_OK;}
     if(vehicle) {
         uint32_t handled;
-        status=scene_driller_projectile_damage(&vehicle_contact,source,damage,definition->damage_kind,c->frame,&handled,&amount);if(status)goto fail;
+        status=scene_driller_projectile_damage(&vehicle_contact,damage_source,damage,definition->damage_kind,c->frame,&handled,&amount);if(status)goto fail;
         rf_scene_turret_shots[3]+=handled;rf_scene_turret_shots[1]+=amount>0;
         rf_scene_turret_shots[6]=vehicle_contact.face;return RF_OK;
     }
-    {rf_damage_request request={damage,source,definition->damage_kind,0,UINT32_MAX,0};uint32_t accepted=0,broken;
+    {rf_damage_request request={damage,damage_source,definition->damage_kind,0,UINT32_MAX,0};uint32_t accepted=0,broken;
      if(kind==3)status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);
      else if(kind==4)status=scene_ai_shield_ray_commit(&npc_shield,eye,end,&request,&accepted,&broken);
      else status=RF_OK;if(status)goto fail;
@@ -158,6 +167,9 @@ static int scene_turret_scene_tick(scene_stream *stream,uint32_t frame)
     /* actor_follow_view publishes this gameplay listener before combat, ahead
      * of diagnostic view overrides. Do not advance actor_listener_pose twice. */
     memcpy(context.player_eye,campaign_listener_position,12);
+    /* Mounted camera/audio are at the gun; enemy aim and shield queries
+     * still target the player's physical body, which remains collision-live. */
+    (void)scene_turret_player_body_eye(context.player_eye);
     backend=(scene_turret_combat_backend){campaign_npc_body_count+1,scene_turret_scene_target,
         scene_turret_scene_blocked,scene_turret_scene_shot,&context};
     {int status=scene_turret_generated_activation_tick(frame,&backend);if(status)return status;}

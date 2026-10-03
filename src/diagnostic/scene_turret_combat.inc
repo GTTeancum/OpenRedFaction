@@ -122,6 +122,9 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         scene_turret_combat_target chosen={0};float eye[3],delta[3],best=scene_turret_primary.ai_attack_range;
         uint32_t generated_ready=0,generated=0,alive,affiliation,found=0,blocked,reachable,operator_bound,operator_eligible,operator_actor;float cone;
         if(s->handle!=o->registration.handle || scene_turret_lookup(s->handle)!=o)return RF_FORMAT;
+        /* The player owns aim/cadence until exit. Do not release or rewrite
+         * that state through the autonomous action/target branches below. */
+        if(scene_turret_player_controls(s->handle))continue;
         if(s->last_frame==frame)continue;
         if(s->last_frame!=UINT32_MAX && frame<s->last_frame)scene_turret_combat_release(o,s);
         s->last_frame=frame;

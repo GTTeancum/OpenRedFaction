@@ -59,6 +59,7 @@ static int scene_checkpoint_player_support_uid(const scene_stream *s,uint32_t *u
 static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t live,uint32_t modes)
 {
     uint32_t i,support_uid,rocket_trigger;
+    if(scene_turret_player_active())return RF_RANGE;
     if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
     if(!modes && campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;

@@ -429,6 +429,13 @@ uint32_t rf_scene_player_input_frames[64][7];
 void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit)
 {player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
 static int campaign_life_input(uint32_t frame,rf_scene_input *input);
+static uint32_t scene_turret_player_active(void);
+static uint32_t scene_turret_player_controls(uint32_t host);
+static uint32_t scene_turret_player_source(uint32_t host);
+static uint32_t scene_turret_player_body_eye(float out[3]);
+static void scene_turret_player_filter(rf_scene_input *input);
+static int scene_turret_player_exit(uint32_t reason);
+static void scene_turret_player_reset(void);
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
@@ -456,6 +463,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     if(campaign_cutscene_runtime.active)memset(&value,0,sizeof(value));
     if(campaign_defuse.active){status=campaign_defuse_input(frame,&value);if(status)return status;}
     if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
+    scene_turret_player_filter(&value);
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
@@ -5781,6 +5789,7 @@ static void campaign_close_movers(void)
     rf_clutter_classes_close(&campaign_clutter_classes);
     rf_clutter_catalogs_close(&campaign_clutter_catalogs);
     campaign_live_corpses_close();
+    (void)scene_turret_player_exit(3);
     scene_turret_combat_close();(void)scene_turrets_close();(void)scene_turret_generated_close();scene_turret_models_close();
     campaign_models_close();
     campaign_npc_bodies_close();
@@ -9357,7 +9366,7 @@ static int campaign_jump_update(uint32_t frame)
 }
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
-    if(scene_driller_active((scene_stream*)context))return RF_OK;
+    if(scene_driller_active((scene_stream*)context)||scene_turret_player_active())return RF_OK;
     int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
     update_status=campaign_swim_update((scene_stream*)context,frame,controller);rf_scene_player_swim[11]=(uint32_t)update_status;if(update_status)return update_status;
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
@@ -11514,6 +11523,7 @@ static void campaign_pickup_sound(const rf_item_definition *definition,const flo
     /* Missing audio must not roll back a successful inventory grant. */
 }
 #include "scene_turret_scene_combat.inc"
+#include "scene_turret_player.inc"
 static int campaign_pickups_restore(scene_stream *stream)
 {
     uint32_t i,slot;int status;
@@ -14980,8 +14990,11 @@ static int campaign_vehicle_attack_fixture(uint32_t frame);
 static void campaign_vehicle_attack_live_probe(void);
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
-    float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
+    float delta[3],nearest=1,amount,mounted_eye[3];uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
     scene_conventional_fire_policy conventional={0};
+    if(scene_turret_player_body_eye(mounted_eye)){
+        position=mounted_eye;orientation=(const float (*)[3])actor_look.eye_orientation;
+    }
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
     if(!frame){memset(rf_scene_rocket_contacts,0,sizeof(rf_scene_rocket_contacts));dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
@@ -15067,7 +15080,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     {rf_weapon_scope_result scope;
      if(!frame){memset(&scene_scope,0,sizeof(scene_scope));rf_scene_scope_projection=scene_scope_look=1;}
      status=rf_weapon_scope_step(&scene_scope,!!player_input.alt_fire,
-        (campaign_equipped_slot==6 || campaign_equipped_slot==15) && !campaign_explicit_unarmed && !!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)],
+        !scene_turret_player_active() && (campaign_equipped_slot==6 || campaign_equipped_slot==15) && !campaign_explicit_unarmed && !!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)],
         campaign_player_damage.state.effects.health>0,RF_WEAPON_SCOPE_WORLD_FOV,RF_WEAPON_SCOPE_ZOOM_FOV,&scope);if(status)return status;
      rf_scene_scope_projection=scope.projection_scale;scene_scope_look=scope.look_scale;
      if(scope.changed && rf_scene_combat_trace)printf("SCOPE %u %u %.9g\n",frame,scope.active,scope.projection_scale);
@@ -15098,24 +15111,24 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(scene_fusion_resources){status=scene_fusion_gameplay_tick(stream,frame,position,orientation[2]);if(status)return status;}
     if(scene_grenade_resources){
         status=scene_grenades_tick(stream,frame,position,orientation[2],
-            campaign_equipped_slot==5 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_grenade_id] && campaign_player_damage.state.effects.health>0,
+            !scene_turret_player_active() && campaign_equipped_slot==5 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_grenade_id] && campaign_player_damage.state.effects.health>0,
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
     }
     if(!frame)scene_remote_checkpoint_frame0();
     if(scene_remote_resources){
         status=scene_remote_tick(stream,frame);if(status)return status;
         status=scene_remote_input(stream,frame,position,orientation[2],
-            !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0 && campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)]?
+            !scene_turret_player_active() && !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0 && campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)]?
             (campaign_equipped_slot==8?1u:campaign_equipped_slot==9?2u:0u):0u,
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
     }
     if(scene_flame_resources){
         status=scene_flame_canister_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],
-            campaign_equipped_slot==10 && !campaign_explicit_unarmed,
+            !scene_turret_player_active() && campaign_equipped_slot==10 && !campaign_explicit_unarmed,
             campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || !!rf_scene_combat[6],
             !!player_input.alt_fire && !player_input.fire);if(status)return status;
         status=scene_flame_input_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],.10f,
-            campaign_equipped_slot==10 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_flame_id],
+            !scene_turret_player_active() && campaign_equipped_slot==10 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_flame_id],
             campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || scene_flame_canister_busy(),!!player_input.fire,!!player_input.reload,&scene_flame_active);if(status){printf("FLAME_INPUT_ERROR %u %d\n",frame,status);return status;}
         {float muzzle[3],delta[3],length=SCENE_FLAME_RANGE;rf_weapon_flight_contact contact;uint32_t liquid,matched,k;
          for(k=0;k<3;k++){muzzle[k]=position[k]+orientation[2][k]*.4f+orientation[0][k]*.18f-orientation[1][k]*.2f;delta[k]=orientation[2][k]*length;}
@@ -15124,7 +15137,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
          status=scene_flame_visual_tick(stream,frame,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return status;}}
         if(campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==11 || campaign_equipped_slot==12)return RF_OK;
     }
-    if(scene_driller_active(stream) || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==12)return RF_OK;
+    if(scene_driller_active(stream) || scene_turret_player_active() || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==12)return RF_OK;
     if(campaign_equipped_slot==13 && campaign_machine_mode.pending)return RF_OK;
     if(campaign_equipped_slot==16 && stream->undercover && !scene_undercover_mode_can_fire(&stream->undercover->mode))return RF_OK;
     if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])return RF_OK;
@@ -15984,7 +15997,9 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
     status=scene_fighter_weapon_tick(stream,frame);if(status)return status;
-    status=scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
+    status=scene_turret_player_tick(stream,frame);if(status)return status;
+    status=scene_turret_player_active()?scene_turret_player_camera(position,orientation):
+        scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     if(stream->apc_aim_active){memcpy(position,stream->apc_aim_eye,12);memcpy(orientation,stream->apc_aim_basis,36);}
     if(campaign_cutscene_runtime.active){
         memcpy(position,campaign_cutscene_runtime.position,12);
@@ -18187,6 +18202,7 @@ static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
 }
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
 {
+    if(scene_turret_player_active())return RF_OK;
     rf_player_weapon *w=stream->player_weapon[campaign_view_slot()];rf_model_projection view={0};
     rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
     rf_model_render_output attributes={1,{255,255,255},255,1,1};
@@ -19317,6 +19333,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
+    scene_turret_player_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));

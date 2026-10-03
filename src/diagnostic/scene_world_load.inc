@@ -44,6 +44,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[8]=1;
+    if(scene_turret_player_active()){status=RF_RANGE;goto done;}
     if(!stream||!level||!tables_path||!stream->collision||
        (stream->terrain&&!scene_world_l1s2_authored_terrain(stream))||
        (!stream->terrain&&(stream->terrain_authored||stream->terrain_publication))||

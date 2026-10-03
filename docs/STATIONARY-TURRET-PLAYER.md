@@ -1,0 +1,39 @@
+# Authored stationary turret player control
+
+Status: integrated; NXDK build and focused stock-64-MiB Xbox control check passed. Mounted persistence remains unsupported.
+
+Installed `tables.vpp/entity.tbl` supplies `$Use: "turret"` and radius2.5 for `Stationary Turret`; its primary is Vauss. `Auto Turret` and `Auto Turret Head` use `none`. Therefore generated Auto Turret possession is intentionally outside this implementation. The authored L2S2a Stationary Turret UID5547 is the fixture source; its complete record retains class, weapons and health200.
+
+`src/diagnostic/scene_turret_player.inc` supplies allocation-free Use-edge boarding, exclusive player weapon ownership and occupancy, bounded pitch/yaw, existing Vauss cadence and shared shot dispatch, camera redirection, and Use/death/lifecycle exit. It admits only live unoccupied authored use-kind4 turrets with the currently supported Vauss primary. This does not turn an unsupported HEAP-equipped turret into a Vauss turret. Entry selection uses physical body-to-turret authored range, forward direction and ordinary world cover.
+
+The first-pass policy suppresses voluntary movement, cancels initial velocity, and redirects the camera to the real turret eye. Ordinary physics, external pushes, gravity and support updates remain active. Entry and exit never move or resize the physical body, nor overwrite a newer scripted teleport/look. Therefore exit needs no speculative seat-to-ground sweep: it releases control at the body position maintained by ordinary collision. If physics moves the player's physical body outside the authored Use radius (plus .05m tolerance), the adapter exits rather than retaining remote control. This is not a full seated-body implementation or a claim of a new overlap-recovery solver. Exact seated-body/interface animation, rotation-loop audio, alternate weapon selection and mounted-state saves remain open. Attach/detach and gun sound requests use existing services; audible output is unverified.
+
+## Shared integration
+
+`scene.c` retains raw mounted controls before filtering ordinary input, runs turret control after vehicle updates, and selects the turret eye camera. Physical player updates continue. Handheld firing/selection and weapon drawing are suppressed while mounted; existing projectiles, burning and NPC simulation continue. Combat queries use the physical player's eye and orientation, not the displaced turret camera.
+
+The autonomous turret loop skips the controlled owner before changing aim/cadence. Shared shots use player damage/spread and attribution, exclude the controlling player's body/shield, and retain the turret muzzle/collision identity. Entry cancels queued handheld rounds without discarding reload/cooldown. Dismount requires held Use/fire controls to be released before returning them to ordinary controls.
+
+Exit runs before turret owner teardown, while pointers remain valid; fresh scene setup resets counters/state. Ownership validation includes full-generation handles, the exact occupant pointer/count, player link and weapon owner. Death, lost ownership or physical range loss exits control. Full-circle yaw wraps continuously. World capture, legacy player capture and live-load admission explicitly reject mounted state before publication; ordinary saves remain available after dismount.
+
+The helper itself invokes the existing ordinary player-shot hearing policy after each accepted Vauss shot, using its authored reset flags and existing16m first-pass awareness service. This prevents player turret shots from remaining silent to nearby AI merely because their shared ray backend originally served enemy turrets. Its local forward declaration is intentional: `scene_ai_hearing.inc` appears later in scene.c. Existing clutter/fragment damage APIs have no source-handle parameter; their behavior is unchanged. Player attribution hooks above apply to actors, shields and damageable vehicles/turrets, where the real source handle is consumed.
+
+## Focused harness
+
+`python tools/xemu_stationary_turret_player.py` runs one120-frame process-local RFI6 fixture after integration. `--prepare-only PATH` writes the generated local archive/replay without building or launching anything.
+
+The fixture copies the complete authored UID5547 record into entity-free CTF06, modifies only its transform, and removes inherited scripts/triggers using the existing fixture builder. The turret origin stands two metres ahead and .75m below the spawn eye, within the authored body-to-origin Use radius after gravity settles; it faces away from the player, and remains ordinary AI-controlled until Use; no catatonic flag or fake damage is used. CTF06 pickups remain. Replay presses Use at30, changes aim at35–50, attempts movement at40–60, fires at45–70, and presses Use at100. A native memory probe at80 observes the mounted state; final120 observes exit.
+
+Assertions cover one entry/exit; the real registered player/host handles, occupant and weapon owner; player link clearing; actual bounded aim changes and shared gunshot count; zero autonomous and handheld shots; physical body staying horizontally within .05m of the boarding position despite movement input **in this static-room fixture**, with ordinary vertical gravity still active; eye camera separated from body; unchanged health and no self-damage; and stock64MiB/free memory. Physical pushes/support loss are not exercised by this bounded fixture. This validates functionality, not merely frame output. It intentionally does not claim damage to an added enemy, source-attribution runtime evidence, save support, animation quality or audible/visual output. Player source attribution is a required shared code hook, not something this no-enemy harness can prove.
+
+The harness backs up process-local disc controls, restores them in `finally`, rebuilds the original disc, and preserves a compact report. Parent runs generated-artifact cleanup after native validation. No host input or images are involved.
+
+Telemetry: `rf_scene_turret_player[12]` is entries, exits, active, hostUID, aimticks, shots, blockedentry, errors, playerhandle, hosthandle, lastframe, exitreason (0 Use/modal,1 owner death,2 player unavailable/dead,3 reset,4 ownership loss,5 physical range loss). `rf_scene_turret_player_probe[19]` is active, UID, hosthealth, playerhealth, occupants, weaponowner, playerlink, hostlink, bodyXYZ, eyeXYZ, shots, frame, boardingXYZ; floats are bitcasts. Probe19 supersedes the earlier proposed16-word layout.
+
+The first native attempt completed120 frames but did not mount: its fixture used eye-height placement, leaving the turret origin outside the2.5m physical-body Use radius. The fixture transform was corrected; no runtime range relaxation was made.
+
+## Xbox result (2026-10-03)
+
+`artifacts/xemu/stationary-turret-player-20261003-122830/report.json`:120 frames, one mount, one Use dismount,24 aim updates, six shared-backend gunshots, zero autonomous/handheld shots, health100 and turret health200,3349 free physical pages. The live probe verifies real player ownership/link and a separate turret-eye camera; final data verifies release. Both horizontal body coordinates remain exactly at entry values.
+
+The initial validator incorrectly required vertical position to remain fixed. The body legitimately descended0.60025m under gravity after entry; physical simulation is intentionally retained. The assertion now checks the actual requested horizontal movement axes. The retained native result passes the corrected validator; no extra emulator run was performed. The report preserves its initial validation error and correction. No images or audible/visual output were inspected; target damage/attribution, physical pushes, mounted persistence and seated presentation remain unverified or open as described above.

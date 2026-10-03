@@ -77,6 +77,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
+    if(scene_turret_player_active()){status=RF_RANGE;goto done;}
     if(!s||!level||!tables_path||(s->terrain&&!scene_world_l1s2_authored_terrain(s))||
        combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
