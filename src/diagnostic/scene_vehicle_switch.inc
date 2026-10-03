@@ -13,9 +13,11 @@ uint32_t rf_scene_vehicle_switch[16];
 /* Immutable last exchange: old/new UID,old/new handle,old/new health/armor,
  * old/new primary/secondary reserves,oldXYZ,newXYZ,old/new814,
  * old/newbodyflags,old/newmarker,restored,old/newrouteevent,old/newrole,
- * registrycoherent,frame,reserved. */
+ * registrycoherent,frame,outgoing wreck. */
 uint32_t rf_scene_vehicle_switch_apply[32];
 uint32_t rf_scene_vehicle_switch_history[4][32]; /* First four immutable commits. */
+/* valid,old UID/handle,old health bits,old destroyed,new UID/handle,new alive. */
+uint32_t rf_scene_vehicle_switch_wreck[8];
 static uint32_t scene_vehicle_switch_has_parked(void){return scene_vehicle_switch_count!=0;}
 static void scene_vehicle_switch_close(void)
 {
@@ -23,7 +25,7 @@ static void scene_vehicle_switch_close(void)
     scene_vehicle_switch_stream=NULL; /* Keep native phase5 evidence. */
 }
 static void scene_vehicle_switch_reset(void)
-{memset(rf_scene_vehicle_switch,0,sizeof(rf_scene_vehicle_switch));memset(rf_scene_vehicle_switch_apply,0,sizeof(rf_scene_vehicle_switch_apply));memset(rf_scene_vehicle_switch_history,0,sizeof(rf_scene_vehicle_switch_history));}
+{memset(rf_scene_vehicle_switch,0,sizeof(rf_scene_vehicle_switch));memset(rf_scene_vehicle_switch_apply,0,sizeof(rf_scene_vehicle_switch_apply));memset(rf_scene_vehicle_switch_history,0,sizeof(rf_scene_vehicle_switch_history));memset(rf_scene_vehicle_switch_wreck,0,sizeof(rf_scene_vehicle_switch_wreck));}
 static int scene_vehicle_switch_seed(uint32_t uid,uint32_t *index)
 {
     uint32_t matches=0;
@@ -112,14 +114,21 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
 {
     scene_driller_runtime *r=s?s->driller_runtime:NULL;scene_passive_vehicle *target=NULL,parked;
     scene_vehicle_parked_state old,next;scene_vehicle_switch_query query;
-    uint32_t selected=UINT32_MAX,seed=0,oldseed=0,quiet,clear=0,reason=0,restored=0;double best,range;int status=RF_OK;
+    uint32_t selected=UINT32_MAX,seed=0,oldseed=0,quiet,clear=0,reason=0,restored=0,wreck=0;double best,range;int status=RF_OK;
     if(!switched)return RF_RANGE;*switched=0;
+    /* Dead hosts skip ordinary entry/exit Use, which otherwise releases this
+     * latch. An earlier held exit must not permanently block wreck recovery. */
+    if(r&&!r->entry.host.alive&&!player_input.use)r->entry.held=0;
     if(!r||!player_input.use||r->entry.held||r->entry.session.active||rf_scene_vehicle_enabled<1||rf_scene_vehicle_enabled>3)return RF_OK;
     ++rf_scene_vehicle_switch[0];rf_scene_vehicle_switch[14]=combat_frame;
     if(r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->entry.gunner_occupant!=-1||r->player.saved||
        campaign_player_view.linked_handle!=-1||campaign_player_damage.state.effects.health<=0){reason=1;goto reject;}
-    if(!r->entry.host.alive||r->damage.damage.destroyed||r->damage.damage.state.effects.burn||
-       r->damage.damage.destruction_pending||r->scripted_exit_pending){reason=2;goto reject;}
+    /* Accept either a coherent living owner or a fully released wreck. Do not
+     * interrupt pending death callbacks or safe-ejection retry ownership. */
+    if(!isfinite(r->damage.damage.state.effects.health)||r->entry.host.alive>1||r->damage.damage.destroyed>1){status=RF_FORMAT;goto done;}
+    wreck=!r->entry.host.alive&&r->damage.damage.destroyed&&r->damage.damage.state.effects.health<=0;
+    if((!wreck&&(!r->entry.host.alive||r->damage.damage.destroyed||r->damage.damage.state.effects.health<=0))||
+       r->damage.damage.state.effects.burn||r->damage.damage.destruction_pending||r->damage.eject_pending||r->scripted_exit_pending){reason=2;goto reject;}
     if(campaign_vehicle_route.active||campaign_vehicle_route.path.count||campaign_vehicle_route.event||campaign_vehicle_route.pursuit||
        scene_vehicle_switch_dependency((uint32_t)campaign_authored_vehicle_uid,r->entry.host.handle)){reason=3;goto reject;}
     if(player_input.fire||player_input.alt_fire||player_input.cycle_weapon||scene_apc_primary_pending(s)||scene_apc_secondary_pending(s)||
@@ -128,7 +137,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     status=scene_vehicle_switch_quiet(&r->physics.state,&quiet);if(status)goto done;if(!quiet){reason=5;goto reject;}
     range=s->driller->physics.authored.use_radius;if(!isfinite(range)||range<=0){status=RF_FORMAT;goto done;}
     best=0;for(uint32_t j=0;j<3;j++){double d=(double)scene_actor_body.state.position[j]-r->physics.state.position[j];best+=d*d;}
-    if(best>range*range)best=range*range;
+    if(wreck||best>range*range)best=range*range; /* A wreck is not a competing Use target. */
     for(uint32_t i=0;i<campaign_passive_vehicle_count;i++){
         scene_passive_vehicle *p=campaign_passive_vehicles+i;double d2=0;uint32_t source;rf_level_entity_spawn spawn;
         if(p->resource_kind!=campaign_selected_vehicle_resource_kind()||p->group_owned||p->attached||
@@ -140,7 +149,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         if(p->scripted_physics&&!(p->physics_body_flags&0x80000000u))continue; /* Not boardable until woken. */
         double speed=0;for(uint32_t j=0;j<3;j++){double d=(double)scene_actor_body.state.position[j]-p->pose.position[j];d2+=d*d;speed+=(double)p->velocity[j]*p->velocity[j];}
         if(!isfinite(d2)||!isfinite(speed)){status=RF_FORMAT;goto done;}if(speed>.01||d2>best)continue;
-        if(d2==best&&p->uid>=(target?target->uid:(uint32_t)campaign_authored_vehicle_uid))continue;
+        if(d2==best&&(target||!wreck)&&p->uid>=(target?target->uid:(uint32_t)campaign_authored_vehicle_uid))continue;
         best=d2;target=p;selected=i;seed=source;
     }
     if(!target)return RF_OK;
@@ -215,6 +224,9 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     r->entry.registration.handle=next.handle;r->entry.view=next.view;r->entry.view.handle=(int32_t)next.handle;
     r->entry.view.occupants=r->entry.occupants;r->entry.view.linked_handle=-1;r->entry.view.flags_7c=r->damage.damage.object_flags;
     r->entry.view.flags_814=r->damage.damage.state.effects.flags_814;r->entry.host.handle=next.handle;
+    /* Runtime allocation is shared, owner life is not. Never carry the old
+     * wreck's propulsion/boarding/audio death gate into the healthy host. */
+    r->entry.host.alive=!r->damage.damage.destroyed&&r->damage.damage.state.effects.health>0;
     r->physics.state=next.physics;r->physics.body_flags=next.body_flags;r->scripted_physics=next.scripted_physics;
     r->scripted_exit_pending=0;r->jeep_seat.role=next.jeep_role;s->driller->seat=next.seat;
     s->apc_primary.scheduler=next.primary;s->apc_primary.reserve=next.primary_reserve;s->apc_primary.random=next.random;
@@ -234,7 +246,11 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     rf_scene_vehicle_switch[12]=scene_vehicle_parked_count;rf_scene_vehicle_switch[13]=clear;rf_scene_vehicle_switch[15]=next.uid;
     p[29]=rf_object_registry_lookup(&campaign_registry,old.handle)==target&&
         rf_entity_lookup(&campaign_entities,(int32_t)next.handle)==&r->entry.view;
-    p[30]=combat_frame;if(scene_vehicle_switch_count<=4)memcpy(rf_scene_vehicle_switch_history[scene_vehicle_switch_count-1],p,sizeof(rf_scene_vehicle_switch_apply));
+    p[30]=combat_frame;p[31]=wreck;
+    if(wreck){uint32_t *w=rf_scene_vehicle_switch_wreck;
+        w[0]=1;w[1]=target->uid;w[2]=target->handle;memcpy(w+3,&target->damage.state.effects.health,4);
+        w[4]=target->damage.destroyed;w[5]=next.uid;w[6]=next.handle;w[7]=r->entry.host.alive;}
+    if(scene_vehicle_switch_count<=4)memcpy(rf_scene_vehicle_switch_history[scene_vehicle_switch_count-1],p,sizeof(rf_scene_vehicle_switch_apply));
     *switched=1;goto done;
 reject:
     ++rf_scene_vehicle_switch[2];rf_scene_vehicle_switch[3]=reason;
