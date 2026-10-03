@@ -4,7 +4,7 @@ Regular Fighter01 now participates in the same quiescent ownership exchange as g
 
 Resource packs retain the actual cockpit, muzzle tags, finite minigun/rocket definitions and flight parameters, borrowing the stable chassis. The existing4MiB auxiliary budget and16MiB admission reserve remain. Fighter rocket VFX demand is now prepared outside DEV mode before pack memory admission. Transfer rejects live bullets/rockets or active firing clocks; the outgoing owner retains its ammunition. Incoming Fighter hull and player path require dry-room admission and static clearance before any registry exchange.
 
-RFSW4 preserves the24-byte header and320-byte rows. Profile5 uses the existing primary ammo/scheduler and secondary reserve/cooldown fields; previously unused aim words180/184/188 hold rocket warmup/held/shot count. Fighter aim fields and RNG are zero. Versions1–3 retain their existing meanings and limits. Boot restore recognizes exact Fighter01 identities before resource preparation. Fresh-load/return promotion remain unverified until a native continuation is recorded.
+RFSW4 preserves the24-byte header and320-byte rows. Profile5 uses the existing primary ammo/scheduler and secondary reserve/cooldown fields; previously unused aim words180/184/188 hold rocket warmup/held/shot count. Fighter aim fields and RNG are zero. Versions1–3 retain their existing meanings and limits. Boot restore recognizes exact Fighter01 identities before resource preparation. Ordinary fresh-load is verified below; reverse promotion remains unverified.
 
 ## Focused Xbox evidence
 
@@ -16,3 +16,9 @@ No images, campaign traversal, rocket expenditure or rendered/audio correctness 
 
 
 `vehicle-fighter-switch-20261003-194653/report.json` PASS:380 frames on stock64MiB, Fighter50 health and Jeep400 preserved; six Fighter minigun launches leave894 rounds and20 rockets, followed by one Jeep launch leaving998. Ordinary save retains both owners through RFSW4/RFVA2 with exact poses, vitals and settled firing state (15768 bytes). Available memory5452 pages (21.30MiB). The restored standard NXDK build also succeeds. This is source switch/save evidence; fresh-load, reverse Fighter promotion and rocket expenditure remain open.
+
+`vehicle-fighter-switch-20261003-195453/report.json` records `FRESH_LOAD_PASS_RETURN_FAILED`: the load-only240-frame stock64MiB continuation restored the15768-byte ordinary save with the Jeep already occupied,998 gun rounds, exact saved RNG3357800067 and400 health, and parked Fighter identity8955 with894 primary rounds. Both stable handles restored without a phantom switch or launch. Available memory5291 pages (20.67MiB); disc restoration and the standard NXDK rebuild passed.
+
+The reverse check reboarded the Jeep. Its frame130 entry probe placed the player at(4.6188364,-0.41441786,0.10977748), still on the Jeep side; the fixture assumed a negative-X exit and its20-frame left approach was insufficient after the actual exit. This does not verify reverse Fighter promotion or restored secondary ammunition/vitals at runtime. Preserve that limitation rather than changing game admission rules to force a test pass. The helper can resume a retained source with `--resume-saved-run`; fresh-load success is reported separately from return failure.
+
+The selector correctly chose the Jeep (distance squared2.648); the Fighter was outside its5m use radius (distance squared about60.4), so no ownership transaction began. A future return fixture must go behind the Jeep before crossing left; do not weaken nearest-owner selection or collision admission.
