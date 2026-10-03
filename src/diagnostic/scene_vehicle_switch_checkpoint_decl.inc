@@ -3,7 +3,9 @@
 enum {SCENE_VEHICLE_SWITCH_HEADER=24,SCENE_VEHICLE_SWITCH_ROW=320};
 typedef struct scene_vehicle_switch_checkpoint_stage scene_vehicle_switch_checkpoint_stage;
 static int scene_vehicle_switch_checkpoint_peek(const unsigned char *,uint32_t,uint32_t *,uint32_t *,uint32_t *);
-static int scene_vehicle_switch_checkpoint_row_uid(const unsigned char *,uint32_t,uint32_t,uint32_t *);
+static int scene_vehicle_switch_checkpoint_row_identity(const unsigned char *,uint32_t,uint32_t,uint32_t *,uint32_t *,uint32_t *);
+static uint32_t scene_vehicle_switch_boot_profile_mask(void);
+static uint32_t scene_vehicle_switch_boot_original_profile(void);
 static uint32_t scene_vehicle_switch_checkpoint_bytes(const scene_vehicle_switch_checkpoint_stage *);
 static void scene_vehicle_switch_checkpoint_close(scene_vehicle_switch_checkpoint_stage **);
 static int scene_vehicle_switch_checkpoint_capture(const scene_stream *,unsigned char *,uint32_t,uint32_t,uint32_t *);

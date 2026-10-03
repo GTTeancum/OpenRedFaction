@@ -1,6 +1,8 @@
 #ifndef RF_SCENE_VEHICLE_SWITCH_CHECKPOINT_INCLUDED
 #define RF_SCENE_VEHICLE_SWITCH_CHECKPOINT_INCLUDED
-/* RFSW1 is the outermost vehicle envelope. Explicit little-endian fields;
+/* RFSW1/2 is the outermost vehicle envelope. Version2 uses reserved row+60
+ * for a valid parked owner's ground profile; all other offsets are unchanged.
+ * Explicit little-endian fields;
  * authored UIDs and passive order survive, runtime handles/pointers do not.
  * Include after switch and physics checkpoint implementation. */
 struct scene_vehicle_switch_checkpoint_stage {
@@ -14,25 +16,33 @@ static void scene_vehicle_switch_checkpoint_close(scene_vehicle_switch_checkpoin
 {if(s&&*s){free((*s)->rows);free(*s);*s=NULL;}}
 static int scene_vehicle_switch_checkpoint_peek(const unsigned char *p,uint32_t n,uint32_t *uid,uint32_t *profile,uint32_t *count)
 {
- uint64_t size;uint32_t c,inner,a,k;
+ uint64_t size;uint32_t c,inner,a,k,version;
  if(!uid||!profile||!count||(!p&&n))return RF_RANGE;*uid=*profile=*count=0;
  if(n<4||memcmp(p,"RFSW",4))return RF_OK;
- if(n<SCENE_VEHICLE_SWITCH_HEADER||scene_history_word(p+4)!=1)return RF_FORMAT;
+ if(n<SCENE_VEHICLE_SWITCH_HEADER)return RF_FORMAT;
+ version=scene_history_word(p+4);if(version!=1&&version!=2)return RF_FORMAT;
  inner=scene_history_word(p+8);a=scene_history_word(p+12);k=scene_history_word(p+16);c=scene_history_word(p+20);
  size=SCENE_VEHICLE_SWITCH_HEADER+(uint64_t)inner+(uint64_t)c*SCENE_VEHICLE_SWITCH_ROW;
  if(!a||a==UINT32_MAX||k<1||k>3||!c||c>RF_OBJECT_CAPACITY||size!=n||size>RF_CHECKPOINT_FILE_MAX)return RF_FORMAT;
  for(uint32_t i=0;i<c;i++){
   const unsigned char *r=p+SCENE_VEHICLE_SWITCH_HEADER+inner+i*SCENE_VEHICLE_SWITCH_ROW;uint32_t u=scene_history_word(r);
   if(!u||u==UINT32_MAX||u==a||scene_history_word(r+4)>1)return RF_FORMAT;
+  if(scene_history_word(r+316))return RF_FORMAT;
+  if(!scene_history_word(r+4)){for(uint32_t j=8;j<SCENE_VEHICLE_SWITCH_ROW;j++)if(r[j])return RF_FORMAT;}
+  else {uint32_t profile=scene_history_word(r+60);
+   if((version==1&&profile)||(version==2&&(profile<1||profile>3)))return RF_FORMAT;}
   for(uint32_t j=0;j<i;j++)if(scene_history_word(p+SCENE_VEHICLE_SWITCH_HEADER+inner+j*SCENE_VEHICLE_SWITCH_ROW)==u)return RF_FORMAT;
  }
  *uid=a;*profile=k;*count=c;return RF_OK;
 }
-static int scene_vehicle_switch_checkpoint_row_uid(const unsigned char *p,uint32_t n,uint32_t index,uint32_t *uid)
+static int scene_vehicle_switch_checkpoint_row_identity(const unsigned char *p,uint32_t n,uint32_t index,
+ uint32_t *uid,uint32_t *valid,uint32_t *profile)
 {
- uint32_t a,k,c;int st;if(!uid)return RF_RANGE;
+ uint32_t a,k,c;int st;if(!uid||!valid||!profile)return RF_RANGE;
  st=scene_vehicle_switch_checkpoint_peek(p,n,&a,&k,&c);if(st)return st;if(!a||index>=c)return RF_RANGE;
- *uid=scene_history_word(p+SCENE_VEHICLE_SWITCH_HEADER+scene_history_word(p+8)+index*SCENE_VEHICLE_SWITCH_ROW);return RF_OK;
+ const unsigned char *row=p+SCENE_VEHICLE_SWITCH_HEADER+scene_history_word(p+8)+index*SCENE_VEHICLE_SWITCH_ROW;
+ *uid=scene_history_word(row);*valid=scene_history_word(row+4);
+ *profile=*valid?(scene_history_word(p+4)==1?k:scene_history_word(row+60)):0;return RF_OK;
 }
 static int scene_vehicle_switch_checkpoint_basis(const float *m)
 {
@@ -51,23 +61,33 @@ static int scene_vehicle_switch_checkpoint_readfloats(const unsigned char *p,flo
 {for(uint32_t i=0;i<n;i++){v[i]=scene_history_float(p+i*4);if(!isfinite(v[i])||fabsf(v[i])>1e9f)return RF_FORMAT;}return RF_OK;}
 static int scene_vehicle_switch_checkpoint_valid(const scene_stream *s,const scene_vehicle_parked_state *v)
 {
- uint32_t quiet;int32_t seat;int st;
+ uint32_t quiet,primary_capacity,secondary_capacity;int32_t seat;int st;const scene_vehicle_profile_pack *pack;
  if(!v->valid)return RF_OK;
+ if(v->profile<1||v->profile>3)return RF_FORMAT;
+ pack=scene_vehicle_profile_pack_get(s,v->profile);
+ if(pack){primary_capacity=pack->primary.capacity;secondary_capacity=v->profile==2?pack->secondary.capacity:0;
+  seat=v->jeep_role?pack->gunner_seat:pack->seat;}
+ else {
+  /* Ordinary same-class scenes need no optional preload/adoption allocation. */
+  if(!s||!s->driller||!s->driller_runtime||v->profile!=rf_scene_vehicle_enabled)return RF_NOT_FOUND;
+  primary_capacity=s->apc_primary.definition.capacity;secondary_capacity=v->profile==2?s->apc_secondary.definition.capacity:0;
+  if(v->profile==3){st=scene_jeep_seat_index(s->driller,v->jeep_role,&seat);if(st)return st;}
+  else seat=s->driller->seat;
+ }
  if(v->scripted_physics>1||v->physics.skip_forces>1||v->aim_active>1||v->jeep_role>1||
     v->primary_reserve<0||v->secondary_reserve<0||
-    (uint32_t)v->primary_reserve>s->apc_primary.definition.capacity||
-    (uint32_t)v->secondary_reserve>(rf_scene_vehicle_enabled==2?s->apc_secondary.definition.capacity:0)||
+    (uint32_t)v->primary_reserve>primary_capacity||
+    (uint32_t)v->secondary_reserve>secondary_capacity||
     v->primary.held||v->primary.warmup>0||v->primary.cooldown>0||v->secondary_cooldown>0||
     v->drill.held||v->drill.contact_active||v->view.weapon_owner||v->view.linked_handle!=-1||
     v->route.active||v->route.path.count||v->route.event||v->route.pursuit)return RF_NOT_FOUND;
  if(v->scripted_physics&&!(v->body_flags&0x80000000u)&&(v->body_flags&0x18000000u)!=0x18000000u)return RF_FORMAT;
- if(rf_scene_vehicle_enabled==3){st=scene_jeep_seat_index(s->driller,v->jeep_role,&seat);if(st)return st;if(v->seat!=seat)return RF_FORMAT;}
- else if(v->seat!=s->driller->seat||v->jeep_role)return RF_FORMAT;
+ if(v->seat!=seat||(v->profile!=3&&v->jeep_role))return RF_FORMAT;
  st=scene_vehicle_switch_checkpoint_basis(v->physics.orientation);if(st)return st;
  if(v->aim_active){st=scene_vehicle_switch_checkpoint_basis(v->aim_basis);if(st)return st;}
  st=scene_vehicle_switch_quiet(&v->physics,&quiet);if(st)return st;return quiet?RF_OK:RF_NOT_FOUND;
 }
-static void scene_vehicle_switch_checkpoint_encode(unsigned char *p,const scene_vehicle_parked_state *v)
+static void scene_vehicle_switch_checkpoint_encode(unsigned char *p,const scene_vehicle_parked_state *v,uint32_t version)
 {
  memset(p,0,SCENE_VEHICLE_SWITCH_ROW);scene_history_put(p,v->uid);scene_history_put(p+4,v->valid);if(!v->valid)return;
  scene_history_put(p+8,v->body_flags);scene_history_put(p+12,v->scripted_physics);
@@ -76,6 +96,7 @@ static void scene_vehicle_switch_checkpoint_encode(unsigned char *p,const scene_
  scene_history_put(p+32,v->jeep_role);scene_history_put(p+36,v->aim_active);scene_history_put(p+40,(uint32_t)v->route.ai_action);
  scene_history_put(p+44,v->view.flags_7d0);scene_history_put(p+48,v->view.flags_810);scene_history_put(p+52,(uint32_t)v->view.action_520);
  scene_history_put(p+56,v->physics.skip_forces);
+ if(version==2)scene_history_put(p+60,v->profile);
  scene_vehicle_switch_checkpoint_floats(p+64,v->physics.position,3);scene_vehicle_switch_checkpoint_floats(p+76,v->physics.orientation,9);
  scene_vehicle_switch_checkpoint_floats(p+112,v->physics.velocity,3);scene_vehicle_switch_checkpoint_floats(p+124,v->physics.momentum,3);
  scene_vehicle_switch_checkpoint_floats(p+136,v->physics.force,3);scene_vehicle_switch_checkpoint_floats(p+148,v->physics.torque,3);
@@ -91,13 +112,21 @@ static void scene_vehicle_switch_checkpoint_encode(unsigned char *p,const scene_
  scene_vehicle_switch_checkpoint_floats(p+292,v->route.target,3);
  scene_history_put(p+304,(uint32_t)v->view.weapons[0]);scene_history_put(p+308,(uint32_t)v->view.weapons[1]);scene_history_put_float(p+312,v->view.base_speed);
 }
-static int scene_vehicle_switch_checkpoint_decode(const scene_stream *s,const unsigned char *p,scene_vehicle_parked_state *v)
+static int scene_vehicle_switch_checkpoint_decode(const scene_stream *s,const unsigned char *p,uint32_t version,
+ uint32_t active_profile,scene_vehicle_parked_state *v)
 {
  int st;memset(v,0,sizeof(*v));v->uid=scene_history_word(p);v->valid=scene_history_word(p+4);
  if(!v->valid){for(uint32_t i=8;i<SCENE_VEHICLE_SWITCH_ROW;i++)if(p[i])return RF_FORMAT;return RF_OK;}
- if(v->valid!=1||scene_history_word(p+60)||scene_history_word(p+316))return RF_FORMAT;
- v->view=s->driller_runtime->entry.view;v->view.linked_handle=-1;v->view.weapon_owner=NULL;
- v->drill=s->driller_weapon;memcpy(v->physics.inverse_inertia,s->driller_runtime->physics.state.inverse_inertia,36);
+ if(v->valid!=1||(version!=1&&version!=2)||(version==1&&scene_history_word(p+60))||scene_history_word(p+316))return RF_FORMAT;
+ v->profile=version==1?active_profile:scene_history_word(p+60);if(v->profile<1||v->profile>3)return RF_FORMAT;
+ const scene_vehicle_profile_pack *pack=scene_vehicle_profile_pack_get(s,v->profile);
+ if(pack){v->view=pack->view;v->drill=pack->drill;memcpy(v->physics.inverse_inertia,pack->physics.state.inverse_inertia,36);}
+ else {
+  if(!s||!s->driller_runtime||v->profile!=rf_scene_vehicle_enabled)return RF_NOT_FOUND;
+  v->view=s->driller_runtime->entry.view;v->drill=s->driller_weapon;
+  memcpy(v->physics.inverse_inertia,s->driller_runtime->physics.state.inverse_inertia,36);
+ }
+ v->view.linked_handle=-1;v->view.weapon_owner=NULL;v->view.occupants=NULL;
  v->body_flags=scene_history_word(p+8);v->scripted_physics=scene_history_word(p+12);
  v->primary_reserve=(int32_t)scene_history_word(p+16);v->secondary_reserve=(int32_t)scene_history_word(p+20);
  v->random.value=scene_history_word(p+24);v->seat=(int32_t)scene_history_word(p+28);v->jeep_role=scene_history_word(p+32);v->aim_active=scene_history_word(p+36);
@@ -121,7 +150,7 @@ static int scene_vehicle_switch_checkpoint_live(const scene_stream *s,uint32_t i
 {
  const scene_passive_vehicle *p=campaign_passive_vehicles+i;*v=scene_vehicle_parked[i];
  if(!v->valid){memset(v,0,sizeof(*v));v->uid=p->uid;return RF_OK;}
- if(v->uid!=p->uid||v->handle!=p->handle||p->attached||p->group_owned||p->resource_kind!=campaign_selected_vehicle_resource_kind()||
+ if(v->profile<1||v->profile>3||v->uid!=p->uid||v->handle!=p->handle||p->attached||p->group_owned||p->resource_kind!=v->profile+2||
     rf_object_registry_lookup(&campaign_registry,p->handle)!=p)return RF_NOT_FOUND;
  memcpy(v->physics.position,p->pose.position,12);memcpy(v->physics.orientation,p->pose.input_matrix,36);
  v->scripted_physics=p->scripted_physics;if(p->scripted_physics)v->body_flags=p->physics_body_flags;
@@ -129,19 +158,22 @@ static int scene_vehicle_switch_checkpoint_live(const scene_stream *s,uint32_t i
 }
 static int scene_vehicle_switch_checkpoint_capture(const scene_stream *s,unsigned char *p,uint32_t cap,uint32_t inner,uint32_t *written)
 {
- uint64_t size;int st;scene_vehicle_parked_state v;unsigned char scratch[SCENE_VEHICLE_SWITCH_ROW];
+ uint64_t size;uint32_t version=1;int st;scene_vehicle_parked_state v;unsigned char scratch[SCENE_VEHICLE_SWITCH_ROW];
  if(!s||!p||!written||inner>cap)return RF_RANGE;if(!scene_vehicle_switch_has_parked()){*written=inner;return RF_OK;}
  if(!s->driller_runtime||rf_scene_vehicle_enabled<1||rf_scene_vehicle_enabled>3||scene_vehicle_switch_stream!=s||
     !scene_vehicle_parked||scene_vehicle_parked_count!=campaign_passive_vehicle_count)return RF_NOT_FOUND;
  size=SCENE_VEHICLE_SWITCH_HEADER+(uint64_t)inner+(uint64_t)scene_vehicle_parked_count*SCENE_VEHICLE_SWITCH_ROW;
  if(size>cap||size>RF_CHECKPOINT_FILE_MAX)return RF_RANGE;
+ if(scene_vehicle_switch_boot_original_profile()!=rf_scene_vehicle_enabled)version=2;
+ for(uint32_t i=0;i<scene_vehicle_parked_count;i++)
+  if(scene_vehicle_parked[i].valid&&scene_vehicle_parked[i].profile!=rf_scene_vehicle_enabled)version=2;
  for(uint32_t i=0;i<scene_vehicle_parked_count;i++){
   st=scene_vehicle_switch_checkpoint_live(s,i,&v);if(st)return st;
-  scene_vehicle_switch_checkpoint_encode(scratch,&v);st=scene_vehicle_switch_checkpoint_decode(s,scratch,&v);if(st)return st;
+  scene_vehicle_switch_checkpoint_encode(scratch,&v,version);st=scene_vehicle_switch_checkpoint_decode(s,scratch,version,rf_scene_vehicle_enabled,&v);if(st)return st;
  }
- memmove(p+SCENE_VEHICLE_SWITCH_HEADER,p,inner);memcpy(p,"RFSW",4);scene_history_put(p+4,1);scene_history_put(p+8,inner);
+ memmove(p+SCENE_VEHICLE_SWITCH_HEADER,p,inner);memcpy(p,"RFSW",4);scene_history_put(p+4,version);scene_history_put(p+8,inner);
  scene_history_put(p+12,(uint32_t)campaign_authored_vehicle_uid);scene_history_put(p+16,rf_scene_vehicle_enabled);scene_history_put(p+20,scene_vehicle_parked_count);
- for(uint32_t i=0;i<scene_vehicle_parked_count;i++){scene_vehicle_switch_checkpoint_live(s,i,&v);scene_vehicle_switch_checkpoint_encode(p+SCENE_VEHICLE_SWITCH_HEADER+inner+i*SCENE_VEHICLE_SWITCH_ROW,&v);}
+ for(uint32_t i=0;i<scene_vehicle_parked_count;i++){scene_vehicle_switch_checkpoint_live(s,i,&v);scene_vehicle_switch_checkpoint_encode(p+SCENE_VEHICLE_SWITCH_HEADER+inner+i*SCENE_VEHICLE_SWITCH_ROW,&v,version);}
  *written=(uint32_t)size;return RF_OK;
 }
 static int scene_vehicle_switch_checkpoint_prepare(const scene_stream *s,const unsigned char *p,uint32_t n,uint32_t budget,
@@ -156,9 +188,9 @@ static int scene_vehicle_switch_checkpoint_prepare(const scene_stream *s,const u
  v->active=a;v->profile=k;v->count=c;v->bytes=(uint32_t)cost;
  for(uint32_t i=0;i<c;i++){
   const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
-  st=scene_vehicle_switch_checkpoint_decode(s,p+SCENE_VEHICLE_SWITCH_HEADER+scene_history_word(p+8)+i*SCENE_VEHICLE_SWITCH_ROW,v->rows+i);
+  st=scene_vehicle_switch_checkpoint_decode(s,p+SCENE_VEHICLE_SWITCH_HEADER+scene_history_word(p+8)+i*SCENE_VEHICLE_SWITCH_ROW,scene_history_word(p+4),k,v->rows+i);
   if(!st&&v->rows[i].uid!=owner->uid)st=RF_FORMAT;
-  if(!st&&v->rows[i].valid&&(owner->attached||owner->group_owned||owner->resource_kind!=campaign_selected_vehicle_resource_kind()))st=RF_NOT_FOUND;
+  if(!st&&v->rows[i].valid&&(owner->attached||owner->group_owned||owner->resource_kind!=v->rows[i].profile+2))st=RF_NOT_FOUND;
   if(st){scene_vehicle_switch_checkpoint_close(&v);return st;}v->rows[i].handle=owner->handle;v->rows[i].view.handle=(int32_t)owner->handle;
  }
  *out=v;*inner=p+SCENE_VEHICLE_SWITCH_HEADER;*innerbytes=scene_history_word(p+8);return RF_OK;

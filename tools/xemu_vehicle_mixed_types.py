@@ -34,8 +34,9 @@ MIRRORED=(0,0,-1,-1,0,0,0,1,0)
 FRAMES=380
 # Parent flips this only after transactional profile3 -> profile2 ownership,
 # resource and physics handoff is enabled. Preparation remains usable now.
-CROSS_CLASS_RUNTIME_READY=False
-SYMBOLS=dict(SWITCH_SYMBOLS,rf_scene_vehicle_enabled=1,rf_scene_combat=8)
+CROSS_CLASS_RUNTIME_READY=True
+SYMBOLS=dict(SWITCH_SYMBOLS,rf_scene_vehicle_enabled=1,rf_scene_combat=8,
+             rf_scene_vehicle_entry_probe=16)
 
 
 def replay():
@@ -114,6 +115,9 @@ def prepare_level(folder,preload_only=False):
             source_level=level,source_offset=owner['offset'],source_sha256=hashlib.sha256(owner['raw']).hexdigest(),
             metadata=details,position=position,basis=list(basis),collision_bounds=bounds,model=model,
             authored_use_radius=5 if profile==3 else 8))
+        sign=-1 if mirrored else 1
+        owners[-1]['authored_seat_eye_world']={tag['name']:[position[0]+sign*tag['position'][0],
+            position[1]+tag['position'][1],position[2]+sign*tag['position'][2]] for tag in model['tags']}
     gap=min(math.dist(a['center'],b['center'])-a['radius']-b['radius'] for a in world_spheres[0] for b in world_spheres[1])
     if gap<1:raise RuntimeError('Insufficient numerical hull separation for this staged room')
     spawn=(-3,1.4513111,-2)
@@ -161,6 +165,22 @@ def live_probe(monitor,mapping,symbols=SYMBOLS):
     sample['frame']=words(monitor,address(mapping,'rf_diagnostic'),58)[37];return sample
 
 
+def diagnostics(result):
+    """Keep numeric approach/seat/shot evidence even when an assertion fails."""
+    def sample(values):
+        if not values:return None
+        p=values.get('rf_scene_vehicle_entry_probe',[])
+        entry=None
+        if len(p)==16:
+            entry=dict(calls=p[0],frame=p[1],profile=p[2],host=p[3],allowed=p[4],status=p[5],
+                distance_squared=f(p[6]),use_radius=f(p[7]),player_position=[f(v) for v in p[8:11]],
+                seat_body_position=[f(v) for v in p[11:14]],stage=p[14])
+        return dict(entry=entry,profile=values.get('rf_scene_vehicle_enabled'),
+            vehicle=values.get('rf_scene_vehicle_state'),switch=values.get('rf_scene_vehicle_switch'),
+            exchange=values.get('rf_scene_vehicle_switch_apply'),primary=values.get('rf_scene_apc_primary'))
+    return dict(live=sample(result.get('probe')),final=sample(result.get('extra')))
+
+
 def validate(result,recipe):
     if result['guest_phase']!=5 or result['frames']!=FRAMES or result['memory_bytes']!=64*1024*1024 or result['free_pages']<=0:
         raise RuntimeError('Incomplete bounded stock64MiB mixed-vehicle run')
@@ -174,6 +194,10 @@ def validate(result,recipe):
     sw=end['rf_scene_vehicle_switch'];apply=end['rf_scene_vehicle_switch_apply']
     old_handle,new_handle=first[12],last[12]
     if old_handle in (0,0xffffffff) or new_handle in (0,0xffffffff,old_handle):raise RuntimeError('Distinct original owner handles were lost')
+    for sample,profile,handle,frame in ((pre,3,old_handle,90),(end,2,new_handle,270)):
+        entry=sample['rf_scene_vehicle_entry_probe']
+        if not entry[0] or not frame-1<=entry[1]<=frame+1 or entry[2:6]!=[profile,handle,1,0] or entry[14]!=2:
+            raise RuntimeError(f'Ordinary profile{profile} seat admission was not observed: {entry}')
     if sw[1]!=1 or sw[4:8]!=[JEEP,APC,old_handle,new_handle] or sw[8] or sw[9] or sw[15]!=APC:
         raise RuntimeError(f'Cross-class ordinary Use transaction failed: {sw}')
     if apply[:4]!=[JEEP,APC,old_handle,new_handle] or apply[8]!=pre['rf_scene_apc_primary'][7] or apply[24] or apply[25:27]!=[0,0] or apply[29]!=1 or not 269<=apply[30]<=271 or apply[31]:
@@ -240,7 +264,8 @@ def run(preload_only=False):
         result=run_guest(folder,mode,hdd,120 if preload_only else FRAMES,600,snapshot=True,extra_symbols=symbols,
             probe=lambda monitor,mapping:live_probe(monitor,mapping,symbols),
             probe_frame=60 if preload_only else 190,allow_guest_error=True)
-        report['native']=result;report.update((validate_preload if preload_only else validate)(result,recipe))
+        report['native']=result;report['diagnostics']=diagnostics(result)
+        report.update((validate_preload if preload_only else validate)(result,recipe))
     except Exception as exc:report['error']=str(exc);raise
     finally:
         for n,data in original.items():

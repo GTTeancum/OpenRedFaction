@@ -26,6 +26,7 @@ static void scene_vehicle_profile_preload(scene_stream *s,const char *tables_pat
            (campaign_seeds.items[source].spawn.creation_flags&2u))continue;
         mask|=1u<<profile;
     }
+    mask|=scene_vehicle_switch_boot_profile_mask()&~(1u<<rf_scene_vehicle_enabled);
     rf_scene_vehicle_profile_packs[0]=mask;if(!mask)return;
 #ifdef RF_IMAGE_XBOX_NATIVE
     /* Conservative admission policy, not a measured contiguous-GPU guarantee:
@@ -40,6 +41,17 @@ static void scene_vehicle_profile_preload(scene_stream *s,const char *tables_pat
         uint32_t kind=profile==1?3:profile==2?4:5;
         status=scene_vehicle_profile_pack_open(profile,s->passive_vehicle_resources[kind],
             &tables,archive,maps,map_count,scene_gravity.acceleration,remaining,&s->vehicle_profile_packs[profile]);
+        if(!status&&profile==1){
+            if(!s->driller_runtime)status=RF_NOT_FOUND;
+#ifdef RF_IMAGE_XBOX_NATIVE
+            if(!status)status=rf_geomod_template_load("D:\\driller-single.bin",s->driller_runtime->shapes);
+            if(!status)status=rf_geomod_template_load("D:\\driller-double.bin",s->driller_runtime->shapes+1);
+#else
+            if(!status)status=rf_geomod_template_load("build/data/driller-single.bin",s->driller_runtime->shapes);
+            if(!status)status=rf_geomod_template_load("build/data/driller-double.bin",s->driller_runtime->shapes+1);
+#endif
+            if(status)scene_vehicle_profile_pack_close(&s->vehicle_profile_packs[profile]);
+        }
         if(!status){
             uint32_t bytes=s->vehicle_profile_packs[profile]->resident_bytes;
             remaining-=bytes;rf_scene_vehicle_profile_packs[3]+=bytes;
@@ -67,6 +79,14 @@ static void scene_vehicle_profile_preload_merge(scene_stream *s,rf_materials *ma
             rf_scene_vehicle_profile_packs[4]+=materials->count-slots;
             rf_scene_vehicle_profile_packs[5]+=materials->allocated_bytes-bytes;
         }
+    }
+    if(rf_scene_vehicle_profile_packs[2]){
+        uint32_t profile=rf_scene_vehicle_enabled,kind=profile+2;
+        int status=s->passive_vehicle_sphere_count[kind]?RF_OK:scene_passive_vehicle_collision_open(s,kind,s->driller);
+        if(!status)status=scene_vehicle_profile_pack_adopt(s,profile,materials,
+            scene_gravity.acceleration,&s->vehicle_profile_packs[profile]);
+        rf_scene_vehicle_profile_packs[8]=(uint32_t)status;
+        if(status)rf_scene_vehicle_profile_packs[6]=(uint32_t)status;
     }
 }
 #endif

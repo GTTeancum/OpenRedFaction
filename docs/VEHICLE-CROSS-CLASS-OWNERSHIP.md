@@ -1,6 +1,6 @@
 # Cross-class vehicle ownership: implementation handoff
 
-Status: resource-pack implementation is wired into startup; runtime switching remains same-class. The extracted
+Status: stock64MiB Xbox verifies Jeep-to-APC runtime switching; cross-class save continuation remains unverified. The extracted
 `scene_vehicle_profile_resources_open` preserves the former startup load order,
 caps, weapon initialization, damage prototype and seat validation. Authored/DEV
 pose selection now precedes it. Parent reports the existing 480-frame Jeep
@@ -258,3 +258,45 @@ remained active profile3 with handle33358332 and no boarding/switching/firing.
 Original disc configuration was restored and its Xbox image rebuilt. This proves
 connected preload/ownership only; cross-class controls, rendering appearance,
 save continuation and memory in other levels remain unverified.
+## Runtime and save integration (2026-10-03, validation pending)
+
+The startup ground pack now adopts already-merged active extras without
+reloading them. Pack ownership outlives active-profile changes; scene fields
+alias the current pack and teardown clears those aliases before closing packs.
+The chassis still has exactly one owning active/passive slot. The outgoing
+class's passive collision spheres are prepared even when no other vehicle of
+that class initially exists. Additional Driller admission also loads its two
+cut templates before any runtime handoff.
+
+Ordinary Use considers each candidate's own range and prepared profile. Before
+registry exchange it validates dependencies, quiet physics, resources, target
+seat clearance and the outgoing audio slot. Publication transfers chassis and
+material indices, installs class weapon/configuration defaults and full physics,
+rebinds collision/support/entry pointers, then overlays per-UID state. The old
+vehicle keeps its class, damage, identity and parked state. Audio restarts with
+the new class. Existing same-class switching does not require optional packs.
+
+RFSW2 keeps the24-byte envelope and320-byte rows, storing each valid parked
+row's profile at offset60. RFSW1 still reads and writes ordinary same-class
+saves. Boot validates saved classes against source UIDs, selects the saved
+active class before resource loading and requests parked-class resources.
+Foreign rows reconstruct physics, seat and weapons from their own class pack;
+active-class rows retain the old live-resource fallback. Inactive authored Jeep
+seat records resolve against the parked Jeep chassis when another class is
+active. Direct-session and legacy active-switch restore restrictions remain.
+
+The mixed Xbox harness is enabled for ordinary Jeep boarding/gunner fire,
+exit, on-foot approach, APC boarding and firing. Generic entry telemetry records
+range/path admission and actual poses for numeric diagnosis without images.
+Runtime and save continuation results must be recorded separately below.
+Native runtime evidence: `artifacts/xemu/vehicle-mixed-mixed-20261003-175927/report.json`
+reports ONE_DIRECTION_FUNCTIONAL_PASS for380 frames. Ordinary Use boards
+Jeep7629 at90; the gunner launches three shots and ammo falls999→996. After
+normal exit210 and on-foot approach, Use270 switches to APC3303 and boards it.
+Five APC primary launches consume999→994 rounds. Both original handles remain
+stable (Jeep33358332, APC33292795), checked registry ownership is coherent,
+there are two boards/one exit/one exchange and no rejected switch or gameplay
+error. Final available memory is5317 pages (about20.8MiB). Original disc flags
+were restored and Xbox image rebuilt. Return boarding, fresh-load RFSW2,
+secondary fire, Driller switching and audiovisual appearance are not established
+by this run. Vehicles estimate advances to approximately95%; overall remains88%.

@@ -1,6 +1,9 @@
 /* Early resource identity only; gameplay state still uses staged world load. */
 static uint32_t scene_vehicle_switch_boot_order[RF_OBJECT_CAPACITY];
 static uint32_t scene_vehicle_switch_boot_count,scene_vehicle_switch_boot_uid;
+static uint32_t scene_vehicle_switch_boot_profiles,scene_vehicle_switch_original_profile;
+static uint32_t scene_vehicle_switch_boot_profile_mask(void){return scene_vehicle_switch_boot_profiles;}
+static uint32_t scene_vehicle_switch_boot_original_profile(void){return scene_vehicle_switch_original_profile;}
 /* Saved inactive seat identities are hints for constructing the fresh bank.
  * Full RFNS/NPC semantic admission still precedes gameplay publication. */
 static uint32_t scene_vehicle_switch_boot_seats[SCENE_NPC_SEAT_LIMIT][3];
@@ -58,10 +61,11 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
 #endif
     scene_world_snapshot_identity identity;rf_world_checkpoint world;
     rf_level_entity selected;rf_level_entity_spawn spawn;rf_level_entity_vitals vitals;
-    uint32_t uid=0,profile=0,count=0,grouped=0;
+    uint32_t uid=0,profile=0,count=0,grouped=0,profiles=0;
     rf_checkpoint_file_selection selection={0};unsigned char *data=NULL;
     uint32_t bytes=0,i;int status=RF_OK;
     scene_vehicle_switch_boot_count=0;scene_vehicle_switch_boot_uid=0;scene_vehicle_switch_boot_seat_count=0;
+    scene_vehicle_switch_boot_profiles=0;scene_vehicle_switch_original_profile=rf_scene_vehicle_enabled;
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!scene_live_load_active){
@@ -89,7 +93,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
     status=rf_world_checkpoint_decode(data,bytes,0,&world);if(status)goto done;
     const rf_world_checkpoint_slice *slice=world.sections+RF_WORLD_VEHICLE-1;
     status=scene_vehicle_switch_checkpoint_peek(slice->data,slice->bytes,&uid,&profile,&count);if(status||!uid)goto done;
-    if(!campaign_authored_vehicle_uid||profile!=rf_scene_vehicle_enabled||profile<1||profile>3||
+    if(!campaign_authored_vehicle_uid||(scene_history_word(slice->data+4)==1&&profile!=rf_scene_vehicle_enabled)||profile<1||profile>3||
        uid>0x7fffffffu||!count||count>RF_OBJECT_CAPACITY){status=RF_FORMAT;goto done;}
     status=rf_level_entity_find(level,(int32_t)uid,&selected);if(status)goto done;
     if(scene_vehicle_selection_profile(selected.class_name)!=profile){status=RF_FORMAT;goto done;}
@@ -105,16 +109,34 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
      }}
     status=scene_vehicle_selection_grouped(level,uid,&grouped);if(status)goto done;
     if(grouped){status=RF_FORMAT;goto done;}
+    profiles=1u<<profile;
     for(i=0;i<count;i++){
-        status=scene_vehicle_switch_checkpoint_row_uid(slice->data,slice->bytes,i,scene_vehicle_switch_boot_order+i);if(status)goto done;
+        uint32_t valid,row_profile;
+        status=scene_vehicle_switch_checkpoint_row_identity(slice->data,slice->bytes,i,scene_vehicle_switch_boot_order+i,&valid,&row_profile);if(status)goto done;
         if(scene_vehicle_switch_boot_order[i]==uid){status=RF_FORMAT;goto done;}
         for(uint32_t j=0;j<i;j++)if(scene_vehicle_switch_boot_order[j]==scene_vehicle_switch_boot_order[i]){status=RF_FORMAT;goto done;}
+        if(valid){
+            rf_level_entity row;rf_level_entity_spawn row_spawn;rf_level_entity_vitals row_vitals;
+            const rf_level_section *section=rf_level_find(level,0x30000);
+            uint32_t row_uid=scene_vehicle_switch_boot_order[i],row_grouped=0;
+            if(!section||row_uid>0x7fffffffu){status=RF_FORMAT;goto done;}
+            status=rf_level_entity_find(level,(int32_t)row_uid,&row);if(status)goto done;
+            if(scene_vehicle_selection_profile(row.class_name)!=row_profile){status=RF_FORMAT;goto done;}
+            status=scene_vehicle_selection_metadata(level,section,&row,&row_spawn,&row_vitals);if(status)goto done;
+            if(row_spawn.seat_host_uid!=-1||(row_vitals.health<=0&&row_vitals.health!=-1)||
+               ((row_spawn.creation_flags&2u)&&row_uid!=(uint32_t)campaign_authored_vehicle_uid)){
+                status=RF_FORMAT;goto done;
+            }
+            status=scene_vehicle_selection_grouped(level,row_uid,&row_grouped);if(status)goto done;
+            if(row_grouped){status=RF_FORMAT;goto done;}profiles|=1u<<row_profile;
+        }
     }
     status=scene_vehicle_switch_boot_seats_read(slice->data,slice->bytes);if(status)goto done;
     /* Publish the selected resource identity only after transport, source and
      * full saved order admission. No passive/active vehicle owner has been
      * registered yet; existing groups and movers remain unchanged. */
     scene_vehicle_switch_boot_count=count;scene_vehicle_switch_boot_uid=uid;
+    scene_vehicle_switch_boot_profiles=profiles;rf_scene_vehicle_enabled=profile;
     campaign_authored_vehicle_uid=(int32_t)uid;
     memcpy(campaign_authored_vehicle_position,selected.position,12);
     memcpy(campaign_authored_vehicle_basis,selected.orientation,36);

@@ -251,16 +251,18 @@ static int scene_npc_seats_open(scene_stream *stream,int32_t now)
              * RFNS row admits this placeholder; ordinary unresolved spawns
              * never become retired bindings. Full world admission follows. */
             int32_t saved_tag=-1;scene_passive_vehicle *passive=NULL;
-            if(stream->driller&&!strcmp(stream->driller->model,"Jeep01.v3m")&&
-               scene_vehicle_switch_boot_retired_seat((uint32_t)campaign_seeds.records.items[i].record.uid,
+            const scene_driller_resources *jeep=stream->driller&&!strcmp(stream->driller->model,"Jeep01.v3m")?
+                stream->driller:stream->passive_vehicle_resources[5];
+            if(scene_vehicle_switch_boot_retired_seat((uint32_t)campaign_seeds.records.items[i].record.uid,
                    (uint32_t)host_uid,&saved_tag)) {
+                if(!jeep||strcmp(jeep->model,"Jeep01.v3m")){status=RF_NOT_FOUND;goto fail;}
                 for(uint32_t j=0;j<campaign_passive_vehicle_count;j++)if(campaign_passive_vehicles[j].uid==(uint32_t)host_uid) {
                     if(passive){status=RF_FORMAT;goto fail;}passive=campaign_passive_vehicles+j;
                 }
                 if(!passive){status=RF_NOT_FOUND;goto fail;}
                 b->kind=SCENE_NPC_SEAT_JEEP;b->host=passive->handle;
                 if(!scene_npc_seat_passive_jeep(b)||!scene_npc_seat_actor(b)||o->view.linked_handle!=-1){status=RF_NOT_FOUND;goto fail;}
-                status=rf_static_model_tags_find(&stream->driller->tags,(rf_model_name){"interface_1",11},&tag);
+                status=rf_static_model_tags_find(&jeep->tags,(rf_model_name){"interface_1",11},&tag);
                 if(status)goto fail;if(tag!=saved_tag){status=RF_FORMAT;goto fail;}
                 b->tag=tag;++scene_npc_seat_count;continue;
             }

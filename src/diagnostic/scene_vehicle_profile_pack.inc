@@ -4,19 +4,7 @@
  * One ground-class extras owner. Chassis is BORROWED and never modified/closed;
  * world registries, scene profile and renderer are never published here.
  * Geometry must remain allocated until scene retained-model teardown. */
-struct scene_vehicle_profile_pack {
-    const scene_driller_resources *chassis;
-    scene_driller_cockpit *cockpit;scene_driller_bit_animation *bits;
-    scene_jeep_gun_resources *gun;scene_driller_resources *mortar;
-    uint32_t profile,merged,resident_bytes,peak_bytes,material_bytes;
-    uint32_t bit_base,bit_textures,gun_base,gun_textures,mortar_base,mortar_textures;
-    int32_t seat,gunner_seat,primary_muzzle,secondary_muzzle;
-    scene_driller_physics physics;scene_driller_damage damage;rf_entity_view view;
-    scene_driller_weapon drill;scene_vehicle_primary_definition primary;
-    scene_vehicle_primary_state primary_initial;scene_apc_secondary_definition secondary;
-    int32_t primary_reserve,secondary_reserve;rf_random_state primary_random;
-    rf_entity_eye_limits aim_limits;
-};
+
 static void scene_vehicle_profile_pack_close(scene_vehicle_profile_pack **out)
 {
     scene_vehicle_profile_pack *p;if(!out||!(p=*out))return;
@@ -140,5 +128,120 @@ static int scene_vehicle_profile_pack_materials_merge(scene_vehicle_profile_pack
     scene->allocated_bytes+=(uint32_t)extra_bytes;p->material_bytes=(uint32_t)extra_bytes;
     p->resident_bytes-=(uint32_t)pack_released;p->cockpit->merged=1;p->merged=1;return RF_OK;
 }
+/* Merged packs are safe for allocation-free gameplay/codec reads. */
+static const scene_vehicle_profile_pack *scene_vehicle_profile_pack_get(const scene_stream *s,uint32_t profile)
+{
+    const scene_vehicle_profile_pack *p;
+    if(!s||profile<1||profile>3)return NULL;p=s->vehicle_profile_packs[profile];
+    return p&&p->profile==profile&&p->merged&&p->chassis&&p->cockpit&&p->cockpit->merged?p:NULL;
+}
+static int scene_vehicle_profile_pack_scene_images(const rf_materials *scene,uint32_t base,uint32_t count,uint64_t *bytes)
+{
+    if(!scene||!bytes||!count||!scene->items||base>scene->count||count>scene->count-base)return RF_FORMAT;
+    for(uint32_t i=0;i<count;i++)*bytes+=scene->items[base+i].image.bytes;
+    return RF_OK;
+}
+/* Adoption changes only close ownership. Existing stream fields remain exact
+ * aliases, and every geometry/image address survives. On failure only the new
+ * descriptor is freed; borrowed startup resources are never closed. */
+static int scene_vehicle_profile_pack_adopt(scene_stream *s,uint32_t profile,const rf_materials *materials,
+    float gravity,scene_vehicle_profile_pack **out)
+{
+    static const char *const model[3]={"Driller01.v3m","APC.v3m","Jeep01.v3m"};
+    const float origin[3]={0,0,0},identity[9]={1,0,0,0,1,0,0,0,1};
+    scene_vehicle_profile_pack *p;uint64_t resident,released=0,material=0,pixels=0;int st;
+    if(!s||!out||*out||profile<1||profile>3||!materials||!s->driller||!s->driller_cockpit||
+       !s->driller_cockpit->merged||!s->driller_cockpit->materials||!isfinite(gravity)||gravity<0)return RF_RANGE;
+    if(strcmp(s->driller->model,model[profile-1])||
+       (profile==1?(!s->driller_bits||s->jeep_gun||s->apc_mortar):
+        profile==2?(!s->apc_mortar||s->driller_bits||s->jeep_gun):(!s->jeep_gun||s->driller_bits||s->apc_mortar)))return RF_FORMAT;
+    p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->profile=profile;p->chassis=s->driller;
+    p->cockpit=s->driller_cockpit;p->bits=s->driller_bits;p->gun=s->jeep_gun;p->mortar=s->apc_mortar;
+    p->bit_base=s->driller_bit_base;p->bit_textures=s->driller_bit_textures;
+    p->gun_base=s->jeep_gun_base;p->gun_textures=s->jeep_gun_textures;
+    p->mortar_base=s->apc_mortar_base;p->mortar_textures=s->apc_mortar_textures;
+    p->seat=p->gunner_seat=p->primary_muzzle=p->secondary_muzzle=-1;
+    st=rf_static_model_tags_find(&p->chassis->tags,(rf_model_name){"interface_1",11},&p->seat);if(st)goto fail;
+    if(profile==3){st=rf_static_model_tags_find(&p->chassis->tags,(rf_model_name){"interface_2",11},&p->gunner_seat);if(st)goto fail;}
+    st=scene_vehicle_profile_physics_prepare(profile,p->chassis,origin,identity,gravity,&p->physics);if(st)goto fail;
+    p->damage=s->driller_damage_prototype;
+    p->view.handle=-1;p->view.type=0;p->view.class_type=(int32_t)p->chassis->physics.authored.use_kind;
+    p->view.linked_handle=-1;p->view.weapons[0]=p->view.weapons[1]=-1;p->view.base_speed=p->chassis->movement.speed;
+    p->view.occupant_count=profile==3?2:1;
+    if(profile==1){p->drill=s->driller_weapon;
+        p->drill.held_seconds=p->drill.damage_wait=p->drill.contact_seconds=p->drill.spin=p->drill.phase=0;
+        p->drill.held=p->drill.contact_active=p->drill.accepted_cuts=p->drill.contacts=p->drill.damage_calls=0;
+    }else{p->primary=s->apc_primary.definition;p->primary_muzzle=s->apc_primary.muzzle;p->aim_limits=s->apc_aim_limits;}
+    if(profile==2){p->secondary=s->apc_secondary.definition;p->secondary_muzzle=s->apc_secondary.muzzle;}
+    p->primary_reserve=(int32_t)p->primary.capacity;p->secondary_reserve=(int32_t)p->secondary.capacity;p->primary_random.value=1;
+    resident=sizeof(*p)+(uint64_t)p->cockpit->resident_bytes;
+    if(p->bits){if(p->bits->model.materials.textures.items||p->bits->model.materials.textures.count){st=RF_FORMAT;goto fail;}
+        st=scene_vehicle_profile_pack_scene_images(materials,p->bit_base,p->bit_textures,&pixels);if(st)goto fail;
+        material+=(uint64_t)p->bit_textures*sizeof(rf_material);resident+=p->bits->resident_bytes;}
+    if(p->gun){if(!p->gun->model||p->gun->model->materials.textures.items||p->gun->model->materials.textures.count){st=RF_FORMAT;goto fail;}
+        st=scene_vehicle_profile_pack_scene_images(materials,p->gun_base,p->gun_textures,&pixels);if(st)goto fail;
+        material+=(uint64_t)p->gun_textures*sizeof(rf_material);resident+=p->gun->resident_bytes;}
+    if(p->mortar){if(p->mortar->materials.textures.items||p->mortar->materials.textures.count){st=RF_FORMAT;goto fail;}
+        st=scene_vehicle_profile_pack_scene_images(materials,p->mortar_base,p->mortar_textures,&pixels);if(st)goto fail;
+        material+=(uint64_t)p->mortar_textures*sizeof(rf_material);resident+=p->mortar->resident_bytes;}
+    released=pixels+material;material+=pixels;
+    if(p->cockpit->materials->textures.texture_count>64){st=RF_FORMAT;goto fail;}
+    for(uint32_t i=0;i<p->cockpit->materials->textures.texture_count;i++){
+        const rf_particle_animation *a=&p->cockpit->materials->textures.textures[i].animation;uint64_t image_bytes=0;
+        if(!a->count)continue;if(!a->images){st=RF_FORMAT;goto fail;}
+        for(uint32_t j=0;j<a->count;j++)if(a->images[j].rgba||a->images[j].bytes){st=RF_FORMAT;goto fail;}
+        st=scene_vehicle_profile_pack_scene_images(materials,p->cockpit->texture_base[i],a->count,&image_bytes);if(st)goto fail;
+        released+=image_bytes;material+=image_bytes+(uint64_t)a->count*sizeof(rf_material);
+    }
+    if(released>resident||resident-released>UINT32_MAX||material>UINT32_MAX){st=RF_RANGE;goto fail;}
+    p->resident_bytes=(uint32_t)(resident-released);p->peak_bytes=p->resident_bytes;p->material_bytes=(uint32_t)material;p->merged=1;
+    *out=p;return RF_OK;
+fail:free(p);return st;
+}
+/* Resource ownership admission only. Caller separately admits owner identity,
+ * gameplay dependencies, pending effects and placement before registry commit. */
+static int scene_vehicle_profile_pack_exchange_admit(const scene_stream *s,uint32_t outgoing,const scene_vehicle_profile_pack *next)
+{
+    const scene_vehicle_profile_pack *old=scene_vehicle_profile_pack_get(s,outgoing);uint32_t old_kind,next_kind;
+    if(!old||!next||next->profile<1||next->profile>3||next->profile==outgoing||
+       scene_vehicle_profile_pack_get(s,next->profile)!=next)return RF_NOT_FOUND;
+    old_kind=outgoing+2;next_kind=next->profile+2;
+    if(s->driller!=old->chassis||s->passive_vehicle_resources[old_kind]||
+       s->passive_vehicle_resources[next_kind]!=next->chassis||
+       !s->driller_textures||!s->passive_vehicle_textures[next_kind]||
+       s->driller_cockpit!=old->cockpit||s->driller_bits!=old->bits||s->jeep_gun!=old->gun||s->apc_mortar!=old->mortar||
+       s->submarine_torpedo)return RF_NOT_FOUND;
+    if(s->driller_bit_base!=old->bit_base||s->driller_bit_textures!=old->bit_textures||
+       s->jeep_gun_base!=old->gun_base||s->jeep_gun_textures!=old->gun_textures||
+       s->apc_mortar_base!=old->mortar_base||s->apc_mortar_textures!=old->mortar_textures)return RF_FORMAT;
+    return RF_OK;
+}
+/* Infallible publication after exchange_admit and caller's full transaction
+ * admission. Pack owns extras, stream aliases them; chassis close ownership
+ * moves between the one active pointer and its passive-class NULL slot.
+ * Mutable instance state is initialized here then overlaid from target bank.
+ * No telemetry, global profile, registry, actor pose or audio is changed. */
+static void scene_vehicle_profile_pack_publish(scene_stream *s,uint32_t outgoing,const scene_vehicle_profile_pack *next)
+{
+    uint32_t old_kind=outgoing+2,next_kind=next->profile+2;
+    s->passive_vehicle_resources[old_kind]=s->driller;s->passive_vehicle_base[old_kind]=s->driller_base;
+    s->passive_vehicle_textures[old_kind]=s->driller_textures;
+    s->driller=s->passive_vehicle_resources[next_kind];s->driller_base=s->passive_vehicle_base[next_kind];
+    s->driller_textures=s->passive_vehicle_textures[next_kind];s->passive_vehicle_resources[next_kind]=NULL;
+    s->passive_vehicle_base[next_kind]=s->passive_vehicle_textures[next_kind]=0;
+    s->driller->seat=next->seat;
+    s->driller_cockpit=next->cockpit;s->driller_bits=next->bits;s->jeep_gun=next->gun;s->apc_mortar=next->mortar;
+    s->driller_bit_base=next->bit_base;s->driller_bit_textures=next->bit_textures;
+    s->jeep_gun_base=next->gun_base;s->jeep_gun_textures=next->gun_textures;
+    s->apc_mortar_base=next->mortar_base;s->apc_mortar_textures=next->mortar_textures;
+    s->driller_damage_prototype=next->damage;s->driller_weapon=next->drill;
+    memset(&s->apc_primary,0,sizeof(s->apc_primary));s->apc_primary.definition=next->primary;
+    s->apc_primary.scheduler=next->primary_initial;s->apc_primary.muzzle=next->primary_muzzle;
+    s->apc_primary.reserve=next->primary_reserve;s->apc_primary.random=next->primary_random;
+    memset(&s->apc_secondary,0,sizeof(s->apc_secondary));s->apc_secondary.definition=next->secondary;
+    s->apc_secondary.muzzle=next->secondary_muzzle;s->apc_secondary.reserve=next->secondary_reserve;
+    s->apc_aim_limits=next->aim_limits;memset(&s->apc_aim,0,sizeof(s->apc_aim));s->apc_aim_active=0;
+    memset(s->apc_aim_eye,0,sizeof(s->apc_aim_eye));memset(s->apc_aim_basis,0,sizeof(s->apc_aim_basis));
+    memset(s->jeep_gun_pose,0,sizeof(s->jeep_gun_pose));memset(s->jeep_muzzle_pose,0,sizeof(s->jeep_muzzle_pose));
+}
 #endif
-

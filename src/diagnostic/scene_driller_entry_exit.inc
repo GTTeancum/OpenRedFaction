@@ -67,17 +67,32 @@ static int scene_driller_player_shape(scene_driller_entry_exit *c,scene_vehicle_
 /* First Jeep admission: attempts, stage(range1/path2), allowed, status,
  * distance squared, radius, player xyz, host xyz. Floats are bitcasts. */
 uint32_t rf_scene_jeep_entry_probe[12];
+/* Last ordinary entry admission: calls,frame,profile,host,allowed,status,
+ * distance squared,use radius,playerXYZ,seatXYZ,stage(range1/path2),reserved.
+ * Observational only; retain through close and reset when a new entry opens. */
+uint32_t rf_scene_vehicle_entry_probe[16];
 static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t host,uint32_t *allowed)
 {
     scene_driller_entry_exit *c=context;scene_vehicle_pose seat;scene_vehicle_collision query;
     rf_collision_body_sphere spheres[64];float d2=0,range=c->resource->physics.authored.use_radius;uint32_t i;int status;
+    uint32_t *trace=rf_scene_vehicle_entry_probe;++trace[0];memset(trace+1,0,15*sizeof(*trace));
+#ifdef RF_IMAGE_XBOX_NATIVE
+    trace[1]=rf_scene_profile_stage[0];trace[2]=rf_scene_vehicle_enabled;
+#else
+    /* Standalone adapter consumers have no scene clock/profile globals. */
+    trace[1]=UINT32_MAX;
+    trace[2]=!strcmp(c->resource->model,"APC.v3m")?2:!strcmp(c->resource->model,"Jeep01.v3m")?3:
+        !strcmp(c->resource->model,"sub.v3m")?4:!strcmp(c->resource->model,"Fighter01.v3m")?5:1;
+#endif
+    trace[3]=host;memcpy(trace+7,&range,4);memcpy(trace+8,c->player_body->state.position,12);
     *allowed=0;
-    if(rf_entity_lookup(c->entities,(int32_t)player)!=c->player_view || host!=c->registration.handle)return RF_NOT_FOUND;
+    if(rf_entity_lookup(c->entities,(int32_t)player)!=c->player_view || host!=c->registration.handle){trace[5]=(uint32_t)RF_NOT_FOUND;return RF_NOT_FOUND;}
     if(c->resource->physics.authored.movement_index==7){
         ++rf_scene_submarine_boarding[0];
         memcpy(rf_scene_submarine_boarding+5,c->player_body->state.position,12);
     }
     for(i=0;i<3;++i){float d=c->player_body->state.position[i]-c->physics->state.position[i];d2+=d*d;}
+    trace[14]=1;memcpy(trace+6,&d2,4);
     uint32_t sample=!strcmp(c->resource->model,"Jeep01.v3m") && !rf_scene_jeep_entry_probe[0];
     if(!strcmp(c->resource->model,"Jeep01.v3m"))++rf_scene_jeep_entry_probe[0];
     if(sample){rf_scene_jeep_entry_probe[1]=1;memcpy(rf_scene_jeep_entry_probe+4,&d2,4);memcpy(rf_scene_jeep_entry_probe+5,&range,4);
@@ -87,20 +102,23 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
         if(c->resource->physics.authored.movement_index==7)++rf_scene_submarine_boarding[1];
         return RF_OK;
     }
-    status=scene_driller_entry_seat(c,host,&seat);if(status)return status;
-    status=scene_driller_player_shape(c,&query,spheres);if(status)return status;
+    status=scene_driller_entry_seat(c,host,&seat);if(status){trace[5]=(uint32_t)status;return status;}
+    memcpy(trace+11,seat.position,12);
+    status=scene_driller_player_shape(c,&query,spheres);if(status){trace[5]=(uint32_t)status;return status;}
+    trace[14]=2;
     if(c->resource->physics.authored.movement_index==7){
         scene_vehicle_pose from;uint32_t wet=0;
-        if(!c->water_path)return RF_RANGE;
+        if(!c->water_path){trace[5]=(uint32_t)RF_RANGE;return RF_RANGE;}
         memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=c->water_path(c->water_context,spheres,query.count,&from,&seat,&wet);
-        if(status || !wet){if(!wet)++rf_scene_submarine_boarding[2];return status;}
+        if(status || !wet){if(!wet)++rf_scene_submarine_boarding[2];trace[5]=(uint32_t)status;return status;}
     }
     if(!strcmp(c->resource->model,"Jeep01.v3m")){
         scene_vehicle_pose from;memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=scene_vehicle_seated_path(c,&from,&seat,allowed);
         if(sample){rf_scene_jeep_entry_probe[1]=2;rf_scene_jeep_entry_probe[2]=*allowed;rf_scene_jeep_entry_probe[3]=(uint32_t)status;}
     }else status=scene_vehicle_collision_exit_path(&query,c->player_body->state.position,seat.position,c->player_body->state.orientation,allowed);
+    trace[4]=*allowed;trace[5]=(uint32_t)status;
     if(c->resource->physics.authored.movement_index==7 && !status){
         ++rf_scene_submarine_boarding[*allowed?4:3];
     }
@@ -179,6 +197,7 @@ static int scene_driller_entry_exit_open(scene_driller_entry_exit *c,rf_object_r
     int status;
     if(!c || !objects || !entities || !player || !body || !resource || !physics || !collision || !eye_offset || c->registration.view)return RF_RANGE;
     if(rf_entity_lookup(entities,player->handle)!=player)return RF_NOT_FOUND;
+    memset(rf_scene_vehicle_entry_probe,0,sizeof(rf_scene_vehicle_entry_probe));
     memset(c,0,sizeof(*c));c->objects=objects;c->entities=entities;c->player_view=player;c->player_body=body;
     if(resource->physics.authored.movement_index==7)memset(rf_scene_submarine_boarding,0,sizeof(rf_scene_submarine_boarding));
     c->resource=resource;c->physics=physics;c->collision=*collision;memcpy(c->eye_offset,eye_offset,12);

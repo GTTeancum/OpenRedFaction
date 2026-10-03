@@ -4,7 +4,7 @@
  * that slot's UID/handle changes only in the admitted exchange transaction.
  * No resource ownership; RFSW serializes explicit portable state fields. */
 typedef struct scene_vehicle_parked_state {
-    uint32_t valid,uid,handle,body_flags,scripted_physics;
+    uint32_t valid,uid,handle,body_flags,scripted_physics,profile;
     rf_vehicle_rigid_state physics;
     scene_campaign_vehicle_route route;
     scene_vehicle_primary_state primary;

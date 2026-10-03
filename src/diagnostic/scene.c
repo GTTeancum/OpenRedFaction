@@ -15967,6 +15967,7 @@ static uint32_t scene_vehicle_physics_frozen(const scene_stream *);
 static uint32_t scene_vehicle_physics_allows_control(const scene_stream *);
 static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
 #include "scene_driller_runtime.inc"
+#include "scene_vehicle_profile_pack_state.inc"
 static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
 {
     const scene_driller_damage_runtime *r=scene_driller_damage_owner;
@@ -20288,6 +20289,11 @@ done:
     {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
     scene_vehicle_switch_close();
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
+    if(scene_vehicle_profile_pack_get(stream,rf_scene_vehicle_enabled)){
+        /* Adopted profile packs own these extras; the active stream aliases them. */
+        stream->driller_cockpit=NULL;stream->driller_bits=NULL;
+        stream->jeep_gun=NULL;stream->apc_mortar=NULL;
+    }
     for(i=1;i<=3;++i)scene_vehicle_profile_pack_close(&stream->vehicle_profile_packs[i]);
     scene_driller_resources_close(&stream->submarine_torpedo);
     scene_driller_cockpit_close(&stream->driller_cockpit);
