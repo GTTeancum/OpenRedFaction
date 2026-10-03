@@ -113,18 +113,13 @@ and MinGW64 runtime DLLs for the SDK's existing host tools.
 python tools/build_apu_probe.py --backend-only
 $env:MSYSTEM = 'CLANG64'
 & 'C:\msys64\usr\bin\bash.exe' --noprofile --norc tools/build-xbox.sh
-Copy-Item -LiteralPath 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\tables.vpp' -Destination build/xbox/disc/tables.vpp
-Copy-Item -LiteralPath 'D:\Programming\GitHub\OpenRedFaction\Installed_Game\levels1.vpp' -Destination build/xbox/disc/levels1.vpp
-foreach ($name in @('maps1.vpp','maps2.vpp','maps3.vpp','maps4.vpp','maps_en.vpp','meshes.vpp','motions.vpp','audio.vpp')) {
-    Copy-Item -LiteralPath (Join-Path 'Installed_Game' $name) -Destination (Join-Path 'build/xbox/disc' $name)
-}
-& 'C:\msys64\usr\bin\bash.exe' --noprofile --norc tools/build-xbox.sh
 ```
 
 Outputs: `build/xbox/disc/default.xbe` and
 `build/xbox/redfaction-diagnostic.iso`. The disc contains a private copy of the
-original tables, first campaign-level archive, five map archives, meshes, motions and audio,
-so keep that package local.
+original tables, level archives, maps, meshes, motions, audio, music and UI,
+so keep that package local. The build automatically recreates these copies from
+`Installed_Game/` after cleanup.
 The diagnostic reports memory, reads Live Mines' section directory and spawn
 transform, and loads its static geometry and base textures within explicit budgets.
 It draws three base-textured and lightmapped geometry frames; gameplay remains open.

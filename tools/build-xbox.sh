@@ -19,19 +19,15 @@ if [[ "$root/Installed_Game/bluebeard.bty" -nt "$root/build/xbox/disc/bluebeard.
     cp "$root/Installed_Game/bluebeard.bty" "$root/build/xbox/disc/bluebeard.bty"
     rm -f "$root/build/xbox/redfaction-diagnostic.iso"
 fi
-if [[ "$root/Installed_Game/audio.vpp" -nt "$root/build/xbox/disc/audio.vpp" ]]; then
-    cp "$root/Installed_Game/audio.vpp" "$root/build/xbox/disc/audio.vpp"
-    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
-fi
-if [[ "$root/Installed_Game/music.vpp" -nt "$root/build/xbox/disc/music.vpp" ]]; then
-    cp "$root/Installed_Game/music.vpp" "$root/build/xbox/disc/music.vpp"
-    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
-fi
-# Original level GeoMod textures (including rock02.tga) live in ui.vpp.
-if [[ "$root/Installed_Game/ui.vpp" -nt "$root/build/xbox/disc/ui.vpp" ]]; then
-    cp "$root/Installed_Game/ui.vpp" "$root/build/xbox/disc/ui.vpp"
-    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
-fi
+# Recreate private asset copies after routine cleanup. Previously most archives
+# required a manual first-time copy, so a cleaned tree built an unbootable disc.
+# Newer staged fixture archives remain intact for bounded harnesses.
+for archive in tables levels1 levels2 levels3 levelsm maps1 maps2 maps3 maps4 maps_en meshes motions audio music ui; do
+    if [[ ! -f "$root/build/xbox/disc/$archive.vpp" || "$root/Installed_Game/$archive.vpp" -nt "$root/build/xbox/disc/$archive.vpp" ]]; then
+        cp "$root/Installed_Game/$archive.vpp" "$root/build/xbox/disc/$archive.vpp"
+        rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+    fi
+done
 # Prepared from the user's verified executable; no original geometry is tracked.
 if [[ ! -f "$root/build/data/geomod-template.bin" ]]; then
     echo "Run python tools/inspect_geomod_template.py and python tools/pack_geomod_template.py first." >&2

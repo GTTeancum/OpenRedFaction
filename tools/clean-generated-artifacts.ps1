@@ -64,8 +64,15 @@ if (-not $Apply) {
 }
 
 $busy = @(Get-CimInstance Win32_Process | Where-Object {
-    $_.Name -in @('xemu.exe', 'python.exe', 'bash.exe', 'make.exe') -and
-    $_.CommandLine -and $_.CommandLine.IndexOf($expectedRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $command = $_.CommandLine
+    # Relative commands (python tools/xemu_*.py; bash tools/build-xbox.sh)
+    # do not contain the working directory. Conservatively block those too.
+    ($command -and (
+        ($_.Name -in @('xemu.exe','python.exe','python3.exe','bash.exe','make.exe','clang.exe','clang++.exe','lld.exe','lld-link.exe','cxbe.exe','extract-xiso.exe') -and
+         (($command.Replace('/','\').IndexOf($expectedRoot,[System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+          ($command -match '[/\\]d[/\\]Programming[/\\]GitHub[/\\]OpenRedFaction'))) -or
+        ($_.Name -in @('python.exe','python3.exe') -and $command -match 'tools[/\\]xemu_[^\s]*\.py') -or
+        ($_.Name -eq 'bash.exe' -and $command -match 'tools[/\\]build-xbox\.sh')))
 })
 if ($busy.Count) { throw "Project processes are still running: $($busy.ProcessId -join ', ')" }
 
