@@ -1,6 +1,6 @@
 # Cross-class vehicle ownership: implementation handoff
 
-Status: stock64MiB Xbox verifies Jeep-to-APC runtime switching; cross-class save continuation remains unverified. The extracted
+Status: stock64MiB Xbox verifies Jeep-to-APC switching, ordinary occupied APC save/fresh-load and return to the original Jeep. The extracted
 `scene_vehicle_profile_resources_open` preserves the former startup load order,
 caps, weapon initialization, damage prototype and seat validation. Authored/DEV
 pose selection now precedes it. Parent reports the existing 480-frame Jeep
@@ -300,3 +300,26 @@ error. Final available memory is5317 pages (about20.8MiB). Original disc flags
 were restored and Xbox image rebuilt. Return boarding, fresh-load RFSW2,
 secondary fire, Driller switching and audiovisual appearance are not established
 by this run. Vehicles estimate advances to approximately95%; overall remains88%.
+## Verified mixed-class ordinary save continuation
+
+Source `artifacts/xemu/vehicle-mixed-save-20261003-180759` completed380 frames
+and wrote a15736-byte ordinary save with active APC3303/profile2 and parked
+Jeep7629/profile3. The initial checker falsely required a zero cooldown; the
+engine legitimately retains a finite negative tick overshoot (-0.0166667).
+Corrected checking matches engine quiescence (finite and not positive), and
+the original source payload passed without replaying the source run.
+
+Fresh-load report `artifacts/xemu/vehicle-mixed-save-20261003-181011/report.json`
+passes140 frames on stock64MiB. The occupied APC is restored without replaying
+Use or firing: primary994, secondary15, RNG3750785579. Its parked Jeep retains
+primary996 and RNG1030492215. Ordinary APC exit60, neutral settling, then Use100
+returns to Jeep driver control; saved parked pose, distinct health/armor,
+profile-specific resources and registry ownership agree exactly. The fresh
+scene recreates handles, then preserves them across the return transaction.
+Final available memory is5156 pages (about20.1MiB). Disc configuration was
+restored and its Xbox image rebuilt.
+
+This closes the bounded mixed-class save/return integration slice. Moving or
+occupied target transfers, other profiles, secondary fire and audiovisual
+verification are not established by this check. Overall remains approximately88%
+and vehicles approximately95%; no automatic estimate increase for validation.
