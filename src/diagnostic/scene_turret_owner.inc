@@ -98,6 +98,16 @@ static int scene_turrets_open(rf_vpp *tables)
             o->view.weapons[0]=campaign_base_motions.classes[cls].default_weapons.primary;
             o->view.weapons[1]=campaign_base_motions.classes[cls].default_weapons.secondary;
         }
+        /* Original464010 applies instance weapons after class startup.
+         * Empty/unknown inherit; explicit none clears the selected category. */
+        for(uint32_t side=0;side<2;side++){
+            const char *name=side?record->secondary_weapon:record->primary_weapon;
+            int32_t weapon;
+            if(scene_npc_loadout_equal(name,"none")){o->view.weapons[side]=-1;continue;}
+            weapon=rf_weapon_name_find(&campaign_weapon_supply.names,
+                !side&&scene_npc_loadout_equal(name,"glock")?"12mm handgun":name);
+            if(weapon>=0)o->view.weapons[side]=weapon;
+        }
         if(vitals.health<=0){o->dead=1;o->model=o->dead_model;o->view.flags_810|=1u;}
         status=rf_entity_view_register(&campaign_registry,&campaign_entities,&o->view,&o->registration);if(status)goto fail;
         o->damage.effects.handle=o->registration.handle;o->damage.effects.flags_810=o->view.flags_810;

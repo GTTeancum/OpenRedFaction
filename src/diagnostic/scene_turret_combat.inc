@@ -27,14 +27,24 @@ typedef struct scene_turret_combat_state {
 } scene_turret_combat_state;
 static scene_turret_combat_state scene_turret_combat_states[SCENE_TURRET_OWNER_LIMIT];
 static rf_weapon_primary_definition scene_turret_primary;
-static int32_t scene_turret_vauss_id=-1;
+static int32_t scene_turret_vauss_id=-1,scene_turret_heap_id=-1;
+static rf_weapon_primary_definition scene_turret_heap_primary;
+static rf_weapon_explosive_definition scene_turret_heap_explosive;
+static const rf_weapon_primary_definition *scene_turret_primary_for(int32_t weapon)
+{
+    if(weapon>=0&&weapon==scene_turret_vauss_id)return &scene_turret_primary;
+    if(weapon>=0&&weapon==scene_turret_heap_id)return &scene_turret_heap_primary;
+    return NULL;
+}
 static uint32_t scene_turret_combat_ready;
 uint32_t rf_scene_turret_combat[10]; /* ticks,acquired,turned,shots,cover,aim holds,inert,last UID,last target,errors */
 static void scene_turret_combat_close(void)
 {
     memset(scene_turret_combat_states,0,sizeof(scene_turret_combat_states));
     memset(&scene_turret_primary,0,sizeof(scene_turret_primary));
-    scene_turret_vauss_id=-1;scene_turret_combat_ready=0;
+    scene_turret_vauss_id=scene_turret_heap_id=-1;scene_turret_combat_ready=0;
+    memset(&scene_turret_heap_primary,0,sizeof(scene_turret_heap_primary));
+    memset(&scene_turret_heap_explosive,0,sizeof(scene_turret_heap_explosive));
 }
 static int scene_turret_combat_open(rf_vpp *tables,int32_t vauss_id)
 {
@@ -61,6 +71,14 @@ static int scene_turret_combat_open(rf_vpp *tables,int32_t vauss_id)
         s->handle=o->registration.handle;s->last_frame=UINT32_MAX;s->action=o->view.action_520;
         memcpy(s->mount,o->basis,36);o->target=UINT32_MAX;o->fire_due=0;
     }
+    {int32_t heap=rf_weapon_name_find(&campaign_weapon_supply.names,"HEAP");
+     for(i=0;i<scene_turret_count;i++)if(heap>=0&&scene_turrets[i].view.weapons[0]==heap){
+        status=rf_weapon_primary_load(tables,"HEAP",128*1024,&scene_turret_heap_primary);if(status)return status;
+        status=rf_weapon_explosive_load(tables,"HEAP",128*1024,&scene_turret_heap_explosive);if(status)return status;
+        if(scene_turret_heap_primary.projectiles!=1||scene_turret_heap_primary.damage_kind!=3||
+           scene_turret_heap_primary.ai_attack_range<=0||scene_turret_heap_primary.magazine||scene_turret_heap_primary.reload_seconds)return RF_FORMAT;
+        scene_turret_heap_id=heap;break;
+     }}
     scene_turret_primary=primary;scene_turret_vauss_id=vauss_id;scene_turret_combat_ready=1;return RF_OK;
 }
 static void scene_turret_combat_release(scene_turret_owner *o,scene_turret_combat_state *s)
@@ -119,7 +137,8 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
     for(i=0;i<scene_turret_count;i++) {
         scene_turret_owner *o=scene_turrets+i;scene_turret_combat_state *s=scene_turret_combat_states+i;
         const rf_entity_seed_class *c=campaign_seeds.classes+o->class_index;
-        scene_turret_combat_target chosen={0};float eye[3],delta[3],best=scene_turret_primary.ai_attack_range;
+        const rf_weapon_primary_definition *primary=scene_turret_primary_for(o->view.weapons[0]);
+        scene_turret_combat_target chosen={0};float eye[3],delta[3],best=primary?primary->ai_attack_range:0;
         uint32_t generated_ready=0,generated=0,alive,affiliation,found=0,blocked,reachable,operator_bound,operator_eligible,operator_actor;float cone;
         if(s->handle!=o->registration.handle || scene_turret_lookup(s->handle)!=o)return RF_FORMAT;
         /* The player owns aim/cadence until exit. Do not release or rewrite
@@ -135,7 +154,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         status=scene_turret_operator_controls(s->handle,&operator_bound,&operator_eligible,&affiliation,&operator_actor);if(status)goto fail;
         status=scene_turret_generated_ready(s->handle,&generated_ready);
         if(status!=RF_OK&&status!=RF_NOT_FOUND)goto fail;generated=status==RF_OK;
-        if((generated&&!generated_ready) || (operator_bound&&!operator_eligible) || !alive || (!generated&&o->view.linked_handle!=-1) || o->view.weapons[0]!=scene_turret_vauss_id ||
+        if((generated&&!generated_ready) || (operator_bound&&!operator_eligible) || !alive || (!generated&&o->view.linked_handle!=-1) || !primary ||
            (s->action!=0 && s->action!=-1 && s->action!=2 && s->action!=3 && s->action!=11)) {
             scene_turret_combat_release(o,s);++rf_scene_turret_combat[6];continue;
         }
@@ -148,7 +167,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
                 if(!isfinite(candidate.point[k])){status=RF_FORMAT;goto fail;}
                 delta[k]=candidate.point[k]-eye[k];distance+=delta[k]*delta[k];dot+=o->basis[6+k]*delta[k];
             }
-            if(distance<.0001f || distance>scene_turret_primary.ai_attack_range*scene_turret_primary.ai_attack_range)continue;
+            if(distance<.0001f || distance>primary->ai_attack_range*primary->ai_attack_range)continue;
             if(candidate.handle!=o->target) {
                 if((s->action==11||scene_turret_operator_motion_only(s->handle)) && !candidate.moving)continue;
                 if(dot<cone*sqrtf(distance))continue;
@@ -168,7 +187,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         status=scene_turret_target(s->handle,eye,&affiliation,&alive);if(status)goto fail;
         {float distance=0,dot=0,pose[12],muzzle[3],ray[3];uint32_t remaining=s->burst,due;
          for(k=0;k<3;k++){delta[k]=chosen.point[k]-eye[k];distance+=delta[k]*delta[k];dot+=o->basis[6+k]*delta[k];}
-         if(distance<.0001f || distance>scene_turret_primary.ai_attack_range*scene_turret_primary.ai_attack_range)continue;
+         if(distance<.0001f || distance>primary->ai_attack_range*primary->ai_attack_range)continue;
          /* Five-degree convergence is a first-pass policy; never shoot through
           * the authored pitch limits toward an unreachable target. */
          if(dot<.996194698f*sqrtf(distance)){++rf_scene_turret_combat[5];continue;}
@@ -181,9 +200,9 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
          for(k=0;k<3;k++)ray[k]=chosen.point[k]-muzzle[k];
          status=be->blocked(be->context,s->handle,muzzle,ray,&blocked);if(status)goto fail;
          if(blocked){++rf_scene_turret_combat[4];continue;}
-         for(k=0;k<3;k++)ray[k]=delta[k]*(scene_turret_primary.ai_attack_range/sqrtf(distance));
-         status=campaign_enemy_cadence(&scene_turret_primary,frame,&remaining,&due);if(status)goto fail;
-         status=be->shot(be->context,s->handle,chosen.handle,scene_turret_vauss_id,eye,muzzle,ray,&scene_turret_primary);
+         for(k=0;k<3;k++)ray[k]=delta[k]*(primary->ai_attack_range/sqrtf(distance));
+         status=campaign_enemy_cadence(primary,frame,&remaining,&due);if(status)goto fail;
+         status=be->shot(be->context,s->handle,chosen.handle,o->view.weapons[0],eye,muzzle,ray,primary);
          if(status==RF_NOT_FOUND)continue;if(status)goto fail;
          s->burst=remaining;o->fire_due=due;++rf_scene_turret_combat[3];}
     }

@@ -25,12 +25,12 @@ static int scene_turret_player_checkpoint_live(uint32_t frame)
     if(!o||o<scene_turrets||o>=scene_turrets+scene_turret_authored_count||
        !o->uid||o->uid==UINT32_MAX||o->class_index>=campaign_seeds.class_count||
        o->dead||o->damage.effects.health<=0||o->view.linked_handle!=-1||
-       (o->view.flags_7c&(2u|0x4000u))||o->view.weapons[0]!=scene_turret_vauss_id||
+       (o->view.flags_7c&(2u|0x4000u))||!scene_turret_primary_for(o->view.weapons[0])||
        campaign_seeds.classes[o->class_index].physics.use_kind!=4||
        scene_turret_operator_find(p->host)||scene_turret_generated_find(p->host)||
        p->saved_link!=-1||campaign_player_damage.state.effects.health<=0||
        p->use_held||p->fire_held||p->input.use||p->input.fire||p->input.alt_fire||
-       p->release_mask||p->burst>scene_turret_primary.burst_count||
+       p->release_mask||p->burst>scene_turret_primary_for(o->view.weapons[0])->burst_count||
        (p->due>frame&&p->due-frame>36000))return RF_NOT_FOUND;
     for(i=0;i<3;i++)if(!isfinite(p->desired[i])||!isfinite(p->anchor[i])||
         !isfinite(p->eye_offset[i])||p->desired[i]<campaign_seeds.classes[o->class_index].eye_limits.minimum[i]-.0001f||
@@ -96,8 +96,8 @@ static int scene_turret_player_checkpoint_admit(scene_turret_player_checkpoint_s
        (player->vehicle&&player->vehicle->value.vehicle.player_occupied))return RF_NOT_FOUND;
     for(i=0;i<turrets->count;i++)if(turrets->rows[i].uid==s->uid){if(v)return RF_FORMAT;v=turrets->rows+i;}
     if(!v||v->class_index!=s->class_id||v->dead||v->health<=0||(v->flags&(2u|0x4000u))||
-       v->primary!=scene_turret_vauss_id||v->target_uid!=UINT32_MAX||v->remaining||v->burst||
-       s->class_id>=campaign_seeds.class_count||s->burst>scene_turret_primary.burst_count)return RF_FORMAT;
+       !scene_turret_primary_for(v->primary)||v->target_uid!=UINT32_MAX||v->remaining||v->burst||
+       s->class_id>=campaign_seeds.class_count||s->burst>scene_turret_primary_for(v->primary)->burst_count)return RF_FORMAT;
     o=scene_turret_lookup(v->handle);cls=campaign_seeds.classes+s->class_id;
     if(!o||cls->physics.use_kind!=4||!isfinite(cls->physics.use_radius)||cls->physics.use_radius<=0||
        o->view.linked_handle!=-1||o->view.occupants||o->view.occupant_count||o->view.weapon_owner||

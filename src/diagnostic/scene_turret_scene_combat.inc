@@ -66,12 +66,22 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
         combat_random,combat_notify,combat_playing,combat_play,&feedback};
     (void)intended; /* The actual nearest hit, not the intended target, owns damage. */
     if(!c || !c->stream || !shooter || !definition || !eye || !muzzle || !ray ||
-       weapon!=scene_turret_vauss_id || definition->damage_kind<0 || definition->damage_kind>8)return RF_RANGE;
+       !scene_turret_primary_for(weapon) || definition->damage_kind<0 || definition->damage_kind>8)return RF_RANGE;
     /* Collision identity stays the turret so its own mesh is excluded.
      * A mounted player's actual handle owns damage and uses authored player
      * values; an autonomous/NPC-operated turret retains the prior AI policy. */
     player_source=scene_turret_player_source(source);
     damage_source=player_source==UINT32_MAX?source:player_source;
+    if(weapon==scene_turret_heap_id){
+        uint32_t excluded=player_source,accepted=0;
+        if(excluded==UINT32_MAX){uint32_t bound,eligible,affiliation;
+            status=scene_turret_operator_controls(source,&bound,&eligible,&affiliation,&excluded);if(status)return status;
+            if(!bound)excluded=UINT32_MAX;
+        }
+        status=scene_turret_heap_launch(c->stream,source,damage_source,excluded,eye,ray,definition,&scene_turret_heap_explosive,&accepted);
+        if(status)return status;if(!accepted)return RF_NOT_FOUND;
+        ++rf_scene_turret_shots[0];return RF_OK;
+    }
     damage=player_source==UINT32_MAX?combat_enemy_primary_damage(definition):definition->damage;
     spread_degrees=player_source==UINT32_MAX?definition->ai_spread_degrees:definition->spread_degrees;
     if(!isfinite(damage) || damage<0)return RF_FORMAT;

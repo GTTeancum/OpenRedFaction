@@ -117,7 +117,7 @@ static int scene_turret_player_select(scene_stream *stream,uint32_t *handle)
         float point[3],delta[3],distance=0,dot=0;uint32_t affiliation,alive,blocked;
         if(scene_turret_lookup(o->registration.handle)!=o||
            c->use_kind!=4||!isfinite(c->use_radius)||c->use_radius<=0||o->dead||
-           o->view.weapons[0]!=scene_turret_vauss_id||
+           !scene_turret_primary_for(o->view.weapons[0])||
            o->view.weapon_owner||o->view.occupant_count||o->view.linked_handle!=-1||
            scene_turret_operator_find(o->registration.handle)||scene_turret_generated_find(o->registration.handle))continue;
         status=scene_turret_target(o->registration.handle,point,&affiliation,&alive);if(status)return status;
@@ -183,6 +183,8 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
     }
     if(p->active) {
         const rf_entity_seed_class *cls=campaign_seeds.classes+o->class_index;
+        const rf_weapon_primary_definition *primary=scene_turret_primary_for(o->view.weapons[0]);
+        if(!primary){status=RF_NOT_FOUND;goto fail;}
         aim=scene_turret_combat_states+(o-scene_turrets);
         for(uint32_t k=0;k<2;k++) {
             if(!isfinite(p->input.look[k])||fabsf(p->input.look[k])>1){status=RF_FORMAT;goto fail;}
@@ -197,25 +199,26 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
         for(uint32_t k=0;k<3;k++)point[k]=eye[k]+direction[k]*100;
         status=scene_turret_combat_turn(o,aim,eye,point,&reachable);if(status)goto fail;
         ++rf_scene_turret_player[4];
-        if(p->input.fire&&(!scene_turret_primary.semi_automatic||!p->fire_held)&&frame>=p->due) {
+        if(p->input.fire&&(!primary->semi_automatic||!p->fire_held)&&frame>=p->due) {
             scene_turret_scene_context context={stream,frame,{0}};uint32_t remaining=p->burst,due;
             status=scene_turret_target(p->host,eye,&affiliation,&alive);if(status)goto fail;
             status=scene_turret_model_tag(o->live_model,"muzzle_1",o->position,o->basis,pose);if(status)goto fail;
             memcpy(context.player_eye,eye,12);
-            for(uint32_t k=0;k<3;k++)ray[k]=o->basis[6+k]*scene_turret_primary.ai_attack_range;
-            status=campaign_enemy_cadence(&scene_turret_primary,frame,&remaining,&due);if(status)goto fail;
-            status=scene_turret_scene_shot(&context,p->host,UINT32_MAX,scene_turret_vauss_id,eye,pose+9,ray,&scene_turret_primary);if(status)goto fail;
+            for(uint32_t k=0;k<3;k++)ray[k]=o->basis[6+k]*primary->ai_attack_range;
+            status=campaign_enemy_cadence(primary,frame,&remaining,&due);if(status)goto fail;
+            status=scene_turret_scene_shot(&context,p->host,UINT32_MAX,o->view.weapons[0],eye,pose+9,ray,primary);if(status==RF_NOT_FOUND)goto mounted_fire_done;if(status)goto fail;
             p->burst=remaining;p->due=due;++rf_scene_turret_player[5];
             {scene_player_shot_hearing_policy hearing;uint32_t alerted;
-             int32_t weapon=rf_weapon_name_find(&campaign_weapon_reset.names,"Vauss");
+             int32_t weapon=rf_weapon_name_find(&campaign_weapon_reset.names,o->view.weapons[0]==scene_turret_heap_id?"HEAP":"Vauss");
              if(weapon<0){status=RF_NOT_FOUND;goto fail;}
              status=scene_player_shot_hearing(campaign_weapon_reset.definitions[weapon].flags_264,
-                scene_turret_vauss_id,-1,0,1,&hearing);if(status)goto fail;
+                o->view.weapons[0],-1,0,1,&hearing);if(status)goto fail;
              if(hearing.emit){
                  status=campaign_enemy_hear_shot(eye,hearing.radius,frame,&alerted);if(status)goto fail;
                  if(alerted&&campaign_player_form.active){campaign_player_form.compromised=1;rf_scene_player_form[2]=1;}
              }}
         }
+mounted_fire_done:
         p->fire_held=!!p->input.fire;
     }
     rf_scene_turret_player[10]=frame;

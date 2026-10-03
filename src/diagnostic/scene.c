@@ -11524,6 +11524,11 @@ static void campaign_pickup_sound(const rf_item_definition *definition,const flo
     if(status)++rf_scene_pickup_audio[2];else ++rf_scene_pickup_audio[1];
     /* Missing audio must not roll back a successful inventory grant. */
 }
+static int scene_turret_heap_launch(scene_stream *,uint32_t,uint32_t,uint32_t,const float *,const float *,
+    const rf_weapon_primary_definition *,const rf_weapon_explosive_definition *,uint32_t *);
+static int scene_turret_heap_tick(scene_stream *,uint32_t);
+static void scene_turret_heap_reset(void);
+static uint32_t scene_turret_heap_pending(void);
 #include "scene_turret_scene_combat.inc"
 #include "scene_turret_player.inc"
 static int campaign_pickups_restore(scene_stream *stream)
@@ -15944,6 +15949,7 @@ static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 #include "scene_npc_seat_checkpoint.inc"
 #include "scene_npc_jeep_seat_save_admit.inc"
 #include "scene_apc_primary_runtime.inc"
+#include "scene_turret_heap.inc"
 #include "scene_apc_aim_runtime.inc"
 #include "scene_apc_secondary_runtime.inc"
 #include "scene_apc_primary_draw.inc"
@@ -16014,6 +16020,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
     status=scene_fighter_weapon_tick(stream,frame);if(status)return status;
     status=scene_turret_player_tick(stream,frame);if(status)return status;
+    status=scene_turret_heap_tick(stream,frame);if(status)return status;
     status=scene_turret_player_active()?scene_turret_player_camera(position,orientation):
         scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     if(stream->apc_aim_active){memcpy(position,stream->apc_aim_eye,12);memcpy(orientation,stream->apc_aim_basis,36);}
@@ -19352,6 +19359,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_extra_pickups_resources_reset();
     scene_turret_player_reset();
     scene_turret_player_checkpoint_reset();
+    scene_turret_heap_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -19740,7 +19748,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   scene_remote_resources=!!(demand.mask&((1u<<8)|(1u<<9)));
                   scene_flame_resources=!!(demand.mask&(1u<<10));
                   if(!status && scene_flame_resources)status=scene_flame_visual_open(&tables);
-                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources))status=scene_rocket_definitions_open(&tables);
+                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0))status=scene_rocket_definitions_open(&tables);
                   if(!status && scene_tankbot_missile_resources)status=rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile);
                   if(!status && scene_tankbot_missile_resources)status=rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary);
                   if(!status && scene_remote_resources)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
@@ -20082,7 +20090,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                     status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
-            if(rf_scene_dev_room_enabled || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources) {
+            if(rf_scene_dev_room_enabled || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
             }

@@ -91,7 +91,7 @@ static int scene_turret_checkpoint_row_valid(const scene_turret_saved *v,uint32_
        v->dead>1||v->dead!=(v->health<=0)||!!(v->flags_810&1u)!=v->dead||
        v->action< -1||v->action>13||v->combat_action< -1||v->combat_action>13||
        v->primary< -1||v->primary>=64||v->secondary< -1||v->secondary>=64||
-       v->remaining>36000||v->burst>scene_turret_primary.burst_count||
+       v->remaining>36000||v->burst>(scene_turret_primary_for(v->primary)?scene_turret_primary_for(v->primary)->burst_count:0)||
        (v->target_uid==UINT32_MAX&&(v->remaining||v->burst))||
        (v->dead&&(v->target_uid!=UINT32_MAX||v->remaining||v->burst)))return RF_FORMAT;
     c=campaign_seeds.classes+o->class_index;
