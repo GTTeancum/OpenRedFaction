@@ -31,10 +31,22 @@ Initial native admission evidence (`npc-jeep-gunner-20261003-124221`): first Use
 
 The delayed-board run (`npc-jeep-gunner-20261003-124946`) instead failed range admission: squared distance33.9974 exceeded25 because the chassis rolled while settling. Fixture spacing was reduced to2m initially; normal5m Use radius and collision queries remain unchanged.
 
-## Current integration evidence and next blocker
+## Initial blocked integration evidence (resolved below)
 
 `artifacts/xemu/npc-jeep-gunner-20261003-125206/report.json` completed240 frames on stock64MiB. The first admission reached stage2 (seated-head path), clear0/status0, with squared range22.62085 inside the25 limit. Player body was[.09230,-.41205,.49175], host origin[.09230,1.68397,4.76112]. No player gunner session or gun rounds were created. The NPC remained registered/seated and its route ran; this is not a gunner pass.
 
-Stop repositioning by trial. Next action: retain the actual head-query start/end, radius and rejected world/mover contact, then resolve the geometric cause without weakening range, clearance or ownership invariants. No save/coexistence, firing, switch or exit success is claimed. One intermediate scheduling attempt used an unsupported12-byte setup interpretation and stopped before frames; the harness now uses the supported two-UID setup with an ordinary1s event delay instead.
+The diagnostic next action was: retain the actual head-query start/end, radius and rejected world/mover contact, then resolve the geometric cause without weakening range, clearance or ownership invariants. No save/coexistence, firing, switch or exit success is claimed. One intermediate scheduling attempt used an unsupported12-byte setup interpretation and stopped before frames; the harness now uses the supported two-UID setup with an ordinary1s event delay instead.
 
 Admission telemetry `rf_scene_jeep_entry_probe[12]` retains the first Jeep admission: attempts, stage(range1/path2), allowed, status, distance-squared float, radius float, playerXYZ, hostXYZ. Runtime resets it with the vehicle owner. The final NPC-seat aggregate legitimately records one teardown detach; live probe assertions still require active ownership, and final retained gunner/driver identity assertions remain strict.
+
+## Geometric boarding diagnosis (2026-10-03)
+
+`npc-jeep-gunner-20261003-125655` identifies static face92, a ceiling strip with plane(0,-1,0,3), footprint x[-6,7],z[3,4]. The radius.15 head sweep from[.09229878,.46867108,.49174702] to[.09229881,3.19255137,4.22381687] intersects at fraction.874241398, matching native.874241412. Contact[.09229881,3,3.75447699] is inside the polygon. The collision rejection is correct; no own-host exclusion or smaller radius is appropriate.
+
+Floor face171 is y=-1.25. Installed Jeep wheel spheres have minimum localY=.040839687-.75=-.709160313 (table values do not override that radius), giving grounded originY=-.540839687. The fixture now uses-.530839687 for1cm clearance and applies the same vertical translation to the authored driver. This replaces the airborne spawn-eye+.8 placement; entity records/resources, collision and range policy are otherwise retained. Native functional check passed as recorded below.
+
+## Passing Xbox result
+
+`artifacts/xemu/npc-jeep-gunner-20261003-130215/report.json`:240 frames, live probe182, one player gunner entry/exit, one rejected driver-seat switch, three real Jeep Gun projectile launches, zero new launches/ammo spending after release, preserved NPC driver UID7646/host7629 and distinct player ownership. NPC route commands advance62 to120 between probe/final; retained chassis positions move from[.09231,-.62784,4.93260] to[.46048,-1.24691,10.71078] across that interval. Final telemetry verifies player link and gunner slot released while the NPC driver remains. Native free pages2878 (11.24MiB).
+
+This proves bounded boarding, shared ownership, firing dispatch and safe exit. Shared-occupancy saves, projectile damage/source attribution in a target encounter, driver/host death ejection and visual/audio presentation remain open or unverified. The failed high-spawn attempts above are retained as diagnosis, not remaining runtime failures. No source collision policy was loosened.

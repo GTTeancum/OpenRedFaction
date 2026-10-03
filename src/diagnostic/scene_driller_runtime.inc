@@ -505,6 +505,7 @@ static int scene_driller_runtime_open(scene_stream *s)
     s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));
     memset(rf_scene_jeep_npc_gunner,0,sizeof(rf_scene_jeep_npc_gunner));
     memset(rf_scene_jeep_entry_probe,0,sizeof(rf_scene_jeep_entry_probe));
+    memset(rf_scene_seated_path_probe,0,sizeof(rf_scene_seated_path_probe));
     memset(rf_scene_apc_exit_transition,0,sizeof(rf_scene_apc_exit_transition));
     memset(rf_scene_apc_exit_continuation,0,sizeof(rf_scene_apc_exit_continuation));return RF_OK;
 fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;

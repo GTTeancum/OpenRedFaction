@@ -27,7 +27,7 @@ from xemu_world_hdd import prepare
 FRAMES = 240
 SYMBOLS = dict(SEAT_SYMBOLS, rf_scene_jeep_npc_gunner=16,
                rf_scene_jeep_seats=8, rf_scene_apc_primary=8,
-               rf_scene_vehicle_ai_mode=8, rf_scene_jeep_entry_probe=12)
+               rf_scene_vehicle_ai_mode=8, rf_scene_jeep_entry_probe=12, rf_scene_seated_path_probe=20)
 
 
 def prepare_level(folder):
@@ -38,14 +38,21 @@ def prepare_level(folder):
     if [r['uid'] for r in pair] != [HOST, ACTOR]:
         raise RuntimeError('Unexpected authored seat fixture records')
     records = []
+    # Authored CTF06 floor171 is y=-1.25. Installed Jeep wheel spheres
+    # bottom at local y=.040839687-.75; retain1cm initial clearance.
+    grounded_y = -1.25-(.040839687-.75)+.01
+    ground_delta = grounded_y-recipe['host_position'][1]
     # Existing fixture is6m from player; the installed use radius is5m. Move
     # only both entity transforms4m toward the same unchanged player spawn.
     # The native entry still has to pass the real head/world admission query.
     for row in pair:
-        value = bytearray(row['raw']); at = row['transform']+8
+        value = bytearray(row['raw']); at = row['transform']+4
+        y, = struct.unpack_from('<f', value, at)
+        struct.pack_into('<f', value, at, y+ground_delta)
+        at += 4
         z, = struct.unpack_from('<f', value, at)
         struct.pack_into('<f', value, at, z-4)
-        if value[:at] != row['raw'][:at] or value[at+4:] != row['raw'][at+4:]:
+        if value[:at-4] != row['raw'][:at-4] or value[at+4:] != row['raw'][at+4:]:
             raise RuntimeError('Fixture changed a non-position entity field')
         records.append(value)
     name = b'jeep_seat_route'
@@ -71,8 +78,8 @@ def prepare_level(folder):
         raise RuntimeError('Independent entity round trip failed')
     archive(path, [('L12S1.rfl', out)])
     for key in ('host_position', 'actor_initial_position'):
-        recipe[key] = list(recipe[key]); recipe[key][2] -= 4
-    recipe.update(frames=FRAMES, setup_frames={str(STOP): 0, str(ROUTE): 120},
+        recipe[key] = list(recipe[key]); recipe[key][2] -= 4; recipe[key][1] += ground_delta
+    recipe.update(grounding=dict(floor_y=-1.25,wheel_bottom=.040839687-.75,clearance=.01,host_y=grounded_y), frames=FRAMES, setup_frames={str(STOP): 0, str(ROUTE): 120},
                   staged_fields=['authored entity transforms', 'bounded single-node route and Set_AI_Mode events'],
                   replay={'board':90, 'route_on':120, 'occupied_driver_switch':140,
                           'fire':[145,169], 'exit':210, 'move_backward_while_gunner':[145,169]},

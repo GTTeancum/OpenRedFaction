@@ -1,5 +1,8 @@
 #ifndef RF_SCENE_VEHICLE_SEATED_CLEARANCE_INC
 #define RF_SCENE_VEHICLE_SEATED_CLEARANCE_INC
+/* First seated sweep: calls, found, status, solid, face, sphere,
+ * head radius, start xyz, end xyz, fraction, normal xyz, reserved3. */
+uint32_t rf_scene_seated_path_probe[20];
 /* Practical seated-head clearance, not a bypass of world/mover collision.
  * Include inside entry adapter after scene_driller_player_shape. The actual
  * top player sphere supplies radius and center offset relative to authored
@@ -41,7 +44,14 @@ static int scene_vehicle_seated_clearance(const scene_vehicle_collision *collisi
         }
         if(!isfinite(query.start[i])||!isfinite(query.end[i]))return RF_FORMAT;
     }
-    status=scene_vehicle_collision_query(collision,&query,&hit,&found);if(status)return status;
+    status=scene_vehicle_collision_query(collision,&query,&hit,&found);
+    if(!rf_scene_seated_path_probe[0]){
+        uint32_t *p=rf_scene_seated_path_probe;p[1]=found;p[2]=(uint32_t)status;
+        p[3]=hit.solid;p[4]=hit.face;p[5]=hit.sphere;
+        memcpy(p+6,&head.radius,4);memcpy(p+7,query.start,12);memcpy(p+10,query.end,12);
+        memcpy(p+13,&hit.contact.fraction,4);memcpy(p+14,hit.contact.normal,12);
+    }
+    ++rf_scene_seated_path_probe[0];if(status)return status;
     if(found>1)return RF_FORMAT;
     *clear=!found;return RF_OK;
 }
