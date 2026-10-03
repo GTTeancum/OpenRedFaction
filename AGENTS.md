@@ -12,7 +12,7 @@
 - Do not substitute an executable patch or PC-only engine for standalone reconstructed Xbox game code.
 - Record source addresses and evidence for reconstructed behavior; label scaffolding and unverified assumptions honestly.
 - Keep original assets/binaries, downloaded references, Ghidra databases, and generated outputs outside tracked source.
-- After every Xbox validation batch and before handing off, run `tools/clean-generated-artifacts.ps1 -Apply` to prune regenerable large run payloads under `artifacts/`; keep compact reports/logs and the reusable test HDD, check for active project processes, and keep the ignored artifact tree under 15 GiB. Do this regularly rather than waiting for the repository to grow by tens of gigabytes.
+- After every Xbox validation batch and before handing off, run `tools/clean-generated-artifacts.ps1 -Apply` to prune regenerable large run payloads under `artifacts/` and copied disc/ISO payloads under `build/`; keep compact reports/logs, original inputs, and the reusable test HDD. Check for active project processes, measure real repository size without following junctions, and keep it under 15 GiB. Do this regularly rather than waiting for the repository to grow by tens of gigabytes.
 - Preserve third-party provenance and applicable license notices when reusing code.
 - Never activate Computer Use, Codex capture, desktop automation, or host keyboard/mouse/controller input.
 - Use source, files, logs, native emulator capture, and process-contained harnesses; ordinary terminal process management is allowed.

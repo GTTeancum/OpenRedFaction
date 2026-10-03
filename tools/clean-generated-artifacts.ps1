@@ -2,7 +2,8 @@ param([switch]$Apply)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$artifactRoot = (Resolve-Path -LiteralPath (Join-Path $projectRoot 'artifacts')).Path
+$artifactRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'artifacts'))
+$buildRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'build'))
 $expectedRoot = [System.IO.Path]::GetFullPath('D:\Programming\GitHub\OpenRedFaction').TrimEnd('\')
 if (-not [string]::Equals($projectRoot.TrimEnd('\'), $expectedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Unexpected project root: $projectRoot"
@@ -10,8 +11,14 @@ if (-not [string]::Equals($projectRoot.TrimEnd('\'), $expectedRoot, [System.Stri
 if (-not [string]::Equals($artifactRoot.TrimEnd('\'), (Join-Path $expectedRoot 'artifacts'), [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Unexpected artifacts root: $artifactRoot"
 }
-if ((Get-Item -LiteralPath $artifactRoot -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+if ((Test-Path -LiteralPath $artifactRoot) -and ((Get-Item -LiteralPath $artifactRoot -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
     throw 'Artifacts root is a reparse point'
+}
+if (-not [string]::Equals($buildRoot.TrimEnd('\'), (Join-Path $expectedRoot 'build'), [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Unexpected build root: $buildRoot"
+}
+if ((Test-Path -LiteralPath $buildRoot) -and ((Get-Item -LiteralPath $buildRoot -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+    throw 'Build root is a reparse point'
 }
 
 # These are regenerable run payloads. Keep compact JSON reports, validation
@@ -21,9 +28,11 @@ $minimumByExtension = @{
     '.bty' = 1MB; '.map' = 1MB; '.bin' = 1MB; '.obj' = 1MB
     '.ppm' = 0; '.png' = 0
 }
+$buildExtensions = @('.iso', '.vpp')
 $items = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 $pending = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
-$pending.Push((Get-Item -LiteralPath $artifactRoot -Force))
+if (Test-Path -LiteralPath $artifactRoot) { $pending.Push((Get-Item -LiteralPath $artifactRoot -Force)) }
+if (Test-Path -LiteralPath $buildRoot) { $pending.Push((Get-Item -LiteralPath $buildRoot -Force)) }
 $skippedLinks = 0
 while ($pending.Count) {
     $directory = $pending.Pop()
@@ -36,7 +45,10 @@ while ($pending.Count) {
             $pending.Push($entry)
         } else {
             $extension = $entry.Extension.ToLowerInvariant()
-            if ($minimumByExtension.ContainsKey($extension) -and $entry.Length -ge $minimumByExtension[$extension]) {
+            $underArtifacts = $entry.FullName.StartsWith($artifactRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase)
+            $underBuild = $entry.FullName.StartsWith($buildRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase)
+            if (($underArtifacts -and $minimumByExtension.ContainsKey($extension) -and $entry.Length -ge $minimumByExtension[$extension]) -or
+                ($underBuild -and $buildExtensions.Contains($extension) -and $entry.Length -ge 1MB)) {
                 $items.Add($entry)
             }
         }
@@ -44,7 +56,7 @@ while ($pending.Count) {
 }
 $bytes = ($items | Measure-Object -Property Length -Sum).Sum
 if (-not $bytes) { $bytes = 0 }
-Write-Output ("Generated payloads: {0} files, {1:N2} GiB" -f $items.Count, ($bytes / 1GB))
+Write-Output ("Generated artifact/build payloads: {0} files, {1:N2} GiB" -f $items.Count, ($bytes / 1GB))
 Write-Output ("Skipped {0} junctions/symlinks." -f $skippedLinks)
 if (-not $Apply) {
     Write-Output 'Dry run. Pass -Apply to remove these generated payloads.'
@@ -60,8 +72,9 @@ if ($busy.Count) { throw "Project processes are still running: $($busy.ProcessId
 $removedBytes = [long]0
 foreach ($item in $items) {
     $resolved = [System.IO.Path]::GetFullPath($item.FullName)
-    if (-not $resolved.StartsWith($artifactRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing path outside artifacts: $resolved"
+    if (-not ($resolved.StartsWith($artifactRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase) -or
+              $resolved.StartsWith($buildRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase))) {
+        throw "Refusing path outside generated roots: $resolved"
     }
     if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
         throw "Refusing reparse point: $resolved"
