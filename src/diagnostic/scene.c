@@ -1393,7 +1393,7 @@ static int scene_fire_setup_event(uint32_t uid,int32_t now)
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
             campaign_events.items[i].state.delay=delay;return status;
         }
-        if(campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
+        if(campaign_events.items[i].state.type==81 || campaign_events.items[i].state.type==82 || campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
            campaign_events.items[i].state.type==49 || campaign_events.items[i].state.type==9 ||
            campaign_events.items[i].state.type==50)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
@@ -10721,6 +10721,8 @@ static int combat_death_start(uint32_t slot)
     return status;
 }
 #include "scene_burning.inc"
+#include "scene_scripted_disarm.inc"
+#include "scene_scripted_ignite.inc"
 #include "scene_player_impact_gameplay.inc"
 uint32_t rf_scene_liquid_damage[8]; /* ticks,requests,room,type,material,amount,health,status */
 static int campaign_liquid_damage_tick(scene_stream *s,uint32_t frame,int32_t now)
@@ -15111,8 +15113,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){scene_ai_grenade_reset();scene_ai_rocket_reset();}
     status=scene_ai_rocket_tick(stream,frame);if(status)return status;
     status=scene_ai_grenade_tick(stream,frame);if(status)return status;
-    if(!frame)scene_burning_reset();
     status=scene_burning_tick(stream,frame);if(status)return status;
+    scene_script_ignite_sample(frame);
     status=scene_burning_visual_tick(stream,frame);if(status)return status;
     status=scene_npc_rubble_support_stimulus(stream,frame);if(status)return status;
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
@@ -19088,6 +19090,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
                 scene_passive_vehicle_npc_fixture_probe();
                 scene_npc_teleport_sample();
+                scene_scripted_disarm_sample();
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
@@ -19366,6 +19369,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_turret_player_checkpoint_reset();
     scene_turret_heap_reset();
     scene_npc_teleport_reset();
+    scene_burning_reset();
+    scene_script_ignite_reset();
+    scene_scripted_disarm_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -19543,6 +19549,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_teleport_ready=campaign_teleport_pending=0;
             campaign_triggers.teleport_player=campaign_teleport_player;campaign_triggers.teleport_context=NULL;
             campaign_triggers.teleport_npc=campaign_teleport_npc;campaign_triggers.npc_teleport_context=NULL;
+            campaign_triggers.drop_npc_weapon=campaign_drop_npc_weapon;campaign_triggers.drop_weapon_context=NULL;
+            campaign_triggers.ignite_npc=campaign_ignite_npc;campaign_triggers.ignite_context=NULL;
             campaign_triggers.query_vitals=campaign_query_vitals;campaign_triggers.query_vitals_context=NULL;
             campaign_triggers.query_hit_flags=campaign_query_hit_flags;campaign_triggers.hit_flags_context=NULL;
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;
@@ -19754,8 +19762,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   if(!status && (npc_projectiles&(1u<<5)) && !(demand.mask&(1u<<5)))status=rf_weapon_primary_load(&tables,"Grenade",128*1024,&campaign_primary[5]);
                   scene_remote_resources=!!(demand.mask&((1u<<8)|(1u<<9)));
                   scene_flame_resources=!!(demand.mask&(1u<<10));
-                  if(!status && scene_flame_resources)status=scene_flame_visual_open(&tables);
-                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0))status=scene_rocket_definitions_open(&tables);
+                  if(!status && (scene_flame_resources || scene_script_ignite_required()))status=scene_flame_visual_open(&tables);
+                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()))status=scene_rocket_definitions_open(&tables);
                   if(!status && scene_tankbot_missile_resources)status=rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile);
                   if(!status && scene_tankbot_missile_resources)status=rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary);
                   if(!status && scene_remote_resources)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
@@ -20097,7 +20105,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                     status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
-            if(rf_scene_dev_room_enabled || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0) {
+            if(rf_scene_dev_room_enabled || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
             }

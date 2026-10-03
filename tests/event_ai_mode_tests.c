@@ -37,7 +37,21 @@ static int teleport_downstream(void *context,const rf_level_event *event)
     if(c->count>=12)return RF_RANGE;
     c->trace[c->count++]=UINT32_MAX;return RF_OK;
 }
-static int npc_teleport_dispatch_test(void)
+static int scripted_actor_link(void *context,uint32_t handle)
+{
+    npc_teleport_test_context *c=context;
+    return teleport_link(context,handle,c->destination);
+}
+static void scripted_actor_backend(rf_runtime_triggers *triggers,uint32_t type,
+    npc_teleport_test_context *c,uint32_t enabled)
+{
+    if(type==4){triggers->teleport_npc=enabled?teleport_link:NULL;triggers->npc_teleport_context=c;}
+    else if(type==81){triggers->drop_npc_weapon=enabled?scripted_actor_link:NULL;triggers->drop_weapon_context=c;}
+    else {triggers->ignite_npc=enabled?scripted_actor_link:NULL;triggers->ignite_context=c;}
+}
+/* Same ordered generation-valid ON links and delayed/OFF contract applies to
+ * Teleport4, Drop_Weapon81 and Ignite_Entity82. Scene effects remain separate. */
+static int npc_linked_action_dispatch_test(uint32_t type)
 {
     rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
     rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
@@ -52,28 +66,28 @@ static int npc_teleport_dispatch_test(void)
     for(i=0;i<2;i++)CHECK(rf_object_registry_insert(&registry,objects+i,c.actors+i)==RF_OK);
     CHECK(rf_object_registry_insert(&registry,objects+2,&stale)==RF_OK);
     CHECK(rf_object_registry_remove(&registry,stale)==RF_OK);
-    items[0].state.type=4;items[0].links=links;authored[0].record.link_count=5;
+    items[0].state.type=type;items[0].links=links;authored[0].record.link_count=5;
     authored[0].record.has_orientation=1;authored[0].record.position[0]=49.284691f;c.destination=&authored[0].record;
     items[1].state.type=63;
     items[2].state.type=3;items[2].links=&off;authored[2].record.link_count=1;off.kind=1;off.value=items[0].handle;
     for(i=0;i<5;i++)links[i].kind=i==2?2:1;
     links[0].value=c.actors[0];links[1].value=stale;links[2].value=c.actors[1];
     links[3].value=c.actors[0];links[4].value=items[1].handle;
-    triggers.teleport_npc=teleport_link;triggers.npc_teleport_context=&c;
+    scripted_actor_backend(&triggers,type,&c,1);
     triggers.teleport_player=teleport_downstream;triggers.teleport_context=&c;
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,100,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(c.count==4 && c.attempts==4 && c.trace[0]==c.actors[0] && c.trace[1]==c.actors[1] &&
         c.trace[2]==c.actors[0] && c.trace[3]==UINT32_MAX && report.other_targets>=1);
-    /* Invert emits OFF: no NPC relocation or ON-only downstream callback. */
+    /* Invert emits OFF: no NPC effect or ON-only downstream callback. */
     CHECK(rf_runtime_event_fire(&triggers,items[2].handle,7,8,110,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(c.count==4 && c.attempts==4);
     items[0].state.delay=.25f;
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,200,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(items[0].state.deadline==450 && c.count==4);
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,449,NULL,NULL,&report,&pending)==RF_OK && c.count==4);
-    triggers.teleport_npc=NULL;
+    scripted_actor_backend(&triggers,type,&c,0);
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && pending==1 && c.count==4);
-    triggers.teleport_npc=teleport_link;
+    scripted_actor_backend(&triggers,type,&c,1);
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && !pending);
     CHECK(c.count==8 && c.attempts==8 && c.trace[4]==c.actors[0] && c.trace[5]==c.actors[1] &&
         c.trace[6]==c.actors[0] && c.trace[7]==UINT32_MAX && items[0].state.deadline==-1);
@@ -83,7 +97,9 @@ static int npc_teleport_dispatch_test(void)
 }
 int main(void)
 {
-    CHECK(npc_teleport_dispatch_test()==0);
+    CHECK(npc_linked_action_dispatch_test(4)==0);
+    CHECK(npc_linked_action_dispatch_test(81)==0);
+    CHECK(npc_linked_action_dispatch_test(82)==0);
     rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
     rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
     rf_physics_gravity gravity={0};rf_startup_events_report report;
@@ -125,5 +141,5 @@ int main(void)
     CHECK(form_calls==1 && form_variant==1 && form_enabled==1 && form_now==1700);
     CHECK(rf_runtime_event_fire(&triggers,items[1].handle,7,8,1800,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(form_calls==2 && form_variant==1 && form_enabled==0 && form_now==1800);
-    puts("NPC teleport ordering/delay and AI mode/undercover ON/OFF dispatch passed");return 0;
+    puts("NPC teleport/disarm/ignition ordering/delay and AI mode/undercover ON/OFF dispatch passed");return 0;
 }

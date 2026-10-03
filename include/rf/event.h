@@ -467,6 +467,12 @@ typedef struct rf_runtime_triggers {
      * Complete relocation/reset before common downstream event propagation. */
     int (*teleport_npc)(void *context,uint32_t handle,const rf_level_event *event);
     void *npc_teleport_context;
+    /* Drop_Weapon81 / Ignite_Entity82: ON-only linked entity effects.
+     * NOT_FOUND skips unsupported owners; ordinary propagation follows. */
+    int (*drop_npc_weapon)(void *context,uint32_t handle);
+    void *drop_weapon_context;
+    int (*ignite_npc)(void *context,uint32_t handle);
+    void *ignite_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
