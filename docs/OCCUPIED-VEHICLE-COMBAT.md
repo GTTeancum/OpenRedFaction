@@ -9,3 +9,15 @@ Stock64MiB Xbox PASS: `artifacts/xemu/vehicle-combat-20261003-150902/validation.
 The initial validator incorrectly expected one blocked seat switch despite no switch input, and mistook the vehicle's last-destroyer field for last-shot source. Those expectations were corrected. Existing combat-event rows identify the actual guard and positive chassis damage; retained data was revalidated without another emulator run, and the original failed report was kept.
 
 This covers a scripted handgun attack on an occupied Jeep, not autonomous acquisition, every vehicle, projectile/burn continuation, or actual pickup/input suppression. The shield exclusion was added during the run and compiled in the final restored NXDK build, but not separately exercised natively. No campaign walkthrough, images, visual-output or audio-output claim.
+
+
+## Boarding with an unfinished handheld action
+
+The occupied early return also froze conventional handheld burst/reload/cooldown state. `scene_vehicle_equipment.inc` now runs once per combat frame after initialization and before on-foot input consumers. On an actual occupancy transition it cancels queued shots, delay and unfinished reload, invalidates the hidden weapon animation cursor, and preserves ammunition, committed Riot drain/fractional debt and launched projectiles. Cooldown ages once while seated. Vehicle firing inputs remain available; a control held through dismount must be released before it can fire the handheld weapon.
+
+This is a practical stow policy consistent with the existing weapon-change cancellation, not a claim of exact original vehicle animation timing. Ordinary saves retain their existing admission rules. Special-weapon lifecycle/refinement and Riot fractional-debt save support remain separate. The focused native fixture now optionally fires a pistol at475 and starts a reload at476 before ordinary Jeep boarding480, checking interrupted reload, cooldown decay, exact ammo and subsequent ordinary save. Stock64MiB Xbox source192942 passes: boarding interrupts63 remaining reload ticks, preserves inventory hash4169554656 exactly, and ages all26 cooldown ticks while seated. Pistol ammunition stays15 loaded/125 reserve after the single shot, with zero reload transfers; ordinary save produces4664 bytes and6439 free pages. Burst cancellation and held-control release are source-reviewed but not separately exercised natively.
+
+
+The earlier192710 case exercised cooldown only because the replay accidentally requested alternate fire instead of reload; its rejection is retained. The corrected RFI6 field order is crouch,jump,Use,fire,reload,cycle,alternate. No additional ammo or state was granted to force the passing check.
+
+The same192942 run fresh-loads the occupied Jeep successfully and retains ammunition without replaying a handheld or mounted shot. The separate return-to-submarine movement assertion remains FAIL; this does not imply the weapon handoff was fully exercised for burst/held-fire exits.

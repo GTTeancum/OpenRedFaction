@@ -14986,6 +14986,7 @@ static int scene_undercover_after_advance(scene_stream *);
 #include "scene_burning_checkpoint.inc"
 #include "scene_ai_projectile_checkpoint.inc"
 #include "scene_conventional_fire_policy.inc"
+#include "scene_vehicle_equipment.inc"
 static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const float position[3])
 {
     scene_machine_pistol_mode_event event;uint32_t was_pending=campaign_machine_mode.pending;
@@ -15088,6 +15089,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(refill)player_input.reload=0; /* Do not start a normal reload with the chord. */
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
+    scene_vehicle_equipment_tick(stream,frame,on_foot);
     /* Update animated child positions before projectile or firearm contacts. */
     for(uint32_t i=0;i<scene_turret_generated_count;i++){
         int status=scene_turret_generated_publish(scene_turret_generated[i].head_handle);
