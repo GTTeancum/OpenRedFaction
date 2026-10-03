@@ -2,7 +2,7 @@
 #define RF_SCENE_VEHICLE_PARKED_STATE_INCLUDED
 /* Level-local parked state. Indexed by the corresponding passive slot;
  * that slot's UID/handle changes only in the admitted exchange transaction.
- * No resource ownership and no on-disk representation. */
+ * No resource ownership; RFSW serializes explicit portable state fields. */
 typedef struct scene_vehicle_parked_state {
     uint32_t valid,uid,handle,body_flags,scripted_physics;
     rf_vehicle_rigid_state physics;

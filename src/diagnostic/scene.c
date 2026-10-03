@@ -12935,6 +12935,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
 #include "scene_vehicle_physics_checkpoint_decl.inc"
+#include "scene_vehicle_switch_checkpoint_decl.inc"
 #include "scene_driller_actor_collision.inc"
 #include "scene_world_passive_support.inc"
 #include "scene_world_restore.inc"
@@ -16010,6 +16011,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_driller_checkpoint_adapter.inc"
 #include "scene_vehicle_wreck_exit.inc"
 #include "scene_vehicle_switch.inc"
+#include "scene_vehicle_switch_checkpoint.inc"
 #include "scene_vehicle_combat_restore.inc"
 #include "scene_vehicle_combat_checkpoint.inc"
 #include "scene_driller_checkpoint_placement.inc"
@@ -19383,6 +19385,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     return RF_OK;
 }
 #include "scene_world_boot_resources.inc"
+#include "scene_vehicle_switch_boot.inc"
 #include "scene_weapon_resource_demand.inc"
 #include "scene_extra_pickups_gameplay.inc"
 #include "scene_precision_drop_demand.inc"
@@ -19658,6 +19661,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
             rf_scene_campaign_load_stage=10;status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             rf_scene_campaign_load_stage=11;status=campaign_clutter_open(tables_path,level);if(status)goto done;
+            status=scene_vehicle_switch_boot_select(level,tables_path);if(status)goto done;
             memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(rf_scene_pickup_audio,0,sizeof(rf_scene_pickup_audio));memset(rf_scene_pickup_vitals,0,sizeof(rf_scene_pickup_vitals));
             rf_scene_campaign_load_stage=12;status=rf_level_owned_items_open(level,256*1024,&stream->pickups);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
@@ -19697,6 +19701,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 (campaign_movers.count+1)*sizeof(*campaign_surface_sources)+sizeof(*campaign_surface_palette);
             rf_scene_campaign_load_stage=17;status=campaign_bind_movers();if(status)goto done;
             status=campaign_bind_passive_vehicles();if(status)goto done;
+            status=scene_vehicle_switch_boot_order_apply();if(status)goto done;
             status=rf_level_owned_regions_open(level,65536,&campaign_regions);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             rf_scene_campaign_load_stage=18;status=campaign_navigation_open(level);if(status)goto done;

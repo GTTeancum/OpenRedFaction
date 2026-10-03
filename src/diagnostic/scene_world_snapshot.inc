@@ -77,7 +77,6 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
-    if(scene_vehicle_switch_has_parked()){status=RF_NOT_FOUND;goto done;}
     if(!campaign_npc_physics_save_allowed()){status=RF_NOT_FOUND;goto done;}
     if(scene_turret_heap_pending()){status=RF_NOT_FOUND;goto done;}
     scene_turret_player_checkpoint_scope(1);
@@ -203,6 +202,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     }
     if(!status){uint32_t wrapped=0;
         status=scene_corpse_lifetime_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,now,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
+        status=scene_vehicle_switch_checkpoint_capture(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
         if(!status)bytes=wrapped;
     }
     SNAP_END(RF_WORLD_VEHICLE);

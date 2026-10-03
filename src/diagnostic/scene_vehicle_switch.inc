@@ -2,7 +2,7 @@
 #define RF_SCENE_VEHICLE_SWITCH_INCLUDED
 #include "scene_vehicle_parked_state.inc"
 /* Same-class quiescent ground vehicles only. Include after wreck exit.
- * Parent invokes before ordinary Use and rejects saves while bank exists.
+ * Parent invokes before ordinary Use; RFSW preserves the bank in ordinary saves.
  * Numerical handles remain authored-owner identities across pointer exchange. */
 static scene_vehicle_parked_state *scene_vehicle_parked;
 static uint32_t scene_vehicle_parked_count,scene_vehicle_switch_count;
