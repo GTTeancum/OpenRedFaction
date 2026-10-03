@@ -17102,14 +17102,15 @@ static int campaign_npc_land(scene_stream *stream,campaign_npc_body *owner,uint3
 }
 /* Keep a grounded NPC with its moving support before either idle or Goto
  * logic queries the floor. The supporting mover may report tangent self
- * contact; retry against static world in that case. */
+ * contact; retry without that support while retaining all other solids. */
 #include "scene_npc_rotating_support.inc"
+#include "scene_npc_carry_collision.inc"
 static int campaign_npc_mover_carry(scene_stream *stream,campaign_npc_body *owner,
     float elapsed,uint32_t *moved)
 {
     const float *velocity;rf_physics_body *piece_body=NULL;
     rf_physics_body_state proposal;rf_geometry_body_hit hit={0};
-    rf_collision_body_sphere scratch[8];rf_geometry_collision_movers stationary={0};
+    rf_collision_body_sphere scratch[8];
     float before[3];uint32_t axis,blocked=0,handle;int status;
     if(!stream || !owner || !moved)return RF_RANGE;
     *moved=0;handle=owner->registration.handle;
@@ -17133,8 +17134,8 @@ static int campaign_npc_mover_carry(scene_stream *stream,campaign_npc_body *owne
         rf_scene_npc_body_sweep(stream->collision,handle,&proposal,0x460,scratch,8,&hit,&blocked);
     if(status)return status;
     if(blocked && hit.contact.object_id==owner->support.handle && hit.contact.normal[1]>=.5f) {
-        status=campaign_physics_body_sweep_for(stream->collision,&proposal,&owner->body.spheres,
-            0x460,scratch,8,&hit,&blocked,&stationary);if(status)return status;
+        status=campaign_npc_carry_collision_retry(stream,owner,&proposal,scratch,8,&hit,&blocked);
+        if(status)return status;
     }
     if(blocked)for(axis=0;axis<3;++axis)proposal.next_position[axis]=
         before[axis]+(proposal.next_position[axis]-before[axis])*hit.contact.fraction;
@@ -17330,6 +17331,7 @@ failed:
 }
 /* First-pass horizontal approach, bounded by the existing body/world sweep.
  * Routing, slope support and full authored movement-mode semantics remain open. */
+#include "scene_npc_rotating_support_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
 {
     uint32_t i,j;rf_scene_script_movement[4]=0;
@@ -17395,6 +17397,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         }
         if(!o->script_move.active) {
             status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame);if(status)return status;
+            scene_npc_rotating_fixture_tick(o,i,frame);
             continue;
         }
         if(!o->registration.view || o->damage.effects.health<=0){o->script_move.active=0;continue;}
@@ -19295,6 +19298,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
         }
     }
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
+    scene_npc_rotating_fixture_seed(&campaign_seeds.records.items[0].record);
     return RF_OK;
 }
 #include "scene_world_boot_resources.inc"
@@ -19322,6 +19326,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(rf_scene_vehicle_resume_probe,0,sizeof(rf_scene_vehicle_resume_probe));
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
     memset(rf_scene_npc_support_lifecycle,0,sizeof(rf_scene_npc_support_lifecycle));
+    memset(rf_scene_npc_carry_collision,0,sizeof(rf_scene_npc_carry_collision));
+    scene_npc_rotating_fixture_reset();
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
     scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=scene_live_save_until=0;scene_live_save_status=RF_OK;
     scene_section_autosave_pending=0;

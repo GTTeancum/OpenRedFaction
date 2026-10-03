@@ -64,10 +64,13 @@ def platform_geometry(texture):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--npc-platform', action='store_true',
+    placement = parser.add_mutually_exclusive_group()
+    placement.add_argument('--npc-platform', action='store_true',
                         help='Place the same platform above the CTF06 floor for an NPC rider')
+    placement.add_argument('--npc-rotating-platform', action='store_true',
+                           help='Raise the NPC platform clear of adjacent static floor during tilt')
     args = parser.parse_args()
-    out = ROOT / 'artifacts/npc-platform' if args.npc_platform else OUT
+    out = ROOT / 'artifacts/npc-rotating-platform' if args.npc_rotating_platform else ROOT / 'artifacts/npc-platform' if args.npc_platform else OUT
     game = out / 'game'
     game.mkdir(parents=True, exist_ok=True)
     original = read_entry(ROOT / 'Installed_Game/levelsm.vpp', 'ctf06.rfl')
@@ -83,7 +86,7 @@ def main():
         names.append(geometry[cursor:cursor+length]); cursor += length
     texture = next((n for n in names if b'metal' in n.lower()), names[0])
     # Disk orientation is forward/right/up; runtime basis is right/up/forward.
-    center_y = 3.55 if args.npc_platform else .55
+    center_y = 5.55 if args.npc_rotating_platform else 3.55 if args.npc_platform else .55
     mover = U(1, 900001) + F(9.449,center_y,2.5) + F(0,0,1,1,0,0,0,1,0)
     mover += platform_geometry(texture) + U(0,0,0)
     data = bytearray(original[:meta['sections'][0]['offset']])

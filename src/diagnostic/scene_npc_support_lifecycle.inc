@@ -6,6 +6,7 @@
 #define RF_SCENE_NPC_SUPPORT_LIFECYCLE_INCLUDED
 
 uint32_t rf_scene_npc_support_lifecycle[8]; /* losses,static contacts,moving contacts,actor,retained XYZ,error */
+static int campaign_npc_rotating_support_contact(const campaign_npc_body *,const float *,uint32_t,float *);
 
 int rf_scene_npc_support_loss(rf_physics_support_contact *support,
     const float inherited[3],uint32_t *body_flags)
@@ -46,9 +47,10 @@ static int campaign_npc_support_release(campaign_npc_body *owner)
 static int campaign_npc_support_contact(campaign_npc_body *owner,
     const float velocity[3],uint32_t moving)
 {
-    int status;
+    float accepted_velocity[3];int status;
     if(!owner)return RF_RANGE;
-    status=rf_scene_npc_support_contact_velocity(owner->support_velocity,velocity,moving);
+    status=campaign_npc_rotating_support_contact(owner,velocity,moving,accepted_velocity);
+    if(!status)status=rf_scene_npc_support_contact_velocity(owner->support_velocity,accepted_velocity,moving);
     if(status){rf_scene_npc_support_lifecycle[7]=(uint32_t)status;return status;}
     ++rf_scene_npc_support_lifecycle[moving?2:1];return RF_OK;
 }

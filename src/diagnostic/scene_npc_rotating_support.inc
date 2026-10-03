@@ -37,6 +37,57 @@ int rf_scene_npc_support_interval_target(const scene_mover_interval *interval,
     memcpy(target,next,sizeof(next));memcpy(velocity,speed,sizeof(speed));return RF_OK;
 }
 
+/* Ground acceptance has already placed the actor in the END frame. Recover
+ * that point in the previous START frame, then negate the backwards velocity.
+ * Reuse the existing basis convention/finite checks without advancing motion.
+ * This also works for a newly acquired rotating support: no prior support
+ * binding or cached carry velocity is required. Output is unchanged on error. */
+int rf_scene_npc_support_interval_velocity(const scene_mover_interval *interval,
+    const float accepted_position[3],float seconds,float velocity[3])
+{
+    scene_mover_interval reverse;float previous[3],backwards[3],result[3];uint32_t i;int status;
+    if(!interval||!accepted_position||!velocity)return RF_RANGE;
+    reverse=*interval;
+    memcpy(reverse.start,interval->end,12);memcpy(reverse.end,interval->start,12);
+    memcpy(reverse.matrix,interval->end_matrix,36);memcpy(reverse.end_matrix,interval->matrix,36);
+    status=rf_scene_npc_support_interval_target(&reverse,accepted_position,seconds,previous,backwards);
+    if(status)return status;
+    for(i=0;i<3;i++)result[i]=-backwards[i];
+    memcpy(velocity,result,12);return RF_OK;
+}
+
+/* Called by campaign_npc_support_contact AFTER rf_physics_support_accept
+ * assigns body.position and the newly accepted support.handle. Collision's
+ * contact.velocity is only a mover-center velocity; replacing a rotational
+ * carry cache with it would erase the actor's launch velocity every grounded
+ * tick. Static, translating, fragment and passive contacts retain their
+ * existing semantics. Do not inspect piece_support: it can still name the old
+ * contact until the caller publishes its new fragment binding after this call. */
+static int campaign_npc_rotating_support_contact(const campaign_npc_body *owner,
+    const float contact[3],uint32_t moving,float velocity[3])
+{
+    float result[3]={0};uint32_t i;int status;
+    if(!owner||!velocity||moving>1||(moving&&!contact))return RF_RANGE;
+    if(moving)for(i=0;i<3;i++) {
+        if(!isfinite(contact[i]))return RF_FORMAT;result[i]=contact[i];
+    }
+    if(moving&&owner->support.handle&&campaign_mover_intervals&&campaign_mover_interval_seconds>0) {
+        if(campaign_mover_count&&!campaign_mover_wrappers)return RF_FORMAT;
+        for(i=0;i<campaign_mover_count;i++) {
+            const scene_mover_interval *interval=campaign_mover_intervals+i;
+            const rf_group_registered_mover *mover=campaign_mover_wrappers+i;
+            if(interval->handle!=owner->support.handle||!(interval->changed&2u))continue;
+            if(mover->handle!=interval->handle||!mover->pose||
+               rf_object_registry_lookup(&campaign_registry,interval->handle)!=mover)return RF_NOT_FOUND;
+            status=rf_scene_npc_support_interval_velocity(interval,owner->body.state.position,
+                campaign_mover_interval_seconds,result);
+            if(status){rf_scene_npc_rotating_support[7]=(uint32_t)status;return status;}
+            break;
+        }
+    }
+    memcpy(velocity,result,12);return RF_OK;
+}
+
 /* A grounded actor may carry a restored support handle. Resolve that full
  * registry generation afresh; never infer attachment from geometric proximity.
  * Fragment/passive-vehicle support continues through its existing path. */

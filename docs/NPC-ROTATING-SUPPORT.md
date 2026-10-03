@@ -126,3 +126,10 @@ authored NPC assignment source was identified in this pass. A standalone
 unused seat owner or automatic proximity boarding would not close that gap,
 so this change addresses the existing rotating-support path instead. NPC
 drivers/passenger ownership remains open.
+
+
+## Native carry and contact velocity (2026-10-03)
+
+The ground-contact path now recovers the accepted rotating point's velocity from the END/START mover transforms instead of overwriting it with center velocity. A stock64MiB XEMU check verifies first-step rotation, retained point velocity, natural support loss at454, unchanged inheritance on455, static landing at499 and settled state through598. See `docs/NPC-CARRY-COLLISION.md` and `artifacts/xemu/npc-rotating-support-20261003-120851/report.json`.
+
+The combined harness still reports FAIL because the narrow own-support collision retry was not exercised. That branch and unrelated-obstacle coverage remain unverified; this does not invalidate the separately satisfied carry/loss/landing assertions. Walking riders, rotating-support save/load and visual refinement remain open.
