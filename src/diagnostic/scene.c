@@ -11183,25 +11183,8 @@ done:
 #include "scene_ai_extra_weapons.inc"
 #include "scene_ai_reload.inc"
 #include "scene_clutter_enemy_fire.inc"
-/* Fixed-point fire has no intended actor. Each hitscan ray or shotgun pellet
- * selects the closest live body before ordinary cover and damage handling. */
-static void campaign_enemy_point_ray_target(const campaign_npc_body *shooter,
-    const float start[3],const float ray[3],campaign_npc_body **victim,uint32_t *slot)
-{
-    uint32_t j;float nearest=1.0f,fraction;
-    *victim=NULL;*slot=UINT32_MAX;
-    if(campaign_player_damage.state.effects.health>0 &&
-       combat_body(start,ray,&scene_actor_body,nearest,&fraction))nearest=fraction;
-    for(j=0;j<campaign_npc_body_count;j++){
-        campaign_npc_body *candidate=campaign_npc_bodies+j;
-        if(candidate==shooter || !candidate->registration.view ||
-           (candidate->object_flags&(2|0x4000)) || candidate->damage.effects.health<=0 ||
-           (candidate->view.flags_810&1))continue;
-        if(combat_body(start,ray,&candidate->body,nearest,&fraction)){
-            nearest=fraction;*victim=candidate;*slot=j;
-        }
-    }
-}
+#include "scene_ai_actor_ray.inc"
+#include "scene_ai_actor_hit_probe.inc"
 #include "scene_ai_shotgun.inc"
 #include "scene_ai_melee_contact.inc"
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
@@ -11290,6 +11273,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             } else target_eye=vehicle_eye;
         }
         if(!once && !campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
+        campaign_npc_body *intended_victim=victim;
+        uint32_t intended_handle=point_target?UINT32_MAX:victim?victim->registration.handle:
+            vehicle_victim?owner->combat_target:campaign_player_object.handle;
         if(point_target)target_eye=once?single->point:owner->script_shoot.point;
         for(j=0;j<3;j++){delta[j]=target_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
         if(!owner->combat_alert && !once) {
@@ -11402,7 +11388,6 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,
                 &campaign_enemy_spread_random,point_spread_ray);if(status)return status;
             point_spread_ready=1;
-            campaign_enemy_point_ray_target(owner,owner->eye_position,point_spread_ray,&victim,&victim_slot);
         }
         if(weapon==campaign_shotgun_id){
             status=campaign_enemy_shotgun_fire(stream,owner,victim,victim_slot,
@@ -11433,18 +11418,15 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             }
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
-            /* Actor and fragment targets share the same authored base amount. */
-            fraction=1;
-            uint32_t target_hit=(!point_target||victim||campaign_player_damage.state.effects.health>0)&&
-                combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction);
-            if(!target_hit)fraction=1;body_fraction=fraction;
+            /* Every fired ray resolves actual intervening bodies/shields, independently
+             * of the AI order's intended target. Cover arbitration follows below. */
+            scene_ai_actor_ray_selection actor;
+            status=scene_ai_actor_ray_select(stream,owner,owner->eye_position,spread_ray,player_eye,&actor);if(status)return status;
+            victim=actor.victim;victim_slot=actor.victim_slot;
+            uint32_t target_hit=actor.body_hit,shield_hit=actor.shield_hit;
+            scene_player_shield_candidate player_shield=actor.player_shield;
+            npc_shield=actor.npc_shield;fraction=actor.fraction;body_fraction=actor.body_fraction;
             for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
-            if(victim){status=scene_ai_shield_ray_select(victim_slot,owner->eye_position,end,target_hit,body_fraction,&npc_shield);if(status)return status;fraction=npc_shield.fraction;}
-            scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
-            if(!victim && (!point_target||campaign_player_damage.state.effects.health>0)){float end[3];for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
-                status=scene_player_shield_query(stream,player_eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
-                if(shield_hit)fraction=player_shield.hit.time;
-            }
             status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
             if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
             {uint32_t consumed;
@@ -11465,6 +11447,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
                 status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
                 if(accepted)goto enemy_shot_done;
+                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,body_fraction,&blocked);if(status)return status;if(blocked)goto enemy_shot_done;}
             }
             if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
                 uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition?definition->damage_kind:0,0,UINT32_MAX,0};
@@ -11491,12 +11474,13 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                  if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return status;}
              }
          } else {status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
+            if(!melee)scene_ai_actor_hit_probe(owner,intended_handle,victim?victim->registration.handle:campaign_player_object.handle,frame,amount);
         }
 enemy_shot_done:
         if(once)campaign_script_single_pop(owner,1);
         if(owner->combat_scripted && owner->registration.handle==rf_scene_script_attack[11]) {
             if(vehicle_victim)scene_campaign_vehicle_target(stream,owner->combat_target,vehicle_eye,&vehicle_health);
-            float health=victim?victim->damage.effects.health:
+            float health=intended_victim?intended_victim->damage.effects.health:
                 vehicle_victim?vehicle_health:campaign_player_damage.state.effects.health;
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
         }
@@ -15024,6 +15008,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));campaign_enemy_sight_phase_offset=0;
         campaign_enemy_opposed_reset();
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
+        memset(rf_scene_enemy_actor_hits,0,sizeof(rf_scene_enemy_actor_hits));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));
         /* Base inventory was prepared before startup events. Reinitializing it

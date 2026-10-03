@@ -1,7 +1,7 @@
 /* First-pass NPC shotgun shell. Include beside campaign_enemy_tick after its
  * existing shot/cover and damage callbacks. One trigger consumes one shell;
  * each authored pellet independently samples AI spread and checks geometry,
- * terrain-fragment cover and the target body. Fixed-point Shoot_At orders
+ * terrain-fragment cover and the nearest actual actor/shield. All orders
  * select the nearest living incidental actor per pellet. No allocation.
  * This reuses the same port spread model as other reconstructed firearms. */
 static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *owner,
@@ -38,17 +38,12 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
         if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
         rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
-        if(point_target)campaign_enemy_point_ray_target(owner,owner->eye_position,spread,&pellet_victim,&pellet_slot);
-        hit=(!point_target||pellet_victim||campaign_player_damage.state.effects.health>0)&&
-            combat_body(owner->eye_position,spread,pellet_victim?&pellet_victim->body:&scene_actor_body,1,&fraction);
-        if(!hit)fraction=1;body_fraction=fraction;
+        scene_ai_actor_ray_selection actor;
+        status=scene_ai_actor_ray_select(stream,owner,owner->eye_position,spread,player_eye,&actor);if(status)return status;
+        pellet_victim=actor.victim;pellet_slot=actor.victim_slot;
+        hit=actor.body_hit;body_fraction=actor.body_fraction;fraction=actor.fraction;npc_shield=actor.npc_shield;
+        scene_player_shield_candidate player_shield=actor.player_shield;uint32_t shield_hit=actor.shield_hit;
         for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread[j];
-        if(pellet_victim){status=scene_ai_shield_ray_select(pellet_slot,owner->eye_position,end,hit,body_fraction,&npc_shield);if(status)return status;fraction=npc_shield.fraction;}
-        scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
-        if(!pellet_victim && (!point_target||campaign_player_damage.state.effects.health>0)){
-            status=scene_player_shield_query(stream,player_eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
-            if(shield_hit)fraction=player_shield.hit.time;
-        }
         status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread,
             fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
         if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
@@ -71,6 +66,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         if(shield_hit){uint32_t accepted,broken;rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
             status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
             if(accepted)continue;
+            if(hit){status=combat_shot_obstructed(stream,owner->eye_position,spread,body_fraction,&blocked);if(status)return status;if(blocked)continue;}
         }
         if(pellet_victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
             uint32_t accepted,broken;rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
@@ -95,6 +91,9 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
             status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,effects,&applied);if(status)return status;
             player_total+=applied;
         }
+        scene_ai_actor_hit_probe(owner,point_target?UINT32_MAX:victim?victim->registration.handle:
+            vehicle_target?owner->combat_target:campaign_player_object.handle,
+            pellet_victim?pellet_victim->registration.handle:campaign_player_object.handle,shot_frame,applied);
         total+=applied;
     }
     *amount=total;*player_amount=player_total;return RF_OK;

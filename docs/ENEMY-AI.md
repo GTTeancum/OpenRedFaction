@@ -5,7 +5,7 @@ friendly allies and hostiles to the existing reactive combat path. A focused
 stock64MiB Xbox encounter verifies independent acquisition, bilateral damage,
 one death and survivor target release with no further fire. See
 [NPC-OPPOSED-COMBAT.md](NPC-OPPOSED-COMBAT.md) for scope; [NPC-REACTIVE-SAVES.md](NPC-REACTIVE-SAVES.md) records
-the passing ordinary Xbox save/fresh-load continuation. Older sections below record earlier implementation stages.
+the passing ordinary Xbox save/fresh-load continuation. Ordinary hitscan/pellets now select the nearest actual actor or shield independently of the intended AI target; see [NPC-ACTOR-INTERCEPTION.md](NPC-ACTOR-INTERCEPTION.md) for validation scope. Older sections below record earlier implementation stages.
 
 The shared scene now checks unalerted, visible, alive armed actors every30
 simulation frames, staggered by actor index. Authored affiliation0 can acquire
