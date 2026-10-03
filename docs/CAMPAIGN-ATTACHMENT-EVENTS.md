@@ -309,3 +309,5 @@ field changes; invalid support IDs, nonfinite velocities and velocity without
 a support UID are rejected. These checks cover format migration only, not
 legacy whole-world gameplay saves. The focused live harness is
 `python tools/xemu_vehicle_attachment_save.py --npc`.
+
+Correction (2026-10-03): Original42d780 tests class724 bit1000, named `driller` in the original594598 flag table. The automatic local-player exit and814800 side effect are Driller-only; a Jeep freezes without either side effect. Frozen occupied vehicles retain safe voluntary exit, while boarding, driving, seat changes and new fire remain gated.

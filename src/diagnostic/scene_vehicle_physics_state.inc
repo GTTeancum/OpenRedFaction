@@ -62,6 +62,7 @@ static int scene_vehicle_physics_state(scene_stream *s,uint32_t handle,uint32_t 
     /* An immune ON must not turn an untouched ordinary rigid owner into an
      * inactive one merely because its constructor retained a rest flag. */
     if(enabled||!immune)*marker=1;
+    /* Original42d780 is the DRILLER predicate, not every vehicle. */
     if(!enabled&&(damage->class_flags&0x1000u)){
         damage->state.effects.flags_814|=0x800u;
         if(!passive&&r->entry.session.active){

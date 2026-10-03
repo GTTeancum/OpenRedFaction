@@ -666,7 +666,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
     scene_apc_exit_sample apc_exit;
-    uint32_t changed=0,was,use_edge,stage=0,controls,forced_exit;int status;
+    uint32_t changed=0,was,use_edge,stage=0,controls,forced_exit,can_use;int status;
     if(!s->driller)return RF_OK;
     status=scene_driller_runtime_open(s);if(status)return status;r=s->driller_runtime;
     if(r->last_frame==frame)return RF_OK;
@@ -677,16 +677,18 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         memcpy(r->entry.eye_offset,rf_scene_actor_initial_eye_offsets,12);
     was=r->entry.session.active;use_edge=player_input.use&&!r->entry.held;
     controls=scene_vehicle_physics_allows_control(s);forced_exit=r->scripted_exit_pending;
+    can_use=controls||(!forced_exit&&was);
     /* A scripted release owns this frame's exit transaction. In particular,
      * an awake immune chassis must exit at its final pose, just like an APC,
      * without also running the voluntary Use or destruction exit paths. */
     memset(&apc_exit,0,sizeof(apc_exit));
     if(!forced_exit)scene_apc_exit_begin(&apc_exit,&r->entry,frame);
-    if(!controls){r->entry.held=player_input.use;r->jeep_seat.held=player_input.cycle_weapon;}
+    if(!can_use)r->entry.held=player_input.use;
+    if(!controls)r->jeep_seat.held=player_input.cycle_weapon;
     stage=1;
     if(!apc_exit.deferred&&!forced_exit){
         status=scene_driller_damage_runtime_tick(&r->damage,&changed);if(status)goto fail;
-        if(r->entry.host.alive&&controls&&!changed){
+        if(r->entry.host.alive&&can_use&&!changed){
             uint32_t handled=0,use_changed=0;
             status=scene_jeep_npc_gunner_use(&r->entry,s->driller,&r->jeep_seat.role,
                 player_input.use,campaign_player_damage.state.effects.health>0,&use_changed,&handled);
@@ -746,7 +748,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     }
     if(campaign_spawn){
         if(changed && r->entry.session.active)campaign_triggers.vehicle_pulses|=0x400u;
-        if(controls && was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
+        if(can_use && was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
             campaign_triggers.vehicle_pulses|=0x800u;
     }
     if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}

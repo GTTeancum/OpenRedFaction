@@ -50,3 +50,5 @@
 - Estimate calibration (2026-09-30): Overall working-alpha implementation is provisionally85-90% (report approximately88%), superseding95%. Count integrated usable behavior, not merely the presence of a subsystem or adapter; missing gameplay integration belongs in the estimate, while exhaustive tests and retail polish do not. Do not increase the estimate automatically for every small fix.
 
 - User update (2026-09-30): Three implementation helpers are authorized again to accelerate bounded gameplay work; parent owns shared scene integration and serial Xbox builds/checks. This supersedes the September22 helper pause; do not restart a separate coordinator.
+
+- User update (2026-10-03): Concentrate parent and implementation helpers on one gameplay system at a time. Current focus is vehicles: finish the active integration slice before starting unrelated NPC or item work. Split ownership within that system (implementation, compatibility review, focused harness) rather than spreading agents across subsystems.

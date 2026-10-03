@@ -8131,6 +8131,11 @@ int rf_scene_npc_refresh_support(uint32_t handle)
 }
 static uint32_t campaign_npc_physics_suspended(const campaign_npc_body *o)
 {return o->scripted_physics && !(o->body.state.flags&0x80000000u);}
+static uint32_t campaign_npc_physics_save_allowed(void)
+{
+    for(uint32_t i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].scripted_physics)return 0;
+    return 1;
+}
 static int campaign_npc_refresh_support_tick(void)
 {
     uint32_t i;int status;
@@ -12933,6 +12938,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_turret_generated_attack_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
+#include "scene_vehicle_physics_checkpoint_decl.inc"
 #include "scene_driller_actor_collision.inc"
 #include "scene_world_passive_support.inc"
 #include "scene_world_restore.inc"
@@ -15964,6 +15970,7 @@ static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
 #include "scene_driller_runtime.inc"
 #include "scene_vehicle_script_slay.inc"
 #include "scene_vehicle_physics_state.inc"
+#include "scene_vehicle_physics_checkpoint.inc"
 #include "scene_script_physics_state.inc"
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
