@@ -32,7 +32,7 @@ SYMBOLS = {'rf_scene_enemy_opposed': 15, 'rf_scene_npc_opposed_probe': 24,
            'rf_scene_setup_result': 4}
 
 
-def prepare_level(folder):
+def prepare_level(folder,friendly_delay=0):
     source = read_entry(ROOT/'Installed_Game/levels1.vpp', 'L3S2.rfl')
     guard = next(r for r in entity_rows(source) if r['uid'] == 941)
     details = record_details(guard)
@@ -53,6 +53,7 @@ def prepare_level(folder):
         copies.append(row);positions.append(position)
     kind, name = 'Set_Friendliness', 'opposed_ally'
     friendly = bytearray(event(FRIENDLY, kind, name, [ACTORS[1]]))
+    struct.pack_into('<f', friendly, 4+2+len(kind)+12+2+len(name)+1, friendly_delay)
     struct.pack_into('<I', friendly, 4+2+len(kind)+12+2+len(name)+1+4+2, 2)
     replacements = {0x30000:U(2)+b''.join(copies), 0x600:U(1)+friendly,
                     0x60000:U(0), 0x40000:U(0)}
@@ -76,7 +77,8 @@ def prepare_level(folder):
     (folder/'recipe.json').write_text(json.dumps(dict(scope=__doc__,source_uid=941,
         source_sha256=hashlib.sha256(guard['raw']).hexdigest(),source_details=details,
         actors=ACTORS,positions=positions,changed_fields=['UID','transform'],
-        event=dict(uid=FRIENDLY,type=kind,linked_uid=ACTORS[1],affiliation=2)),indent=2)+'\n')
+        event=dict(uid=FRIENDLY,type=kind,linked_uid=ACTORS[1],affiliation=2,
+                   delay_seconds=friendly_delay)),indent=2)+'\n')
     return path, details
 
 

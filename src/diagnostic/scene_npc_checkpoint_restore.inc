@@ -21,10 +21,28 @@ typedef struct scene_npc_checkpoint_restore_stage {
     uint32_t count,bytes,fresh_boot;int32_t now;
     scene_npc_checkpoint_restore_entry entries[];
 } scene_npc_checkpoint_restore_stage;
-static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
+static int scene_npc_checkpoint_living_npc_handle(uint32_t uid,
     const rf_npc_checkpoint_record *rows,uint32_t count,uint32_t *handle)
 {
     uint32_t i,j;
+    if(!handle||(count&&!rows))return RF_RANGE;
+    if(!uid||uid==UINT32_MAX)return RF_NOT_FOUND;
+    for(i=0;i<count;i++)if(rows[i].uid==uid){
+        if(rows[i].retired||rows[i].dead_pose||rows[i].health<=0)return RF_FORMAT;
+        for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==uid){
+            campaign_npc_body *target=campaign_npc_bodies+j;
+            if(!target->registration.view||
+               rf_object_registry_lookup(&campaign_registry,target->registration.handle)!=&target->registration)return RF_FORMAT;
+            *handle=target->registration.handle;return RF_OK;
+        }
+        return RF_FORMAT;
+    }
+    return RF_NOT_FOUND;
+}
+static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
+    const rf_npc_checkpoint_record *rows,uint32_t count,uint32_t *handle)
+{
+    uint32_t i;int status;
     if(!handle||(count&&!rows))return RF_RANGE;
     if(!uid){if(!campaign_player_object.handle)return RF_FORMAT;
         *handle=campaign_player_object.handle;return RF_OK;}
@@ -38,16 +56,7 @@ static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
             *handle=target->handle;return RF_OK;
         }
     }
-    for(i=0;i<count;i++)if(rows[i].uid==uid){
-        if(rows[i].retired||rows[i].dead_pose||rows[i].health<=0)return RF_FORMAT;
-        for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==uid){
-            campaign_npc_body *target=campaign_npc_bodies+j;
-            if(!target->registration.view||
-               rf_object_registry_lookup(&campaign_registry,target->registration.handle)!=&target->registration)return RF_FORMAT;
-            *handle=target->registration.handle;return RF_OK;
-        }
-        return RF_FORMAT;
-    }
+    status=scene_npc_checkpoint_living_npc_handle(uid,rows,count,handle);if(status!=RF_NOT_FOUND)return status;
     return scene_turret_attack_checkpoint_handle(uid,handle);
 }
 static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
@@ -251,6 +260,12 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                 status=scene_npc_checkpoint_attack_target_handle(rows[i].combat.event,
                     rows,count,&e->attack_target_handle);
                 if(status)goto fail;
+            }else if(rows[i].combat.active==4){
+                detail="reactive_target";
+                status=scene_npc_checkpoint_living_npc_handle(rows[i].combat.event,
+                    rows,count,&e->attack_target_handle);
+                if(status)goto fail;
+                if(e->attack_target_handle==e->handle){status=RF_FORMAT;goto fail;}
             }else{
                 detail="generated_attack_target";
                 status=scene_turret_generated_attack_handle(rows[i].combat.event,&e->attack_target_handle);
@@ -484,7 +499,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
                 o->script_shoot.active=1;o->script_shoot.event=e->saved.combat.event;
                 memcpy(o->script_shoot.point,e->saved.combat.point,sizeof(e->saved.combat.point));
                 o->combat_scripted=3;o->combat_target=0;
-            }else{o->combat_scripted=1;o->combat_target=e->attack_target_handle;}
+            }else{o->combat_scripted=e->saved.combat.active==4?2:1;o->combat_target=e->attack_target_handle;}
             o->combat_alert=1;
             o->combat_burst_remaining=e->saved.combat.burst;
             o->combat_due=frame+e->saved.combat.due_remaining;
@@ -519,6 +534,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         }
         o->view.flags_7c=o->object_flags;
     }
+    scene_npc_reactive_restore_probe();
     scene_corpse_checkpoint_schedule();
 }
 static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_restore_stage *stage)

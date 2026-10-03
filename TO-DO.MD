@@ -12,7 +12,7 @@ Remaining first-playable work, grouped for planning:
 - Xbox usability: Address material performance/memory problems and missing audio/HUD/animation feedback; retain visual polish and hardware feedback as separate later work.
 
 - Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
-- Allied combat: Stock64MiB Xbox verifies autonomous hostile/allied acquisition, mutual weapon damage, death and survivor target release; reactive-target ordinary saves and broader tactics remain open (docs/NPC-OPPOSED-COMBAT.md).
+- Allied combat: Stock64MiB Xbox verifies autonomous hostile/allied combat and RFNC12 ordinary save/fresh-load with exact reactive targets/timing, resumed damage and survivor target release; broader tactics and active-effect continuation remain open (docs/NPC-REACTIVE-SAVES.md).
 - Placed Fusion pickup: The missing shoulder-cannon registry entry is corrected and compiled; its ordinary collection harness is prepared but unrun (tools/xemu_fusion_world_pickup.py).
 - Empty Jeep driver seat: A parked gunner-to-driver transfer helper is prepared for a detached/dead NPC driver, but integration and Xbox validation remain (src/diagnostic/scene_jeep_gunner_driver_transfer.inc).
 - Authored NPC seating: The original seat-host UID decodes for all1,610 installed entities; Jeep/turret ownership and turret seat/save continuation work; a parked Jeep with its dead detached driver now restores from an ordinary Xbox save, while broader seats remain open; moving shared Jeep gunner saves now pass a focused Xbox continuation (docs/research/NPC-VEHICLE-SEAT-ASSIGNMENT.md).
@@ -6020,3 +6020,12 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Report: artifacts/xemu/npc-opposed-20261003-134033/report.json. Initial validator wrongly required nonfatal damage; corrected against retained native state without a rerun, preserving original failure. No images, PC run, campaign route or audio/visual claim.
 - Reactive-mode ordinary saves remain unsupported and are the next material AI continuity gap. Overall approximately88%; AI and actor lifecycle approximately91%.
 - Also compiled missing placed Fusion class registration (stable index31); dedicated collection harness prepared but unrun. Parked Jeep gunner-to-driver helper remains unintegrated for next vehicle slice.
+
+
+### Reactive NPC ordinary saves (2026-10-03)
+
+- RFNC12 adds a distinct reactive NPC target mode without changing row size; ordinary loads restore live mode2, full-generation actor ownership, relative fire/reload deadlines, burst and spread RNG instead of converting it to authored Attack.
+- Stock64MiB source80/load120 PASS: exact targets/deadlines11 and12/RNG1/vitals/loaded16 restored, four continued shots/hits, one death and survivor release, zero reacquisition/setup/Attack replay; player health100.
+- Report: artifacts/xemu/npc-opposed-save-20261003-135013/report.json; save17392bytes, stage805492bytes, minimum endpoint5950 free pages (23.24MiB), NXDK build and disc restoration passed. No PC or visual/audio claim.
+- Active pain/reload/pursuit cases retain existing admission and need broader tester feedback; generated-head/passive-vehicle reactive target saves remain unsupported. Codec test cases added but not separately run under Xbox-only validation policy.
+- Overall approximately88%; AI and actor lifecycle approximately91%. Next available gameplay integration: prepared empty-driver Jeep seat transfer, with ordinary placed Fusion collection still queued.

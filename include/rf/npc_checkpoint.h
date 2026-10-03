@@ -13,6 +13,9 @@ typedef struct rf_npc_checkpoint_look {
     uint32_t active,event,target_uid;float position[3];
 } rf_npc_checkpoint_look;
 typedef struct rf_npc_checkpoint_combat {
+    /* active:0 none,1 Shoot_At,2 authored Attack,3 generated-head Attack,
+     * 4 reactive ordinary NPC target. Modes2..4 use event as target UID;
+     * only mode2 allows zero for the local player. */
     uint32_t active,event,burst,due_remaining,reload_remaining;int32_t reload_weapon;
     float point[3];uint32_t spread_rng;
 } rf_npc_checkpoint_combat;
@@ -32,7 +35,7 @@ typedef struct rf_npc_checkpoint_record {
     uint32_t dead_pose,death_flags_810;int32_t death_action;
     rf_npc_checkpoint_move move; /* Authored movement or ordinary pursuit; borrowed navigation rebinds by index. */
     rf_npc_checkpoint_look look; /* Active authored Look_At order; event UID is checked against the loaded scene. */
-    rf_npc_checkpoint_combat combat; /* Active Shoot_At (1) or actor-targeted Attack (2); relative deadlines. */
+    rf_npc_checkpoint_combat combat; /* Typed authored/reactive target; relative deadlines. */
     uint32_t support_uid; /* Grounded passive-vehicle support; zero retains legacy static placement. */
     float support_velocity[3];
     uint32_t shot_count,shot_rng,shield_disabled;rf_npc_checkpoint_shot shots[16];
@@ -47,7 +50,9 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC11 component (RFNC1-10 remain readable; writer emits11 only for generated-head Attack), not a composed save/profile. UID sorted, 600-byte LE base rows followed by optional 168-byte movement/look and 40-byte combat extensions, optional24*shot_count queued-fire bytes and optional108+12*slot_count
+/* RFNC12 component (RFNC1-11 remain readable; writer emits12 only for reactive
+ * NPC targets, otherwise11 for generated-head Attack or10), not a composed
+ * save/profile. UID sorted, 600-byte LE base rows followed by optional 168-byte movement/look and 40-byte combat extensions, optional24*shot_count queued-fire bytes and optional108+12*slot_count
  * animation bytes; no unused slots on wire. RF_NPC_CHECKPOINT_ROW_MAX bounds
  * one complete row. Absent animation must have zero script/playback/controller fields;
  * legacy1 supplies zero eye angles. Scene validates motion resource IDs,
@@ -64,7 +69,11 @@ typedef struct rf_npc_checkpoint_catalog {
  * Offset568 gives combat extension length (0 or40). Active1 retains the
  * authored Shoot_At event/point; active2 retains an Attack target UID in
  * event (zero means the local player), while RFNC11 active3 retains a generated
- * AutoHead Attack target by its nonzero authored base UID. Both have zero point.
+ * AutoHead Attack target by its nonzero authored base UID. RFNC12 active4
+ * retains a reactive ordinary NPC target by nonzero authored UID, distinct
+ * from this actor's UID and UINT32_MAX. It is not an authored Attack order.
+ * Modes2..4 have zero point; scene resolves/admit-checks the target type and
+ * liveness before restoring ownership. Pre12 data cannot contain active4.
  * All active combat modes retain relative
  * fire/reload deadlines, burst and RNG.
  * Offset572 stores an authored support UID; offsets576..587 retain its velocity.

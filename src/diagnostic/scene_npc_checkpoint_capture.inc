@@ -161,9 +161,22 @@ static int scene_npc_checkpoint_shoot_binding(uint32_t uid,uint32_t handle,const
     }
     return found==1?RF_OK:RF_NOT_FOUND;
 }
+static int scene_npc_checkpoint_living_npc_uid(uint32_t handle,uint32_t *uid)
+{
+    if(!uid||!handle)return RF_RANGE;
+    for(uint32_t i=0;i<campaign_npc_body_count;i++){
+        const campaign_npc_body *target=campaign_npc_bodies+i;
+        uint32_t candidate=(uint32_t)campaign_seeds.records.items[i].record.uid;
+        if(target->registration.view&&target->registration.handle==handle&&
+           target->damage.effects.health>0&&target->persistence_registered&&
+           rf_object_registry_lookup(&campaign_registry,handle)==&target->registration&&
+           candidate&&candidate!=UINT32_MAX){*uid=candidate;return RF_OK;}
+    }
+    return RF_NOT_FOUND;
+}
 static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
 {
-    uint32_t i;
+    uint32_t i;int status;
     if(!uid||!handle)return RF_RANGE;
     if(handle==campaign_player_object.handle){*uid=0;return RF_OK;}
     if(campaign_authored_vehicle_uid && handle==campaign_authored_vehicle_handle){
@@ -176,14 +189,7 @@ static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
             *uid=target->uid;return RF_OK;
         }
     }
-    for(i=0;i<campaign_npc_body_count;i++){
-        const campaign_npc_body *target=campaign_npc_bodies+i;
-        uint32_t candidate=(uint32_t)campaign_seeds.records.items[i].record.uid;
-        if(target->registration.view&&target->registration.handle==handle&&
-           target->damage.effects.health>0&&target->persistence_registered&&
-           rf_object_registry_lookup(&campaign_registry,handle)==&target->registration&&
-           candidate&&candidate!=UINT32_MAX){*uid=candidate;return RF_OK;}
-    }
+    status=scene_npc_checkpoint_living_npc_uid(handle,uid);if(status!=RF_NOT_FOUND)return status;
     return scene_turret_attack_checkpoint_uid(handle,uid);
 }
 static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing,uint32_t burning_profile)
@@ -261,6 +267,15 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
            (o->script_move.active&&o->script_move.follow!=2)||
            o->combat_burst_remaining>256||o->combat_reload_weapon< -1||o->combat_reload_weapon>=64)
             return scene_npc_checkpoint_reject(index,"attack_state",0,o->combat_target,RF_FORMAT);
+    }else if(!terminal_dead&&o->combat_scripted==2){
+        /* RFNC12 distinguishes acquired/retaliatory NPC combat from authored
+         * Attack. This slice admits only a real authored living NPC target. */
+        status=scene_npc_checkpoint_living_npc_uid(o->combat_target,&attack_target_uid);
+        if(status||o->combat_target==o->registration.handle||o->combat_alert!=1||o->script_shoot.active||
+           (o->script_move.active&&o->script_move.follow!=2)||
+           o->combat_burst_remaining>256||o->combat_reload_weapon< -1||o->combat_reload_weapon>=64)
+            return scene_npc_checkpoint_reject(index,"reactive_state",0,o->combat_target,status?status:RF_FORMAT);
+        attack_target_mode=4;
     }else{NPC_CAPTURE_ZERO(combat_scripted);NPC_CAPTURE_ZERO(script_shoot.active);}
     if(!terminal_dead){
         if(o->script_look.active){
@@ -270,9 +285,9 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         }
     }
     if(o->combat_target&&!(terminal_dead||(o->combat_alert&&
-        (o->combat_target==campaign_player_object.handle||o->combat_scripted==1))))
+        (o->combat_target==campaign_player_object.handle||o->combat_scripted==1||o->combat_scripted==2))))
         return scene_npc_checkpoint_reject(index,"combat_target",0,o->combat_target,RF_RANGE);
-    if(o->combat_scripted!=3&&o->combat_scripted!=1){NPC_CAPTURE_ZERO(combat_burst_remaining);NPC_CAPTURE_ZERO(combat_reload_due);}
+    if(o->combat_scripted!=3&&o->combat_scripted!=1&&o->combat_scripted!=2){NPC_CAPTURE_ZERO(combat_burst_remaining);NPC_CAPTURE_ZERO(combat_reload_due);}
     if(o->damage.effects.burn && (!burning_profile || scene_burning_checkpoint_owner_admit(index)))
         return scene_npc_checkpoint_reject(index,"damage.effects.burn",0,o->damage.effects.burn,RF_RANGE);
 #undef NPC_CAPTURE_ZERO
@@ -305,7 +320,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                 !campaign_playback_resources.models[pose->skeleton].resources[motion].looping&&
                 !(burning_profile&&o->damage.effects.burn&&o->pain.selected_action>=0&&o->pain.selected_action<45&&
                   motion==o->selection.mapping.actions[o->pain.selected_action])&&
-                !((o->combat_alert==1||o->combat_scripted==3||o->combat_scripted==1)&&
+                !((o->combat_alert==1||o->combat_scripted==3||o->combat_scripted==1||o->combat_scripted==2)&&
                   (motion==o->selection.mapping.actions[2]||
                    motion==o->selection.mapping.actions[39])))||
                (terminal_dead&&campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
@@ -377,7 +392,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     row->dead_pose=terminal_dead;
     if(terminal_dead){row->death_flags_810=o->view.flags_810;row->death_action=o->death.action_824;}
     else {
-        if(o->combat_scripted==3||o->combat_scripted==1){
+        if(o->combat_scripted==3||o->combat_scripted==1||o->combat_scripted==2){
             uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
             row->combat.active=o->combat_scripted==3?1:attack_target_mode;
             row->combat.event=row->combat.active==1?o->script_shoot.event:attack_target_uid;

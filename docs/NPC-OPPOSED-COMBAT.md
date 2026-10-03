@@ -22,10 +22,10 @@ death. The helper adds164 diagnostic bytes and no per-frame allocation.
 
 ## Scope and remaining integration
 
-Reactive-target ordinary saves already reject mode2 and still need a matching
-checkpoint discriminator; this change does not reinterpret a reactive target
-as an authored Attack. Broad squad tactics, opposition changes during an
-existing engagement, and visual/audio behavior remain unverified. The focused
+Reactive-target ordinary saves now use RFNC12 and retain live reactive mode2;
+see [NPC-REACTIVE-SAVES.md](NPC-REACTIVE-SAVES.md) for the passing Xbox
+continuation. Broad squad tactics, opposition changes during an existing
+engagement, and visual/audio behavior remain unverified. The focused
 harness covers two complete guard941 records copied to CTF06, transformed to
 face each other, with one ordinary Set_Friendliness event making an ally.
 No player fire, scripted Attack, Slay, injected damage, images or campaign route.

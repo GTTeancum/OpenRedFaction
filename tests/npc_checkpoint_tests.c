@@ -197,6 +197,36 @@ int main(void)
         reseal(legacy2,sizeof(legacy2));CHECK(!rf_npc_checkpoint_decode(legacy2,sizeof(legacy2),identity,&c,&decoded,1,&got));
         CHECK(!decoded.animation_present&&decoded.eye_angles[0]==actor.eye_angles[0]&&!decoded.controller_uid);
     }
+    {
+        rf_npc_checkpoint_record pair[2]={{0}},decoded[2],unchanged[2];
+        unsigned char wire[64+2*(RF_NPC_CHECKPOINT_ROW+RF_NPC_CHECKPOINT_COMBAT_BYTES)];
+        uint32_t got=0,n=0;
+        pair[0].uid=7;pair[0].class_id=3;pair[0].health=80;pair[0].primary=pair[0].secondary=-1;
+        pair[0].ai_mode=2;pair[0].combat_alert=1;pair[0].combat.active=4;pair[0].combat.event=93;
+        pair[0].combat.burst=2;pair[0].combat.due_remaining=17;pair[0].combat.reload_weapon=-1;
+        pair[0].combat.spread_rng=0x1234abcd;
+        /* A later generated-head row must not downgrade version12 to11. */
+        pair[1]=pair[0];pair[1].uid=10;pair[1].combat.active=3;pair[1].combat.event=94;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,pair,2,wire,sizeof(wire),&got)&&wire[4]==12&&got==sizeof(wire));
+        CHECK(!rf_npc_checkpoint_decode(wire,got,identity,&c,decoded,2,&n)&&n==2&&!memcmp(pair,decoded,sizeof(pair)));
+        memset(decoded,0x5a,sizeof(decoded));memcpy(unchanged,decoded,sizeof(decoded));
+        for(uint32_t version=10;version<=11;version++){
+            wire[4]=(unsigned char)version;reseal(wire,got);n=99;
+            CHECK(rf_npc_checkpoint_preflight(wire,got,identity,&c,&n)==RF_FORMAT&&n==99);
+            CHECK(rf_npc_checkpoint_decode(wire,got,identity,&c,decoded,2,&n)==RF_FORMAT&&
+                  n==99&&!memcmp(decoded,unchanged,sizeof(decoded)));
+        }
+        for(uint32_t invalid=0;invalid<3;invalid++){
+            pair[0].combat.event=invalid==0?0:invalid==1?UINT32_MAX:pair[0].uid;n=99;
+            CHECK(rf_npc_checkpoint_encode(identity,&c,pair,2,wire,sizeof(wire),&n)==RF_FORMAT&&n==99);
+        }
+        pair[0].combat.event=93;pair[0].combat.active=2;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,pair,2,wire,sizeof(wire),&got)&&wire[4]==11);
+        CHECK(!rf_npc_checkpoint_decode(wire,got,identity,&c,decoded,2,&n)&&!memcmp(pair,decoded,sizeof(pair)));
+        pair[1].combat.active=2;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,pair,2,wire,sizeof(wire),&got)&&wire[4]==10);
+        CHECK(!rf_npc_checkpoint_decode(wire,got,identity,&c,decoded,2,&n)&&!memcmp(pair,decoded,sizeof(pair)));
+    }
     status=rf_npc_checkpoint_encode(identity,&c,NULL,0,blob,sizeof(blob),&written);
     CHECK(!status&&written==64&&!rf_npc_checkpoint_decode(blob,written,identity,&c,NULL,0,&count)&&!count);
     puts("PASS NPC checkpoint pose/vitals/inventory/drop roundtrip, identity, malformed state and output preservation");return 0;

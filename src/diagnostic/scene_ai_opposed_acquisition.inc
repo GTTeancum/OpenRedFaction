@@ -15,11 +15,15 @@ uint32_t rf_scene_enemy_opposed[15];
 /* Last acquired pair: two rows of UID,handle,target,mode,health bits,armor
  * bits,position xyz,eye xyz. Sampling changes no gameplay state. */
 uint32_t rf_scene_npc_opposed_probe[24];
+/* Immutable assignment snapshot: count, two rows of UID,targetUID,mode,due,
+ * reload_due,burst,RNG,health bits,armor bits,current loaded rounds. */
+uint32_t rf_scene_enemy_reactive_restore[21];
 static uint32_t scene_npc_opposed_probe_slots[2]={UINT32_MAX,UINT32_MAX};
 static void campaign_enemy_opposed_reset(void)
 {
     memset(rf_scene_enemy_opposed,0,sizeof(rf_scene_enemy_opposed));
     memset(rf_scene_npc_opposed_probe,0,sizeof(rf_scene_npc_opposed_probe));
+    memset(rf_scene_enemy_reactive_restore,0,sizeof(rf_scene_enemy_reactive_restore));
     scene_npc_opposed_probe_slots[0]=scene_npc_opposed_probe_slots[1]=UINT32_MAX;
 }
 static void scene_npc_opposed_probe(void)
@@ -46,6 +50,32 @@ static uint32_t campaign_enemy_opposed_live(const campaign_npc_body *o)
         rf_entity_lookup(&campaign_entities,(int32_t)o->registration.handle)==&o->view&&
         !(o->object_flags&(2u|0x4000u))&&!(o->view.flags_810&1u)&&
         isfinite(o->damage.effects.health)&&o->damage.effects.health>0;
+}
+static void scene_npc_reactive_restore_probe(void)
+{
+    uint32_t i,j,count=0;
+    memset(rf_scene_enemy_reactive_restore,0,sizeof(rf_scene_enemy_reactive_restore));
+    scene_npc_opposed_probe_slots[0]=scene_npc_opposed_probe_slots[1]=UINT32_MAX;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        const campaign_npc_body *o=campaign_npc_bodies+i;
+        if(o->combat_scripted!=2||!campaign_enemy_opposed_live(o))continue;
+        for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view&&
+            campaign_npc_bodies[j].registration.handle==o->combat_target)break;
+        if(j==campaign_npc_body_count)continue;
+        if(count<2) {
+            uint32_t *p=rf_scene_enemy_reactive_restore+1+10*count;
+            p[0]=(uint32_t)campaign_seeds.records.items[i].record.uid;
+            p[1]=(uint32_t)campaign_seeds.records.items[j].record.uid;
+            p[2]=o->combat_scripted;p[3]=o->combat_due;p[4]=o->combat_reload_due;
+            p[5]=o->combat_burst_remaining;p[6]=campaign_enemy_spread_random.value;
+            memcpy(p+7,&o->damage.effects.health,4);memcpy(p+8,&o->damage.effects.armor,4);
+            p[9]=o->view.weapons[0]>=0&&o->view.weapons[0]<64?
+                (uint32_t)o->inventory.loaded[o->view.weapons[0]]:UINT32_MAX;
+        }
+        if(!count){scene_npc_opposed_probe_slots[0]=i;scene_npc_opposed_probe_slots[1]=j;}
+        ++count;
+    }
+    rf_scene_enemy_reactive_restore[0]=count;scene_npc_opposed_probe();
 }
 static uint32_t campaign_enemy_opposed_cone(const campaign_npc_body *o,
     const float point[3],float delta[3],float *distance)
