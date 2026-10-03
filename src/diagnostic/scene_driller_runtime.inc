@@ -466,12 +466,36 @@ static int scene_submarine_player_water(void *context,const rf_collision_body_sp
 }
 static int scene_driller_runtime_open(scene_stream *s)
 {
-    scene_driller_runtime *r;int status;uint32_t stage=0;
+    scene_driller_runtime *r;scene_driller_damage authored_damage;int status;uint32_t stage=0;
     if(!s->driller)return RF_OK;
     if(s->driller_runtime)return RF_OK;
     if((!rf_scene_dev_room_enabled && !campaign_authored_vehicle_uid) ||
        (rf_scene_dev_npc_enabled && !(rf_scene_vehicle_enabled==4 && rf_scene_dev_npc_enabled==7)))return RF_RANGE;
     r=calloc(1,sizeof(*r));if(!r)return RF_IO;r->last_frame=UINT32_MAX;
+    /*464010 applies instance vitals after the class factory, for vehicles too.
+     * Stage before registration; retain the class prototype for other owners
+     * and profile packs. DEV hosts with no authored UID keep class defaults. */
+    authored_damage=s->driller_damage_prototype;
+    if(campaign_authored_vehicle_uid){
+        static const char *classes[]={NULL,"Driller01","APC","Jeep01","sub","Fighter01"};
+        uint32_t source=UINT32_MAX,matches=0;rf_level_entity_vitals authored;
+        rf_entity_creation_vitals_state vitals;
+        for(uint32_t i=0;i<campaign_seeds.records.count;i++)
+            if(campaign_seeds.records.items[i].record.uid==campaign_authored_vehicle_uid){source=i;++matches;}
+        if(matches!=1){status=RF_NOT_FOUND;goto fail;}
+        if(rf_scene_vehicle_enabled<1||rf_scene_vehicle_enabled>5||
+           strcmp(campaign_seeds.records.items[source].record.class_name,classes[rf_scene_vehicle_enabled])){
+            status=RF_FORMAT;goto fail;
+        }
+        status=rf_level_entity_vitals_read(campaign_seeds.records.items+source,&authored);if(status)goto fail;
+        vitals=(rf_entity_creation_vitals_state){authored_damage.state.effects.health,
+            authored_damage.state.effects.armor,authored_damage.object_flags,0};
+        status=scene_npc_vitals_apply(&authored,&vitals,&s->driller->vitals);if(status)goto fail;
+        authored_damage.state.effects.health=vitals.health;
+        authored_damage.state.effects.armor=vitals.armor;
+        authored_damage.object_flags=vitals.object_flags;
+        authored_damage.destroyed=vitals.health<=0;
+    }
     if(rf_scene_vehicle_enabled==1){
 #ifdef RF_IMAGE_XBOX_NATIVE
     status=rf_geomod_template_load("D:\\driller-single.bin",r->shapes);
@@ -501,7 +525,8 @@ static int scene_driller_runtime_open(scene_stream *s)
         &scene_actor_body,s->driller,&r->physics,&r->collision,scene_driller_player_eye_offset());if(status)goto fail;
     if(rf_scene_vehicle_enabled==4){r->entry.water_context=&r->submarine;r->entry.water_path=scene_submarine_player_water;}
     if(rf_scene_vehicle_enabled==3){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
-    stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&s->driller_damage_prototype);if(status)goto fail;
+    stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&authored_damage);if(status)goto fail;
+    r->entry.host.alive=!authored_damage.destroyed&&authored_damage.state.effects.health>0;
     /* Ambient slots are initialized later in level startup. Bind the idle
      * voice only after that reset and its initial authored scheduling. */
     s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));

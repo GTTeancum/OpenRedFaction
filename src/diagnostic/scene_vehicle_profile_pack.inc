@@ -1,7 +1,7 @@
 #ifndef RF_SCENE_VEHICLE_PROFILE_PACK_INCLUDED
 #define RF_SCENE_VEHICLE_PROFILE_PACK_INCLUDED
 /* Include after runtime/profile_physics_prepare and auxiliary resource helpers.
- * One ground/submarine extras owner. Chassis is BORROWED and never modified/closed;
+ * One ground/submarine/Fighter extras owner. Chassis is BORROWED and never modified/closed;
  * world registries, scene profile and renderer are never published here.
  * Geometry must remain allocated until scene retained-model teardown. */
 
@@ -20,20 +20,43 @@ static void scene_vehicle_profile_pack_account(scene_vehicle_profile_pack *p,uin
     uint32_t demand=p->resident_bytes+peak;
     if(demand>p->peak_bytes)p->peak_bytes=demand;p->resident_bytes+=resident;
 }
+/* Same readers/tags as scene_fighter_weapon_open, without allocating its52 live
+ * projectile slots in a resource pack or on the loader's stack. Rocket VFX is
+ * the scene-owned fighter_rocket_visual, retained independently of these extras. */
+static int scene_vehicle_profile_pack_fighter_open(scene_vehicle_profile_pack *p,rf_vpp *tables,uint32_t budget)
+{
+    rf_vpp_entry entry;void *text;int st;
+    st=rf_static_model_tags_find(&p->chassis->tags,(rf_model_name){"muzzle_1",8},&p->fighter_primary_muzzle);if(st)return st;
+    st=rf_static_model_tags_find(&p->chassis->tags,(rf_model_name){"secondary_1",11},&p->fighter_rocket_muzzle);if(st)return st;
+    st=rf_vpp_find(tables,"weapons.tbl",&entry);if(st)return st;
+    if(!entry.size||entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    st=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!st)st=scene_vehicle_primary_read(text,entry.size,"Fighter Minigun",&p->fighter_primary);
+    if(!st)st=scene_fighter_rocket_read(text,entry.size,&p->fighter_rocket);
+    free(text);if(st)return st;
+    p->fighter_primary_reserve=(int32_t)p->fighter_primary.capacity;
+    p->fighter_rocket_reserve=(int32_t)p->fighter_rocket.capacity;
+    p->fighter_parameters=(rf_vehicle_submersible_parameters){p->chassis->physics.authored.mass,
+        p->chassis->movement.speed,p->chassis->movement.acceleration,p->chassis->rotation.maximum_velocity,
+        p->chassis->rotation.acceleration,2};
+    return RF_OK;
+}
 static int scene_vehicle_profile_pack_open(uint32_t profile,const scene_driller_resources *chassis,
     rf_vpp *tables,rf_vpp *archive,rf_vpp *maps,uint32_t map_count,float gravity,uint32_t budget,scene_vehicle_profile_pack **out)
 {
-    static const char *const classes[4]={"Driller01","APC","Jeep01","sub"};
-    static const char *const models[4]={"Driller01.v3m","APC.v3m","Jeep01.v3m","Sub_Mini01.v3m"};
-    static const char *const cockpits[4]={"driller01.vfx","APC.vfx","jeep.vfx","sub.vfx"};
+    static const char *const classes[5]={"Driller01","APC","Jeep01","sub","Fighter01"};
+    static const char *const models[5]={"Driller01.v3m","APC.v3m","Jeep01.v3m","Sub_Mini01.v3m","Fighter01.v3m"};
+    static const char *const cockpits[5]={"driller01.vfx","APC.vfx","jeep.vfx","sub.vfx","fighter01.vfx"};
     const float origin[3]={0,0,0},identity[9]={1,0,0,0,1,0,0,0,1};float seat_pose[12];
     scene_vehicle_profile_pack *p=NULL;scene_apc_secondary_state secondary={0};uint32_t cap;int st;
-    if(!out||*out||!chassis||!tables||!archive||!maps||!map_count||profile<1||profile>4||
+    if(!out||*out||!chassis||!tables||!archive||!maps||!map_count||profile<1||profile>5||
        !isfinite(gravity)||gravity<0||budget<sizeof(*p))return RF_RANGE;
     if(strcmp(chassis->model,models[profile-1]))return RF_FORMAT;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->chassis=chassis;p->profile=profile;
     p->resident_bytes=p->peak_bytes=sizeof(*p);p->seat=p->gunner_seat=p->primary_muzzle=p->secondary_muzzle=-1;
     p->submarine_muzzle=-1;
+    p->fighter_primary_muzzle=p->fighter_rocket_muzzle=-1;
     st=rf_static_model_tags_find(&chassis->tags,(rf_model_name){"interface_1",11},&p->seat);if(st)goto fail;
     st=rf_static_model_tag_place(&chassis->tags,p->seat,identity,origin,seat_pose);if(st)goto fail;
     if(profile==3){st=rf_static_model_tags_find(&chassis->tags,(rf_model_name){"interface_2",11},&p->gunner_seat);if(st)goto fail;
@@ -87,6 +110,7 @@ static int scene_vehicle_profile_pack_open(uint32_t profile,const scene_driller_
         st=scene_submarine_weapon_model_open(archive,maps,map_count,cap,&p->torpedo);if(st)goto fail;
         scene_vehicle_profile_pack_account(p,p->torpedo->resident_bytes,p->torpedo->peak_bytes);
     }
+    if(profile==5){st=scene_vehicle_profile_pack_fighter_open(p,tables,cap);if(st)goto fail;}
     p->primary_reserve=(int32_t)p->primary.capacity;p->secondary_reserve=(int32_t)p->secondary.capacity;p->primary_random.value=1;
     cap=scene_vehicle_profile_pack_cap(budget,p->resident_bytes,512*1024);
     if(p->resident_bytes+cap>p->peak_bytes)p->peak_bytes=p->resident_bytes+cap;
@@ -147,7 +171,7 @@ static int scene_vehicle_profile_pack_materials_merge(scene_vehicle_profile_pack
 static const scene_vehicle_profile_pack *scene_vehicle_profile_pack_get(const scene_stream *s,uint32_t profile)
 {
     const scene_vehicle_profile_pack *p;
-    if(!s||profile<1||profile>4)return NULL;p=s->vehicle_profile_packs[profile];
+    if(!s||profile<1||profile>5)return NULL;p=s->vehicle_profile_packs[profile];
     return p&&p->profile==profile&&p->merged&&p->chassis&&p->cockpit&&p->cockpit->merged?p:NULL;
 }
 static int scene_vehicle_profile_pack_scene_images(const rf_materials *scene,uint32_t base,uint32_t count,uint64_t *bytes)
@@ -162,16 +186,17 @@ static int scene_vehicle_profile_pack_scene_images(const rf_materials *scene,uin
 static int scene_vehicle_profile_pack_adopt(scene_stream *s,uint32_t profile,const rf_materials *materials,
     float gravity,scene_vehicle_profile_pack **out)
 {
-    static const char *const model[4]={"Driller01.v3m","APC.v3m","Jeep01.v3m","Sub_Mini01.v3m"};
+    static const char *const model[5]={"Driller01.v3m","APC.v3m","Jeep01.v3m","Sub_Mini01.v3m","Fighter01.v3m"};
     const float origin[3]={0,0,0},identity[9]={1,0,0,0,1,0,0,0,1};
     scene_vehicle_profile_pack *p;uint64_t resident,released=0,material=0,pixels=0;int st;
-    if(!s||!out||*out||profile<1||profile>4||!materials||!s->driller||!s->driller_cockpit||
+    if(!s||!out||*out||profile<1||profile>5||!materials||!s->driller||!s->driller_cockpit||
        !s->driller_cockpit->merged||!s->driller_cockpit->materials||!isfinite(gravity)||gravity<0)return RF_RANGE;
     if(strcmp(s->driller->model,model[profile-1])||
        (profile==1?(!s->driller_bits||s->jeep_gun||s->apc_mortar||s->submarine_torpedo):
         profile==2?(!s->apc_mortar||s->driller_bits||s->jeep_gun||s->submarine_torpedo):
         profile==3?(!s->jeep_gun||s->driller_bits||s->apc_mortar||s->submarine_torpedo):
-                   (!s->submarine_torpedo||s->driller_bits||s->jeep_gun||s->apc_mortar)))return RF_FORMAT;
+        profile==4?(!s->submarine_torpedo||s->driller_bits||s->jeep_gun||s->apc_mortar):
+                   (s->submarine_torpedo||s->driller_bits||s->jeep_gun||s->apc_mortar)))return RF_FORMAT;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->profile=profile;p->chassis=s->driller;
     p->cockpit=s->driller_cockpit;p->bits=s->driller_bits;p->gun=s->jeep_gun;p->mortar=s->apc_mortar;
     p->torpedo=s->submarine_torpedo;p->torpedo_base=s->submarine_torpedo_base;p->torpedo_textures=s->submarine_torpedo_textures;
@@ -180,6 +205,7 @@ static int scene_vehicle_profile_pack_adopt(scene_stream *s,uint32_t profile,con
     p->mortar_base=s->apc_mortar_base;p->mortar_textures=s->apc_mortar_textures;
     p->seat=p->gunner_seat=p->primary_muzzle=p->secondary_muzzle=-1;
     p->submarine_muzzle=-1;
+    p->fighter_primary_muzzle=p->fighter_rocket_muzzle=-1;
     st=rf_static_model_tags_find(&p->chassis->tags,(rf_model_name){"interface_1",11},&p->seat);if(st)goto fail;
     if(profile==3){st=rf_static_model_tags_find(&p->chassis->tags,(rf_model_name){"interface_2",11},&p->gunner_seat);if(st)goto fail;}
     st=scene_vehicle_profile_physics_prepare(profile,p->chassis,origin,identity,gravity,&p->physics);if(st)goto fail;
@@ -196,6 +222,14 @@ static int scene_vehicle_profile_pack_adopt(scene_stream *s,uint32_t profile,con
         p->submarine_definition=s->submarine_weapon.definition;p->submarine_muzzle=s->submarine_weapon.muzzle;
         p->submarine_reserve=(int32_t)p->submarine_definition.capacity;
         p->submarine_parameters=(rf_vehicle_submersible_parameters){p->chassis->physics.authored.mass,
+            p->chassis->movement.speed,p->chassis->movement.acceleration,p->chassis->rotation.maximum_velocity,
+            p->chassis->rotation.acceleration,2};
+    }
+    if(profile==5){
+        p->fighter_primary=s->fighter_weapon.primary;p->fighter_rocket=s->fighter_weapon.rocket;
+        p->fighter_primary_muzzle=s->fighter_weapon.primary_muzzle;p->fighter_rocket_muzzle=s->fighter_weapon.rocket_muzzle;
+        p->fighter_primary_reserve=(int32_t)p->fighter_primary.capacity;p->fighter_rocket_reserve=(int32_t)p->fighter_rocket.capacity;
+        p->fighter_parameters=(rf_vehicle_submersible_parameters){p->chassis->physics.authored.mass,
             p->chassis->movement.speed,p->chassis->movement.acceleration,p->chassis->rotation.maximum_velocity,
             p->chassis->rotation.acceleration,2};
     }
@@ -232,9 +266,9 @@ fail:free(p);return st;
 static int scene_vehicle_profile_pack_exchange_admit(const scene_stream *s,uint32_t outgoing,const scene_vehicle_profile_pack *next)
 {
     const scene_vehicle_profile_pack *old=scene_vehicle_profile_pack_get(s,outgoing);uint32_t old_kind,next_kind;
-    if(!old||!next||next->profile<1||next->profile>4||next->profile==outgoing||
+    if(!old||!next||next->profile<1||next->profile>5||next->profile==outgoing||
        scene_vehicle_profile_pack_get(s,next->profile)!=next)return RF_NOT_FOUND;
-    old_kind=outgoing==4?0:outgoing+2;next_kind=next->profile==4?0:next->profile+2;
+    old_kind=outgoing>=4?outgoing-4:outgoing+2;next_kind=next->profile>=4?next->profile-4:next->profile+2;
     if(s->driller!=old->chassis||s->passive_vehicle_resources[old_kind]||
        s->passive_vehicle_resources[next_kind]!=next->chassis||
        !s->driller_textures||!s->passive_vehicle_textures[next_kind]||
@@ -253,7 +287,7 @@ static int scene_vehicle_profile_pack_exchange_admit(const scene_stream *s,uint3
  * No telemetry, global profile, registry, actor pose or audio is changed. */
 static void scene_vehicle_profile_pack_publish(scene_stream *s,uint32_t outgoing,const scene_vehicle_profile_pack *next)
 {
-    uint32_t old_kind=outgoing==4?0:outgoing+2,next_kind=next->profile==4?0:next->profile+2;
+    uint32_t old_kind=outgoing>=4?outgoing-4:outgoing+2,next_kind=next->profile>=4?next->profile-4:next->profile+2;
     s->passive_vehicle_resources[old_kind]=s->driller;s->passive_vehicle_base[old_kind]=s->driller_base;
     s->passive_vehicle_textures[old_kind]=s->driller_textures;
     s->driller=s->passive_vehicle_resources[next_kind];s->driller_base=s->passive_vehicle_base[next_kind];
@@ -274,6 +308,10 @@ static void scene_vehicle_profile_pack_publish(scene_stream *s,uint32_t outgoing
     memset(&s->submarine_weapon,0,sizeof(s->submarine_weapon));
     s->submarine_weapon.definition=next->submarine_definition;
     s->submarine_weapon.muzzle=next->submarine_muzzle;s->submarine_weapon.reserve=next->submarine_reserve;
+    memset(&s->fighter_weapon,0,sizeof(s->fighter_weapon));
+    s->fighter_weapon.primary=next->fighter_primary;s->fighter_weapon.rocket=next->fighter_rocket;
+    s->fighter_weapon.primary_muzzle=next->fighter_primary_muzzle;s->fighter_weapon.rocket_muzzle=next->fighter_rocket_muzzle;
+    s->fighter_weapon.primary_reserve=next->fighter_primary_reserve;s->fighter_weapon.rocket_reserve=next->fighter_rocket_reserve;
     s->apc_aim_limits=next->aim_limits;memset(&s->apc_aim,0,sizeof(s->apc_aim));s->apc_aim_active=0;
     memset(s->apc_aim_eye,0,sizeof(s->apc_aim_eye));memset(s->apc_aim_basis,0,sizeof(s->apc_aim_basis));
     memset(s->jeep_gun_pose,0,sizeof(s->jeep_gun_pose));memset(s->jeep_muzzle_pose,0,sizeof(s->jeep_muzzle_pose));

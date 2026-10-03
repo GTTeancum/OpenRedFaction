@@ -8,6 +8,7 @@ typedef struct scene_vehicle_parked_state {
     rf_vehicle_rigid_state physics;
     scene_campaign_vehicle_route route;
     scene_vehicle_primary_state primary;
+    scene_vehicle_primary_state fighter_secondary; /* Profile5 rocket scheduler. */
     int32_t primary_reserve,secondary_reserve,seat;
     /* Profile4 owns its torpedo clock/ammunition independently of APC guns. */
     int32_t submarine_reserve;float submarine_cooldown;

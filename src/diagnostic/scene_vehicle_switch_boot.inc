@@ -94,10 +94,10 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
     status=rf_world_checkpoint_decode(data,bytes,0,&world);if(status)goto done;
     const rf_world_checkpoint_slice *slice=world.sections+RF_WORLD_VEHICLE-1;
     status=scene_vehicle_switch_checkpoint_peek(slice->data,slice->bytes,&uid,&profile,&count);if(status||!uid)goto done;
-    if(!campaign_authored_vehicle_uid||(scene_history_word(slice->data+4)==1&&profile!=rf_scene_vehicle_enabled)||profile<1||profile>4||
+    if(!campaign_authored_vehicle_uid||(scene_history_word(slice->data+4)==1&&profile!=rf_scene_vehicle_enabled)||profile<1||profile>5||
        uid>0x7fffffffu||!count||count>RF_OBJECT_CAPACITY){status=RF_FORMAT;goto done;}
     status=rf_level_entity_find(level,(int32_t)uid,&selected);if(status)goto done;
-    if(scene_vehicle_selection_profile(selected.class_name)!=profile){status=RF_FORMAT;goto done;}
+    if(profile==5?strcmp(selected.class_name,"Fighter01")!=0:scene_vehicle_selection_profile(selected.class_name)!=profile){status=RF_FORMAT;goto done;}
     {const rf_level_section *section=rf_level_find(level,0x30000);
      if(!section){status=RF_FORMAT;goto done;}
      status=scene_vehicle_selection_metadata(level,section,&selected,&spawn,&vitals);if(status)goto done;
@@ -122,7 +122,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
             uint32_t row_uid=scene_vehicle_switch_boot_order[i],row_grouped=0;
             if(!section||row_uid>0x7fffffffu){status=RF_FORMAT;goto done;}
             status=rf_level_entity_find(level,(int32_t)row_uid,&row);if(status)goto done;
-            if(scene_vehicle_selection_profile(row.class_name)!=row_profile){status=RF_FORMAT;goto done;}
+            if(row_profile==5?strcmp(row.class_name,"Fighter01")!=0:scene_vehicle_selection_profile(row.class_name)!=row_profile){status=RF_FORMAT;goto done;}
             status=scene_vehicle_selection_metadata(level,section,&row,&row_spawn,&row_vitals);if(status)goto done;
             if(row_spawn.seat_host_uid!=-1||(row_vitals.health<=0&&row_vitals.health!=-1)||
                ((row_spawn.creation_flags&2u)&&row_uid!=(uint32_t)campaign_authored_vehicle_uid)){

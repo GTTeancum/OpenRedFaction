@@ -853,7 +853,7 @@ typedef struct scene_stream {
     scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
     scene_driller_resources *apc_mortar;uint32_t apc_mortar_base,apc_mortar_textures;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_driller_resources *passive_vehicle_resources[6];uint32_t passive_vehicle_base[6],passive_vehicle_textures[6];
-    scene_vehicle_profile_pack *vehicle_profile_packs[5]; /* Ground/submarine classes; chassis borrowed. */
+    scene_vehicle_profile_pack *vehicle_profile_packs[6]; /* Ground/submarine/Fighter classes; chassis borrowed. */
     rf_collision_body_sphere passive_vehicle_spheres[6][8];uint32_t passive_vehicle_sphere_count[6];
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
@@ -20037,10 +20037,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=scene_driller_materials_merge(stream->passive_vehicle_resources[i],materials,
                 &stream->passive_vehicle_base[i],&stream->passive_vehicle_textures[i]);if(status)goto done;
         }
-        if(rf_scene_dev_room_enabled || scene_fusion_resources || scene_rocket_resources) {
+        uint32_t fighter_visual_needed=rf_scene_vehicle_enabled==5||stream->passive_vehicle_resources[1]!=NULL;
+        if(rf_scene_dev_room_enabled || scene_fusion_resources || scene_rocket_resources || fighter_visual_needed) {
             uint32_t visual;
-            for(visual=0;visual<(rf_scene_vehicle_enabled==5?4u:scene_fusion_resources?3u:2u);visual++) {
-            if(!rf_scene_dev_room_enabled && !((visual==2 && scene_fusion_resources) || (visual==0 && scene_rocket_resources)))continue;
+            for(visual=0;visual<(fighter_visual_needed?4u:scene_fusion_resources?3u:2u);visual++) {
+            if(!rf_scene_dev_room_enabled && !((visual==2 && scene_fusion_resources) || (visual==0 && scene_rocket_resources) || (visual==3 && fighter_visual_needed)))continue;
             if(visual==2 && !scene_fusion_resources)continue;
             scene_rocket_visual *v=calloc(1,sizeof(*v));rf_material *combined;uint32_t n;
             if(!v){status=RF_IO;goto done;}if(visual==3)stream->fighter_rocket_visual=v;else if(visual==2)stream->fusion_visual=v;else if(visual){stream->ripple_visual=v;memset(rf_scene_ripple_lifecycle,0,sizeof(rf_scene_ripple_lifecycle));}else stream->rocket_visual=v;
@@ -20296,7 +20297,7 @@ done:
         stream->driller_cockpit=NULL;stream->driller_bits=NULL;
         stream->jeep_gun=NULL;stream->apc_mortar=NULL;stream->submarine_torpedo=NULL;
     }
-    for(i=1;i<=4;++i)scene_vehicle_profile_pack_close(&stream->vehicle_profile_packs[i]);
+    for(i=1;i<=5;++i)scene_vehicle_profile_pack_close(&stream->vehicle_profile_packs[i]);
     scene_driller_resources_close(&stream->submarine_torpedo);
     scene_driller_cockpit_close(&stream->driller_cockpit);
     scene_driller_bit_animation_close(&stream->driller_bits);

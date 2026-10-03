@@ -17,5 +17,10 @@ struct scene_vehicle_profile_pack {
     scene_submarine_weapon_definition submarine_definition;
     int32_t submarine_muzzle,submarine_reserve;
     rf_vehicle_submersible_parameters submarine_parameters;
+    scene_vehicle_primary_definition fighter_primary;
+    scene_submarine_weapon_definition fighter_rocket;
+    int32_t fighter_primary_muzzle,fighter_rocket_muzzle;
+    int32_t fighter_primary_reserve,fighter_rocket_reserve;
+    rf_vehicle_submersible_parameters fighter_parameters;
 };
 #endif
