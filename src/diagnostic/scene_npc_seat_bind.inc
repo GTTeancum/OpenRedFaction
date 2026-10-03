@@ -263,6 +263,14 @@ static int scene_npc_seats_tick(uint32_t frame,int32_t now)
         scene_npc_seat_binding *b=scene_npc_seats+i;scene_npc_seat_host h;campaign_npc_body *o;
         if(!b->active||b->last_frame==frame)continue;
         o=scene_npc_seat_actor(b);status=scene_npc_seat_host_read(b,&h);
+        if(o&&!status&&b->kind==SCENE_NPC_SEAT_JEEP&&!h.alive&&
+           o->damage.effects.health>0&&!(o->view.flags_810&1u)) {
+            uint32_t released=0;
+            status=scene_vehicle_wreck_exit_try(scene_npc_seat_stream,b->actor,b->host,frame,now,&released);
+            if(status)goto fail;
+            if(!released){status=scene_npc_seat_pose(b,&h);if(status)goto fail;}
+            b->last_frame=frame;continue;
+        }
         if(!o||status==RF_NOT_FOUND||(!status&&(!h.alive||o->damage.effects.health<=0))) {
             status=scene_npc_seat_release(b,now);if(status)goto fail;continue;
         }

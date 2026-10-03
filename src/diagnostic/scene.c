@@ -888,6 +888,7 @@ static int scene_driller_damage_source(uint32_t,uint32_t *);
 static int scene_driller_projectile_compose(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *,uint32_t *);
 static int scene_driller_firearm_select(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *);
 static int scene_driller_projectile_damage(const rf_weapon_flight_contact *,uint32_t,float,int32_t,uint32_t,uint32_t *,float *);
+static int scene_vehicle_script_slay(uint32_t,uint32_t,int32_t,uint32_t *);
 static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float,uint32_t,int32_t);
 
 static uint32_t scene_driller_active(const scene_stream *);
@@ -10758,6 +10759,7 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
     uint32_t i,entered,clock_bits;float amount,seconds=(float)now*.001f;int status;(void)context;
     combat_feedback feedback={now,0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    {uint32_t handled=0;status=scene_vehicle_script_slay(handle,source,now,&handled);if(status||handled)return status;}
     {scene_turret_owner *o=scene_turret_lookup(handle);if(o){
         rf_damage_request request={o->damage.effects.health+fmaxf(0,o->damage.effects.armor)+1,source,-1,0,UINT32_MAX,1};
         if(o->dead)return RF_OK;memcpy(&clock_bits,&seconds,4);++rf_scene_script_slays[0];
@@ -15951,8 +15953,10 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_excavation.inc"
 #include "scene_driller_live_contact.inc"
 #include "scene_driller_runtime.inc"
+#include "scene_vehicle_script_slay.inc"
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
+static int scene_vehicle_wreck_exit_try(scene_stream *,uint32_t,uint32_t,uint32_t,int32_t,uint32_t *);
 #include "scene_npc_seat_bind.inc"
 #include "scene_npc_teleport.inc"
 #include "scene_npc_seat_checkpoint.inc"
@@ -15981,6 +15985,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 }
 #include "scene_driller_flame.inc"
 #include "scene_driller_checkpoint_adapter.inc"
+#include "scene_vehicle_wreck_exit.inc"
 #include "scene_vehicle_combat_restore.inc"
 #include "scene_vehicle_combat_checkpoint.inc"
 #include "scene_driller_checkpoint_placement.inc"
@@ -19376,6 +19381,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_script_ignite_reset();
     scene_scripted_disarm_reset();
     scene_item_pickup_state_reset();
+    scene_vehicle_wreck_exit_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
