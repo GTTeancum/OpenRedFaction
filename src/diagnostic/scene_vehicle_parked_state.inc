@@ -9,6 +9,8 @@ typedef struct scene_vehicle_parked_state {
     scene_campaign_vehicle_route route;
     scene_vehicle_primary_state primary;
     int32_t primary_reserve,secondary_reserve,seat;
+    /* Profile4 owns its torpedo clock/ammunition independently of APC guns. */
+    int32_t submarine_reserve;float submarine_cooldown;
     rf_random_state random;float secondary_cooldown;
     scene_driller_weapon drill;
     scene_vehicle_aim aim;

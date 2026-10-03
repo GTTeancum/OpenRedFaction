@@ -853,7 +853,7 @@ typedef struct scene_stream {
     scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
     scene_driller_resources *apc_mortar;uint32_t apc_mortar_base,apc_mortar_textures;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_driller_resources *passive_vehicle_resources[6];uint32_t passive_vehicle_base[6],passive_vehicle_textures[6];
-    scene_vehicle_profile_pack *vehicle_profile_packs[4]; /* Additional ground classes; chassis borrowed. */
+    scene_vehicle_profile_pack *vehicle_profile_packs[5]; /* Ground/submarine classes; chassis borrowed. */
     rf_collision_body_sphere passive_vehicle_spheres[6][8];uint32_t passive_vehicle_sphere_count[6];
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
@@ -20292,9 +20292,9 @@ done:
     if(scene_vehicle_profile_pack_get(stream,rf_scene_vehicle_enabled)){
         /* Adopted profile packs own these extras; the active stream aliases them. */
         stream->driller_cockpit=NULL;stream->driller_bits=NULL;
-        stream->jeep_gun=NULL;stream->apc_mortar=NULL;
+        stream->jeep_gun=NULL;stream->apc_mortar=NULL;stream->submarine_torpedo=NULL;
     }
-    for(i=1;i<=3;++i)scene_vehicle_profile_pack_close(&stream->vehicle_profile_packs[i]);
+    for(i=1;i<=4;++i)scene_vehicle_profile_pack_close(&stream->vehicle_profile_packs[i]);
     scene_driller_resources_close(&stream->submarine_torpedo);
     scene_driller_cockpit_close(&stream->driller_cockpit);
     scene_driller_bit_animation_close(&stream->driller_bits);

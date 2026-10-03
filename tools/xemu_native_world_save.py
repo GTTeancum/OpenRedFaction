@@ -181,6 +181,10 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
             if extra_addresses:
                 result['extra'] = {key: words(monitor, extra_addresses[key], count)
                                    for key, count in extra_symbols.items()}
+            # Keep the actual terminal guest state even when a failed startup
+            # cannot reach a live probe or produce its requested save payload.
+            result['diagnostic'] = diagnostic
+            (phase_dir / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             if probe:
                 if probe_frame is not None and interim_probe is None:
                     raise RuntimeError(f'{name}: missed live probe frame {probe_frame}')

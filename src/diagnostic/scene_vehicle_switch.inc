@@ -1,7 +1,7 @@
 #ifndef RF_SCENE_VEHICLE_SWITCH_INCLUDED
 #define RF_SCENE_VEHICLE_SWITCH_INCLUDED
 #include "scene_vehicle_parked_state.inc"
-/* Quiescent ground vehicles with preloaded class resources. Include after wreck exit.
+/* Quiescent ground vehicles and submarines with preloaded class resources. Include after wreck exit.
  * Parent invokes before ordinary Use; RFSW preserves the bank in ordinary saves.
  * Numerical handles remain authored-owner identities across pointer exchange. */
 static scene_vehicle_parked_state *scene_vehicle_parked;
@@ -124,6 +124,13 @@ static void scene_vehicle_switch_capture(scene_stream *s,scene_vehicle_parked_st
     memcpy(v->aim_eye,s->apc_aim_eye,12);memcpy(v->aim_basis,s->apc_aim_basis,36);
     v->jeep_role=r->jeep_seat.role;v->seat=s->driller->seat;v->view=r->entry.view;
     v->view.occupants=NULL;v->view.weapon_owner=NULL;
+    if(v->profile==4){
+        v->submarine_reserve=s->submarine_weapon.reserve;v->submarine_cooldown=s->submarine_weapon.cooldown;
+        memset(&v->primary,0,sizeof(v->primary));v->primary_reserve=v->secondary_reserve=0;
+        v->random.value=0;v->secondary_cooldown=0;memset(&v->drill,0,sizeof(v->drill));
+        memset(&v->aim,0,sizeof(v->aim));memset(v->aim_eye,0,sizeof(v->aim_eye));
+        memset(v->aim_basis,0,sizeof(v->aim_basis));v->aim_active=0;
+    }
 }
 static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
 {
@@ -138,7 +145,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     /* Dead hosts skip ordinary entry/exit Use, which otherwise releases this
      * latch. An earlier held exit must not permanently block wreck recovery. */
     if(r&&!r->entry.host.alive&&!player_input.use)r->entry.held=0;
-    if(!r||!player_input.use||r->entry.held||r->entry.session.active||rf_scene_vehicle_enabled<1||rf_scene_vehicle_enabled>3)return RF_OK;
+    if(!r||!player_input.use||r->entry.held||r->entry.session.active||rf_scene_vehicle_enabled<1||rf_scene_vehicle_enabled>4)return RF_OK;
     ++rf_scene_vehicle_switch[0];rf_scene_vehicle_switch[14]=combat_frame;
     if(r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->entry.gunner_occupant!=-1||r->player.saved||
        campaign_player_view.linked_handle!=-1||campaign_player_damage.state.effects.health<=0){reason=1;goto reject;}
@@ -152,14 +159,15 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
        scene_vehicle_switch_dependency((uint32_t)campaign_authored_vehicle_uid,r->entry.host.handle)){reason=3;goto reject;}
     if(player_input.fire||player_input.alt_fire||player_input.cycle_weapon||scene_apc_primary_pending(s)||scene_apc_secondary_pending(s)||
        s->apc_primary.scheduler.held||s->apc_primary.scheduler.cooldown>0||s->apc_primary.scheduler.warmup>0||
-       s->apc_secondary.cooldown>0||s->driller_weapon.held||s->driller_weapon.contact_active){reason=4;goto reject;}
+       s->apc_secondary.cooldown>0||s->driller_weapon.held||s->driller_weapon.contact_active||
+       (oldprofile==4&&(scene_submarine_weapon_pending(s)||s->submarine_weapon.cooldown>0))){reason=4;goto reject;}
     status=scene_vehicle_switch_quiet(&r->physics.state,&quiet);if(status)goto done;if(!quiet){reason=5;goto reject;}
     range=s->driller->physics.authored.use_radius;if(!isfinite(range)||range<=0){status=RF_FORMAT;goto done;}
     best=0;for(uint32_t j=0;j<3;j++){double d=(double)scene_actor_body.state.position[j]-r->physics.state.position[j];best+=d*d;}
     if(wreck||best>range*range)best=DBL_MAX; /* Out-of-range hosts do not compete. */
     for(uint32_t i=0;i<campaign_passive_vehicle_count;i++){
         scene_passive_vehicle *p=campaign_passive_vehicles+i;double d2=0;uint32_t source;rf_level_entity_spawn spawn;
-        uint32_t candidate=p->resource_kind==3?1:p->resource_kind==4?2:p->resource_kind==5?3:0;
+        uint32_t candidate=p->resource_kind==3?1:p->resource_kind==4?2:p->resource_kind==5?3:p->resource_kind==0?4:0;
         const scene_vehicle_profile_pack *candidate_pack=NULL;
         const scene_driller_resources *candidate_resource=s->driller;
         if(!candidate)continue;
@@ -204,7 +212,9 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         next.body_flags=rf_entity_creation_physics_flags(0,resource->physics.authored.flags,resource->physics.authored.flags2,resource->physics.authored.use_kind,0);
         next.primary_reserve=cross?pack->primary_reserve:(int32_t)s->apc_primary.definition.capacity;
         next.secondary_reserve=profile==2?(cross?pack->secondary_reserve:(int32_t)s->apc_secondary.definition.capacity):0;
-        next.random.value=1;next.drill=cross?pack->drill:s->driller_weapon;
+        next.random.value=profile==4?0:1;next.drill=cross?pack->drill:s->driller_weapon;
+        if(profile==4){next.primary_reserve=next.secondary_reserve=0;
+            next.submarine_reserve=cross?pack->submarine_reserve:(int32_t)s->submarine_weapon.definition.capacity;}
         next.drill.held_seconds=next.drill.damage_wait=next.drill.contact_seconds=next.drill.spin=next.drill.phase=0;
         next.drill.held=next.drill.contact_active=next.drill.accepted_cuts=next.drill.contacts=next.drill.damage_calls=0;
         next.view=cross?pack->view:r->entry.view;next.view.flags_810=next.view.flags_7d0=0;next.view.action_520=0;
@@ -218,6 +228,24 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     if(target->scripted_physics)next.body_flags=target->physics_body_flags;
     status=scene_vehicle_switch_quiet(&next.physics,&quiet);if(status)goto done;if(!quiet){reason=5;goto reject;}
     if(next.route.active||next.route.path.count||next.route.event||next.route.pursuit){reason=3;goto reject;}
+    if(profile==4){
+        /* A passive hull has never run submarine motion admission. Check its
+         * complete saved pose before promotion, not only the player's seat. */
+        rf_liquid_rooms liquids={s->liquid_rooms,s->swim_room_count,s->swim_bytes};
+        scene_submarine_motion wet={r->collision,&liquids};
+        rf_checkpoint_placement fit={0};rf_collision_room_location room;
+        if(!liquids.items){reason=8;goto reject;}
+        status=scene_submarine_water_body_path(&wet,prepared.collision,prepared.sphere_count,
+            next.physics.position,next.physics.orientation,next.physics.position,next.physics.orientation,&clear);
+        if(status)goto done;if(!clear){reason=8;goto reject;}
+        status=rf_geometry_collision_world_locate(s->collision,next.physics.position,&room);if(status)goto done;
+        if(room.room>=s->collision->room_count){reason=8;goto reject;}
+        fit.world=s->collision;fit.replaced_room=room.room;fit.query_flags=4;
+        fit.spheres=prepared.spheres;fit.count=prepared.sphere_count;
+        memcpy(fit.position,next.physics.position,12);memcpy(fit.basis,next.physics.orientation,36);
+        status=rf_checkpoint_world_placement_check(&fit,NULL);
+        if(status==RF_NOT_FOUND){status=RF_OK;reason=8;goto reject;}if(status)goto done;
+    }
     {scene_vehicle_collision collision=r->collision;scene_vehicle_pose seat;float tag[12],offset[3];
      scene_driller_entry_exit entry=r->entry;entry.resource=resource;entry.physics=&prepared;
      query=(scene_vehicle_switch_query){s,target->handle};collision.query=scene_vehicle_switch_query_body;collision.query_context=&query;
@@ -230,7 +258,14 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
      else{rf_collision_body_sphere spheres[64];scene_vehicle_collision body;
         status=scene_driller_player_shape(&entry,&body,spheres);
         if(!status){body.query=scene_vehicle_switch_query_body;body.query_context=&query;
-            status=scene_vehicle_collision_exit_path(&body,scene_actor_body.state.position,seat.position,scene_actor_body.state.orientation,&clear);}}
+            status=scene_vehicle_collision_exit_path(&body,scene_actor_body.state.position,seat.position,scene_actor_body.state.orientation,&clear);
+            if(!status&&clear&&profile==4){
+                rf_liquid_rooms liquids={s->liquid_rooms,s->swim_room_count,s->swim_bytes};
+                scene_submarine_motion wet={body,&liquids};
+                if(!liquids.items){clear=0;}
+                else status=scene_submarine_water_body_path(&wet,spheres,body.count,
+                    scene_actor_body.state.position,scene_actor_body.state.orientation,seat.position,seat.basis,&clear);
+            }}}
      if(status)goto done;
      if(!clear){reason=7;goto reject;}}
     memset(&parked,0,sizeof(parked));parked.uid=old.uid;parked.handle=old.handle;parked.damage=r->damage.damage;
@@ -254,6 +289,12 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         r->collision.count=r->physics.sphere_count;r->collision.radius=r->physics.radius;
         r->entry.resource=s->driller;r->entry.physics=&r->physics;r->entry.collision=r->collision;
         r->entry.water_path=NULL;r->entry.water_context=NULL;
+        if(profile==4){
+            r->submarine_liquids.items=s->liquid_rooms;r->submarine_liquids.count=s->swim_room_count;r->submarine_liquids.bytes=s->swim_bytes;
+            r->submarine.collision=r->collision;r->submarine.liquids=&r->submarine_liquids;
+            r->submarine_parameters=pack->submarine_parameters;
+            r->entry.water_path=scene_submarine_player_water;r->entry.water_context=&r->submarine;
+        }
         r->support.stream=s;r->support.physics=&r->physics;r->support.collision=&r->collision;
         r->driver_seconds=0;r->jeep_seat.held=0;
     }
@@ -261,7 +302,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     p[0]=old.uid;p[1]=next.uid;p[2]=old.handle;p[3]=next.handle;
     memcpy(p+4,&r->damage.damage.state.effects.health,4);memcpy(p+5,&target->damage.state.effects.health,4);
     memcpy(p+6,&r->damage.damage.state.effects.armor,4);memcpy(p+7,&target->damage.state.effects.armor,4);
-    p[8]=(uint32_t)old.primary_reserve;p[9]=(uint32_t)next.primary_reserve;p[10]=(uint32_t)old.secondary_reserve;p[11]=(uint32_t)next.secondary_reserve;
+    p[8]=(uint32_t)(oldprofile==4?old.submarine_reserve:old.primary_reserve);p[9]=(uint32_t)(profile==4?next.submarine_reserve:next.primary_reserve);p[10]=(uint32_t)old.secondary_reserve;p[11]=(uint32_t)next.secondary_reserve;
     memcpy(p+12,old.physics.position,12);memcpy(p+15,next.physics.position,12);
     p[18]=r->damage.damage.state.effects.flags_814;p[19]=target->damage.state.effects.flags_814;
     p[20]=old.body_flags;p[21]=next.body_flags;p[22]=old.scripted_physics;p[23]=next.scripted_physics;
@@ -278,6 +319,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     r->scripted_exit_pending=0;r->jeep_seat.role=next.jeep_role;s->driller->seat=next.seat;
     s->apc_primary.scheduler=next.primary;s->apc_primary.reserve=next.primary_reserve;s->apc_primary.random=next.random;
     s->apc_secondary.reserve=next.secondary_reserve;s->apc_secondary.cooldown=next.secondary_cooldown;
+    if(profile==4){s->submarine_weapon.reserve=next.submarine_reserve;s->submarine_weapon.cooldown=next.submarine_cooldown;}
     s->driller_weapon=next.drill;s->apc_aim=next.aim;s->apc_aim_active=next.aim_active;
     memcpy(s->apc_aim_eye,next.aim_eye,12);memcpy(s->apc_aim_basis,next.aim_basis,36);
     campaign_vehicle_route=next.route;campaign_authored_vehicle_uid=(int32_t)next.uid;campaign_authored_vehicle_handle=next.handle;
@@ -290,7 +332,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     r->last_frame=UINT32_MAX;campaign_vehicle_mode_publish(s);
     if(cross)scene_driller_runtime_audio_start(s);
     ++scene_vehicle_switch_count;++rf_scene_vehicle_switch[1];rf_scene_vehicle_switch[9]=restored;
-    rf_scene_vehicle_switch[10]=(uint32_t)old.primary_reserve;rf_scene_vehicle_switch[11]=(uint32_t)next.primary_reserve;
+    rf_scene_vehicle_switch[10]=p[8];rf_scene_vehicle_switch[11]=p[9];
     rf_scene_vehicle_switch[12]=scene_vehicle_parked_count;rf_scene_vehicle_switch[13]=clear;rf_scene_vehicle_switch[15]=next.uid;
     p[29]=rf_object_registry_lookup(&campaign_registry,old.handle)==target&&
         rf_entity_lookup(&campaign_entities,(int32_t)next.handle)==&r->entry.view;

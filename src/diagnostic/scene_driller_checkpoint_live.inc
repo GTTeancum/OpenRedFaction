@@ -175,6 +175,8 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
         s->apc_aim.angles[0],s->apc_aim.angles[1]);
     return RF_OK;
 }
+/* Last seated capture admission: stage,status,profile,room,sphere,reason,retries,reserved. */
+uint32_t rf_scene_vehicle_player_capture[8];
 static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_player_checkpoint *player,
     rf_player_checkpoint_catalog *catalog,uint32_t ordinary)
 {
@@ -188,7 +190,9 @@ static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_playe
        (!ordinary && rf_scene_rockets[3]) || scene_apc_primary_pending(s) || scene_apc_secondary_pending(s) ||
        (!ordinary && (scene_ai_grenade_pending() || scene_ai_rocket_pending())) ||
        scene_fusion_projectile_pending() || scene_burning_save_pending() || scene_flame_input_pending() || scene_flame_canister_save_pending())return RF_RANGE;
-    status=scene_vehicle_checkpoint_capture_record(s,&vehicle);if(status)return status;
+    memset(rf_scene_vehicle_player_capture,0,sizeof(rf_scene_vehicle_player_capture));
+    rf_scene_vehicle_player_capture[0]=1;rf_scene_vehicle_player_capture[2]=rf_scene_vehicle_enabled;
+    status=scene_vehicle_checkpoint_capture_record(s,&vehicle);rf_scene_vehicle_player_capture[1]=(uint32_t)status;if(status)return status;
     status=scene_checkpoint_player_catalog_mode(catalog,ordinary);if(status)return status;
     memset(player,0,sizeof(*player));player->player.inventory=campaign_player_inventory;
     player->player.health=campaign_player_damage.state.effects.health;player->player.armor=campaign_player_damage.state.effects.armor;
@@ -199,14 +203,24 @@ static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_playe
      * matrices belong to the moving seat. No registry handles enter RFPL. */
     memcpy(player->body_angles,r->player.saved_look.state.body_angles,12);
     memcpy(player->eye_angles,r->player.saved_look.state.eye_angles,12);
-    status=rf_player_checkpoint_seated_profile_validate(player,catalog,vehicle.profile,scene_vehicle_checkpoint_typed(&vehicle));if(status)return status;
-    status=scene_vehicle_checkpoint_player_placement(s,&vehicle,player,&placement,&scratch);if(status)return status;
+    rf_scene_vehicle_player_capture[0]=2;
+    status=rf_player_checkpoint_seated_profile_validate(player,catalog,vehicle.profile,scene_vehicle_checkpoint_typed(&vehicle));
+    rf_scene_vehicle_player_capture[1]=(uint32_t)status;if(status)return status;
+    rf_scene_vehicle_player_capture[0]=3;
+    status=scene_vehicle_checkpoint_player_placement(s,&vehicle,player,&placement,&scratch);
+    rf_scene_vehicle_player_capture[1]=(uint32_t)status;if(status)return status;
     if(ordinary){rf_collision_room_location location;
         if((s->terrain&&!scene_world_l1s2_authored_terrain(s))||!s->collision)return RF_RANGE;
-        status=rf_geometry_collision_world_locate(s->collision,placement.position,&location);if(status)return status;
+        rf_scene_vehicle_player_capture[0]=4;
+        status=rf_geometry_collision_world_locate(s->collision,placement.position,&location);
+        rf_scene_vehicle_player_capture[1]=(uint32_t)status;if(status)return status;
+        rf_scene_vehicle_player_capture[3]=location.room;
         if(location.room==UINT32_MAX||location.room>=s->collision->room_count)return RF_NOT_FOUND;
         placement.world=s->collision;placement.replaced_room=location.room;
-        status=rf_checkpoint_world_placement_check(&placement,NULL);
+        {rf_checkpoint_placement_result reason={UINT32_MAX,0,0};rf_scene_vehicle_player_capture[0]=5;
+         status=rf_checkpoint_world_placement_check(&placement,&reason);rf_scene_vehicle_player_capture[1]=(uint32_t)status;
+         rf_scene_vehicle_player_capture[4]=reason.sphere;rf_scene_vehicle_player_capture[5]=reason.reason;
+         rf_scene_vehicle_player_capture[6]=reason.retries;}
         if(!status){rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;rf_scene_player_checkpoint_state[7]=1;}
         return status;
     }
