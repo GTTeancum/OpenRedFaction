@@ -26,6 +26,14 @@
 #include <windows.h>
 #include <xboxkrnl/xboxkrnl.h>
 
+/* Resource admission snapshot only; allocation success is still checked by
+ * the individual loaders. This does not assert contiguous GPU availability. */
+uint32_t rf_xbox_available_memory_pages(void)
+{
+    MM_STATISTICS statistics={0};statistics.Length=sizeof(statistics);
+    return NT_SUCCESS(MmQueryStatistics(&statistics))?statistics.AvailablePages:0;
+}
+
 /* Read-only monitor evidence. Resolve its VA from the matching linker map. */
 volatile uint32_t rf_diagnostic[58] = {0x52464447u, 9u, 0};
 static rf_geometry resident_geometry;

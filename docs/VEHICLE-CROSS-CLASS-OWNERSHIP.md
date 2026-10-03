@@ -1,6 +1,6 @@
 # Cross-class vehicle ownership: implementation handoff
 
-Status: design only; runtime switching remains same-class. The extracted
+Status: resource-pack implementation is wired into startup; runtime switching remains same-class. The extracted
 `scene_vehicle_profile_resources_open` preserves the former startup load order,
 caps, weapon initialization, damage prototype and seat validation. Authored/DEV
 pose selection now precedes it. Parent reports the existing 480-frame Jeep
@@ -86,3 +86,175 @@ saved active class before passive binding/resources. Preserve RFSW1 reads and
 RFVA/RFPV authoritative state; never silently decode another class using the
 active class's configuration. Submarine/Fighter motion, liquid pointers and
 weapon state remain a later extension, not implied by ground-profile support.
+
+## Concrete save extension proposal (ground profiles only)
+
+Use **RFSW2**, preserving the existing24-byte header,320-byte rows, wrapper order
+and every existing field offset. Header+16 remains the active profile. Consume
+reserved row+60 for the parked profile (1Driller,2APC,3Jeep) on valid rows;
+row+316 remains zero. Invalid rows still contain only UID and valid=0, with
+bytes8–319 zero: passive aircraft/submarines need no fabricated ground profile.
+Version1 continues to require both reserved words zero and infers each valid
+row's profile from its header. Do not infer a version2 profile from the current
+active host. Unknown versions and row profiles must fail before mutation.
+
+Add `uint32_t profile` to `scene_vehicle_parked_state`; capture it when demoting
+an active owner, retain it through slot exchanges, and verify it against that
+row's source UID/class and passive resource kind (profile1→kind3,2→4,3→5).
+Keep the256KiB bank cap based on actual `sizeof`, and the caller's staging budget.
+Recommended writer policy: emit version1 only when active profile still matches
+the level's ordinary boot profile and every valid bank has that same profile;
+otherwise emit version2. A cached immutable original boot profile is necessary
+for this choice. Always emitting version2 after cross-class support is enabled
+is also safe for new readers, but forfeits old-reader compatibility unnecessarily.
+
+Exact codec changes in `scene_vehicle_switch_checkpoint.inc`:
+
+- `peek`: admit versions1/2 with unchanged extent/UID checks; validate row+60
+  according to version and validity. Keep the current public signature.
+- Add `row_identity(data,bytes,index,&uid,&valid,&profile)`; version1 returns
+  header profile for valid rows, zero for invalid. Keep `row_uid` as its wrapper.
+- `decode`: receive the wire version/header profile, resolve the row's profile,
+  and initialize class-derived fields from that profile's retained resources.
+  Current active-view/drill/inverse-inertia copies are incorrect cross-class.
+- `valid`: use row-profile capacities, secondary capacity only for APC, exact
+  row-profile seat tags, and Jeep role only for Jeep. Preserve quiet-motion,
+  no-live-route, trigger/cooldown, freeze-marker and finite/basis admission.
+- `live` and `prepare`: replace equality with the selected active resource kind
+  by row-profile↔owner-kind agreement. Preserve UID/handle/generation, group and
+  attachment checks. `prepare` must still match the live selected active header.
+- `admit`/`assign`: retain RFVC active-profile equality, RFVA2 pose/UID/order and
+  RFPV marker/body-flag consistency, then transfer the fully admitted bank only
+  after existing final host/RFVA/RFPV publication. No class resource loads here.
+
+The resource pack needs a read-only, allocation-free profile lookup (proposed
+contract, not yet an implemented API) providing chassis/tag defaults, primary
+and secondary definitions/capacities, drill defaults, and class physics defaults.
+Build inertia with the existing ground initializer using the saved pose before
+overlaying saved velocity/momentum/forces; never serialize pointers or borrow the
+active class's tensor. Construct a fresh base `rf_entity_view` using the existing
+entry setup policy (`class_type=use_kind`, speed, Jeep occupant_count2/other1),
+then apply saved fields and RFVA flags. Leave dormant occupant pointers NULL;
+promotion already rebinds to the live entry array. The initializer's small body
+allocation must succeed in the prepare phase; assignment remains infallible.
+
+Boot changes in `scene_vehicle_switch_boot.inc`:
+
+1. Preserve the original selected UID/profile for legacy and hidden-host policy.
+   Version1 retains the existing saved-profile==ordinary-profile restriction.
+   Version2 may select another source-proven ground profile; it must not merely
+   trust a header number. Keep source hash, positive UID, authored visibility,
+   seat-parent, group and original vitals eligibility checks.
+2. Read valid row identities, prove each class/profile using installed level
+   records, and gather a required-profile mask including the active profile.
+   Retain complete passive UID ordering and existing inactive-seat hints.
+3. Publish `rf_scene_vehicle_enabled=profile` with selected UID/pose only after
+   complete early admission, before passive binding and resource preparation.
+   The current boot helper changes UID/pose but intentionally not this global.
+4. Prepare all demanded profile packs before first renderer submission and
+   before RFSW prepare; failure must reject the save rather than replace a
+   parked profile's configuration with the active one.
+
+No inner vehicle format expansion is needed solely for this ground-class
+identity: active RFVC already has typed profiles, and RFVA/RFPV retain per-UID
+passive state. `scene_world_load` currently chooses128/160-byte active records
+from `rf_scene_vehicle_enabled`; correct early profile publication is therefore
+mandatory. Keep direct-session load guards until a separate transaction can
+stage a different active resource/runtime; fresh-scene quickload is the safe
+existing route. Actual cross-class runtime promotion, profile-pack readiness
+and this decoder refactor remain implementation blockers, not completed work.
+
+## Runtime exchange checklist against the current structs
+
+- **Selection:** replace the same-kind filter with admitted, prepared ground
+  profile lookup. Test each candidate's own `physics.authored.use_radius`.
+  Initialize best distance to infinity unless the living outgoing host itself
+  is within its own radius; then let it compete by distance/UID. The current
+  outgoing-radius cap incorrectly limits every other class (and wreck escape).
+- **New/restored state:** construct target class physics defaults and base view
+  before overlaying the bank. Set correct `view.occupant_count`, use kind and
+  speed. Clear dormant `view.occupants` and `weapon_owner` aliases in the bank;
+  on promotion bind occupants to `r->entry.occupants`, set both slots -1 and
+  retain the existing no-active-session/player-saved/dependency admission.
+- **Clearance:** use target tags/seat and target-class seat-basis/Jeep policy,
+  not `s->driller`/old `r->entry`. Preserve the custom query's exclusion of
+  target hull only and inclusion of the outgoing host and unrelated actors.
+  Do not retain its stack `query_context` in the published runtime.
+- **Demotion:** `parked=*target` currently copies the destination class. Explicitly
+  set `parked.resource_kind` to the outgoing class, object_kind11, uid/handle,
+  attached/group_owned0, outgoing full damage (including factors/class flags),
+  freeze/body flags and pose. Prefer a zeroed passive pose initialized like
+  `campaign_passive_vehicle_add`, then outgoing matrices/position/velocity;
+  do not inherit the destination's radius/bounds/pose velocity. RFVA2 stores
+  UID, pose and vitals, not resource kind or damage factors: fresh boot derives
+  those from source UID, so live demotion must already agree with that source.
+- **Physics:** replace the entire prepared `r->physics`, then overlay target
+  rigid state/body flags. Refresh `r->collision.spheres/count/radius`, retain
+  world/movers/flags, and copy it into `r->entry.collision`. Rebind support's
+  stream/collision/physics pointers and reset **material=-1**, support_handle,
+  hits and velocity. Merely clearing hits retains stale ground material.
+- **Entry/damage/contact:** set `entry.resource/physics`, registration/view/host
+  handles and entity slots together. Keep registration.view bound to its live
+  view, damage.entry/player bound to live structs, and the global damage owner
+  pointing at this same allocation. Copy target full passive damage, then
+  compute host.alive and reset pending ejection/last damage telemetry as today.
+  Refresh contact.stream/source and clear has_world. Ground profiles have no
+  water callback/context; never retain a temporary profile owner's pointers.
+- **Profile fields:** exchange chassis/cockpit/bits/gun/mortar pointers and all
+  texture base/count indices. Publish target primary/secondary definitions and
+  muzzle tags before restoring scheduler/reserves/RNG/cooldowns; clear inactive
+  class fields and round arrays after existing no-pending-round admission.
+  Restore drill metadata/tags plus counters, aim limits/state/eye/basis, Jeep
+  role and seat; clear Jeep cycle latch. Resolve Jeep gun/muzzle poses from the
+  new attachment. Driller `r->shapes[2]` must be prepared before commit, not read
+  from disk during the subsequent drill tick. Reset driver_seconds for the
+  first-pass cockpit clock policy; no saved per-UID clock exists presently.
+- **Audio/ordering:** existing exchange leaves `r->audio` unchanged. Stop its
+  actual slot/sample before restarting APC/Jeep/Driller's proper loop after
+  profile publication. Treat restart as optional feedback, not transaction
+  failure; validate any old-slot release before registry exchange. All class
+  setup/tag/placement failures precede exchange. Afterwards publish scalar and
+  pointer state only, rebind addresses, and let normal Use perform boarding.
+
+Existing same-class guards on pending projectiles, routes, burns, occupants and
+live support references remain necessary. None of this checklist enables
+cross-class switching until the runtime and resource transaction are wired.
+
+## Implemented resource preload slice (2026-10-03)
+
+`scene_vehicle_profile_physics.inc` prepares typed physics without publishing a
+runtime or changing the selected profile; ordinary startup now uses this path.
+`scene_vehicle_profile_pack.inc` borrows existing passive chassis and owns only
+cockpit, drill bits, Jeep gun or APC mortar resources and class configuration.
+It resolves real seat tags and prepares physics, weapon and damage defaults.
+
+`scene_vehicle_profile_preload.inc` inventories additional live, visible,
+ungrouped ground classes. It loads extras after ordinary model/pickup resources
+and merges their materials before renderer submission. Pack merge preflights
+all slots/bytes and reallocates once before transferring images. Partial load
+or merge failure releases the optional pack and preserves the original host.
+The pack and scene texture bank have distinct close ownership.
+
+The additional pack budget is4MiB, including sequential loader scratch peaks.
+Native admission reserves16MiB of currently available physical memory for later
+lighting, renderer and gameplay work; this is a conservative policy, not proof
+of sufficient contiguous GPU memory or every campaign level fitting. Material
+merge respects the existing scene image budget and512-slot limit. Telemetry
+`rf_scene_vehicle_profile_packs[16]` records demand/loaded/merged masks using
+bit(profile), owned resident bytes after image transfer, additional material
+slots/bytes, admission status and the pre-load available-page snapshot.
+
+The mixed fixture offers `--preload-only` for120 neutral frames. It checks APC
+pack admission and unchanged selected Jeep ownership; the separate switching
+check stays gated until the real handoff is implemented. Neither mode claims
+visual inspection. Transactional runtime publication and profile-aware RFSW2
+save implementation remain open.
+Native preload evidence: `artifacts/xemu/vehicle-mixed-preload-20261003-174759/report.json`
+reports PASS on stock64MiB for120 neutral frames. APC demand/loaded/merged masks
+are4/4/4, status0, with461651 bytes retained by the extras pack and929608 bytes
+transferred to scene materials across30 slots. Admission observed9602 available
+pages; final renderer/game memory observed5321 pages (about20.8MiB). Jeep7629
+remained active profile3 with handle33358332 and no boarding/switching/firing.
+Original disc configuration was restored and its Xbox image rebuilt. This proves
+connected preload/ownership only; cross-class controls, rendering appearance,
+save continuation and memory in other levels remain unverified.

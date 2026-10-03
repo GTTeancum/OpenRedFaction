@@ -799,6 +799,7 @@ typedef struct scene_terrain_source_owner {
 uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch peak, ready */
 
 typedef struct scene_driller_runtime scene_driller_runtime;
+#include "scene_vehicle_profile_pack_decl.inc"
 typedef struct scene_stream {
     scene_campaign_geomod_owner *campaign_geomod;
     scene_campaign_wall_owner *campaign_wall;
@@ -852,6 +853,7 @@ typedef struct scene_stream {
     scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
     scene_driller_resources *apc_mortar;uint32_t apc_mortar_base,apc_mortar_textures;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_driller_resources *passive_vehicle_resources[6];uint32_t passive_vehicle_base[6],passive_vehicle_textures[6];
+    scene_vehicle_profile_pack *vehicle_profile_packs[4]; /* Additional ground classes; chassis borrowed. */
     rf_collision_body_sphere passive_vehicle_spheres[6][8];uint32_t passive_vehicle_sphere_count[6];
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
@@ -19386,6 +19388,8 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     return RF_OK;
 }
 #include "scene_vehicle_profile_resources.inc"
+#include "scene_vehicle_profile_pack.inc"
+#include "scene_vehicle_profile_preload.inc"
 #include "scene_world_boot_resources.inc"
 #include "scene_vehicle_switch_boot.inc"
 #include "scene_weapon_resource_demand.inc"
@@ -20092,6 +20096,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 campaign_appearances.actor_indices[i],location.room);if(status)goto done;
         }
     }
+    scene_vehicle_profile_preload(stream,tables_path,&archive,maps,map_count);
+    scene_vehicle_profile_preload_merge(stream,materials,material_budget);
     if(sink) {
         rf_preview_close(&actor);
         stream->mesh=mesh;stream->materials=materials;stream->bundle=&bundle;
@@ -20282,6 +20288,7 @@ done:
     {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
     scene_vehicle_switch_close();
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
+    for(i=1;i<=3;++i)scene_vehicle_profile_pack_close(&stream->vehicle_profile_packs[i]);
     scene_driller_resources_close(&stream->submarine_torpedo);
     scene_driller_cockpit_close(&stream->driller_cockpit);
     scene_driller_bit_animation_close(&stream->driller_bits);

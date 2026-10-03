@@ -3,6 +3,7 @@
 #include <float.h>
 #include "scene_driller_physics.inc"
 #include "scene_ground_vehicle_physics.inc"
+#include "scene_vehicle_profile_physics.inc"
 #include "scene_vehicle_possession.inc"
 #include "scene_vehicle_collision.inc"
 #include "scene_submarine_motion.inc"
@@ -481,9 +482,8 @@ static int scene_driller_runtime_open(scene_stream *s)
 #endif
     if(status)goto fail;
     }
-    stage=1;if(rf_scene_vehicle_enabled==4 || rf_scene_vehicle_enabled==5)status=scene_vehicle_body_physics_initialize(rf_scene_vehicle_enabled==5?"Fighter01":"sub",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,0,&r->physics);
-    else if(rf_scene_vehicle_enabled>=2)status=scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==3?"Jeep01":"APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
-    else status=scene_driller_physics_initialize(s->driller,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
+    stage=1;status=scene_vehicle_profile_physics_prepare(rf_scene_vehicle_enabled,s->driller,
+        s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     if(status)goto fail;
     r->collision.world=s->collision;r->collision.movers=&campaign_movers;
     r->collision.spheres=r->physics.collision;r->collision.count=r->physics.sphere_count;
