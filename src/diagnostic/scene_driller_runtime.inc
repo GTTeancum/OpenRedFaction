@@ -670,6 +670,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     if(!s->driller)return RF_OK;
     status=scene_driller_runtime_open(s);if(status)return status;r=s->driller_runtime;
     if(r->last_frame==frame)return RF_OK;
+    {uint32_t switched=0;status=scene_vehicle_switch_use(s,&switched);if(status)return status;}
     /* The campaign player class finishes loading after the vehicle host opens.
      * Refresh its seat eye offset until boarding, then keep it fixed for the
      * occupied session and any checkpoint derived from that session. */

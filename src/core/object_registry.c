@@ -32,6 +32,23 @@ int rf_object_registry_remove(rf_object_registry *r,uint32_t handle)
     return RF_OK;
 }
 
+int rf_object_registry_exchange(rf_object_registry *r,
+    uint32_t handle_a,void *expected_a,void *replacement_a,
+    uint32_t handle_b,void *expected_b,void *replacement_b)
+{
+    uint32_t a=handle_a&0xffffu,b=handle_b&0xffffu,i;
+    if(!r || !expected_a || !expected_b || !replacement_a || !replacement_b ||
+       handle_a==handle_b || replacement_a==replacement_b)return RF_RANGE;
+    if(rf_object_registry_lookup(r,handle_a)!=expected_a ||
+       rf_object_registry_lookup(r,handle_b)!=expected_b)return RF_NOT_FOUND;
+    /* Complete admission before publishing either pointer. A swap may reuse
+     * both selected owners, but an alias through any third slot is unsafe. */
+    for(i=0;i<RF_OBJECT_CAPACITY;++i)if(i!=a && i!=b &&
+       (r->slots[i].object==replacement_a || r->slots[i].object==replacement_b))return RF_RANGE;
+    r->slots[a].object=replacement_a;r->slots[b].object=replacement_b;
+    return RF_OK;
+}
+
 void rf_object_list_init(rf_object_list *list)
 {
     list->sentinel.next=list->sentinel.previous=&list->sentinel;list->count=list->peak=0;

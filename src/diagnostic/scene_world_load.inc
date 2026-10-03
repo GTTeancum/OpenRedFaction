@@ -19,6 +19,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,added=0,flags=0,selected=0,cost=0;int status=RF_OK,found=0;
     const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
+    if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_authored_checkpoint_stage *terrain_stage=NULL;

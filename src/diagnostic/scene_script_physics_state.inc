@@ -60,6 +60,7 @@ done:
 /* Until codecs preserve this event state, reject affected ordinary saves. */
 static int scene_script_physics_save_allowed(const scene_stream *s)
 {
+    if(scene_vehicle_switch_has_parked())return 0;
     if(s->driller_runtime && (s->driller_runtime->scripted_physics || s->driller_runtime->scripted_exit_pending))return 0;
     for(uint32_t i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].scripted_physics || (campaign_passive_vehicles[i].damage.state.effects.flags_814&0x800u))return 0;
     for(uint32_t i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].scripted_physics)return 0;

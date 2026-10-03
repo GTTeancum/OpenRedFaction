@@ -70,7 +70,7 @@ static int scene_vehicle_physics_state(scene_stream *s,uint32_t handle,uint32_t 
         }
     }
     if(!passive){r->entry.view.flags_7c=object_flags;r->entry.view.flags_814=damage->state.effects.flags_814;}
-    else passive->pose.flags|=object_flags&0x06000000u;
+    else {passive->pose.flags|=object_flags&0x06000000u;scene_vehicle_switch_passive_physics(handle,enabled);}
     ++rf_scene_vehicle_physics[enabled?2:1];rf_scene_vehicle_physics[3]+=!!immune;
     rf_scene_vehicle_physics[11]=p[6]=*body_flags;rf_scene_vehicle_physics[12]=p[8]=object_flags;
     rf_scene_vehicle_physics[13]=p[10]=damage->state.effects.flags_814;

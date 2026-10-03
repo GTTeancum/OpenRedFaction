@@ -29,6 +29,18 @@ void rf_object_registry_init(rf_object_registry *registry);
 int rf_object_registry_insert(rf_object_registry *registry,void *object,uint32_t *handle);
 void *rf_object_registry_lookup(const rf_object_registry *registry,uint32_t handle);
 int rf_object_registry_remove(rf_object_registry *registry,uint32_t handle);
+/* Checked two-owner replacement, transactional within this single-threaded
+ * registry (not a concurrent/CPU-atomic operation). Both live generation
+ * handles and expected owners must match before either pointer changes.
+ * Non-NULL replacements must differ and occur in no third occupied slot;
+ * exchanging the two existing owners or retaining either owner is allowed.
+ * RF_NOT_FOUND: stale handle/expected-owner mismatch. RF_RANGE: NULL argument,
+ * repeated handle or replacement alias. Failure preserves the whole registry;
+ * success changes only the two object pointers, preserving handles and FIFO.
+ * Borrowed replacement owners must outlive their registrations. */
+int rf_object_registry_exchange(rf_object_registry *registry,
+    uint32_t handle_a,void *expected_a,void *replacement_a,
+    uint32_t handle_b,void *expected_b,void *replacement_b);
 /*4881a0 parent-first publication. Nodes/flags remain stable during the call;
  * lookup returns NULL for absent handles. Scratch holds the ancestry chain,
  * bounded by capacity; no heap or recursive stack growth. Caller clears

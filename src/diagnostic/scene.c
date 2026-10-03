@@ -879,6 +879,11 @@ static int scene_vehicle_script_slay(uint32_t,uint32_t,int32_t,uint32_t *);
 static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float,uint32_t,int32_t);
 
 static uint32_t scene_driller_active(const scene_stream *);
+static int scene_vehicle_switch_use(scene_stream *,uint32_t *);
+static void scene_vehicle_switch_close(void);
+static void scene_vehicle_switch_reset(void);
+static void scene_vehicle_switch_passive_physics(uint32_t,uint32_t);
+static uint32_t scene_vehicle_switch_has_parked(void);
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *);
 extern uint32_t rf_scene_jeep_gunner_restore[38];
 static uint32_t scene_campaign_vehicle_target(const scene_stream *,uint32_t,float [3],float *);
@@ -5110,10 +5115,13 @@ static void campaign_npc_bodies_close(void)
     free(campaign_npc_stances);campaign_npc_stances=NULL;
     free(campaign_npc_eyes);campaign_npc_eyes=NULL;
 }
+static int scene_vehicle_uid_life(uint32_t,uint32_t *,uint32_t *);
 static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
 {
     uint32_t i;(void)context;
     if(!scene_turret_uid_life(uid,present,alive))return RF_OK;
+    if(campaign_authored_vehicle_uid && uid==(uint32_t)campaign_authored_vehicle_uid)
+        return scene_vehicle_uid_life(uid,present,alive);
     for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid) {
         const campaign_npc_body *owner=campaign_npc_bodies+i;
         /* An entity slot without a skeletal body may have a separate vehicle
@@ -12734,6 +12742,7 @@ static int scene_checkpoint_validate_audit(scene_stream *s,const void *data,uint
 #endif
 static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t bytes)
 {
+    if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
     uint32_t admission,maps,faces,core,i,j,k,at,x=0,y=0,row=0;uint64_t expected;rf_random_state chain={1};
     rf_geomod_terrain_view view;scene_terrain_noise_owner *owner=s->terrain_noise;int status;
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -15955,6 +15964,15 @@ static uint32_t scene_vehicle_physics_frozen(const scene_stream *);
 static uint32_t scene_vehicle_physics_allows_control(const scene_stream *);
 static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
 #include "scene_driller_runtime.inc"
+static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
+{
+    const scene_driller_damage_runtime *r=scene_driller_damage_owner;
+    if(!present||!alive)return RF_RANGE;
+    if(uid!=(uint32_t)campaign_authored_vehicle_uid || !scene_driller_damage_runtime_valid(r) ||
+       rf_object_registry_lookup(&campaign_registry,r->entry->registration.handle)!=&r->entry->registration)return RF_NOT_FOUND;
+    *present=1;*alive=r->entry->host.alive && !r->damage.destroyed && r->damage.state.effects.health>0;
+    return RF_OK;
+}
 #include "scene_vehicle_script_slay.inc"
 #include "scene_vehicle_physics_state.inc"
 #include "scene_vehicle_physics_checkpoint.inc"
@@ -15991,6 +16009,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_driller_flame.inc"
 #include "scene_driller_checkpoint_adapter.inc"
 #include "scene_vehicle_wreck_exit.inc"
+#include "scene_vehicle_switch.inc"
 #include "scene_vehicle_combat_restore.inc"
 #include "scene_vehicle_combat_checkpoint.inc"
 #include "scene_driller_checkpoint_placement.inc"
@@ -19388,7 +19407,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_scripted_disarm_reset();
     scene_item_pickup_state_reset();
     scene_vehicle_wreck_exit_reset();
-    scene_script_physics_reset();scene_vehicle_physics_reset();
+    scene_script_physics_reset();scene_vehicle_physics_reset();scene_vehicle_switch_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -20291,6 +20310,7 @@ done:
         if(!status)campaign_actors_capture();
     }
     {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
+    scene_vehicle_switch_close();
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
     scene_driller_resources_close(&stream->submarine_torpedo);
     scene_driller_cockpit_close(&stream->driller_cockpit);
