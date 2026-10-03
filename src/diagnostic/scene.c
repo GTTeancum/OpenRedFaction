@@ -12830,6 +12830,10 @@ static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_
 static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
+static void scene_turret_player_checkpoint_scope(uint32_t);
+static void scene_turret_player_checkpoint_reset(void);
+static uint32_t scene_turret_player_checkpoint_player_allowed(void);
+static uint32_t scene_turret_player_checkpoint_host_allowed(uint32_t);
 #include "scene_player_checkpoint.inc"
 static int scene_burning_checkpoint_owner_admit(uint32_t);
 static int scene_turret_attack_checkpoint_uid(uint32_t,uint32_t *);
@@ -12918,6 +12922,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_restore.inc"
 static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,uint32_t,const scene_world_restore_stage *);
 #include "scene_world_player_restore.inc"
+#include "scene_turret_player_checkpoint.inc"
 #include "scene_turret_generated_checkpoint_adapter.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
@@ -19346,6 +19351,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
     scene_turret_player_reset();
+    scene_turret_player_checkpoint_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));

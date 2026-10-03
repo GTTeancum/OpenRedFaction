@@ -112,7 +112,8 @@ static int scene_turret_checkpoint_capture_row(uint32_t index,uint32_t frame,sce
     if(!v||!scene_turrets||index>=scene_turret_authored_count||scene_turret_authored_count>scene_turret_count||
        scene_turret_count>SCENE_TURRET_OWNER_LIMIT)return RF_RANGE;
     o=scene_turrets+index;s=scene_turret_combat_states+index;
-    if(o->damage.effects.burn||o->view.linked_handle!=-1||(o->view.occupant_count&&!scene_npc_seat_checkpoint_host(o->registration.handle)))return RF_NOT_FOUND;
+    if(o->damage.effects.burn||o->view.linked_handle!=-1||(o->view.occupant_count&&!scene_npc_seat_checkpoint_host(o->registration.handle)&&
+       !scene_turret_player_checkpoint_host_allowed(o->registration.handle)))return RF_NOT_FOUND;
     if(o->model!=(o->dead?o->dead_model:o->live_model))return RF_FORMAT;
     memset(v,0,sizeof(*v));v->uid=o->uid;v->class_index=o->class_index;v->dead=o->dead;
     v->health=o->damage.effects.health;v->armor=o->damage.effects.armor;

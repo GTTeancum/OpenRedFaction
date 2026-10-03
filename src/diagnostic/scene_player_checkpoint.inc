@@ -59,7 +59,7 @@ static int scene_checkpoint_player_support_uid(const scene_stream *s,uint32_t *u
 static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t live,uint32_t modes)
 {
     uint32_t i,support_uid,rocket_trigger;
-    if(scene_turret_player_active())return RF_RANGE;
+    if(scene_turret_player_active()&&!(modes==2&&scene_turret_player_checkpoint_player_allowed()))return RF_RANGE;
     if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
     if(!modes && campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
@@ -72,7 +72,8 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
         !combat_trigger.remaining&&!combat_trigger.delay&&combat_trigger.cooldown<=1200&&combat_trigger.held<=1;
     if(campaign_support_handle && (!modes||scene_checkpoint_player_support_uid(s,&support_uid)))return RF_RANGE;
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
-       campaign_climb.region||campaign_player_view.linked_handle!=-1||rf_scene_actor_landing[1]!=1||
+       campaign_climb.region||(campaign_player_view.linked_handle!=-1&&
+           !(modes==2&&scene_turret_player_checkpoint_player_allowed()))||rf_scene_actor_landing[1]!=1||
        ((!rocket_trigger)&&(combat_trigger.cooldown||combat_trigger.held))||
        combat_trigger.remaining||combat_trigger.delay||(rf_scene_combat[6]&&!(modes==2&&(campaign_equipped_slot==10||campaign_equipped_slot==12)))||
        riot_charge_remainder||(!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||(modes!=2&&scene_fusion_save_pending())||(modes!=2&&scene_burning_save_pending())||(modes!=2&&(scene_flame_input_pending()||scene_flame_canister_save_pending())))return RF_RANGE;

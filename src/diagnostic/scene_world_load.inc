@@ -32,6 +32,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_npc_seat_checkpoint_stage *seats=NULL;
     scene_jeep_gunner_checkpoint_stage *gunner=NULL;
     scene_corpse_lifetime_stage *corpses=NULL;
+    scene_turret_player_checkpoint_stage *turret_player=NULL;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
     uint32_t vehicle_present=0,vehicle_base=0,vehicle_bytes=0,authored_terrain=0,authored_cuts=0;
     const unsigned char *vehicle_data=NULL;
@@ -72,6 +73,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="corpse_lifetime";v=envelope.sections+RF_WORLD_VEHICLE-1;
     status=scene_corpse_lifetime_checkpoint_prepare(v->data,v->bytes,budget-cost,&corpses,&vehicle_data,&vehicle_bytes);if(status)goto done;
     if(corpses)cost+=corpses->allocated_bytes;
+    if(cost>budget){status=RF_RANGE;goto done;}
+    phase="turret_player";
+    status=scene_turret_player_checkpoint_prepare(vehicle_data,vehicle_bytes,budget-cost,&turret_player,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    if(turret_player)cost+=turret_player->allocated_bytes;
     if(cost>budget){status=RF_RANGE;goto done;}
     phase="npc_resources";catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64){status=RF_RANGE;goto done;}
@@ -201,6 +206,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
     status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
     status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
+    phase="turret_player";status=scene_turret_player_checkpoint_admit(turret_player,turrets,&player,0);if(status)goto done;
     phase="gunner";if(cost>budget){status=RF_RANGE;goto done;}
     status=scene_jeep_gunner_checkpoint_prepare(stream,seats,vehicle_present?&vehicle:NULL,&player,budget-cost,&gunner);
     if(status)goto done;cost+=scene_jeep_gunner_checkpoint_bytes(gunner);
@@ -268,6 +274,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(campaign_support_handle)printf("WORLD_PLAYER_SUPPORT_RESTORED uid%u handle%u velocity%.9g,%.9g,%.9g\n",
         environment->support_uid,campaign_support_handle,(double)campaign_support_velocity[0],
         (double)campaign_support_velocity[1],(double)campaign_support_velocity[2]);
+    scene_turret_player_checkpoint_assign(turret_player);
     scene_player_impact_relocated();
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
@@ -290,6 +297,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_ai_projectile_checkpoint_discard(&projectiles);
     scene_jeep_gunner_checkpoint_close(&gunner);
     scene_corpse_lifetime_checkpoint_close(&corpses);
+    scene_turret_player_checkpoint_close(&turret_player);
     scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_turret_generated_checkpoint_close(&generated);scene_npc_seat_checkpoint_close(&seats);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
 }

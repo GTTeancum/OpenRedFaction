@@ -77,7 +77,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
-    if(scene_turret_player_active()){status=RF_RANGE;goto done;}
+    scene_turret_player_checkpoint_scope(1);
     if(!s||!level||!tables_path||(s->terrain&&!scene_world_l1s2_authored_terrain(s))||
        combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
@@ -191,6 +191,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         if(!status)bytes=wrapped;
     }
     if(!status){uint32_t wrapped=0;
+        status=scene_turret_player_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,combat_frame,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
         status=scene_corpse_lifetime_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,now,&wrapped);
         if(!status)bytes=wrapped;
     }
@@ -224,7 +228,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(!status)printf("WORLD_SNAPSHOT_STORED bytes%u slot%u generation%u history_omissions%u restore_available0\n",total,selection.slot,selection.generation,omissions);
 #undef SNAP_START
 #undef SNAP_END
- done:free(objects);free(triggers);free(buffer);
+ done:scene_turret_player_checkpoint_scope(0);free(objects);free(triggers);free(buffer);
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;}
 #endif
