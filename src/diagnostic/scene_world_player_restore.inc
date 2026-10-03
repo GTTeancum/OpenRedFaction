@@ -30,6 +30,11 @@ static int scene_world_player_npc_overlap_allowed(void *context,uint32_t i,uint3
          * broad body spheres may overlap without relaxing any other pair. */
         if(s->player.player.health>0&&!npc->retired&&!npc->dead_pose&&npc->health>0&&
            scene_jeep_gunner_checkpoint_pair(s->seats,s->vehicle,npc->uid))return 1;
+        /* An unpiloted gunner may remain beside its released driver's corpse.
+         * Require the saved authored seat identity and bounded corpse contact,
+         * not merely a dead NPC near an occupied vehicle. */
+        if(s->player.player.health>0&&!npc->retired&&npc->dead_pose&&npc->health<=0&&
+           scene_jeep_gunner_checkpoint_dead_pair(s->seats,s->npcs,s->vehicle,j-1))return 1;
 #ifndef RF_IMAGE_XBOX_NATIVE
         {const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
          if(enabled&&!strcmp(enabled,"1"))

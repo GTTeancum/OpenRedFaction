@@ -1,6 +1,6 @@
 #ifndef RF_SCENE_NPC_SEAT_CHECKPOINT_INCLUDED
 #define RF_SCENE_NPC_SEAT_CHECKPOINT_INCLUDED
-/* RFNS1/2 live beneath RFTU wrappers and outside RFVA/vehicle bytes.
+/* RFNS1/2/3 live beneath RFTU wrappers and outside RFVA/vehicle bytes.
  * Include after seat runtime, turret/NPC stages and checkpoint world placement.
  * Explicit stages only: no temporary mutation of live links during admission.
  * Shared hooks and early type/prototype requirements are documented separately. */
@@ -35,7 +35,7 @@ static void scene_npc_seat_checkpoint_close(scene_npc_seat_checkpoint_stage **s)
 static int scene_npc_seat_checkpoint_capture(unsigned char *p,uint32_t capacity,
     uint32_t inner_bytes,uint32_t *written)
 {
-    uint32_t i,attached,gunner_uid=0,gunner_matches=0;int status;
+    uint32_t i,attached,gunner_uid=0,gunner_matches=0,version=1;int status;
     uint64_t required=16u+(uint64_t)inner_bytes+(uint64_t)scene_npc_seat_count*24u;
     if(!p||!written||inner_bytes>capacity)return RF_RANGE;
     status=scene_jeep_gunner_checkpoint_capture_uid(scene_npc_seat_stream,&gunner_uid);if(status)return status;
@@ -53,13 +53,13 @@ static int scene_npc_seat_checkpoint_capture(unsigned char *p,uint32_t capacity,
                 scene_turret_operator_binding *op=scene_turret_operator_find(b->host);
                 if(!op||op->actor!=b->actor||op->tag!=b->tag||op->owns_host_flag>1)return RF_FORMAT;
             }
-            if(b->kind==SCENE_NPC_SEAT_JEEP&&gunner_uid&&
-               (uint32_t)campaign_seeds.records.items[b->slot].record.uid==gunner_uid)++gunner_matches;
         }
+        if(b->kind==SCENE_NPC_SEAT_JEEP&&gunner_uid&&
+           (uint32_t)campaign_seeds.records.items[b->slot].record.uid==gunner_uid){++gunner_matches;version=b->active?2:3;}
     }
     if(gunner_matches!=(gunner_uid?1u:0u))return RF_FORMAT;
     memmove(p+16,p,inner_bytes);memcpy(p,"RFNS",4);
-    scene_history_put(p+4,gunner_uid?2:1);scene_history_put(p+8,inner_bytes);scene_history_put(p+12,scene_npc_seat_count);
+    scene_history_put(p+4,version);scene_history_put(p+8,inner_bytes);scene_history_put(p+12,scene_npc_seat_count);
     for(i=0;i<scene_npc_seat_count;i++) {
         const scene_npc_seat_binding *b=scene_npc_seats+i;unsigned char *q=p+16+inner_bytes+i*24;
         scene_turret_operator_binding *op=b->active&&b->kind==SCENE_NPC_SEAT_TURRET?scene_turret_operator_find(b->host):NULL;
@@ -67,7 +67,7 @@ static int scene_npc_seat_checkpoint_capture(unsigned char *p,uint32_t capacity,
         scene_history_put(q+4,b->host_uid);scene_history_put(q+8,(uint32_t)b->tag);
         scene_history_put(q+12,b->kind);scene_history_put(q+16,b->active);
         scene_history_put(q+20,op?op->owns_host_flag:
-            (b->active&&b->kind==SCENE_NPC_SEAT_JEEP&&gunner_uid&&
+            (b->kind==SCENE_NPC_SEAT_JEEP&&gunner_uid&&
              (uint32_t)campaign_seeds.records.items[b->slot].record.uid==gunner_uid?1:0));
     }
     *written=(uint32_t)required;++rf_scene_npc_seat_checkpoint[0];return RF_OK;
@@ -84,7 +84,7 @@ static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t byt
         *inner=p;*inner_bytes=bytes;return RF_OK;
     }
     if(bytes<16)return RF_FORMAT;version=scene_history_word(p+4);
-    if(version!=1&&version!=2)return RF_FORMAT;
+    if(version!=1&&version!=2&&version!=3)return RF_FORMAT;
     size=scene_history_word(p+8);n=scene_history_word(p+12);
     if(!n||n!=scene_npc_seat_count||n>SCENE_NPC_SEAT_LIMIT||16u+(uint64_t)size+(uint64_t)n*24u!=bytes)return RF_FORMAT;
     allocated=sizeof(*s)+(uint64_t)n*sizeof(*s->rows);if(allocated>budget)return RF_RANGE;
@@ -123,7 +123,7 @@ static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *s,
     uint32_t i,j;int status;if(!s)return RF_OK;
     for(i=0;i<s->count;i++) {
         scene_npc_seat_saved *v=s->rows+i;scene_npc_seat_host h;const float *position,*basis;
-        if(!v->active)continue;
+        if(!v->active&&!v->player_gunner)continue;
         /* Turret occupant pointers belong to the canonical live bank. The
          * staged binding is a value copy, never an occupant-word owner. */
         for(j=0;j<scene_npc_seat_count;j++)if(scene_npc_seats[j].actor==v->binding.actor&&
@@ -200,7 +200,12 @@ static int scene_npc_seat_checkpoint_admit(scene_npc_seat_checkpoint_stage *s,
             status=scene_npc_seat_pair(v->binding.host,v->binding.actor,v->binding.tag,&attached);
             if(status||!attached)return status?status:RF_FORMAT;
         }
-        if(!v->active){if(e->saved.ai_mode==13)return RF_FORMAT;continue;}
+        if(!v->active){
+            if(e->saved.ai_mode==13)return RF_FORMAT;
+            if(v->player_gunner&& (v->player_gunner!=2||!v->pose_ready||e->saved.retired||
+               !e->saved.dead_pose||e->saved.health>0))return RF_FORMAT;
+            continue;
+        }
         if(!v->pose_ready||e->saved.retired||e->saved.dead_pose||e->saved.health<=0||
            e->saved.move.active||e->saved.combat.active||e->saved.shot_count||e->saved.script_animation.active||
            (e->saved.flags&(2u|0x4000u))||e->support.handle||e->support.material!=-1)return RF_FORMAT;

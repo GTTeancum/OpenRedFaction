@@ -26,13 +26,14 @@ static int scene_vehicle_switch_boot_seats_read(const unsigned char *p,uint32_t 
         if(!memcmp(p,"RFNS",4)){
             if(n<16)return RF_FORMAT;
             uint32_t version=scene_history_word(p+4),inner=scene_history_word(p+8),count=scene_history_word(p+12);
-            if((version!=1&&version!=2)||!count||count>SCENE_NPC_SEAT_LIMIT||16ull+inner+24ull*count!=n)return RF_FORMAT;
+            if((version!=1&&version!=2&&version!=3)||!count||count>SCENE_NPC_SEAT_LIMIT||16ull+inner+24ull*count!=n)return RF_FORMAT;
             const unsigned char *rows=p+16+inner;
             for(uint32_t i=0;i<count;i++){
                 const unsigned char *r=rows+24*i;uint32_t actor=scene_history_word(r),host=scene_history_word(r+4);
                 uint32_t tag=scene_history_word(r+8),kind=scene_history_word(r+12),active=scene_history_word(r+16),control=scene_history_word(r+20);
                 if(!actor||actor>0x7fffffffu||!host||host>0x7fffffffu||tag>0x7fffffffu||active>1||control>1||
-                   (kind!=SCENE_NPC_SEAT_JEEP&&kind!=SCENE_NPC_SEAT_TURRET)||(!active&&control))return RF_FORMAT;
+                   (kind!=SCENE_NPC_SEAT_JEEP&&kind!=SCENE_NPC_SEAT_TURRET)||
+                   (!active&&control&&!(version==3&&kind==SCENE_NPC_SEAT_JEEP)))return RF_FORMAT;
                 for(uint32_t j=0;j<i;j++)if(scene_history_word(rows+24*j)==actor)return RF_FORMAT;
                 if(kind==SCENE_NPC_SEAT_JEEP&&!active){uint32_t *out=scene_vehicle_switch_boot_seats[scene_vehicle_switch_boot_seat_count++];out[0]=actor;out[1]=host;out[2]=tag;}
             }

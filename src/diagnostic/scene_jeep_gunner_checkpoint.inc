@@ -4,6 +4,9 @@
  * RFNS2 keeps the16-byte header and24-byte rows. Jeep control word1 denotes
  * an active NPC driver with a simultaneous player gunner; turret control bits
  * keep RFNS1 meaning. RFNS1 never acquires this new exception implicitly.
+ * RFNS3 admits one inactive former driver row with control1: a living player
+ * remains gunner after the original NPC's death. Internal player_gunner2
+ * distinguishes this from RFNS2's live-driver1; no NPC is reattached.
  * RFNS decoding retains player_gunner in scene_npc_seat_saved; all live publication is
  * after complete world admission. No board events or vehicle-use callbacks.
  */
@@ -16,7 +19,7 @@ struct scene_jeep_gunner_checkpoint_stage {
     rf_physics_body_state body;
     rf_group_attached_pose group;
     int32_t seat;
-    uint32_t actor,actor_uid,host_uid,admitted;
+    uint32_t actor,actor_uid,host_uid,admitted,unpiloted;
     float npc_position[3];
 };
 /* restores,host UID,NPC UID,host handle,NPC handle,player handle,role,
@@ -26,23 +29,29 @@ struct scene_jeep_gunner_checkpoint_stage {
 uint32_t rf_scene_jeep_gunner_restore[38];
 static int scene_jeep_gunner_checkpoint_capture_uid(const scene_stream *s,uint32_t *uid)
 {
-    const scene_driller_runtime *r=s?s->driller_runtime:NULL;uint32_t i;
+    const scene_driller_runtime *r=s?s->driller_runtime:NULL;uint32_t i,matches=0,unpiloted;
     if(!uid)return RF_RANGE;*uid=0;
     if(!r||!scene_jeep_npc_gunner_active(&r->entry))return RF_OK;
-    if(scene_jeep_npc_gunner_valid(&r->entry)||!scene_jeep_npc_gunner_driver(&r->entry)||
+    if(scene_jeep_npc_gunner_valid(&r->entry)||
        !r->entry.host.alive||r->jeep_seat.role!=1||!r->player.saved||
        campaign_player_damage.state.effects.health<=0)return RF_NOT_FOUND;
+    unpiloted=r->entry.host.driver==UINT32_MAX;
+    if(unpiloted?r->entry.occupant!=-1:!scene_jeep_npc_gunner_driver(&r->entry))return RF_NOT_FOUND;
     for(i=0;i<scene_npc_seat_count;i++) {
         const scene_npc_seat_binding *b=scene_npc_seats+i;campaign_npc_body *o;
-        if(!b->active||b->kind!=SCENE_NPC_SEAT_JEEP||b->host!=r->entry.host.handle||b->actor!=r->entry.host.driver)continue;
+        if(b->kind!=SCENE_NPC_SEAT_JEEP||b->host!=r->entry.host.handle||
+           (unpiloted?b->active:(!b->active||b->actor!=r->entry.host.driver)))continue;
         o=scene_npc_seat_actor(b);
-        if(!o||o->damage.effects.health<=0||o->ai_mode.action_280!=13||
-           (o->view.flags_810&1u)||(o->object_flags&(2u|0x4000u))||
-           b->host_uid!=(uint32_t)campaign_authored_vehicle_uid)return RF_NOT_FOUND;
+        if(!o||!isfinite(o->damage.effects.health)||b->host_uid!=(uint32_t)campaign_authored_vehicle_uid)return RF_NOT_FOUND;
+        if(unpiloted){
+            if(o->damage.effects.health>0||o->view.linked_handle!=-1||b->occupant!=-1||
+               o->ai_mode.action_280==13)return RF_NOT_FOUND;
+        }else if(o->damage.effects.health<=0||o->ai_mode.action_280!=13||
+           (o->view.flags_810&1u)||(o->object_flags&(2u|0x4000u)))return RF_NOT_FOUND;
         *uid=(uint32_t)campaign_seeds.records.items[b->slot].record.uid;
-        return *uid?RF_OK:RF_FORMAT;
+        if(!*uid||++matches!=1)return RF_FORMAT;
     }
-    return RF_NOT_FOUND;
+    return matches==1?RF_OK:RF_NOT_FOUND;
 }
 static uint32_t scene_jeep_gunner_checkpoint_capture_allowed(const scene_stream *s)
 {uint32_t uid=0;return !scene_jeep_gunner_checkpoint_capture_uid(s,&uid)&&uid!=0;}
@@ -53,30 +62,35 @@ static int scene_jeep_gunner_checkpoint_control(uint32_t version,uint32_t kind,
     uint32_t active,uint32_t word,uint32_t *owns_flag,uint32_t *gunner)
 {
     if(!owns_flag||!gunner)return RF_RANGE;*owns_flag=*gunner=0;
-    if((version!=1&&version!=2)||active>1||word>1||(!active&&word))return RF_FORMAT;
-    if(kind==SCENE_NPC_SEAT_TURRET){*owns_flag=word;return RF_OK;}
+    if((version!=1&&version!=2&&version!=3)||active>1||word>1)return RF_FORMAT;
+    if(kind==SCENE_NPC_SEAT_TURRET){if(!active&&word)return RF_FORMAT;*owns_flag=word;return RF_OK;}
     if(kind!=SCENE_NPC_SEAT_JEEP)return RF_FORMAT;
-    if(word&&version!=2)return RF_FORMAT;*gunner=word;return RF_OK;
+    if(!word)return RF_OK;
+    if(version==2&&active){*gunner=1;return RF_OK;}
+    if(version==3&&!active){*gunner=2;return RF_OK;}
+    return RF_FORMAT;
 }
 static int scene_jeep_gunner_checkpoint_wire_admit(const scene_npc_seat_checkpoint_stage *s,uint32_t version)
 {
-    uint32_t count=0;if(!s||(version!=1&&version!=2))return RF_FORMAT;
+    uint32_t count=0;if(!s||(version!=1&&version!=2&&version!=3))return RF_FORMAT;
     for(uint32_t i=0;i<s->count;i++) {
         const scene_npc_seat_saved *v=s->rows+i;
         if(v->player_gunner){
-            if(v->player_gunner!=1||!v->active||v->binding.kind!=SCENE_NPC_SEAT_JEEP||v->owns_host_flag)return RF_FORMAT;
+            if(v->binding.kind!=SCENE_NPC_SEAT_JEEP||v->owns_host_flag||
+               (version==2?(v->player_gunner!=1||!v->active):
+                version==3?(v->player_gunner!=2||v->active):1))return RF_FORMAT;
             ++count;
         }
     }
-    return count==(version==2?1u:0u)?RF_OK:RF_FORMAT;
+    return count==(version>=2?1u:0u)?RF_OK:RF_FORMAT;
 }
 /* Replaces only the Jeep occupied-host prohibition inside RFNS hosts(). */
 static int scene_jeep_gunner_checkpoint_host(const scene_npc_seat_saved *v,const scene_vehicle_checkpoint_record *vehicle)
 {
-    if(!v||v->binding.kind!=SCENE_NPC_SEAT_JEEP||!v->active||!vehicle||vehicle->profile!=3||
+    if(!v||v->binding.kind!=SCENE_NPC_SEAT_JEEP||(!v->active&&v->player_gunner!=2)||!vehicle||vehicle->profile!=3||
        !vehicle->value.jeep.vehicle.alive)return RF_FORMAT;
     if(!v->player_gunner)return vehicle->value.jeep.vehicle.player_occupied?RF_FORMAT:RF_OK;
-    if(v->player_gunner!=1||vehicle->value.jeep.vehicle.player_occupied!=1||vehicle->value.jeep.role!=1||
+    if((v->player_gunner==1?!v->active:v->player_gunner==2?v->active:1)||vehicle->value.jeep.vehicle.player_occupied!=1||vehicle->value.jeep.role!=1||
        v->binding.host_uid!=(uint32_t)campaign_authored_vehicle_uid||
        v->binding.host!=campaign_authored_vehicle_handle)return RF_FORMAT;
     return RF_OK;
@@ -88,7 +102,20 @@ static uint32_t scene_jeep_gunner_checkpoint_pair(const scene_npc_seat_checkpoin
     const scene_vehicle_checkpoint_record *vehicle,uint32_t npc_uid)
 {
     const scene_npc_seat_saved *v=scene_npc_seat_checkpoint_find(s,npc_uid);
-    return v&&v->player_gunner&&v->pose_ready&&!scene_jeep_gunner_checkpoint_host(v,vehicle);
+    return v&&v->player_gunner==1&&v->active&&v->pose_ready&&!scene_jeep_gunner_checkpoint_host(v,vehicle);
+}
+/* Only the saved unpiloted player's exact former-driver corpse may reuse the
+ * existing quarter-unit authored-seat contact exception. Ordinary detached
+ * corpses and live passengers remain subject to normal player overlap rules. */
+static uint32_t scene_jeep_gunner_checkpoint_dead_pair(const scene_npc_seat_checkpoint_stage *seats,
+    const scene_npc_checkpoint_restore_stage *npcs,const scene_vehicle_checkpoint_record *vehicle,uint32_t index)
+{
+    const scene_npc_seat_saved *v;
+    if(!npcs||index>=npcs->count)return 0;
+    v=scene_npc_seat_checkpoint_find(seats,npcs->entries[index].saved.uid);
+    if(!v||v->active||v->player_gunner!=2||!v->pose_ready||
+       scene_jeep_gunner_checkpoint_host(v,vehicle))return 0;
+    return scene_npc_jeep_seat_save_dead_contact(seats,npcs,vehicle,v->binding.host_uid,index);
 }
 static uint32_t scene_jeep_gunner_checkpoint_bytes(const scene_jeep_gunner_checkpoint_stage *s)
 {return s?(uint32_t)sizeof(*s):0;}
@@ -116,9 +143,13 @@ static int scene_jeep_gunner_checkpoint_prepare(scene_stream *stream,
        r->entry.gunner_occupant!=-1||r->entry.view.occupants!=r->entry.occupants||
        r->entry.view.occupant_count!=2||r->entry.host.handle!=seat->binding.host)return RF_NOT_FOUND;
     for(i=0;i<player->npcs->count;i++)if(player->npcs->entries[i].saved.uid==seat->actor_uid){npc=player->npcs->entries+i;break;}
-    if(!npc||npc->saved.retired||npc->saved.dead_pose||npc->saved.health<=0||npc->saved.ai_mode!=13||
-       npc->handle!=seat->binding.actor)return RF_FORMAT;
-    for(i=0;i<3;i++)if(fabsf(npc->published[i]-seat->pose[9+i])>.001f)return RF_FORMAT;
+    if(!npc||npc->saved.retired||npc->handle!=seat->binding.actor)return RF_FORMAT;
+    if(seat->player_gunner==2){
+        if(seat->active||!npc->saved.dead_pose||npc->saved.health>0||npc->saved.ai_mode==13)return RF_FORMAT;
+    }else {
+        if(!seat->active||npc->saved.dead_pose||npc->saved.health<=0||npc->saved.ai_mode!=13)return RF_FORMAT;
+        for(i=0;i<3;i++)if(fabsf(npc->published[i]-seat->pose[9+i])>.001f)return RF_FORMAT;
+    }
     if(sizeof(*s)>budget)return RF_RANGE;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;
     status=scene_jeep_checkpoint_stage_rigid(&r->physics.state,&vehicle->value.jeep,&s->combat);if(status)goto fail;
@@ -142,7 +173,8 @@ static int scene_jeep_gunner_checkpoint_prepare(scene_stream *stream,
     memcpy(s->group.output_matrix,player->basis,36);memcpy(s->group.pending_matrix,player->basis,36);
     memcpy(s->body.bounds.minimum,s->group.minimum,12);memcpy(s->body.bounds.maximum,s->group.maximum,12);
     s->actor=seat->binding.actor;s->actor_uid=seat->actor_uid;s->host_uid=seat->binding.host_uid;
-    memcpy(s->npc_position,npc->published,12);s->admitted=1;*out=s;return RF_OK;
+    memcpy(s->npc_position,npc->published,12);s->unpiloted=seat->player_gunner==2;
+    s->admitted=1;*out=s;return RF_OK;
 fail:free(s);return status;
 }
 /* Assignment-only host half immediately AFTER RFNS detach, BEFORE RFNS assign
@@ -160,6 +192,7 @@ static void scene_jeep_gunner_checkpoint_player_assign(scene_stream *stream,cons
     scene_driller_runtime *r;uint32_t *p=rf_scene_jeep_gunner_restore;
     if(!s||!s->admitted)return;r=stream->driller_runtime;
     r->entry.session=s->session;r->entry.player=s->player;r->entry.gunner_occupant=(int32_t)s->player.handle;
+    if(s->unpiloted){r->entry.host.driver=UINT32_MAX;r->entry.occupant=-1;}
     r->entry.player_view->linked_handle=(int32_t)r->entry.host.handle;r->entry.held=1;
     r->player.saved=1;r->player.saved_look=s->exit_look;
     r->jeep_seat.role=1;r->jeep_seat.held=1;stream->driller->seat=s->seat;

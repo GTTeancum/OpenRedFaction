@@ -11,6 +11,7 @@ static int scene_jeep_gunner_checkpoint_control(uint32_t,uint32_t,uint32_t,uint3
 static int scene_jeep_gunner_checkpoint_wire_admit(const scene_npc_seat_checkpoint_stage *,uint32_t);
 static int scene_jeep_gunner_checkpoint_host(const struct scene_npc_seat_saved *,const scene_vehicle_checkpoint_record *);
 static uint32_t scene_jeep_gunner_checkpoint_pair(const scene_npc_seat_checkpoint_stage *,const scene_vehicle_checkpoint_record *,uint32_t);
+static uint32_t scene_jeep_gunner_checkpoint_dead_pair(const scene_npc_seat_checkpoint_stage *,const struct scene_npc_checkpoint_restore_stage *,const scene_vehicle_checkpoint_record *,uint32_t);
 static int scene_jeep_gunner_checkpoint_prepare(scene_stream *,const scene_npc_seat_checkpoint_stage *,
     const scene_vehicle_checkpoint_record *,const struct scene_world_player_stage *,uint32_t,scene_jeep_gunner_checkpoint_stage **);
 static uint32_t scene_jeep_gunner_checkpoint_bytes(const scene_jeep_gunner_checkpoint_stage *);

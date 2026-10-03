@@ -14,7 +14,7 @@ Player camera/body publication uses the existing authored interface_2 tag. Gun r
 
 ## Save boundary
 
-Ordinary fresh-boot shared-seat persistence now uses explicit RFNS2 ownership and passes the focused Xbox continuation documented in `JEEP-NPC-GUNNER-SAVE.md`. RFNS1 retains its old single-seat semantics. Loading while currently a separate gunner remains rejected before mutation; mounted-flight/cooldown and driver-death gunner saves remain outside this supported slice.
+Ordinary fresh-boot shared-seat persistence now uses explicit RFNS2 ownership and passes the focused Xbox continuation documented in `JEEP-NPC-GUNNER-SAVE.md`. RFNS1 retains its old single-seat semantics. Loading while currently a separate gunner remains rejected before mutation; mounted-flight/cooldown saves remain outside this supported slice. RFNS3 now also restores a parked player gunner after the authored driver dies; see the unpiloted continuation in `JEEP-NPC-GUNNER-SAVE.md`.
 
 ## Focused Xbox harness
 
