@@ -12,7 +12,7 @@ static int scene_driller_player_publish(scene_driller_player_adapter *adapter,
     scene_driller_entry_exit *vehicle,uint32_t changed)
 {
     rf_physics_body_state state;rf_group_attached_pose group;scene_vehicle_pose pose;
-    float camera[12];uint32_t active;int status;
+    rf_player_climb_state climb;float camera[12];uint32_t active,detach_climb=0;int status;
     if(!adapter || !vehicle)return RF_RANGE;
     active=vehicle->session.active;
     if(!active && !changed)return RF_OK;
@@ -29,6 +29,25 @@ static int scene_driller_player_publish(scene_driller_player_adapter *adapter,
     memset(group.velocity,0,12);memcpy(group.input_matrix,pose.basis,36);
     memcpy(group.output_matrix,pose.basis,36);memcpy(group.pending_matrix,pose.basis,36);
     memcpy(state.bounds.minimum,group.minimum,12);memcpy(state.bounds.maximum,group.maximum,12);
+    if(active&&!adapter->saved&&campaign_climb.region){
+        rf_player_climb_exit_input input={0};uint32_t selected=rf_scene_actor_landing[1];
+        climb=campaign_climb;climb.speed=rf_scene_actor_movement_settings;
+        input.config=&rf_scene_actor_movement_config;input.descriptors=campaign_modes;
+        input.identity=campaign_identity;input.default_index=1;input.forced_action=-1;
+        input.entity_scale=scene_actor_body.state.mass;
+        /* Possession/seat clearance already succeeded. Detach locomotion only:
+         * crouched0 requests no standing callback or change to the seat body.
+         * Core4280b0 resets previous-region/speed/orientation; the scene owns
+         * the current region/contact and must release those separately. */
+        status=rf_player_climb_exit(&climb,&input,&selected,NULL,NULL);if(status)return status;
+        climb.region=NULL;climb.contact_handle=-1;detach_climb=1;
+    }
+    /* All fallible pose/climb preparation is complete. Keep the seat's body,
+     * camera and movement ownership; ordinary mode3 is reacquired on exit. */
+    if(detach_climb){
+        campaign_climb=climb;rf_scene_actor_movement_settings=climb.speed;
+        ++rf_scene_player_climb[2];rf_scene_player_climb[3]=UINT32_MAX;
+    }
     if(active && !adapter->saved){adapter->saved_look=actor_look;adapter->saved=1;}
     if(active){memcpy(actor_look.body_orientation,pose.basis,36);memcpy(actor_look.eye_orientation,camera,36);}
     else if(adapter->saved){actor_look=adapter->saved_look;adapter->saved=0;}

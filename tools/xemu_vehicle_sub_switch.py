@@ -162,19 +162,35 @@ def validate_source(source,payload,recipe):
     return saved
 
 
-def validate(source,loaded,payload,recipe):
+def validate_fresh_load(source,loaded,payload,recipe):
     saved=validate_source(source,payload,recipe);check_run(loaded,LOAD_FRAMES)
     pre,x=loaded['probe'],loaded['extra'];state=loaded['checkpoint_state']
     if state[8]!=1 or state[0] or state[1]!=len(payload) or any(x['rf_scene_world_load_reject']):raise RuntimeError('Ordinary profile4 bank load failed')
     if not 40<=pre['frame']<60 or pre['rf_scene_vehicle_enabled']!=[3] or pre['rf_scene_vehicle_state'][1:4]!=[0,0,1] or pre['rf_scene_jeep_seats'][4]!=1 or pre['rf_scene_apc_primary'][7]!=saved['active_ammo']:
         raise RuntimeError('Occupied Jeep did not restore without reboarding')
     restore=x['rf_scene_vehicle_switch_restore']
-    expected=[1,JEEP,3,1,1,SUB,saved['parked_ammo'],0,0,0,0,saved['active_ammo'],saved['active_rng'],pre['rf_scene_vehicle_state'][12],x['rf_scene_vehicle_state'][12],0]
-    if restore!=expected or pre['rf_scene_vehicle_switch_restore']!=restore:raise RuntimeError(f'Submarine reserve/Jeep RNG or actual owners not restored: {restore}')
+    expected=[1,JEEP,3,1,1,SUB,saved['parked_ammo'],0,0,0,0,
+        saved['active_ammo'],saved['active_rng'],pre['rf_scene_vehicle_state'][12]]
+    # Before exchange the final active handle may still be the Jeep. Compare
+    # only the immutable active handle here; require a distinct valid passive
+    # handle, then independently verify it as the actual submarine on return.
+    if len(restore)!=16 or restore[:14]!=expected or restore[14] in (0,0xffffffff,restore[13]) or restore[15] or pre['rf_scene_vehicle_switch_restore']!=restore:
+        raise RuntimeError(f'Submarine reserve/Jeep RNG or declared owner identity not restored: {restore}')
+    if pre['rf_scene_vehicle_switch'][1] or pre['rf_scene_apc_primary'][1] or pre['rf_scene_submarine_weapon'][1]:
+        raise RuntimeError('Fresh load replayed switching or firing before the occupied probe')
+    return dict(result='PASS',scope='Ordinary save/fresh-load before return inputs',
+        saved=saved,restore=restore,occupied_Jeep_without_reboarding=True,
+        parked_owner_handle_independently_checked=False,
+        limitation='The immutable restore probe names the passive handle; independent active-owner identity and swimming return require the subsequent exchange check.')
+
+
+def validate(source,loaded,payload,recipe):
+    fresh=validate_fresh_load(source,loaded,payload,recipe)
+    saved=fresh['saved'];restore=fresh['restore'];pre,x=loaded['probe'],loaded['extra']
     sw=x['rf_scene_vehicle_switch'];a=x['rf_scene_vehicle_switch_apply']
     if sw[1]!=1 or sw[4:6]!=[JEEP,SUB] or sw[8] or sw[9]!=1 or sw[15]!=SUB or sw[10:12]!=[saved['active_ammo'],saved['parked_ammo']]:raise RuntimeError(f'Ordinary return to saved submarine failed: {sw}')
     if x['rf_scene_vehicle_enabled']!=[4] or x['rf_scene_vehicle_state'][1:4]!=[1,1,1] or x['rf_scene_submarine_weapon'][7]!=saved['parked_ammo'] or not x['rf_scene_submarine_boarding'][4]:raise RuntimeError('Returned submarine lacks ordinary wet boarding and retained supply')
-    if a[:4]!=[JEEP,SUB,pre['rf_scene_vehicle_state'][12],x['rf_scene_vehicle_state'][12]] or a[15:18]!=saved['parked_position'] or a[24:30]!=[1,0,0,0,0,1] or a[31] or not 199<=a[30]<=201:raise RuntimeError('Return lost identity, saved pose or ordinary input timing')
+    if x['rf_scene_vehicle_state'][12]!=restore[14] or a[:4]!=[JEEP,SUB,pre['rf_scene_vehicle_state'][12],x['rf_scene_vehicle_state'][12]] or a[15:18]!=saved['parked_position'] or a[24:30]!=[1,0,0,0,0,1] or a[31] or not 199<=a[30]<=201:raise RuntimeError('Return lost identity, saved pose or ordinary input timing')
     if a[4:8]!=[saved['active_health'],saved['parked_health'],saved['active_armor'],saved['parked_armor']]:raise RuntimeError('Return changed retained vehicle vitals')
     for sample in (pre,x):
         if sample['rf_scene_apc_primary'][1] or sample['rf_scene_submarine_weapon'][1]:raise RuntimeError('Fresh load replayed a weapon launch')
@@ -216,8 +232,13 @@ def main():
         build(folder,'load');loaded=run_guest(folder,'load',hdd,LOAD_FRAMES,420,
             extra_symbols=SYMBOLS,probe=live_probe,probe_frame=40,allow_guest_error=True)
         report['phases']['load']=loaded;report['diagnostics_load']=diagnostics(loaded)
+        report['fresh_load']=validate_fresh_load(source,loaded,payload,recipe)
         report.update(validate(source,loaded,payload,recipe))
-    except Exception as exc:report['error']=str(exc);raise
+    except Exception as exc:
+        report['error']=str(exc)
+        if report.get('fresh_load',{}).get('result')=='PASS':
+            report['partial_result']='SAVE_AND_FRESH_LOAD_PASS_RETURN_FAILED'
+        raise
     finally:
         for n,data in original.items():
             if data is None:(DISC/n).unlink(missing_ok=True)

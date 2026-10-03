@@ -175,23 +175,50 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
         s->apc_aim.angles[0],s->apc_aim.angles[1]);
     return RF_OK;
 }
-/* Last seated capture admission: stage,status,profile,room,sphere,reason,retries,reserved. */
+/* Last seated capture admission: stage,status,profile,room,sphere,reason,retries,guard mask.
+ * Stages6/7 precede scope/live guards; stages1..5 retain their previous meanings.
+ * Guard bits0..21: missing runtime, inactive session, unsaved exit look, dead host,
+ * dead player, crouched, climbing, handheld cooldown/remaining/delay/held/reload,
+ * riot charge, grenade throw, RFCP rocket, primary/secondary vehicle flight,
+ * RFCP AI projectile, Fusion flight, burn, flame input, flame canister. */
 uint32_t rf_scene_vehicle_player_capture[8];
 static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_player_checkpoint *player,
     rf_player_checkpoint_catalog *catalog,uint32_t ordinary)
 {
     scene_vehicle_checkpoint_record vehicle;rf_checkpoint_placement placement;rf_physics_sphere scratch;rf_geomod_terrain_view view;
-    rf_collision_composition_view composed;scene_driller_runtime *r=s->driller_runtime;int status;
-    status=ordinary?scene_checkpoint_player_state_scope(s,0,1):scene_checkpoint_player_scope(s,0);if(status)return status;
-    if(!r || !r->entry.session.active || !r->player.saved || !r->entry.host.alive ||
-       campaign_player_damage.state.effects.health<=0 || campaign_crouched || campaign_climb.region ||
-       combat_trigger.cooldown || combat_trigger.remaining || combat_trigger.delay || combat_trigger.held || rf_scene_combat[6] ||
-       riot_charge_remainder || scene_player_grenade_save_blocked() ||
-       (!ordinary && rf_scene_rockets[3]) || scene_apc_primary_pending(s) || scene_apc_secondary_pending(s) ||
-       (!ordinary && (scene_ai_grenade_pending() || scene_ai_rocket_pending())) ||
-       scene_fusion_projectile_pending() || scene_burning_save_pending() || scene_flame_input_pending() || scene_flame_canister_save_pending())return RF_RANGE;
+    rf_collision_composition_view composed;scene_driller_runtime *r=s?s->driller_runtime:NULL;uint32_t guard=0;int status;
     memset(rf_scene_vehicle_player_capture,0,sizeof(rf_scene_vehicle_player_capture));
-    rf_scene_vehicle_player_capture[0]=1;rf_scene_vehicle_player_capture[2]=rf_scene_vehicle_enabled;
+    rf_scene_vehicle_player_capture[0]=6;rf_scene_vehicle_player_capture[2]=rf_scene_vehicle_enabled;
+    status=ordinary?scene_checkpoint_player_state_scope(s,0,1):scene_checkpoint_player_scope(s,0);
+    rf_scene_vehicle_player_capture[1]=(uint32_t)status;if(status)return status;
+    rf_scene_vehicle_player_capture[0]=7;
+#define VEHICLE_CAPTURE_GUARD(bit,condition) do{if(condition)guard|=1u<<(bit);}while(0)
+    VEHICLE_CAPTURE_GUARD(0,!r);
+    VEHICLE_CAPTURE_GUARD(1,r&&!r->entry.session.active);
+    VEHICLE_CAPTURE_GUARD(2,r&&!r->player.saved);
+    VEHICLE_CAPTURE_GUARD(3,r&&!r->entry.host.alive);
+    VEHICLE_CAPTURE_GUARD(4,campaign_player_damage.state.effects.health<=0);
+    VEHICLE_CAPTURE_GUARD(5,campaign_crouched);
+    VEHICLE_CAPTURE_GUARD(6,campaign_climb.region);
+    VEHICLE_CAPTURE_GUARD(7,combat_trigger.cooldown);
+    VEHICLE_CAPTURE_GUARD(8,combat_trigger.remaining);
+    VEHICLE_CAPTURE_GUARD(9,combat_trigger.delay);
+    VEHICLE_CAPTURE_GUARD(10,combat_trigger.held);
+    VEHICLE_CAPTURE_GUARD(11,rf_scene_combat[6]);
+    VEHICLE_CAPTURE_GUARD(12,riot_charge_remainder);
+    VEHICLE_CAPTURE_GUARD(13,scene_player_grenade_save_blocked());
+    VEHICLE_CAPTURE_GUARD(14,!ordinary&&rf_scene_rockets[3]);
+    VEHICLE_CAPTURE_GUARD(15,scene_apc_primary_pending(s));
+    VEHICLE_CAPTURE_GUARD(16,scene_apc_secondary_pending(s));
+    VEHICLE_CAPTURE_GUARD(17,!ordinary&&(scene_ai_grenade_pending()||scene_ai_rocket_pending()));
+    VEHICLE_CAPTURE_GUARD(18,scene_fusion_projectile_pending());
+    VEHICLE_CAPTURE_GUARD(19,scene_burning_save_pending());
+    VEHICLE_CAPTURE_GUARD(20,scene_flame_input_pending());
+    VEHICLE_CAPTURE_GUARD(21,scene_flame_canister_save_pending());
+#undef VEHICLE_CAPTURE_GUARD
+    rf_scene_vehicle_player_capture[7]=guard;
+    if(guard){rf_scene_vehicle_player_capture[1]=(uint32_t)RF_RANGE;return RF_RANGE;}
+    rf_scene_vehicle_player_capture[0]=1;
     status=scene_vehicle_checkpoint_capture_record(s,&vehicle);rf_scene_vehicle_player_capture[1]=(uint32_t)status;if(status)return status;
     status=scene_checkpoint_player_catalog_mode(catalog,ordinary);if(status)return status;
     memset(player,0,sizeof(*player));player->player.inventory=campaign_player_inventory;

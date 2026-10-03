@@ -8,18 +8,30 @@ Each parked submarine retains its torpedo reserve/cooldown. A handoff rejects li
 
 RFSW3 retains the24-byte header and320-byte rows. Submarine rows use profile4 at+60, torpedo reserve at+16 and cooldown at+160; ordinary ground fields keep their existing meaning. RFSW1/2 remain supported. Boot resolves authored profile4 identities before loading resources, and fresh-load ownership uses existing RFVC4 plus RFVA records.
 
-NXDK build and one-direction runtime handoff pass. Fresh-load continuation and presentation remain unverified; the ordinary save blocker is recorded below. Fighter switching, grouped/moving transfers and passive autonomous vehicle AI remain separate open work.
+NXDK build, one-direction runtime handoff and occupied Jeep save/fresh-load pass. Returning to the parked submarine and presentation remain unverified; native evidence is recorded below. Fighter switching, grouped/moving transfers and passive autonomous vehicle AI remain separate open work.
 
 ## Native integration evidence
 
 Initial fixture startup rejected an inconsistent testbed: navigation nodes were stripped while old waypoint routes remained. Both sections now empty together; no engine reader was relaxed. The shared native harness now persists terminal diagnostics before reporting a missed probe or missing save, so startup errors remain inspectable.
 
-`vehicle-sub-switch-20261003-184517` runs380 frames on stock64MiB. Ordinary submarine Use12 boards, firing40 launches one torpedo (reserve20→19), and Use160 exits. The later Jeep approach stops at player[100.1353,61.8124,7] beside the submarine at[104,58.7,7], leaving Jeep[110.5,61.71916,7] out of range. No ownership exchange occurred. Final available pages6457; a subsequent unintended on-foot shot prevents the requested save. This is partial vehicle evidence, not a switching/save pass. The movement sequence is being corrected; world collision is unchanged.
+`vehicle-sub-switch-20261003-184517` runs380 frames on stock64MiB. Ordinary submarine Use12 boards, firing40 launches one torpedo (reserve20Ã¢â€ â€™19), and Use160 exits. The later Jeep approach stops at player[100.1353,61.8124,7] beside the submarine at[104,58.7,7], leaving Jeep[110.5,61.71916,7] out of range. No ownership exchange occurred. Final available pages6457; a subsequent unintended on-foot shot prevents the requested save. This is partial vehicle evidence, not a switching/save pass. The movement sequence is being corrected; world collision is unchanged.
 
 `vehicle-sub-switch-20261003-185031` exposed a resource-adoption defect: the extra Jeep pack merged, but the active submarine adoption returned RF_FORMAT because both submarine pack guards used `sub.v3m` instead of the installed `Sub_Mini01.v3m`. The original `entity.tbl` filename and existing submarine resource loader confirm the correct chassis. Both guards are corrected without weakening identity checks. The same run reaches the dock but attempts Use while airborne; the fixture now waits for the observed settled dock position before boarding.
 
 ## Working handoff, open save blocker
 
-`vehicle-sub-switch-20261003-185347/runtime-summary.json` verifies the runtime portion of620 frames on stock64MiB: normal sub boarding/fire/exit, one sub7010→Jeep7009 ownership exchange, ordinary Jeep boarding, gunner selection and one mounted shot. Original handles6946921/4063293 stay with their owners; parked torpedo reserve19 and new Jeep reserve999 are distinct, and Jeep firing reduces it to998. Resource preload/adoption status0, no vehicle runtime error, and available memory6455 pages. No visual/audio claim.
+`vehicle-sub-switch-20261003-185347/runtime-summary.json` verifies the runtime portion of620 frames on stock64MiB: normal sub boarding/fire/exit, one sub7010Ã¢â€ â€™Jeep7009 ownership exchange, ordinary Jeep boarding, gunner selection and one mounted shot. Original handles6946921/4063293 stay with their owners; parked torpedo reserve19 and new Jeep reserve999 are distinct, and Jeep firing reduces it to998. Resource preload/adoption status0, no vehicle runtime error, and available memory6455 pages. No visual/audio claim.
 
-The complete harness remains FAIL: ordinary save returns RF_NOT_FOUND at player-capture stage1, before RFSW3 capture at stage11. No payload or fresh-load result exists. Source review narrows this to live Jeep checkpoint admission or seated-player placement; it does not establish a submarine codec fault. Added `rf_scene_vehicle_player_capture[8]` records exact admission stage/status and static-placement sphere/reason for the next focused diagnosis. Do not count fresh-load/return support as verified yet.
+The complete harness remains FAIL: ordinary save returns RF_RANGE (-4) at player-capture stage1, before RFSW3 capture at stage11. No payload or fresh-load result exists. The follow-up190113 run leaves the original late probe untouched, narrowing rejection to player scope or the early live-state guards; it does not establish a submarine codec fault. Added `rf_scene_vehicle_player_capture[8]` records exact admission stage/status and static-placement sphere/reason for the next focused diagnosis. Do not count fresh-load/return support as verified yet.
+
+
+The190825 guard diagnostic isolates the ordinary save rejection to bit6 (retained climbing region), with scope admission successful and no other live guard set. The dock ladder reference survives normal Jeep boarding because seated updates skip climbing. Vehicle publication must detach this obsolete on-foot state; save admission remains unchanged.
+
+
+## Ladder detachment and working save/load
+
+`vehicle-sub-switch-20261003-191330` verifies the boarding fix on stock64MiB Xbox. On first successful vehicle publication, a staged climb state follows the existing climb-exit lifecycle, then releases its scene-owned region/contact. Publication leaves actual stance, seat pose, camera and ownership intact. Failed entry does not detach the player, and save guards remain unchanged.
+
+The620-frame source produces a4664-byte ordinary save with player capture status0 and guardmask0; available memory6455 pages. Fresh-load restores occupied Jeep7009 without reboarding, with998 rounds and RNG3357800067; the parked submarine7010 retains19 torpedoes. RFVC/RFSW restore and world rejection diagnostics are successful. The240-frame continuation has6312 available pages and no replayed mounted weapon launch.
+
+The complete return harness remains FAIL: its path stays near the Jeep and the final Use reboards that Jeep rather than approaching the submarine. No second owner exchange occurs. Its prior assertion incorrectly compared the restored parked handle against this unchanged final active handle; that is not evidence of restore corruption. Return wet boarding is still unverified. No further path-tuning batch is needed to establish the ladder/save fix, and no visual/audio correctness is claimed.
