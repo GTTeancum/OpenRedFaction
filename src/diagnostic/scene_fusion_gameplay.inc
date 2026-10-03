@@ -17,7 +17,7 @@ static int scene_fusion_input_launch(void *context,uint32_t *spawned)
 static int scene_fusion_gameplay_tick(scene_stream *s,uint32_t frame,const float position[3],const float forward[3])
 {
     scene_fusion_input_event event;scene_fusion_launch_context context={position,forward};int status;
-    uint32_t selected=!scene_turret_player_active() && campaign_equipped_slot==12 && !campaign_explicit_unarmed;
+    uint32_t selected=!scene_driller_active(s) && !scene_turret_player_active() && campaign_equipped_slot==12 && !campaign_explicit_unarmed;
     if(!frame){scene_fusion_input_reset(&scene_fusion_input);scene_fusion_projectile_reset();}
     status=scene_fusion_projectile_tick(s,frame,scene_fusion_impact_start);if(status)return status;
     status=scene_fusion_input_tick(&scene_fusion_input,&campaign_player_inventory,

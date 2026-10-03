@@ -23,7 +23,7 @@ static int scene_player_shield_damage_sync(void)
     if(campaign_shield_id>=64)return RF_RANGE;
     owned=campaign_player_inventory.owned[campaign_shield_id]!=0;
     if(!owned){scene_player_shield_reset(&scene_player_shield_damage_state);return RF_OK;}
-    selected=owned && campaign_equipped_slot==11 && !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0;
+    selected=owned && !scene_driller_active(scene_actor_collision_owner) && !scene_turret_player_active() && campaign_equipped_slot==11 && !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0;
     return scene_player_shield_sync(&scene_player_shield_damage_state,&scene_npc_shields.definition,owned,selected);
 }
 static uint32_t scene_player_shield_damage_save_pending(void)
