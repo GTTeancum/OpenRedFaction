@@ -190,7 +190,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
-    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,support_uid=0,seated=0;int pending,status;
+    uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
@@ -251,9 +251,12 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         status=scene_npc_checkpoint_shoot_binding(o->script_shoot.event,o->registration.handle,o->script_shoot.point);
         if(status)return scene_npc_checkpoint_reject(index,"shoot_binding",0,o->script_shoot.event,status);
     }else if(!terminal_dead&&o->combat_scripted==1){
-        /* A scripted Attack retains its target by authored UID (or zero for
-         * the local player), never by a process-local registry handle. */
-        status=scene_npc_checkpoint_attack_target_uid(o->combat_target,&attack_target_uid);
+        /* A generated AutoHead has no authored UID; RFNC11 retains its
+         * authored base UID and resolves the dependent role on fresh load. */
+        status=scene_turret_generated_attack_key(o->combat_target,&attack_target_uid);
+        if(!status)attack_target_mode=3;
+        else if(status==RF_NOT_FOUND)
+            status=scene_npc_checkpoint_attack_target_uid(o->combat_target,&attack_target_uid);
         if(status||o->combat_alert!=1||o->script_shoot.active||
            (o->script_move.active&&o->script_move.follow!=2)||
            o->combat_burst_remaining>256||o->combat_reload_weapon< -1||o->combat_reload_weapon>=64)
@@ -376,7 +379,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     else {
         if(o->combat_scripted==3||o->combat_scripted==1){
             uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
-            row->combat.active=o->combat_scripted==3?1:2;
+            row->combat.active=o->combat_scripted==3?1:attack_target_mode;
             row->combat.event=row->combat.active==1?o->script_shoot.event:attack_target_uid;
             row->combat.burst=o->combat_burst_remaining;
             row->combat.due_remaining=o->combat_due>frame?o->combat_due-frame:0;

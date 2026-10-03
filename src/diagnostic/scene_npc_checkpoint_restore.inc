@@ -246,10 +246,14 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                 detail="shoot_binding";
                 status=scene_npc_checkpoint_shoot_binding(rows[i].combat.event,e->handle,rows[i].combat.point);
                 if(status)goto fail;
-            }else{
+            }else if(rows[i].combat.active==2){
                 detail="attack_target";
                 status=scene_npc_checkpoint_attack_target_handle(rows[i].combat.event,
                     rows,count,&e->attack_target_handle);
+                if(status)goto fail;
+            }else{
+                detail="generated_attack_target";
+                status=scene_turret_generated_attack_handle(rows[i].combat.event,&e->attack_target_handle);
                 if(status)goto fail;
             }
             if(spread_seen&&spread_saved!=rows[i].combat.spread_rng){status=RF_FORMAT;goto fail;}
@@ -487,6 +491,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             o->combat_reload_due=e->saved.combat.reload_remaining?frame+e->saved.combat.reload_remaining:0;
             o->combat_reload_weapon=e->saved.combat.reload_weapon;
             campaign_enemy_spread_random.value=e->saved.combat.spread_rng;
+            scene_turret_generated_attack_record(o,&e->saved,frame);
         }
         o->controller_handle=e->controller_handle;
         memset(&o->piece_support,0,sizeof(o->piece_support));

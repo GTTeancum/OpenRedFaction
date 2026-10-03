@@ -196,6 +196,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
     status=scene_turret_generated_world_admit(generated,world->npcs,&player,
         vehicle_present?&vehicle:NULL,(uint32_t)campaign_authored_vehicle_uid,passive,turrets);if(status)goto done;
+    status=scene_turret_generated_attack_admit(world->npcs,generated);if(status)goto done;
     status=scene_clutter_checkpoint_targets_valid(world->clutter);if(status)goto done;
     status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
     status=scene_world_mission_validate(mission);if(status)goto done;

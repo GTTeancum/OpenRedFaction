@@ -907,6 +907,7 @@ extern uint32_t rf_scene_burning_test_uid;
 extern uint32_t rf_scene_turret_test_uid;
 extern uint32_t rf_scene_turret_generated_test_uid;
 extern uint32_t rf_scene_turret_head_remove_uid;
+extern uint32_t rf_scene_turret_generated_attack_config[3];
 extern uint32_t rf_scene_item_effect_mode;
 extern uint32_t rf_scene_vehicle_shot_uid,rf_scene_vehicle_shot_probe[16];
 extern uint32_t rf_scene_vehicle_shot_mode; /* process-local diagnostic: 1 keeps Attack NPC at its authored pose for ordinary save */

@@ -12822,6 +12822,10 @@ static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoin
 static int scene_burning_checkpoint_owner_admit(uint32_t);
 static int scene_turret_attack_checkpoint_uid(uint32_t,uint32_t *);
 static int scene_turret_attack_checkpoint_handle(uint32_t,uint32_t *);
+#include "rf/npc_checkpoint.h"
+static int scene_turret_generated_attack_key(uint32_t,uint32_t *);
+static int scene_turret_generated_attack_handle(uint32_t,uint32_t *);
+static void scene_turret_generated_attack_record(const campaign_npc_body *,const rf_npc_checkpoint_record *,uint32_t);
 #include "scene_npc_seat_checkpoint_decl.inc"
 #include "scene_corpse_unsettled_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
@@ -12892,6 +12896,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_turret_generated_checkpoint.inc"
 #include "scene_turret_generated_retirement_checkpoint.inc"
 #include "scene_turret_attack_checkpoint.inc"
+#include "scene_turret_generated_attack_checkpoint.inc"
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
 #include "scene_driller_actor_collision.inc"
@@ -15405,6 +15410,7 @@ static int campaign_vehicle_shot_stage(scene_stream *stream,uint32_t frame,
 #include "scene_turret_fixture.inc"
 #include "scene_turret_generated_fixture.inc"
 #include "scene_turret_generated_remove_fixture.inc"
+#include "scene_turret_generated_attack_fixture.inc"
 #include "scene_item_effect_fixture.inc"
 static int campaign_vehicle_blast_fixture(scene_stream *stream,uint32_t frame)
 {
@@ -16024,6 +16030,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=scene_turret_fixture(stream,frame);if(status)return status;
         status=scene_turret_generated_fixture(stream,frame);if(status)return status;
         status=scene_turret_generated_remove_fixture(frame);if(status)return status;
+        status=scene_turret_generated_attack_fixture(frame);if(status)return status;
         status=scene_burning_save_fixture(frame);if(status)return status;
         status=scene_special_save_stage(frame);if(status)return status;
         status=scene_item_effect_stage(stream,frame);if(status)return status;
@@ -19669,6 +19676,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              scene_turret_generated_activation_reset();
              memset(rf_scene_turret_generated_death_probe,0,sizeof(rf_scene_turret_generated_death_probe));
              memset(rf_scene_turret_generated_damage_probe,0,sizeof(rf_scene_turret_generated_damage_probe));
+             memset(rf_scene_turret_generated_attack_restore,0,sizeof(rf_scene_turret_generated_attack_restore));
              status=scene_turret_generated_retirement_reset();
              if(status){rf_vpp_close(&tables);goto done;}
              status=scene_turrets_open(&tables);
