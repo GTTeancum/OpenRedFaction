@@ -504,6 +504,7 @@ static int scene_driller_runtime_open(scene_stream *s)
      * voice only after that reset and its initial authored scheduling. */
     s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));
     memset(rf_scene_jeep_npc_gunner,0,sizeof(rf_scene_jeep_npc_gunner));
+    memset(rf_scene_jeep_gunner_restore,0,sizeof(rf_scene_jeep_gunner_restore));
     memset(rf_scene_jeep_entry_probe,0,sizeof(rf_scene_jeep_entry_probe));
     memset(rf_scene_seated_path_probe,0,sizeof(rf_scene_seated_path_probe));
     memset(rf_scene_apc_exit_transition,0,sizeof(rf_scene_apc_exit_transition));

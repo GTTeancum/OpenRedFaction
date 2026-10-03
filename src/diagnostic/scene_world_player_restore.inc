@@ -8,6 +8,8 @@ typedef struct scene_world_player_stage {
     float support_velocity[3];
     float basis[9],eye[9];rf_checkpoint_placement placement;rf_physics_sphere seat_scratch;
     const scene_npc_checkpoint_restore_stage *npcs;
+    const scene_npc_seat_checkpoint_stage *seats;
+    const scene_vehicle_checkpoint_record *vehicle;
 } scene_world_player_stage;
 uint32_t rf_scene_world_player_probe[3]; /* prepare step, status, room */
 static int scene_world_player_pair(void *context,uint32_t index,rf_checkpoint_placement *p,uint32_t *retired)
@@ -23,6 +25,11 @@ static int scene_world_player_npc_overlap_allowed(void *context,uint32_t i,uint3
     if(!i&&j&&s&&s->npcs&&j-1<s->npcs->count){
         const rf_npc_checkpoint_record *npc=&s->npcs->entries[j-1].saved;
         double depth=radius-sqrt(distance2);
+        /* RFNS2 proves this live NPC is the same Jeep's authored driver;
+         * RFVC/RFPL already admitted the living player at interface_2. Their
+         * broad body spheres may overlap without relaxing any other pair. */
+        if(s->player.player.health>0&&!npc->retired&&!npc->dead_pose&&npc->health>0&&
+           scene_jeep_gunner_checkpoint_pair(s->seats,s->vehicle,npc->uid))return 1;
 #ifndef RF_IMAGE_XBOX_NATIVE
         {const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
          if(enabled&&!strcmp(enabled,"1"))
@@ -113,7 +120,8 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         if(found!=1)return RF_FORMAT;
     }
     rf_scene_world_player_probe[0]=7;
-    s.npcs=world->npcs;status=scene_npc_checkpoint_pair_fit_allowed(s.npcs->count+1,scene_world_player_pair,
+    s.npcs=world->npcs;s.seats=world->seats;s.vehicle=vehicle;
+    status=scene_npc_checkpoint_pair_fit_allowed(s.npcs->count+1,scene_world_player_pair,
         &s,scene_world_player_npc_overlap_allowed);if(status)return status;
     rf_scene_world_player_probe[0]=8;
     s.body=scene_actor_body.state;memcpy(s.body.position,s.player.position,12);memcpy(s.body.next_position,s.player.position,12);

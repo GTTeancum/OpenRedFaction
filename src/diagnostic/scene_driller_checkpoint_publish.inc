@@ -33,7 +33,8 @@ static void scene_vehicle_checkpoint_publish_staged(scene_stream *s,const scene_
     damage.responsible_handle=damage.burn_source=UINT32_MAX;
     /* Inertia and coefficients are current authored metadata; stage reconstructs
      * angular momentum and zeros old forces/torques/skip-forces. */
-    r->entry.gunner_occupant=-1; /* Supported saved profiles have no separate gunner. */
+    /* Publish the bare host first; RFNS2 assigns an admitted gunner later. */
+    r->entry.gunner_occupant=-1;
     r->physics.state=candidate.physics;r->damage.damage.state=damage;
     r->damage.damage.destroyed=!candidate.alive;r->damage.damage.destruction_pending=0;
     r->damage.damage.object_flags&=~0x200000u; /* Unsaved hit-event signal. */
@@ -118,14 +119,10 @@ static int scene_vehicle_combat_parked_prepare(scene_stream *s,const scene_vehic
 }
 static int scene_vehicle_combat_parked_admit(scene_stream *s,const scene_vehicle_combat_candidate *candidate)
 {return scene_vehicle_combat_parked_prepare(s,candidate,NULL);}
-static int scene_vehicle_combat_apply_parked(scene_stream *s,const scene_vehicle_combat_candidate *candidate)
+static void scene_vehicle_combat_publish_staged(scene_stream *s,const scene_vehicle_combat_candidate *candidate,
+    const scene_vehicle_combat_publish_data *prepared)
 {
-    scene_vehicle_combat_publish_data prepared;scene_driller_runtime *r;int status;
-    status=scene_vehicle_combat_parked_admit(s,candidate);if(status)return status;
-    /* Repeat the small pure resolution to retain exact seat/matrix results;
-     * no callbacks or mutable providers occur between these checks. */
-    status=scene_vehicle_combat_parked_prepare(s,candidate,&prepared);if(status)return status;
-    r=s->driller_runtime;
+    scene_driller_runtime *r=s->driller_runtime;
     /* No fallible operations below publication. Definitions, muzzle tags,
      * renderer resources and authored aim limits remain the current class. */
     scene_vehicle_checkpoint_publish_staged(s,&candidate->vehicle);
@@ -135,8 +132,17 @@ static int scene_vehicle_combat_apply_parked(scene_stream *s,const scene_vehicle
     memset(s->apc_secondary.rounds,0,sizeof(s->apc_secondary.rounds));s->apc_secondary.cooldown=0;
     s->apc_secondary.reserve=(int32_t)candidate->secondary_reserve;
     s->apc_aim.angles[0]=candidate->aim_pitch;s->apc_aim.angles[1]=candidate->aim_yaw;s->apc_aim.angles[2]=0;
-    memcpy(s->apc_aim_basis,prepared.aim_basis,36);memset(s->apc_aim_eye,0,sizeof(s->apc_aim_eye));s->apc_aim_active=0;
-    s->driller->seat=prepared.seat;r->jeep_seat.role=0;r->jeep_seat.held=1;
+    memcpy(s->apc_aim_basis,prepared->aim_basis,36);memset(s->apc_aim_eye,0,sizeof(s->apc_aim_eye));s->apc_aim_active=0;
+    s->driller->seat=prepared->seat;r->jeep_seat.role=0;r->jeep_seat.held=1;
+}
+static int scene_vehicle_combat_apply_parked(scene_stream *s,const scene_vehicle_combat_candidate *candidate)
+{
+    scene_vehicle_combat_publish_data prepared;int status;
+    status=scene_vehicle_combat_parked_admit(s,candidate);if(status)return status;
+    /* Repeat the small pure resolution to retain exact seat/matrix results;
+     * no callbacks or mutable providers occur between these checks. */
+    status=scene_vehicle_combat_parked_prepare(s,candidate,&prepared);if(status)return status;
+    scene_vehicle_combat_publish_staged(s,candidate,&prepared);
     return RF_OK;
 }
 #endif

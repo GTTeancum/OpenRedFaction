@@ -892,6 +892,7 @@ static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float
 
 static uint32_t scene_driller_active(const scene_stream *);
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *);
+extern uint32_t rf_scene_jeep_gunner_restore[38];
 static uint32_t scene_campaign_vehicle_target(const scene_stream *,uint32_t,float [3],float *);
 static int scene_apc_aim_direction(scene_stream *,const float [3],float [3]);
 static void scene_vehicle_hud_values(const scene_stream *,float *,int32_t [2]);
@@ -12838,6 +12839,7 @@ static int scene_turret_generated_attack_key(uint32_t,uint32_t *);
 static int scene_turret_generated_attack_handle(uint32_t,uint32_t *);
 static void scene_turret_generated_attack_record(const campaign_npc_body *,const rf_npc_checkpoint_record *,uint32_t);
 #include "scene_npc_seat_checkpoint_decl.inc"
+#include "scene_jeep_gunner_checkpoint_decl.inc"
 #include "scene_corpse_unsettled_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
@@ -15964,6 +15966,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_submarine_checkpoint_live.inc"
 #include "scene_fighter_checkpoint_live.inc"
 #include "scene_driller_checkpoint_live.inc"
+#include "scene_jeep_gunner_checkpoint.inc"
 static uint32_t scene_npc_jeep_seat_save_dead_contact(
     const scene_npc_seat_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *,
     const scene_vehicle_checkpoint_record *,uint32_t,uint32_t);

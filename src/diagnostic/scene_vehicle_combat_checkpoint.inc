@@ -17,7 +17,7 @@ static int scene_vehicle_combat_checkpoint_common(const scene_stream *s,const ch
        s->apc_primary.scheduler.held || s->apc_primary.scheduler.warmup!=0 ||
        !isfinite(s->apc_primary.scheduler.cooldown) || s->apc_primary.scheduler.cooldown>0 ||
        !isfinite(s->apc_secondary.cooldown) || s->apc_secondary.cooldown>0)return RF_NOT_FOUND;
-    if(r->entry.session.active &&
+    if(r->entry.session.active && !scene_jeep_gunner_checkpoint_capture_allowed(s) &&
        (r->entry.session.host!=r->entry.host.handle || r->entry.session.driver!=r->entry.player.handle ||
         r->entry.host.driver!=r->entry.player.handle || r->entry.player.host!=r->entry.host.handle ||
         r->entry.occupant!=(int32_t)r->entry.player.handle ||

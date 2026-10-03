@@ -1,13 +1,13 @@
 #ifndef RF_SCENE_NPC_SEAT_CHECKPOINT_INCLUDED
 #define RF_SCENE_NPC_SEAT_CHECKPOINT_INCLUDED
-/* RFNS1 lives beneath RFTU wrappers and outside RFVA/vehicle bytes.
+/* RFNS1/2 live beneath RFTU wrappers and outside RFVA/vehicle bytes.
  * Include after seat runtime, turret/NPC stages and checkpoint world placement.
  * Explicit stages only: no temporary mutation of live links during admission.
  * Shared hooks and early type/prototype requirements are documented separately. */
 enum {SCENE_NPC_SEAT_HEADER=16,SCENE_NPC_SEAT_ROW=24};
 typedef struct scene_npc_seat_saved {
     scene_npc_seat_binding binding;
-    uint32_t actor_uid,active,owns_host_flag,pose_ready;
+    uint32_t actor_uid,active,owns_host_flag,pose_ready,player_gunner;
     float pose[12];
 } scene_npc_seat_saved;
 struct scene_npc_seat_checkpoint_stage {
@@ -35,9 +35,11 @@ static void scene_npc_seat_checkpoint_close(scene_npc_seat_checkpoint_stage **s)
 static int scene_npc_seat_checkpoint_capture(unsigned char *p,uint32_t capacity,
     uint32_t inner_bytes,uint32_t *written)
 {
-    uint32_t i,attached;uint64_t required=16u+(uint64_t)inner_bytes+(uint64_t)scene_npc_seat_count*24u;
+    uint32_t i,attached,gunner_uid=0,gunner_matches=0;int status;
+    uint64_t required=16u+(uint64_t)inner_bytes+(uint64_t)scene_npc_seat_count*24u;
     if(!p||!written||inner_bytes>capacity)return RF_RANGE;
-    if(!scene_npc_seat_count){*written=inner_bytes;return RF_OK;}
+    status=scene_jeep_gunner_checkpoint_capture_uid(scene_npc_seat_stream,&gunner_uid);if(status)return status;
+    if(!scene_npc_seat_count){if(gunner_uid)return RF_FORMAT;*written=inner_bytes;return RF_OK;}
     if(scene_npc_seat_count>SCENE_NPC_SEAT_LIMIT)return RF_FORMAT;
     if(required>capacity||required>RF_CHECKPOINT_FILE_MAX)return RF_RANGE;
     for(i=0;i<scene_npc_seat_count;i++) {
@@ -51,23 +53,29 @@ static int scene_npc_seat_checkpoint_capture(unsigned char *p,uint32_t capacity,
                 scene_turret_operator_binding *op=scene_turret_operator_find(b->host);
                 if(!op||op->actor!=b->actor||op->tag!=b->tag||op->owns_host_flag>1)return RF_FORMAT;
             }
+            if(b->kind==SCENE_NPC_SEAT_JEEP&&gunner_uid&&
+               (uint32_t)campaign_seeds.records.items[b->slot].record.uid==gunner_uid)++gunner_matches;
         }
     }
+    if(gunner_matches!=(gunner_uid?1u:0u))return RF_FORMAT;
     memmove(p+16,p,inner_bytes);memcpy(p,"RFNS",4);
-    scene_history_put(p+4,1);scene_history_put(p+8,inner_bytes);scene_history_put(p+12,scene_npc_seat_count);
+    scene_history_put(p+4,gunner_uid?2:1);scene_history_put(p+8,inner_bytes);scene_history_put(p+12,scene_npc_seat_count);
     for(i=0;i<scene_npc_seat_count;i++) {
         const scene_npc_seat_binding *b=scene_npc_seats+i;unsigned char *q=p+16+inner_bytes+i*24;
         scene_turret_operator_binding *op=b->active&&b->kind==SCENE_NPC_SEAT_TURRET?scene_turret_operator_find(b->host):NULL;
         scene_history_put(q,(uint32_t)campaign_seeds.records.items[b->slot].record.uid);
         scene_history_put(q+4,b->host_uid);scene_history_put(q+8,(uint32_t)b->tag);
-        scene_history_put(q+12,b->kind);scene_history_put(q+16,b->active);scene_history_put(q+20,op?op->owns_host_flag:0);
+        scene_history_put(q+12,b->kind);scene_history_put(q+16,b->active);
+        scene_history_put(q+20,op?op->owns_host_flag:
+            (b->active&&b->kind==SCENE_NPC_SEAT_JEEP&&gunner_uid&&
+             (uint32_t)campaign_seeds.records.items[b->slot].record.uid==gunner_uid?1:0));
     }
     *written=(uint32_t)required;++rf_scene_npc_seat_checkpoint[0];return RF_OK;
 }
 static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
     uint32_t budget,scene_npc_seat_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
 {
-    scene_npc_seat_checkpoint_stage *s;uint32_t n,size,i,j;uint64_t allocated;
+    scene_npc_seat_checkpoint_stage *s;uint32_t n,size,i,j,version;uint64_t allocated;
     if(!out||*out||!inner||!inner_bytes||(bytes&&!p))return RF_RANGE;
     if(bytes<4||memcmp(p,"RFNS",4)) {
         /* Legacy occupied-level saves lack an ownership contract. Keep them
@@ -75,7 +83,8 @@ static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t byt
         if(scene_npc_seat_count)return RF_NOT_FOUND;
         *inner=p;*inner_bytes=bytes;return RF_OK;
     }
-    if(bytes<16||scene_history_word(p+4)!=1)return RF_FORMAT;
+    if(bytes<16)return RF_FORMAT;version=scene_history_word(p+4);
+    if(version!=1&&version!=2)return RF_FORMAT;
     size=scene_history_word(p+8);n=scene_history_word(p+12);
     if(!n||n!=scene_npc_seat_count||n>SCENE_NPC_SEAT_LIMIT||16u+(uint64_t)size+(uint64_t)n*24u!=bytes)return RF_FORMAT;
     allocated=sizeof(*s)+(uint64_t)n*sizeof(*s->rows);if(allocated>budget)return RF_RANGE;
@@ -87,10 +96,11 @@ static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t byt
         for(j=0;j<n;j++)if((uint32_t)campaign_seeds.records.items[scene_npc_seats[j].slot].record.uid==uid)break;
         if(j==n||host!=scene_npc_seats[j].host_uid||tag!=scene_npc_seats[j].tag||kind!=scene_npc_seats[j].kind)goto malformed;
         for(uint32_t k=0;k<i;k++)if(s->rows[k].actor_uid==uid)goto malformed;
-        v->binding=scene_npc_seats[j];v->actor_uid=uid;v->active=scene_history_word(q+16);v->owns_host_flag=scene_history_word(q+20);
-        if(v->active>1||v->owns_host_flag>1||(!v->active&&v->owns_host_flag)||
-           (kind!=SCENE_NPC_SEAT_TURRET&&v->owns_host_flag))goto malformed;
+        v->binding=scene_npc_seats[j];v->actor_uid=uid;v->active=scene_history_word(q+16);
+        if(scene_jeep_gunner_checkpoint_control(version,kind,v->active,scene_history_word(q+20),
+            &v->owns_host_flag,&v->player_gunner))goto malformed;
     }
+    if(scene_jeep_gunner_checkpoint_wire_admit(s,version))goto malformed;
     *out=s;*inner=p+16;*inner_bytes=size;return RF_OK;
 malformed:free(s);return RF_FORMAT;
 }
@@ -121,7 +131,7 @@ static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *s,
         if(j==scene_npc_seat_count)return RF_FORMAT;
         status=scene_npc_seat_host_read(scene_npc_seats+j,&h);if(status)return status;
         if(v->binding.kind==SCENE_NPC_SEAT_JEEP) {
-            if(!vehicle||vehicle->profile!=3||!vehicle->value.jeep.vehicle.alive||vehicle->value.jeep.vehicle.player_occupied)return RF_FORMAT;
+            status=scene_jeep_gunner_checkpoint_host(v,vehicle);if(status)return status;
             position=vehicle->value.jeep.vehicle.position;basis=vehicle->value.jeep.vehicle.orientation;
         }else {
             if(!turrets)return RF_FORMAT;

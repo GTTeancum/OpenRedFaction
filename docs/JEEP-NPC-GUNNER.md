@@ -14,10 +14,7 @@ Player camera/body publication uses the existing authored interface_2 tag. Gun r
 
 ## Save boundary
 
-Ordinary saves while NPC driver and player gunner coexist remain unsupported. Existing `scene_vehicle_combat_checkpoint_common` rejects the mismatch between physical `host.driver` and player `session.driver`, and RFNS rejects a saved player-occupied host with an active NPC seat. Preserve both checks. Do not reinterpret the new second slot as an old single-driver save.
-
-World load, quickload admission and direct vehicle checkpoint reads explicitly reject a currently active separate gunner before staging or publication. Supported single-slot restore clears the new gunner word. These guards prevent an unsupported session from being partially overwritten; they do not add coexistence persistence.
-
+Ordinary fresh-boot shared-seat persistence now uses explicit RFNS2 ownership and passes the focused Xbox continuation documented in `JEEP-NPC-GUNNER-SAVE.md`. RFNS1 retains its old single-seat semantics. Loading while currently a separate gunner remains rejected before mutation; mounted-flight/cooldown and driver-death gunner saves remain outside this supported slice.
 
 ## Focused Xbox harness
 
@@ -49,4 +46,4 @@ Floor face171 is y=-1.25. Installed Jeep wheel spheres have minimum localY=.0408
 
 `artifacts/xemu/npc-jeep-gunner-20261003-130215/report.json`:240 frames, live probe182, one player gunner entry/exit, one rejected driver-seat switch, three real Jeep Gun projectile launches, zero new launches/ammo spending after release, preserved NPC driver UID7646/host7629 and distinct player ownership. NPC route commands advance62 to120 between probe/final; retained chassis positions move from[.09231,-.62784,4.93260] to[.46048,-1.24691,10.71078] across that interval. Final telemetry verifies player link and gunner slot released while the NPC driver remains. Native free pages2878 (11.24MiB).
 
-This proves bounded boarding, shared ownership, firing dispatch and safe exit. Shared-occupancy saves, projectile damage/source attribution in a target encounter, driver/host death ejection and visual/audio presentation remain open or unverified. The failed high-spawn attempts above are retained as diagnosis, not remaining runtime failures. No source collision policy was loosened.
+This proves bounded boarding, shared ownership, firing dispatch and safe exit. Current-session gunner loads, projectile damage/source attribution in a target encounter, driver/host death ejection and visual/audio presentation remain open or unverified. The failed high-spawn attempts above are retained as diagnosis, not remaining runtime failures. No source collision policy was loosened.

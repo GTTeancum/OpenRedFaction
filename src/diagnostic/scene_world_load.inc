@@ -30,6 +30,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_turret_checkpoint_stage *turrets=NULL;
     scene_turret_generated_checkpoint_stage *generated=NULL;
     scene_npc_seat_checkpoint_stage *seats=NULL;
+    scene_jeep_gunner_checkpoint_stage *gunner=NULL;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
     uint32_t vehicle_present=0,vehicle_base=0,vehicle_bytes=0,authored_terrain=0,authored_cuts=0;
     const unsigned char *vehicle_data=NULL;
@@ -195,6 +196,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
     status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
     status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
+    phase="gunner";if(cost>budget){status=RF_RANGE;goto done;}
+    status=scene_jeep_gunner_checkpoint_prepare(stream,seats,vehicle_present?&vehicle:NULL,&player,budget-cost,&gunner);
+    if(status)goto done;cost+=scene_jeep_gunner_checkpoint_bytes(gunner);
     status=scene_turret_generated_world_admit(generated,world->npcs,&player,
         vehicle_present?&vehicle:NULL,(uint32_t)campaign_authored_vehicle_uid,passive,turrets);if(status)goto done;
     status=scene_turret_generated_attack_admit(world->npcs,generated);if(status)goto done;
@@ -210,6 +214,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     /* Publish validated world owners before restoring the occupied vehicle:
      * driver possession needs the saved player body and health in place. */
     scene_npc_seat_checkpoint_detach(seats);
+    scene_jeep_gunner_checkpoint_host_assign(stream,gunner);
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_passive_vehicle_checkpoint_assign(passive);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
@@ -245,7 +250,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         memcpy(rf_scene_player_form+6,&campaign_player_damage.state.effects.armor,4);
     }
     campaign_ammo_publish();
-    if(vehicle_present && vehicle.value.vehicle.player_occupied){
+    if(gunner)scene_jeep_gunner_checkpoint_player_assign(stream,gunner);
+    else if(vehicle_present && vehicle.value.vehicle.player_occupied){
         phase="vehicle_publish";stream->vehicle_record=vehicle;stream->player_checkpoint_value=player.player;
         status=scene_vehicle_checkpoint_publish(stream);if(status)goto done;
     }
@@ -276,6 +282,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
     scene_ai_projectile_checkpoint_discard(&projectiles);
+    scene_jeep_gunner_checkpoint_close(&gunner);
     scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_turret_generated_checkpoint_close(&generated);scene_npc_seat_checkpoint_close(&seats);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
 }
