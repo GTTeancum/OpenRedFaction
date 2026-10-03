@@ -2,7 +2,8 @@
 #define RF_SCENE_JEEP_SEATS_INC
 /* Include after entry, player publication and NPC-gunner adapters. Single-player
  * role switch: same registered host/session/occupant, no fabricated NPC driver.
- * A separate gunner session beside an authored NPC driver cannot switch roles.
+ * An occupied NPC driver blocks switching; a separate adapter promotes the
+ * gunner after driver detach when the Jeep is parked and the path is clear.
  * Host.driver remains the possession owner token even in gunner role; parent
  * MUST gate steering with can_steer and gunfire with can_fire. Parked policy:
  * speed <=.1m/s, angular speed<=.1rad/s. World/mover sphere-center chords follow

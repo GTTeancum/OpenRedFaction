@@ -93,7 +93,7 @@ static int scene_jeep_npc_gunner_use(scene_driller_entry_exit *e,
     ++rf_scene_jeep_npc_gunner[0];return RF_OK;
 }
 /* Invoked AFTER the seat-switch edge has been consumed, before its single
- * driver invariants. No mid-session promotion even after NPC driver death. */
+ * driver invariants. Empty-driver promotion is handled separately before this. */
 static uint32_t scene_jeep_npc_gunner_blocks_switch(const scene_driller_entry_exit *e)
 {
     if(!scene_jeep_npc_gunner_active(e))return 0;

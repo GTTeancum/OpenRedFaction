@@ -12,6 +12,7 @@
 #include "scene_driller_player_adapter.inc"
 #include "scene_jeep_npc_gunner.inc"
 #include "scene_jeep_seats.inc"
+#include "scene_jeep_gunner_driver_transfer.inc"
 #include "scene_driller_audio.inc"
 #include "scene_driller_actor_collision.inc"
 #include "scene_driller_damage_runtime.inc"
@@ -504,6 +505,7 @@ static int scene_driller_runtime_open(scene_stream *s)
      * voice only after that reset and its initial authored scheduling. */
     s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));
     memset(rf_scene_jeep_npc_gunner,0,sizeof(rf_scene_jeep_npc_gunner));
+    memset(rf_scene_jeep_driver_transfer,0,sizeof(rf_scene_jeep_driver_transfer));
     memset(rf_scene_jeep_gunner_restore,0,sizeof(rf_scene_jeep_gunner_restore));
     memset(rf_scene_jeep_entry_probe,0,sizeof(rf_scene_jeep_entry_probe));
     memset(rf_scene_seated_path_probe,0,sizeof(rf_scene_seated_path_probe));
@@ -692,8 +694,9 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         }
         if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
     }
-    if(rf_scene_vehicle_enabled==3){uint32_t seat_changed=0;
-        status=scene_jeep_seats_tick(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed);if(status)goto fail;
+    if(rf_scene_vehicle_enabled==3){uint32_t seat_changed=0,seat_handled=0;
+        status=scene_jeep_gunner_driver_transfer(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed,&seat_handled);if(status)goto fail;
+        if(!seat_handled)status=scene_jeep_seats_tick(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed);if(status)goto fail;
         if(seat_changed){s->apc_aim_active=0;++rf_scene_jeep_seats[3];}
     }
     if(frame && r->entry.session.active)r->driver_seconds+=scene_step_seconds;
