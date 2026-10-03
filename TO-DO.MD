@@ -21,7 +21,7 @@ Remaining first-playable work, grouped for planning:
 - Moving APC exits: Stock-64-MiB Xbox verifies Use exit at1.20m/s against the final chassis pose, full ownership release and subsequent on-foot movement; crowded/wreck exits remain (docs/APC-MOVING-EXIT.md).
 - NPC rotating support: Xbox verifies rotation, accepted point velocity, natural support loss and static landing; the narrowed own-support collision retry compiles but was not exercised, while walking riders and rotating-support saves remain open (docs/NPC-CARRY-COLLISION.md).
 - Flame persistence: Burning-target saves now restore damage cadence and pain state on Xbox alongside canister/stream saves; removed-source attribution, pending-throw/reload coverage and presentation remain open (docs/FLAME-PICKUP-FIRST-PASS.md).
-- Corpse persistence: Settled and in-progress single-clip skeletal deaths save and restore their owned bodies on Xbox without duplicate death effects; corpse age/fade/effects and static turret bodies remain open.
+- Corpse persistence: Xbox now restores skeletal body age/fade, retires expired source actors once and saves the five retained bodies without replaying death effects; burning/carried/moving bodies and broader lifetime cases remain open (docs/CORPSE-LIFETIME-CHECKPOINT.md).
 
 Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
 
@@ -6000,3 +6000,11 @@ Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordin
 - Stock64MiB source saves at80frames with one flight, cooldown29 and reload51; the unprotected reload confirms one impact/player death, then a protected fixture reload of the same payload completes exactly one shell transfer without launching a replacement shot.
 - PASS: artifacts/xemu/fusion-flight-save-20260930-112559/report.json, source artifacts/xemu/fusion-flight-save-20260930-112154/save/xbox-world.rfwc. World30448 bytes, flight component128 bytes, endpoint headroom at least4621 pages (18.05MiB), disc restored and NXDK build passed.
 - Controller-only rows, mixed flights, in-session rewind, underwater impact and animation/effect presentation remain outside this bounded check; no PC runtime, images or campaign traversal.
+
+
+### Corpse lifecycle and ordinary save continuation (2026-10-03)
+
+- Integrated prepared retention/fade submission, source actor retirement and RFCL1 lifetime companion into the ordinary Xbox engine path; no second timer or corpse pool.
+- Stock64MiB source92/load120 PASS restores six exact age/fade owners, expires UID913100 once, and writes a valid final save with its retired identity plus five retained bodies; no replayed death/audio/loot events.
+- Evidence: artifacts/xemu/corpse-fade-save-20261003-132725/report.json; NXDK build passes, minimum endpoint3126 free pages (12.21MiB), original disc inputs restored. No visual/audio playback claim or PC runtime test.
+- Burning/carried/moving bodies, timer-wrap age and broader retention cases remain deferred. Overall estimate stays approximately88%; current high-level work is AI and actor lifecycle (approximately90%).

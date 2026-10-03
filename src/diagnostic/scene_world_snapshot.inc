@@ -109,7 +109,9 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(!status&&RF_PLAYER_CHECKPOINT_BYTES>RF_CHECKPOINT_FILE_MAX-at)status=RF_RANGE;
     if(!status)status=rf_player_checkpoint_encode(&player,&catalog,buffer+at,RF_PLAYER_CHECKPOINT_BYTES);
     bytes=RF_PLAYER_CHECKPOINT_BYTES;SNAP_END(RF_WORLD_PLAYER);
-    SNAP_START("npc");status=scene_npc_checkpoint_export_mode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes,1);SNAP_END(RF_WORLD_NPC);
+    SNAP_START("npc");scene_corpse_lifetime_checkpoint_scope(1);
+    status=scene_npc_checkpoint_export_mode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes,1);
+    scene_corpse_lifetime_checkpoint_scope(0);SNAP_END(RF_WORLD_NPC);
     SNAP_START("mover");status=rf_scene_mover_checkpoint_export(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_MOVER);
     SNAP_START("events");memset(rf_scene_world_snapshot_event_probe,0,sizeof(rf_scene_world_snapshot_event_probe));
     rf_scene_world_snapshot_event_probe[0]=1;
@@ -186,6 +188,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         const rf_world_checkpoint_slice *npc=bundle.sections+RF_WORLD_NPC-1;
         status=scene_turret_generated_world_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,
             bytes,combat_frame,2u*1024u*1024u,identity.bytes,npc->data,npc->bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
+        status=scene_corpse_lifetime_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,now,&wrapped);
         if(!status)bytes=wrapped;
     }
     SNAP_END(RF_WORLD_VEHICLE);

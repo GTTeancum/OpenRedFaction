@@ -54,8 +54,11 @@ static int scene_corpse_checkpoint_death_capture(uint32_t slot,const rf_entity_p
            corpse->uid!=(uint32_t)campaign_seeds.records.items[slot].record.uid||
            corpse->class_index!=campaign_seeds.items[slot].class_index||corpse->deletion.lifecycle||
            corpse->deletion.burn||corpse->deletion.emitters||corpse->extra_model||
-           corpse->update.item_2cc!=-1||(corpse->update.fade.flags_29c&9u)||
+           corpse->update.item_2cc!=-1||(corpse->update.fade.flags_29c&8u)||
            (corpse->update.fade.object_flags_7c&(2u|0x4000u))) {status=RF_NOT_FOUND;goto fail;}
+        if(corpse->update.fade.flags_29c&1u){
+            status=scene_corpse_lifetime_checkpoint_fading(owner);if(status)goto fail;
+        }
     }
     if(!found){status=RF_NOT_FOUND;goto fail;}
     ++rf_scene_corpse_unsettled_checkpoint[0];

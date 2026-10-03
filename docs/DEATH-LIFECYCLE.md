@@ -2,14 +2,31 @@
 
 # Death lifecycle reconstruction
 
+Current replacement-body audit: only Stationary Turret and Stationary
+Turret_Plain declare installed replacement meshes, and both now use the
+integrated static turret resource/death/render/save path. No installed skeletal
+NPC replacement remains to implement. The actual pending corpse lifetime-save
+extension is documented in [CORPSE-LIFETIME-CHECKPOINT.md](CORPSE-LIFETIME-CHECKPOINT.md);
+its RFCL1 helper is integrated with the live lifecycle and source retirement.
+The native result is recorded in that companion document.
+
 The live campaign has a first-pass death gate, isolated-testbed in-place
 respawn and Xbox campaign save-or-restart recovery. Full original
 death-start/dying-update, game-over presentation and authored checkpoints
 remain unfinished.
 
+## Xbox lifecycle integration (2026-10-03)
+
+The combined stock64MiB source92/load120 check passes: exact fade/age restore,
+one source retirement, five retained bodies, and a valid post-retirement save.
+No death/loot/audio replay; no visual or audio playback claim. Evidence and
+remaining limits: [CORPSE-LIFETIME-CHECKPOINT.md](CORPSE-LIFETIME-CHECKPOINT.md).
+The preparation notes below describe the integrated hooks; the combined check
+supersedes their earlier pending runtime/age-save status.
+
 ## Bounded live corpse retention and fade submission (2026-09-30)
 
-`scene_corpse_lifecycle.inc` is prepared, not yet integrated or Xbox-validated.
+`scene_corpse_lifecycle.inc` is integrated as of2026-10-03.
 It connects the existing corpse retention/update state to actual opacity.
 The existing constructor already retains the newest five eligible bodies,
 selects the oldest excess by creation time/list order and starts fade298 at1.
@@ -25,7 +42,7 @@ the original retention/deletion state remains unchanged. Negative-health and
 hidden/deleted corpses submit no geometry. The wrapper restores the previous
 model backend on every return and rolls back partial CPU mesh counts on error.
 
-Parent hooks, with no other owner/renderer changes:
+Integrated hooks, with no other owner/renderer changes:
 
 1. Include `scene_corpse_lifecycle.inc` immediately after
    `scene_npc_render_family` and before `scene_npc_draw`.
@@ -54,14 +71,14 @@ reduced owned-pose bytes and zero lifecycle errors. Pool prefixes and existing
 model registration counters verify actual resource ownership, not merely a
 frame counter. It also checks stock64MiB and restores the disc/build inputs.
 `--prepare-only` validated the copied asset/event structure; Python syntax
-passed. The harness has not run XEMU. Native submission telemetry cannot prove
+passed. The combined fade-save harness exercises these hooks. Native submission telemetry cannot prove
 visual appearance and no screenshots are requested.
 
 Functional retirement companion: `scene_corpse_source_retirement.inc` closes
 the case where visual corpse deletion frees the owned pose but leaves its dead
 source NPC registered/nonretired. That stale actor can make the next ordinary
-save reject the cleared pose and can retain invisible physics. The new helper
-is also source-only pending parent integration/native verification.
+save reject the cleared pose and can retain invisible physics. The helper
+is integrated at successful live corpse expiry.
 
 After successful live corpse expiry, `scene_corpse_source_retire(model,uid)`
 verifies the exact model-slot/source-UID/persistence identity, fatal health and
@@ -83,7 +100,7 @@ in `src/core/event.c` treats an already-resolved, unregistered identity as known
 absence/death. This helper does not issue a second watcher pulse; the event's
 existing death_fired guard remains authoritative.
 
-Exact retirement hooks:
+Integrated retirement hooks:
 
 1. Include the source-retirement companion after generated retirement and the
    NPC checkpoint helpers (the same late region as the runtime retirement

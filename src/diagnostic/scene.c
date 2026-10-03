@@ -4779,6 +4779,13 @@ static uint32_t *campaign_live_corpse_item(void *context,int32_t id)
 static const rf_corpse_delete_backend campaign_live_corpse_delete_backend={
     campaign_live_corpse_delete_effect,campaign_live_corpse_item,NULL};
 static void scene_corpse_checkpoint_reset(void);
+static void scene_corpse_lifecycle_reset(void);
+static void scene_corpse_source_retirement_reset(void);
+static int scene_corpse_source_retire(uint32_t model,uint32_t uid);
+static void scene_corpse_lifetime_checkpoint_reset(void);
+static int scene_corpse_lifetime_checkpoint_apply(int32_t now);
+static void scene_corpse_lifetime_checkpoint_scope(uint32_t enabled);
+static int scene_corpse_lifetime_checkpoint_fading(const rf_corpse_owned *owner);
 static int campaign_live_corpses_open(void)
 {
     int status=rf_corpse_owners_init(&campaign_live_corpses,sizeof(campaign_live_corpses)+32*1024);
@@ -4786,7 +4793,9 @@ static int campaign_live_corpses_open(void)
     campaign_live_corpse_head.next=campaign_live_corpse_head.previous=&campaign_live_corpse_head;
     campaign_live_corpse_objects.next=campaign_live_corpse_objects.previous=&campaign_live_corpse_objects;
     campaign_live_corpse_count=campaign_live_corpse_object_count=0;
-    memset(rf_scene_live_corpses,0,sizeof(rf_scene_live_corpses));scene_corpse_checkpoint_reset();return RF_OK;
+    memset(rf_scene_live_corpses,0,sizeof(rf_scene_live_corpses));scene_corpse_checkpoint_reset();
+    scene_corpse_lifecycle_reset();scene_corpse_source_retirement_reset();
+    scene_corpse_lifetime_checkpoint_reset();return RF_OK;
 }
 static void campaign_live_corpses_close(void)
 {
@@ -4857,8 +4866,10 @@ static void campaign_live_corpse_create(uint32_t slot)
 static int scene_corpse_checkpoint_pose_refresh(rf_corpse_owned *,float *);
 static int campaign_live_corpses_tick(float elapsed,int32_t now)
 {
-    scene_corpse_checkpoint_tick();
     uint32_t i;int status;float pending[3];
+    scene_corpse_checkpoint_tick();
+    status=scene_corpse_lifetime_checkpoint_apply(now);
+    if(status){++rf_scene_live_corpses[7];return status;}
     for(i=0;i<RF_CORPSE_CAPACITY;++i)if(campaign_live_corpses.pool.active_mask&(1u<<i)) {
         rf_corpse_owned *owner=campaign_live_corpses.slots+i;
         memset(pending,0,sizeof(pending));
@@ -4867,9 +4878,12 @@ static int campaign_live_corpses_tick(float elapsed,int32_t now)
         if(status){++rf_scene_live_corpses[7];return status;}
         ++rf_scene_live_corpses[4];
         if(owner->corpse.update.fade.object_flags_7c&2u) {
+            uint32_t model=owner->corpse.update.model,uid=owner->corpse.uid;
             status=rf_corpse_owned_delete(&campaign_live_corpses,i,&campaign_registry,
                 &campaign_live_corpse_count,&campaign_live_corpse_object_count,0,
                 &campaign_live_corpse_delete_backend);
+            if(status){++rf_scene_live_corpses[7];return status;}
+            status=scene_corpse_source_retire(model,uid);
             if(status){++rf_scene_live_corpses[7];return status;}
             ++rf_scene_live_corpses[5];
         }
@@ -12905,6 +12919,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_event_history.inc"
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
+#include "scene_corpse_lifetime_checkpoint.inc"
 #include "scene_turret_checkpoint.inc"
 #include "scene_turret_generated_checkpoint.inc"
 #include "scene_turret_generated_retirement_checkpoint.inc"
@@ -14690,6 +14705,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 #include "scene_script_explode_runtime.inc"
 #include "scene_turret_death_effects.inc"
 #include "scene_turret_generated_retirement.inc"
+#include "scene_corpse_source_retirement.inc"
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -17720,6 +17736,7 @@ static int scene_npc_render_family(void *context,uint32_t kind)
     if(retained || stream->mesh->count>start_actor)++rf_scene_npc_draw[1];
     return RF_OK;
 }
+#include "scene_corpse_lifecycle.inc"
 static int scene_npc_draw(scene_stream *stream,uint32_t frame)
 {
     rf_model_render_buffers buffers;rf_model_lighting lights={0};
@@ -17771,7 +17788,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         if(!pose || !campaign_model_owners[slot].owned)return RF_RANGE;
         context=(scene_npc_render_context){stream,slot,pose,&buffers,&lights,&attributes,&planes,&projection};
         rf_scene_npc_draw_detail[0]=slot;
-        status=scene_npc_render_family(&context,0);if(status)return status;
+        status=scene_corpse_lifecycle_draw(&context,corpse);if(status)return status;
         ++rf_scene_live_corpses[2];rf_scene_live_corpses[3]+=rf_scene_npc_draw[1]-before;
     }
     rf_scene_npc_draw[2]=stream->mesh->count-start_all;
