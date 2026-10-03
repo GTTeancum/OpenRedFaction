@@ -849,7 +849,7 @@ typedef struct scene_stream {
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
-    rf_level_owned_items pickups;uint8_t *pickup_taken;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
+    rf_level_owned_items pickups;uint8_t *pickup_taken,*pickup_state;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
     rf_weapon_flight rockets[SCENE_ROCKETS];rf_weapon_flight_liquid_state rocket_liquid[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
     scene_rocket_visual *rocket_visual,*ripple_visual,*fusion_visual,*fighter_rocket_visual;rf_level rocket_camera;
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
@@ -1393,7 +1393,7 @@ static int scene_fire_setup_event(uint32_t uid,int32_t now)
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
             campaign_events.items[i].state.delay=delay;return status;
         }
-        if(campaign_events.items[i].state.type==81 || campaign_events.items[i].state.type==82 || campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
+        if(campaign_events.items[i].state.type==54 || campaign_events.items[i].state.type==81 || campaign_events.items[i].state.type==82 || campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
            campaign_events.items[i].state.type==49 || campaign_events.items[i].state.type==9 ||
            campaign_events.items[i].state.type==50)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
@@ -11533,6 +11533,7 @@ static void scene_turret_heap_reset(void);
 static uint32_t scene_turret_heap_pending(void);
 #include "scene_turret_scene_combat.inc"
 #include "scene_turret_player.inc"
+#include "scene_item_pickup_state.inc"
 static int campaign_pickups_restore(scene_stream *stream)
 {
     uint32_t i,slot;int status;
@@ -11581,9 +11582,11 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
     for(i=0;i<stream->pickups.count;i++) {
         const rf_level_item *item=stream->pickups.items+i;float delta[3],distance=0;uint32_t k,blocked=0;rf_weapon_pickup_grant grant={0};int kind=pickup_class(item->class_name);float restored=0;const rf_item_definition *definition;
         if(stream->pickup_taken[i] || kind<0)continue;
-        definition=kind?&stream->pickup_resources[kind-1].definition:&stream->handgun_pickup;if(definition->flags&1)continue;
+        definition=kind?&stream->pickup_resources[kind-1].definition:&stream->handgun_pickup;
         for(k=0;k<3;k++){float d=item->position[k]-scene_actor_body.state.position[k];distance+=d*d;delta[k]=item->position[k]-eye[k];}
-        if(distance>4)continue;++rf_scene_pickups[1];
+        if(distance>4)continue;
+        if(!scene_item_pickup_enabled(stream,i,definition)){scene_item_pickup_blocked(stream,i);continue;}
+        ++rf_scene_pickups[1];
         status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status){printf("PICKUP_COVER_ERROR %u %d\n",item->uid,status);return status;}
         if(blocked){++rf_scene_pickups[2];continue;}
         if(item->quantity<0)return RF_FORMAT;
@@ -19372,6 +19375,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_burning_reset();
     scene_script_ignite_reset();
     scene_scripted_disarm_reset();
+    scene_item_pickup_state_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -19570,6 +19574,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_player_form=campaign_set_player_form;campaign_triggers.player_form_context=stream;
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.remove_item=campaign_remove_item;campaign_triggers.removal_item_context=stream;
+            campaign_triggers.set_item_pickup_state=campaign_set_item_pickup_state;campaign_triggers.pickup_state_context=stream;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
@@ -19624,6 +19629,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=12;status=rf_level_owned_items_open(level,256*1024,&stream->pickups);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             stream->pickup_taken=calloc(stream->pickups.count?stream->pickups.count:1,1);if(!stream->pickup_taken){status=RF_IO;goto done;}
+            stream->pickup_state=calloc(stream->pickups.count?stream->pickups.count:1,1);if(!stream->pickup_state){status=RF_IO;goto done;}
             stream->pickup_slots=calloc(stream->pickups.count?stream->pickups.count:1,sizeof(*stream->pickup_slots));
             if(!stream->pickup_slots){status=RF_IO;goto done;}
             status=campaign_pickups_restore(stream);if(status)goto done;
@@ -20287,7 +20293,7 @@ done:
     if(stream->rocket_visual){rf_vfx_asset_materials_close(&stream->rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->rocket_visual->geometry);free(stream->rocket_visual);}
     if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}
-    rf_level_owned_items_close(&stream->pickups);free(stream->pickup_taken);free(stream->pickup_slots);
+    rf_level_owned_items_close(&stream->pickups);free(stream->pickup_taken);free(stream->pickup_state);free(stream->pickup_slots);
     free(stream->npc_memory);free(stream->npc_indices);free(stream->npc_pool);
     rf_level_visibility_close(&stream->visibility);
     free(stream->light_scratch_memory);

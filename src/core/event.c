@@ -885,6 +885,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     if(state->type==20) {
         c->status=rf_event_cycle_enable(&c->event->cycle,action==1);return;
     }
+    if(state->type==54) {
+        /* Original4b9290/4ba090 resolve only items and clear/set item2bc bit0.
+         * Placed port items retain authored UIDs without registry handles. */
+        if(!c->triggers->set_item_pickup_state){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            int status=c->triggers->set_item_pickup_state(c->triggers->pickup_state_context,
+                c->event->authored->links[i],action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==81 || state->type==82) {
         int (*effect)(void *,uint32_t);void *effect_context;
         /* Original4b9f80: both OFF actions return at4ba008;4b8c40
@@ -1457,6 +1469,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==49 && triggers->monitor_state) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
+           !(event->state.type==54 && triggers->set_item_pickup_state) &&
            !(event->state.type==81 && triggers->drop_npc_weapon) &&
            !(event->state.type==82 && triggers->ignite_npc) &&
            !(event->state.type==4 && triggers->teleport_npc) &&

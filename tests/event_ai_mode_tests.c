@@ -95,11 +95,76 @@ static int npc_linked_action_dispatch_test(uint32_t type)
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,500,&gravity,NULL,NULL,&report)==RF_IO && c.count==8);
     return 0;
 }
+typedef struct pickup_state_test_context {
+    uint32_t flags[2],trace[24],enabled[24],count,attempts;int failure;
+} pickup_state_test_context;
+static int pickup_state_link(void *context,uint32_t uid,uint32_t enabled)
+{
+    pickup_state_test_context *c=context;uint32_t slot;
+    ++c->attempts;
+    if(uid!=4037 && uid!=4038)return RF_NOT_FOUND;
+    if(c->failure)return c->failure;
+    if(c->count>=24 || enabled>1)return RF_RANGE;
+    slot=uid-4037;
+    if(enabled)c->flags[slot]&=~1u;else c->flags[slot]|=1u;
+    c->trace[c->count]=uid;c->enabled[c->count++]=enabled;return RF_OK;
+}
+static int pickup_state_downstream(void *context,const rf_level_event *event)
+{
+    pickup_state_test_context *c=context;(void)event;
+    if(c->count>=24)return RF_RANGE;
+    c->trace[c->count]=UINT32_MAX;c->enabled[c->count++]=1;return RF_OK;
+}
+static int pickup_state_dispatch_test(void)
+{
+    rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
+    rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
+    rf_physics_gravity gravity={0};rf_startup_events_report report;
+    rf_level_link_target links[5]={{0}},off={0};uint32_t uids[]={4037,4040,4038,4037,9000},pending,i;
+    pickup_state_test_context c={{0xa5,0x22}};
+    rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=items;events.count=3;
+    for(i=0;i<3;i++) {
+        items[i].object_kind=6;items[i].authored=authored+i;items[i].state.deadline=-1;
+        CHECK(rf_object_registry_insert(&registry,items+i,&items[i].handle)==RF_OK);
+    }
+    /* Real placed pickups have no registry entry: resolved kind0 must work.
+     * Missing UID4040 and linked event9000 are rejected by the item backend. */
+    items[0].state.type=54;items[0].links=links;authored[0].links=uids;authored[0].record.link_count=5;
+    items[1].state.type=63;links[4].kind=1;links[4].value=items[1].handle;
+    items[2].state.type=3;items[2].links=&off;authored[2].record.link_count=1;off.kind=1;off.value=items[0].handle;
+    triggers.set_item_pickup_state=pickup_state_link;triggers.pickup_state_context=&c;
+    triggers.teleport_player=pickup_state_downstream;triggers.teleport_context=&c;
+    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,100,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(c.count==4 && c.attempts==5 && c.flags[0]==0xa4 && c.flags[1]==0x22);
+    CHECK(c.trace[0]==4037 && c.trace[1]==4038 && c.trace[2]==4037 && c.trace[3]==UINT32_MAX);
+    CHECK(c.enabled[0]==1 && c.enabled[1]==1 && c.enabled[2]==1);
+    CHECK(rf_runtime_event_fire(&triggers,items[2].handle,7,8,110,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(c.count==7 && c.attempts==10 && c.flags[0]==0xa5 && c.flags[1]==0x23);
+    CHECK(c.trace[4]==4037 && c.trace[5]==4038 && c.trace[6]==4037 && !c.enabled[4] && !c.enabled[5] && !c.enabled[6]);
+    items[0].state.delay=.25f;
+    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,200,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(items[0].state.deadline==450 && c.count==7);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,449,NULL,NULL,&report,&pending)==RF_OK && c.count==7);
+    triggers.set_item_pickup_state=NULL;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && pending==1 && c.count==7);
+    triggers.set_item_pickup_state=pickup_state_link;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && !pending);
+    CHECK(c.count==11 && c.attempts==15 && c.flags[0]==0xa4 && c.flags[1]==0x22 && c.trace[10]==UINT32_MAX);
+    /* OFF retains its own ordinary delayed mode, instead of becoming ON. */
+    CHECK(rf_runtime_event_fire(&triggers,items[2].handle,7,8,500,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(items[0].state.deadline==750 && c.count==11);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,750,NULL,NULL,&report,&pending)==RF_OK && !pending);
+    CHECK(c.count==14 && c.attempts==20 && c.flags[0]==0xa5 && c.flags[1]==0x23 && !c.enabled[11]);
+    items[0].state.delay=0;c.failure=RF_IO;
+    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,800,&gravity,NULL,NULL,&report)==RF_IO && c.count==14);
+    return 0;
+}
 int main(void)
 {
     CHECK(npc_linked_action_dispatch_test(4)==0);
     CHECK(npc_linked_action_dispatch_test(81)==0);
     CHECK(npc_linked_action_dispatch_test(82)==0);
+    CHECK(pickup_state_dispatch_test()==0);
     rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
     rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
     rf_physics_gravity gravity={0};rf_startup_events_report report;
@@ -141,5 +206,5 @@ int main(void)
     CHECK(form_calls==1 && form_variant==1 && form_enabled==1 && form_now==1700);
     CHECK(rf_runtime_event_fire(&triggers,items[1].handle,7,8,1800,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(form_calls==2 && form_variant==1 && form_enabled==0 && form_now==1800);
-    puts("NPC teleport/disarm/ignition ordering/delay and AI mode/undercover ON/OFF dispatch passed");return 0;
+    puts("NPC teleport/disarm/ignition, pickup-state ordering/delay and AI mode/undercover ON/OFF dispatch passed");return 0;
 }

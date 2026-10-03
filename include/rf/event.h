@@ -473,6 +473,12 @@ typedef struct rf_runtime_triggers {
     void *drop_weapon_context;
     int (*ignite_npc)(void *context,uint32_t handle);
     void *ignite_context;
+    /* Item_Pickup_State54: ordered authored item UIDs, including unregistered
+     * placed items. ON enables collection (original item2bc bit0 clear); OFF
+     * disables it (bit0 set). NOT_FOUND skips non-item/retired UIDs. The scene
+     * owns item state; normal event propagation follows the item changes. */
+    int (*set_item_pickup_state)(void *context,uint32_t uid,uint32_t enabled);
+    void *pickup_state_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
