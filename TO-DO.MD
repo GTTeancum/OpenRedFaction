@@ -13,6 +13,7 @@ Remaining first-playable work, grouped for planning:
 
 - Scripted pickup availability: Stock64MiB Xbox verifies OFF prevents nearby collection and the original delayed Switch enables one normal health pickup; save/revisit state and presentation remain (docs/ITEM-PICKUP-STATE.md).
 - Vehicle wreck escape: Stock64MiB Xbox verifies scripted Jeep destruction and one safe living-driver exit with ownership cleared and no snapback; moving/crowded exits, passive Slay, player ejection and saves remain (docs/NPC-JEEP-WRECK-EXIT.md).
+- Vehicle selection: Xbox verifies authored fallback selection, normal Jeep boarding and motion outside the old section list; three additional SP hosts pass the metadata audit, while runtime switching, new Fighter selection and old passive-only save migration remain (docs/VEHICLE-SELECTION-PREP.md).
 - Vehicle physics saves: Stock64MiB Xbox verifies occupied Jeep freeze, exact ordinary-save/fresh-load and resumed retained route after wake; Driller-specific automatic exit, passive vehicles and frozen voluntary exit remain unverified (docs/VEHICLE-PHYSICS-SAVE.md).
 - NPC scripted physics: Linked freeze/wake works on Xbox; ordinary saves reject frozen NPCs until their state is serialized, and prop persistence remains open (docs/VEHICLE-PHYSICS-STATE.md).
 - Active integration: Keep all helpers on vehicles until the current physics freeze/wake, safe exit and save/load slice is integrated; parent owns shared scene changes and serial Xbox checks.

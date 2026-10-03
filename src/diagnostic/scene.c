@@ -318,24 +318,16 @@ static int32_t campaign_authored_vehicle_uid;
 static uint32_t campaign_authored_vehicle_handle;
 static float campaign_authored_vehicle_position[3],campaign_authored_vehicle_basis[9];
 uint32_t rf_scene_player_spawn_diagnostic[19];
+static uint32_t campaign_vehicle_selection_fallback;
+#include "scene_vehicle_selection.inc"
 int rf_scene_set_campaign_spawn(const rf_level *level)
 {
-    static const struct {const char *level,*class_name;int32_t uid;uint32_t kind;} vehicles[]={
-        {"L1S2.rfl","Driller01",8122,1},
-        {"L1S3.rfl","APC",9627,2},
-        {"L5S3.rfl","sub",3963,4},
-        {"L5S4.rfl","sub",3955,4},
-        {"L10S3.rfl","sub",6794,4},
-        {"L12S1.rfl","Jeep01",7629,3},
-        {"L13S3.rfl","Fighter01",8955,5},
-        {"L18S2.rfl","Fighter01",10066,5}};
-    unsigned i,j;rf_level_entity vehicle;int status;
-    /* Original level setup 435aeb resets gravity independently of jump strength. */
+    unsigned i,j;scene_vehicle_selection selected={0};int status;
+    /* Original level setup435aeb resets gravity independently of jump strength. */
     rf_physics_gravity_set(&scene_gravity,9.8f);
+    campaign_vehicle_selection_fallback=0;
     if(campaign_authored_vehicle_uid){
-        rf_scene_vehicle_enabled=0;
-        campaign_authored_vehicle_uid=0;
-        campaign_authored_vehicle_handle=0;
+        rf_scene_vehicle_enabled=0;campaign_authored_vehicle_uid=0;campaign_authored_vehicle_handle=0;
     }
     if(!level){campaign_spawn=0;memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));return RF_OK;}
     for(i=0;i<3;++i) {
@@ -343,20 +335,15 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
         for(j=0;j<3;++j)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
     }
     memcpy(campaign_position,level->player_position,12);memcpy(campaign_orientation,level->player_orientation,36);
-    if(!rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled)
-        for(i=0;i<sizeof(vehicles)/sizeof(vehicles[0]);++i)
-            if(!strcmp(level->entry.name,vehicles[i].level)){
-                status=rf_level_entity_find(level,vehicles[i].uid,&vehicle);if(status)return status;
-                if(strcmp(vehicle.class_name,vehicles[i].class_name))return RF_FORMAT;
-                for(j=0;j<3;++j){unsigned k;
-                    if(!isfinite(vehicle.position[j]))return RF_FORMAT;
-                    for(k=0;k<3;++k)if(!isfinite(vehicle.orientation[j][k]))return RF_FORMAT;
-                }
-                campaign_authored_vehicle_uid=vehicle.uid;
-                memcpy(campaign_authored_vehicle_position,vehicle.position,12);
-                memcpy(campaign_authored_vehicle_basis,vehicle.orientation,36);
-                rf_scene_vehicle_enabled=vehicles[i].kind;break;
-            }
+    if(!rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled){
+        status=scene_vehicle_select(level,&selected);if(status)return status;
+        if(selected.found){
+            campaign_authored_vehicle_uid=selected.entity.uid;
+            memcpy(campaign_authored_vehicle_position,selected.entity.position,12);
+            memcpy(campaign_authored_vehicle_basis,selected.entity.orientation,36);
+            rf_scene_vehicle_enabled=selected.profile;campaign_vehicle_selection_fallback=!selected.legacy;
+        }
+    }
     memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));
     rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
     memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;

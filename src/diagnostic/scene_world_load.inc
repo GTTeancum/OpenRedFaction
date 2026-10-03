@@ -157,6 +157,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="vehicle_physics";
     status=scene_vehicle_physics_checkpoint_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,&vehicle_physics,&vehicle_data,&vehicle_bytes);if(status)goto done;
     cost+=scene_vehicle_physics_checkpoint_bytes(vehicle_physics);
+    /* Old passive-only saves cannot silently become a different active owner. */
+    if(campaign_vehicle_selection_fallback && (!vehicle_bytes ||
+       (vehicle_bytes>=SCENE_PASSIVE_VEHICLE_HEADER && !memcmp(vehicle_data,"RFVA",4) && !scene_history_word(vehicle_data+8)))){
+        phase="vehicle_selection_legacy";status=RF_NOT_FOUND;goto done;
+    }
     if(vehicle_bytes>=4&&!memcmp(vehicle_data,"RFVA",4)){
         phase="passive_vehicle";
         status=scene_passive_vehicle_checkpoint_prepare(vehicle_data,vehicle_bytes,budget-cost,&passive);
