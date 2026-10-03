@@ -1,10 +1,10 @@
 # Linked NPC Teleport: implementation contract
 
-Prepared 2026-10-03. This is a bounded static audit of installed `RF.exe`, SHA256 `b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836`, plus a read-only scan of installed RFL records. No original game, reconstructed runtime, build or emulator was run. No implementation is claimed here.
+Prepared 2026-10-03. This is a bounded static audit of installed `RF.exe`, SHA256 `b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836`, plus a read-only scan of installed RFL records. No original game, reconstructed runtime, build or emulator was run. The static contract below is retained; implementation status is recorded at the end.
 
 ## Actual campaign demand
 
-Seven SP records use event type4, which current `src/core/event.c` does not dispatch or admit to the pending-action scheduler:
+Seven SP records use event type4, which was absent from `src/core/event.c` dispatch and pending-action scheduling at the start of this work:
 
 | Level | Event | Linked actor |
 | --- | --- | --- |
@@ -35,3 +35,11 @@ L12S1 destination is `(49.284691,-42.596020,190.100449)`. This is the real miner
 6. Focused future Xbox fixture: stage only original L12S1 event9711 and its real miner/Jeep pair; assert its2.6s delay, one detach, exact destination/basis, cleared NPC parent/host driver, Waiting2, and no seat snapback on subsequent ticks. An OFF control must leave pose/ownership unchanged. Add a small unseated Capek/guard case only if needed for the ordinary path. No campaign traversal is required.
 
 The addresses above are static disassembly evidence. Navigation helper internals, all attachment families and exact model/room notifications have not been exhaustively reconstructed. No standalone helper was added because event publication order and shared actor owners require coordinated integration.
+
+## Integrated first-pass NPC behavior
+
+`scene_npc_teleport.inc` now handles living registered NPC targets immediately, before downstream event propagation. Event4 ON supports ordinary delays and generation-checked ordered links; OFF does not relocate. The existing dispatcher unit target verifies ordering, stale handles, OFF, delayed scheduling and backend failure propagation.
+
+The adapter validates the event frame and all available owner state before releasing a real Jeep/turret seat. It clears old scripted movement/navigation and combat orders, selects Waiting2, publishes current/next body position and basis, rebuilds bounds/tensor, synchronizes model/eye position and refreshes the room. Linear and angular velocity, health and inventory are retained. Unknown parent families and non-NPC/dead owners return unsupported; item/clutter relocation remains open. Ordinary subsequent NPC movement normalizes roll because the shared look constructor does not represent it; the immediate event basis is preserved exactly. Stock64MiB Xbox PASS: `artifacts/xemu/npc-teleport-20261003-145904/report.json`,250 frames,2869 free pages. The original L12S1 event9711 and miner7646/Jeep7629 pair were staged in enemy-free CTF06; only entity placement and the event destination were relocated. Its original2.6-second delay, basis, actor links, health and loadout were retained. At frame181 the miner remained seated with no teleport calls. At3600ms the event applied once, published exact destination(4,0,-3) and original basis, set Waiting2, cleared the parent/host driver, and detached once. Later ordinary physics settled the miner to y=-0.3684786 with x/z unchanged and no seat snapback. NPC health1 and Jeep health400 remained intact; the immediate Jeep pose was unchanged. Fixture flags and the ordinary disc build were restored.
+
+The initial run `npc-teleport-20261003-145638` stopped at frame60 because the process-local setup allowlist omitted event4; adding ordinary type4 activation fixed the fixture without changing its delay or bypassing the event dispatcher. Core `rf_event_ai_mode_tests` separately passes ON ordering before propagation, stale-handle skipping, OFF no-op, delayed scheduling and failure propagation. No PC game run, campaign walkthrough or images were used. Native OFF, non-NPC objects, unknown attachment families, save continuation and visual/model presentation remain unverified; next-frame roll normalization remains the shared limitation described above.

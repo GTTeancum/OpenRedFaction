@@ -1393,7 +1393,7 @@ static int scene_fire_setup_event(uint32_t uid,int32_t now)
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
             campaign_events.items[i].state.delay=delay;return status;
         }
-        if(campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
+        if(campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
            campaign_events.items[i].state.type==49 || campaign_events.items[i].state.type==9 ||
            campaign_events.items[i].state.type==50)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
@@ -15946,6 +15946,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
 #include "scene_npc_seat_bind.inc"
+#include "scene_npc_teleport.inc"
 #include "scene_npc_seat_checkpoint.inc"
 #include "scene_npc_jeep_seat_save_admit.inc"
 #include "scene_apc_primary_runtime.inc"
@@ -19083,6 +19084,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_script_step(stream,scene_step_seconds,frame);
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
                 scene_passive_vehicle_npc_fixture_probe();
+                scene_npc_teleport_sample();
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
@@ -19360,6 +19362,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_turret_player_reset();
     scene_turret_player_checkpoint_reset();
     scene_turret_heap_reset();
+    scene_npc_teleport_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -19536,6 +19539,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             campaign_teleport_ready=campaign_teleport_pending=0;
             campaign_triggers.teleport_player=campaign_teleport_player;campaign_triggers.teleport_context=NULL;
+            campaign_triggers.teleport_npc=campaign_teleport_npc;campaign_triggers.npc_teleport_context=NULL;
             campaign_triggers.query_vitals=campaign_query_vitals;campaign_triggers.query_vitals_context=NULL;
             campaign_triggers.query_hit_flags=campaign_query_hit_flags;campaign_triggers.hit_flags_context=NULL;
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;

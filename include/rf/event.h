@@ -462,6 +462,11 @@ typedef struct rf_runtime_triggers {
     /* Non-consuming object7c read for When_Hit; clear signals after all observers. */
     int (*query_hit_flags)(void *,uint32_t handle,uint32_t *flags);
     void *hit_flags_context;
+    /* Teleport4 ON: ordered generation-valid links; backend admits NPC owners.
+     * Authored disk orientation is unchanged; NOT_FOUND skips other owners.
+     * Complete relocation/reset before common downstream event propagation. */
+    int (*teleport_npc)(void *context,uint32_t handle,const rf_level_event *event);
+    void *npc_teleport_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

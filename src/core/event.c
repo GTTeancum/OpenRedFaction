@@ -885,6 +885,20 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     if(state->type==20) {
         c->status=rf_event_cycle_enable(&c->event->cycle,action==1);return;
     }
+    if(state->type==4) {
+        if(action!=1)return; /* Original4b9f80 OFF maps to the no-op return. */
+        if(!c->triggers->teleport_npc){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            if(!rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->teleport_npc(c->triggers->npc_teleport_context,
+                link->value,&c->event->authored->record);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==63) {
         int status;if(action!=1)return;
         if(!c->triggers->teleport_player){++c->report->unsupported_actions;return;}
@@ -1425,6 +1439,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==49 && triggers->monitor_state) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
+           !(event->state.type==4 && triggers->teleport_npc) &&
            !(event->state.type==63 && triggers->teleport_player) &&
            !(event->state.type==56 && triggers->strip_weapons) &&
            !(event->state.type==19 && triggers->give_item) &&
