@@ -19385,6 +19385,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     scene_npc_rotating_fixture_seed(&campaign_seeds.records.items[0].record);
     return RF_OK;
 }
+#include "scene_vehicle_profile_resources.inc"
 #include "scene_world_boot_resources.inc"
 #include "scene_vehicle_switch_boot.inc"
 #include "scene_weapon_resource_demand.inc"
@@ -19831,12 +19832,6 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled && !campaign_authored_vehicle_uid)status=RF_RANGE;
-                 else if(rf_scene_vehicle_enabled>=2)status=scene_vehicle_resources_open(tables_path,rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
-                 else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
-                 if(status)printf("VEHICLE_RESOURCE_FAIL chassis %d\n",status);
-                 if(!status && rf_scene_vehicle_enabled==1)status=scene_driller_bit_animation_open(&stream->driller->tags,&archive,maps,map_count,512*1024,&stream->driller_bits);
-                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_cockpit_open(rf_scene_vehicle_enabled==5?"fighter01.vfx":rf_scene_vehicle_enabled==4?"sub.vfx":rf_scene_vehicle_enabled==3?"jeep.vfx":"APC.vfx",&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit):scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
-                 if(status)printf("VEHICLE_RESOURCE_FAIL cockpit %d\n",status);
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
                  stream->driller_basis[2]=-1;stream->driller_basis[4]=stream->driller_basis[6]=1;
                  if(rf_scene_vehicle_enabled==4){
@@ -19853,39 +19848,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                      memcpy(stream->driller_position,campaign_authored_vehicle_position,12);
                      memcpy(stream->driller_basis,campaign_authored_vehicle_basis,36);
                  }
-                 if(!status && rf_scene_vehicle_enabled==5){
-                     status=scene_fighter_weapon_open(&tables,&stream->driller->tags,"muzzle_1","secondary_1",512*1024,&stream->fighter_weapon);
-                     if(!status){stream->fighter_weapon.primary_reserve=(int32_t)stream->fighter_weapon.primary.capacity;
-                         stream->fighter_weapon.rocket_reserve=(int32_t)stream->fighter_weapon.rocket.capacity;}
-                 }
-                 if(!status && rf_scene_vehicle_enabled==2){
-                     status=scene_vehicle_primary_apc_open(&tables,&stream->driller->tags,512*1024,
-                         &stream->apc_primary.definition,&stream->apc_primary.scheduler,&stream->apc_primary.muzzle);
-                     stream->apc_primary.reserve=(int32_t)stream->apc_primary.definition.capacity;
-                     stream->apc_primary.random.value=1;memset(rf_scene_apc_primary,0,sizeof(rf_scene_apc_primary));
-                     if(!status)status=scene_apc_secondary_open(&tables,&stream->driller->tags,512*1024,&stream->apc_secondary);
-                     stream->apc_secondary.reserve=(int32_t)stream->apc_secondary.definition.capacity;
-                     memset(rf_scene_apc_secondary,0,sizeof(rf_scene_apc_secondary));
-                     if(!status)status=scene_vehicle_aim_limits_load(&tables,"APC",512*1024,&stream->apc_aim_limits);
-                     if(!status)status=scene_apc_secondary_visual_open(&archive,maps,map_count,512*1024,&stream->apc_mortar);
-                 }
-                 if(!status && rf_scene_vehicle_enabled==4){
-                     status=scene_submarine_weapon_open(&tables,&stream->driller->tags,"primary_1",512*1024,&stream->submarine_weapon);
-                     /* Explicit DEV supply, never implicit authored ownership. */
-                     if(!status)stream->submarine_weapon.reserve=(int32_t)stream->submarine_weapon.definition.capacity;
-                     if(!status)status=scene_submarine_weapon_model_open(&archive,maps,map_count,512*1024,&stream->submarine_torpedo);
-                 }
-                 if(!status && rf_scene_vehicle_enabled==1)status=scene_driller_weapon_open(&tables,&stream->driller->tags,512*1024,&stream->driller_weapon);
-                 if(!status && rf_scene_vehicle_enabled==3){
-                     status=scene_jeep_gun_resources_open(&archive,maps,map_count,&stream->driller->tags,576*1024,&stream->jeep_gun);
-                     if(!status)status=scene_vehicle_primary_load(&tables,"Jeep Gun",512*1024,&stream->apc_primary.definition);
-                     if(!status)stream->apc_primary.muzzle=stream->jeep_gun->muzzle;
-                     stream->apc_primary.reserve=(int32_t)stream->apc_primary.definition.capacity;
-                     stream->apc_primary.random.value=1;memset(rf_scene_apc_primary,0,sizeof(rf_scene_apc_primary));
-                     if(!status)status=scene_vehicle_aim_limits_load(&tables,"Jeep01",512*1024,&stream->apc_aim_limits);
-                 }
-                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_damage_open(rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC",&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024):scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
-                 if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
+                 if(!status)status=scene_vehicle_profile_resources_open(stream,rf_scene_vehicle_enabled,
+                     tables_path,&tables,&archive,maps,map_count);
              }
              for(i=0;i<campaign_passive_vehicle_count && !status;++i) {
                  uint32_t kind=campaign_passive_vehicles[i].resource_kind;
