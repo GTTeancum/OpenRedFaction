@@ -25,6 +25,7 @@ struct scene_driller_runtime {
     scene_driller_support_context support;scene_driller_entry_exit entry;
     scene_driller_damage_runtime damage;scene_driller_audio audio;rf_geomod_template shapes[2];scene_driller_live_contact contact;
     scene_driller_player_adapter player;uint32_t last_frame;float driver_seconds;
+    uint32_t scripted_physics,scripted_exit_pending;
 };
 #include "scene_driller_blast.inc"
 uint32_t rf_scene_vehicle_state[16];
@@ -665,7 +666,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
     scene_apc_exit_sample apc_exit;
-    uint32_t changed=0,was,use_edge,stage=0;int status;
+    uint32_t changed=0,was,use_edge,stage=0,controls,forced_exit;int status;
     if(!s->driller)return RF_OK;
     status=scene_driller_runtime_open(s);if(status)return status;r=s->driller_runtime;
     if(r->last_frame==frame)return RF_OK;
@@ -675,55 +676,56 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     if(!r->entry.session.active)
         memcpy(r->entry.eye_offset,rf_scene_actor_initial_eye_offsets,12);
     was=r->entry.session.active;use_edge=player_input.use&&!r->entry.held;
-    scene_apc_exit_begin(&apc_exit,&r->entry,frame);
+    controls=scene_vehicle_physics_allows_control(s);forced_exit=r->scripted_exit_pending;
+    /* A scripted release owns this frame's exit transaction. In particular,
+     * an awake immune chassis must exit at its final pose, just like an APC,
+     * without also running the voluntary Use or destruction exit paths. */
+    memset(&apc_exit,0,sizeof(apc_exit));
+    if(!forced_exit)scene_apc_exit_begin(&apc_exit,&r->entry,frame);
+    if(!controls){r->entry.held=player_input.use;r->jeep_seat.held=player_input.cycle_weapon;}
     stage=1;
-    if(!apc_exit.deferred){
+    if(!apc_exit.deferred&&!forced_exit){
         status=scene_driller_damage_runtime_tick(&r->damage,&changed);if(status)goto fail;
-        if(r->entry.host.alive){
-            uint32_t handled=0;
+        if(r->entry.host.alive&&controls&&!changed){
+            uint32_t handled=0,use_changed=0;
             status=scene_jeep_npc_gunner_use(&r->entry,s->driller,&r->jeep_seat.role,
-                player_input.use,campaign_player_damage.state.effects.health>0,&changed,&handled);
+                player_input.use,campaign_player_damage.state.effects.health>0,&use_changed,&handled);
             if(!status&&!handled)status=scene_driller_entry_exit_use(&r->entry,
-                player_input.use,campaign_player_damage.state.effects.health>0,&changed);
+                player_input.use,campaign_player_damage.state.effects.health>0,&use_changed);
             if(status)goto fail;
+            changed|=use_changed;
         }
-        if(campaign_spawn){
-            if(changed && r->entry.session.active)campaign_triggers.vehicle_pulses|=0x400u;
-            if(was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
-                campaign_triggers.vehicle_pulses|=0x800u;
-        }
-        if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
     }
-    if(rf_scene_vehicle_enabled==3){uint32_t seat_changed=0,seat_handled=0;
+    if(rf_scene_vehicle_enabled==3&&controls){uint32_t seat_changed=0,seat_handled=0;
         status=scene_jeep_gunner_driver_transfer(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed,&seat_handled);if(status)goto fail;
         if(!seat_handled)status=scene_jeep_seats_tick(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed);if(status)goto fail;
         if(seat_changed){s->apc_aim_active=0;++rf_scene_jeep_seats[3];}
     }
     if(frame && r->entry.session.active)r->driver_seconds+=scene_step_seconds;
-    command.controlled=r->entry.session.active && r->entry.host.alive &&
+    command.controlled=controls && r->entry.session.active && r->entry.host.alive &&
         (!apc_exit.deferred || campaign_player_damage.state.effects.health>0) &&
         (rf_scene_vehicle_enabled!=3 || scene_jeep_can_steer(&r->jeep_seat));command.throttle=command.controlled?player_input.move[2]:0;
     command.turn=command.controlled?player_input.move[0]:0;
-    if(campaign_authored_vehicle_uid && r->entry.host.alive && rf_scene_vehicle_enabled!=5){
+    if(controls && campaign_authored_vehicle_uid && r->entry.host.alive && rf_scene_vehicle_enabled!=5){
         status=scene_campaign_vehicle_route_command(r,&command);
         rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
     }
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
     r->physics.parameters.gravity=scene_gravity.acceleration;
-    stage=2;if(frame){
+    stage=2;if(frame&&!scene_vehicle_physics_frozen(s)){
         if(rf_scene_vehicle_enabled==4 || rf_scene_vehicle_enabled==5){
             rf_vehicle_submersible_command sub={0};rf_vehicle_submersible_result result;
             rf_vehicle_submersible_backend wet_backend={&r->submarine,scene_submarine_motion_water_path,scene_submarine_motion_resolve};
             if(rf_scene_vehicle_enabled==5){wet_backend.context=&r->fighter;wet_backend.water_path=scene_fighter_motion_air_path;wet_backend.resolve=scene_fighter_motion_resolve;}
-            sub.controlled=r->entry.session.active && r->entry.host.alive;
+            sub.controlled=controls && r->entry.session.active && r->entry.host.alive;
             if(sub.controlled){sub.throttle=player_input.move[2];sub.strafe=player_input.move[0];
                 sub.rise=(float)player_input.jump-(float)player_input.crouch;
                 sub.yaw=player_input.look[1];sub.pitch=player_input.look[0];}
-            else if(rf_scene_vehicle_enabled==4 && campaign_authored_vehicle_uid){
+            else if(controls && rf_scene_vehicle_enabled==4 && campaign_authored_vehicle_uid){
                 status=scene_campaign_submarine_script_command(r,&sub);
                 rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
             }
-            else if(rf_scene_vehicle_enabled==5 && campaign_authored_vehicle_uid){
+            else if(controls && rf_scene_vehicle_enabled==5 && campaign_authored_vehicle_uid){
                 status=scene_campaign_fighter_route_command(r,&sub);
                 rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
             }
@@ -737,21 +739,26 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
          * physical ownership until then; never publish an old-pose exit. */
         status=scene_apc_exit_finish(&apc_exit,&r->damage,player_input.use,
             campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;
-        if(campaign_spawn){
-            if(changed && r->entry.session.active)campaign_triggers.vehicle_pulses|=0x400u;
-            if(was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
-                campaign_triggers.vehicle_pulses|=0x800u;
-        }
-        if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
     }
+    if(forced_exit){uint32_t exit_changed=0;
+        status=scene_vehicle_physics_exit_tick(s,&exit_changed);if(status)goto fail;
+        changed|=exit_changed;
+    }
+    if(campaign_spawn){
+        if(changed && r->entry.session.active)campaign_triggers.vehicle_pulses|=0x400u;
+        if(controls && was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
+            campaign_triggers.vehicle_pulses|=0x800u;
+    }
+    if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
     status=scene_driller_player_publish(&r->player,&r->entry,changed);if(status)goto fail;
     if(rf_scene_vehicle_enabled==3 && was && !r->entry.session.active){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
+    if(!controls)r->jeep_seat.held=player_input.cycle_weapon;
     stage=4;if(r->audio.active){status=scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,!r->entry.host.alive);if(status)goto fail;}
     stage=5;
     r->contact.stream=s;r->contact.frame=frame;r->contact.source=r->entry.host.handle;r->contact.has_world=0;
     if(rf_scene_vehicle_enabled==1){scene_driller_weapon_backend weapon_backend={&r->contact,scene_driller_live_trace,scene_driller_live_damage,scene_driller_runtime_cut};
      status=scene_driller_weapon_tick(&s->driller_weapon,&s->driller->tags,r->physics.state.position,
-        r->physics.state.orientation,r->entry.host.handle,r->entry.session.active && r->entry.host.alive && player_input.fire,
+        r->physics.state.orientation,r->entry.host.handle,controls && r->entry.session.active && r->entry.host.alive && player_input.fire,
         frame?scene_step_seconds:0,&weapon_backend);if(status)goto fail;}
     ++rf_scene_drill_state[0];rf_scene_drill_state[1]=s->driller_weapon.contacts;
     rf_scene_drill_state[2]=s->driller_weapon.damage_calls;rf_scene_drill_state[3]=s->driller_weapon.accepted_cuts;
@@ -766,7 +773,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         if(r->entry.session.active)++rf_scene_jeep_seats[scene_jeep_can_fire(&r->jeep_seat)?2:1];
         rf_scene_jeep_seats[4]=r->jeep_seat.role;rf_scene_jeep_seats[5]=(uint32_t)s->driller->seat;
         rf_scene_jeep_seats[6]=command.controlled;
-        rf_scene_jeep_seats[7]=r->entry.session.active&&r->entry.host.alive&&scene_jeep_can_fire(&r->jeep_seat);
+        rf_scene_jeep_seats[7]=controls&&r->entry.session.active&&r->entry.host.alive&&scene_jeep_can_fire(&r->jeep_seat);
         scene_jeep_npc_gunner_probe(&r->entry,r->jeep_seat.role);
     }
     r->last_frame=frame;++rf_scene_vehicle_state[0];rf_scene_vehicle_state[3]=r->entry.session.active;

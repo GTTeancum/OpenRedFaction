@@ -106,7 +106,7 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
         if(round->flight.active)++rf_scene_submarine_weapon[4];
     }
     for(free_slot=0;free_slot<SCENE_SUBMARINE_WEAPON_CAPACITY&&state->rounds[free_slot].flight.active;free_slot++){}
-    allowed=allowed&&runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0;
+    allowed=allowed&&scene_vehicle_physics_allows_control(s)&&runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0;
     status=scene_submarine_weapon_fire(state,&s->driller->tags,runtime->physics.state.position,runtime->physics.state.orientation,
         aim,runtime->entry.host.handle,runtime->entry.host.driver,held,allowed,dt,scene_submarine_weapon_muzzle_wet,s,&fired);
     if(status)return status;

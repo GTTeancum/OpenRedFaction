@@ -885,6 +885,20 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     if(state->type==20) {
         c->status=rf_event_cycle_enable(&c->event->cycle,action==1);return;
     }
+    if(state->type==62) {
+        /* Generic ON4b9380 sleeps object physics; OFF4ba180 wakes it. */
+        if(!c->triggers->set_physics_enabled){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if((link->kind!=1 && link->kind!=2) ||
+               !rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->set_physics_enabled(c->triggers->physics_state_context,
+                link->value,action==0);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==54) {
         /* Original4b9290/4ba090 resolve only items and clear/set item2bc bit0.
          * Placed port items retain authored UIDs without registry handles. */
@@ -1469,6 +1483,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==49 && triggers->monitor_state) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
+           !(event->state.type==62 && triggers->set_physics_enabled) &&
            !(event->state.type==54 && triggers->set_item_pickup_state) &&
            !(event->state.type==81 && triggers->drop_npc_weapon) &&
            !(event->state.type==82 && triggers->ignite_npc) &&

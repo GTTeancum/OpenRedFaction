@@ -8,6 +8,19 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_set_enabled(rf_physics_body_state *state,uint32_t *object_flags,uint32_t enabled)
+{
+    if(!state || !object_flags || enabled>1)return RF_RANGE;
+    if(enabled) {
+        state->flags|=0x80000000u;*object_flags|=0x06000000u;
+    } else if(!(*object_flags&0x08000000u)) {
+        state->flags=(state->flags&0x67ffffffu)|0x18000000u;
+        memset(state->velocity,0,sizeof(state->velocity));
+        memset(state->mass_vector_d4,0,sizeof(state->mass_vector_d4));
+        memset(state->vector_c8,0,sizeof(state->vector_c8));
+    }
+    return RF_OK;
+}
 int rf_physics_body_segment(const rf_physics_body *body,const float start[3],
     const float delta[3],float limit,float *fraction)
 {

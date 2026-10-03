@@ -5,16 +5,38 @@ Read-only code inspection of the installed `RF.exe` (SHA-256
 and the installed level inventory. This is implementation guidance, not a
 claim that the events run in the reconstructed Xbox game.
 
-`Item_Pickup_State` (type 54) and `Turn_Off_Physics` (type 62) both map through
-factory `0x4b69d0` to the base constructor `0x4bee70`. The base ON method is
-the empty `0x4b8cd0`; its ordinary link propagation uses `0x4b8b00` and
-`0x4b65c0`. That target dispatcher recognizes registered events, triggers,
-group controllers and ambient sounds, not placed items. All five installed
-`Item_Pickup_State` events link only First Aid Kit placed-item UIDs. They do
-not establish a runtime pickup-enabled toggle, so adding one based on the
-event name would invent behavior. The eight `Turn_Off_Physics` events mostly
-link moving-group keys and use ordinary base propagation; they likewise do
-not establish a dedicated physics-off operation.
+Correction (2026-10-03): the earlier constructor-only inspection incorrectly
+classified types54/62 as no-ops. The generic ON/OFF dispatchers `0x4b9070` and
+`0x4b9f80` have real handlers for both. Type54 ON (`0x4b9290`) resolves each
+linked item with `0x459a20` and clears item `+2bc` bit0; OFF (`0x4ba090`)
+sets that bit. Other flags are preserved. All five installed records link
+First Aid Kits; the collection gate is now integrated, with results in
+`docs/ITEM-PICKUP-STATE.md`.
+
+Type62 ON routes through `0x4b9121` to `0x4b9380`. Each linked object resolves
+through `0x40a0e0`; unless object `+7c` has bit`0x08000000`, it calls
+`0x417e00(object+88)`. That operation changes physics flags `+120` to
+`(old & 0x67ffffff) | 0x18000000` and zeros vectors `+bc`, `+d4`, `+c8`
+(linear velocity, mass vector and the third retained vector). It does not
+zero all physics fields. A second entity lookup checks class `+724` bit
+`0x1000` through `0x42d780`; qualifying vehicles receive entity `+814`
+bit`0x800`, and a local player linked to that host is detached via `0x4279d0`.
+OFF routes through `0x4b9fe3` to `0x4ba180`, resolving each object and calling
+`0x40a420`: physics flags gain`0x80000000`, object flags gain`0x06000000`.
+The same wake-bit operation already occurs in `rf_physics_support_refresh`;
+the new `rf_physics_set_enabled` primitive exposes both disable/wake operations
+without requiring a support contact. OFF does not directly clear the vehicle
+`+814` bit. Both types retain ordinary link propagation (type
+table `0x4b8c40` selects true at `0x4b8c5e`).
+
+All eight type62 records link entities, not moving-group keys: L1S2
+9553→8122(Driller01); L5S3 1690→3977(sub); L10S3 4068→2255(sub); L11S3
+startup10651→10636(eos),10637(miner1); L20S1 12144→1490,12406→12335,
+12414→12369(Fighter01); L20S2 18374→4717(masako_fighter). Most vehicle
+chains enter via Invert, requesting OFF/wake. Disabling an actor's independent
+physics must not be mistaken for stopping its scripted group controller.
+Type62 core dispatch and bounded ordering/delay tests are prepared; scene
+integration and Xbox verification remain separate work.
 
 `Detach` (type 58) differs: factory case `0x4b7299` constructs vtable
 `0x589bac`; ON method `0x4bcc50` resolves each linked object, checks its

@@ -105,6 +105,13 @@ typedef struct rf_physics_body_state {
     int32_t reference_15c;
     uint32_t word_164,word_168;
 } rf_physics_body_state;
+/* Turn_Off_Physics62 physics branch: disabled applies original417e00 flags
+ * and zeros velocity/vector_c8/mass_vector_d4 unless object08000000 is set.
+ * Enabled applies original40a420 wake bits to body/object flags; it does not
+ * restore cleared vectors. No scheduling, vehicle exit or pose changes.
+ * enabled must be0/1; pointers refer to distinct state/flag storage. Invalid
+ * pointers/mode return RF_RANGE without mutation. */
+int rf_physics_set_enabled(rf_physics_body_state *state,uint32_t *object_flags,uint32_t enabled);
 /* Shared preparation tail49f8ea..49f925 /49fdbe..49fdf9, after predicted
  * motion and swept bounds have been prepared. Resets contact time/handle,
  * clears both force accumulators and sets body01000000; all other fields,

@@ -1,5 +1,7 @@
 #include "rf/event.h"
+#include "rf/physics.h"
 #include <stdio.h>
+#include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL %d %s\n",__LINE__,#x);return 1;}}while(0)
 static rf_entity_ai_transition_state ai;
 static uint32_t entity_handle,calls,propagations;
@@ -18,7 +20,7 @@ static int set_mode(void *context,uint32_t handle,int32_t action,int32_t now)
 static int propagated(void *context,const rf_level_event *event)
 {(void)context;(void)event;++propagations;return RF_OK;}
 typedef struct npc_teleport_test_context {
-    uint32_t actors[2],trace[12],count,attempts;int failure;
+    uint32_t actors[2],trace[12],count,attempts,enabled[12];int failure;
     const rf_level_event *destination;
 } npc_teleport_test_context;
 static int teleport_link(void *context,uint32_t handle,const rf_level_event *event)
@@ -42,22 +44,30 @@ static int scripted_actor_link(void *context,uint32_t handle)
     npc_teleport_test_context *c=context;
     return teleport_link(context,handle,c->destination);
 }
+static int physics_actor_link(void *context,uint32_t handle,uint32_t enabled)
+{
+    npc_teleport_test_context *c=context;uint32_t before=c->count;
+    int status=scripted_actor_link(context,handle);
+    if(!status)c->enabled[before]=enabled;
+    return status;
+}
 static void scripted_actor_backend(rf_runtime_triggers *triggers,uint32_t type,
     npc_teleport_test_context *c,uint32_t enabled)
 {
     if(type==4){triggers->teleport_npc=enabled?teleport_link:NULL;triggers->npc_teleport_context=c;}
+    else if(type==62){triggers->set_physics_enabled=enabled?physics_actor_link:NULL;triggers->physics_state_context=c;}
     else if(type==81){triggers->drop_npc_weapon=enabled?scripted_actor_link:NULL;triggers->drop_weapon_context=c;}
     else {triggers->ignite_npc=enabled?scripted_actor_link:NULL;triggers->ignite_context=c;}
 }
-/* Same ordered generation-valid ON links and delayed/OFF contract applies to
- * Teleport4, Drop_Weapon81 and Ignite_Entity82. Scene effects remain separate. */
+/* Ordered generation-valid links for Teleport4, Drop_Weapon81, Ignite_Entity82
+ * and Turn_Off_Physics62. The latter also acts on OFF, requesting wake. */
 static int npc_linked_action_dispatch_test(uint32_t type)
 {
     rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
     rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
     rf_physics_gravity gravity={0};rf_startup_events_report report;
     rf_level_link_target links[5]={{0}},off={0};npc_teleport_test_context c={0};
-    uint32_t objects[3]={0},stale,pending,i;
+    uint32_t objects[3]={0},stale,pending,i,before,attempts;
     rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=items;events.count=3;
     for(i=0;i<3;i++) {
         items[i].object_kind=6;items[i].authored=authored+i;items[i].state.deadline=-1;
@@ -78,21 +88,27 @@ static int npc_linked_action_dispatch_test(uint32_t type)
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,100,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(c.count==4 && c.attempts==4 && c.trace[0]==c.actors[0] && c.trace[1]==c.actors[1] &&
         c.trace[2]==c.actors[0] && c.trace[3]==UINT32_MAX && report.other_targets>=1);
-    /* Invert emits OFF: no NPC effect or ON-only downstream callback. */
+    if(type==62)CHECK(!c.enabled[0] && !c.enabled[1] && !c.enabled[2]);
+    /* Invert emits OFF: only physics62 applies its reverse effect. */
     CHECK(rf_runtime_event_fire(&triggers,items[2].handle,7,8,110,&gravity,NULL,NULL,&report)==RF_OK);
-    CHECK(c.count==4 && c.attempts==4);
+    if(type==62) {
+        CHECK(c.count==7 && c.attempts==8 && c.trace[4]==c.actors[0] && c.trace[5]==c.actors[1] && c.trace[6]==c.actors[0]);
+        CHECK(c.enabled[4]==1 && c.enabled[5]==1 && c.enabled[6]==1);
+    } else CHECK(c.count==4 && c.attempts==4);
+    before=c.count;attempts=c.attempts;
     items[0].state.delay=.25f;
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,200,&gravity,NULL,NULL,&report)==RF_OK);
-    CHECK(items[0].state.deadline==450 && c.count==4);
-    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,449,NULL,NULL,&report,&pending)==RF_OK && c.count==4);
+    CHECK(items[0].state.deadline==450 && c.count==before);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,449,NULL,NULL,&report,&pending)==RF_OK && c.count==before);
     scripted_actor_backend(&triggers,type,&c,0);
-    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && pending==1 && c.count==4);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && pending==1 && c.count==before);
     scripted_actor_backend(&triggers,type,&c,1);
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,450,NULL,NULL,&report,&pending)==RF_OK && !pending);
-    CHECK(c.count==8 && c.attempts==8 && c.trace[4]==c.actors[0] && c.trace[5]==c.actors[1] &&
-        c.trace[6]==c.actors[0] && c.trace[7]==UINT32_MAX && items[0].state.deadline==-1);
+    CHECK(c.count==before+4 && c.attempts==attempts+4 && c.trace[before]==c.actors[0] && c.trace[before+1]==c.actors[1] &&
+        c.trace[before+2]==c.actors[0] && c.trace[before+3]==UINT32_MAX && items[0].state.deadline==-1);
+    if(type==62)CHECK(!c.enabled[before] && !c.enabled[before+1] && !c.enabled[before+2]);
     items[0].state.delay=0;c.failure=RF_IO;
-    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,500,&gravity,NULL,NULL,&report)==RF_IO && c.count==8);
+    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,500,&gravity,NULL,NULL,&report)==RF_IO && c.count==before+4);
     return 0;
 }
 typedef struct pickup_state_test_context {
@@ -159,11 +175,45 @@ static int pickup_state_dispatch_test(void)
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,800,&gravity,NULL,NULL,&report)==RF_IO && c.count==14);
     return 0;
 }
+static int physics_enable_primitive_test(void)
+{
+    static const uint32_t flags[][3]={
+        {0,0x18000000u,0x98000000u},{UINT32_MAX,0x7fffffffu,UINT32_MAX},
+        {0x98000000u,0x18000000u,0x98000000u},{0x04000001u,0x1c000001u,0x9c000001u}};
+    rf_physics_body_state actual,expected,before;uint32_t object_flags,i;
+    for(i=0;i<sizeof(flags)/sizeof(flags[0]);i++) {
+        memset(&actual,0x5a,sizeof(actual));actual.flags=flags[i][0];expected=actual;
+        expected.flags=flags[i][1];object_flags=0x42;
+        memset(expected.velocity,0,sizeof(expected.velocity));
+        memset(expected.vector_c8,0,sizeof(expected.vector_c8));
+        memset(expected.mass_vector_d4,0,sizeof(expected.mass_vector_d4));
+        CHECK(rf_physics_set_enabled(&actual,&object_flags,0)==RF_OK);
+        CHECK(!memcmp(&actual,&expected,sizeof(actual)) && object_flags==0x42);
+        /* All other fields, including e0/ec force vectors and pose, survive. */
+        expected.flags=flags[i][2];
+        CHECK(rf_physics_set_enabled(&actual,&object_flags,1)==RF_OK);
+        CHECK(!memcmp(&actual,&expected,sizeof(actual)) && object_flags==0x06000042u);
+    }
+    memset(&actual,0x5a,sizeof(actual));actual.flags=0;before=actual;object_flags=0x08000042u;
+    CHECK(rf_physics_set_enabled(&actual,&object_flags,0)==RF_OK);
+    CHECK(!memcmp(&actual,&before,sizeof(actual)) && object_flags==0x08000042u);
+    expected=before;expected.flags=0x80000000u;
+    CHECK(rf_physics_set_enabled(&actual,&object_flags,1)==RF_OK);
+    CHECK(!memcmp(&actual,&expected,sizeof(actual)) && object_flags==0x0e000042u);
+    before=actual;
+    CHECK(rf_physics_set_enabled(&actual,&object_flags,2)==RF_RANGE);
+    CHECK(rf_physics_set_enabled(NULL,&object_flags,0)==RF_RANGE);
+    CHECK(rf_physics_set_enabled(&actual,NULL,1)==RF_RANGE);
+    CHECK(!memcmp(&actual,&before,sizeof(actual)) && object_flags==0x0e000042u);
+    return 0;
+}
 int main(void)
 {
     CHECK(npc_linked_action_dispatch_test(4)==0);
     CHECK(npc_linked_action_dispatch_test(81)==0);
     CHECK(npc_linked_action_dispatch_test(82)==0);
+    CHECK(npc_linked_action_dispatch_test(62)==0);
+    CHECK(physics_enable_primitive_test()==0);
     CHECK(pickup_state_dispatch_test()==0);
     rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
     rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
@@ -206,5 +256,5 @@ int main(void)
     CHECK(form_calls==1 && form_variant==1 && form_enabled==1 && form_now==1700);
     CHECK(rf_runtime_event_fire(&triggers,items[1].handle,7,8,1800,&gravity,NULL,NULL,&report)==RF_OK);
     CHECK(form_calls==2 && form_variant==1 && form_enabled==0 && form_now==1800);
-    puts("NPC teleport/disarm/ignition, pickup-state ordering/delay and AI mode/undercover ON/OFF dispatch passed");return 0;
+    puts("NPC teleport/disarm/ignition, physics/pickup-state ordering/delay and AI mode/undercover ON/OFF dispatch passed");return 0;
 }

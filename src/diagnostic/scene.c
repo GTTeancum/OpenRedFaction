@@ -1394,7 +1394,7 @@ static int scene_fire_setup_event(uint32_t uid,int32_t now)
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
             campaign_events.items[i].state.delay=delay;return status;
         }
-        if(campaign_events.items[i].state.type==54 || campaign_events.items[i].state.type==81 || campaign_events.items[i].state.type==82 || campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
+        if(campaign_events.items[i].state.type==62 || campaign_events.items[i].state.type==54 || campaign_events.items[i].state.type==81 || campaign_events.items[i].state.type==82 || campaign_events.items[i].state.type==4 || campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63 ||
            campaign_events.items[i].state.type==49 || campaign_events.items[i].state.type==9 ||
            campaign_events.items[i].state.type==50)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
@@ -1532,6 +1532,7 @@ static rf_group_object *campaign_mover_bindings;
 static rf_group_mover_memberships campaign_memberships;
 uint32_t rf_scene_campaign_memberships[5]; /* groups, links, retained/peak bytes, ordered binding hash */
 typedef struct scene_passive_vehicle {
+    uint32_t scripted_physics,physics_body_flags;
     uint32_t object_kind,handle,uid,attached,resource_kind,group_owned; /* Kind 11 is port-internal, not a skeletal entity view. */
     rf_group_attached_pose pose;
     float velocity[3];
@@ -4680,6 +4681,7 @@ typedef struct campaign_npc_body {
     struct {uint32_t count;campaign_single_fire_request requests[16];} script_once;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     uint32_t combat_alert,combat_due,combat_burst_remaining;
+    uint32_t scripted_physics;
     uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
@@ -8127,11 +8129,13 @@ int rf_scene_npc_refresh_support(uint32_t handle)
     owner->view.flags_7c=owner->object_flags;
     ++rf_scene_npc_support_refresh[1];if(velocity)++rf_scene_npc_support_refresh[2];return RF_OK;
 }
+static uint32_t campaign_npc_physics_suspended(const campaign_npc_body *o)
+{return o->scripted_physics && !(o->body.state.flags&0x80000000u);}
 static int campaign_npc_refresh_support_tick(void)
 {
     uint32_t i;int status;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
-        if(scene_npc_seat_attached(campaign_npc_bodies[i].registration.handle))continue;
+        if(scene_npc_seat_attached(campaign_npc_bodies[i].registration.handle) || campaign_npc_physics_suspended(campaign_npc_bodies+i))continue;
         status=rf_scene_npc_refresh_support(campaign_npc_bodies[i].registration.handle);
         if(status){++rf_scene_npc_support_refresh[5];return status;}
     }
@@ -13054,6 +13058,7 @@ done:
     if(status)scene_checkpoint_release();
     rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status)printf("GEOMOD_CHECKPOINT_ERROR load %d\n",status);return status;
 }
+static int scene_script_physics_save_allowed(const scene_stream *);
 static int scene_checkpoint_capture(scene_stream *s)
 {
     FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
@@ -13069,6 +13074,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
+    if(prefix && !scene_script_physics_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix){status=scene_remote_checkpoint_capture(remote_blob,sizeof(remote_blob),&remote_bytes);if(status)goto done;}
     if(prefix){status=scene_vehicle_checkpoint_capture(s,vehicle_blob,&vehicle_bytes);if(status)goto done;}
     if(s->terrain_authored) {
@@ -15952,8 +15958,13 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 }
 #include "scene_driller_excavation.inc"
 #include "scene_driller_live_contact.inc"
+static uint32_t scene_vehicle_physics_frozen(const scene_stream *);
+static uint32_t scene_vehicle_physics_allows_control(const scene_stream *);
+static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
 #include "scene_driller_runtime.inc"
 #include "scene_vehicle_script_slay.inc"
+#include "scene_vehicle_physics_state.inc"
+#include "scene_script_physics_state.inc"
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
 static int scene_vehicle_wreck_exit_try(scene_stream *,uint32_t,uint32_t,uint32_t,int32_t,uint32_t *);
@@ -17390,7 +17401,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn,vehicle_aim[3];int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
-        if(scene_npc_seat_attached(o->registration.handle))continue;
+        if(scene_npc_seat_attached(o->registration.handle) || campaign_npc_physics_suspended(o))continue;
         if(rf_scene_dev_npc_enabled==9 && campaign_npc_body_count==1 && frame==440) {
             /* Exercise Goto-style walking while the DEV platform
              * translates; the target stays beyond its travel interval. */
@@ -19099,6 +19110,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_passive_vehicle_npc_fixture_probe();
                 scene_npc_teleport_sample();
                 scene_scripted_disarm_sample();
+                scene_script_physics_sample(frame);
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
@@ -19382,6 +19394,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_scripted_disarm_reset();
     scene_item_pickup_state_reset();
     scene_vehicle_wreck_exit_reset();
+    scene_script_physics_reset();scene_vehicle_physics_reset();
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -19581,6 +19594,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.remove_item=campaign_remove_item;campaign_triggers.removal_item_context=stream;
             campaign_triggers.set_item_pickup_state=campaign_set_item_pickup_state;campaign_triggers.pickup_state_context=stream;
+            campaign_triggers.set_physics_enabled=campaign_set_physics_enabled;campaign_triggers.physics_state_context=stream;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;

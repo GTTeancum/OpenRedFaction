@@ -13,6 +13,7 @@ Remaining first-playable work, grouped for planning:
 
 - Scripted pickup availability: Stock64MiB Xbox verifies OFF prevents nearby collection and the original delayed Switch enables one normal health pickup; save/revisit state and presentation remain (docs/ITEM-PICKUP-STATE.md).
 - Vehicle wreck escape: Stock64MiB Xbox verifies scripted Jeep destruction and one safe living-driver exit with ownership cleared and no snapback; moving/crowded exits, passive Slay, player ejection and saves remain (docs/NPC-JEEP-WRECK-EXIT.md).
+- Scripted physics: Stock64MiB Xbox verifies original linked NPC freeze/wake and resumed gravity; vehicle control/exit gates compile, while vehicle/prop runtime and state persistence remain (docs/VEHICLE-PHYSICS-STATE.md).
 - Active integration: Three helpers are authorized again for bounded gameplay implementation; parent owns shared scene changes and serial Xbox checks.
 - Occupied vehicle combat: Enemy/projectile/burn updates now continue while seated; stock64MiB Xbox verifies three guard hits on an occupied Jeep and normal exit, with handheld equipment gated; other vehicles and active effects remain unverified (docs/OCCUPIED-VEHICLE-COMBAT.md).
 - Scripted disarm/ignition: Stock64MiB Xbox verifies delayed living disarm, one finite-charge drop, periodic scripted burn damage and idempotent repeats; core ordering/OFF checks pass, while held clutter, tumbling, presentation and save continuation remain (docs/SCRIPTED-DISARM-IGNITION-PREP.md).

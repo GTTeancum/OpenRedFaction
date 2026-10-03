@@ -479,6 +479,11 @@ typedef struct rf_runtime_triggers {
      * owns item state; normal event propagation follows the item changes. */
     int (*set_item_pickup_state)(void *context,uint32_t uid,uint32_t enabled);
     void *pickup_state_context;
+    /* Turn_Off_Physics62: ON requests enabled0, OFF enabled1. Ordered live
+     * object handles; backend owns physics sleep/wake and vehicle detach.
+     * NOT_FOUND skips unsupported owners; common propagation follows. */
+    int (*set_physics_enabled)(void *context,uint32_t handle,uint32_t enabled);
+    void *physics_state_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
