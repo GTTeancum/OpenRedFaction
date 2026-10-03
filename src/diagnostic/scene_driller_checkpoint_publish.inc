@@ -33,6 +33,7 @@ static void scene_vehicle_checkpoint_publish_staged(scene_stream *s,const scene_
     damage.responsible_handle=damage.burn_source=UINT32_MAX;
     /* Inertia and coefficients are current authored metadata; stage reconstructs
      * angular momentum and zeros old forces/torques/skip-forces. */
+    r->entry.gunner_occupant=-1; /* Supported saved profiles have no separate gunner. */
     r->physics.state=candidate.physics;r->damage.damage.state=damage;
     r->damage.damage.destroyed=!candidate.alive;r->damage.damage.destruction_pending=0;
     r->damage.damage.object_flags&=~0x200000u; /* Unsaved hit-event signal. */

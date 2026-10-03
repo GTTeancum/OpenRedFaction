@@ -45,7 +45,7 @@ static int scene_npc_seat_host_read(scene_npc_seat_binding *b,scene_npc_seat_hos
         h.view=&r->entry.view;h.occupant=&r->entry.occupant;h.driver=&r->entry.host.driver;
         h.tags=&s->driller->tags;h.position=r->physics.state.position;h.basis=r->physics.state.orientation;
         h.alive=r->entry.host.alive&&r->damage.damage.state.effects.health>0;
-        if(h.view->occupants!=h.occupant||h.view->occupant_count!=1)return RF_FORMAT;
+        if(h.view->occupants!=h.occupant||h.view->occupant_count!=2)return RF_FORMAT;
     }else if(b->kind==SCENE_NPC_SEAT_TURRET) {
         scene_turret_owner *o=scene_turret_lookup(b->host);
         if(!o||o->uid!=b->host_uid||o->live_model>=scene_turret_model_count)return RF_NOT_FOUND;

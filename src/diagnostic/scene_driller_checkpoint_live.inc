@@ -45,6 +45,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     scene_driller_physics physics;scene_driller_checkpoint_candidate staged;scene_vehicle_combat_candidate combat;
     scene_vehicle_checkpoint_record record={0};int status;
     if(!s||!out)return RF_RANGE;
+    if(scene_player_jeep_gunner_active(s))return RF_NOT_FOUND;
     if(!bytes){if(s->driller)return RF_FORMAT;*out=record;return RF_OK;}
     if(!s->driller||
        !(s->terrain_authored?(!strcmp(campaign_current_level,"ctf06.rfl")||scene_world_l1s2_authored_terrain(s)):

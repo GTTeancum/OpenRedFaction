@@ -10,7 +10,7 @@ static int scene_world_quickload_request(scene_stream *stream,uint32_t death_rec
 #else
     (void)death_recovery;
 #endif
-    if(scene_turret_player_active()||!stream||!campaign_spawn||!rf_scene_follow_level_exits||rf_scene_dev_room_enabled||
+    if(scene_turret_player_active()||scene_player_jeep_gunner_active(stream)||!stream||!campaign_spawn||!rf_scene_follow_level_exits||rf_scene_dev_room_enabled||
        rf_scene_level_transition.pending||!stream->world_checkpoint_level||!stream->world_checkpoint_tables)return RF_RANGE;
     data=malloc(RF_CHECKPOINT_FILE_MAX);if(!data){status=RF_IO;goto done;}
 #ifdef RF_IMAGE_XBOX_NATIVE

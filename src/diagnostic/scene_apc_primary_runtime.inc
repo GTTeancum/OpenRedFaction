@@ -49,7 +49,7 @@ static int scene_apc_primary_damage(scene_stream *stream,uint32_t frame,const sc
     }else{
         index=tag&0xffffu;if(index>=campaign_npc_body_count)return RF_RANGE;
         target=campaign_npc_bodies[index].registration.handle;
-        if(target==round->driver||target==round->source)return RF_OK;
+        if(target==round->driver||target==round->source||scene_npc_seat_related(round->source,target))return RF_OK;
         if(round->kind==1 || round->kind==2){
             status=scene_npc_shield_receive(index,start,end,contact->hit.fraction,request.amount,request.kind,&accepted,&broken);if(status)return status;
             if(accepted)return RF_OK;
@@ -95,7 +95,7 @@ static int scene_apc_primary_sweep_all(void *context,const float *start,const fl
             body=&scene_actor_body;tag=SCENE_AI_PROJECTILE_PLAYER;room=rf_scene_player_swim[0];
         }else{
             const campaign_npc_body *npc=campaign_npc_bodies+i;
-            if(!npc->registration.view || npc->registration.handle==q->source || npc->registration.handle==q->driver || !npc->body.allocated_bytes ||
+            if(!npc->registration.view || npc->registration.handle==q->source || npc->registration.handle==q->driver || scene_npc_seat_related(q->source,npc->registration.handle) || !npc->body.allocated_bytes ||
                npc->damage.effects.health<=0 || (npc->object_flags&(2u|0x4000u)) || (npc->view.flags_810&1u))continue;
             body=&npc->body;tag=SCENE_ACTOR_ROCKET_OWNER|i;room=npc->room.room?npc->room.room-1:UINT32_MAX;
         }
@@ -139,7 +139,7 @@ static int scene_apc_primary_tick(scene_stream *stream,uint32_t frame)
         if(round->flight.active)++rf_scene_apc_primary[4];
     }
     {
-        scene_apc_primary_launch_context launch={stream,runtime->entry.host.driver};
+        scene_apc_primary_launch_context launch={stream,scene_vehicle_player_fire_owner(&runtime->entry)};
         uint32_t jeep=rf_scene_vehicle_enabled==3;
         uint32_t allowed=runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0&&
             (!jeep||scene_jeep_can_fire(&runtime->jeep_seat));

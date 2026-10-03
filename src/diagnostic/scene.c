@@ -891,6 +891,7 @@ static int scene_driller_projectile_damage(const rf_weapon_flight_contact *,uint
 static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float,uint32_t,int32_t);
 
 static uint32_t scene_driller_active(const scene_stream *);
+static uint32_t scene_player_jeep_gunner_active(const scene_stream *);
 static uint32_t scene_campaign_vehicle_target(const scene_stream *,uint32_t,float [3],float *);
 static int scene_apc_aim_direction(scene_stream *,const float [3],float [3]);
 static void scene_vehicle_hud_values(const scene_stream *,float *,int32_t [2]);
@@ -15925,6 +15926,8 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_excavation.inc"
 #include "scene_driller_live_contact.inc"
 #include "scene_driller_runtime.inc"
+static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
+{return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
 #include "scene_npc_seat_bind.inc"
 #include "scene_npc_seat_checkpoint.inc"
 #include "scene_npc_jeep_seat_save_admit.inc"

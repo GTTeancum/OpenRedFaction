@@ -102,6 +102,12 @@ static int scene_driller_damage_runtime_tick(scene_driller_damage_runtime *owner
     owner->eject_pending=1;
     ops=(scene_vehicle_possession_ops){scene_driller_entry_allowed,scene_driller_entry_seat,scene_driller_exit_pose,entry};
     alive=campaign_player_damage.state.effects.health>0;
+    if(scene_jeep_npc_gunner_active(entry)){
+        status=scene_jeep_npc_gunner_unpossess(entry,alive?1:2,changed);
+        if(status||!*changed)return status;
+        owner->eject_pending=0;++owner->exit_count;
+        return scene_driller_player_publish(owner->player,entry,1);
+    }
     status=scene_vehicle_unpossess(&entry->session,&entry->player,&entry->host,alive?1:2,&ops,changed);
     if(status)return status;
     if(!*changed)return RF_OK;

@@ -1,7 +1,8 @@
 #ifndef RF_SCENE_JEEP_SEATS_INC
 #define RF_SCENE_JEEP_SEATS_INC
-/* Include after entry and player publication adapters. DEV single-player role
- * switch only: same registered host/session/occupant, no fabricated NPC driver.
+/* Include after entry, player publication and NPC-gunner adapters. Single-player
+ * role switch: same registered host/session/occupant, no fabricated NPC driver.
+ * A separate gunner session beside an authored NPC driver cannot switch roles.
  * Host.driver remains the possession owner token even in gunner role; parent
  * MUST gate steering with can_steer and gunfire with can_fire. Parked policy:
  * speed <=.1m/s, angular speed<=.1rad/s. World/mover sphere-center chords follow
@@ -37,6 +38,7 @@ static int scene_jeep_seats_tick(scene_jeep_seat_state *state,scene_driller_reso
     if(!state||!resource||!entry||!adapter||!changed||held>1||state->role>1)return RF_RANGE;
     *changed=0;edge=held&&!state->held;state->held=held;
     if(!edge||!entry->session.active||!entry->host.alive||campaign_player_damage.state.effects.health<=0)return RF_OK;
+    if(scene_jeep_npc_gunner_blocks_switch(entry))return RF_OK;
     if(entry->resource!=resource||entry->player_body!=&scene_actor_body||entry->player_view!=&campaign_player_view||
        entry->host.handle!=entry->registration.handle||entry->host.driver!=entry->player.handle||
        entry->session.driver!=entry->player.handle||entry->session.host!=entry->host.handle||

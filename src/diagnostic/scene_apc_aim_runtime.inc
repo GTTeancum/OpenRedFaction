@@ -35,7 +35,7 @@ static int scene_apc_aim_query(void *context,const float eye[3],const float end[
 }
 static int scene_apc_aim_direction(scene_stream *s,const float muzzle[3],float direction[3])
 {
-    scene_apc_primary_query query={s,s->driller_runtime->entry.host.handle,s->driller_runtime->entry.host.driver};
+    scene_apc_primary_query query={s,s->driller_runtime->entry.host.handle,scene_vehicle_player_fire_owner(&s->driller_runtime->entry)};
     return scene_vehicle_aim_ray(s->apc_aim_eye,s->apc_aim_basis,muzzle,1000,scene_apc_aim_query,&query,direction);
 }
 #endif

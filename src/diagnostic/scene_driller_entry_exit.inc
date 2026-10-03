@@ -1,7 +1,8 @@
 #ifndef SCENE_DRILLER_ENTRY_EXIT_INC
 #define SCENE_DRILLER_ENTRY_EXIT_INC
 /* Include after driller resources/physics, vehicle possession and collision.
- * Single-driver ownership. Side/front/back exit order is a port policy,
+ * Generic single-driver ownership, with a second Jeep slot owned by the
+ * NPC-driver/player-gunner adapter. Side/front/back exit order is a port policy,
  * not recovered exit-tag semantics. Full body sweeps use world + movers; the
  * enemy-free profile is required (other actors are not exit obstacles here). */
 typedef struct scene_driller_entry_exit {
@@ -11,7 +12,11 @@ typedef struct scene_driller_entry_exit {
     scene_vehicle_collision collision;
     rf_entity_view view;rf_registered_entity_view registration;
     scene_vehicle_possession session;scene_vehicle_player_control player;
-    scene_vehicle_host_control host;int32_t occupant;
+    scene_vehicle_host_control host;
+    union {
+        struct {int32_t occupant,gunner_occupant;};
+        int32_t occupants[2];
+    };
     uint32_t held;float eye_offset[3];
     /* Sub-only admission; provider checks every actual player sphere and the
      * swept wet path. Missing provider rejects boarding/exit, never flies dry. */
@@ -59,6 +64,9 @@ static int scene_driller_player_shape(scene_driller_entry_exit *c,scene_vehicle_
     return scene_vehicle_collision_valid(query);
 }
 #include "scene_vehicle_seated_clearance.inc"
+/* First Jeep admission: attempts, stage(range1/path2), allowed, status,
+ * distance squared, radius, player xyz, host xyz. Floats are bitcasts. */
+uint32_t rf_scene_jeep_entry_probe[12];
 static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t host,uint32_t *allowed)
 {
     scene_driller_entry_exit *c=context;scene_vehicle_pose seat;scene_vehicle_collision query;
@@ -70,6 +78,10 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
         memcpy(rf_scene_submarine_boarding+5,c->player_body->state.position,12);
     }
     for(i=0;i<3;++i){float d=c->player_body->state.position[i]-c->physics->state.position[i];d2+=d*d;}
+    uint32_t sample=!strcmp(c->resource->model,"Jeep01.v3m") && !rf_scene_jeep_entry_probe[0];
+    if(!strcmp(c->resource->model,"Jeep01.v3m"))++rf_scene_jeep_entry_probe[0];
+    if(sample){rf_scene_jeep_entry_probe[1]=1;memcpy(rf_scene_jeep_entry_probe+4,&d2,4);memcpy(rf_scene_jeep_entry_probe+5,&range,4);
+        memcpy(rf_scene_jeep_entry_probe+6,c->player_body->state.position,12);memcpy(rf_scene_jeep_entry_probe+9,c->physics->state.position,12);}
     if(!strcmp(c->resource->model,"Jeep01.v3m"))printf("JEEP_USE distance %.6g radius %.6g player %.6g %.6g %.6g host %.6g %.6g %.6g\n",sqrtf(d2),range,c->player_body->state.position[0],c->player_body->state.position[1],c->player_body->state.position[2],c->physics->state.position[0],c->physics->state.position[1],c->physics->state.position[2]);
     if(!isfinite(range) || range<=0 || d2>range*range){
         if(c->resource->physics.authored.movement_index==7)++rf_scene_submarine_boarding[1];
@@ -87,6 +99,7 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
     if(!strcmp(c->resource->model,"Jeep01.v3m")){
         scene_vehicle_pose from;memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=scene_vehicle_seated_path(c,&from,&seat,allowed);
+        if(sample){rf_scene_jeep_entry_probe[1]=2;rf_scene_jeep_entry_probe[2]=*allowed;rf_scene_jeep_entry_probe[3]=(uint32_t)status;}
     }else status=scene_vehicle_collision_exit_path(&query,c->player_body->state.position,seat.position,c->player_body->state.orientation,allowed);
     if(c->resource->physics.authored.movement_index==7 && !status){
         ++rf_scene_submarine_boarding[*allowed?4:3];
@@ -171,7 +184,8 @@ static int scene_driller_entry_exit_open(scene_driller_entry_exit *c,rf_object_r
     c->resource=resource;c->physics=physics;c->collision=*collision;memcpy(c->eye_offset,eye_offset,12);
     c->view.handle=-1;c->view.type=0;c->view.class_type=(int32_t)resource->physics.authored.use_kind;
     c->view.linked_handle=-1;c->view.weapons[0]=c->view.weapons[1]=-1;c->view.base_speed=resource->movement.speed;
-    c->occupant=-1;c->view.occupants=&c->occupant;c->view.occupant_count=1;
+    c->occupant=c->gunner_occupant=-1;c->view.occupants=c->occupants;
+    c->view.occupant_count=!strcmp(resource->model,"Jeep01.v3m")?2:1;
     status=rf_entity_view_register(objects,entities,&c->view,&c->registration);if(status)return status;
     c->host.handle=c->registration.handle;c->host.driver=UINT32_MAX;c->host.alive=1;
     c->player.handle=(uint32_t)player->handle;c->player.host=UINT32_MAX;c->player.control=(uint32_t)player->handle;

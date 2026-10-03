@@ -63,7 +63,7 @@ static int scene_apc_secondary_tick(scene_stream *stream,uint32_t frame,uint32_t
             }
             if(!direction)direction=pose+6;
             status=rf_weapon_flight_launch(&round.flight,pose+9,direction,state->definition.speed,state->definition.lifetime,state->definition.radius);if(status)return status;
-            round.source=runtime->entry.host.handle;round.driver=runtime->entry.host.driver;memcpy(round.previous,pose+9,12);
+            round.source=runtime->entry.host.handle;round.driver=scene_vehicle_player_fire_owner(&runtime->entry);memcpy(round.previous,pose+9,12);
             state->rounds[i]=round;--state->reserve;state->cooldown=state->definition.fire_seconds;
             ++rf_scene_apc_secondary[1];++rf_scene_apc_secondary[4];
             combat_sound("Mortar Launch",pose+9);

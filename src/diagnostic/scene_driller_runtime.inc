@@ -10,6 +10,7 @@
 #include "scene_driller_support.inc"
 #include "scene_driller_entry_exit.inc"
 #include "scene_driller_player_adapter.inc"
+#include "scene_jeep_npc_gunner.inc"
 #include "scene_jeep_seats.inc"
 #include "scene_driller_audio.inc"
 #include "scene_driller_actor_collision.inc"
@@ -502,6 +503,8 @@ static int scene_driller_runtime_open(scene_stream *s)
     /* Ambient slots are initialized later in level startup. Bind the idle
      * voice only after that reset and its initial authored scheduling. */
     s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));
+    memset(rf_scene_jeep_npc_gunner,0,sizeof(rf_scene_jeep_npc_gunner));
+    memset(rf_scene_jeep_entry_probe,0,sizeof(rf_scene_jeep_entry_probe));
     memset(rf_scene_apc_exit_transition,0,sizeof(rf_scene_apc_exit_transition));
     memset(rf_scene_apc_exit_continuation,0,sizeof(rf_scene_apc_exit_continuation));return RF_OK;
 fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
@@ -522,7 +525,8 @@ static void scene_driller_runtime_audio_start(scene_stream *s)
 static int scene_campaign_vehicle_route_command(const scene_driller_runtime *r,rf_vehicle_rigid_command *command)
 {
     uint32_t visited=0,node;const float *target;float dx,dz,distance,forward_x,forward_z,angle;
-    if(r->entry.session.active||!scene_npc_seat_driver_admits(r->entry.host.handle))return RF_OK;
+    if((r->entry.session.active&&!scene_jeep_npc_gunner_active(&r->entry))||
+       !scene_npc_seat_driver_admits(r->entry.host.handle))return RF_OK;
     if(!campaign_vehicle_route.active || campaign_vehicle_route.pursuit ||
        r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
     if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;
@@ -671,7 +675,14 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     stage=1;
     if(!apc_exit.deferred){
         status=scene_driller_damage_runtime_tick(&r->damage,&changed);if(status)goto fail;
-        if(r->entry.host.alive){status=scene_driller_entry_exit_use(&r->entry,player_input.use,campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;}
+        if(r->entry.host.alive){
+            uint32_t handled=0;
+            status=scene_jeep_npc_gunner_use(&r->entry,s->driller,&r->jeep_seat.role,
+                player_input.use,campaign_player_damage.state.effects.health>0,&changed,&handled);
+            if(!status&&!handled)status=scene_driller_entry_exit_use(&r->entry,
+                player_input.use,campaign_player_damage.state.effects.health>0,&changed);
+            if(status)goto fail;
+        }
         if(campaign_spawn){
             if(changed && r->entry.session.active)campaign_triggers.vehicle_pulses|=0x400u;
             if(was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
@@ -751,6 +762,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         rf_scene_jeep_seats[4]=r->jeep_seat.role;rf_scene_jeep_seats[5]=(uint32_t)s->driller->seat;
         rf_scene_jeep_seats[6]=command.controlled;
         rf_scene_jeep_seats[7]=r->entry.session.active&&r->entry.host.alive&&scene_jeep_can_fire(&r->jeep_seat);
+        scene_jeep_npc_gunner_probe(&r->entry,r->jeep_seat.role);
     }
     r->last_frame=frame;++rf_scene_vehicle_state[0];rf_scene_vehicle_state[3]=r->entry.session.active;
     rf_scene_vehicle_state[4]=r->support.hits;rf_scene_vehicle_state[5]=0;
