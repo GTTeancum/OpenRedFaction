@@ -529,7 +529,7 @@ static int scene_driller_runtime_open(scene_stream *s)
     r->entry.host.alive=!authored_damage.destroyed&&authored_damage.state.effects.health>0;
     /* Ambient slots are initialized later in level startup. Bind the idle
      * voice only after that reset and its initial authored scheduling. */
-    s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));
+    s->driller_runtime=r;scene_vehicle_entry_collision_bind(s);memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));
     memset(rf_scene_jeep_npc_gunner,0,sizeof(rf_scene_jeep_npc_gunner));
     memset(rf_scene_jeep_driver_transfer,0,sizeof(rf_scene_jeep_driver_transfer));
     memset(rf_scene_jeep_gunner_restore,0,sizeof(rf_scene_jeep_gunner_restore));

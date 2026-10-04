@@ -23,6 +23,9 @@ typedef struct scene_driller_entry_exit {
     int (*water_path)(void *,const rf_collision_body_sphere *,uint32_t,
         const scene_vehicle_pose *,const scene_vehicle_pose *,uint32_t *);
     void *water_context;
+    /* Optional scene admission for the final actual-body exit destination. */
+    int (*exit_clear)(void *,const scene_vehicle_pose *,uint32_t *);
+    void *exit_context;
 } scene_driller_entry_exit;
 uint32_t rf_scene_submarine_boarding[8]; /* attempts,range,dry,solid,allowed,player xyz bits */
 static void scene_driller_point(const float origin[3],const float basis[9],const float local[3],float out[3])
@@ -173,6 +176,7 @@ static int scene_driller_exit_pose(void *context,uint32_t player,uint32_t host,s
             if(!wet || !scene_driller_excludes_host(c,&body,&candidate))continue;
             /* Swimming exit needs clear submerged body space, not a floor.
              * The ordinary swim update reacquires liquid after publication. */
+            if(c->exit_clear){status=c->exit_clear(c->exit_context,&candidate,&found);if(status)return status;if(!found)continue;}
             *pose=candidate;*clear=1;return RF_OK;
         }
         /* Bounded full-body downward sweep establishes walkable support before
@@ -181,9 +185,11 @@ static int scene_driller_exit_pose(void *context,uint32_t player,uint32_t host,s
         scene_vehicle_collision_body(&body,candidate.position,end,candidate.basis,&q);
         status=scene_vehicle_collision_query(&body,&q,&hit,&found);if(status)return status;
         printf("DRILLER_EXIT_FLOOR %u found %u fraction %.6g normal %.6g %.6g %.6g\n",direction,found,hit.contact.fraction,hit.contact.normal[0],hit.contact.normal[1],hit.contact.normal[2]);
-        if(!found || hit.contact.normal[1]<.5f || hit.contact.fraction<0 || hit.contact.fraction>=1)continue;
+        if(!found || hit.contact.normal[1]<.5f || hit.contact.fraction<0 || hit.contact.fraction>=1 ||
+           (hit.solid==UINT32_MAX&&hit.room==UINT32_MAX))continue; /* Only world/mover support. */
         candidate.position[1]-=drop*hit.contact.fraction;candidate.position[1]+=.01f;
         if(!scene_driller_excludes_host(c,&body,&candidate)){printf("DRILLER_EXIT_HOST_BLOCK %u\n",direction);continue;}
+        if(c->exit_clear){status=c->exit_clear(c->exit_context,&candidate,&found);if(status)return status;if(!found)continue;}
         printf("DRILLER_EXIT_ACCEPT %u %.6g %.6g %.6g\n",direction,candidate.position[0],candidate.position[1],candidate.position[2]);
         *pose=candidate;*clear=1;return RF_OK;
     }

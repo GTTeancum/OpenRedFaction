@@ -27,7 +27,7 @@ from xemu_world_hdd import prepare
 
 FIGHTER,JEEP=8955,7629
 FRAMES=380
-LOAD_FRAMES=240
+LOAD_FRAMES=300
 SYMBOLS=dict(BASE_SYMBOLS,rf_scene_fighter_weapon=8,rf_scene_vehicle_profile_packs=16,
     rf_scene_checkpoint_world_reject=9,rf_scene_vehicle_player_capture=8,
     rf_scene_vehicle_switch_restore=16,rf_scene_world_load_reject=3)
@@ -40,11 +40,15 @@ def replay():
 
 
 def load_replay():
-    # Jeep+X exit meets the room wall; -X exit is about x=.41. The saved
-    # identity look makes negative side world-X. Twenty frames at speed6 /
-    # acceleration20 cross the x0 owner bisector while remaining in the gap.
-    return b'RFI6'+U(48)+b''.join(struct.pack('<5f7I',-float(80<=frame<100),0,0,0,0,0,0,
-        int(frame in (60,130)),int(160<=frame<180),0,0,0) for frame in range(LOAD_FRAMES))
+    # Retained195453 entry130 shows player x4.6188 on the Jeep's +X side;
+    # the assumed wall-blocked +X exit was false. Straight left meets its hull.
+    # First go behind: rear hull Z=-1.9216 minus player radius1.0307 requires
+    # Z<-2.9523. Speed6/acceleration20 gives about3.3m backward in42 frames.
+    # Then72 left frames aim for x~-.7, beyond the 3D nearest-owner boundary
+    # x~-.20. This is an ordinary input schedule, subject to real clearance.
+    return b'RFI6'+U(48)+b''.join(struct.pack('<5f7I',-float(145<=frame<217),0,
+        -float(80<=frame<122),0,0,0,0,int(frame in (60,240)),
+        int(260<=frame<280),0,0,0) for frame in range(LOAD_FRAMES))
 
 
 def fighter_model():
@@ -169,7 +173,7 @@ def validate_return(loaded,fresh):
     saved=fresh['saved'];restore=fresh['restore'];end=loaded['extra'];sw=end['rf_scene_vehicle_switch'];a=end['rf_scene_vehicle_switch_apply']
     if sw[1]!=1 or sw[4:8]!=[JEEP,FIGHTER,restore[13],restore[14]] or sw[8] or sw[9]!=1 or sw[15]!=FIGHTER:raise RuntimeError(f'Ordinary return to parked Fighter failed: {sw}')
     if end['rf_scene_vehicle_enabled']!=[5] or end['rf_scene_vehicle_state'][1:4]!=[1,1,1] or end['rf_scene_vehicle_state'][12]!=restore[14]:raise RuntimeError('Fighter ordinary boarding or restored handle missing')
-    if a[:4]!=[JEEP,FIGHTER,restore[13],restore[14]] or a[8:12]!=[saved['Jeep_ammo'],saved['primary'],0,saved['secondary']] or a[15:18]!=saved['position'] or a[24:30]!=[1,0,0,0,0,1] or a[31] or not 129<=a[30]<=131:raise RuntimeError('Return changed saved ownership, ammunition, pose or input timing')
+    if a[:4]!=[JEEP,FIGHTER,restore[13],restore[14]] or a[8:12]!=[saved['Jeep_ammo'],saved['primary'],0,saved['secondary']] or a[15:18]!=saved['position'] or a[24:30]!=[1,0,0,0,0,1] or a[31] or not 239<=a[30]<=241:raise RuntimeError('Return changed saved ownership, ammunition, pose or input timing')
     if a[4:8]!=[saved['Jeep_health'],saved['health'],saved['Jeep_armor'],saved['armor']] or end['rf_scene_vehicle_damage'][0]!=saved['health']:raise RuntimeError('Return changed original health50/400 or armor')
     weapon=end['rf_scene_fighter_weapon']
     if weapon[1]<1 or weapon[2] or weapon[5] or weapon[6]!=saved['primary']-weapon[1] or weapon[7]!=saved['secondary'] or end['rf_scene_apc_primary'][1]:raise RuntimeError('Returned Fighter did not spend its own restored minigun supply without phantom launches')
@@ -197,7 +201,7 @@ def main():
             prior=args.resume_saved_run.resolve();source=json.loads((prior/'save/result.json').read_text())
             payload=(prior/'save/xbox-world.rfwc').read_bytes()
             report.update(resumed_source=str(prior),source_validation=validate(source,payload))
-            report['load_schedule']=dict(frames=LOAD_FRAMES,probe=40,exit_Jeep=60,left=[80,99],board_Fighter=130,fire_Fighter=[160,179])
+            report['load_schedule']=dict(frames=LOAD_FRAMES,probe=40,exit_Jeep=60,back=[80,121],left=[145,216],board_Fighter=240,fire_Fighter=[260,279])
             (DISC/'world-hdd-load.flag').write_bytes(b'1');(DISC/'player-replay.bin').write_bytes(load_replay())
             build(folder,'load');loaded=run_guest(folder,'load',hdd,LOAD_FRAMES,360,
                 extra_symbols=SYMBOLS,probe=live_probe,probe_frame=40,allow_guest_error=True)

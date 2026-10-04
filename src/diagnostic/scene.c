@@ -15968,6 +15968,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 static uint32_t scene_vehicle_physics_frozen(const scene_stream *);
 static uint32_t scene_vehicle_physics_allows_control(const scene_stream *);
 static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
+static void scene_vehicle_entry_collision_bind(scene_stream *);
 #include "scene_driller_runtime.inc"
 #include "scene_vehicle_profile_pack_state.inc"
 static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
@@ -16016,6 +16017,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_driller_flame.inc"
 #include "scene_driller_checkpoint_adapter.inc"
 #include "scene_vehicle_wreck_exit.inc"
+#include "scene_vehicle_entry_collision.inc"
 #include "scene_vehicle_switch.inc"
 #include "scene_vehicle_switch_checkpoint.inc"
 #include "scene_vehicle_combat_restore.inc"

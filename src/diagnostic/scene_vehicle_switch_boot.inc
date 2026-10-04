@@ -94,7 +94,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
     status=rf_world_checkpoint_decode(data,bytes,0,&world);if(status)goto done;
     const rf_world_checkpoint_slice *slice=world.sections+RF_WORLD_VEHICLE-1;
     status=scene_vehicle_switch_checkpoint_peek(slice->data,slice->bytes,&uid,&profile,&count);if(status||!uid)goto done;
-    if(!campaign_authored_vehicle_uid||(scene_history_word(slice->data+4)==1&&profile!=rf_scene_vehicle_enabled)||profile<1||profile>5||
+    if(!campaign_authored_vehicle_uid||(scene_history_word((const unsigned char *)slice->data+4)==1&&profile!=rf_scene_vehicle_enabled)||profile<1||profile>5||
        uid>0x7fffffffu||!count||count>RF_OBJECT_CAPACITY){status=RF_FORMAT;goto done;}
     status=rf_level_entity_find(level,(int32_t)uid,&selected);if(status)goto done;
     if(profile==5?strcmp(selected.class_name,"Fighter01")!=0:scene_vehicle_selection_profile(selected.class_name)!=profile){status=RF_FORMAT;goto done;}

@@ -314,6 +314,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         r->physics=prepared;r->collision.spheres=r->physics.collision;
         r->collision.count=r->physics.sphere_count;r->collision.radius=r->physics.radius;
         r->entry.resource=s->driller;r->entry.physics=&r->physics;r->entry.collision=r->collision;
+        scene_vehicle_entry_collision_bind(s);
         r->entry.water_path=NULL;r->entry.water_context=NULL;
         if(profile==4||profile==5){
             r->submarine_liquids.items=s->liquid_rooms;r->submarine_liquids.count=s->swim_room_count;r->submarine_liquids.bytes=s->swim_bytes;

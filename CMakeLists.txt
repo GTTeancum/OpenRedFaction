@@ -1125,6 +1125,11 @@ target_link_libraries(rf_scene_driller_draw_tests PRIVATE rf_core)
 add_test(NAME scene_driller_draw COMMAND rf_scene_driller_draw_tests)
 set_tests_properties(scene_driller_draw PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(rf_scene_vehicle_entry_collision_tests tests/scene_vehicle_entry_collision_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_vehicle_entry_collision_tests PRIVATE rf_core)
+add_test(NAME scene_vehicle_entry_collision COMMAND rf_scene_vehicle_entry_collision_tests)
+set_tests_properties(scene_vehicle_entry_collision PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(rf_scene_vehicle_collision_tests tests/scene_vehicle_collision_tests.c)
 target_link_libraries(rf_scene_vehicle_collision_tests PRIVATE rf_core)
 add_test(NAME scene_vehicle_collision COMMAND rf_scene_vehicle_collision_tests)
