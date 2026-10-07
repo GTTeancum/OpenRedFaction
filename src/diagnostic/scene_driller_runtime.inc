@@ -32,6 +32,11 @@ struct scene_driller_runtime {
 uint32_t rf_scene_vehicle_state[16];
 uint32_t rf_scene_jeep_seats[8]; /* ticks,driver frames,gunner frames,switches,role,seat,steer,fire */
 uint32_t rf_scene_vehicle_damage[8]; /* health bits,amount bits,calls,destroyed,pending,exits,source,alive */
+/* Read-only owner layout for bounded affiliation/handoff/save checks. */
+const uint32_t rf_scene_vehicle_affiliation_layout[3]={
+    offsetof(scene_passive_vehicle,damage.state.effects.affiliation),
+    offsetof(scene_driller_damage_runtime,damage.state.effects.affiliation),
+    offsetof(scene_driller_damage_runtime,damage.state.effects.handle)};
 uint32_t rf_scene_drill_state[8]; /* ticks,contacts,damage,cuts,requests,rejections,postwork,status */
 static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t handle,
     float position[3],float *health)
@@ -494,6 +499,9 @@ static int scene_driller_runtime_open(scene_stream *s)
         status=scene_npc_vitals_apply(&authored,&vitals,&s->driller->vitals);if(status)goto fail;
         authored_damage.state.effects.health=vitals.health;
         authored_damage.state.effects.armor=vitals.armor;
+        /* Keep the host's authored team through active/parked transfers.
+         * Occupied damage attribution still follows the current driver. */
+        authored_damage.state.effects.affiliation=campaign_seeds.items[source].spawn.friendliness;
         authored_damage.object_flags=vitals.object_flags;
         authored_damage.destroyed=vitals.health<=0;
     }
