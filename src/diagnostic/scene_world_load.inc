@@ -231,6 +231,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         vehicle_present?&vehicle:NULL,(uint32_t)campaign_authored_vehicle_uid,passive,turrets);if(status)goto done;
     status=scene_turret_generated_attack_admit(world->npcs,generated);if(status)goto done;
     status=scene_clutter_checkpoint_targets_valid(world->clutter);if(status)goto done;
+    status=campaign_group_control_children_validate(world->controls);if(status)goto done;
     status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
     status=scene_world_mission_validate(mission);if(status)goto done;
     status=scene_campaign_history_checkpoint_rebind_validate(bindings);if(status)goto done;
@@ -253,6 +254,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_npc_seat_checkpoint_assign(seats);
     scene_turret_death_effects_reset_pending();
     scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
+    campaign_group_control_children_assign(world->controls);
     if(vehicle_present){scene_world_vehicle_route_assign(&vehicle_route);campaign_vehicle_mode_publish(stream);}
     scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);
     scene_remote_checkpoint_publish();

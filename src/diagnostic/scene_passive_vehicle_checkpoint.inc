@@ -190,6 +190,12 @@ static void scene_passive_vehicle_checkpoint_assign(const scene_passive_vehicle_
             for(i=0;i<stage->count;i++)if(stage->rows[i].uid==uid&&stage->rows[i].attached){
                 campaign_general_handles[used+count++]=campaign_passive_vehicles[i].handle;break;
             }
+            /* Control membership was fully checked before the transaction.
+             * Restore authored order without a fallible registry callback. */
+            if(i==stage->count)for(i=0;i<campaign_group_control_child_count;i++)
+                if(campaign_group_control_children[i].uid==uid){
+                    campaign_general_handles[used+count++]=campaign_group_control_children[i].handle;break;
+                }
         }
         view->general_count=count;
         view->general_handles=count?campaign_general_handles+used:NULL;

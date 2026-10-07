@@ -39,9 +39,11 @@ static int scene_clutter_checkpoint_identity(const unsigned char source[32],unsi
            !binding->initialized||binding->handle!=owner->state.handle||binding->class_index!=owner->state.class_index||
            owner->state.class_index<0||(uint32_t)owner->state.class_index>=campaign_clutter_classes.count)return RF_FORMAT;
         cls=campaign_clutter_classes.items+owner->state.class_index;p=campaign_clutter_damage_profiles+owner->state.class_index;
-        if(owner->state.definition!=cls||!p->ordinary||!r->class_name||!cls->name||!cls->model||
-           memcmp(owner->state.position,r->position,12)||memcmp(owner->body.state.position,r->position,12)||
-           memcmp(owner->matrix,r->matrix,36))return RF_RANGE;
+        if(owner->state.definition!=cls||!p->ordinary||!r->class_name||!cls->name||!cls->model)return RF_RANGE;
+        /* RFMC supplies admitted group-child motion; RFPC still hashes the
+         * immutable authored identity and owns only health/gameplay flags. */
+        if((memcmp(owner->state.position,r->position,12)||memcmp(owner->body.state.position,r->position,12)||
+            memcmp(owner->matrix,r->matrix,36)) && !campaign_group_control_clutter_pose_valid(i))return RF_RANGE;
         for(j=0;j<3;j++)if(owner->body.state.velocity[j]!=0||!isfinite(r->position[j]))return RF_RANGE;
         checkpoint_sha_word(&hash,r->uid);checkpoint_sha_word(&hash,(uint32_t)owner->state.class_index);
         checkpoint_sha_add(&hash,r->class_name,(uint32_t)strlen(r->class_name)+1);

@@ -13,6 +13,7 @@ typedef struct scene_world_restore_stage {
     uint32_t semantic_mask,allocated_bytes;
     scene_mover_checkpoint_stage movers;
     scene_clutter_restore_stage *clutter;
+    scene_group_control_restore_stage *controls;
     scene_npc_checkpoint_restore_stage *npcs;
     rf_geometry_collision_movers candidate_movers;
     rf_clutter_base_owner *candidate_props;
@@ -31,6 +32,7 @@ static inline void scene_world_restore_discard(scene_world_restore_stage **out)
     scene_world_restore_stage *s;
     if(!out||!*out)return;s=*out;
     scene_npc_checkpoint_restore_discard(&s->npcs);scene_mover_checkpoint_close(&s->movers);
+    campaign_group_control_children_close_stage(&s->controls);
     free(s->clutter);free(s->candidate_props);free(s->prop_views);free(s->authored_prop_views);free(s->scratch);free(s);*out=NULL;
 }
 static inline int scene_world_restore_failure(const char *phase,int status)
@@ -169,8 +171,8 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
         const scene_clutter_restore_entry *e=s->clutter->entries+i;slot=e->slot;
         if(slot>=campaign_clutter_records.count||!campaign_clutter_bodies[slot]){status=RF_FORMAT;goto fail;}
         s->candidate_props[i]=*campaign_clutter_bodies[slot];s->prop_views[i]=s->candidate_props+i;
-        /* Clutter identity/prepare has proved these are unchanged authored
-         * positions/bases and retained class geometry, never saved moved props. */
+        /* Static props retain authored overlap exemptions. Admitted group
+         * controls lose this alias after their candidate poses are rebuilt. */
         s->authored_prop_views[i]=campaign_clutter_bodies[slot];
         s->candidate_props[i].state.health=e->row.health;
         s->candidate_props[i].state.flags=(s->candidate_props[i].state.flags&~0x204002u)|e->row.flags;
@@ -182,6 +184,15 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     status=scene_mover_checkpoint_prepare(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,
         &campaign_movers,mover_rows,mover_count,now,budget-s->allocated_bytes-(uint32_t)temp,&s->movers);if(status)goto fail;
     s->allocated_bytes+=s->movers.allocated_bytes;free(mover_rows);mover_rows=NULL;
+    phase="control_stage";
+    status=campaign_group_control_children_prepare(s->movers.bindings,s->movers.controller_count,
+        world->world,budget-s->allocated_bytes,&s->controls);if(status)goto fail;
+    s->allocated_bytes+=s->controls->allocated_bytes;
+    for(i=0;i<prop_count;i++){
+        uint32_t matched=0;
+        status=campaign_group_control_stage_apply_prop(s->controls,s->candidate_props+i,&matched);if(status)goto fail;
+        if(matched)s->authored_prop_views[i]=NULL;
+    }
     s->candidate_movers=campaign_movers;s->candidate_movers.poses=s->movers.poses;s->candidate_movers.views=s->movers.views;
     s->world=*world;s->world.authored_movers=world->movers;s->world.movers=&s->candidate_movers;
     s->world.props=s->prop_views;s->world.prop_count=prop_count;

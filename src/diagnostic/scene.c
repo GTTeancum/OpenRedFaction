@@ -1559,6 +1559,7 @@ uint32_t rf_scene_passive_npc_fixture[10]; /* handle,support,XYZ,script active,h
 uint32_t rf_scene_passive_rising_support[6]; /* probes,candidates,accepted,UID,handle,gap bits */
 uint32_t rf_scene_passive_side_push[9]; /* sweeps,side hits,moves,blocked,UID,actor XYZ,fixture placements */
 static int campaign_passive_vehicle_tick(void);
+static int campaign_group_control_children_sync(void);
 static void scene_passive_vehicle_npc_push_capture(void);
 static void scene_passive_vehicle_npc_push_reset(void);
 static void scene_passive_vehicle_support_reset(void);
@@ -3417,6 +3418,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
         memcpy(entry->pose.pending,runtime->pending,12);entry->pose.flags=runtime->object_flags;
     }
     status=campaign_passive_vehicle_tick();if(status)return status;
+    status=campaign_group_control_children_sync();if(status)return status;
     status=rf_geometry_collision_movers_propagate(&campaign_movers,campaign_controller_views,campaign_group_runtime.count,1.0f/60,0);if(status)return status;
     ++rf_scene_live_motion[1];
     return RF_OK;
@@ -3892,6 +3894,8 @@ int rf_scene_clutter_pose_set(uint32_t handle,const float position[3],const floa
     return scene_clutter_pose_publish(campaign_clutter_bodies[slot],position,basis,
         room.room==UINT32_MAX?0:room.room+1);
 }
+
+#include "scene_group_control_children.inc"
 int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index)
 {
     uint32_t i,model;int status;if(!index)return RF_RANGE;
@@ -5861,6 +5865,7 @@ static void campaign_close_movers(void)
     uint32_t i;for(i=0;i<campaign_mover_count;i++)rf_object_registry_remove(&campaign_registry,campaign_mover_wrappers[i].handle);
     for(i=0;i<campaign_passive_vehicle_count;i++)rf_object_registry_remove(&campaign_registry,campaign_passive_vehicles[i].handle);
     free(campaign_passive_vehicles);campaign_passive_vehicles=NULL;campaign_passive_vehicle_count=0;
+    campaign_group_control_children_close();
     free(campaign_general_handles);campaign_general_handles=NULL;
     rf_group_mover_memberships_close(&campaign_memberships);
     free(campaign_controller_requests);campaign_controller_requests=NULL;
@@ -5957,9 +5962,9 @@ static int campaign_bind_movers(void)
     }
     return RF_OK;
 }
-/* First-list group references in the installed campaign are vehicles: the
- * moving submarine, three Fighters and Masako's fighter. Retain their authored
- * world poses and handles even when none is the one player-boardable host. */
+/* First-list groups include vehicle chassis, static control meshes and
+ * trigger volumes. Vehicle ownership remains separate from the real clutter
+ * and trigger factories; all admitted handles share the authored order. */
 static int campaign_passive_vehicle_add(uint32_t source,uint32_t resource_kind,
     uint32_t group_owned,scene_passive_vehicle **result)
 {
@@ -5995,9 +6000,9 @@ static int campaign_bind_passive_vehicles(void)
         if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
         capacity+=entry->source->record.ids_count[0];
     }
-    if(!campaign_seeds.records.count)return RF_OK;
     if(capacity>65536 || campaign_seeds.records.count>65536)return RF_RANGE;
-    campaign_passive_vehicles=calloc(campaign_seeds.records.count,sizeof(*campaign_passive_vehicles));
+    status=campaign_group_control_children_open();if(status)return status;
+    campaign_passive_vehicles=calloc(campaign_seeds.records.count?campaign_seeds.records.count:1,sizeof(*campaign_passive_vehicles));
     campaign_general_handles=malloc((size_t)(capacity?capacity:1)*sizeof(*campaign_general_handles));
     if(!campaign_passive_vehicles || !campaign_general_handles){status=RF_RANGE;goto failed;}
     for(group=0;group<campaign_group_runtime.count;++group) {
@@ -6012,7 +6017,14 @@ static int campaign_bind_passive_vehicles(void)
             if((int32_t)uid==campaign_authored_vehicle_uid)continue;
             for(seed_index=0;seed_index<campaign_seeds.records.count;++seed_index)
                 if((uint32_t)campaign_seeds.records.items[seed_index].record.uid==uid)break;
-            if(seed_index==campaign_seeds.records.count)continue;
+            if(seed_index==campaign_seeds.records.count){
+                uint32_t child_handle;
+                status=campaign_group_control_child_handle(uid,&child_handle);
+                if(status==RF_NOT_FOUND){status=RF_OK;continue;}
+                if(status)goto failed;
+                campaign_general_handles[used++]=child_handle;++view->general_count;
+                continue;
+            }
             {
                 const char *name=campaign_seeds.records.items[seed_index].record.class_name;
                 for(resource_kind=0;resource_kind<6;++resource_kind)
@@ -6052,6 +6064,7 @@ static int campaign_bind_passive_vehicles(void)
         status=campaign_passive_vehicle_add(source,kind,0,&owner);if(status)goto failed;
     }
     rf_scene_passive_damage[7]=campaign_passive_vehicle_count;
+    status=campaign_group_control_children_sync();if(status)goto failed;
     return RF_OK;
 failed:
     for(group=0;group<campaign_group_runtime.count;++group) {
@@ -6061,6 +6074,7 @@ failed:
     for(group=0;group<campaign_passive_vehicle_count;++group)
         rf_object_registry_remove(&campaign_registry,campaign_passive_vehicles[group].handle);
     free(campaign_passive_vehicles);campaign_passive_vehicles=NULL;campaign_passive_vehicle_count=0;
+    campaign_group_control_children_close();
     free(campaign_general_handles);campaign_general_handles=NULL;
     return status;
 }
@@ -17492,6 +17506,7 @@ failed:
  * Routing, slope support and full authored movement-mode semantics remain open. */
 #include "scene_npc_rotating_support_fixture.inc"
 #include "scene_passive_vehicle_npc_push.inc"
+#include "scene_group_control_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
 {
     uint32_t i,j;rf_scene_script_movement[4]=0;
@@ -19146,6 +19161,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_alarm_tick(now);if(status)return status;
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
+                status=scene_group_control_fixture_tick(frame,now,&stream->particles);if(status)return status;
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
                 status=campaign_watch_fixture(frame);if(status)return status;
                 status=campaign_vehicle_blast_fixture(stream,frame);if(status)return status;
