@@ -3338,6 +3338,7 @@ static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t 
     return campaign_npc_trigger_contacts(now,frame,particles);
 }
 uint32_t rf_scene_rotating_doors[8]; /* active ticks, arrivals, last key, angle bits, mover count, matrix changes, reserved, errors */
+uint32_t rf_scene_world_controller_steps[8]; /* attempts,ticks,commits,occupied,on-foot,last frame,duplicates,status */
 static int campaign_controller_tick(int32_t now,rf_level_particles *particles,const float player_position[3])
 {
     uint32_t i,j;int status;rf_trigger_occupant actor;
@@ -5945,6 +5946,7 @@ static int campaign_bind_movers(void)
     campaign_controller_views=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_views));
     if(!campaign_controller_views)return RF_RANGE;
     memset(campaign_pose_slots,0,sizeof(campaign_pose_slots));memset(rf_scene_live_motion,0,sizeof(rf_scene_live_motion));
+    memset(rf_scene_world_controller_steps,0,sizeof(rf_scene_world_controller_steps));
     memset(rf_scene_rotating_doors,0,sizeof(rf_scene_rotating_doors));
     memset(rf_scene_mover_pause,0,sizeof(rf_scene_mover_pause));
     memset(rf_scene_live_door_positions,0,sizeof(rf_scene_live_door_positions));
@@ -17507,6 +17509,7 @@ failed:
 #include "scene_npc_rotating_support_fixture.inc"
 #include "scene_passive_vehicle_npc_push.inc"
 #include "scene_group_control_fixture.inc"
+#include "scene_occupied_mover_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
 {
     uint32_t i,j;rf_scene_script_movement[4]=0;
@@ -19085,30 +19088,48 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     particle_now,NULL,NULL,&stream->particle_first);if(status)return status;
             }
             step_profile_mark(0,&step_clock);
-            if(campaign_spawn && !scene_driller_active(stream)) {
-                /* 433520 -> 433260: input, physics, then 487e00 support.
-                 * The owned local-player fixture has object bit 8 and no parent. */
-                status=campaign_force_tick(&next,&stream->particles,particle_now);
-                rf_scene_force_ticks[11]=(uint32_t)status;if(status)return status;
+            if(campaign_spawn) {
+                uint32_t occupied=scene_driller_active(stream);
+                /* Keep the existing on-foot force/controller/actor ordering.
+                 * Vehicle possession only replaces the local player's physics;
+                 * the world and unseated NPC support still advance once. */
+                if(!occupied){
+                    status=campaign_force_tick(&next,&stream->particles,particle_now);
+                    rf_scene_force_ticks[11]=(uint32_t)status;if(status)return status;
+                }
+                if(rf_scene_world_controller_steps[0]&&rf_scene_world_controller_steps[5]==frame)
+                    ++rf_scene_world_controller_steps[6];
+                ++rf_scene_world_controller_steps[0];rf_scene_world_controller_steps[5]=frame;
+                ++rf_scene_world_controller_steps[occupied?3:4];
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
-                rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
-                status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return status;
-                status=scene_passive_vehicle_player_push(stream,&next);if(status)return status;
+                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return status;
+                ++rf_scene_world_controller_steps[1];
+                if(!occupied){
+                    status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return status;
+                    status=scene_passive_vehicle_player_push(stream,&next);if(status)return status;
+                }
                 status=scene_passive_vehicle_npc_push_tick(stream,frame);if(status)return status;
-                status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return status;
+                if(!occupied){
+                    status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return status;
+                }
                 status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
                 status=campaign_npc_refresh_support_tick();if(status)return status;
-                status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return status;
-                scene_player_impact_frame_begin(frame,0);
-                status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+                if(!occupied){
+                    status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return status;
+                    scene_player_impact_frame_begin(frame,0);
+                    status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+                }
                 status=campaign_controller_commit();
-                rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
-                moved=memcmp(next.position,scene_actor_body.state.position,12)!=0;
-                {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
-                    0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
-                if(route==RF_PLAYER_SUPPORT_QUERY) {
-                    status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return status;
-                    ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return status;
+                ++rf_scene_world_controller_steps[2];
+                if(!occupied){
+                    moved=memcmp(next.position,scene_actor_body.state.position,12)!=0;
+                    {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
+                        0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
+                    if(route==RF_PLAYER_SUPPORT_QUERY) {
+                        status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return status;
+                        ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+                    }
                 }
             } else if(!campaign_spawn && frame)for(axis=0;axis<3;++axis) {
                 float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
@@ -19246,6 +19267,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_attachment_motion_fixture(frame);if(status)return status;
                 npc_step_profile_mark(5,&npc_clock);
                 status=campaign_glare_rooms_pass(frame);if(status)return status;
+                status=scene_occupied_mover_fixture_tick(stream,frame,particle_now);if(status)return status;
                 npc_step_profile_mark(6,&npc_clock);
             }
         }
