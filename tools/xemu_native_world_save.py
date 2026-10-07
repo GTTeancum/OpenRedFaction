@@ -22,11 +22,13 @@ from xemu_guest_snapshot import words
 from xemu_session_guard import require_no_project_xemu
 from xemu_smoke import Monitor
 from xemu_world_hdd import prepare
+from xemu_host import (PipeMonitor, SessionLock, emulator_binary, emulator_environment,
+                       emulator_root, stop_owned_process, xbox_build_command)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DISC = ROOT / 'build/xbox/disc'
-EMULATOR = Path('C:/Games/Emulators/Xemu')
+EMULATOR = emulator_root()
 FLAGS = (
     'campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin',
     'campaign-passive-roof.bin', 'campaign-single-fire.bin', 'campaign-nano-shield.bin', 'campaign-special-save.bin',
@@ -45,8 +47,7 @@ FLAGS = (
 
 def build(run, name):
     with (run / f'{name}-build.log').open('wb') as log:
-        subprocess.run(['C:/msys64/usr/bin/bash.exe', '--noprofile', '--norc',
-                        'tools/build-xbox.sh', '--repack'], cwd=ROOT,
+        subprocess.run(xbox_build_command('--repack'), cwd=ROOT,
                        env=dict(os.environ, MSYSTEM='CLANG64'),
                        stdout=log, stderr=subprocess.STDOUT, check=True)
 
@@ -84,12 +85,15 @@ eeprom_path = '{(phase_dir / 'eeprom.bin').as_posix()}'
 hdd_path = '{hdd.as_posix()}'
 dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
 ''')
-    with socket.socket() as reservation:
-        reservation.bind(('127.0.0.1', 0))
-        port = reservation.getsockname()[1]
-    command = [str(EMULATOR / 'xemu.exe'), '-config_path', str(config),
+    pipe_qmp = os.name != 'nt'
+    port = None
+    if not pipe_qmp:
+        with socket.socket() as reservation:
+            reservation.bind(('127.0.0.1', 0))
+            port = reservation.getsockname()[1]
+    command = [emulator_binary(EMULATOR), '-config_path', str(config),
                '-m', '64', '-display', 'xemu', '-audio', 'none',
-               '-qmp', f'tcp:127.0.0.1:{port},server=on,wait=off']
+               '-qmp', 'stdio' if pipe_qmp else f'tcp:127.0.0.1:{port},server=on,wait=off']
     if snapshot:
         command.append('-snapshot')
     mapping = (ROOT / 'build/xbox/main.map').read_text()
@@ -106,7 +110,9 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
     extra_addresses = {key: address(mapping, key) for key in extra_symbols}
     monitor = process = None
     interim_probe = None
+    session_lock = SessionLock(ROOT)
     try:
+        session_lock.acquire()
         require_no_project_xemu(ROOT)
         startup = None
         if os.name == 'nt':
@@ -115,8 +121,10 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
             startup.wShowWindow = 0
         with (phase_dir / 'stdout.log').open('wb') as out, (phase_dir / 'stderr.log').open('wb') as err:
             process = subprocess.Popen(command, cwd=phase_dir,
-                                       env=dict(os.environ, SDL_AUDIO_DRIVER='dummy'),
-                                       stdout=out, stderr=err, startupinfo=startup,
+                                       env=emulator_environment(phase_dir),
+                                       stdin=subprocess.PIPE if pipe_qmp else None,
+                                       stdout=subprocess.PIPE if pipe_qmp else out, stderr=err, startupinfo=startup,
+                                       pass_fds=session_lock.inherited_fds(),
                                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             deadline = time.monotonic() + seconds
             last = None
@@ -125,8 +133,12 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                     raise RuntimeError(f'{name}: XEMU exited {process.returncode}')
                 if monitor is None:
                     try:
-                        monitor = Monitor(port)
+                        monitor = PipeMonitor(process, out) if pipe_qmp else Monitor(port)
+                        if pipe_qmp:
+                            monitor.negotiate()
                     except OSError:
+                        if pipe_qmp:
+                            raise
                         time.sleep(.5)
                         continue
                     memory = monitor.command('query-memory-size-summary')
@@ -218,18 +230,21 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 raise RuntimeError(f'{name}: memory exhausted or player dead')
             return result
     finally:
-        if monitor:
+        try:
+            if monitor:
+                try:
+                    monitor.command('quit')
+                except (OSError, RuntimeError):
+                    pass
+        finally:
             try:
-                monitor.command('quit')
-            except (OSError, RuntimeError):
-                pass
-            monitor.close()
-        if process:
-            try:
-                process.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                process.terminate()
-                process.wait(timeout=8)
+                stop_owned_process(process)
+            finally:
+                try:
+                    if monitor:
+                        monitor.close()
+                finally:
+                    session_lock.close()
 
 
 def main():

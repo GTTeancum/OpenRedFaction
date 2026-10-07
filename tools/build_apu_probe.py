@@ -1,5 +1,5 @@
 """Prepare/build an isolated APU evaluation, keeping dependencies/assets ignored."""
-import argparse,hashlib,json,os,shutil,struct,subprocess,tarfile,urllib.request
+import argparse,hashlib,json,os,platform,shutil,struct,subprocess,tarfile,urllib.request
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];local=root/'local';dependency=local/'nxdk-audio'
 parser=argparse.ArgumentParser();parser.add_argument('--backend-only',action='store_true');args=parser.parse_args()
@@ -9,13 +9,25 @@ if not dependency.exists():
     subprocess.run(['git','checkout','--detach',revision],cwd=dependency,check=True)
 assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=dependency,text=True).strip()==revision
 subprocess.run(['git','diff','--exit-code',revision,'--'],cwd=dependency,check=True,stdout=subprocess.DEVNULL)
-package='dsp56300-0.1.3-x86_64-pc-windows-gnu'
-archive=local/'dsp56300-windows.tar.gz'
+if os.name == 'nt':
+    triple='x86_64-pc-windows-gnu'
+    archive_name='dsp56300-windows.tar.gz'
+    expected_digest='ff031c6daf89f4c2c78a5943920bf483b044e8ec805feaf1efe32c80f991b09c'
+    executable='dsp56300-asm.exe'
+elif platform.system() == 'Linux' and platform.machine() == 'x86_64':
+    triple='x86_64-unknown-linux-gnu'
+    archive_name='dsp56300-linux.tar.gz'
+    expected_digest='04aff4e070913205a7913d8d8a6076f99150c347d21df584b76b436ed5170fc8'
+    executable='dsp56300-asm'
+else:
+    raise SystemExit('Unsupported DSP assembler host: use Windows or x86_64 Linux')
+package=f'dsp56300-0.1.3-{triple}'
+archive=local/archive_name
 url=f'https://github.com/mborgerson/dsp56300/releases/download/v0.1.3/{package}.tar.gz'
 if not archive.exists():urllib.request.urlretrieve(url,archive)
 digest=hashlib.sha256(archive.read_bytes()).hexdigest()
-assert digest=='ff031c6daf89f4c2c78a5943920bf483b044e8ec805feaf1efe32c80f991b09c'
-assembler=local/package/'bin/dsp56300-asm.exe'
+assert digest==expected_digest
+assembler=local/package/'bin'/executable
 if not assembler.exists():
     with tarfile.open(archive) as tar:tar.extractall(local,filter='data')
 subprocess.run([str(assembler),'-f','lod','-o',str(dependency/'passthrough.out'),str(dependency/'passthrough.a56')],cwd=root,check=True)

@@ -6,7 +6,22 @@ from pathlib import Path
 
 def project_xemu_processes(root):
     if os.name != 'nt':
-        raise RuntimeError('Project emulator guard requires Windows process inventory')
+        # The run helper also holds a file lock across separate PID namespaces.
+        records = []
+        for proc in Path('/proc').glob('[0-9]*'):
+            try:
+                arguments = (proc / 'cmdline').read_bytes().split(b'\0')
+                executable = Path(os.fsdecode(arguments[0])).name.lower()
+                if executable == 'apprun':
+                    executable = Path(os.readlink(proc / 'exe')).name.lower()
+                if executable not in ('xemu', 'xemu.exe'):
+                    continue
+                records.append({'ProcessId': int(proc.name),
+                                'CommandLine': os.fsdecode(b' '.join(arguments))})
+            except (OSError, ValueError):
+                continue
+        return [row['ProcessId'] for row in records]
+
     script = "Get-CimInstance Win32_Process -Filter \"Name = 'xemu.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress"
     result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
         check=True, capture_output=True, text=True)
