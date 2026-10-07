@@ -251,7 +251,7 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
 {
     const scene_passive_vehicle *owner=NULL;const rf_physics_spheres *body_spheres;
     campaign_npc_body *npc=NULL;uint32_t i,j,kind;
-    float top=-FLT_MAX,bottom=FLT_MAX,center[3]={0},point[3],zero[3]={0};
+    float top=-FLT_MAX,bottom=FLT_MAX,center[3]={0},point[3],zero[3]={0},roof_radius=0;
     float side_center[3]={0},side_offset[3]={0},side_host_radius=0,side_actor_radius=0;
     if(!rf_scene_passive_roof_fixture[0] || frame!=rf_scene_passive_roof_fixture[1])return RF_OK;
     if(!s || !actor)return RF_RANGE;
@@ -264,7 +264,8 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
     body_spheres=&scene_actor_body.spheres;
     if(rf_scene_passive_roof_fixture[9]==3 || rf_scene_passive_roof_fixture[9]==5 ||
-       rf_scene_passive_roof_fixture[9]==6 || rf_scene_passive_roof_fixture[9]==7) {
+       rf_scene_passive_roof_fixture[9]==6 || rf_scene_passive_roof_fixture[9]==7 ||
+       rf_scene_passive_roof_fixture[9]==9) {
         for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view &&
             campaign_npc_bodies[i].damage.effects.health>0 && campaign_npc_bodies[i].body.spheres.count &&
             campaign_npc_bodies[i].view.linked_handle==-1 &&
@@ -279,7 +280,7 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+i;
         scene_driller_actor_point(owner->pose.position,owner->pose.input_matrix,sphere->center,point);
         if(point[1]+sphere->radius>top) {
-            top=point[1]+sphere->radius;memcpy(center,point,sizeof(center));
+            top=point[1]+sphere->radius;roof_radius=sphere->radius;memcpy(center,point,sizeof(center));
         }
         if(sphere->radius>side_host_radius){
             side_host_radius=sphere->radius;memcpy(side_center,point,12);
@@ -305,12 +306,20 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         actor->position[0]=actor->next_position[0]=center[0];
         actor->position[1]=actor->next_position[1]=top-bottom+.06f;
         actor->position[2]=actor->next_position[2]=center[2];
+        if(rf_scene_passive_roof_fixture[9]==8 || rf_scene_passive_roof_fixture[9]==9){
+            float offset=fminf(.6f,roof_radius*.45f),direction=center[0]<owner->pose.position[0]?-1.f:1.f;
+            float dx,dz;
+            actor->position[0]=actor->next_position[0]=center[0]+direction*offset;
+            actor->position[1]=actor->next_position[1]=center[1]+sqrtf(roof_radius*roof_radius-offset*offset)-bottom+.02f;
+            dx=actor->position[0]-owner->pose.position[0];dz=actor->position[2]-owner->pose.position[2];
+            if(dx*dx+dz*dz<.25f)return RF_RANGE; /* Require a real off-axis rider. */
+        }
     }
     memset(actor->velocity,0,sizeof(actor->velocity));
     if(npc) {
         uint32_t handle=npc->registration.handle;int status;
-        npc->support.handle=rf_scene_passive_roof_fixture[9]>=6?0:owner->handle;
-        if(rf_scene_passive_roof_fixture[9]>=6){
+        npc->support.handle=(rf_scene_passive_roof_fixture[9]==6||rf_scene_passive_roof_fixture[9]==7)?0:owner->handle;
+        if(rf_scene_passive_roof_fixture[9]==6||rf_scene_passive_roof_fixture[9]==7){
             npc->support.material=-1;memset(npc->support_velocity,0,sizeof(npc->support_velocity));
         }else memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
         memset(&npc->piece_support,0,sizeof(npc->piece_support));
@@ -461,7 +470,12 @@ static int scene_passive_vehicle_npc_retain(scene_stream *s,campaign_npc_body *n
     actor->position[1]=(float)((double)actor->position[1]-(double)best+.02);
     actor->next_position[1]=actor->position[1];actor->velocity[1]=0;
     actor->flags|=0x400000u;
-    memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
+    {
+        float target[3],velocity[3];uint32_t matched;
+        status=scene_passive_vehicle_support_point(owner->handle,npc->registration.handle,actor->position,
+            1,target,velocity,&matched);if(status)return status;
+        memcpy(npc->support_velocity,matched?velocity:owner->velocity,sizeof(npc->support_velocity));
+    }
     npc->script_move.fall_speed=0;
     status=rf_physics_body_prepare_sweep(actor);if(status)return status;
     status=rf_scene_npc_normal(s->collision,npc->registration.handle,NULL);if(status)return status;

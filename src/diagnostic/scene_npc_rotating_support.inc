@@ -60,7 +60,7 @@ int rf_scene_npc_support_interval_velocity(const scene_mover_interval *interval,
  * assigns body.position and the newly accepted support.handle. Collision's
  * contact.velocity is only a mover-center velocity; replacing a rotational
  * carry cache with it would erase the actor's launch velocity every grounded
- * tick. Static, translating, fragment and passive contacts retain their
+ * tick. Static, translating and fragment contacts retain their
  * existing semantics. Do not inspect piece_support: it can still name the old
  * contact until the caller publishes its new fragment binding after this call. */
 static int campaign_npc_rotating_support_contact(const campaign_npc_body *owner,
@@ -70,6 +70,12 @@ static int campaign_npc_rotating_support_contact(const campaign_npc_body *owner,
     if(!owner||!velocity||moving>1||(moving&&!contact))return RF_RANGE;
     if(moving)for(i=0;i<3;i++) {
         if(!isfinite(contact[i]))return RF_FORMAT;result[i]=contact[i];
+    }
+    if(moving&&owner->support.handle){
+        float target[3],point_velocity[3];uint32_t matched;
+        status=scene_passive_vehicle_support_point(owner->support.handle,owner->registration.handle,
+            owner->body.state.position,1,target,point_velocity,&matched);if(status)return status;
+        if(matched){memcpy(velocity,point_velocity,12);return RF_OK;}
     }
     if(moving&&owner->support.handle&&campaign_mover_intervals&&campaign_mover_interval_seconds>0) {
         if(campaign_mover_count&&!campaign_mover_wrappers)return RF_FORMAT;
@@ -90,14 +96,21 @@ static int campaign_npc_rotating_support_contact(const campaign_npc_body *owner,
 
 /* A grounded actor may carry a restored support handle. Resolve that full
  * registry generation afresh; never infer attachment from geometric proximity.
- * Fragment/passive-vehicle support continues through its existing path. */
+ * A passive host uses the same transform before the mover-only early gates. */
 static int campaign_npc_rotating_support_target(campaign_npc_body *owner,
     float elapsed,float target[3])
 {
     uint32_t i;int status;
     if(!owner||!target||!isfinite(elapsed)||elapsed<=0)return RF_RANGE;
-    if(owner->piece_support.tag||!owner->support.handle||
-       !campaign_mover_intervals||campaign_mover_interval_seconds<=0)return RF_OK;
+    if(owner->piece_support.tag||!owner->support.handle)return RF_OK;
+    {
+        float point[3],velocity[3];uint32_t matched;
+        if(elapsed!=scene_step_seconds)return RF_RANGE;
+        status=scene_passive_vehicle_support_point(owner->support.handle,owner->registration.handle,
+            owner->body.state.position,0,point,velocity,&matched);if(status)return status;
+        if(matched){memcpy(target,point,12);memcpy(owner->support_velocity,velocity,12);return RF_OK;}
+    }
+    if(!campaign_mover_intervals||campaign_mover_interval_seconds<=0)return RF_OK;
     for(i=0;i<campaign_mover_count;i++) {
         const scene_mover_interval *interval=campaign_mover_intervals+i;
         const rf_group_registered_mover *mover=campaign_mover_wrappers+i;

@@ -652,7 +652,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),stream_flag);
         int invalid=fgetc(stream_flag)!=EOF;fclose(stream_flag);
         if(invalid || (bytes!=8 && bytes!=12) || !values[0] || values[1]>1000 ||
-           (bytes==12 && (values[2]<2 || values[2]>7)))return RF_FORMAT;
+           (bytes==12 && (values[2]<2 || values[2]>9)))return RF_FORMAT;
         rf_scene_passive_roof_fixture[0]=values[0];rf_scene_passive_roof_fixture[1]=values[1];
         rf_scene_passive_roof_fixture[9]=bytes==12?values[2]:1;}
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;

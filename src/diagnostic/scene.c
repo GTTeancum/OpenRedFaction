@@ -1544,6 +1544,7 @@ static uint32_t campaign_selected_vehicle_resource_kind(void)
 static scene_passive_vehicle *campaign_passive_vehicles;
 static uint32_t campaign_passive_vehicle_count,*campaign_general_handles;
 static uint32_t campaign_passive_vehicle_motion_epoch,campaign_passive_npc_push_epoch;
+static uint32_t campaign_passive_vehicle_motion_active,campaign_passive_vehicle_motion_frame;
 uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,handle,parent,live XYZ,detached XYZ,errors */
 uint32_t rf_scene_passive_draw[6]; /* owners,visible,batches,vertices,last UID,error */
 uint32_t rf_scene_passive_collision[8]; /* queries,hits,ground queries,ground hits,last UID,last handle,spheres,error */
@@ -1560,6 +1561,7 @@ uint32_t rf_scene_passive_side_push[9]; /* sweeps,side hits,moves,blocked,UID,ac
 static int campaign_passive_vehicle_tick(void);
 static void scene_passive_vehicle_npc_push_capture(void);
 static void scene_passive_vehicle_npc_push_reset(void);
+static void scene_passive_vehicle_support_reset(void);
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 
 static uint32_t campaign_mover_count;
@@ -5984,6 +5986,7 @@ static int campaign_bind_passive_vehicles(void)
     memset(rf_scene_passive_damage,0,sizeof(rf_scene_passive_damage));
     campaign_passive_vehicle_motion_epoch=campaign_passive_npc_push_epoch=0;
     scene_passive_vehicle_npc_push_reset();
+    scene_passive_vehicle_support_reset();
     memset(rf_scene_vehicle_visibility,0,sizeof(rf_scene_vehicle_visibility));
     memset(rf_scene_vehicle_visibility_history,0,sizeof(rf_scene_vehicle_visibility_history));
     rf_scene_passive_attachment[6]=UINT32_MAX;
@@ -6085,6 +6088,7 @@ static int campaign_passive_vehicle_tick(void)
             memcpy(rf_scene_passive_attachment+7,owner->pose.position,12);
     }
     if(!++campaign_passive_vehicle_motion_epoch)++campaign_passive_vehicle_motion_epoch;
+    campaign_passive_vehicle_motion_active=1;
     return RF_OK;
 }
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle)
@@ -8073,16 +8077,18 @@ static rf_physics_body *campaign_piece_support_body(const scene_piece_support *r
        !rf_geomod_piece_batch_alive(batch,ref->piece) || rf_geomod_piece_batch_get(batch,ref->piece,&piece,&body))return NULL;
     return body;
 }
-static void campaign_player_support_refresh(rf_physics_body_state *state,uint32_t mode)
+#include "scene_passive_vehicle_support.inc"
+static int campaign_player_support_refresh(rf_physics_body_state *state,uint32_t mode)
 {
-    const float *velocity=NULL;
+    const float *velocity=NULL;float point_velocity[3],target[3];uint32_t matched;int status;
+    if(mode==3)campaign_player_passive_support_release(state,campaign_passive_vehicle_motion_frame);
     if(campaign_piece_support.tag) {
         rf_physics_body *body=campaign_piece_support_body(&campaign_piece_support);
         if(body) {
             velocity=body->state.velocity;
             /* Settled fragments need no additional wake; a moving or newly
              * stopped support must refresh the actor's cached carry velocity. */
-            if(!velocity[0] && !velocity[1] && !velocity[2] && !memcmp(velocity,campaign_support_velocity,12))return;
+            if(!velocity[0] && !velocity[1] && !velocity[2] && !memcmp(velocity,campaign_support_velocity,12))return RF_OK;
         } else memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
     } else {
         rf_group_registered_mover *support=rf_object_registry_lookup(&campaign_registry,campaign_support_handle);
@@ -8092,11 +8098,14 @@ static void campaign_player_support_refresh(rf_physics_body_state *state,uint32_
             for(index=0;index<campaign_passive_vehicle_count;++index)
                 if(campaign_passive_vehicles[index].handle==campaign_support_handle &&
                    !(campaign_passive_vehicles[index].damage.object_flags&0x4000u)) {
-                    velocity=campaign_passive_vehicles[index].velocity;break;
+                    status=scene_passive_vehicle_support_point(campaign_support_handle,campaign_player_object.handle,
+                        state->position,0,target,point_velocity,&matched);if(status)return status;
+                    velocity=matched?point_velocity:NULL;break;
                 }
         }
     }
     rf_physics_support_refresh(mode,velocity,campaign_support_velocity,&state->flags,&rf_scene_actor_pose.flags);
+    return RF_OK;
 }
 
 static rf_collision_contact_extra campaign_player_contact;
@@ -8133,6 +8142,7 @@ uint32_t rf_scene_npc_support_refresh[6]; /* ticks,actors,resolved,fixture cases
 int rf_scene_npc_refresh_support(uint32_t handle)
 {
     uint32_t i,mode;campaign_npc_body *owner;rf_physics_body *piece_body=NULL;const float *velocity=NULL;
+    float point[3],point_velocity[3];uint32_t matched;int status;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
         campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
@@ -8145,6 +8155,11 @@ int rf_scene_npc_refresh_support(uint32_t handle)
             if(!piece_body)memset(&owner->piece_support,0,sizeof(owner->piece_support));
         }
         velocity=piece_body?piece_body->state.velocity:campaign_object_velocity(owner->support.handle);
+        if(!piece_body&&mode==1){
+            status=scene_passive_vehicle_support_point(owner->support.handle,handle,owner->body.state.position,
+                0,point,point_velocity,&matched);if(status)return status;
+            if(matched)velocity=point_velocity;
+        }
     }
     rf_physics_support_refresh(mode,velocity,owner->support_velocity,&owner->body.state.flags,&owner->object_flags);
     owner->view.flags_7c=owner->object_flags;
@@ -9086,7 +9101,8 @@ static float actor_piece_support_height(const rf_physics_body_state *actor,const
 static int actor_support_commit(rf_physics_body_state *state,const actor_ground_record *ground,
     const rf_geometry_body_hit *contact,uint32_t landing,const scene_piece_support *support)
 {
-    rf_physics_body_state next=*state;uint32_t handle,i,passive=0;int status;
+    rf_physics_body_state next=*state;uint32_t handle,i,passive=0,point_matched;int status;
+    float accepted_velocity[3],point_velocity[3],target[3];
     rf_physics_body *piece_body=campaign_piece_support_body(support);
     if(!campaign_spawn)return landing?rf_physics_static_land(state,&ground->probe,ground->hit.hit.fraction):
         rf_physics_static_support(state,&ground->probe,ground->hit.hit.fraction);
@@ -9137,13 +9153,19 @@ static int actor_support_commit(rf_physics_body_state *state,const actor_ground_
             }
         }
     }
+    memcpy(accepted_velocity,contact->contact.velocity,12);
+    if(passive){
+        status=scene_passive_vehicle_support_point(contact->contact.object_id,campaign_player_object.handle,
+            next.position,1,target,point_velocity,&point_matched);if(status)return status;
+        if(point_matched)memcpy(accepted_velocity,point_velocity,12);
+    }
     if(landing) {
-        status=rf_physics_landing_velocity(next.velocity,campaign_support_velocity,contact->contact.velocity,next.velocity);if(status)return status;
+        status=rf_physics_landing_velocity(next.velocity,campaign_support_velocity,accepted_velocity,next.velocity);if(status)return status;
         next.velocity[1]=0;next.flags&=~0x200000u; /* Existing ordinary run transition. */
     }
     *state=next;campaign_support_handle=piece_body?0:handle;
     if(piece_body)campaign_piece_support=*support;else memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
-    memcpy(campaign_support_velocity,contact->contact.velocity,12);return RF_OK;
+    memcpy(campaign_support_velocity,accepted_velocity,12);return RF_OK;
 }
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
@@ -9220,6 +9242,7 @@ static int actor_stance_ground_commit(const rf_geometry_collision_world *world,u
         }
     } else if(rf_scene_actor_landing[1]==1) {
         scene_actor_body.state.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+        campaign_player_passive_support_release(&scene_actor_body.state,frame);
     }
     status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
     d[2]=rf_scene_actor_landing[1];memcpy(d+6,scene_actor_body.state.position,12);return RF_OK;
@@ -9404,6 +9427,7 @@ static int campaign_jump_update(uint32_t frame)
             accepted=rf_scene_player_jump[2]!=sounds;
             rf_scene_actor_stance_flags=state.actor_flags;scene_actor_body.state.flags=state.physics_flags;
             scene_actor_body.state.velocity[1]=state.vertical_velocity;rf_scene_actor_landing[1]=selected;
+            if(selected==3)campaign_player_passive_support_release(&scene_actor_body.state,frame);
             if(accepted){++rf_scene_player_jump[1];rf_scene_player_jump[3]=frame;}
         }
     }
@@ -19036,6 +19060,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             const scene_piece_support *piece_support=scene_ground_piece_support+(frame%64);
             const rf_geometry_body_hit *contact=rf_scene_actor_ground_contacts+(frame%64);uint32_t route=RF_PLAYER_SUPPORT_QUERY;
             int moved=0;uint32_t axis;
+            campaign_passive_vehicle_motion_active=0;campaign_passive_vehicle_motion_frame=frame;
             /* The final puzzle is terminal on either outcome. Keep presenting
              * the level, but do not advance its physics, events, NPCs or
              * particles while the modal input owner holds the player. */
@@ -19058,7 +19083,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return status;
                 status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
                 status=campaign_npc_refresh_support_tick();if(status)return status;
-                campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);
+                status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return status;
                 scene_player_impact_frame_begin(frame,0);
                 status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
                 status=campaign_controller_commit();
@@ -19077,6 +19102,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(scene_driller_active(stream))route=UINT32_MAX;
             if(route==RF_PLAYER_SUPPORT_FALL) {
                 next.flags|=1;rf_scene_actor_landing[1]=3;
+                campaign_player_passive_support_release(&next,frame);
             } else if(route==RF_PLAYER_SUPPORT_QUERY) {
                 if(rf_scene_actor_landing[1]==3 && walkable) {
                     status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return status;
@@ -19088,6 +19114,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                         ++rf_scene_actor_landing[6];
                     } else {
                         next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+                        campaign_player_passive_support_release(&next,frame);
                     }
                 }
             }
@@ -19183,6 +19210,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_script_step(stream,scene_step_seconds,frame);
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
                 scene_passive_vehicle_npc_fixture_probe();
+                scene_passive_vehicle_support_live_probe(frame,rf_scene_actor_landing[1]);
                 scene_npc_teleport_sample();
                 scene_scripted_disarm_sample();
                 scene_script_physics_sample(frame);
