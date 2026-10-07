@@ -177,7 +177,7 @@ static void scene_passive_vehicle_checkpoint_assign(const scene_passive_vehicle_
             owner->damage.destroyed=saved->destroyed;
             owner->damage.destruction_pending=0;
         }
-        memset(owner->velocity,0,12);detached+=owner->group_owned&&!saved->attached;
+        memset(owner->velocity,0,12);owner->motion_valid=0;detached+=owner->group_owned&&!saved->attached;
     }
     for(group=0;group<campaign_group_runtime.count;group++){
         const rf_group_runtime_entry *entry=campaign_group_runtime.items+group;

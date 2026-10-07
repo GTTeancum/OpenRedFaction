@@ -32,6 +32,8 @@ struct scene_driller_runtime {
 uint32_t rf_scene_vehicle_state[16];
 uint32_t rf_scene_jeep_seats[8]; /* ticks,driver frames,gunner frames,switches,role,seat,steer,fire */
 uint32_t rf_scene_vehicle_damage[8]; /* health bits,amount bits,calls,destroyed,pending,exits,source,alive */
+uint32_t rf_scene_passive_npc_blocker_fixture[10]; /* placements,UID,handle,initial XYZ,current XYZ,error */
+uint32_t rf_scene_passive_npc_blocker_separation[4]; /* pairs,min sphere gap bits,axis gap bits,error */
 /* Read-only owner layout for bounded affiliation/handoff/save checks. */
 const uint32_t rf_scene_vehicle_affiliation_layout[3]={
     offsetof(scene_passive_vehicle,damage.state.effects.affiliation),
@@ -261,7 +263,8 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     kind=owner->resource_kind;
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
     body_spheres=&scene_actor_body.spheres;
-    if(rf_scene_passive_roof_fixture[9]==3 || rf_scene_passive_roof_fixture[9]==5) {
+    if(rf_scene_passive_roof_fixture[9]==3 || rf_scene_passive_roof_fixture[9]==5 ||
+       rf_scene_passive_roof_fixture[9]==6 || rf_scene_passive_roof_fixture[9]==7) {
         for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view &&
             campaign_npc_bodies[i].damage.effects.health>0 && campaign_npc_bodies[i].body.spheres.count &&
             campaign_npc_bodies[i].view.linked_handle==-1 &&
@@ -290,13 +293,14 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
             side_actor_radius=sphere->radius;memcpy(side_offset,point,12);
         }
     }
-    if(rf_scene_passive_roof_fixture[9]==4) {
+    if(rf_scene_passive_roof_fixture[9]==4 || rf_scene_passive_roof_fixture[9]==6 ||
+       rf_scene_passive_roof_fixture[9]==7) {
         float direction=owner->velocity[0]<0?-1.f:1.f;
         actor->position[0]=actor->next_position[0]=side_center[0]+direction*
             (side_host_radius+side_actor_radius+.08f)-side_offset[0];
         actor->position[1]=actor->next_position[1]=side_center[1]-side_offset[1];
         actor->position[2]=actor->next_position[2]=side_center[2]-side_offset[2];
-        ++rf_scene_passive_side_push[8];
+        if(rf_scene_passive_roof_fixture[9]==4)++rf_scene_passive_side_push[8];
     } else {
         actor->position[0]=actor->next_position[0]=center[0];
         actor->position[1]=actor->next_position[1]=top-bottom+.06f;
@@ -305,11 +309,13 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
     memset(actor->velocity,0,sizeof(actor->velocity));
     if(npc) {
         uint32_t handle=npc->registration.handle;int status;
-        npc->support.handle=owner->handle;
-        memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
+        npc->support.handle=rf_scene_passive_roof_fixture[9]>=6?0:owner->handle;
+        if(rf_scene_passive_roof_fixture[9]>=6){
+            npc->support.material=-1;memset(npc->support_velocity,0,sizeof(npc->support_velocity));
+        }else memcpy(npc->support_velocity,owner->velocity,sizeof(npc->support_velocity));
         memset(&npc->piece_support,0,sizeof(npc->piece_support));
         status=rf_scene_npc_normal(s->collision,handle,NULL);if(status)return status;
-        if(rf_scene_passive_roof_fixture[9]==5){
+        if(rf_scene_passive_roof_fixture[9]>=5){
             campaign_pursuit_stop(npc);memset(&npc->script_move,0,sizeof(npc->script_move));
             npc->combat_alert=npc->combat_scripted=npc->combat_target=npc->combat_due=npc->combat_navigation_due=0;
         }else{
@@ -318,6 +324,58 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
             npc->script_move.target[0]=actor->position[0]+100.f;
             npc->script_move.target[1]=actor->position[1];
             npc->script_move.target[2]=actor->position[2];
+        }
+        if(rf_scene_passive_roof_fixture[9]==7){
+            scene_passive_vehicle *blocker=NULL;float radius=0,offset[3]={0},position[3];
+            float actor_edge,blocker_edge,gap=.15f,min_gap=FLT_MAX;
+            float direction=owner->velocity[0]<0?-1.f:1.f;
+            for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].uid==915601u){
+                blocker=campaign_passive_vehicles+i;break;
+            }
+            if(!blocker||blocker->attached||blocker->resource_kind!=kind||
+               rf_object_registry_lookup(&campaign_registry,blocker->handle)!=blocker)return RF_NOT_FOUND;
+            for(i=0;i<s->passive_vehicle_sphere_count[kind];i++){
+                const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+i;
+                if(sphere->radius>radius){radius=sphere->radius;
+                    scene_driller_actor_point(zero,blocker->pose.input_matrix,sphere->center,offset);}
+            }
+            for(i=0;i<3;i++)position[i]=actor->position[i]+side_offset[i]-offset[i];
+            /* Separate the entire authored sphere unions, not merely their
+             * largest spheres, so blocked clearance starts outside the hull. */
+            actor_edge=direction<0?FLT_MAX:-FLT_MAX;
+            blocker_edge=direction<0?-FLT_MAX:FLT_MAX;
+            for(i=0;i<body_spheres->count;i++){
+                const rf_physics_sphere *sphere=body_spheres->items+i;float p[3],edge;
+                scene_driller_actor_point(actor->position,actor->orientation,sphere->center,p);
+                edge=p[0]+direction*sphere->radius;
+                actor_edge=direction<0?fminf(actor_edge,edge):fmaxf(actor_edge,edge);
+            }
+            for(i=0;i<s->passive_vehicle_sphere_count[kind];i++){
+                const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+i;float p[3],edge;
+                scene_driller_actor_point(zero,blocker->pose.input_matrix,sphere->center,p);
+                edge=p[0]-direction*sphere->radius;
+                blocker_edge=direction<0?fmaxf(blocker_edge,edge):fminf(blocker_edge,edge);
+            }
+            position[0]=actor_edge+direction*gap-blocker_edge;
+            status=rf_group_pose_set_position(&blocker->pose,position);if(status)return status;
+            memcpy(blocker->pose.base_position,position,12);memset(blocker->velocity,0,12);blocker->motion_valid=0;
+            ++rf_scene_passive_npc_blocker_fixture[0];rf_scene_passive_npc_blocker_fixture[1]=blocker->uid;
+            rf_scene_passive_npc_blocker_fixture[2]=blocker->handle;
+            memcpy(rf_scene_passive_npc_blocker_fixture+3,position,12);
+            memcpy(rf_scene_passive_npc_blocker_fixture+6,position,12);
+            for(i=0;i<body_spheres->count;i++)for(j=0;j<s->passive_vehicle_sphere_count[kind];j++){
+                const rf_physics_sphere *a=body_spheres->items+i;
+                const rf_collision_body_sphere *b=s->passive_vehicle_spheres[kind]+j;
+                float ap[3],bp[3],d=0;uint32_t axis;
+                scene_driller_actor_point(actor->position,actor->orientation,a->center,ap);
+                scene_driller_actor_point(position,blocker->pose.input_matrix,b->center,bp);
+                for(axis=0;axis<3;axis++)d+=(ap[axis]-bp[axis])*(ap[axis]-bp[axis]);
+                min_gap=fminf(min_gap,sqrtf(d)-a->radius-b->radius);
+                ++rf_scene_passive_npc_blocker_separation[0];
+            }
+            memcpy(rf_scene_passive_npc_blocker_separation+1,&min_gap,4);
+            memcpy(rf_scene_passive_npc_blocker_separation+2,&gap,4);
+            if(!isfinite(min_gap)||min_gap<.14f){rf_scene_passive_npc_blocker_separation[3]=RF_RANGE;return RF_RANGE;}
         }
         rf_scene_passive_npc_fixture[0]=handle;
     } else if(rf_scene_passive_roof_fixture[9]==2 || rf_scene_passive_roof_fixture[9]==4) {
@@ -339,6 +397,13 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
 static void scene_passive_vehicle_npc_fixture_probe(void)
 {
     uint32_t i,handle=rf_scene_passive_npc_fixture[0];
+    if(rf_scene_passive_npc_blocker_fixture[0]){
+        for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].handle==rf_scene_passive_npc_blocker_fixture[2]&&
+            campaign_passive_vehicles[i].uid==rf_scene_passive_npc_blocker_fixture[1]&&
+            rf_object_registry_lookup(&campaign_registry,campaign_passive_vehicles[i].handle)==campaign_passive_vehicles+i)break;
+        if(i==campaign_passive_vehicle_count)rf_scene_passive_npc_blocker_fixture[9]=RF_NOT_FOUND;
+        else memcpy(rf_scene_passive_npc_blocker_fixture+6,campaign_passive_vehicles[i].pose.position,12);
+    }
     if(!handle)for(i=0;i<campaign_npc_body_count&&!handle;i++){
         const campaign_npc_body *npc=campaign_npc_bodies+i;uint32_t j;
         if(!npc->registration.view||npc->damage.effects.health<=0||!npc->support.handle)continue;

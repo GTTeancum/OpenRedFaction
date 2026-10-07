@@ -1530,6 +1530,8 @@ typedef struct scene_passive_vehicle {
     uint32_t object_kind,handle,uid,attached,resource_kind,group_owned; /* Kind 11 is port-internal, not a skeletal entity view. */
     rf_group_attached_pose pose;
     float velocity[3];
+    /* Last completed controller interval, never extrapolated from velocity. */
+    float previous_position[3],previous_basis[9];uint32_t motion_valid;
     scene_driller_damage damage;
 } scene_passive_vehicle;
 static const char *const campaign_passive_vehicle_classes[6]={
@@ -1541,6 +1543,7 @@ static uint32_t campaign_selected_vehicle_resource_kind(void)
 }
 static scene_passive_vehicle *campaign_passive_vehicles;
 static uint32_t campaign_passive_vehicle_count,*campaign_general_handles;
+static uint32_t campaign_passive_vehicle_motion_epoch,campaign_passive_npc_push_epoch;
 uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,handle,parent,live XYZ,detached XYZ,errors */
 uint32_t rf_scene_passive_draw[6]; /* owners,visible,batches,vertices,last UID,error */
 uint32_t rf_scene_passive_collision[8]; /* queries,hits,ground queries,ground hits,last UID,last handle,spheres,error */
@@ -1555,6 +1558,8 @@ uint32_t rf_scene_passive_npc_fixture[10]; /* handle,support,XYZ,script active,h
 uint32_t rf_scene_passive_rising_support[6]; /* probes,candidates,accepted,UID,handle,gap bits */
 uint32_t rf_scene_passive_side_push[9]; /* sweeps,side hits,moves,blocked,UID,actor XYZ,fixture placements */
 static int campaign_passive_vehicle_tick(void);
+static void scene_passive_vehicle_npc_push_capture(void);
+static void scene_passive_vehicle_npc_push_reset(void);
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 
 static uint32_t campaign_mover_count;
@@ -3334,6 +3339,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
 {
     uint32_t i,j;int status;rf_trigger_occupant actor;
     campaign_mover_interval_seconds=0;
+    scene_passive_vehicle_npc_push_capture();
     actor.handle=(uint32_t)campaign_player_view.handle;actor.flags=campaign_player_view.flags_7c;
     memcpy(actor.position,player_position,12);
     for(i=0;i<campaign_group_runtime.count;++i) {
@@ -4668,6 +4674,8 @@ typedef struct campaign_single_fire_request {
 
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;scene_piece_support piece_support;
+    /* Interval-local guard against relocation in controller event callbacks. */
+    float passive_push_position[3],passive_push_basis[9];uint32_t passive_push_handle;
     uint32_t piece_reacquire; /* One ground query after checkpoint publication. */
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
@@ -5974,6 +5982,8 @@ static int campaign_bind_passive_vehicles(void)
     memset(rf_scene_passive_attachment,0,sizeof(rf_scene_passive_attachment));
     memset(rf_scene_passive_collision,0,sizeof(rf_scene_passive_collision));
     memset(rf_scene_passive_damage,0,sizeof(rf_scene_passive_damage));
+    campaign_passive_vehicle_motion_epoch=campaign_passive_npc_push_epoch=0;
+    scene_passive_vehicle_npc_push_reset();
     memset(rf_scene_vehicle_visibility,0,sizeof(rf_scene_vehicle_visibility));
     memset(rf_scene_vehicle_visibility_history,0,sizeof(rf_scene_vehicle_visibility_history));
     rf_scene_passive_attachment[6]=UINT32_MAX;
@@ -6057,19 +6067,24 @@ static int campaign_passive_vehicle_tick(void)
     for(index=0;index<campaign_passive_vehicle_count;++index) {
         scene_passive_vehicle *owner=campaign_passive_vehicles+index;
         float previous[3];
+        owner->motion_valid=0;
         memset(owner->velocity,0,sizeof(owner->velocity));
         if(owner->uid==rf_scene_passive_attachment[4])
             memcpy(rf_scene_passive_attachment+7,owner->pose.position,12);
         if(!owner->attached)continue;
         memcpy(previous,owner->pose.position,12);
+        memcpy(owner->previous_position,owner->pose.position,12);
+        memcpy(owner->previous_basis,owner->pose.input_matrix,36);
         status=rf_group_translation_bind_pose(&owner->pose,owner->handle,
             campaign_controller_views,campaign_group_runtime.count,1.0f/60,1);
         if(status){++rf_scene_passive_attachment[13];return status;}
+        owner->motion_valid=1;
         for(k=0;k<3;++k)owner->velocity[k]=(owner->pose.position[k]-previous[k])*60;
         if(memcmp(previous,owner->pose.position,12))++rf_scene_passive_attachment[2];
         if(owner->uid==rf_scene_passive_attachment[4])
             memcpy(rf_scene_passive_attachment+7,owner->pose.position,12);
     }
+    if(!++campaign_passive_vehicle_motion_epoch)++campaign_passive_vehicle_motion_epoch;
     return RF_OK;
 }
 static int campaign_passive_vehicle_detach(void *context,uint32_t handle)
@@ -17452,6 +17467,7 @@ failed:
 /* First-pass horizontal approach, bounded by the existing body/world sweep.
  * Routing, slope support and full authored movement-mode semantics remain open. */
 #include "scene_npc_rotating_support_fixture.inc"
+#include "scene_passive_vehicle_npc_push.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
 {
     uint32_t i,j;rf_scene_script_movement[4]=0;
@@ -19038,6 +19054,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
                 status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return status;
                 status=scene_passive_vehicle_player_push(stream,&next);if(status)return status;
+                status=scene_passive_vehicle_npc_push_tick(stream,frame);if(status)return status;
                 status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return status;
                 status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
                 status=campaign_npc_refresh_support_tick();if(status)return status;
