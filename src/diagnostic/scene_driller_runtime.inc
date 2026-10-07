@@ -130,6 +130,7 @@ static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,
         const scene_passive_vehicle *owner=campaign_passive_vehicles+index;
         scene_driller_actor_collision body={0};const scene_driller_resources *resource;
         uint32_t kind=owner->resource_kind;
+        if(owner->damage.object_flags&0x4000u)continue;
         if(kind>=6 || !s->passive_vehicle_sphere_count[kind]) {
             rf_scene_passive_collision[7]=RF_FORMAT;return RF_FORMAT;
         }
@@ -190,7 +191,7 @@ static int scene_passive_vehicle_player_push(scene_stream *s,rf_physics_body_sta
         scene_driller_actor_collision host={0};const scene_driller_resources *resource;
         rf_geometry_body_hit contact={0},obstacle={0};rf_physics_body_state motion;
         float delta[3],approach=0,limit;uint32_t kind=owner->resource_kind;
-        if(!owner->attached || campaign_support_handle==owner->handle ||
+        if((owner->damage.object_flags&0x4000u)||!owner->attached || campaign_support_handle==owner->handle ||
            (uint32_t)campaign_player_view.linked_handle==owner->handle)continue;
         if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
         resource=s->passive_vehicle_resources[kind];
@@ -251,7 +252,7 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         if(campaign_passive_vehicles[i].uid==rf_scene_passive_roof_fixture[0]) {
             owner=campaign_passive_vehicles+i;break;
         }
-    if(!owner || !owner->attached)return RF_NOT_FOUND;
+    if(!owner || !owner->attached || (owner->damage.object_flags&0x4000u))return RF_NOT_FOUND;
     kind=owner->resource_kind;
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_FORMAT;
     body_spheres=&scene_actor_body.spheres;
@@ -365,7 +366,7 @@ static int scene_passive_vehicle_npc_retain(scene_stream *s,campaign_npc_body *n
         rf_object_registry_lookup(&campaign_registry,npc->support.handle)==campaign_passive_vehicles+i) {
         owner=campaign_passive_vehicles+i;break;
     }
-    if(!owner || !owner->attached)return RF_OK;
+    if(!owner || !owner->attached || (owner->damage.object_flags&0x4000u))return RF_OK;
     kind=owner->resource_kind;
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_OK;
     actor=&npc->body.state;body=&npc->body.spheres;
@@ -421,7 +422,7 @@ static int scene_passive_vehicle_player_rising_support(scene_stream *s,
     for(i=0;i<campaign_passive_vehicle_count;++i) {
         const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
         uint32_t kind=owner->resource_kind;
-        if(!owner->attached || owner->velocity[1]<=.1f || kind>=6 ||
+        if((owner->damage.object_flags&0x4000u)||!owner->attached || owner->velocity[1]<=.1f || kind>=6 ||
            !s->passive_vehicle_sphere_count[kind])continue;
         for(j=0;j<s->passive_vehicle_sphere_count[kind];++j) {
             const rf_collision_body_sphere *sphere=s->passive_vehicle_spheres[kind]+j;

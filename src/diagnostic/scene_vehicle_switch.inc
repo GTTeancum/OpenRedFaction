@@ -197,7 +197,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
            p->damage.destruction_pending||(p->damage.object_flags&(2u|0x4000u)))continue;
         if(scene_vehicle_switch_seed(p->uid,&source))continue;
         status=rf_level_entity_spawn_read(campaign_seeds.records.items+source,&spawn);if(status)goto done;
-        if(spawn.creation_flags&2u||spawn.seat_host_uid!=-1||scene_vehicle_switch_dependency(p->uid,p->handle))continue;
+        if(spawn.seat_host_uid!=-1||scene_vehicle_switch_dependency(p->uid,p->handle))continue;
         if(p->scripted_physics&&!(p->physics_body_flags&0x80000000u))continue; /* Not boardable until woken. */
         double speed=0;for(uint32_t j=0;j<3;j++){double d=(double)scene_actor_body.state.position[j]-p->pose.position[j];d2+=d*d;speed+=(double)p->velocity[j]*p->velocity[j];}
         if(!isfinite(d2)||!isfinite(speed)){status=RF_FORMAT;goto done;}if(speed>.01||d2>best||d2>candidate_range*candidate_range)continue;

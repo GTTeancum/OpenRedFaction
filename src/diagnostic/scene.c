@@ -1545,6 +1545,11 @@ uint32_t rf_scene_passive_attachment[14]; /* owners,bindings,moves,detaches,UID,
 uint32_t rf_scene_passive_draw[6]; /* owners,visible,batches,vertices,last UID,error */
 uint32_t rf_scene_passive_collision[8]; /* queries,hits,ground queries,ground hits,last UID,last handle,spheres,error */
 uint32_t rf_scene_passive_damage[8]; /* ray queries,hits,damage calls,destroyed,last UID,health bits,error,owners */
+uint32_t rf_scene_vehicle_visibility[8]; /* requests,shown,hidden,dead no-op,last UID,handle,flags,error */
+uint32_t rf_scene_vehicle_visibility_history[8][10]; /* frame,UID,handle,visible,before,after,health,registry,homing before/after */
+const uint32_t rf_scene_passive_visibility_layout[2]={offsetof(scene_passive_vehicle,damage.object_flags),
+    offsetof(scene_passive_vehicle,damage.destroyed)};
+static uint32_t scene_vehicle_homing_eligible(const scene_passive_vehicle *);
 uint32_t rf_scene_passive_roof_fixture[10];
 uint32_t rf_scene_passive_npc_fixture[10]; /* handle,support,XYZ,script active,health bits,updates,mode,retentions */
 uint32_t rf_scene_passive_rising_support[6]; /* probes,candidates,accepted,UID,handle,gap bits */
@@ -5969,6 +5974,8 @@ static int campaign_bind_passive_vehicles(void)
     memset(rf_scene_passive_attachment,0,sizeof(rf_scene_passive_attachment));
     memset(rf_scene_passive_collision,0,sizeof(rf_scene_passive_collision));
     memset(rf_scene_passive_damage,0,sizeof(rf_scene_passive_damage));
+    memset(rf_scene_vehicle_visibility,0,sizeof(rf_scene_vehicle_visibility));
+    memset(rf_scene_vehicle_visibility_history,0,sizeof(rf_scene_vehicle_visibility_history));
     rf_scene_passive_attachment[6]=UINT32_MAX;
     for(group=0;group<campaign_group_runtime.count;++group) {
         const rf_group_runtime_entry *entry=campaign_group_runtime.items+group;
@@ -8068,7 +8075,8 @@ static void campaign_player_support_refresh(rf_physics_body_state *state,uint32_
         else {
             uint32_t index;
             for(index=0;index<campaign_passive_vehicle_count;++index)
-                if(campaign_passive_vehicles[index].handle==campaign_support_handle) {
+                if(campaign_passive_vehicles[index].handle==campaign_support_handle &&
+                   !(campaign_passive_vehicles[index].damage.object_flags&0x4000u)) {
                     velocity=campaign_passive_vehicles[index].velocity;break;
                 }
         }
@@ -8102,7 +8110,8 @@ static const float *campaign_object_velocity(uint32_t handle)
     for(i=0;i<campaign_mover_count;++i)if(object==campaign_mover_wrappers+i && campaign_mover_wrappers[i].handle==handle &&
         campaign_mover_wrappers[i].pose)return campaign_mover_wrappers[i].pose->velocity;
     for(i=0;i<campaign_passive_vehicle_count;++i)if(object==campaign_passive_vehicles+i &&
-        campaign_passive_vehicles[i].handle==handle)return campaign_passive_vehicles[i].velocity;
+        campaign_passive_vehicles[i].handle==handle &&
+        !(campaign_passive_vehicles[i].damage.object_flags&0x4000u))return campaign_passive_vehicles[i].velocity;
     return NULL;
 }
 uint32_t rf_scene_npc_support_refresh[6]; /* ticks,actors,resolved,fixture cases/hash,errors */
@@ -10189,6 +10198,31 @@ static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
     if(visible>1)return RF_RANGE;
     registered=rf_object_registry_lookup(&campaign_registry,handle);
     if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_passive_vehicle_count;i++) {
+        scene_passive_vehicle *owner=campaign_passive_vehicles+i;
+        uint32_t before,eligible,slot,*trace;
+        if(owner->handle!=handle||registered!=owner)continue;
+        before=owner->damage.object_flags;eligible=scene_vehicle_homing_eligible(owner);
+        slot=rf_scene_vehicle_visibility[0]++;
+        /* Visibility never resurrects a destroyed/dead owner or changes its
+         * ownership, physics, faction, health, or unrelated object flags. */
+        if(owner->damage.destroyed||owner->damage.state.effects.health<=0||(before&2u))
+            ++rf_scene_vehicle_visibility[3];
+        else {
+            if(visible)owner->damage.object_flags&=~0x4000u;
+            else owner->damage.object_flags|=0x4000u;
+            ++rf_scene_vehicle_visibility[visible?1:2];
+        }
+        rf_scene_vehicle_visibility[4]=owner->uid;rf_scene_vehicle_visibility[5]=handle;
+        rf_scene_vehicle_visibility[6]=owner->damage.object_flags;
+        if(slot<8){
+            trace=rf_scene_vehicle_visibility_history[slot];trace[0]=rf_scene_profile_stage[0];
+            trace[1]=owner->uid;trace[2]=handle;trace[3]=visible;trace[4]=before;
+            trace[5]=owner->damage.object_flags;memcpy(trace+6,&owner->damage.state.effects.health,4);
+            trace[7]=1;trace[8]=eligible;trace[9]=scene_vehicle_homing_eligible(owner);
+        }
+        return RF_OK;
+    }
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle || registered!=&owner->registration)continue;
@@ -17992,6 +18026,7 @@ static int scene_passive_vehicle_draw(scene_stream *stream)
     for(index=0;index<campaign_passive_vehicle_count;++index) {
         const scene_passive_vehicle *owner=campaign_passive_vehicles+index;
         const scene_driller_resources *resource;
+        if(owner->damage.object_flags&0x4000u)continue;
         kind=owner->resource_kind;
         if(kind>=6){rf_scene_passive_draw[5]=RF_FORMAT;return RF_FORMAT;}
         if(stream->driller && campaign_selected_vehicle_resource_kind()==kind) {
@@ -19896,6 +19931,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  owner->damage.state.effects.health=vitals.health;
                  owner->damage.state.effects.armor=vitals.armor;
                  owner->damage.object_flags=vitals.object_flags;
+                 if(campaign_seeds.items[source].spawn.creation_flags&2u)
+                     owner->damage.object_flags|=0x4000u;
                  owner->damage.state.effects.affiliation=campaign_seeds.items[source].spawn.friendliness;
              }
              rf_vpp_close(&tables);if(status)goto done;}

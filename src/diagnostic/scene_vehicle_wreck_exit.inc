@@ -114,6 +114,7 @@ static int scene_vehicle_wreck_destination(scene_stream *s,campaign_npc_body *ac
     }
     for(uint32_t i=0;i<campaign_passive_vehicle_count;i++){
         const scene_passive_vehicle *o=campaign_passive_vehicles+i;rf_physics_sphere spheres[8]={{0}};uint32_t kind=o->resource_kind,n;
+        if(o->damage.object_flags&0x4000u)continue;
         if(kind>=6)return RF_FORMAT;n=s->passive_vehicle_sphere_count[kind];if(n>8)return RF_RANGE;
         for(uint32_t j=0;j<n;j++){memcpy(spheres[j].center,s->passive_vehicle_spheres[kind][j].center,12);spheres[j].radius=s->passive_vehicle_spheres[kind][j].radius;}
         status=scene_vehicle_wreck_pair(&p,spheres,n,o->pose.position,o->pose.input_matrix);if(status)return status;

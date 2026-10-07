@@ -6,8 +6,9 @@ Fighter rockets and submarine torpedoes now scan eligible passive vehicle owners
 alongside NPCs. The shared vehicle admission requires a living, hostile,
 non-destroyed owner, a current generation-bearing registry handle, no runtime
 hidden/dormant flags, and exactly one visible authored seed. Missing or duplicate
-seed identities fail closed. Initially hidden passive owners remain excluded
-until a genuine passive visibility-activation path is implemented.
+seed identities fail closed. The subsequent [parked visibility integration](VEHICLE-VISIBILITY.md)
+initializes the authored hidden flag and follows live UnHide/OFF/save state;
+an initially hidden owner becomes eligible only after a real reveal transition.
 
 Line of sight accepts the target vehicle's hull only when the collision owner
 tag and full target handle both match. Existing source/driver exclusions remain
@@ -65,7 +66,7 @@ private inputs remain ignored. Compact reports are written under
 `artifacts/xemu/vehicle-homing-*`.
 
 These checks establish the visible parked-owner first pass. Moving/occupied
-target combinations, passive visibility activation, broader cover scenarios,
+target combinations, generic Switch/active-host visibility, broader cover scenarios,
 save continuation and retail presentation are not established by this batch.
 The overall working-alpha estimate remains approximately 88%, with vehicles
 approximately 95%; this small integration slice does not automatically change

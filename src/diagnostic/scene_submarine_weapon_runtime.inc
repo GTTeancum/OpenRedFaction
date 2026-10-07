@@ -17,17 +17,15 @@ const uint32_t rf_scene_vehicle_homing_owner_layout[4]={sizeof(scene_passive_veh
     offsetof(scene_passive_vehicle,damage.state.effects.health)};
 static uint32_t scene_vehicle_homing_eligible(const scene_passive_vehicle *vehicle)
 {
-    uint32_t i,matches=0,visible=0;
+    uint32_t i,matches=0;
     if(!vehicle||!vehicle->handle||vehicle->damage.destroyed||vehicle->damage.state.effects.health<=0||
        vehicle->damage.state.effects.affiliation!=0||(vehicle->damage.object_flags&(2u|0x4000u))||
        rf_object_registry_lookup(&campaign_registry,vehicle->handle)!=vehicle)return 0;
-    /* Passive damage flags do not encode initial authored visibility. Keep
-     * this admission local until passive visibility activation is supported. */
+    /* Runtime visibility includes authored initialization, script transitions
+     * and ordinary RFVA2 restoration. Seed identity remains exact and unique. */
     for(i=0;i<campaign_seeds.records.count;i++)
-        if((uint32_t)campaign_seeds.records.items[i].record.uid==vehicle->uid){
-            ++matches;visible=!(campaign_seeds.items[i].spawn.creation_flags&2u);
-        }
-    return matches==1&&visible;
+        if((uint32_t)campaign_seeds.records.items[i].record.uid==vehicle->uid)++matches;
+    return matches==1;
 }
 static inline uint32_t scene_submarine_weapon_pending(const scene_stream *s)
 {

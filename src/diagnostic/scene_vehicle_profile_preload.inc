@@ -20,10 +20,11 @@ static void scene_vehicle_profile_preload(scene_stream *s,const char *tables_pat
         uint32_t source;
         if(!profile||profile==rf_scene_vehicle_enabled||p->group_owned||p->attached||
            p->damage.destroyed||p->damage.state.effects.health<=0||
-           (p->damage.object_flags&(2u|0x4000u)))continue;
+           (p->damage.object_flags&2u))continue;
         if(scene_vehicle_switch_seed(p->uid,&source))continue;
-        if(campaign_seeds.items[source].spawn.seat_host_uid!=-1||
-           (campaign_seeds.items[source].spawn.creation_flags&2u))continue;
+        /* Hidden owners may be revealed by ordinary events later. Keep the
+         * existing optional pack budget/reserve while preparing that handoff. */
+        if(campaign_seeds.items[source].spawn.seat_host_uid!=-1)continue;
         mask|=1u<<profile;
     }
     mask|=scene_vehicle_switch_boot_profile_mask()&~(1u<<rf_scene_vehicle_enabled);

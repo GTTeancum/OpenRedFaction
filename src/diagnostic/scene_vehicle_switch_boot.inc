@@ -101,11 +101,10 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
     {const rf_level_section *section=rf_level_find(level,0x30000);
      if(!section){status=RF_FORMAT;goto done;}
      status=scene_vehicle_selection_metadata(level,section,&selected,&spawn,&vitals);if(status)goto done;
-     /* Runtime handoff cannot promote an authored hidden/parented/dead host.
-      * The legacy boot host itself may be authored hidden (L1S3 APC9627),
-      * become visible through scripts, then be selected again before saving. */
-     if(spawn.seat_host_uid!=-1 || (vitals.health<=0&&vitals.health!=-1) ||
-        ((spawn.creation_flags&2u)&&uid!=(uint32_t)campaign_authored_vehicle_uid)){
+     /* Hidden authored owners can now be revealed before an ordinary handoff.
+      * Source identity/class/seat/group/vitals remain authored admission;
+      * saved runtime visibility is restored by the existing RFVC/RFVA flags. */
+     if(spawn.seat_host_uid!=-1 || (vitals.health<=0&&vitals.health!=-1)){
          status=RF_FORMAT;goto done;
      }}
     status=scene_vehicle_selection_grouped(level,uid,&grouped);if(status)goto done;
@@ -124,8 +123,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
             status=rf_level_entity_find(level,(int32_t)row_uid,&row);if(status)goto done;
             if(row_profile==5?strcmp(row.class_name,"Fighter01")!=0:scene_vehicle_selection_profile(row.class_name)!=row_profile){status=RF_FORMAT;goto done;}
             status=scene_vehicle_selection_metadata(level,section,&row,&row_spawn,&row_vitals);if(status)goto done;
-            if(row_spawn.seat_host_uid!=-1||(row_vitals.health<=0&&row_vitals.health!=-1)||
-               ((row_spawn.creation_flags&2u)&&row_uid!=(uint32_t)campaign_authored_vehicle_uid)){
+            if(row_spawn.seat_host_uid!=-1||(row_vitals.health<=0&&row_vitals.health!=-1)){
                 status=RF_FORMAT;goto done;
             }
             status=scene_vehicle_selection_grouped(level,row_uid,&row_grouped);if(status)goto done;
