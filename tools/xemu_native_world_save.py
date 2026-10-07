@@ -61,7 +61,7 @@ def address(mapping, name):
 
 def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
               allow_guest_error=False, allow_player_dead=False, capture_world=False,
-              probe=None, probe_frame=None):
+              probe=None, probe_frame=None, final_probe=None, final_probe_frame=None):
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -110,6 +110,7 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
     extra_addresses = {key: address(mapping, key) for key in extra_symbols}
     monitor = process = None
     interim_probe = None
+    final_sample = None
     session_lock = SessionLock(ROOT)
     try:
         session_lock.acquire()
@@ -161,6 +162,13 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                         interim_probe = probe(monitor, mapping)
                     finally:
                         monitor.command('cont')
+                if final_probe and final_probe_frame is not None and final_sample is None and \
+                   diagnostic[37] >= final_probe_frame and diagnostic[2] == 2:
+                    monitor.command('stop')
+                    try:
+                        final_sample = final_probe(monitor, mapping)
+                    finally:
+                        monitor.command('cont')
                 stage = (diagnostic[2], diagnostic[37] // 30)
                 if stage != last:
                     print(f'{name}: phase {stage[0]}, frame {diagnostic[37]}', flush=True)
@@ -201,6 +209,10 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 if probe_frame is not None and interim_probe is None:
                     raise RuntimeError(f'{name}: missed live probe frame {probe_frame}')
                 result['probe'] = interim_probe if probe_frame is not None else probe(monitor, mapping)
+            if final_probe:
+                if final_probe_frame is not None and final_sample is None:
+                    raise RuntimeError(f'{name}: missed final live probe frame {final_probe_frame}')
+                result['final_probe'] = final_sample if final_probe_frame is not None else final_probe(monitor, mapping)
             if capture_world and not (diagnostic[2] & 0x80000000):
                 pointer = words(monitor, symbols['rf_scene_world_checkpoint_data'], 1)[0]
                 if state[3] != 0 or not 320 <= state[4] <= 110524 or not pointer:

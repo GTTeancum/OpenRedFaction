@@ -6,11 +6,29 @@
 static int scene_apc_secondary_visual_draw(const scene_driller_resources *,scene_stream *,
     const float[3],const float[3],uint32_t,uint32_t,uint32_t *,uint32_t *);
 /* Include after APC runtime and secondary visual helpers. Torpedo guidance
- * uses the shared explicit first-pass homing policies and live actor ownership.
+ * uses the shared explicit first-pass homing policies and live target ownership.
  * Shared impact appearance is provisional, not charge_explode asset parity. */
 uint32_t rf_scene_submarine_weapon[8]; /* ticks,launches,contacts,expired,live,liquid-stops,detonations,reserve */
 uint32_t rf_scene_submarine_homing_state[8]; /* scans,locks,last target,steered,submerged target,health bits,target y bits,target z bits */
 uint32_t rf_scene_submarine_impact_state[10]; /* world,NPC,other,last tag,launch xyz,contact xyz */
+/* Read-only ABI description for bounded owner-identity/health telemetry. */
+const uint32_t rf_scene_vehicle_homing_owner_layout[4]={sizeof(scene_passive_vehicle),
+    offsetof(scene_passive_vehicle,handle),offsetof(scene_passive_vehicle,uid),
+    offsetof(scene_passive_vehicle,damage.state.effects.health)};
+static uint32_t scene_vehicle_homing_eligible(const scene_passive_vehicle *vehicle)
+{
+    uint32_t i,matches=0,visible=0;
+    if(!vehicle||!vehicle->handle||vehicle->damage.destroyed||vehicle->damage.state.effects.health<=0||
+       vehicle->damage.state.effects.affiliation!=0||(vehicle->damage.object_flags&(2u|0x4000u))||
+       rf_object_registry_lookup(&campaign_registry,vehicle->handle)!=vehicle)return 0;
+    /* Passive damage flags do not encode initial authored visibility. Keep
+     * this admission local until passive visibility activation is supported. */
+    for(i=0;i<campaign_seeds.records.count;i++)
+        if((uint32_t)campaign_seeds.records.items[i].record.uid==vehicle->uid){
+            ++matches;visible=!(campaign_seeds.items[i].spawn.creation_flags&2u);
+        }
+    return matches==1&&visible;
+}
 static inline uint32_t scene_submarine_weapon_pending(const scene_stream *s)
 {
     uint32_t i;for(i=0;i<SCENE_SUBMARINE_WEAPON_CAPACITY;i++)if(s->submarine_weapon.rounds[i].flight.active)return 1;
@@ -29,12 +47,21 @@ static int scene_submarine_weapon_muzzle_wet(void *context,const float point[3],
     return RF_OK;
 }
 /* First-pass player vehicle policy: affiliation0 is hostile, matching ordinary
- * player-directed enemy awareness. Hidden/dead actors and dry aim points are
+ * player-directed enemy awareness. Hidden/dead owners and dry aim points are
  * excluded before LOS; generation-bearing handles remain the target identity. */
 static int scene_submarine_homing_read(void *context,uint32_t index,scene_submarine_homing_candidate *out)
 {
     scene_stream *s=context;const campaign_npc_body *npc;uint32_t wet;int status;
-    if(index>=campaign_npc_body_count)return RF_RANGE;
+    if(index>=campaign_npc_body_count){
+        const scene_passive_vehicle *vehicle;
+        index-=campaign_npc_body_count;
+        if(index>=campaign_passive_vehicle_count)return RF_RANGE;
+        vehicle=campaign_passive_vehicles+index;
+        if(!scene_vehicle_homing_eligible(vehicle))return RF_OK;
+        status=scene_submarine_weapon_muzzle_wet(s,vehicle->pose.position,&wet);if(status)return status;
+        out->handle=vehicle->handle;out->alive=out->hostile=1;out->submerged=wet;
+        memcpy(out->position,vehicle->pose.position,12);return RF_OK;
+    }
     npc=campaign_npc_bodies+index;
     if(!npc->registration.view || !npc->body.allocated_bytes || npc->damage.effects.health<=0 ||
        npc->damage.effects.affiliation!=0 || (npc->object_flags&(2u|0x4000u)) || (npc->view.flags_810&1u))return RF_OK;
@@ -55,6 +82,7 @@ static int scene_submarine_homing_sight(void *context,const float start[3],const
         i=contact.object&0xffffu;
         if(i<campaign_npc_body_count && campaign_npc_bodies[i].registration.handle==target)*clear=1;
     }
+    if(found&&!liquid&&contact.object==SCENE_DRILLER_PROJECTILE_OWNER&&contact.face==target)*clear=1;
     return RF_OK;
 }
 static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t held,uint32_t allowed,const float *aim)
@@ -76,7 +104,7 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
         {uint32_t target;float before[3];memcpy(before,round->flight.velocity,sizeof(before));
          ++rf_scene_submarine_homing_state[0];
          status=scene_submarine_homing_scan(round,&state->definition,dt,scene_submarine_homing_read,s,
-            campaign_npc_body_count,scene_submarine_homing_sight,s,&target);if(status)return status;
+            campaign_npc_body_count+campaign_passive_vehicle_count,scene_submarine_homing_sight,s,&target);if(status)return status;
          if(target!=UINT32_MAX){++rf_scene_submarine_homing_state[1];rf_scene_submarine_homing_state[2]=target;
              if(memcmp(before,round->flight.velocity,sizeof(before)))++rf_scene_submarine_homing_state[3];}}
         composed.stream=s;composed.source=round->source;composed.driver=round->driver;

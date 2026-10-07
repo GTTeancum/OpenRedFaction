@@ -3,12 +3,29 @@
 /* Include after APC and submarine runtime providers. Fixed authored guns:
  * primary muzzle supplies aim; secondary tags supply launch positions only.
  * Their authored +Z points downward. Undeviating skips random spread. Homing acquires
- * live hostile actors without the submarine's wet-point restriction. */
+ * live hostile actors and parked vehicles without the submarine's wet-point restriction. */
 uint32_t rf_scene_fighter_weapon[8];
+uint32_t rf_scene_fighter_homing_state[4]; /* scans,locks,last target,steered */
+uint32_t rf_scene_fighter_candidate_probe[10]; /* reads,eligible,reject,UID,handle,affiliation,health,XYZ */
+uint32_t rf_scene_fighter_aim_probe[3]; /* actual muzzle-forward XYZ */
 static int scene_fighter_live_candidate(void *context,uint32_t index,scene_submarine_homing_candidate *out)
 {
     const campaign_npc_body *npc;(void)context;
-    if(index>=campaign_npc_body_count)return RF_RANGE;
+    if(index>=campaign_npc_body_count){
+        const scene_passive_vehicle *vehicle;
+        index-=campaign_npc_body_count;
+        if(index>=campaign_passive_vehicle_count)return RF_RANGE;
+        vehicle=campaign_passive_vehicles+index;
+        ++rf_scene_fighter_candidate_probe[0];rf_scene_fighter_candidate_probe[3]=vehicle->uid;
+        rf_scene_fighter_candidate_probe[4]=vehicle->handle;
+        rf_scene_fighter_candidate_probe[5]=vehicle->damage.state.effects.affiliation;
+        memcpy(rf_scene_fighter_candidate_probe+6,&vehicle->damage.state.effects.health,4);
+        memcpy(rf_scene_fighter_candidate_probe+7,vehicle->pose.position,12);
+        if(!scene_vehicle_homing_eligible(vehicle)){rf_scene_fighter_candidate_probe[2]=1;return RF_OK;}
+        ++rf_scene_fighter_candidate_probe[1];
+        out->handle=vehicle->handle;out->alive=out->hostile=1;
+        memcpy(out->position,vehicle->pose.position,12);return RF_OK;
+    }
     npc=campaign_npc_bodies+index;
     if(!npc->registration.view||!npc->body.allocated_bytes||npc->damage.effects.health<=0||
        npc->damage.effects.affiliation!=0||(npc->object_flags&(2u|0x4000u))||(npc->view.flags_810&1u))return RF_OK;
@@ -32,7 +49,9 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
     if(!s)return RF_RANGE;
     if(rf_scene_vehicle_enabled!=5||!s->driller_runtime)return RF_OK;
     state=&s->fighter_weapon;runtime=s->driller_runtime;
-    if(!frame)memset(rf_scene_fighter_weapon,0,sizeof(rf_scene_fighter_weapon));
+    if(!frame){memset(rf_scene_fighter_weapon,0,sizeof(rf_scene_fighter_weapon));
+        memset(rf_scene_fighter_homing_state,0,sizeof(rf_scene_fighter_homing_state));
+        memset(rf_scene_fighter_candidate_probe,0,sizeof(rf_scene_fighter_candidate_probe));}
     ++rf_scene_fighter_weapon[0];rf_scene_fighter_weapon[5]=0;
     for(i=0;i<48;i++){
         scene_submarine_weapon_round *round=state->bullets+i;scene_apc_primary_query query={s,round->source,round->driver};
@@ -51,11 +70,15 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
     }
     for(i=0;i<4;i++){
         scene_submarine_weapon_round *round=state->rockets+i;scene_apc_primary_query query={s,round->source,round->driver};
-        rf_weapon_flight_liquid_event event;uint32_t target;float end[3],origin[3],elapsed;
+        rf_weapon_flight_liquid_event event;uint32_t target;float end[3],origin[3],elapsed,before[3];
         if(!round->flight.active)continue;
         elapsed=fminf(dt,(float)round->flight.remaining);
-        status=scene_fighter_rocket_step(round,&state->rocket,dt,scene_fighter_live_candidate,s,campaign_npc_body_count,
+        memcpy(before,round->flight.velocity,sizeof(before));++rf_scene_fighter_homing_state[0];
+        status=scene_fighter_rocket_step(round,&state->rocket,dt,scene_fighter_live_candidate,s,
+            campaign_npc_body_count+campaign_passive_vehicle_count,
             scene_submarine_homing_sight,s,scene_apc_primary_sweep_all,&query,&event,&target);if(status)return status;
+        if(target!=UINT32_MAX){++rf_scene_fighter_homing_state[1];rf_scene_fighter_homing_state[2]=target;
+            if(memcmp(before,round->flight.velocity,sizeof(before)))++rf_scene_fighter_homing_state[3];}
         /* Steering preceded sweep: current velocity defines the same full ray. */
         for(k=0;k<3;k++)end[k]=round->previous[k]+round->flight.velocity[k]*elapsed;
         if(event.terminal.kind==1){
@@ -80,6 +103,7 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
      * actual primary muzzle forward, transformed with the flying chassis. */
     status=rf_static_model_tag_place(&s->driller->tags,state->primary_muzzle,
         runtime->physics.state.orientation,runtime->physics.state.position,aim_pose);if(status)return status;
+    memcpy(rf_scene_fighter_aim_probe,aim_pose+6,12);
     status=scene_fighter_weapon_fire(state,&s->driller->tags,runtime->physics.state.position,runtime->physics.state.orientation,aim_pose+6,
         runtime->entry.host.handle,runtime->entry.host.driver,1,player_input.alt_fire,allowed,dt,NULL,NULL,&fired);if(status)return status;
     if(fired){++rf_scene_fighter_weapon[2];++rf_scene_fighter_weapon[5];combat_sound("Fighter Rocket Launch",state->rockets[free_slot].flight.position);}

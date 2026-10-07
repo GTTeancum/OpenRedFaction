@@ -22,8 +22,9 @@ The APU preparation selects the pinned official DSP assembler for Windows or
 x86-64 Linux and verifies the platform-specific archive SHA-256. It preserves
 the existing backend adaptations and provenance record.
 
-The normal disc build still requires private `Installed_Game/*.vpp` inputs and
-the three prepared `build/data` templates. Keep all original inputs, templates,
+The normal disc build still requires private `Installed_Game/*.vpp` inputs,
+`Installed_Game/bluebeard.bty`, and the three prepared `build/data` templates.
+Keep all original inputs, templates,
 firmware, disc images and generated outputs out of Git.
 
 ## Runtime
@@ -71,3 +72,5 @@ Mesa llvmpipe, verified 67,108,864 bytes of RAM, and read the reconstructed game
 diagnostic signature through pipe QMP. A source-only boot reached the expected
 missing-input error before level loading. This establishes the host path; it
 does not establish vehicle gameplay without the private runtime inputs.
+The subsequent exact-build Fighter/submarine checks with verified private
+inputs are recorded in [Vehicle homing targets](VEHICLE-HOMING-TARGETS.md).
