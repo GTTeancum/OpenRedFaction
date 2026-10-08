@@ -52,13 +52,32 @@ static int scene_world_player_npc_overlap_allowed(void *context,uint32_t i,uint3
     if(!i||!j)return 0;
     return scene_npc_checkpoint_restore_original_overlap((void*)s->npcs,i-1,j-1,a,b,distance2,radius);
 }
+/* Optional RFEN7 cache is admitted only with its exact staged attached host.
+ * Saved health/visibility govern restoration; current identity governs binding.
+ * This adds no ground or world-clearance exemption. */
+static int scene_world_player_point_host_valid(const scene_passive_vehicle_checkpoint_stage *stage,
+    uint32_t index,uint32_t uid,const float velocity[3])
+{
+    const scene_passive_vehicle_saved *saved;const scene_passive_vehicle *owner;
+    if(!stage||!velocity||stage->version!=2||index>=stage->count||
+       index>=campaign_passive_vehicle_count||!stage->rows)return RF_FORMAT;
+    saved=stage->rows+index;owner=campaign_passive_vehicles+index;
+    if(!uid||uid==UINT32_MAX||saved->uid!=uid||owner->uid!=uid||!owner->group_owned||
+       !saved->loaded||!saved->has_damage||!saved->attached||saved->destroyed||
+       !isfinite(saved->health)||saved->health<=0||(saved->object_flags&(2u|0x4000u))||
+       rf_object_registry_lookup(&campaign_registry,owner->handle)!=owner||
+       owner->damage.state.effects.handle!=owner->handle)return RF_FORMAT;
+    for(uint32_t i=0;i<3;i++)if(!isfinite(velocity[i])||fabsf(velocity[i])>10000.f)return RF_FORMAT;
+    return RF_OK;
+}
 static inline int scene_world_player_prepare(scene_stream *stream,const scene_world_restore_stage *world,
-    uint32_t support_uid,const scene_vehicle_checkpoint_record *vehicle,
+    uint32_t support_uid,const float *support_point_velocity,const scene_vehicle_checkpoint_record *vehicle,
     const scene_passive_vehicle_checkpoint_stage *passive,scene_world_player_stage *out)
 {
     scene_world_player_stage s={0};rf_player_checkpoint_catalog catalog;scene_checkpoint_world_context context;
     rf_collision_room_location location;const rf_world_checkpoint_slice *v;uint32_t passive_index=UINT32_MAX;int status;
     if(!stream||!world||!world->npcs||!out||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count)return RF_RANGE;
+    if(support_point_velocity&&!support_uid)return RF_FORMAT;
     rf_scene_world_player_probe[0]=1;
     status=scene_checkpoint_player_catalog_mode(&catalog,1);if(status)return status;
     rf_scene_world_player_probe[0]=2;
@@ -111,6 +130,9 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     }else{rf_scene_world_player_probe[0]=6;
         if(support_uid)for(uint32_t i=0;i<campaign_passive_vehicle_count;i++)
             if(campaign_passive_vehicles[i].uid==support_uid){passive_index=i;break;}
+        if(support_point_velocity){
+            status=scene_world_player_point_host_valid(passive,passive_index,support_uid,support_point_velocity);if(status)return status;
+        }
         status=passive_index!=UINT32_MAX?
             scene_world_passive_support_place(stream,&context,&s.placement,passive,
                 passive_index,campaign_player_object.handle,(uint32_t)campaign_player_view.linked_handle,&s.room,&s.support):
@@ -123,6 +145,10 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
             memcpy(s.support_velocity,context.movers->poses[i].velocity,12);++found;
         }
         if(found!=1)return RF_FORMAT;
+    }
+    if(support_point_velocity){
+        if(passive_index==UINT32_MAX||s.support.handle!=campaign_passive_vehicles[passive_index].handle)return RF_FORMAT;
+        memcpy(s.support_velocity,support_point_velocity,12);
     }
     rf_scene_world_player_probe[0]=7;
     s.npcs=world->npcs;s.seats=world->seats;s.vehicle=vehicle;

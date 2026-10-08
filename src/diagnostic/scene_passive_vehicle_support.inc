@@ -13,6 +13,7 @@ static void scene_passive_vehicle_support_reset(void)
     memset(rf_scene_passive_support_live,0,sizeof(rf_scene_passive_support_live));
     memset(rf_scene_passive_support_release,0,sizeof(rf_scene_passive_support_release));
     campaign_passive_vehicle_motion_active=0;campaign_passive_vehicle_motion_frame=0;
+    campaign_player_support_epoch=0;
 }
 static const scene_passive_vehicle *scene_passive_vehicle_support_owner(uint32_t handle)
 {
@@ -69,7 +70,7 @@ static void campaign_player_passive_support_release(rf_physics_body_state *state
     rf_scene_passive_support_release[2]=campaign_support_handle;
     rf_scene_passive_support_release[3]=campaign_player_object.handle;
     memcpy(rf_scene_passive_support_release+4,campaign_support_velocity,12);
-    campaign_support_handle=0;state->flags&=~0x400000u; /* Preserve the last additive point velocity. */
+    campaign_support_handle=0;campaign_player_support_epoch=0;state->flags&=~0x400000u; /* Preserve the last additive point velocity. */
 }
 static void scene_passive_vehicle_support_live_probe(uint32_t frame,uint32_t player_mode)
 {

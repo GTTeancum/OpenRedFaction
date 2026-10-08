@@ -107,8 +107,9 @@ static inline int scene_world_event_probe(scene_stream *stream,const scene_world
     printf("WORLD_RESTORE_ENVIRONMENT status%d forces%u remaining_event_flags%u no_publication1\n",status,environment?environment->count:0,flags);
 #endif
     if(!status)support_uid=environment->support_uid;
+    if(!status)status=scene_world_player_prepare(stream,world,support_uid,
+        environment->support_point_present?environment->support_point_velocity:NULL,NULL,NULL,&player);
     scene_world_environment_close(&environment);
-    if(!status)status=scene_world_player_prepare(stream,world,support_uid,NULL,NULL,&player);
 #ifndef RF_IMAGE_XBOX_NATIVE
     printf("WORLD_RESTORE_PLAYER status%d no_publication1\n",status);
 #endif

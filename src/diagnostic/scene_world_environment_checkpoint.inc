@@ -1,12 +1,14 @@
 #ifndef RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
-/* RFEN6: identity-bound gravity, force-volume state, changed navigation radii,
+/* RFEN7: identity-bound gravity, force-volume state, changed navigation radii,
  * blackout timer, player support mover UID and portable cutscene clock/camera. Navigation rows use authored UIDs and
- * raw radius bits, never indices. Monitor rows bind authored UIDs; the tail preserves the
- * 30-frame enemy sight schedule and gunfire random state. RFEN1-5 remain readable. No handles are serialized.
+ * raw radius bits, never indices. Monitor rows bind authored UIDs; the RFEN6 tail preserves the
+ * 30-frame enemy sight schedule and gunfire random state. RFEN7 appends the rotating player's
+ * support-point velocity only when needed; otherwise output remains RFEN6. RFEN1-6 remain readable. No handles are serialized.
  * Queued level handoffs are not admitted; other presentation state is separate. */
 enum {SCENE_ENV_HEADER=80,SCENE_ENV_ROW=16,SCENE_ENV_NAV_ROW=8,
     SCENE_ENV_FORM_BYTES=24,SCENE_ENV_MONITOR_HEADER=24,SCENE_ENV_MONITOR_ROW=20,
+    SCENE_ENV_REPLAY_BYTES=8,SCENE_ENV_SUPPORT_POINT_BYTES=12,
     SCENE_ENV_FORCE_MAX=65536/sizeof(rf_physics_force_region),SCENE_ENV_NAV_MAX=65536};
 typedef struct scene_environment_entry {
     uint32_t slot,active;float strength;rf_physics_force_region before;
@@ -19,7 +21,8 @@ typedef struct scene_world_environment_stage {
     rf_level_navigation_node *navigation;uint32_t navigation_count,nav_count;
     rf_cutscene_runtime cutscene_before,cutscene_next;
     campaign_player_form_state form_before,form_next;
-    int32_t blackout_before,blackout_next;uint32_t support_uid;
+    int32_t blackout_before,blackout_next;uint32_t support_uid,support_point_present;
+    float support_point_velocity[3];
     uint32_t sight_before,sight_next,spread_before,spread_next;
     uint32_t monitor_count,monitor_before_count,monitor_before_words[5],monitor_next_words[5];
     scene_monitor_binding monitor_before[SCENE_MONITOR_BINDING_LIMIT],monitor_next[SCENE_MONITOR_BINDING_LIMIT];
@@ -54,7 +57,8 @@ static int scene_environment_monitor_valid(const scene_monitor_binding *bindings
 }
 static inline int scene_world_environment_encode(const unsigned char identity[32],int32_t now,void *out,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=out;uint32_t i,j,bytes,nav_count=0,support_uid=0;uint64_t required;int32_t blackout_remaining=0;int status;
+    unsigned char *p=out;uint32_t i,j,bytes,nav_count=0,support_uid=0,support_point_present=0,tail_bytes,tail_offset;
+    float support_point_velocity[3]={0};uint64_t required;int32_t blackout_remaining=0;int status;
     if(!identity||!out||!written||campaign_forces.count>SCENE_ENV_FORCE_MAX||
        (campaign_forces.count&&!campaign_forces.items)||campaign_navigation.count>SCENE_ENV_NAV_MAX||
        (campaign_navigation.count&&!campaign_navigation.nodes))return RF_RANGE;
@@ -74,18 +78,24 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
     }
     status=scene_environment_monitor_valid(campaign_monitor_bindings,campaign_monitor_count,rf_scene_monitor_bindings);
     if(status)return status;
+    status=scene_checkpoint_player_support_state(scene_actor_collision_owner,&support_uid,
+        support_point_velocity,&support_point_present);if(status)return status;
+    if(support_point_present>1||(support_point_present&&!support_uid))return RF_FORMAT;
+    if(support_point_present)for(i=0;i<3;i++)
+        if(!isfinite(support_point_velocity[i])||fabsf(support_point_velocity[i])>10000.f)return RF_FORMAT;
+    tail_bytes=SCENE_ENV_REPLAY_BYTES+(support_point_present?SCENE_ENV_SUPPORT_POINT_BYTES:0);
     required=SCENE_ENV_HEADER+(uint64_t)campaign_forces.count*SCENE_ENV_ROW+
         (uint64_t)nav_count*SCENE_ENV_NAV_ROW+RF_CUTSCENE_CHECKPOINT_BYTES+SCENE_ENV_FORM_BYTES+
-        SCENE_ENV_MONITOR_HEADER+(uint64_t)campaign_monitor_count*SCENE_ENV_MONITOR_ROW+8;
+        SCENE_ENV_MONITOR_HEADER+(uint64_t)campaign_monitor_count*SCENE_ENV_MONITOR_ROW+tail_bytes;
     if(required>capacity||required>UINT32_MAX)return RF_RANGE;bytes=(uint32_t)required;
-    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,6);scene_history_put(p+8,bytes);
+    tail_offset=bytes-tail_bytes;
+    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,support_point_present?7:6);scene_history_put(p+8,bytes);
     scene_history_put(p+16,campaign_forces.count);scene_history_put(p+20,nav_count);memcpy(p+24,identity,32);
     if(campaign_blackout_deadline>=0){
         status=rf_timer_remaining(campaign_blackout_deadline,now,&blackout_remaining);if(status)return status;
         if(blackout_remaining>30000)return RF_FORMAT;
         if(blackout_remaining>0)scene_history_put(p+72,(uint32_t)blackout_remaining+1);
     }
-    status=scene_checkpoint_player_support_uid(scene_actor_collision_owner,&support_uid);if(status)return status;
     scene_history_put(p+76,support_uid);
     scene_history_put_float(p+56,scene_gravity.acceleration);
     for(i=0;i<3;i++)scene_history_put_float(p+60+i*4,scene_gravity.vector[i]);
@@ -113,7 +123,7 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         memcpy(&armor_bits,&campaign_player_form.normal_class_armor,4);scene_history_put(form+20,armor_bits);
     }
     {
-        unsigned char *monitor=p+bytes-8-SCENE_ENV_MONITOR_HEADER-campaign_monitor_count*SCENE_ENV_MONITOR_ROW;
+        unsigned char *monitor=p+tail_offset-SCENE_ENV_MONITOR_HEADER-campaign_monitor_count*SCENE_ENV_MONITOR_ROW;
         scene_history_put(monitor,campaign_monitor_count);
         for(i=0;i<5;i++)scene_history_put(monitor+4+i*4,rf_scene_monitor_bindings[i]);
         for(i=0;i<campaign_monitor_count;i++){
@@ -123,8 +133,10 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
             scene_history_put_float(row+16,b->refresh_seconds);
         }
     }
-    scene_history_put(p+bytes-8,(combat_frame%30+campaign_enemy_sight_phase_offset)%30);
-    scene_history_put(p+bytes-4,campaign_enemy_spread_random.value);
+    scene_history_put(p+tail_offset,(combat_frame%30+campaign_enemy_sight_phase_offset)%30);
+    scene_history_put(p+tail_offset+4,campaign_enemy_spread_random.value);
+    if(support_point_present)for(i=0;i<3;i++)
+        scene_history_put_float(p+tail_offset+SCENE_ENV_REPLAY_BYTES+i*4,support_point_velocity[i]);
     scene_history_put(p+12,scene_history_hash(p,bytes));*written=bytes;return RF_OK;
 }
 static inline void scene_world_environment_close(scene_world_environment_stage **s)
@@ -132,20 +144,23 @@ static inline void scene_world_environment_close(scene_world_environment_stage *
 static inline int scene_world_environment_prepare(const unsigned char identity[32],int32_t now,const void *data,uint32_t bytes,
     uint32_t budget,scene_world_environment_stage **out)
 {
-    const unsigned char *p=data;scene_world_environment_stage *s;uint32_t count,nav_count,version,i,j,k;uint64_t cost;int status=RF_OK;
+    const unsigned char *p=data;scene_world_environment_stage *s;uint32_t count,nav_count,version,i,j,k,tail_bytes,tail_offset;
+    uint64_t cost;int status=RF_OK;
     if(!identity||!data||!out||*out)return RF_RANGE;
     if(rf_scene_level_transition.pending)return RF_NOT_FOUND;
     if(bytes<80||memcmp(p,"RFEN",4)||scene_history_word(p+8)!=bytes||
        scene_history_word(p+12)!=scene_history_hash(p,bytes)||memcmp(p+24,identity,32))return RF_FORMAT;
-    version=scene_history_word(p+4);if(version<1||version>6)return RF_FORMAT;
+    version=scene_history_word(p+4);if(version<1||version>7)return RF_FORMAT;
     if((version<3&&(scene_history_word(p+72)||scene_history_word(p+76)))||scene_history_word(p+72)>30001||
        scene_history_word(p+76)==UINT32_MAX)return RF_FORMAT;
     count=scene_history_word(p+16);nav_count=scene_history_word(p+20);
+    tail_bytes=(version>=6?SCENE_ENV_REPLAY_BYTES:0)+(version>=7?SCENE_ENV_SUPPORT_POINT_BYTES:0);
+    tail_offset=bytes-tail_bytes;
     {uint64_t base=80u+(uint64_t)count*SCENE_ENV_ROW+(uint64_t)nav_count*SCENE_ENV_NAV_ROW+
         (version>=3?RF_CUTSCENE_CHECKPOINT_BYTES:0)+(version>=4?SCENE_ENV_FORM_BYTES:0);
-     if(version>=5){if(base+SCENE_ENV_MONITOR_HEADER+(version==6?8u:0u)>bytes)return RF_FORMAT;
+     if(version>=5){if(base+SCENE_ENV_MONITOR_HEADER+tail_bytes>bytes)return RF_FORMAT;
          if(scene_history_word(p+(size_t)base)>SCENE_MONITOR_BINDING_LIMIT||
-            base+SCENE_ENV_MONITOR_HEADER+(uint64_t)scene_history_word(p+(size_t)base)*SCENE_ENV_MONITOR_ROW+(version==6?8u:0u)!=bytes)return RF_FORMAT;}
+            base+SCENE_ENV_MONITOR_HEADER+(uint64_t)scene_history_word(p+(size_t)base)*SCENE_ENV_MONITOR_ROW+tail_bytes!=bytes)return RF_FORMAT;}
      else if(base!=bytes)return RF_FORMAT;}
     if((version==1&&nav_count)||count>SCENE_ENV_FORCE_MAX||count!=campaign_forces.count||
        nav_count>campaign_navigation.count||nav_count>SCENE_ENV_NAV_MAX||
@@ -165,10 +180,18 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     s->blackout_before=campaign_blackout_deadline;s->blackout_next=-1;
     s->sight_before=campaign_enemy_sight_phase_offset;
     s->spread_before=campaign_enemy_spread_random.value;
-    s->sight_next=version==6?scene_history_word(p+bytes-8):0;
-    s->spread_next=version==6?scene_history_word(p+bytes-4):campaign_enemy_spread_random.value;
+    s->sight_next=version>=6?scene_history_word(p+tail_offset):0;
+    s->spread_next=version>=6?scene_history_word(p+tail_offset+4):campaign_enemy_spread_random.value;
     if(s->sight_next>=30){status=RF_FORMAT;goto fail;}
     s->support_uid=scene_history_word(p+76);
+    if(version>=7){
+        if(!s->support_uid){status=RF_FORMAT;goto fail;}
+        s->support_point_present=1;
+        for(i=0;i<3;i++){
+            s->support_point_velocity[i]=scene_history_float(p+tail_offset+SCENE_ENV_REPLAY_BYTES+i*4);
+            if(!isfinite(s->support_point_velocity[i])||fabsf(s->support_point_velocity[i])>10000.f){status=RF_FORMAT;goto fail;}
+        }
+    }
     if(scene_history_word(p+72)){
         status=rf_timer_set(&s->blackout_next,now,(int32_t)scene_history_word(p+72)-1);if(status)goto fail;
     }

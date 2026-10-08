@@ -8079,7 +8079,7 @@ _Static_assert(sizeof(actor_ground_record)==132,"Guest ground record layout");
 actor_ground_record rf_scene_actor_ground_records[64];
 rf_geometry_body_hit rf_scene_actor_ground_contacts[64];
 static float campaign_support_velocity[3];
-static uint32_t campaign_support_handle;
+static uint32_t campaign_support_handle,campaign_player_support_epoch;
 /* Runtime-only identity; saved standing still requires settled support. Keep
  * this beside, not inside, the fixed-layout ground diagnostic records. */
 static scene_piece_support campaign_piece_support,scene_ground_piece_support[64];
@@ -9181,7 +9181,10 @@ static int actor_support_commit(rf_physics_body_state *state,const actor_ground_
     }
     *state=next;campaign_support_handle=piece_body?0:handle;
     if(piece_body)campaign_piece_support=*support;else memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
-    memcpy(campaign_support_velocity,accepted_velocity,12);return RF_OK;
+    memcpy(campaign_support_velocity,accepted_velocity,12);
+    campaign_player_support_epoch=passive&&point_matched&&campaign_passive_vehicle_motion_active?
+        campaign_passive_vehicle_motion_epoch:0;
+    return RF_OK;
 }
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
@@ -13042,6 +13045,7 @@ static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_
 #include "scene_world_storage.inc"
 #include "scene_world_snapshot.inc"
 #include "scene_world_load.inc"
+#include "scene_player_support_save_fixture.inc"
 #include "scene_world_quickload.inc"
 
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -19282,6 +19286,7 @@ modal_step_done:
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
             if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
+        scene_player_support_save_fixture_tick(frame);
 #ifdef RF_IMAGE_XBOX_NATIVE
         if(scene_section_autosave_pending && frame>=30){
             int saved,ready;

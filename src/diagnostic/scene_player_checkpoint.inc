@@ -54,11 +54,50 @@ static int scene_checkpoint_player_support_uid(const scene_stream *s,uint32_t *u
     }
     return RF_NOT_FOUND;
 }
+/* RFEN7's optional player cache mirrors RFNC support velocity. This read-only
+ * admission requires the actual accepted end-frame point and current chassis
+ * interval; an event-detached/hidden/dead host or stale generation cannot gain
+ * save scope. Keep the center-only helper above for legacy RFCP callers. */
+static int scene_checkpoint_player_rotating_point(uint32_t handle,const float position[3],
+    const float velocity[3],uint32_t *uid)
+{
+    const scene_passive_vehicle *owner;scene_mover_interval interval={0};float expected[3];int status;
+    if(!position||!velocity||!uid)return RF_RANGE;*uid=0;
+    for(uint32_t i=0;i<3;i++)if(!isfinite(position[i])||!isfinite(velocity[i])||fabsf(velocity[i])>10000.f)return RF_FORMAT;
+    if(handle!=campaign_support_handle||!(owner=scene_passive_vehicle_support_owner(handle))||
+       !owner->uid||owner->uid==UINT32_MAX||!owner->attached||!owner->group_owned||
+       owner->damage.state.effects.handle!=handle||owner->damage.destroyed||
+       !isfinite(owner->damage.state.effects.health)||owner->damage.state.effects.health<=0||
+       (owner->damage.object_flags&(2u|0x4000u))||!owner->motion_valid||
+       !campaign_passive_vehicle_motion_active||!campaign_player_support_epoch||
+       campaign_player_support_epoch!=campaign_passive_vehicle_motion_epoch||
+       !memcmp(owner->previous_basis,owner->pose.input_matrix,36))return RF_NOT_FOUND;
+    memcpy(interval.start,owner->previous_position,12);memcpy(interval.end,owner->pose.position,12);
+    memcpy(interval.matrix,owner->previous_basis,36);memcpy(interval.end_matrix,owner->pose.input_matrix,36);
+    interval.handle=handle;interval.changed=2u|!!memcmp(interval.start,interval.end,12);
+    status=rf_scene_npc_support_interval_velocity(&interval,position,scene_step_seconds,expected);if(status)return status;
+    if(memcmp(expected,velocity,12))return RF_FORMAT;
+    *uid=owner->uid;return RF_OK;
+}
+static int scene_checkpoint_player_support_state(const scene_stream *s,uint32_t *uid,
+    float point[3],uint32_t *present)
+{
+    int status;if(!uid||!point||!present)return RF_RANGE;
+    *present=0;memset(point,0,12);
+    status=scene_checkpoint_player_support_uid(s,uid);if(!status)return RF_OK;
+    if(!s||s->terrain||!(scene_actor_body.state.flags&0x400000u)||campaign_piece_support.tag||
+       rf_scene_actor_landing[1]!=1||campaign_player_view.linked_handle!=-1||
+       rf_object_registry_lookup(&campaign_registry,campaign_player_object.handle)!=&campaign_player_object||
+       rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=&campaign_player_view)return RF_NOT_FOUND;
+    status=scene_checkpoint_player_rotating_point(campaign_support_handle,scene_actor_body.state.position,
+        campaign_support_velocity,uid);if(status)return status;
+    memcpy(point,campaign_support_velocity,12);*present=1;return RF_OK;
+}
 /* modes2 is the ordinary world profile with RFAP flight/input persistence;
  * modes1 retains the settled-only RFCP special-weapon contract. */
 static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t live,uint32_t modes)
 {
-    uint32_t i,support_uid,rocket_trigger;
+    uint32_t i,support_uid,rocket_trigger,point_present;float point_velocity[3];
     if(scene_turret_player_active()&&!(modes==2&&scene_turret_player_checkpoint_player_allowed()))return RF_RANGE;
     if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
     if(!modes && campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
@@ -70,7 +109,9 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
     rocket_trigger=modes&&campaign_equipped_slot==4&&scene_player_rocket_pending(s)&&
         !combat_trigger.remaining&&!combat_trigger.delay&&combat_trigger.cooldown<=1200&&combat_trigger.held<=1;
-    if(campaign_support_handle && (!modes||scene_checkpoint_player_support_uid(s,&support_uid)))return RF_RANGE;
+    if(campaign_support_handle && (!modes||(modes==2?
+       scene_checkpoint_player_support_state(s,&support_uid,point_velocity,&point_present):
+       scene_checkpoint_player_support_uid(s,&support_uid))))return RF_RANGE;
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||(campaign_player_view.linked_handle!=-1&&
            !(modes==2&&scene_turret_player_checkpoint_player_allowed()))||rf_scene_actor_landing[1]!=1||

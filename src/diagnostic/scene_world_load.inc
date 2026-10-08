@@ -188,6 +188,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
+        environment->support_point_present?environment->support_point_velocity:NULL,
         vehicle_present?&vehicle:NULL,passive,&player);if(status)goto done;
     if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle,seats);if(status)goto done;}
     if(player.player.player.weapon==UINT32_MAX)found=1;
@@ -289,6 +290,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_vehicle_physics_checkpoint_assign(stream,vehicle_physics);
     scene_vehicle_switch_checkpoint_assign(stream,vehicle_switch);
     campaign_support_handle=player.support.handle;memcpy(campaign_support_velocity,player.support_velocity,12);
+    campaign_player_support_epoch=0; /* No pre-load chassis interval may authorize a new capture. */
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
     scene_actor_body.state.flags&=~(0x200000u|0x400000u);
     if(campaign_support_handle)scene_actor_body.state.flags|=0x400000u;

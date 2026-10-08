@@ -21,10 +21,12 @@ passive support handle and moving-support body flag while retaining the last
 additive point velocity. The old host cannot keep changing that inherited
 velocity while the player is airborne. NPC loss retains its existing lifecycle.
 
-No save format or save admission was loosened. Mid-rotation player saves remain
-outside the existing center-velocity contract. NPC continuation may use the
-existing support UID/velocity, passive pose and controller state codecs, subject
-to the normal complete-world placement/admission checks.
+The initial runtime slice did not change save formats or admission. NPC
+continuation uses the existing support UID/velocity, passive pose and controller
+state codecs, subject to complete-world placement/admission checks. Subsequent
+[player support persistence](VEHICLE-PLAYER-SUPPORT-SAVE.md) adds RFEN7 for the
+exact rotating-player point cache and verifies fresh continuation/jump behavior,
+while preserving the old RFCP guard and older RFEN readers.
 
 ## Focused fixture
 
@@ -82,5 +84,6 @@ changing the gameplay implementation or relaxing timing/momentum assertions.
 
 The focused claim is neutral-input yaw carry and ordinary player release.
 Natural landing, walking riders, pitch/roll terrain fit, crowded support,
-retail scheduler parity and rotating-player saves remain separate. No visual,
+retail scheduler parity remain separate. Rotating-player persistence is covered
+by the linked save milestone. No visual,
 audio, PC gameplay or campaign-route claim is made.
