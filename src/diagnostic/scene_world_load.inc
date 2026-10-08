@@ -29,6 +29,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_physics_checkpoint_stage *vehicle_physics=NULL;
+    scene_secondary_vehicle_checkpoint_stage *secondary=NULL;
     scene_vehicle_switch_checkpoint_stage *vehicle_switch=NULL;
     scene_turret_checkpoint_stage *turrets=NULL;
     scene_turret_generated_checkpoint_stage *generated=NULL;
@@ -162,6 +163,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="vehicle_physics";
     status=scene_vehicle_physics_checkpoint_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,&vehicle_physics,&vehicle_data,&vehicle_bytes);if(status)goto done;
     cost+=scene_vehicle_physics_checkpoint_bytes(vehicle_physics);
+    if(cost>budget){status=RF_RANGE;goto done;}
+    phase="secondary_vehicle";
+    status=scene_secondary_vehicle_checkpoint_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,
+        &secondary,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    cost+=scene_secondary_vehicle_checkpoint_bytes(secondary);
     /* Old passive-only saves cannot silently become a different active owner. */
     if(campaign_vehicle_selection_fallback && (!vehicle_bytes ||
        (vehicle_bytes>=SCENE_PASSIVE_VEHICLE_HEADER && !memcmp(vehicle_data,"RFVA",4) && !scene_history_word(vehicle_data+8)))){
@@ -182,6 +188,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(vehicle_route.active&&!vehicle.value.vehicle.alive){status=RF_FORMAT;goto done;}
     }
     status=scene_vehicle_physics_checkpoint_admit(stream,vehicle_physics,vehicle_present?&vehicle:NULL,passive);if(status)goto done;
+    status=scene_secondary_vehicle_checkpoint_admit(stream,secondary,passive,vehicle_physics);if(status)goto done;
     status=scene_vehicle_switch_checkpoint_admit(stream,vehicle_switch,vehicle_present?&vehicle:NULL,passive,vehicle_physics);if(status)goto done;
     status=scene_npc_seat_checkpoint_hosts(seats,turrets,vehicle_present?&vehicle:NULL,
         scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics),vehicle_switch,passive);if(status)goto done;
@@ -226,6 +233,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
     status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
     status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
+    phase="secondary_clearance";
+    status=scene_secondary_vehicle_restore_admit(stream,world,&player,vehicle_present?&vehicle:NULL,passive,
+        secondary,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
     phase="passive_seat";
     status=scene_passive_jeep_seat_restore_admit(stream,world,&player,vehicle_present?&vehicle:NULL,
         seats,vehicle_switch,passive,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
@@ -295,6 +305,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
     scene_vehicle_physics_checkpoint_assign(stream,vehicle_physics);
     scene_vehicle_switch_checkpoint_assign(stream,vehicle_switch);
+    scene_secondary_vehicle_checkpoint_assign(stream,secondary);
     campaign_support_handle=player.support.handle;memcpy(campaign_support_velocity,player.support_velocity,12);
     campaign_player_support_epoch=0; /* No pre-load chassis interval may authorize a new capture. */
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
@@ -327,6 +338,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_jeep_gunner_checkpoint_close(&gunner);
     scene_corpse_lifetime_checkpoint_close(&corpses);
     scene_turret_player_checkpoint_close(&turret_player);
+    scene_secondary_vehicle_checkpoint_close(&secondary);
     scene_vehicle_physics_checkpoint_close(&vehicle_physics);
     scene_vehicle_switch_checkpoint_close(&vehicle_switch);
     scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_turret_generated_checkpoint_close(&generated);scene_npc_seat_checkpoint_close(&seats);

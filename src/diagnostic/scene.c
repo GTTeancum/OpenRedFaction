@@ -883,6 +883,8 @@ static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float
 static uint32_t scene_driller_active(const scene_stream *);
 static int scene_vehicle_switch_use(scene_stream *,uint32_t *);
 static void scene_vehicle_switch_close(void);
+#include "scene_secondary_vehicle_decl.inc"
+static void scene_vehicle_owner_collision_bind(scene_stream *,uint32_t);
 static void scene_vehicle_switch_reset(void);
 static void scene_vehicle_switch_passive_physics(uint32_t,uint32_t);
 static uint32_t scene_vehicle_switch_has_parked(void);
@@ -4741,6 +4743,7 @@ static uint32_t campaign_npc_body_count;
 static void campaign_navpoint_changed(const rf_entity_navigation_candidate *candidate,uint32_t on)
 {
     uint32_t i,j;
+    scene_secondary_vehicle_nav_changed(candidate,on);
     if(!campaign_npc_bodies)return;
     for(i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *owner=campaign_npc_bodies+i;
@@ -5159,7 +5162,8 @@ static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uin
     for(i=0;i<campaign_passive_vehicle_count;i++)if(campaign_passive_vehicles[i].uid==uid) {
         const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
         if(rf_object_registry_lookup(&campaign_registry,owner->handle)!=owner)return RF_NOT_FOUND;
-        *present=1;*alive=!owner->damage.destroyed && owner->damage.state.effects.health>0;
+        *present=!scene_secondary_vehicle_retired(owner->handle);
+        *alive=*present&&!owner->damage.destroyed && owner->damage.state.effects.health>0;
         return RF_OK;
     }
     return RF_NOT_FOUND;
@@ -5293,7 +5297,10 @@ static scene_campaign_vehicle_route campaign_vehicle_route;
 uint32_t rf_scene_vehicle_route_state[8]; /* active,index,count,drive ticks,arrivals,event,handle,status */
 static int campaign_script_move(void *context,uint32_t handle,const rf_level_event *event,uint32_t on)
 {
-    uint32_t i,j,mode=0;rf_level_waypoint_path path={0};int status;(void)context;
+    uint32_t i,j,mode=0,handled=0;rf_level_waypoint_path path={0};int status;
+    if(!event)return RF_RANGE;
+    status=scene_secondary_vehicle_script_move(context,handle,event,on,&handled);
+    if(handled||status!=RF_NOT_FOUND)return status;
     if(on && !strcmp(event->type,"Follow_Waypoints")) {
         if(!campaign_waypoints)return RF_NOT_FOUND;
         if(!strcmp(event->texts[1],"Loop"))mode=1;
@@ -5388,6 +5395,7 @@ static uint32_t scene_turret_generated_retired(uint32_t head);
 static int campaign_remove_object(void *context,uint32_t handle)
 {
     uint32_t i,handled;int status;(void)context;
+    status=scene_secondary_vehicle_remove(handle,&handled);if(status||handled)return status;
     status=scene_turret_generated_remove(handle,(int32_t)((uint64_t)rf_scene_profile_stage[0]*1000/60%RF_TIMER_PERIOD),&handled);
     if(status||handled)return status;
     for(i=0;i<campaign_npc_body_count;i++) {
@@ -13038,6 +13046,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_passive_vehicle_checkpoint.inc"
 #include "scene_vehicle_physics_checkpoint_decl.inc"
+#include "scene_secondary_vehicle_checkpoint_decl.inc"
 #include "scene_vehicle_switch_checkpoint_decl.inc"
 #include "scene_driller_actor_collision.inc"
 #include "scene_world_passive_support.inc"
@@ -13054,6 +13063,9 @@ static int scene_passive_jeep_seat_restore_admit(scene_stream *,const scene_worl
     const scene_vehicle_switch_checkpoint_stage *,const scene_passive_vehicle_checkpoint_stage *,uint32_t);
 static int scene_passive_jeep_seat_restore_audit(const scene_npc_seat_checkpoint_stage *,
     const scene_vehicle_switch_checkpoint_stage *,const scene_passive_vehicle_checkpoint_stage *);
+static int scene_secondary_vehicle_restore_admit(scene_stream *,const scene_world_restore_stage *,
+    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_passive_vehicle_checkpoint_stage *,
+    const scene_secondary_vehicle_checkpoint_stage *,uint32_t);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_storage.inc"
@@ -16079,6 +16091,7 @@ static uint32_t scene_vehicle_physics_allows_control(const scene_stream *);
 static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
 static void scene_vehicle_entry_collision_bind(scene_stream *);
 #include "scene_driller_runtime.inc"
+#include "scene_secondary_vehicle_runtime.inc"
 #include "scene_vehicle_profile_pack_state.inc"
 static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
 {
@@ -16092,6 +16105,7 @@ static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive
 #include "scene_vehicle_script_slay.inc"
 #include "scene_vehicle_physics_state.inc"
 #include "scene_vehicle_physics_checkpoint.inc"
+#include "scene_secondary_vehicle_checkpoint.inc"
 #include "scene_script_physics_state.inc"
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
@@ -16127,6 +16141,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_driller_checkpoint_adapter.inc"
 #include "scene_vehicle_wreck_exit.inc"
 #include "scene_vehicle_entry_collision.inc"
+#include "scene_vehicle_owner_collision.inc"
 #include "scene_vehicle_switch.inc"
 #include "scene_vehicle_switch_checkpoint.inc"
 #include "scene_vehicle_combat_restore.inc"
@@ -16145,6 +16160,7 @@ static uint32_t scene_npc_jeep_seat_save_dead_contact(
     const scene_vehicle_checkpoint_record *,uint32_t,uint32_t);
 #include "scene_world_vehicle_restore.inc"
 #include "scene_passive_jeep_seat_restore.inc"
+#include "scene_secondary_vehicle_restore.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -17532,6 +17548,7 @@ failed:
 #include "scene_active_vehicle_visibility_fixture.inc"
 #include "scene_active_vehicle_visibility_audit.inc"
 #include "scene_passive_jeep_driver_fixture.inc"
+#include "scene_secondary_vehicle_fixture.inc"
 #include "scene_group_control_fixture.inc"
 #include "scene_occupied_mover_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
@@ -19132,6 +19149,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
                 rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return status;
                 ++rf_scene_world_controller_steps[1];
+                status=scene_secondary_vehicle_tick(stream,frame);if(status)return status;
                 if(!occupied){
                     status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return status;
                     status=scene_passive_vehicle_player_push(stream,&next);if(status)return status;
@@ -19314,6 +19332,7 @@ modal_step_done:
         scene_active_vehicle_visibility_fixture_tick(stream,frame);
         scene_active_vehicle_visibility_audit_tick(stream,frame);
         scene_passive_jeep_driver_fixture_tick(stream,frame);
+        scene_secondary_vehicle_fixture_tick(stream,frame);
 #ifdef RF_IMAGE_XBOX_NATIVE
         if(scene_section_autosave_pending && frame>=30){
             int saved,ready;
@@ -20390,7 +20409,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.pause_mover=campaign_pause_mover;
             campaign_triggers.stop_mover=campaign_stop_mover;
             campaign_triggers.detach_object=campaign_passive_vehicle_detach;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.move_context=stream;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;
@@ -20444,6 +20463,7 @@ done:
         if(!status)campaign_actors_capture();
     }
     {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
+    scene_secondary_vehicle_close();
     scene_vehicle_switch_close();
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
     if(scene_vehicle_profile_pack_get(stream,rf_scene_vehicle_enabled)){

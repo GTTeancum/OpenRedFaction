@@ -228,7 +228,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         const scene_vehicle_profile_pack *candidate_pack=NULL;
         const scene_driller_resources *candidate_resource=s->driller;
         scene_npc_seat_binding *candidate_driver=NULL;
-        if(!candidate)continue;
+        if(!candidate||scene_secondary_vehicle_owns(p->handle))continue;
         if(old_driver&&candidate!=3)continue; /* Occupied ownership stays Jeep-to-Jeep. */
         if(candidate!=oldprofile){candidate_pack=scene_vehicle_profile_pack_get(s,candidate);
             if(!candidate_pack||!scene_vehicle_profile_pack_get(s,oldprofile))continue;

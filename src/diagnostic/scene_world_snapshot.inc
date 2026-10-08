@@ -179,6 +179,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         if(!status)bytes=wrapped;
     }
     if(!status){uint32_t wrapped=0;
+        status=scene_secondary_vehicle_checkpoint_capture(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
         status=scene_vehicle_physics_checkpoint_capture(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
         if(!status)bytes=wrapped;
     }

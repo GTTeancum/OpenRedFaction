@@ -586,7 +586,10 @@ static int scene_driller_runtime_resolve(void *context,const rf_vehicle_rigid_st
 /* Campaign vehicles initialize before terrain ownership. Switch their shared
  * collision gateway to the committed overlay once it replaces a room. */
 static void scene_driller_runtime_rebind_collision(scene_stream *s)
-{if(s && s->driller_runtime && s->collision)s->driller_runtime->collision.world=s->collision;}
+{
+    if(s && s->driller_runtime && s->collision)s->driller_runtime->collision.world=s->collision;
+    (void)scene_secondary_vehicle_rebind(s);
+}
 static int scene_submarine_player_water(void *context,const rf_collision_body_sphere *spheres,uint32_t count,
     const scene_vehicle_pose *from,const scene_vehicle_pose *to,uint32_t *allowed)
 {
