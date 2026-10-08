@@ -67,9 +67,9 @@ int rf_trigger_sphere_contact(const float center[3],float radius,
 {
     float delta[3];double distance;uint32_t i;
     if(!center || !actor_center || !contact)return RF_RANGE;
-    if(!isfinite(radius))return RF_FORMAT;
+    if(!rf_finite_float(radius))return RF_FORMAT;
     for(i=0;i<3;i++) {
-        if(!isfinite(center[i]) || !isfinite(actor_center[i]))return RF_FORMAT;
+        if(!rf_finite_float(center[i]) || !rf_finite_float(actor_center[i]))return RF_FORMAT;
         delta[i]=(float)((double)center[i]-actor_center[i]);
         if(!isfinite(delta[i]))return RF_FORMAT;
     }
@@ -105,9 +105,9 @@ int rf_trigger_box_contact(const float center[3],const float matrix[3][3],
     float half[3],right,up,forward;double length,dot;uint32_t i,j,hit;int status;
     if(!center || !matrix || !size || !actor_center || !actor_start || !actor_end || !contact)return RF_RANGE;
     for(i=0;i<3;i++) {
-        if(!isfinite(center[i]) || !isfinite(size[i]) || size[i]<0 ||
-            !isfinite(actor_center[i]) || !isfinite(actor_start[i]) || !isfinite(actor_end[i]))return RF_FORMAT;
-        for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+        if(!rf_finite_float(center[i]) || !rf_finite_float(size[i]) || size[i]<0 ||
+            !rf_finite_float(actor_center[i]) || !rf_finite_float(actor_start[i]) || !rf_finite_float(actor_end[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!rf_finite_float(matrix[i][j]))return RF_FORMAT;
     }
     if(!(flags&32))return rf_collision_segment_oriented_box(center,matrix,size,actor_start,actor_end,point,contact);
     for(i=0;i<3;i++) {
@@ -190,27 +190,36 @@ int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_
     attached=rf_object_lookup(registry,attached_handle);value.attached_present=attached && attached->type==4;
     *facts=value;return RF_OK;
 }
+static inline uint32_t trigger_actor_eligible(uint32_t flags,uint32_t filter,int32_t attached,
+    uint32_t allowed_count,const uint32_t *allowed_handles,
+    const rf_trigger_actor_facts *a,uint32_t input)
+{
+    uint32_t i;
+    if(filter==0 && !(a->test_4895d0&255u) && !(flags&2))return 0;
+    if(filter==3 && (a->test_48aaf0&255u)==1)return 0;
+    if(filter==4 && (!a->entity_present || !(a->test_429990&255u) || !(a->test_48aaf0&255u)))return 0;
+    if(filter==2) {
+        for(i=0;i<allowed_count;i++)if(allowed_handles[i]==a->handle)break;
+        if(i==allowed_count)return 0;
+    }
+    if((flags&1) && !(input&255u))return 0;
+    if((flags&2) && (a->kind!=2 || !(a->owner_test_48aaf0&255u)))return 0;
+    if((flags&128) && (!a->entity_present || !(a->test_4290d0&255u)))return 0;
+    if(attached!=-1 && !a->attached_present)return 0;
+    return 1;
+}
 int rf_trigger_eligible(const rf_trigger_gate *g,const rf_trigger_actor_facts *a,
     int32_t now,uint32_t input,uint32_t *eligible)
 {
-    uint32_t i;int expired,status;
+    int expired,status;
     if(!g || !a || !eligible || g->allowed_count>INT32_MAX ||
         (g->allowed_count && !g->allowed_handles))return RF_RANGE;
     status=rf_timer_expired(g->deadline,now,&expired);if(status)return status;
     *eligible=0;
     if((g->flags&0x58u) || (g->limit!=-1 && g->activations>=g->limit) || !expired)return RF_OK;
-    if(g->filter==0 && !(a->test_4895d0&255u) && !(g->flags&2))return RF_OK;
-    if(g->filter==3 && (a->test_48aaf0&255u)==1)return RF_OK;
-    if(g->filter==4 && (!a->entity_present || !(a->test_429990&255u) || !(a->test_48aaf0&255u)))return RF_OK;
-    if(g->filter==2) {
-        for(i=0;i<g->allowed_count;i++)if(g->allowed_handles[i]==a->handle)break;
-        if(i==g->allowed_count)return RF_OK;
-    }
-    if((g->flags&1) && !(input&255u))return RF_OK;
-    if((g->flags&2) && (a->kind!=2 || !(a->owner_test_48aaf0&255u)))return RF_OK;
-    if((g->flags&128) && (!a->entity_present || !(a->test_4290d0&255u)))return RF_OK;
-    if(g->attached!=-1 && !a->attached_present)return RF_OK;
-    *eligible=1;return RF_OK;
+    *eligible=trigger_actor_eligible(g->flags,g->filter,g->attached,
+        g->allowed_count,g->allowed_handles,a,input);
+    return RF_OK;
 }
 static int trigger_occupant_inside(const rf_trigger_volume *v,const float position[3],uint32_t *inside)
 {
@@ -295,6 +304,32 @@ int rf_trigger_reach_point(const rf_trigger_volume *v,const float origin[3],
     if(!isfinite(distance))return RF_FORMAT;
     *found=distance<=reach*reach;if(*found)memcpy(point,target,12);return RF_OK;
 }
+static int trigger_contact_finish(uint32_t flags,uint32_t accepted,
+    const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
+    int32_t now,uint32_t *ready,rf_trigger_contact_cache *cache)
+{
+    int status=RF_OK;
+    if(accepted && !(flags&4)) {
+        /* 4bf620/4c0a80 depend only on these geometry values and box bit0x20.
+         * Always run 4c06d0 eligibility and 4bfc60 dwell with today's state;
+         * notably, a rejected actor must still clear a positive contact delay. */
+        if(cache && cache->valid && cache->flags==(flags&32u) &&
+           !memcmp(cache->pose,pose,sizeof(cache->pose)) &&
+           !memcmp(&cache->volume,volume,sizeof(*volume)))accepted=cache->contact;
+        else {
+            if(volume->shape==0)status=rf_trigger_sphere_contact(volume->center,volume->radius,pose[0],&accepted);
+            else if(volume->shape==1)status=rf_trigger_box_contact(volume->center,volume->matrix,volume->size,
+                flags,pose[0],pose[1],pose[2],&accepted);
+            else accepted=0;
+            if(status)return status;
+            if(cache) {
+                cache->volume=*volume;memcpy(cache->pose,pose,sizeof(cache->pose));
+                cache->flags=flags&32u;cache->contact=accepted;cache->valid=1;
+            }
+        }
+    }
+    return rf_trigger_contact_delay(timer,now,accepted,ready);
+}
 static int trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
     const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
     int32_t now,uint32_t input,uint32_t *ready,rf_trigger_contact_cache *cache)
@@ -302,26 +337,7 @@ static int trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_act
     uint32_t accepted;int status;
     if(!volume || !pose || !timer || !ready)return RF_RANGE;
     status=rf_trigger_eligible(gate,actor,now,input,&accepted);if(status)return status;
-    if(accepted && !(gate->flags&4)) {
-        /* 4bf620/4c0a80 depend only on these geometry values and box bit0x20.
-         * Always run 4c06d0 eligibility and 4bfc60 dwell with today's state;
-         * notably, a rejected actor must still clear a positive contact delay. */
-        if(cache && cache->valid && cache->flags==(gate->flags&32u) &&
-           !memcmp(cache->pose,pose,sizeof(cache->pose)) &&
-           !memcmp(&cache->volume,volume,sizeof(*volume)))accepted=cache->contact;
-        else {
-            if(volume->shape==0)status=rf_trigger_sphere_contact(volume->center,volume->radius,pose[0],&accepted);
-            else if(volume->shape==1)status=rf_trigger_box_contact(volume->center,volume->matrix,volume->size,
-                gate->flags,pose[0],pose[1],pose[2],&accepted);
-            else accepted=0;
-            if(status)return status;
-            if(cache) {
-                cache->volume=*volume;memcpy(cache->pose,pose,sizeof(cache->pose));
-                cache->flags=gate->flags&32u;cache->contact=accepted;cache->valid=1;
-            }
-        }
-    }
-    return rf_trigger_contact_delay(timer,now,accepted,ready);
+    return trigger_contact_finish(gate->flags,accepted,volume,pose,timer,now,ready,cache);
 }
 int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
     const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
@@ -1269,6 +1285,48 @@ int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
     const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready)
 {
     return rf_runtime_trigger_contact_cached(triggers,handle,actor,pose,filter,now,input,ready,NULL);
+}
+int rf_runtime_trigger_contact_authored_cached(rf_runtime_triggers *triggers,
+    const rf_runtime_trigger *filter_source,const rf_trigger_actor_facts *actor,
+    const float pose[3][3],int32_t attached,int32_t now,uint32_t input,uint32_t *ready,
+    rf_trigger_contact_cache *cache)
+{
+    rf_runtime_trigger *trigger;const uint32_t *allowed=NULL;
+    uint32_t filter,kind,flags,count=0,accepted,i;int status,expired;
+    if(!filter_source || !filter_source->authored)return RF_RANGE;
+    filter=filter_source->authored->record.value_byte;
+    if(filter>4)return RF_NOT_FOUND;
+    if(filter==2 && filter_source->authored->record.link_count && !filter_source->links)return RF_RANGE;
+    if(!triggers || !triggers->registry)return RF_RANGE;
+    trigger=rf_object_registry_lookup(triggers->registry,filter_source->handle);
+    if(!trigger)return RF_NOT_FOUND;
+#if defined(__clang__) || defined(__GNUC__)
+    /* The registry can hold any object family. Keep the representation copy
+     * alias-safe without an out-of-line four-byte libc call on NXDK. */
+    __builtin_memcpy(&kind,trigger,sizeof(kind));
+#else
+    memcpy(&kind,trigger,sizeof(kind));
+#endif
+    if(kind!=5)return RF_NOT_FOUND;
+    if(!actor || !pose || !ready)return RF_RANGE;
+    status=rf_timer_expired(trigger->state.deadline,now,&expired);if(status)return status;
+    flags=trigger->state.flags;
+    /* Fused equivalent of authored-filter preparation plus runtime contact.
+     * No callback can intervene. Rejecting common state still visits dwell,
+     * including its finite guard and clearing a positive contact deadline. */
+    if((flags&0x58u) || (trigger->activation.limit!=-1 &&
+       (int32_t)trigger->state.count>=trigger->activation.limit) || !expired)
+        return rf_trigger_contact_delay(&trigger->contact_timer,now,0,ready);
+    if(filter==2) {
+        for(i=0;i<filter_source->authored->record.link_count;++i)
+            if(filter_source->links[i].value==actor->handle) {
+                count=1;allowed=&filter_source->links[i].value;break;
+            }
+    }
+    accepted=trigger_actor_eligible(flags,filter,attached,count,allowed,actor,input);
+    if(!accepted)return rf_trigger_contact_delay(&trigger->contact_timer,now,0,ready);
+    return trigger_contact_finish(flags,accepted,&trigger->volume,pose,
+        &trigger->contact_timer,now,ready,cache);
 }
 static void runtime_trigger_dispatch(void *context,rf_trigger_activation *trigger,
     uint32_t actor,uint32_t suppress_movers)

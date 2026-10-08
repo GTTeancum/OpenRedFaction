@@ -1,4 +1,5 @@
 #include "rf/eye.h"
+#include "rf/finite.h"
 #include "rf/timer.h"
 #include "rf/movement.h"
 #include <math.h>
@@ -74,10 +75,10 @@ int rf_eye_position(const rf_eye_input *in, float result[3])
     int current;
     if (!in || !result) return RF_RANGE;
     for (i = 0; i < 3; ++i) {
-        if (!isfinite(in->position[i]) || !isfinite(in->standing_offset[i]) || !isfinite(in->crouching_offset[i])) return RF_FORMAT;
-        for (j = 0; j < 3; ++j) if (!isfinite(in->orientation[i][j])) return RF_FORMAT;
+        if (!rf_finite_float(in->position[i]) || !rf_finite_float(in->standing_offset[i]) || !rf_finite_float(in->crouching_offset[i])) return RF_FORMAT;
+        for (j = 0; j < 3; ++j) if (!rf_finite_float(in->orientation[i][j])) return RF_FORMAT;
     }
-    if (!isfinite(in->transition_duration) || !isfinite(in->transition_elapsed)) return RF_FORMAT;
+    if (!rf_finite_float(in->transition_duration) || !rf_finite_float(in->transition_elapsed)) return RF_FORMAT;
     if (in->eye_tag == -1 || (in->flags & 0x20)) { memcpy(result, in->position, 12); return RF_OK; }
     if (in->flags & 0x40) return RF_NOT_FOUND;
     current = crouched(in->current_state);
@@ -104,8 +105,8 @@ int rf_first_person_pose_copy(const float eye[3],const float body_orientation[3]
     rf_first_person_pose value;uint32_t i,j;
     if(!eye || !body_orientation || !eye_orientation || !result)return RF_RANGE;
     for(i=0;i<3;++i) {
-        if(!isfinite(eye[i]))return RF_FORMAT;
-        for(j=0;j<3;++j)if(!isfinite(body_orientation[i][j]) || !isfinite(eye_orientation[i][j]))return RF_FORMAT;
+        if(!rf_finite_float(eye[i]))return RF_FORMAT;
+        for(j=0;j<3;++j)if(!rf_finite_float(body_orientation[i][j]) || !rf_finite_float(eye_orientation[i][j]))return RF_FORMAT;
     }
     memcpy(value.position,eye,12);memcpy(value.body_orientation,body_orientation,36);
     memcpy(value.eye_orientation,eye_orientation,36);*result=value;return RF_OK;

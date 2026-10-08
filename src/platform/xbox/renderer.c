@@ -30,10 +30,16 @@ static uint32_t stream_start_vblank,stream_start_valid;
 /* Streaming frame starts: explicit waits, already crossed VBlank, last counter. */
 uint32_t rf_renderer_vblank[3];
 #define HUD_BATCH_WORD_LIMIT (32u*1024u) /*128KiB of the512KiB pushbuffer. */
-static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws,hud_batch_open,hud_batch_words;
+static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws,hud_batch_open,hud_batch_words,hud_batch_color;
+typedef struct renderer_command_batch {uint32_t *begin,*p,*blocks;} renderer_command_batch;
+static uint32_t *renderer_reserve(renderer_command_batch *,uint32_t);
+static void renderer_flush(renderer_command_batch *);
 /* Source fans/vertices, batched fans, fallback fans, GPU primitives/vertices,
  * command-buffer resets and peak charged command words. */
 uint32_t rf_xbox_hud_batch[8];
+/* Batched triangles: emitted/reused colors and actual/former command packets. */
+uint32_t rf_xbox_hud_reuse[4];
+static renderer_command_batch hud_commands={NULL,NULL,rf_xbox_hud_reuse+2};
 static void hud_batch_note_words(uint32_t words)
 {
     hud_batch_words+=words;
@@ -42,9 +48,14 @@ static void hud_batch_note_words(uint32_t words)
 static void hud_batch_close_primitive(void)
 {
     uint32_t *p;
-    if(!hud_batch_open)return;
-    p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
-    hud_batch_open=0;hud_batch_note_words(2);
+    if(hud_batch_open) {
+        p=renderer_reserve(&hud_commands,2);
+        hud_commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);
+        hud_batch_open=0;hud_batch_note_words(2);++rf_xbox_hud_reuse[3];
+    }
+    /* Publish all copied immediate values before another command owner or any
+     * completion/reset path can use pbkit. The private HUD is the sole owner. */
+    renderer_flush(&hud_commands);
 }
 /* Private world-particle pass: immediate vertices live in push commands and
  * all referenced animation images remain owned until the pass is drained. */
@@ -82,6 +93,7 @@ static void hud_batch_flush(void)
 static void hud_batch_begin(void)
 {
     memset(rf_xbox_hud_batch,0,sizeof(rf_xbox_hud_batch));
+    memset(rf_xbox_hud_reuse,0,sizeof(rf_xbox_hud_reuse));
     hud_batch_flush();hud_batch_active=1;hud_batch_ready=0;
 }
 static void hud_batch_end(void)
@@ -171,7 +183,6 @@ static int stream_mode,stream_device_ready;static uint32_t stream_capacity,strea
 static uint32_t retained_draw_count;
 /* Actual/former pb_end blocks: retained world, shader uploads, model parts. */
 uint32_t rf_xbox_command_blocks[6],rf_xbox_command_batching_disabled;
-typedef struct renderer_command_batch {uint32_t *begin,*p,*blocks;} renderer_command_batch;
 /* pbkit's debug contract permits at most128 dwords per begin/end pair. */
 static uint32_t *renderer_reserve(renderer_command_batch *batch,uint32_t words)
 {
@@ -747,7 +758,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     const uint32_t program[]={
 #include "particle_vertex.inl"
     };
-    gpu_texture texture={0};uint32_t *p,i,j,reuse_state,hud_triangles=0,emit_count=count,base_mode=mode&~(31u<<20);
+    gpu_texture texture={0};uint32_t *p,i,j,reuse_state,hud_triangles=0,hud_color_change=0,emit_count=count,base_mode=mode&~(31u<<20);
     uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u;int status;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !rf_finite_float(depth_scale) || !rf_finite_float(depth_bias))return RF_RANGE;
@@ -834,13 +845,17 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     if(hud_batch_active) {
         /* Include BEGIN/END and any pending triangle-run closure. Uniform
          * solid output needs one color followed only by position commands. */
-        uint32_t needed=hud_triangles?5+emit_count*5+4:emit_count*20+6;
+        uint32_t needed=hud_triangles?5+emit_count*4+4:emit_count*20+6;
         if(hud_batch_words>HUD_BATCH_WORD_LIMIT-needed)hud_batch_flush();
     }
     if(hud_triangles) {
+        /* Only this ordered triangle list can retain its immediate color.
+         * A fallback, reset or pass end closes it and forces the next write. */
+        hud_color_change=!hud_batch_open || hud_batch_color!=vertices[0].argb;
         if(!hud_batch_open) {
-            p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);pb_end(p);
-            hud_batch_open=1;hud_batch_note_words(2);++rf_xbox_hud_batch[4];
+            p=renderer_reserve(&hud_commands,2);
+            hud_commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);
+            hud_batch_open=1;hud_batch_note_words(2);++rf_xbox_hud_batch[4];++rf_xbox_hud_reuse[3];
         }
     } else {
         if(hud_batch_active)hud_batch_close_primitive();
@@ -849,18 +864,23 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     }
     if(hud_triangles) {
         static const uint8_t quad_triangles[6]={0,1,2,0,2,3};uint32_t color=vertices[0].argb;
-        /* solid_fragment consumes COLOR0 only. Fog/UV outputs are unused;
-         * immediate color persists until changed and position commits a vertex.
-         * One quad packet is35 words, safely below128. Input checks stay above. */
-        p=pb_begin();
-        p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+3*16,
-            (float)((color>>16)&255u)/255.0f,(float)((color>>8)&255u)/255.0f,
-            (float)(color&255u)/255.0f,(float)(color>>24)/255.0f);
+        uint32_t words=(hud_color_change?5u:0u)+emit_count*4;
+        /* solid_fragment consumes COLOR0 only. Retain identical color values
+         * within this primitive and fill the existing128-word packet bound.
+         * CPU inputs are copied now; only command publication may be delayed. */
+        p=renderer_reserve(&hud_commands,words);
+        if(hud_color_change) {
+            p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+3*16,
+                (float)((color>>16)&255u)/255.0f,(float)((color>>8)&255u)/255.0f,
+                (float)(color&255u)/255.0f,(float)(color>>24)/255.0f);
+            hud_batch_color=color;++rf_xbox_hud_reuse[0];
+        } else ++rf_xbox_hud_reuse[1];
         for(i=0;i<emit_count;i++) {
             const rf_particle_draw_vertex *v=vertices+(count==4?quad_triangles[i]:i);
-            p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M,v->screen[0],v->screen[1],depth_bias+depth_scale*v->depth,1);
+            /* SET_VERTEX3F commits the same attribute0 with implicit w=1. */
+            p=pb_push3f(p,NV097_SET_VERTEX3F,v->screen[0],v->screen[1],depth_bias+depth_scale*v->depth);
         }
-        pb_end(p);hud_batch_note_words(5+emit_count*5);
+        hud_commands.p=p;hud_batch_note_words(words);++rf_xbox_hud_reuse[3];
     } else {
         for(i=0;i<count;i++) {
             const rf_particle_draw_vertex *v=vertices+i;

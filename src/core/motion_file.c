@@ -88,7 +88,15 @@ static int16_t signed16(const unsigned char *p)
 static float get_float(const unsigned char *p)
 {
     uint32_t bits=get32(p); float result;
-    memcpy(&result,&bits,4); return result;
+#if defined(__clang__) || defined(__GNUC__)
+    /* The freestanding Xbox build does not recognize ordinary memcpy calls.
+     * This is only an alias-safe representation copy, with no float math or
+     * change to the sampling functions' arithmetic/spill boundaries. */
+    __builtin_memcpy(&result,&bits,sizeof(result));
+#else
+    memcpy(&result,&bits,sizeof(result));
+#endif
+    return result;
 }
 int rf_motion_file_bind_memory(rf_motion_file *file,const void *bytes,uint32_t size)
 {
@@ -97,17 +105,24 @@ int rf_motion_file_bind_memory(rf_motion_file *file,const void *bytes,uint32_t s
     for(i=0;i<20;++i)if(get32(p+i*4)!=file->header[i])return RF_FORMAT;
     file->resident=p;return RF_OK;
 }
-static int motion_read(const rf_motion_file *file,uint32_t offset,void *out,uint32_t size)
+/* Borrow resident bytes only until the immediate decode completes. The
+ * archive path reads into the caller's same bounded scratch storage. Neither
+ * path retains a pointer, changes the file lifetime or skips the span guard. */
+static inline int motion_read_view(const rf_motion_file *file,uint32_t offset,
+    unsigned char *scratch,uint32_t size,const unsigned char **view)
 {
+    int status;
     if((uint64_t)offset+size>file->entry.size)return RF_RANGE;
-    if(file->resident){memcpy(out,file->resident+offset,size);return RF_OK;}
-    return rf_vpp_read(file->archive,&file->entry,offset,out,size);
+    if(file->resident){*view=file->resident+offset;return RF_OK;}
+    status=rf_vpp_read(file->archive,&file->entry,offset,scratch,size);
+    if(status)return status;
+    *view=scratch;return RF_OK;
 }
 static int validate_ticks(const rf_motion_file *file, uint32_t offset, uint32_t count, uint32_t stride)
 {
-    unsigned char raw[4]; uint32_t i; int32_t previous=0,current; int status;
+    unsigned char scratch[4];const unsigned char *raw; uint32_t i; int32_t previous=0,current; int status;
     for (i=0;i<count;++i) {
-        status=motion_read(file,offset+i*stride,raw,4);
+        status=motion_read_view(file,offset+i*stride,scratch,4,&raw);
         if (status!=RF_OK) return status;
         current=signed32(get32(raw));
         if (i && current<=previous) return RF_FORMAT;
@@ -117,16 +132,16 @@ static int validate_ticks(const rf_motion_file *file, uint32_t offset, uint32_t 
 }
 int rf_motion_file_track(const rf_motion_file *file, uint32_t index, rf_motion_track *out)
 {
-    unsigned char raw[8]; rf_motion_track track; uint32_t end; int status;
+    unsigned char scratch[8];const unsigned char *raw; rf_motion_track track; uint32_t end; int status;
     if (!file || (!file->archive && !file->resident) || !out || index>=file->header[6]) return RF_RANGE;
-    status=motion_read(file,80+index*4,raw,index+1<file->header[6] ? 8 : 4);
+    status=motion_read_view(file,80+index*4,scratch,index+1<file->header[6] ? 8 : 4,&raw);
     if (status!=RF_OK) return status;
     track.offset=get32(raw);
     end=index+1<file->header[6] ? get32(raw+4) : file->header[18];
     if (track.offset<80+file->header[6]*4 || end>file->header[18] || end<track.offset || end-track.offset<8)
         return RF_FORMAT;
     track.size=end-track.offset;
-    status=motion_read(file,track.offset,raw,8);
+    status=motion_read_view(file,track.offset,scratch,8,&raw);
     if (status!=RF_OK) return status;
     track.rotation_count=raw[4] | (uint32_t)raw[5]<<8;
     track.position_count=raw[6] | (uint32_t)raw[7]<<8;
@@ -169,11 +184,11 @@ int rf_motion_file_open(rf_motion_file *file, rf_vpp *archive, const char *name)
 static int find_pair(const rf_motion_file *file, uint32_t offset, uint32_t count, uint32_t stride,
                      int32_t tick, uint32_t *first)
 {
-    uint32_t low=0, high=count; unsigned char raw[4]; int status;
+    uint32_t low=0, high=count; unsigned char scratch[4];const unsigned char *raw; int status;
     if (count<2) { *first=0; return RF_OK; }
     while (low<high) {
         uint32_t middle=low+(high-low)/2;
-        status=motion_read(file,offset+middle*stride,raw,4);
+        status=motion_read_view(file,offset+middle*stride,scratch,4,&raw);
         if (status!=RF_OK) return status;
         if (signed32(get32(raw))<=tick) low=middle+1;
         else high=middle;
@@ -238,9 +253,9 @@ int rf_motion_file_sample_track(const rf_motion_file *file,const rf_motion_track
 static int motion_track_rotation(const rf_motion_file *file,const rf_motion_track *track,
     uint32_t key,rf_motion_rotation_key *out)
 {
-    rf_motion_rotation_key result; unsigned char raw[16]; uint32_t i; int status;
+    rf_motion_rotation_key result; unsigned char scratch[16];const unsigned char *raw; uint32_t i; int status;
     if (key>=track->rotation_count) return RF_RANGE;
-    status=motion_read(file,track->offset+8+key*16,raw,16); if (status!=RF_OK) return status;
+    status=motion_read_view(file,track->offset+8+key*16,scratch,16,&raw); if (status!=RF_OK) return status;
     result.tick=signed32(get32(raw));
     for (i=0;i<4;++i) result.packed[i]=signed16(raw+4+i*2);
     if (raw[12]>127 || raw[13]>127) return RF_FORMAT;
@@ -251,9 +266,9 @@ static int motion_track_rotation(const rf_motion_file *file,const rf_motion_trac
 static int motion_track_position(const rf_motion_file *file,const rf_motion_track *track,
     uint32_t key,rf_motion_position_key *out)
 {
-    rf_motion_position_key result; unsigned char raw[40]; uint32_t i; int status;
+    rf_motion_position_key result; unsigned char scratch[40];const unsigned char *raw; uint32_t i; int status;
     if (key>=track->position_count) return RF_RANGE;
-    status=motion_read(file,track->offset+8+track->rotation_count*16+key*40,raw,40);
+    status=motion_read_view(file,track->offset+8+track->rotation_count*16+key*40,scratch,40,&raw);
     if (status!=RF_OK) return status;
     result.tick=signed32(get32(raw));
     for (i=0;i<3;++i) {

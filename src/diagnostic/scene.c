@@ -3375,7 +3375,7 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
     for(i=0;i<campaign_triggers.count;++i) {
         rf_runtime_trigger *trigger=campaign_triggers.items+i;
         const rf_level_trigger *record=&trigger->authored->record;uint32_t ready=0,fired=0;
-        const float (*contact_positions)[3]=positions;float reached[3][3];uint32_t extended=0;
+        const float (*contact_positions)[3]=positions;float reached[3][3];uint32_t extended=0,use_probe;
         if(trigger->activation.object_flags&2)continue;
         if(record->value_byte>4 || record->fields[2]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || (record->script[0] && strcmp(record->script,"-1")) ||
@@ -3384,10 +3384,16 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
          * resolve to an entity linked to a live class-use1 host. The existing
          * rf_trigger_actor_resolve/rf_trigger_eligible pair already owns that
          * gate. Do not blanket-skip the authored mission trigger beforehand. */
-        status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
-        if(!npc && use && (trigger->state.flags&1) && !(trigger->state.flags&(16|32)) && campaign_trigger_collision &&
-           (trigger->activation.limit==-1 || trigger->state.count<(uint32_t)trigger->activation.limit)) {
+        /* Authored filter preparation used to fail before any poll telemetry.
+         * Preserve its only remaining error here for the fused ordinary path. */
+        if(record->value_byte==2 && record->link_count && !trigger->links)return RF_RANGE;
+        use_probe=!npc && use && (trigger->state.flags&1) && !(trigger->state.flags&(16|32)) && campaign_trigger_collision &&
+           (trigger->activation.limit==-1 || trigger->state.count<(uint32_t)trigger->activation.limit);
+        if(use_probe) {
             uint32_t j,nearby,blocked;float reach=0;rf_collision_solid_hit hit;
+            /* Keep filter-error ordering before the optional reach/ray probe.
+             * Ordinary actor visits fuse preparation into contact below. */
+            status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
             for(j=0;j<scene_actor_body.spheres.count;j++)if(scene_actor_body.spheres.items[j].radius>reach)reach=scene_actor_body.spheres.items[j].radius;
             status=rf_trigger_reach_point(&trigger->volume,positions[0],fminf(reach,1),reached[0],&nearby);if(status)return status;
             if(nearby) {float d=0;for(j=0;j<3;j++){float v=positions[0][j]-reached[0][j];d+=v*v;}if(d<1e-10f)nearby=0;}
@@ -3400,8 +3406,12 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
                 } else ++rf_scene_use_reach[2];
             }
         }
-        status=rf_runtime_trigger_contact_cached(&campaign_triggers,trigger->handle,&facts,contact_positions,&filter,now,use,&ready,
-            campaign_trigger_cache_slot(trigger->handle,facts.handle));
+        if(use_probe)
+            status=rf_runtime_trigger_contact_cached(&campaign_triggers,trigger->handle,&facts,contact_positions,&filter,now,use,&ready,
+                campaign_trigger_cache_slot(trigger->handle,facts.handle));
+        else
+            status=rf_runtime_trigger_contact_authored_cached(&campaign_triggers,trigger,&facts,contact_positions,-1,now,use,&ready,
+                campaign_trigger_cache_slot(trigger->handle,facts.handle));
         ++rf_scene_trigger_contacts[0];if(npc)++rf_scene_npc_triggers[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
         if(ready && !campaign_airlock_ready(trigger))continue;
         if(ready && extended)++rf_scene_use_reach[3];

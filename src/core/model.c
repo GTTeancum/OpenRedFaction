@@ -2050,22 +2050,38 @@ int rf_model_compose_transform(const float local[12], const float parent[12], fl
 
 int rf_model_bone_order(const rf_model_bone *bones, uint32_t count, uint8_t *order, uint32_t capacity)
 {
-    uint16_t depths[256];
+    uint16_t depths[256], offsets[256];
     uint8_t sorted[256];
-    uint32_t i, depth, written = 0;
+    uint32_t i, depth, written;
     if (count > 256 || count > capacity || (count && (!bones || !order))) return RF_RANGE;
+    for (i = 0; i < count; ++i) { depths[i] = UINT16_MAX; offsets[i] = 0; }
     for (i = 0; i < count; ++i) {
-        int32_t parent = bones[i].parent;
-        depth = 0;
+        int32_t parent = (int32_t)i;
+        if (depths[i] != UINT16_MAX) continue;
+        depth = 0; written = 0;
+        /* Every valid parent chain is walked only once. The temporary path
+         * marks also reject cycles without retracing them count times. */
         while (parent != -1) {
-            if (parent < 0 || (uint32_t)parent >= count || ++depth >= count) return RF_FORMAT;
+            if (parent < 0 || (uint32_t)parent >= count || depths[parent] == UINT16_MAX - 1) return RF_FORMAT;
+            if (depths[parent] != UINT16_MAX) { depth = depths[parent] + 1u; break; }
+            depths[parent] = UINT16_MAX - 1;
+            sorted[written++] = (uint8_t)parent;
             parent = bones[parent].parent;
         }
-        depths[i] = (uint16_t)depth;
+        while (written) {
+            if (depth >= count) return RF_FORMAT;
+            depths[sorted[--written]] = (uint16_t)depth++;
+        }
     }
-    for (depth = 0; written < count; ++depth)
-        for (i = 0; i < count; ++i)
-            if (depths[i] == depth) sorted[written++] = (uint8_t)i;
+    /* Stable counting order preserves the original increasing-depth groups and
+     * ascending bone index within each depth, including multiple roots. */
+    for (i = 0; i < count; ++i) ++offsets[depths[i]];
+    written = 0;
+    for (depth = 0; depth < count; ++depth) {
+        uint32_t size = offsets[depth];
+        offsets[depth] = (uint16_t)written; written += size;
+    }
+    for (i = 0; i < count; ++i) sorted[offsets[depths[i]]++] = (uint8_t)i;
     if (count) memcpy(order, sorted, count);
     return RF_OK;
 }
@@ -2163,7 +2179,10 @@ int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3]
         for (c=0;c<4;++c) if (!rf_finite_float(rotations[i][c])) return RF_FORMAT;
         for (c=0;c<3;++c) if (!rf_finite_float(positions[i][c])) return RF_FORMAT;
     }
-    if (count==1) { memcpy(q,rotations[0],sizeof(q)); memcpy(p,positions[0],sizeof(p)); }
+    /* A single contribution is not blended. The attachment helper already
+     * stages its output, so retain all guards while avoiding three redundant
+     * copies through q, p and matrix. Input/output aliasing remains safe. */
+    if (count==1) return rf_model_attachment_transform(rotations[0],positions[0],out);
     else {
         if (count==2) {
             for (c=0;c<3;++c) {
@@ -2220,7 +2239,8 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
                              const rf_motion_file *const *motions, const rf_motion_playback_resource *resources,
                              uint32_t resource_count, float root_displacement[3], float (*matrices)[12], uint16_t *generations, uint32_t capacity,const rf_model_bone_override *overrides)
 {
-    uint8_t order[256]; uint32_t i,j,index,mask=0; int status;
+    uint8_t order[256]; uint32_t i,j,index,mask=0; int status,weights_current=0;
+    rf_motion_weight_envelope previous_envelopes[16];float weights[16];
     const rf_motion_slot_state *active;
     if (!bones || !state || !root_displacement || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
     if (generations && state->generation>65535) return RF_FORMAT;
@@ -2236,7 +2256,7 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
     for (i=0;i<count;++i) {
         rf_motion_track tracks[16];rf_motion_weight_envelope envelopes[16];
         _Static_assert(sizeof(tracks)<=640,"Bounded call-local motion descriptors");
-        float weights[16], compact[16], rotations[16][4], positions[16][3], local[12];
+        float compact[16], rotations[16][4], positions[16][3], local[12];
         uint32_t contributions=0;
         const float identity[4]={0,0,0,1}, zero[3]={0,0,0};
         index=order[i];
@@ -2248,7 +2268,15 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
             status=rf_motion_file_track(motions[active->slots[j].motion],index,tracks+j); if (status!=RF_OK) return status;
             envelopes[j]=tracks[j].envelope;
         }
-        status=rf_motion_bone_weights(active,envelopes,mask,weights); if (status!=RF_OK) return status;
+        /* Active slots/ticks and the loop mask are fixed throughout this
+         * evaluation. Consecutive bones with bit-identical envelopes therefore
+         * have identical fully rounded weights. Reuse only successful results;
+         * track lookup/validation and every bone's actual sample remain live. */
+        if (!weights_current || memcmp(previous_envelopes,envelopes,
+                active->count*sizeof(*envelopes))) {
+            status=rf_motion_bone_weights(active,envelopes,mask,weights); if (status!=RF_OK) return status;
+            memcpy(previous_envelopes,envelopes,active->count*sizeof(*envelopes));weights_current=1;
+        }
         for (j=0;j<active->count;++j) if (weights[j]>0) {
             rf_motion_sample sample;
             status=rf_motion_file_sample_track(motions[active->slots[j].motion],tracks+j,

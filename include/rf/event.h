@@ -583,6 +583,15 @@ int rf_runtime_trigger_contact_cached(rf_runtime_triggers *triggers,uint32_t han
     const rf_trigger_actor_facts *actor,const float pose[3][3],
     const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready,
     rf_trigger_contact_cache *cache);
+/* Fused authored-filter preparation and cached contact for one stable actor
+ * visit. The filter comes from filter_source; its handle is still resolved
+ * through the registry before touching the target volume/state/timer. Live
+ * eligibility and dwell run on every visit, including rejected contacts.
+ * No callbacks, allocations, retained filter state or new save state. */
+int rf_runtime_trigger_contact_authored_cached(rf_runtime_triggers *triggers,
+    const rf_runtime_trigger *filter_source,const rf_trigger_actor_facts *actor,
+    const float pose[3][3],int32_t attached,int32_t now,uint32_t input,uint32_t *ready,
+    rf_trigger_contact_cache *cache);
 /* Explicit runtime activation after caller-resolved contact/key/player gates.
  * Uses the shared registry/link dispatcher and SP bookkeeping on the owned
  * trigger. The same supported action families as startup are available;
