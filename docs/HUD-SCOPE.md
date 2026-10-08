@@ -1,8 +1,10 @@
 # Original weapon scope overlays
 
-Source-written for the21:00 parent batch on2026-10-08. No helper build, test,
-emulator run, screenshot or image generation. The existing20:00 HUD atlas has
-already passed its parent run; this additional scope owner remains unverified.
+Source-written for the21:00 parent batch on2026-10-08. The parent batch passes
+stock64MiB resource admission: both scope images are loaded with131120 resident
+bytes and139312 accounted peak bytes. The neutral run does not activate zoom,
+so scope draw count is zero; active-scope presentation is still unverified.
+No helper build, test, emulator run, screenshot or image generation was performed.
 
 ## Resources and ownership
 
@@ -47,6 +49,28 @@ Variable reticle marks, source13-frame `scope_numbers.vbm`, four-frame
 drawn. Their live-state/readout semantics have not been integrated. No zoom
 number, range measurement, lock notification or magnification label is faked.
 The original circle decorations beyond the fixed aiming axes are deferred.
+
+## First-playable scope status, reviewed after21:00
+
+The current scope feedback is sufficient for the first-playable code slice.
+Existing fresh-edge alternate input toggles zoom only for an owned Sniper Rifle
+or Scoped Assault Rifle while alive and on foot. The existing scope owner drives
+the real FOV/projection and look-sensitivity scaling; the corresponding original
+mask and fixed aiming cross distinguish the two weapons. Losing selection or
+being unable to use the weapon resets zoom. Cinematics suppress scope drawing.
+The mask is submitted before readable messages and ordinary meters. Optional
+resource-load failure preserves the existing scope/reticle fallback.
+
+No additional zoom label or invented measurement is needed to communicate this
+two-state aiming behavior. Variable-magnification numerals, animated scale/light
+art, range labels and lock indicators without a real bound gameplay state remain
+deferred fidelity work. They are not blockers for this first-playable slice.
+Ammo, reload and low-health clarity remain separate scene-owned HUD work.
+
+Evidence: `src/core/weapon_scope.c`, the scope step in `src/diagnostic/scene.c`,
+`scene_hud_scope.inc`, and the parent
+`artifacts/hourly/20261008-2100-optimized/run-result.json`. Resource admission
+must not be described as a successful active-zoom draw or visual parity check.
 
 ## Parent integration hooks
 

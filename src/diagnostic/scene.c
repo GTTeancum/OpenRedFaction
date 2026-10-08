@@ -11803,11 +11803,12 @@ uint32_t rf_scene_pickup_vitals[4]; /* health bits,armor bits,health restored bi
 uint32_t rf_scene_pickup_audio[10];
 static void campaign_pickup_sound(const rf_item_definition *definition,const float position[3],uint32_t uid)
 {
-    uint32_t index=definition->weapon[0]?12:0;int status=RF_OK;
+    uint32_t index=(!definition || definition->weapon[0])?12:0;int status=RF_OK;
     /* RF.exe4594f0: explicit class+28 sound, otherwise12 for weapon/ammo,
-     * zero for powerups.459520 starts spatial audio at the item with gain1. */
+     * zero for powerups.459520 starts spatial audio at the item with gain1.
+     * A NULL definition is a known weapon drop without optional metadata. */
     ++rf_scene_pickup_audio[0];rf_scene_pickup_audio[4]=uid;
-    if(definition->pickup_sound[0])status=rf_audio_bank_declare(&campaign_audio_bank,
+    if(definition && definition->pickup_sound[0])status=rf_audio_bank_declare(&campaign_audio_bank,
         definition->pickup_sound,definition->pickup_sound_distance,definition->pickup_sound_volume,1,&index);
     if(!status && !rf_audio_bank_sample(&campaign_audio_bank,index)) {
         status=campaign_ambient_reload(index);
@@ -11827,6 +11828,7 @@ static void campaign_pickup_sound(const rf_item_definition *definition,const flo
     if(status)++rf_scene_pickup_audio[2];else ++rf_scene_pickup_audio[1];
     /* Missing audio must not roll back a successful inventory grant. */
 }
+#include "scene_weapon_drop_feedback.inc"
 static int scene_turret_heap_launch(scene_stream *,uint32_t,uint32_t,uint32_t,const float *,const float *,
     const rf_weapon_primary_definition *,const rf_weapon_explosive_definition *,uint32_t *);
 static int scene_turret_heap_tick(scene_stream *,uint32_t);
@@ -11868,7 +11870,9 @@ static int campaign_weapon_drops_tick(scene_stream *stream,const float eye[3])
                         drop->weapon,drop->quantity,1,&grant);if(status)return status;
                     if(grant.acquired || grant.rounds) {
                         drop->state=2;++rf_scene_weapon_drops[1];rf_scene_weapon_drops[2]+=grant.rounds;
-                        rf_scene_weapon_drops[3]=rf_scene_defeated_actors.items[owner->persistence_slot].uid;campaign_ammo_publish();
+                        rf_scene_weapon_drops[3]=rf_scene_defeated_actors.items[owner->persistence_slot].uid;
+                        scene_weapon_drop_feedback(stream,drop,&grant,rf_scene_weapon_drops[3]);
+                        campaign_ammo_publish();
                     }
                 }
             }
@@ -15284,6 +15288,7 @@ static int scene_remote_launch(scene_stream *,uint32_t,const float[3],const floa
 static void scene_remote_reset(void);
 static int scene_remote_tick(scene_stream *,uint32_t);
 static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t);
+static void scene_remote_hud_counts(uint32_t *ready,uint32_t *pending);
 #include "scene_clutter_precision.inc"
 #include "scene_precision_gameplay.inc"
 #include "scene_flame_gameplay.inc"
@@ -16023,7 +16028,7 @@ static int combat_hud_rect(rf_scene_particle_sink sink,void *context,float x,flo
 uint32_t rf_hud_text_diagnostic[8]; /* native TEXT calls/glyphs,story frames,wrapped lines,truncated,notices,countdowns,status */
 static int scene_hud_text_box(const rf_hud_assets *,rf_scene_particle_sink,void *,uint32_t,
     const char *,float,float,float,float,uint32_t);
-static int scene_hud_story_draw(rf_scene_particle_sink,void *,const char *);
+static int scene_hud_story_draw(rf_scene_particle_sink,void *,const char *,uint32_t);
 static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,float y,const char *text,uint32_t color)
 {
     static const struct {char letter;unsigned char rows[7];} font[]={
@@ -16075,15 +16080,27 @@ static int combat_hud_centered(rf_scene_particle_sink sink,void *context,float y
             text,24,y,592,0,color);
     return combat_hud_text(sink,context,(640.f-(float)strlen(text)*12)*.5f,y,text,color);
 }
+#include "scene_hud_control_text.inc"
 static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
 {
+    char expanded[2*sizeof(campaign_subtitle.text)];
     const char *p=campaign_subtitle.text;uint32_t row=0;int expired,status;
     uint64_t elapsed=(uint64_t)combat_frame*1000/60;
     int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
     if(campaign_subtitle_deadline<0 || combat_frame==UINT32_MAX)return RF_OK;
     status=rf_timer_expired(campaign_subtitle_deadline,now,&expired);if(status)return status;
     if(expired){campaign_subtitle_deadline=-1;return RF_OK;}
-    if(particle_draw_stream && particle_draw_stream->hud_assets)return scene_hud_story_draw(sink,context,p);
+    {
+        uint32_t bound=0,unbound=0,unknown=0,bytes=0;
+        status=scene_hud_control_text(campaign_subtitle.text,sizeof(campaign_subtitle.text),expanded,sizeof(expanded),
+            &bound,&unbound,&unknown,&bytes);
+        ++rf_hud_control_text_diagnostic[0];rf_hud_control_text_diagnostic[7]=(uint32_t)status;
+        rf_hud_control_text_diagnostic[6]=campaign_subtitle_uid;
+        if(!status){p=expanded;rf_hud_control_text_diagnostic[1]+=bound;rf_hud_control_text_diagnostic[2]+=unbound;
+            rf_hud_control_text_diagnostic[3]+=unknown;rf_hud_control_text_diagnostic[5]=bytes;}
+        else ++rf_hud_control_text_diagnostic[4]; /* Keep the original message available on expansion failure. */
+    }
+    if(particle_draw_stream && particle_draw_stream->hud_assets)return scene_hud_story_draw(sink,context,p,p==expanded?sizeof(expanded):sizeof(campaign_subtitle.text));
     while(*p && row<5) {
         char line[47];uint32_t n=0,last_space=0;
         while(*p==' ' || *p=='\r' || *p=='\n')++p;
@@ -16124,6 +16141,7 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
      * coverage are authored in its TGA. Hit/surface feedback below overrides
      * this neutral multiplier explicitly. */
     uint32_t i,color=0xffffffffu,vehicle,mounted,armed,loaded=0,reserve=0,magazine=0;
+    uint32_t remote_ready=0,remote_pending=0;
     int32_t weapon=-1,vehicle_ammo[2]={-1,-1};float vehicle_health=0;int status;
     const scene_turret_owner *turret=NULL;
     if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
@@ -16147,6 +16165,10 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
             if(!magazine || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9)
                 loaded=reserve;
         }
+    }
+    if(armed && !vehicle && !mounted && campaign_equipped_slot==9){
+        /* A detonator operates deployed owners even after carried ammo is0. */
+        scene_remote_hud_counts(&remote_ready,&remote_pending);loaded=remote_ready+remote_pending;
     }
     if(vehicle)scene_vehicle_hud_values(particle_draw_stream,&vehicle_health,vehicle_ammo);
     status=scene_hud_scope_draw(sink,context,armed&&!vehicle&&!mounted);if(status)return status;
@@ -16185,7 +16207,7 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     if(combat_surface_frame!=UINT32_MAX && combat_frame-combat_surface_frame<=6)color=0xffffc060;
     if(combat_hit_frame!=UINT32_MAX && combat_frame-combat_hit_frame<=8)color=rf_scene_riot[0]?0xff80dfff:0xff60ff80;
     if(particle_draw_stream->hud_assets) {
-        status=scene_hud_original(sink,context,vehicle,vehicle_health,vehicle_ammo,mounted,turret,armed,loaded,reserve,magazine,color);
+        status=scene_hud_original(sink,context,vehicle,vehicle_health,vehicle_ammo,mounted,turret,armed,loaded,reserve,magazine,remote_pending,color);
         rf_hud_assets_diagnostic[7]=(uint32_t)status;if(status)return status;
         ++rf_hud_assets_diagnostic[5];
     } else {
@@ -16224,6 +16246,18 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
         status=combat_hud_text(sink,context,460,420,
             turret->view.weapons[0]==scene_turret_heap_id?"HEAP":"VAUSS",0xffeeeeee);if(status)return status;
         status=combat_hud_text(sink,context,460,442,"UNLIMITED",0xffeeeeee);if(status)return status;
+    } else if(armed && campaign_equipped_slot==9) {
+        char deployed[24];const char *hint=remote_pending?"DETONATING":loaded?
+#ifdef RF_IMAGE_XBOX_NATIVE
+            "RT DETONATE":
+#else
+            "FIRE DETONATE":
+#endif
+            "NO CHARGES";
+        snprintf(deployed,sizeof(deployed),"DEPLOYED %u",loaded);
+        status=combat_hud_rect(sink,context,454,400,170,64,0xff101010);if(status)return status;
+        status=combat_hud_text(sink,context,462,404,deployed,0xffeeeeee);if(status)return status;
+        status=combat_hud_text(sink,context,462,428,hint,loaded?0xffeeeeee:0xffee6060);if(status)return status;
     } else if(armed && campaign_equipped_slot!=11) {
         char rounds[24],stock[16];uint32_t shown=loaded>99999?99999:loaded;
         status=combat_hud_rect(sink,context,470,436,146,28,0xff101010);if(status)return status;
@@ -19968,6 +20002,7 @@ static int scene_pickup_resources_open(scene_stream *stream,const char *tables_p
         free(materials->items);materials->items=combined;materials->count+=textures->count;materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
     }
+    scene_weapon_drop_feedback_open(stream,&tables);
     status=RF_OK;
 done:
     free(file);rf_vpp_close(&tables);return status;

@@ -60,6 +60,23 @@ static int scene_remote_launch(scene_stream *s,uint32_t frame,const float positi
     --campaign_player_inventory.reserve[ammo];++rf_scene_remote[1];++rf_scene_remote[4];*spawned=1;campaign_ammo_publish();
     if(rf_scene_combat_trace)printf("REMOTE_RELEASE %u %u %u %d\n",frame,i,place,campaign_player_inventory.reserve[ammo]);return RF_OK;
 }
+/* Presentation-only snapshot. The detonator requests live owner/class0x40
+ * records, not inventory reserve; availability additionally rejects retired
+ * or already-requested fuse/life states. Never call the mutating request here. */
+static void scene_remote_hud_counts(uint32_t *ready,uint32_t *pending)
+{
+    uint32_t i;*ready=*pending=0;
+    if(campaign_remote_id<0 || campaign_player_object.view!=&campaign_player_view ||
+       rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=&campaign_player_view)return;
+    for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++){
+        const rf_remote_charge *charge=scene_remote_charges+i;
+        if(!charge->flight.lifecycle.active || charge->owner!=campaign_player_object.handle ||
+           charge->type!=(uint32_t)campaign_remote_id || !(charge->flight.lifecycle.class_flags&0x40u) ||
+           (charge->object_flags&2u))continue;
+        if(charge->flight.lifecycle.fuse>0 && charge->flight.lifecycle.life>0)++*ready;
+        else if(charge->flight.lifecycle.fuse<=0 || charge->flight.lifecycle.life<=0)++*pending;
+    }
+}
 static int scene_remote_request(uint32_t frame,uint32_t owner,uint32_t *any)
 {
     uint32_t i,selected;int status;if(!any)return RF_RANGE;*any=0;

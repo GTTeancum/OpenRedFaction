@@ -76,7 +76,7 @@ static uint32_t scene_hud_ammo_icon(void)
 }
 static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t vehicle,
     float vehicle_health,const int32_t vehicle_ammo[2],uint32_t mounted,const scene_turret_owner *turret,
-    uint32_t armed,uint32_t loaded,uint32_t reserve,uint32_t magazine,uint32_t reticle_color)
+    uint32_t armed,uint32_t loaded,uint32_t reserve,uint32_t magazine,uint32_t remote_pending,uint32_t reticle_color)
 {
     const rf_hud_assets *a=particle_draw_stream->hud_assets;
     int32_t p[19][2];uint32_t i,color=rf_hud_assets_color(a,RF_HUD_COLOR_DEFAULT);int status;
@@ -129,7 +129,19 @@ static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t
             status=scene_hud_number(a,sink,context,RF_HUD_FONT_BIG,campaign_equipped_slot==2?reserve/magazine:reserve,p[11],p[12],mid);
         }
         if(status)return status;
-        if(rf_scene_combat[6]&&pistol_reload_ticks){
+        if(campaign_equipped_slot==9){
+            const char *hint=remote_pending?"DETONATING":loaded?
+#ifdef RF_IMAGE_XBOX_NATIVE
+                "RT DETONATE":
+#else
+                "FIRE DETONATE":
+#endif
+                "NO CHARGES";
+            status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,"DEPLOYED",496,62,132,0,color);if(status)return status;
+            status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,hint,496,78,132,0,
+                loaded?color:0xffee6060);if(status)return status;
+        }
+        if(campaign_equipped_slot!=9&&rf_scene_combat[6]&&pistol_reload_ticks){
             uint32_t left=rf_scene_combat[6]>pistol_reload_ticks?pistol_reload_ticks:rf_scene_combat[6];
             status=combat_hud_rect(sink,context,518,64,108,3,0xff484848);if(status)return status;
             status=combat_hud_rect(sink,context,518,64,108.f*(pistol_reload_ticks-left)/pistol_reload_ticks,3,0xffffc040);if(status)return status;
@@ -142,6 +154,7 @@ static void scene_hud_open_optional(scene_stream *stream,const char *tables_path
     rf_vpp ui={0},tables={0};char path[1024];uint32_t i,prefix=0;int status;
     memset(rf_hud_assets_diagnostic,0,sizeof(rf_hud_assets_diagnostic));
     memset(rf_hud_text_diagnostic,0,sizeof(rf_hud_text_diagnostic));
+    memset(rf_hud_control_text_diagnostic,0,sizeof(rf_hud_control_text_diagnostic));
     if(!campaign_spawn)return;
     ++rf_hud_assets_diagnostic[0];
     for(i=0;i<sizeof(path)&&tables_path[i];i++)if(tables_path[i]=='/'||tables_path[i]=='\\')prefix=i+1;

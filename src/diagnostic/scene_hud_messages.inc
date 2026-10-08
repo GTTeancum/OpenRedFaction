@@ -76,7 +76,7 @@ static int scene_hud_message_block(const rf_hud_assets *a,rf_scene_particle_sink
     }
     rf_hud_text_diagnostic[3]+=count;return RF_OK;
 }
-static int scene_hud_story_draw(rf_scene_particle_sink sink,void *context,const char *text)
+static int scene_hud_story_draw(rf_scene_particle_sink sink,void *context,const char *text,uint32_t capacity)
 {
     const rf_hud_assets *a=particle_draw_stream->hud_assets;int32_t message[2],subtitle[2];int status;
     uint32_t width;float y;
@@ -88,7 +88,7 @@ static int scene_hud_story_draw(rf_scene_particle_sink sink,void *context,const 
      * use the authored subtitle Y and the existing full-width subtitle region;
      * do not guess a persona/portrait from its optional voice filename. */
     if(campaign_cutscene_runtime.active){width=552;y=(float)subtitle[1];}
-    status=scene_hud_message_block(a,sink,context,text,sizeof(campaign_subtitle.text),width,y,472,
+    status=scene_hud_message_block(a,sink,context,text,capacity,width,y,472,
         SCENE_HUD_MESSAGE_LINES,rf_hud_assets_color(a,RF_HUD_COLOR_MESSAGE),rf_hud_assets_color(a,RF_HUD_COLOR_MESSAGE_BACKGROUND));
     rf_hud_text_diagnostic[7]=(uint32_t)status;if(!status)++rf_hud_text_diagnostic[2];return status;
 }
