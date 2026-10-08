@@ -297,6 +297,7 @@ extern uint32_t rf_scene_mover_visibility[3];
 /* Scene-owned glare cache search, current diagnostic owner order; no drawing. */
 int rf_scene_glare_visibility_pass(const float camera[3]);
 extern uint32_t rf_scene_glare_search[8];
+extern uint32_t rf_scene_glare_snapshot_cache[6]; /* fills,shares,allocations,bytes,objects,status */
 extern uint32_t rf_scene_corona_draw[8];
 extern uint32_t rf_scene_volume_draw[8];
 extern uint32_t rf_scene_bolt_draw[6];

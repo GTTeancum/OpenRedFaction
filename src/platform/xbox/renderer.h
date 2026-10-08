@@ -30,8 +30,9 @@ int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materi
  * buffer; this is not an assertion that the diagnostic world uses RF depth.
  * Sets its own shader/texture/depth/blend state; caller restores later passes.
  * Native synthetic pixel probes pass; campaign integration remains pending.
- * The private streaming world-particle pass batches these calls and drains
- * before returning from the pass. Other callers retain synchronous completion. */
+ * Private streaming world-particle/HUD scopes batch these calls; their
+ * ordered renderer boundaries retain the completed-frame lifetime fence.
+ * Standalone callers retain synchronous completion. */
 int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count,
     const rf_image *image,uint32_t mode,float depth_scale,float depth_bias,
     uint32_t fog_enabled,uint32_t fog_rgb);

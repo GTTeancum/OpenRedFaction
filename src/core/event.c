@@ -1,4 +1,5 @@
 #include "rf/event.h"
+#include "rf/finite.h"
 #include "rf/event_hit.h"
 #include "rf/collision.h"
 #include "rf/level.h"
@@ -139,7 +140,10 @@ int rf_trigger_contact_delay(rf_trigger_contact_timer *timer,int32_t now,
 {
     double milliseconds;int expired,status;int32_t deadline;
     if(!timer || !ready || accepted>1 || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
-    if(!isfinite(timer->seconds))return RF_FORMAT;
+    /* Every actor/trigger poll reaches this guard, even rejected contacts.
+     * The exact memory-value predicate avoids a classifier call without
+     * changing dwell processing or any later double timer conversion. */
+    if(!rf_finite_float(timer->seconds))return RF_FORMAT;
     deadline=timer->deadline;
     if(timer->seconds>0) {
         if(!accepted)rf_timer_clear(&deadline);

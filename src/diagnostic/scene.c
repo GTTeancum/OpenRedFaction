@@ -830,6 +830,7 @@ typedef struct scene_world_projection_cache {
     rf_preview_vertex *destination;uint32_t material_count;
     float position[3],orientation[9];
 } scene_world_projection_cache;
+typedef struct scene_glare_snapshot_owner scene_glare_snapshot_owner;
 typedef struct scene_driller_runtime scene_driller_runtime;
 #include "scene_vehicle_profile_pack_decl.inc"
 typedef struct scene_stream {
@@ -899,6 +900,7 @@ typedef struct scene_stream {
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
     rf_level_visibility visibility;
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
+    scene_glare_snapshot_owner *glare_snapshot; /* Borrowed only within one synchronous presentation. */
     rf_level_owned_lights *lights;rf_light_dirty_storage *light_storage;
     rf_lightmap_rgb_owner light_rgb;void *light_overlay_work;
     rf_geometry_vertex_faces light_graph;rf_geometry_lightmap_storage light_shading;
@@ -3509,15 +3511,13 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
     return RF_OK;
 }
 uint32_t rf_scene_mover_visibility[3]; /* views, normalized hash, errors */
-int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+static int campaign_mover_visibility_view_at(uint32_t i,uint32_t handle,rf_glare_visibility_object *result)
 {
     rf_glare_visibility_object value={0};const rf_group_registered_mover *owner;const rf_group_attached_pose *pose;
-    uint32_t i;void *registered;
     if(!result)return RF_RANGE;
-    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
-    for(i=0;i<campaign_mover_count;++i)if(registered==campaign_mover_wrappers+i && campaign_mover_wrappers[i].handle==handle)break;
-    if(i==campaign_mover_count)return RF_NOT_FOUND;
+    if(i>=campaign_mover_count || !campaign_mover_wrappers)return RF_NOT_FOUND;
     owner=campaign_mover_wrappers+i;
+    if(owner->handle!=handle || rf_object_registry_lookup(&campaign_registry,handle)!=owner)return RF_NOT_FOUND;
     if(i>=campaign_movers.count || owner->object_kind!=9 || owner->pose!=campaign_movers.poses+i ||
         campaign_movers.views[i].object_id!=handle)return RF_FORMAT;
     pose=owner->pose;value.handle=handle;value.solid=i+2;
@@ -3526,6 +3526,14 @@ int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *r
     memcpy(value.geometry.position,pose->public_position,12);memcpy(value.geometry.matrix,pose->input_matrix,36);
     memcpy(value.geometry.minimum,pose->minimum,12);memcpy(value.geometry.maximum,pose->maximum,12);
     *result=value;return RF_OK;
+}
+int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+{
+    uint32_t i;void *registered;
+    if(!result)return RF_RANGE;
+    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_mover_count;++i)if(registered==campaign_mover_wrappers+i && campaign_mover_wrappers[i].handle==handle)break;
+    return campaign_mover_visibility_view_at(i,handle,result);
 }
 /* 487e00 commits controllers through 46a8f0 before querying actor support.
  * Keep propagated velocity available during physics with old committed origins. */
@@ -4171,15 +4179,13 @@ int rf_scene_clutter_collision_query(uint32_t handle,rf_collision_model_part_que
 }
 /* Borrow scene-owned prop identity/pose for414b80 model visibility queries.
  * Model pointers expire with scene ownership; never accept a stale replacement. */
-int rf_scene_clutter_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+static int campaign_clutter_visibility_view_at(uint32_t i,uint32_t handle,rf_glare_visibility_object *result)
 {
-    rf_glare_visibility_object value={0};const rf_clutter_base_owner *owner;void *registered;uint32_t i,model;
+    rf_glare_visibility_object value={0};const rf_clutter_base_owner *owner;uint32_t model;
     if(!result)return RF_RANGE;
-    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
-    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] &&
-        registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle)break;
-    if(i==campaign_clutter_records.count)return RF_NOT_FOUND;
-    owner=campaign_clutter_bodies[i];model=campaign_clutter_model_slots[i];
+    if(i>=campaign_clutter_records.count || !campaign_clutter_bodies || !(owner=campaign_clutter_bodies[i]))return RF_NOT_FOUND;
+    if(owner->state.handle!=handle || rf_object_registry_lookup(&campaign_registry,handle)!=&owner->state)return RF_NOT_FOUND;
+    model=campaign_clutter_model_slots[i];
     if(model>=campaign_clutter_model_count)return RF_FORMAT;
     if(owner->attachment.model!=(uint32_t)(uintptr_t)(campaign_clutter_shared+model))return RF_FORMAT;
     value.handle=handle;value.geometry.token=handle;value.geometry.flags=owner->state.flags;
@@ -4188,6 +4194,15 @@ int rf_scene_clutter_visibility_view(uint32_t handle,rf_glare_visibility_object 
     memcpy(value.geometry.minimum,owner->body.state.bounds.minimum,12);
     memcpy(value.geometry.maximum,owner->body.state.bounds.maximum,12);
     *result=value;return RF_OK;
+}
+int rf_scene_clutter_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+{
+    uint32_t i;void *registered;
+    if(!result)return RF_RANGE;
+    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] &&
+        registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle)break;
+    return campaign_clutter_visibility_view_at(i,handle,result);
 }
 int rf_scene_clutter_visibility_model(void *unused,const rf_collision_visibility_object *object,
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
@@ -6660,12 +6675,12 @@ int rf_scene_npc_request_motion(uint32_t handle,int32_t requested,float duration
     if(!campaign_motion_catalog.mappings || owner->selection.mapping.skeleton!=pose->skeleton)return RF_RANGE;
     return rf_motion_request_state(&pose->controller,owner->selection.mapping.states,requested,duration);
 }
-int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result)
+static int campaign_npc_collision_view_at(uint32_t i,uint32_t handle,rf_collision_pair_actor_state *result)
 {
-    campaign_npc_body *owner;rf_entity_pose *pose;rf_collision_pair_actor_state value={0};uint32_t i;int status;
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_collision_pair_actor_state value={0};int status;
     if(!result)return RF_RANGE;
-    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
-    if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(i>=campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
+    if(!owner->registration.view || owner->registration.handle!=handle)return RF_NOT_FOUND;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
     if(owner->movement_slot>=16 || !campaign_seeds.records.items || i>=campaign_seeds.records.count)return RF_RANGE;
     status=campaign_actor_pose(i,&pose);if(status)return status;
@@ -6678,14 +6693,21 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
     memcpy(value.forward,campaign_model_owners[i].basis+6,12);
     *result=value;return RF_OK;
 }
+int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result)
+{
+    uint32_t i;
+    if(!result)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    return campaign_npc_collision_view_at(i,handle,result);
+}
 
 uint32_t rf_scene_npc_visibility[7];
-int rf_scene_npc_visibility_facts(uint32_t handle,uint32_t result[3])
+static int campaign_npc_visibility_facts_at(uint32_t slot,uint32_t handle,uint32_t result[3])
 {
-    campaign_npc_body *owner;const rf_entity_view *linked;uint32_t slot,values[3],record[7];
+    campaign_npc_body *owner;const rf_entity_view *linked;uint32_t values[3],record[7];
     if(!result)return RF_RANGE;
-    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view && campaign_npc_bodies[slot].registration.handle==handle)break;
-    if(slot==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+slot;
+    if(slot>=campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+slot;
+    if(!owner->registration.view || owner->registration.handle!=handle)return RF_NOT_FOUND;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
     linked=rf_entity_lookup(&campaign_entities,owner->view.linked_handle);
     values[0]=owner->room.room;values[1]=linked && linked->class_type==1;
@@ -6693,17 +6715,22 @@ int rf_scene_npc_visibility_facts(uint32_t handle,uint32_t result[3])
     ++rf_scene_npc_visibility_rooms[0];rf_scene_npc_visibility_rooms[1]+=values[0]!=0;
     rf_scene_npc_visibility_rooms[2]+=linked!=NULL;rf_scene_npc_visibility_rooms[3]+=values[1];
     record[0]=handle;memcpy(record+1,values,12);memcpy(record+4,owner->room.query_position,12);
-    rf_scene_npc_visibility_rooms[4]=npc_hash_bytes(rf_scene_npc_visibility_rooms[4],record,sizeof(record));
+    rf_scene_npc_visibility_rooms[4]=scene_diagnostic_hash(rf_scene_npc_visibility_rooms[4],record,sizeof(record));
     memcpy(result,values,sizeof(values));return RF_OK;
 }
-
-int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+int rf_scene_npc_visibility_facts(uint32_t handle,uint32_t result[3])
 {
-    rf_collision_pair_actor_state actor;rf_glare_visibility_object value={0};campaign_npc_body *owner;uint32_t slot;int status;
+    uint32_t slot;
     if(!result)return RF_RANGE;
-    status=rf_scene_npc_collision_view(handle,&actor);if(status)return status;
     for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view && campaign_npc_bodies[slot].registration.handle==handle)break;
-    if(slot==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+slot;
+    return campaign_npc_visibility_facts_at(slot,handle,result);
+}
+static int campaign_npc_visibility_view_at(uint32_t slot,uint32_t handle,rf_glare_visibility_object *result)
+{
+    rf_collision_pair_actor_state actor;rf_glare_visibility_object value={0};campaign_npc_body *owner;int status;
+    if(!result)return RF_RANGE;
+    status=campaign_npc_collision_view_at(slot,handle,&actor);if(status)return status;
+    owner=campaign_npc_bodies+slot;
     value.handle=handle;value.geometry.token=handle;value.geometry.flags=actor.object_flags;
     value.geometry.extent=owner->model_radius_78;
     value.geometry.model=actor.model?&campaign_model_owners[slot].registration:NULL;
@@ -6712,10 +6739,17 @@ int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *res
     memcpy(value.geometry.minimum,owner->body.state.bounds.minimum,12);
     memcpy(value.geometry.maximum,owner->body.state.bounds.maximum,12);
     ++rf_scene_npc_visibility[0];
-    rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&value.geometry.token,12);
-    rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],&actor.model,4);
-    rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],value.geometry.position,72);
+    rf_scene_npc_visibility[5]=scene_diagnostic_hash(rf_scene_npc_visibility[5],&value.geometry.token,12);
+    rf_scene_npc_visibility[5]=scene_diagnostic_hash(rf_scene_npc_visibility[5],&actor.model,4);
+    rf_scene_npc_visibility[5]=scene_diagnostic_hash(rf_scene_npc_visibility[5],value.geometry.position,72);
     *result=value;return RF_OK;
+}
+int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+{
+    uint32_t slot;
+    if(!result)return RF_RANGE;
+    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view && campaign_npc_bodies[slot].registration.handle==handle)break;
+    return campaign_npc_visibility_view_at(slot,handle,result);
 }
 int rf_scene_npc_visibility_model(void *unused,const rf_collision_visibility_object *object,
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
@@ -16812,14 +16846,18 @@ static int campaign_glare_rooms_pass(uint32_t frame)
     }
     return RF_OK;
 }
+static int campaign_glare_room_at(uint32_t i,uint32_t handle,uint32_t *room)
+{
+    rf_glare_base_owner *owner;if(!room)return RF_RANGE;
+    if(i>=campaign_glare_instance_count || !campaign_glare_instances || !(owner=campaign_glare_instances[i]) ||
+       owner->handle!=handle || rf_object_registry_lookup(&campaign_registry,handle)!=&owner->state)return RF_NOT_FOUND;
+    *room=campaign_glare_rooms?campaign_glare_rooms[i].room:0;return RF_OK;
+}
 int rf_scene_glare_room(uint32_t handle,uint32_t *room)
 {
     uint32_t i;if(!room)return RF_RANGE;
-    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i] && campaign_glare_instances[i]->handle==handle) {
-        if(rf_object_registry_lookup(&campaign_registry,handle)!=&campaign_glare_instances[i]->state)return RF_NOT_FOUND;
-        *room=campaign_glare_rooms?campaign_glare_rooms[i].room:0;return RF_OK;
-    }
-    return RF_NOT_FOUND;
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i] && campaign_glare_instances[i]->handle==handle)break;
+    return campaign_glare_room_at(i,handle,room);
 }
 static int campaign_npc_rooms_pass(uint32_t frame)
 {
@@ -18749,10 +18787,19 @@ static int scene_glare_solid_owner(void *context,uint32_t handle,const rf_glare_
     for(i=0;i<c->movers;++i)if(c->objects[i].geometry.token==handle){*result=c->objects+i;break;}
     return RF_OK;
 }
+static int scene_glare_index(const scene_glare_search_context *c,const rf_glare_visibility_object *object,uint32_t *index)
+{
+    uintptr_t base=(uintptr_t)c->objects,at=(uintptr_t)object,offset;
+    if(!c->objects || at<base)return RF_NOT_FOUND;
+    offset=at-base;
+    if(offset%sizeof(*c->objects) || offset/sizeof(*c->objects)>=c->count)return RF_NOT_FOUND;
+    *index=(uint32_t)(offset/sizeof(*c->objects));return RF_OK;
+}
 static int scene_glare_fact(scene_glare_search_context *c,const rf_glare_visibility_object *object,uint32_t word,uint32_t *result)
 {
-    uint32_t i;for(i=0;i<c->count;++i)if(object==c->objects+i){*result=c->facts[i][word];return RF_OK;}
-    return RF_NOT_FOUND;
+    uint32_t i;int status;if(word>=3 || !result)return RF_RANGE;
+    status=scene_glare_index(c,object,&i);if(status)return status;
+    *result=c->facts[i][word];return RF_OK;
 }
 static int scene_glare_room(void *context,const rf_glare_visibility_object *object,uint32_t *result)
 {return scene_glare_fact(context,object,0,result);}
@@ -18767,45 +18814,94 @@ static int scene_glare_model(void *context,const rf_collision_visibility_object 
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
 {
     scene_glare_search_context *c=context;uint32_t i;
-    for(i=c->movers;i<c->movers+c->actors;++i)if(object==&c->objects[i].geometry)
+    /* geometry is the first member; validate exact array membership before
+     * using the same mover/actor partition as the former pointer scan. */
+    if(!scene_glare_index(c,(const rf_glare_visibility_object *)object,&i) &&
+       i>=c->movers && i-c->movers<c->actors)
         return rf_scene_npc_visibility_model(NULL,object,query,hit,reset,accepted);
     return rf_scene_clutter_visibility_model(NULL,object,query,hit,reset,accepted);
 }
-static int scene_glare_snapshot(scene_glare_search_context *out,uint32_t *selected_out,uint32_t *bytes_out)
+static int scene_glare_snapshot_fill(scene_glare_search_context *out,uint32_t *selected_out,
+    void *storage,uint32_t capacity)
 {
     scene_glare_search_context c={0};
-    uint32_t capacity=campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+1;
-    uint32_t i,n=0,selected,bytes;const rf_entity_view *linked;void *storage;int status=RF_OK;
-    if(!campaign_alpha_world || !campaign_player_object.view)return RF_RANGE;
-    if(capacity>128*1024/(sizeof(*c.objects)+sizeof(*c.facts)))return RF_RANGE;
-    bytes=capacity*(sizeof(*c.objects)+sizeof(*c.facts));storage=calloc(1,bytes);if(!storage)return RF_IO;
+    uint64_t required=(uint64_t)campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+1;
+    uint32_t i,n=0,selected;const rf_entity_view *linked;int status=RF_OK;
+    if(!campaign_alpha_world || !campaign_player_object.view || !storage || required>capacity)return RF_RANGE;
     c.objects=storage;c.facts=(uint32_t(*)[3])(c.objects+capacity);
+    memset(c.facts,0,capacity*sizeof(*c.facts));
     for(i=0;i<campaign_mover_count;++i,++n) {
-        status=rf_scene_mover_visibility_view(campaign_mover_wrappers[i].handle,c.objects+n);if(status)goto done;
+        status=campaign_mover_visibility_view_at(i,campaign_mover_wrappers[i].handle,c.objects+n);if(status)goto done;
         c.facts[n][2]=UINT32_MAX;
     }
     c.movers=n;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
-        status=rf_scene_npc_visibility_view(campaign_npc_bodies[i].registration.handle,c.objects+n);if(status)goto done;
-        status=rf_scene_npc_visibility_facts(c.objects[n].handle,c.facts[n]);if(status)goto done;++n;
+        status=campaign_npc_visibility_view_at(i,campaign_npc_bodies[i].registration.handle,c.objects+n);if(status)goto done;
+        status=campaign_npc_visibility_facts_at(i,c.objects[n].handle,c.facts[n]);if(status)goto done;++n;
     }
     c.actors=n-c.movers;
     for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
-        status=rf_scene_clutter_visibility_view(campaign_clutter_bodies[i]->state.handle,c.objects+n);if(status)goto done;
+        status=campaign_clutter_visibility_view_at(i,campaign_clutter_bodies[i]->state.handle,c.objects+n);if(status)goto done;
         c.facts[n][0]=campaign_clutter_bodies[i]->state.first_word;c.facts[n][2]=UINT32_MAX;++n;
     }
     selected=n++;
     if(rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=campaign_player_object.view){status=RF_NOT_FOUND;goto done;}
     /* Selected player participates only in room/association and exclusion;
      * it is not in the NPC candidate list and has no borrowed model here. */
+    memset(c.objects+selected,0,sizeof(*c.objects));
     c.objects[selected].handle=c.objects[selected].geometry.token=campaign_player_object.handle;
     c.facts[selected][0]=rf_scene_actor_room_state.room;
     linked=rf_entity_lookup(&campaign_entities,campaign_player_object.view->linked_handle);
     c.facts[selected][1]=linked && linked->class_type==1;c.facts[selected][2]=linked?(uint32_t)linked->handle:UINT32_MAX;
     c.count=n;
-    *out=c;*selected_out=selected;*bytes_out=bytes;return RF_OK;
+    *out=c;*selected_out=selected;return RF_OK;
 done:
-    free(storage);return status;
+    return status;
+}
+static int scene_glare_snapshot_capacity(uint32_t *capacity,uint32_t *bytes)
+{
+    uint64_t count=(uint64_t)campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+1;
+    uint32_t stride=sizeof(rf_glare_visibility_object)+3*sizeof(uint32_t);
+    if(count>128*1024/stride)return RF_RANGE;
+    *capacity=(uint32_t)count;*bytes=(uint32_t)count*stride;return RF_OK;
+}
+/* Uncached ownership remains available to the diagnostic visibility pass and
+ * explicit fixtures. Presentation sharing never reaches those callers. */
+static int scene_glare_snapshot(scene_glare_search_context *out,uint32_t *selected_out,uint32_t *bytes_out)
+{
+    void *storage;uint32_t capacity,bytes;int status=scene_glare_snapshot_capacity(&capacity,&bytes);
+    if(status)return status;
+    storage=malloc(bytes);if(!storage)return RF_IO;
+    status=scene_glare_snapshot_fill(out,selected_out,storage,capacity);
+    if(status)free(storage);else *bytes_out=bytes;
+    return status;
+}
+struct scene_glare_snapshot_owner {
+    scene_glare_search_context view;uint32_t capacity,selected,bytes,valid;
+};
+uint32_t rf_scene_glare_snapshot_cache[6]; /* fills,shares,allocations,bytes,objects,status */
+static int scene_glare_presentation_snapshot(scene_stream *s,scene_glare_search_context *out,
+    uint32_t *selected,uint32_t *bytes)
+{
+    scene_glare_snapshot_owner *p=s->glare_snapshot;uint32_t capacity,size;int status;
+    if(s!=particle_draw_stream)return RF_RANGE;
+    if(p && p->valid){++rf_scene_glare_snapshot_cache[1];goto ready;}
+    status=scene_glare_snapshot_capacity(&capacity,&size);if(status)goto fail;
+    if(!p || capacity>p->capacity) {
+        free(p);s->glare_snapshot=NULL;
+        p=malloc(sizeof(*p)+size);if(!p){status=RF_IO;goto fail;}
+        memset(p,0,sizeof(*p));p->capacity=capacity;p->bytes=size;
+        s->glare_snapshot=p;++rf_scene_glare_snapshot_cache[2];
+    }
+    status=scene_glare_snapshot_fill(&p->view,&p->selected,p+1,p->capacity);if(status)goto fail;
+    p->valid=1;++rf_scene_glare_snapshot_cache[0];
+ready:
+    *out=p->view;*selected=p->selected;*bytes=p->bytes;
+    rf_scene_glare_snapshot_cache[3]=sizeof(*p)+p->bytes;rf_scene_glare_snapshot_cache[4]=p->view.count;
+    return RF_OK;
+fail:
+    if(s->glare_snapshot)s->glare_snapshot->valid=0;
+    rf_scene_glare_snapshot_cache[5]=(uint32_t)status;return status;
 }
 int rf_scene_glare_visibility_pass(const float camera[3])
 {
@@ -18832,13 +18928,23 @@ done:
 }
 typedef struct scene_corona_context {
     scene_glare_search_context snapshot;scene_stream *stream;rf_scene_particle_sink sink;void *context;
-    uint32_t selected,color,bitmap;
+    uint32_t selected,color,bitmap,snapshot_owned;
     rf_glare_volume_actor volume_actors[2];uint32_t volume_actor_count;
 } scene_corona_context;
 uint32_t rf_scene_volume_draw[8]; /* frames, routines, submitted, polygons, vertices, hash, reserved, errors */
 uint32_t rf_scene_volume_test_enabled,rf_scene_volume_test[8];
 uint32_t rf_scene_volume_npc_test[8];
 uint32_t rf_scene_corona_draw[8]; /* frames, marked, routines, polygons, vertices, hash, snapshot bytes, errors */
+static int scene_corona_snapshot(scene_corona_context *c)
+{
+    uint32_t bytes;int status;
+    if(c->snapshot.objects)return RF_OK;
+    if(rf_scene_diagnostic_checksums_enabled || rf_scene_volume_test_enabled) {
+        status=scene_glare_snapshot(&c->snapshot,&c->selected,&bytes);
+        if(!status)c->snapshot_owned=1;
+    } else status=scene_glare_presentation_snapshot(c->stream,&c->snapshot,&c->selected,&bytes);
+    if(!status)rf_scene_corona_draw[6]=bytes;return status;
+}
 static int scene_corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
 {scene_corona_context *c=context;c->color=(r&255u)|((g&255u)<<8)|((b&255u)<<16)|((a&255u)<<24);return RF_OK;}
 static int scene_corona_texture(void *context,uint32_t bitmap,int32_t second)
@@ -18882,6 +18988,7 @@ static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
 {
     scene_corona_context *c=context;const rf_glare_visibility_object *parent;uint32_t room;int status;
     status=scene_vehicle_headlamp_visible(c->stream,handle,visible);if(status!=RF_NOT_FOUND)return status;
+    status=scene_corona_snapshot(c);if(status)return status;
     status=scene_glare_lookup(&c->snapshot,handle,&parent);if(status)return status;*visible=1;if(!parent)return RF_OK;
     if(parent->geometry.flags&(2u|0x4000u)){*visible=0;return RF_OK;}
     status=scene_glare_room(&c->snapshot,parent,&room);if(status)return status;
@@ -18891,6 +18998,7 @@ static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
 static int scene_corona_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *visible)
 {
     scene_corona_context *c=context;scene_glare_search_context *s=&c->snapshot;
+    int status=scene_corona_snapshot(c);if(status)return status;
     rf_glare_visibility_list movers={s->objects,s->movers},actors={s->objects+s->movers,s->actors};
     rf_glare_visibility_backend b={scene_glare_lookup,scene_glare_solid_owner,scene_glare_room,scene_glare_state,
         scene_glare_associated,rf_scene_glare_solid_query,scene_glare_model,s};
@@ -19063,14 +19171,16 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
 {
     scene_stream *stream=particle_draw_stream;scene_particle_workspace *workspace;
     rf_glare_base_owner fixture,*fixture_source=NULL;uint32_t fixture_hash=0;
-    scene_corona_context c={0};uint32_t selected,bytes;
+    scene_corona_context c={0};
     uint32_t row[6]={0,0,0,0,0,2166136261u},room,i,j;int status;
     if(!stream || !stream->particle_workspace)return RF_OK;
     c.stream=stream;c.sink=sink;c.context=context;
     if(!stream->particle_frame){memset(rf_scene_corona_draw,0,sizeof(rf_scene_corona_draw));rf_scene_corona_draw[5]=2166136261u;
         memset(rf_scene_volume_draw,0,sizeof(rf_scene_volume_draw));rf_scene_volume_draw[5]=2166136261u;}
     if(!stream->particle_frame){memset(rf_scene_volume_test,0,sizeof(rf_scene_volume_test));memset(rf_scene_volume_npc_test,0,sizeof(rf_scene_volume_npc_test));}
-    if(campaign_spawn && campaign_glare_rooms){status=scene_glare_snapshot(&c.snapshot,&selected,&bytes);if(status)goto done;}
+    if(campaign_spawn && campaign_glare_rooms && (rf_scene_diagnostic_checksums_enabled || rf_scene_volume_test_enabled)) {
+        status=scene_corona_snapshot(&c);if(status)goto done;
+    }
     status=scene_volume_npc_fixture(&c);if(status)goto done;
     ++rf_scene_volume_draw[0];
     workspace=stream->particle_workspace;row[0]=stream->particle_frame;
@@ -19081,7 +19191,7 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
         row[1]+=count;
         if(campaign_spawn && campaign_glare_rooms)for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
             rf_glare_base_owner *owner=campaign_glare_instances[i];uint32_t cls=owner->state.class_index,token,volume,accepted;
-            status=rf_scene_glare_room(owner->handle,&token);if(status)goto done;
+            status=campaign_glare_room_at(i,owner->handle,&token);if(status)goto done;
             if(cls>=campaign_glare_materials.count){status=RF_RANGE;goto done;}
             volume=campaign_glare_materials.bindings[cls][1];
             status=rf_glare_collect(owner,token,stream->visibility.state.order[room]+1,volume==UINT32_MAX?-1:(int32_t)volume+1,
@@ -19146,21 +19256,24 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
     rf_scene_particle_draw_summary[5]=(rf_scene_particle_draw_summary[5]^row[5])*16777619u;status=RF_OK;
 done:
     if(status && rf_scene_volume_test_enabled)++rf_scene_volume_test[6];
-    free(c.snapshot.objects);if(status)++rf_scene_volume_draw[7];return status;
+    if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_volume_draw[7];return status;
 }
 int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
 {
-    scene_stream *stream=particle_draw_stream;scene_corona_context c={0};uint32_t bytes;int status;
+    scene_stream *stream=particle_draw_stream;scene_corona_context c={0};int status;
     const void *views[1];rf_glare_render_backend backend={scene_corona_enable,scene_corona_render,scene_corona_reflection,&c};
     if(!stream || !campaign_spawn || !stream->particle_workspace)return RF_OK;
     /* Fresh owners have no room or samples before the first room refresh. */
     if(!campaign_glare_rooms){++rf_scene_corona_draw[0];return RF_OK;}
     c.stream=stream;c.sink=sink;c.context=context;
-    status=scene_glare_snapshot(&c.snapshot,&c.selected,&bytes);if(status)return status;
-    ++rf_scene_corona_draw[0];rf_scene_corona_draw[6]=bytes;
+    rf_scene_corona_draw[6]=0;
+    if(rf_scene_diagnostic_checksums_enabled || rf_scene_volume_test_enabled) {
+        status=scene_corona_snapshot(&c);if(status)return status;
+    }
+    ++rf_scene_corona_draw[0];
     views[0]=&stream->particle_camera;
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
-    free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
+    if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }
 #include "scene_moving_support_test.inc"
 #include "scene_event_gameplay.inc"
@@ -19321,9 +19434,14 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(status){rf_scene_profile_stage[1]=211;return status;}
         }
         status=scene_undercover_draw(stream);if(status){rf_scene_profile_stage[1]=206;return status;}
+        /* Only these synchronous presentation callbacks share owner views.
+         * No physics/events/retirement can intervene; never retain validity
+         * across frames, repeated presentations, restore, or an error return. */
+        if(stream->glare_snapshot)stream->glare_snapshot->valid=0;
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
-        particle_draw_stream=NULL;presentation_mark(5,&presentation_clock);if(status){rf_scene_profile_stage[1]=206;return status;}
+        particle_draw_stream=NULL;
+        if(stream->glare_snapshot)stream->glare_snapshot->valid=0;presentation_mark(5,&presentation_clock);if(status){rf_scene_profile_stage[1]=206;return status;}
         if(campaign_spawn)campaign_player_export_capture();
         presentation_mark(6,&presentation_clock);profile_mark(6);
         if(profile_clock && profile_active)step_clock=profile_clock();
@@ -19881,6 +19999,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     stream=calloc(1,sizeof(*stream));if(!stream){rf_vpp_close(&archive);return RF_RANGE;}
     scene_world_projection_open(stream);
+    memset(rf_scene_glare_snapshot_cache,0,sizeof(rf_scene_glare_snapshot_cache));
     memset(rf_scene_player_room_cache,0,sizeof(rf_scene_player_room_cache));
     rf_scene_player_room_cache[5]=sizeof(stream->player_room_lookup);
     scene_actor_collision_owner=stream;memset(rf_scene_detached_player,0,sizeof(rf_scene_detached_player));
@@ -20768,6 +20887,7 @@ done:
     scene_fusion_effects_close();
     scene_flame_effects_close();
     if(stream->impact){rf_particle_animation_close(stream->impact->blood_images);rf_particle_animation_close(stream->impact->blood_images+1);rf_explosion_materials_close(&stream->impact->materials);free(stream->impact);}
+    free(stream->glare_snapshot);stream->glare_snapshot=NULL;
     free(stream->particle_workspace);particle_draw_stream=NULL;
     campaign_close_movers();
     rf_physics_forces_close(&campaign_forces);
