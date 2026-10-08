@@ -7,7 +7,7 @@
 enum {SCENE_NPC_SEAT_HEADER=16,SCENE_NPC_SEAT_ROW=24};
 typedef struct scene_npc_seat_saved {
     scene_npc_seat_binding binding;
-    uint32_t actor_uid,active,owns_host_flag,pose_ready,player_gunner;
+    uint32_t actor_uid,active,owns_host_flag,pose_ready,player_gunner,passive_host;
     float pose[12];
 } scene_npc_seat_saved;
 struct scene_npc_seat_checkpoint_stage {
@@ -99,6 +99,8 @@ static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t byt
         v->binding=scene_npc_seats[j];v->actor_uid=uid;v->active=scene_history_word(q+16);
         if(scene_jeep_gunner_checkpoint_control(version,kind,v->active,scene_history_word(q+20),
             &v->owns_host_flag,&v->player_gunner))goto malformed;
+        for(uint32_t k=0;k<i;k++)if(v->active&&s->rows[k].active&&
+            s->rows[k].binding.host==v->binding.host&&s->rows[k].binding.kind==kind)goto malformed;
     }
     if(scene_jeep_gunner_checkpoint_wire_admit(s,version))goto malformed;
     *out=s;*inner=p+16;*inner_bytes=size;return RF_OK;
@@ -115,10 +117,36 @@ static uint32_t scene_npc_seat_checkpoint_owns(const scene_npc_seat_checkpoint_s
     const scene_npc_seat_saved *v=scene_npc_seat_checkpoint_find(s,actor_uid);
     return v&&v->active&&v->pose_ready&&v->binding.host_uid==host_uid;
 }
+/* An ordinary passive driver has no player-control interpretation. Borrow its
+ * pose only through admitted RFSW and the same living visible RFVA2 owner.
+ * Registry and seat resources resolve from the canonical full handle. */
+static int scene_npc_seat_checkpoint_passive_host(const scene_npc_seat_saved *v,
+    const scene_vehicle_switch_checkpoint_stage *parked,const scene_passive_vehicle_checkpoint_stage *passive,
+    const scene_npc_seat_host *host,const float **position,const float **basis)
+{
+    const scene_passive_vehicle *owner;const scene_passive_vehicle_saved *saved=NULL;
+    int32_t seat,tag;int status;
+    if(!v||!host||!position||!basis||!v->active||v->player_gunner||v->owns_host_flag||
+       v->binding.kind!=SCENE_NPC_SEAT_JEEP||v->binding.host_uid==(uint32_t)campaign_authored_vehicle_uid||
+       v->binding.host==campaign_authored_vehicle_handle||!passive||passive->version!=2||!passive->rows||
+       passive->count>RF_OBJECT_CAPACITY)return RF_FORMAT;
+    owner=scene_npc_seat_passive_jeep_host(&v->binding);if(!owner||host->view||!host->tags)return RF_FORMAT;
+    for(uint32_t i=0;i<passive->count;i++)if(passive->rows[i].uid==v->binding.host_uid){
+        if(saved)return RF_FORMAT;saved=passive->rows+i;
+    }
+    if(!saved||!saved->loaded||!saved->has_damage||saved->attached||saved->destroyed||
+       !isfinite(saved->health)||saved->health<=0||(saved->object_flags&(2u|0x4000u)))return RF_FORMAT;
+    status=scene_vehicle_switch_checkpoint_parked_jeep(parked,owner->uid,owner->handle,position,basis,&seat);
+    if(status)return status;
+    if(memcmp(saved->position,*position,12)||memcmp(saved->basis,*basis,36))return RF_FORMAT;
+    status=rf_static_model_tags_find(host->tags,(rf_model_name){"interface_1",11},&tag);if(status)return status;
+    return tag==v->binding.tag&&seat==tag?RF_OK:RF_FORMAT;
+}
 /* Before NPC staging: construct expected seats from candidate host poses,
  * never the freshly spawned host pose. Detached rows need no candidate host. */
 static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *s,
-    const scene_turret_checkpoint_stage *turrets,const scene_vehicle_checkpoint_record *vehicle,uint32_t vehicle_hidden)
+    const scene_turret_checkpoint_stage *turrets,const scene_vehicle_checkpoint_record *vehicle,uint32_t vehicle_hidden,
+    const scene_vehicle_switch_checkpoint_stage *parked,const scene_passive_vehicle_checkpoint_stage *passive)
 {
     uint32_t i,j;int status;if(!s)return RF_OK;
     for(i=0;i<s->count;i++) {
@@ -131,9 +159,15 @@ static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *s,
         if(j==scene_npc_seat_count)return RF_FORMAT;
         status=scene_npc_seat_host_read(scene_npc_seats+j,&h);if(status)return status;
         if(v->binding.kind==SCENE_NPC_SEAT_JEEP) {
-            if(vehicle_hidden)return RF_FORMAT;
-            status=scene_jeep_gunner_checkpoint_host(v,vehicle);if(status)return status;
-            position=vehicle->value.jeep.vehicle.position;basis=vehicle->value.jeep.vehicle.orientation;
+            if(v->binding.host_uid!=(uint32_t)campaign_authored_vehicle_uid||
+               v->binding.host!=campaign_authored_vehicle_handle){
+                status=scene_npc_seat_checkpoint_passive_host(v,parked,passive,&h,&position,&basis);if(status)return status;
+                v->passive_host=1;
+            }else{
+                if(vehicle_hidden)return RF_FORMAT;
+                status=scene_jeep_gunner_checkpoint_host(v,vehicle);if(status)return status;
+                position=vehicle->value.jeep.vehicle.position;basis=vehicle->value.jeep.vehicle.orientation;
+            }
         }else {
             if(!turrets)return RF_FORMAT;
             for(j=0;j<turrets->count;j++)if(turrets->rows[j].uid==v->binding.host_uid)break;
@@ -158,7 +192,7 @@ static int scene_npc_seat_checkpoint_basis(const scene_npc_seat_checkpoint_stage
     if(!row||!basis||!seated)return RF_RANGE;*seated=0;
     v=scene_npc_seat_checkpoint_find(s,row->uid);
     if(!v||!v->active)return row->ai_mode==13?RF_FORMAT:RF_OK;
-    if(!v->pose_ready||row->retired||row->dead_pose||row->health<=0||row->support_uid||
+    if(!v->pose_ready||(v->passive_host&&row->ai_mode!=13)||row->retired||row->dead_pose||row->health<=0||row->support_uid||
        row->move.active||row->combat.active||row->shot_count||row->script_animation.active||
        (row->flags&(2u|0x4000u)))return RF_FORMAT;
     for(i=0;i<3;i++)if(!isfinite(row->position[i])||fabsf(row->position[i]-v->pose[9+i])>.001f)return RF_FORMAT;
@@ -207,7 +241,7 @@ static int scene_npc_seat_checkpoint_admit(scene_npc_seat_checkpoint_stage *s,
                !e->saved.dead_pose||e->saved.health>0))return RF_FORMAT;
             continue;
         }
-        if(!v->pose_ready||e->saved.retired||e->saved.dead_pose||e->saved.health<=0||
+        if(!v->pose_ready||(v->passive_host&&e->saved.ai_mode!=13)||e->saved.retired||e->saved.dead_pose||e->saved.health<=0||
            e->saved.move.active||e->saved.combat.active||e->saved.shot_count||e->saved.script_animation.active||
            (e->saved.flags&(2u|0x4000u))||e->support.handle||e->support.material!=-1)return RF_FORMAT;
         for(j=0;j<3;j++)if(fabsf(e->published[j]-v->pose[9+j])>.001f)return RF_FORMAT;
@@ -248,8 +282,16 @@ static void scene_npc_seat_checkpoint_assign(const scene_npc_seat_checkpoint_sta
         *b=v->binding;b->active=v->active;b->last_frame=UINT32_MAX;b->occupant=-1;
         if(!v->active)continue;o->view.linked_handle=(int32_t)b->host;
         if(b->kind==SCENE_NPC_SEAT_JEEP) {
-            scene_driller_entry_exit *e=&scene_npc_seat_stream->driller_runtime->entry;
-            e->occupant=(int32_t)b->actor;e->host.driver=b->actor;
+            if(v->passive_host){
+                /* RFVA was assigned already; RFSW's bank is published later.
+                 * Only canonical passive slot words own this real driver. */
+                scene_passive_vehicle *host=scene_npc_seat_passive_jeep_host(b);
+                host->seat_driver=b->actor;host->seat_occupants[0]=(int32_t)b->actor;
+                host->seat_occupants[1]=-1;
+            }else{
+                scene_driller_entry_exit *e=&scene_npc_seat_stream->driller_runtime->entry;
+                e->occupant=(int32_t)b->actor;e->host.driver=b->actor;
+            }
         }else {
             scene_turret_owner *host=scene_turret_lookup(b->host);
             scene_turret_operator_binding *op=scene_turret_operator_rows+i;

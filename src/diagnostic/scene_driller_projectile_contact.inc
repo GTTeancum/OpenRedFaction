@@ -43,7 +43,8 @@ static int scene_driller_projectile_query(uint32_t source,const float start[3],c
         for(i=0;i<campaign_passive_vehicle_count;i++) {
             const scene_passive_vehicle *passive=campaign_passive_vehicles+i;
             rf_physics_sphere spheres[8]={{0}};uint32_t j,kind=passive->resource_kind;
-            if(source==passive->handle||(passive->damage.object_flags&0x4000u))continue;
+            if(source==passive->handle||scene_npc_seat_related(source,passive->handle)||
+               (passive->damage.object_flags&0x4000u))continue;
             if(kind>=6||!s->passive_vehicle_sphere_count[kind]||
                s->passive_vehicle_sphere_count[kind]>8)return RF_FORMAT;
             if(rf_object_registry_lookup(&campaign_registry,passive->handle)!=passive)return RF_NOT_FOUND;

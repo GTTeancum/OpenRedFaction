@@ -1533,6 +1533,9 @@ typedef struct scene_passive_vehicle {
     /* Last completed controller interval, never extrapolated from velocity. */
     float previous_position[3],previous_basis[9];uint32_t motion_valid;
     scene_driller_damage damage;
+    /* Canonical physical seats for a stationary parked Jeep; RFNS owns the
+     * authored actor/host relationship. This is not a generic entity view. */
+    uint32_t seat_driver;int32_t seat_occupants[2];
 } scene_passive_vehicle;
 static const char *const campaign_passive_vehicle_classes[6]={
     "sub","Fighter01","masako_fighter","Driller01","APC","Jeep01"};
@@ -5974,6 +5977,7 @@ static int campaign_passive_vehicle_add(uint32_t source,uint32_t resource_kind,
     scene_passive_vehicle *owner=campaign_passive_vehicles+campaign_passive_vehicle_count;
     int status;
     memset(owner,0,sizeof(*owner));owner->object_kind=11;owner->uid=(uint32_t)record->uid;
+    owner->seat_driver=UINT32_MAX;owner->seat_occupants[0]=owner->seat_occupants[1]=-1;
     owner->attached=owner->group_owned=group_owned;owner->resource_kind=resource_kind;
     memcpy(owner->pose.base_position,record->position,12);
     memcpy(owner->pose.base_matrix,record->orientation,36);
@@ -10263,6 +10267,8 @@ static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
         scene_passive_vehicle *owner=campaign_passive_vehicles+i;
         uint32_t before,eligible,slot,*trace;
         if(owner->handle!=handle||registered!=owner)continue;
+        if(!visible&&(owner->seat_driver!=UINT32_MAX||owner->seat_occupants[0]!=-1||owner->seat_occupants[1]!=-1))
+            return RF_NOT_FOUND; /* Occupied Hide has no reconstructed ejection policy. */
         before=owner->damage.object_flags;eligible=scene_vehicle_homing_eligible(owner);
         slot=rf_scene_vehicle_visibility[0]++;
         /* Visibility never resurrects a destroyed/dead owner or changes its
@@ -13043,6 +13049,11 @@ static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,u
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
     const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *,uint32_t);
+static int scene_passive_jeep_seat_restore_admit(scene_stream *,const scene_world_restore_stage *,
+    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *,
+    const scene_vehicle_switch_checkpoint_stage *,const scene_passive_vehicle_checkpoint_stage *,uint32_t);
+static int scene_passive_jeep_seat_restore_audit(const scene_npc_seat_checkpoint_stage *,
+    const scene_vehicle_switch_checkpoint_stage *,const scene_passive_vehicle_checkpoint_stage *);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_storage.inc"
@@ -16085,7 +16096,7 @@ static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive
 static uint32_t scene_player_jeep_gunner_active(const scene_stream *s)
 {return s && s->driller_runtime && scene_jeep_npc_gunner_active(&s->driller_runtime->entry);}
 static int scene_vehicle_wreck_exit_try(scene_stream *,uint32_t,uint32_t,uint32_t,int32_t,uint32_t *);
-static int scene_vehicle_switch_boot_retired_seat(uint32_t,uint32_t,int32_t *);
+static int scene_vehicle_switch_boot_passive_seat(uint32_t,uint32_t,int32_t *);
 #include "scene_npc_seat_bind.inc"
 #include "scene_npc_teleport.inc"
 #include "scene_npc_seat_checkpoint.inc"
@@ -16133,6 +16144,7 @@ static uint32_t scene_npc_jeep_seat_save_dead_contact(
     const scene_npc_seat_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *,
     const scene_vehicle_checkpoint_record *,uint32_t,uint32_t);
 #include "scene_world_vehicle_restore.inc"
+#include "scene_passive_jeep_seat_restore.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -17519,6 +17531,7 @@ failed:
 #include "scene_passive_vehicle_npc_push.inc"
 #include "scene_active_vehicle_visibility_fixture.inc"
 #include "scene_active_vehicle_visibility_audit.inc"
+#include "scene_passive_jeep_driver_fixture.inc"
 #include "scene_group_control_fixture.inc"
 #include "scene_occupied_mover_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
@@ -19300,6 +19313,7 @@ modal_step_done:
         scene_player_support_save_fixture_tick(frame);
         scene_active_vehicle_visibility_fixture_tick(stream,frame);
         scene_active_vehicle_visibility_audit_tick(stream,frame);
+        scene_passive_jeep_driver_fixture_tick(stream,frame);
 #ifdef RF_IMAGE_XBOX_NATIVE
         if(scene_section_autosave_pending && frame>=30){
             int saved,ready;

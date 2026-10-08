@@ -10,7 +10,7 @@ uint32_t rf_scene_vehicle_wreck_exit[12]; /* attempts,exits,blocked,errors,frame
 uint32_t rf_scene_vehicle_wreck_exit_apply[32]; /* first exit: frame,actor,host,parent,driver,occupant,AI,health,seatXYZ,exitXYZ,velocityXYZ,hostVelocityXYZ,angularXYZ,hostXYZ,direction,seatActive,reserved4 */
 static void scene_vehicle_wreck_exit_reset(void)
 {memset(rf_scene_vehicle_wreck_exit,0,sizeof(rf_scene_vehicle_wreck_exit));memset(rf_scene_vehicle_wreck_exit_apply,0,sizeof(rf_scene_vehicle_wreck_exit_apply));}
-typedef struct scene_vehicle_wreck_query {scene_stream *stream;uint32_t actor;} scene_vehicle_wreck_query;
+typedef struct scene_vehicle_wreck_query {scene_stream *stream;uint32_t actor,host;} scene_vehicle_wreck_query;
 /* The normal static gateway does not include actor bodies. Compose the same
  * actual sphere-union swept contacts used by moving hosts, with no unrelated
  * actor/occupant exclusion. The wreck itself is intentionally excluded from
@@ -34,7 +34,17 @@ static int scene_vehicle_wreck_query_body(void *context,const rf_collision_body_
 {
     scene_vehicle_wreck_query *c=context;int status;
     status=campaign_body_query_batch_for(c->stream->collision,query,hit,found,NULL,&campaign_movers);if(status)return status;
-    status=scene_passive_vehicle_actor_collision(c->stream,c->actor,UINT32_MAX,query,hit,found);if(status)return status;
+    status=scene_passive_vehicle_actor_collision(c->stream,c->actor,c->host,query,hit,found);if(status)return status;
+    /* A parked wreck's occupant must still respect the independently selected
+     * chassis. Use this NPC identity, never the player's collision adapter. */
+    if(scene_driller_visible(c->stream)&&c->stream->driller_runtime->entry.host.handle!=c->host){
+        const scene_driller_runtime *r=c->stream->driller_runtime;scene_driller_actor_collision body={0};
+        body.spheres=r->physics.collision;body.count=r->physics.sphere_count;
+        body.handle=r->entry.host.handle;body.driver=r->entry.host.driver;
+        memcpy(body.position,r->physics.state.position,12);memcpy(body.next_position,body.position,12);
+        memcpy(body.orientation,r->physics.state.orientation,36);memcpy(body.next_orientation,body.orientation,36);
+        status=scene_driller_actor_compose(&body,c->actor,c->host,query,hit,found);if(status)return status;
+    }
     if(campaign_player_object.view && !(campaign_player_view.flags_7c&(2u|0x4000u))){
         status=scene_vehicle_wreck_actor_sweep(&scene_actor_body,campaign_player_object.handle,c->actor,query,hit,found);if(status)return status;
     }
@@ -101,8 +111,10 @@ static int scene_vehicle_wreck_destination(scene_stream *s,campaign_npc_body *ac
     for(uint32_t i=0,n=s->terrain_source_count?s->terrain_source_count:1;i<n;i++){
         status=rf_geomod_piece_registry_placement_check(scene_detached_source_registry(s,i),&p);if(status)return status;
     }
-    scene_driller_physics *host=&s->driller_runtime->physics;
-    status=scene_vehicle_wreck_pair(&p,host->spheres,host->sphere_count,host->state.position,host->state.orientation);if(status)return status;
+    if(scene_driller_visible(s)){
+        const scene_driller_physics *host=&s->driller_runtime->physics;
+        status=scene_vehicle_wreck_pair(&p,host->spheres,host->sphere_count,host->state.position,host->state.orientation);if(status)return status;
+    }
     if(campaign_player_object.view && !(campaign_player_view.flags_7c&(2u|0x4000u)) && scene_actor_body.allocated_bytes){
         status=scene_vehicle_wreck_pair(&p,scene_actor_body.spheres.items,scene_actor_body.spheres.count,
             scene_actor_body.state.position,scene_actor_body.state.orientation);if(status)return status;
@@ -138,13 +150,15 @@ static int scene_vehicle_wreck_exit_try(scene_stream *s,uint32_t actor,uint32_t 
     static const float directions[8][2]={{1,0},{-1,0},{0,1},{0,-1},{.707106781f,.707106781f},
         {-.707106781f,.707106781f},{.707106781f,-.707106781f},{-.707106781f,-.707106781f}};
     scene_npc_seat_binding *binding=NULL;scene_npc_seat_host h;campaign_npc_body *o;
-    scene_vehicle_collision collision;scene_vehicle_wreck_query context={s,actor};rf_collision_body_sphere spheres[8];
+    scene_vehicle_collision collision;scene_vehicle_wreck_query context={s,actor,host};rf_collision_body_sphere spheres[8];
+    scene_driller_physics parked_physics={0};const scene_driller_physics *physics=NULL;
+    scene_passive_vehicle *passive=NULL;
     scene_vehicle_pose from,to;rf_physics_body_state next;float published[3],velocity[3],angular[3],offset[3],yaw;
     uint32_t flags,cls,attached,stage=1,direction;int status;
     if(!released)return RF_RANGE;*released=0;
     ++rf_scene_vehicle_wreck_exit[0];rf_scene_vehicle_wreck_exit[4]=frame;
     rf_scene_vehicle_wreck_exit[5]=actor;rf_scene_vehicle_wreck_exit[6]=host;
-    if(!s||!s->driller_runtime||!s->driller||strcmp(s->driller->model,"Jeep01.v3m")||now<0||now>RF_TIMER_PERIOD){status=RF_RANGE;goto fail;}
+    if(!s||!s->driller_runtime||!s->driller||now<0||now>RF_TIMER_PERIOD){status=RF_RANGE;goto fail;}
     for(uint32_t i=0;i<scene_npc_seat_count;i++)if(scene_npc_seats[i].active&&scene_npc_seats[i].kind==SCENE_NPC_SEAT_JEEP&&
         scene_npc_seats[i].actor==actor&&scene_npc_seats[i].host==host){binding=scene_npc_seats+i;break;}
     if(!binding||!(o=scene_npc_seat_actor(binding))){status=RF_NOT_FOUND;goto fail;}
@@ -153,6 +167,27 @@ static int scene_vehicle_wreck_exit_try(scene_stream *s,uint32_t actor,uint32_t 
     if(!attached||h.alive||!(o->damage.effects.health>0)||(o->view.flags_810&1u)||
        !o->body.allocated_bytes||!o->body.spheres.count||o->body.spheres.count>8||
        binding->slot>=campaign_model_owner_count||!campaign_npc_eyes){status=RF_NOT_FOUND;goto fail;}
+    if(h.view){
+        if(s->driller_runtime->entry.host.handle!=host||strcmp(s->driller->model,"Jeep01.v3m")){status=RF_NOT_FOUND;goto fail;}
+        physics=&s->driller_runtime->physics;
+    }else{
+        passive=scene_npc_seat_passive_jeep_host(binding);
+        if(!passive||!s->passive_vehicle_sphere_count[5]||s->passive_vehicle_sphere_count[5]>8){status=RF_NOT_FOUND;goto fail;}
+        /* This owner has a fixed unparented pose, not another rigid solver.
+         * Reuse its admitted class hull and inherit no selected-host motion. */
+        parked_physics.sphere_count=s->passive_vehicle_sphere_count[5];
+        memcpy(parked_physics.state.position,passive->pose.position,12);
+        memcpy(parked_physics.state.orientation,passive->pose.input_matrix,36);
+        for(uint32_t i=0;i<parked_physics.sphere_count;i++){
+            const rf_collision_body_sphere *shape=s->passive_vehicle_spheres[5]+i;
+            float extent=sqrtf(shape->center[0]*shape->center[0]+shape->center[1]*shape->center[1]+shape->center[2]*shape->center[2])+shape->radius;
+            if(!isfinite(extent)||!isfinite(shape->radius)||shape->radius<=0){status=RF_FORMAT;goto fail;}
+            parked_physics.collision[i]=*shape;
+            memcpy(parked_physics.spheres[i].center,shape->center,12);parked_physics.spheres[i].radius=shape->radius;
+            if(extent>parked_physics.radius)parked_physics.radius=extent;
+        }
+        physics=&parked_physics;
+    }
     cls=campaign_seeds.items[binding->slot].class_index;if(cls>=campaign_seeds.class_count){status=RF_RANGE;goto fail;}
     rf_scene_vehicle_wreck_exit[10]=(uint32_t)campaign_seeds.records.items[binding->slot].record.uid;
     rf_scene_vehicle_wreck_exit[11]=binding->host_uid;
@@ -169,7 +204,6 @@ static int scene_vehicle_wreck_exit_try(scene_stream *s,uint32_t actor,uint32_t 
         if(radius>collision.radius)collision.radius=radius;
     }
     status=scene_vehicle_collision_valid(&collision);if(status)goto fail;
-    scene_driller_physics *physics=&s->driller_runtime->physics;
     for(direction=0;direction<8;direction++){
         float axis[3],extent=0,actor_min=FLT_MAX,end[3],drop=physics->radius*2+4;
         rf_collision_body_query query;rf_geometry_body_hit hit={0};uint32_t clear,found;
@@ -198,7 +232,8 @@ static int scene_vehicle_wreck_exit_try(scene_stream *s,uint32_t actor,uint32_t 
     if(direction==8){++rf_scene_vehicle_wreck_exit[2];rf_scene_vehicle_wreck_exit[7]=UINT32_MAX;
         rf_scene_vehicle_wreck_exit[8]=0;rf_scene_vehicle_wreck_exit[9]=stage;return RF_OK;}
     stage=5;next=o->body.state;flags=o->object_flags;
-    status=scene_driller_checkpoint_rotate_tensor(physics->state.orientation,physics->state.inverse_inertia,physics->state.momentum,angular);if(status)goto fail;
+    if(passive)memset(angular,0,sizeof(angular));
+    else {status=scene_driller_checkpoint_rotate_tensor(physics->state.orientation,physics->state.inverse_inertia,physics->state.momentum,angular);if(status)goto fail;}
     for(uint32_t k=0;k<3;k++)offset[k]=from.position[k]-h.position[k];
     velocity[0]=physics->state.velocity[0]+angular[1]*offset[2]-angular[2]*offset[1];
     velocity[1]=physics->state.velocity[1]+angular[2]*offset[0]-angular[0]*offset[2];

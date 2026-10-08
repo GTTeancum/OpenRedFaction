@@ -13,5 +13,8 @@ static int scene_vehicle_switch_checkpoint_prepare(const scene_stream *,const un
  scene_vehicle_switch_checkpoint_stage **,const unsigned char **,uint32_t *);
 static int scene_vehicle_switch_checkpoint_admit(const scene_stream *,scene_vehicle_switch_checkpoint_stage *,
  const scene_vehicle_checkpoint_record *,const scene_passive_vehicle_checkpoint_stage *,const scene_vehicle_physics_checkpoint_stage *);
+/* Borrowed immutable candidate pose. No incomplete parked-state access in RFNS. */
+static int scene_vehicle_switch_checkpoint_parked_jeep(const scene_vehicle_switch_checkpoint_stage *,
+ uint32_t,uint32_t,const float **,const float **,int32_t *);
 static void scene_vehicle_switch_checkpoint_assign(scene_stream *,scene_vehicle_switch_checkpoint_stage *);
 #endif

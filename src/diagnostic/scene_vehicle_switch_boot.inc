@@ -4,11 +4,11 @@ static uint32_t scene_vehicle_switch_boot_count,scene_vehicle_switch_boot_uid;
 static uint32_t scene_vehicle_switch_boot_profiles,scene_vehicle_switch_original_profile;
 static uint32_t scene_vehicle_switch_boot_profile_mask(void){return scene_vehicle_switch_boot_profiles;}
 static uint32_t scene_vehicle_switch_boot_original_profile(void){return scene_vehicle_switch_original_profile;}
-/* Saved inactive seat identities are hints for constructing the fresh bank.
+/* Saved passive seat identities are hints for constructing the fresh bank.
  * Full RFNS/NPC semantic admission still precedes gameplay publication. */
 static uint32_t scene_vehicle_switch_boot_seats[SCENE_NPC_SEAT_LIMIT][3];
 static uint32_t scene_vehicle_switch_boot_seat_count;
-static int scene_vehicle_switch_boot_retired_seat(uint32_t actor,uint32_t host,int32_t *tag)
+static int scene_vehicle_switch_boot_passive_seat(uint32_t actor,uint32_t host,int32_t *tag)
 {
     if(!tag||!scene_vehicle_switch_boot_uid)return 0;
     for(uint32_t i=0;i<scene_vehicle_switch_boot_seat_count;i++)
@@ -17,9 +17,12 @@ static int scene_vehicle_switch_boot_retired_seat(uint32_t actor,uint32_t host,i
         }
     return 0;
 }
-static int scene_vehicle_switch_boot_seats_read(const unsigned char *p,uint32_t bytes)
+static int scene_vehicle_switch_boot_seats_read(const rf_level *level,const unsigned char *p,uint32_t bytes)
 {
     /* RFSW has already passed its complete structural check. */
+    const unsigned char *switch_rows=p+SCENE_VEHICLE_SWITCH_HEADER+scene_history_word(p+8);
+    uint32_t switch_version=scene_history_word(p+4),switch_profile=scene_history_word(p+16);
+    uint32_t switch_count=scene_history_word(p+20),selected=scene_history_word(p+12);
     uint32_t n=scene_history_word(p+8);p+=SCENE_VEHICLE_SWITCH_HEADER;(void)bytes;
     for(uint32_t depth=0;depth<6;depth++){
         if(n<4)return RF_OK;
@@ -34,8 +37,31 @@ static int scene_vehicle_switch_boot_seats_read(const unsigned char *p,uint32_t 
                 if(!actor||actor>0x7fffffffu||!host||host>0x7fffffffu||tag>0x7fffffffu||active>1||control>1||
                    (kind!=SCENE_NPC_SEAT_JEEP&&kind!=SCENE_NPC_SEAT_TURRET)||
                    (!active&&control&&!(version==3&&kind==SCENE_NPC_SEAT_JEEP)))return RF_FORMAT;
-                for(uint32_t j=0;j<i;j++)if(scene_history_word(rows+24*j)==actor)return RF_FORMAT;
-                if(kind==SCENE_NPC_SEAT_JEEP&&!active){uint32_t *out=scene_vehicle_switch_boot_seats[scene_vehicle_switch_boot_seat_count++];out[0]=actor;out[1]=host;out[2]=tag;}
+                for(uint32_t j=0;j<i;j++){
+                    const unsigned char *previous=rows+24*j;
+                    if(scene_history_word(previous)==actor||
+                       (active&&scene_history_word(previous+16)&&scene_history_word(previous+4)==host&&
+                        scene_history_word(previous+12)==kind))return RF_FORMAT;
+                }
+                if(kind==SCENE_NPC_SEAT_JEEP&&host!=selected){
+                    rf_level_entity source;rf_level_entity_spawn spawn;rf_level_entity_vitals vitals;
+                    const rf_level_section *section=rf_level_find(level,0x30000);uint32_t j;
+                    /* Source identity was checked by the envelope. Also prove
+                     * the actor's authored host before constructing a hint.
+                     * This remains an inactive, unlinked placeholder at boot. */
+                    if(control||!section)return RF_FORMAT;
+                    for(j=0;j<switch_count;j++){
+                        const unsigned char *saved=switch_rows+j*SCENE_VEHICLE_SWITCH_ROW;
+                        uint32_t profile=switch_version==1?switch_profile:scene_history_word(saved+60);
+                        if(scene_history_word(saved)==host&&scene_history_word(saved+4)&&profile==3)break;
+                    }
+                    if(j==switch_count)return RF_FORMAT;
+                    int status=rf_level_entity_find(level,(int32_t)actor,&source);if(status)return status;
+                    status=scene_vehicle_selection_metadata(level,section,&source,&spawn,&vitals);if(status)return status;
+                    if(spawn.seat_host_uid!=(int32_t)host)return RF_FORMAT;
+                    uint32_t *out=scene_vehicle_switch_boot_seats[scene_vehicle_switch_boot_seat_count++];
+                    out[0]=actor;out[1]=host;out[2]=tag;
+                }
             }
             return RF_OK;
         }
@@ -130,7 +156,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
             if(row_grouped){status=RF_FORMAT;goto done;}profiles|=1u<<row_profile;
         }
     }
-    status=scene_vehicle_switch_boot_seats_read(slice->data,slice->bytes);if(status)goto done;
+    status=scene_vehicle_switch_boot_seats_read(level,slice->data,slice->bytes);if(status)goto done;
     /* Publish the selected resource identity only after transport, source and
      * full saved order admission. No passive/active vehicle owner has been
      * registered yet; existing groups and movers remain unchanged. */

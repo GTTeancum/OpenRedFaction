@@ -11,6 +11,7 @@ typedef struct scene_npc_seat_binding {
     int32_t tag,occupant;
 } scene_npc_seat_binding;
 typedef struct scene_npc_seat_host {
+    /* NULL view is permitted only for an exact passive Jeep owner below. */
     rf_entity_view *view;int32_t *occupant;uint32_t *driver;
     const rf_static_model_tags *tags;const float *position,*basis;
     uint32_t alive;
@@ -27,29 +28,37 @@ static campaign_npc_body *scene_npc_seat_actor(const scene_npc_seat_binding *b)
 {
     campaign_npc_body *o;
     if(b->slot>=campaign_npc_body_count)return NULL;o=campaign_npc_bodies+b->slot;
-    if(!o->registration.view||o->registration.handle!=b->actor||
+    if(o->registration.view!=&o->view||o->registration.handle!=b->actor||
+       o->view.handle!=(int32_t)b->actor||o->damage.effects.handle!=b->actor||
        rf_object_registry_lookup(&campaign_registry,b->actor)!=&o->registration||
        rf_entity_lookup(&campaign_entities,(int32_t)b->actor)!=&o->view)return NULL;
     return o;
 }
-/* An inactive binding is an authored identity record, never occupancy. This
- * resolves only a fully released same-class owner; unknown generations,
- * parent links and real active seats remain blocking dependencies. */
-static scene_passive_vehicle *scene_npc_seat_passive_jeep(const scene_npc_seat_binding *b)
+/* A parked Jeep keeps its real occupant words, without becoming an entity
+ * view. Resolve its full authored identity independently of binding life;
+ * dead hosts must still resolve for safe ejection and matching release. */
+static scene_passive_vehicle *scene_npc_seat_passive_jeep_host(const scene_npc_seat_binding *b)
 {
     scene_passive_vehicle *found=NULL;
-    if(!b||b->active||b->kind!=SCENE_NPC_SEAT_JEEP)return NULL;
+    if(!b||b->kind!=SCENE_NPC_SEAT_JEEP||!scene_npc_seat_stream||
+       b->host_uid==(uint32_t)campaign_authored_vehicle_uid)return NULL;
     for(uint32_t i=0;i<campaign_passive_vehicle_count;i++) {
         scene_passive_vehicle *p=campaign_passive_vehicles+i;
-        if(p->uid!=b->host_uid||p->handle!=b->host)continue;
-        if(found||p->resource_kind!=5||p->attached||p->group_owned||
+        if(p->uid!=b->host_uid&&p->handle!=b->host)continue;
+        if(found||p->uid!=b->host_uid||p->handle!=b->host||p->object_kind!=11||
+           p->resource_kind!=5||p->attached||p->group_owned||
            p->damage.state.effects.handle!=b->host||
            rf_object_registry_lookup(&campaign_registry,b->host)!=p||
-           rf_entity_lookup(&campaign_entities,(int32_t)b->host))return NULL;
+           rf_entity_lookup(&campaign_entities,(int32_t)b->host)||
+           campaign_entities.slots[b->host&0xffffu])return NULL;
         found=p;
     }
     return found;
 }
+/* An inactive binding remains only an authored identity record. This helper
+ * never grants the active-passenger exception to retired-seat callers. */
+static scene_passive_vehicle *scene_npc_seat_passive_jeep(const scene_npc_seat_binding *b)
+{return b&&!b->active?scene_npc_seat_passive_jeep_host(b):NULL;}
 static uint32_t scene_npc_seat_retired(const scene_npc_seat_binding *b)
 {
     campaign_npc_body *o;scene_driller_runtime *r;
@@ -66,7 +75,8 @@ static uint32_t scene_npc_seat_retired(const scene_npc_seat_binding *b)
             rf_entity_lookup(&campaign_entities,(int32_t)b->host)==&r->entry.view&&
             r->entry.host.driver==UINT32_MAX&&r->entry.occupant==-1&&r->entry.gunner_occupant==-1;
     }
-    return scene_npc_seat_passive_jeep(b)!=NULL;
+    {scene_passive_vehicle *p=scene_npc_seat_passive_jeep(b);
+     return p&&p->seat_driver==UINT32_MAX&&p->seat_occupants[0]==-1&&p->seat_occupants[1]==-1;}
 }
 static int scene_npc_seat_host_read(scene_npc_seat_binding *b,scene_npc_seat_host *out)
 {
@@ -74,14 +84,29 @@ static int scene_npc_seat_host_read(scene_npc_seat_binding *b,scene_npc_seat_hos
     if(!s||!b||!out)return RF_RANGE;
     if(b->kind==SCENE_NPC_SEAT_JEEP) {
         scene_driller_runtime *r=s->driller_runtime;
-        if(!r||!s->driller||strcmp(s->driller->model,"Jeep01.v3m")||
-           r->entry.registration.handle!=b->host||
-           rf_object_registry_lookup(&campaign_registry,b->host)!=&r->entry.registration||
-           rf_entity_lookup(&campaign_entities,(int32_t)b->host)!=&r->entry.view)return RF_NOT_FOUND;
-        h.view=&r->entry.view;h.occupant=&r->entry.occupant;h.driver=&r->entry.host.driver;
-        h.tags=&s->driller->tags;h.position=r->physics.state.position;h.basis=r->physics.state.orientation;
-        h.alive=r->entry.host.alive&&r->damage.damage.state.effects.health>0;
-        if(h.view->occupants!=h.occupant||h.view->occupant_count!=2)return RF_FORMAT;
+        if(r&&r->entry.host.handle==b->host) {
+            if(campaign_authored_vehicle_uid!=(int32_t)b->host_uid||!s->driller||
+               strcmp(s->driller->model,"Jeep01.v3m")||r->entry.registration.handle!=b->host||
+               r->entry.registration.view!=&r->entry.view||r->entry.view.handle!=(int32_t)b->host||
+               r->damage.damage.state.effects.handle!=b->host||
+               rf_object_registry_lookup(&campaign_registry,b->host)!=&r->entry.registration||
+               rf_entity_lookup(&campaign_entities,(int32_t)b->host)!=&r->entry.view)return RF_NOT_FOUND;
+            for(uint32_t i=0;i<campaign_passive_vehicle_count;i++)
+                if(campaign_passive_vehicles[i].uid==b->host_uid||campaign_passive_vehicles[i].handle==b->host)return RF_FORMAT;
+            h.view=&r->entry.view;h.occupant=r->entry.occupants;h.driver=&r->entry.host.driver;
+            h.tags=&s->driller->tags;h.position=r->physics.state.position;h.basis=r->physics.state.orientation;
+            h.alive=r->entry.host.alive&&!r->damage.damage.destroyed&&r->damage.damage.state.effects.health>0;
+            if(h.view->occupants!=h.occupant||h.view->occupant_count!=2)return RF_FORMAT;
+        }else {
+            scene_passive_vehicle *p=scene_npc_seat_passive_jeep_host(b);
+            const scene_driller_resources *jeep=s->passive_vehicle_resources[5];
+            if(!jeep&&s->driller&&!strcmp(s->driller->model,"Jeep01.v3m"))jeep=s->driller;
+            if(!p||!jeep||strcmp(jeep->model,"Jeep01.v3m"))return RF_NOT_FOUND;
+            h.occupant=p->seat_occupants;h.driver=&p->seat_driver;h.tags=&jeep->tags;
+            h.position=p->pose.position;h.basis=p->pose.input_matrix;
+            h.alive=!p->damage.destroyed&&p->damage.state.effects.health>0;
+            /* h.view stays NULL only for this exact kind11 passive owner. */
+        }
     }else if(b->kind==SCENE_NPC_SEAT_TURRET) {
         scene_turret_owner *o=scene_turret_lookup(b->host);
         if(!o||o->uid!=b->host_uid||o->live_model>=scene_turret_model_count)return RF_NOT_FOUND;
@@ -100,7 +125,7 @@ static int scene_npc_seat_pair(uint32_t host,uint32_t actor,int32_t tag,uint32_t
         o=scene_npc_seat_actor(b);if(!o)return RF_NOT_FOUND;
         status=scene_npc_seat_host_read(b,&h);if(status)return status;
         *attached=o->view.linked_handle==(int32_t)host&&*h.occupant==(int32_t)actor&&
-            (!h.driver||*h.driver==actor);return RF_OK;
+            (!h.driver||*h.driver==actor)&&(h.view||h.occupant[1]==-1);return RF_OK;
     }
     return RF_OK;
 }
@@ -246,14 +271,14 @@ static int scene_npc_seats_open(scene_stream *stream,int32_t now)
                 !strcmp(stream->driller->model,"Jeep01.v3m")) {
             b->kind=SCENE_NPC_SEAT_JEEP;b->host=stream->driller_runtime->entry.registration.handle;
         }else {
-            /* A fresh switched save can retain an authored former driver
-             * whose host is now passive. Only the source-validated inactive
-             * RFNS row admits this placeholder; ordinary unresolved spawns
-             * never become retired bindings. Full world admission follows. */
+            /* A fresh switched save can retain an authored driver's passive
+             * host. Only a source-validated RFNS/RFSW row admits this empty
+             * placeholder; full world admission restores any saved occupancy.
+             * Ordinary unresolved spawns never become retired bindings. */
             int32_t saved_tag=-1;scene_passive_vehicle *passive=NULL;
             const scene_driller_resources *jeep=stream->driller&&!strcmp(stream->driller->model,"Jeep01.v3m")?
                 stream->driller:stream->passive_vehicle_resources[5];
-            if(scene_vehicle_switch_boot_retired_seat((uint32_t)campaign_seeds.records.items[i].record.uid,
+            if(scene_vehicle_switch_boot_passive_seat((uint32_t)campaign_seeds.records.items[i].record.uid,
                    (uint32_t)host_uid,&saved_tag)) {
                 if(!jeep||strcmp(jeep->model,"Jeep01.v3m")){status=RF_NOT_FOUND;goto fail;}
                 for(uint32_t j=0;j<campaign_passive_vehicle_count;j++)if(campaign_passive_vehicles[j].uid==(uint32_t)host_uid) {
@@ -261,7 +286,9 @@ static int scene_npc_seats_open(scene_stream *stream,int32_t now)
                 }
                 if(!passive){status=RF_NOT_FOUND;goto fail;}
                 b->kind=SCENE_NPC_SEAT_JEEP;b->host=passive->handle;
-                if(!scene_npc_seat_passive_jeep(b)||!scene_npc_seat_actor(b)||o->view.linked_handle!=-1){status=RF_NOT_FOUND;goto fail;}
+                if(!scene_npc_seat_passive_jeep(b)||passive->seat_driver!=UINT32_MAX||
+                   passive->seat_occupants[0]!=-1||passive->seat_occupants[1]!=-1||
+                   !scene_npc_seat_actor(b)||o->view.linked_handle!=-1){status=RF_NOT_FOUND;goto fail;}
                 status=rf_static_model_tags_find(&jeep->tags,(rf_model_name){"interface_1",11},&tag);
                 if(status)goto fail;if(tag!=saved_tag){status=RF_FORMAT;goto fail;}
                 b->tag=tag;++scene_npc_seat_count;continue;

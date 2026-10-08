@@ -249,6 +249,22 @@ static int scene_vehicle_switch_checkpoint_admit(const scene_stream *s,scene_veh
  }
  stage->admitted=1;return RF_OK;
 }
+/* RFNS can borrow only a completely admitted, stationary parked driver bank.
+ * Handles come from the generation-checked authored RFVA owner, never wire. */
+static int scene_vehicle_switch_checkpoint_parked_jeep(const scene_vehicle_switch_checkpoint_stage *stage,
+ uint32_t uid,uint32_t handle,const float **position,const float **basis,int32_t *seat)
+{
+ const scene_vehicle_parked_state *found=NULL;
+ if(!position||!basis||!seat)return RF_RANGE;
+ if(!stage||!stage->admitted||!stage->rows||stage->count>RF_OBJECT_CAPACITY)return RF_FORMAT;
+ for(uint32_t i=0;i<stage->count;i++)if(stage->rows[i].uid==uid){
+  if(found)return RF_FORMAT;found=stage->rows+i;
+ }
+ if(!found||!found->valid||found->profile!=3||found->handle!=handle||found->jeep_role||
+    found->view.linked_handle!=-1||found->view.weapon_owner||found->view.occupants||
+    found->route.active||found->route.path.count||found->route.event||found->route.pursuit)return RF_FORMAT;
+ *position=found->physics.position;*basis=found->physics.orientation;*seat=found->seat;return RF_OK;
+}
 /* Infallible transfer after all host, RFVA and RFPV publication. */
 static void scene_vehicle_switch_checkpoint_assign(scene_stream *s,scene_vehicle_switch_checkpoint_stage *stage)
 {

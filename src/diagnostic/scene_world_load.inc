@@ -184,7 +184,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_vehicle_physics_checkpoint_admit(stream,vehicle_physics,vehicle_present?&vehicle:NULL,passive);if(status)goto done;
     status=scene_vehicle_switch_checkpoint_admit(stream,vehicle_switch,vehicle_present?&vehicle:NULL,passive,vehicle_physics);if(status)goto done;
     status=scene_npc_seat_checkpoint_hosts(seats,turrets,vehicle_present?&vehicle:NULL,
-        scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
+        scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics),vehicle_switch,passive);if(status)goto done;
     phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive,seats);if(status)goto done;cost+=world->allocated_bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
@@ -226,6 +226,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
     status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
     status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
+    phase="passive_seat";
+    status=scene_passive_jeep_seat_restore_admit(stream,world,&player,vehicle_present?&vehicle:NULL,
+        seats,vehicle_switch,passive,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
+    status=scene_passive_jeep_seat_restore_audit(seats,vehicle_switch,passive);if(status)goto done;
     phase="turret_player";status=scene_turret_player_checkpoint_admit(turret_player,turrets,&player,0);if(status)goto done;
     phase="gunner";if(cost>budget){status=RF_RANGE;goto done;}
     status=scene_jeep_gunner_checkpoint_prepare(stream,seats,vehicle_present?&vehicle:NULL,&player,budget-cost,&gunner);

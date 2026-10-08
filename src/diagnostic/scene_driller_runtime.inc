@@ -187,7 +187,9 @@ static int scene_passive_vehicle_actor_collision(scene_stream *s,uint32_t actor,
         if(!resource && s->driller && campaign_selected_vehicle_resource_kind()==kind)resource=s->driller;
         if(!resource){rf_scene_passive_collision[7]=RF_NOT_FOUND;return RF_NOT_FOUND;}
         body.spheres=s->passive_vehicle_spheres[kind];body.count=s->passive_vehicle_sphere_count[kind];
-        body.handle=owner->handle;body.material=resource->physics.material.index;
+        body.handle=owner->handle;
+        body.driver=scene_npc_seat_related(owner->seat_driver,owner->handle)?owner->seat_driver:UINT32_MAX;
+        body.material=resource->physics.material.index;
         memcpy(body.position,owner->pose.position,12);memcpy(body.next_position,body.position,12);
         memcpy(body.orientation,owner->pose.input_matrix,36);
         memcpy(body.next_orientation,body.orientation,36);

@@ -2,6 +2,11 @@
 
 Integrated and Xbox-built. The occupied turret native continuity check is recorded in NPC-TURRET-SEAT-SAVE-CHECK.md. This preserves the physical seat and turret-control association without replaying gameplay bind/unbind callbacks, changing saved actions, or resetting turret fire cadence.
 
+RFNS1 now also restores an exact living driver in a stationary parked Jeep,
+using the admitted RFSW/RFVA pose and canonical passive seat endpoints. The
+wire layout remains unchanged; candidate-world collision and atomic ownership
+proof are documented in [living passive drivers](VEHICLE-PASSIVE-DRIVER.md).
+
 ## Files and format
 
 `src/diagnostic/scene_npc_seat_checkpoint_decl.inc` contains early opaque declarations; include it immediately before `scene_npc_checkpoint_capture.inc` in `scene.c`. Include `scene_npc_seat_checkpoint.inc` immediately after `scene_npc_seat_bind.inc`, where driller/seat/operator definitions and earlier restore types are available. Use `scene_npc_seat_checkpoint_bytes(stage)` rather than accessing the opaque stage in the early world loader. No large existing include needs moving.

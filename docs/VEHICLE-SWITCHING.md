@@ -2,7 +2,13 @@
 
 The current implementation permits ordinary Use to transfer the active runtime between nearby parked, unoccupied Drillers, APCs or Jeeps of the same class, or another ground class with its required resource pack prepared. Each authored vehicle retains its UID and generation handle; checked registry exchange changes which runtime represents it. A bounded level-local bank retains rigid state, ammunition, firing cadence/random state and aiming state. Passive health and damage remain authoritative while parked.
 
-Admission rejects occupied or linked owners, active or authored movement routes, moving chassis, pending firing/effects, grouped hosts and obstructed boarding paths. Ground cross-class handoff and submarine-to-ground runtime handoff are implemented; submarine save continuation and Fighter switching remain open (see `VEHICLE-SUBMARINE-SWITCHING.md`). These are explicit first-pass constraints, not complete campaign vehicle support.
+Admission rejects other occupied or linked owners, active or authored movement routes, moving chassis, pending firing/effects, grouped hosts and obstructed boarding paths. Ground cross-class handoff and submarine-to-ground runtime handoff are implemented; submarine save continuation and Fighter switching remain open (see `VEHICLE-SUBMARINE-SWITCHING.md`). These are explicit first-pass constraints, not complete campaign vehicle support.
+
+The narrow living-driver exception now keeps the exact authored stationary
+Jeep driver in canonical passive seats while another Jeep is selected. Ordinary
+save/fresh-load, return gunner boarding and host-qualified parked-wreck release
+pass stock64MiB Xbox; see [living passive drivers](VEHICLE-PASSIVE-DRIVER.md).
+Moving/route-owned and occupied cross-class transfers remain rejected.
 
 Ordinary saves now write an outer RFSW1 vehicle wrapper: a 24-byte header identifies the selected authored UID/profile and passive slot order, followed by the existing vehicle payload and explicit 320-byte parked-state rows. Fresh loading validates source identity before selecting the saved host, admits the complete passive UID set before reordering, and restores parked ammunition/RNG, rigid state, aim and firing state after RFVA/RFPV publication. Runtime handles and pointers are reconstructed. Unswitched saves retain their existing format. Direct in-session restores and legacy RFCP saves remain rejected with a parked bank; normal fresh-scene quickload is supported. Stock-64-MiB Xbox report `artifacts/xemu/vehicle-switch-save-20261003-171018/report.json` passes a 350-frame source save and 140-frame fresh-load continuation: active Jeep B is selected before binding, both ammunition/RNG states match exactly, and ordinary exit/reboarding restores parked Jeep A. The source writes 15,768 bytes; the harness restores the original disc afterward.
 

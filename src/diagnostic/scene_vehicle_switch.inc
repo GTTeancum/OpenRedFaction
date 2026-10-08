@@ -32,27 +32,60 @@ static int scene_vehicle_switch_seed(uint32_t uid,uint32_t *index)
     for(uint32_t i=0;i<campaign_seeds.records.count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){*index=i;++matches;}
     return matches==1?RF_OK:RF_NOT_FOUND;
 }
-static uint32_t scene_vehicle_switch_dependency(uint32_t uid,uint32_t handle)
+/* The one supported occupied transfer is the original living authored Jeep
+ * driver in slot0. Every word must agree with the real host and actor; no
+ * player session, stale binding or second passenger gains this exception. */
+static scene_npc_seat_binding *scene_vehicle_switch_driver(uint32_t uid,uint32_t handle,
+    uint32_t driver,const int32_t occupants[2])
+{
+    scene_npc_seat_binding *found=NULL;scene_npc_seat_host h;campaign_npc_body *o;
+    uint32_t attached;int32_t tag;
+    if(driver==UINT32_MAX||driver==campaign_player_object.handle||
+       occupants[0]!=(int32_t)driver||occupants[1]!=-1)return NULL;
+    for(uint32_t i=0;i<scene_npc_seat_count;i++) {
+        scene_npc_seat_binding *b=scene_npc_seats+i;
+        if(b->host_uid!=uid&&b->host!=handle&&b->actor!=driver)continue;
+        if(found||b->active!=1||b->kind!=SCENE_NPC_SEAT_JEEP||
+           b->host_uid!=uid||b->host!=handle||b->actor!=driver||b->occupant!=-1||
+           b->slot>=campaign_seeds.records.count||campaign_seeds.items[b->slot].spawn.seat_host_uid!=(int32_t)uid)return NULL;
+        found=b;
+    }
+    if(!found||!(o=scene_npc_seat_actor(found))||scene_npc_seat_host_read(found,&h)||!h.alive||
+       h.occupant!=occupants||!h.driver||*h.driver!=driver||
+       !isfinite(o->damage.effects.health)||o->damage.effects.health<=0||o->damage.effects.burn||
+       (o->view.flags_810&1u)||(o->object_flags&(2u|0x4000u))||
+       o->ai_mode.action_280!=13||o->view.action_520!=13||
+       (o->scripted_physics&&!(o->body.state.flags&0x80000000u))||
+       o->script_move.active||o->combat_scripted||o->script_shoot.active||o->script_once.count||
+       o->support.handle||o->support.material!=-1)return NULL;
+    if(rf_static_model_tags_find(h.tags,(rf_model_name){"interface_1",11},&tag)||tag!=found->tag||
+       scene_npc_seat_pair(handle,driver,tag,&attached)||!attached)return NULL;
+    return found;
+}
+static uint32_t scene_vehicle_switch_dependency(uint32_t uid,uint32_t handle,
+    const scene_npc_seat_binding *driver)
 {
     if(campaign_support_handle==handle)return 1;
     for(uint32_t i=0;i<scene_npc_seat_count;i++) {
         const scene_npc_seat_binding *b=scene_npc_seats+i;
         if((b->host_uid==uid||b->host==handle)&&
-           (b->host_uid!=uid||b->host!=handle||!scene_npc_seat_retired(b)))return 1;
+           (b->host_uid!=uid||b->host!=handle||(b!=driver&&!scene_npc_seat_retired(b))))return 1;
     }
-    /* A resolved, released original binding discharges only its own authored
-     * seat reference. Missing or future unresolved actors still block. */
+    /* A released binding or the exact living pair discharges only its own
+     * authored reference. Missing or future unresolved actors still block. */
     for(uint32_t i=0;i<campaign_seeds.records.count;i++)if(campaign_seeds.items[i].spawn.seat_host_uid==(int32_t)uid) {
         uint32_t matches=0;
         for(uint32_t j=0;j<scene_npc_seat_count;j++) {
             const scene_npc_seat_binding *b=scene_npc_seats+j;
-            if(b->slot==i&&b->host_uid==uid&&b->host==handle&&scene_npc_seat_retired(b))++matches;
+            if(b->slot==i&&b->host_uid==uid&&b->host==handle&&
+               (b==driver||scene_npc_seat_retired(b)))++matches;
         }
         if(matches!=1)return 1;
     }
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
-        if(o->view.linked_handle==(int32_t)handle||o->support.handle==handle||
+        if((o->view.linked_handle==(int32_t)handle&&(!driver||driver->slot!=i||driver->actor!=o->registration.handle))||
+           o->support.handle==handle||
            (o->combat_scripted&&o->combat_target==handle))return 1;
     }
     for(uint32_t i=0;i<campaign_group_runtime.count;i++){
@@ -154,6 +187,8 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     const scene_vehicle_profile_pack *pack=NULL;
     const scene_driller_resources *resource=s?s->driller:NULL;
     scene_driller_physics prepared;
+    scene_npc_seat_binding *old_driver=NULL,*next_driver=NULL;
+    uint32_t incoming_driver=UINT32_MAX;int32_t incoming_occupants[2]={-1,-1},boarding_seat;
     uint32_t oldprofile=rf_scene_vehicle_enabled,profile=oldprofile,cross=0;
     uint32_t selected=UINT32_MAX,seed=0,oldseed=0,quiet,clear=0,reason=0,restored=0,wreck=0;double best,range;int status=RF_OK;
     if(!switched)return RF_RANGE;*switched=0;
@@ -162,8 +197,14 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     if(r&&!r->entry.host.alive&&!player_input.use)r->entry.held=0;
     if(!r||!player_input.use||r->entry.held||r->entry.session.active||rf_scene_vehicle_enabled<1||rf_scene_vehicle_enabled>5)return RF_OK;
     ++rf_scene_vehicle_switch[0];rf_scene_vehicle_switch[14]=combat_frame;
-    if(r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->entry.gunner_occupant!=-1||r->player.saved||
+    if(r->player.saved||
        campaign_player_view.linked_handle!=-1||campaign_player_damage.state.effects.health<=0){reason=1;goto reject;}
+    if(r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->entry.gunner_occupant!=-1) {
+        if(oldprofile!=3||!(old_driver=scene_vehicle_switch_driver((uint32_t)campaign_authored_vehicle_uid,
+               r->entry.host.handle,r->entry.host.driver,r->entry.occupants))||scene_vehicle_physics_frozen(s)){
+            reason=1;goto reject;
+        }
+    }
     /* Accept either a coherent living owner or a fully released wreck. Do not
      * interrupt pending death callbacks or safe-ejection retry ownership. */
     if(!isfinite(r->damage.damage.state.effects.health)||r->entry.host.alive>1||r->damage.damage.destroyed>1){status=RF_FORMAT;goto done;}
@@ -171,7 +212,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     if((!wreck&&(!r->entry.host.alive||r->damage.damage.destroyed||r->damage.damage.state.effects.health<=0))||
        r->damage.damage.state.effects.burn||r->damage.damage.destruction_pending||r->damage.eject_pending||r->scripted_exit_pending){reason=2;goto reject;}
     if(campaign_vehicle_route.active||campaign_vehicle_route.path.count||campaign_vehicle_route.event||campaign_vehicle_route.pursuit||
-       scene_vehicle_switch_dependency((uint32_t)campaign_authored_vehicle_uid,r->entry.host.handle)){reason=3;goto reject;}
+       scene_vehicle_switch_dependency((uint32_t)campaign_authored_vehicle_uid,r->entry.host.handle,old_driver)){reason=3;goto reject;}
     if(player_input.fire||player_input.alt_fire||player_input.cycle_weapon||scene_apc_primary_pending(s)||scene_apc_secondary_pending(s)||
        s->apc_primary.scheduler.held||s->apc_primary.scheduler.cooldown>0||s->apc_primary.scheduler.warmup>0||
        s->apc_secondary.cooldown>0||s->driller_weapon.held||s->driller_weapon.contact_active||
@@ -186,7 +227,9 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         uint32_t candidate=p->resource_kind==3?1:p->resource_kind==4?2:p->resource_kind==5?3:p->resource_kind==0?4:p->resource_kind==1?5:0;
         const scene_vehicle_profile_pack *candidate_pack=NULL;
         const scene_driller_resources *candidate_resource=s->driller;
+        scene_npc_seat_binding *candidate_driver=NULL;
         if(!candidate)continue;
+        if(old_driver&&candidate!=3)continue; /* Occupied ownership stays Jeep-to-Jeep. */
         if(candidate!=oldprofile){candidate_pack=scene_vehicle_profile_pack_get(s,candidate);
             if(!candidate_pack||!scene_vehicle_profile_pack_get(s,oldprofile))continue;
             candidate_resource=candidate_pack->chassis;}
@@ -195,14 +238,18 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         if(p->group_owned||p->attached||
            p->damage.destroyed||p->damage.state.effects.health<=0||p->damage.state.effects.burn||
            p->damage.destruction_pending||(p->damage.object_flags&(2u|0x4000u)))continue;
+        if(p->seat_driver!=UINT32_MAX||p->seat_occupants[0]!=-1||p->seat_occupants[1]!=-1) {
+            if(oldprofile!=3||candidate!=3||!(candidate_driver=scene_vehicle_switch_driver(p->uid,p->handle,
+                   p->seat_driver,p->seat_occupants)))continue;
+        }
         if(scene_vehicle_switch_seed(p->uid,&source))continue;
         status=rf_level_entity_spawn_read(campaign_seeds.records.items+source,&spawn);if(status)goto done;
-        if(spawn.seat_host_uid!=-1||scene_vehicle_switch_dependency(p->uid,p->handle))continue;
+        if(spawn.seat_host_uid!=-1||scene_vehicle_switch_dependency(p->uid,p->handle,candidate_driver))continue;
         if(p->scripted_physics&&!(p->physics_body_flags&0x80000000u))continue; /* Not boardable until woken. */
         double speed=0;for(uint32_t j=0;j<3;j++){double d=(double)scene_actor_body.state.position[j]-p->pose.position[j];d2+=d*d;speed+=(double)p->velocity[j]*p->velocity[j];}
         if(!isfinite(d2)||!isfinite(speed)){status=RF_FORMAT;goto done;}if(speed>.01||d2>best||d2>candidate_range*candidate_range)continue;
         if(d2==best&&(target||!wreck)&&p->uid>=(target?target->uid:(uint32_t)campaign_authored_vehicle_uid))continue;
-        best=d2;target=p;selected=i;seed=source;profile=candidate;pack=candidate_pack;resource=candidate_resource;
+        best=d2;target=p;selected=i;seed=source;profile=candidate;pack=candidate_pack;resource=candidate_resource;next_driver=candidate_driver;
     }
     if(!target)return RF_OK;
     cross=profile!=oldprofile;
@@ -221,6 +268,11 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         scene_vehicle_parked_count=campaign_passive_vehicle_count;scene_vehicle_switch_stream=s;
     }
     scene_vehicle_switch_capture(s,&old);next=scene_vehicle_parked[selected];restored=next.valid;
+    if(old_driver){
+        old.jeep_role=0;status=scene_jeep_seat_index(s->driller,0,&old.seat);if(status)goto done;
+        if(old.seat!=old_driver->tag){status=RF_FORMAT;goto done;}
+    }
+    if(next_driver&&!restored){reason=1;goto reject;} /* Living passive drivers require a retained rigid bank. */
     if(restored){if(next.uid!=target->uid||next.handle!=target->handle||next.profile!=profile){status=RF_FORMAT;goto done;}}
     else{
         memset(&next,0,sizeof(next));next.valid=1;next.uid=target->uid;next.handle=target->handle;next.profile=profile;
@@ -249,6 +301,14 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     if(target->scripted_physics)next.body_flags=target->physics_body_flags;
     status=scene_vehicle_switch_quiet(&next.physics,&quiet);if(status)goto done;if(!quiet){reason=5;goto reject;}
     if(next.route.active||next.route.path.count||next.route.event||next.route.pursuit){reason=3;goto reject;}
+    boarding_seat=next.seat;
+    if(next_driver){
+        /* The retained bank's role0 is the host's default, never a request to
+         * board the occupied driver seat. Preflight the normal gunner tag. */
+        next.jeep_role=0;status=scene_jeep_seat_index(resource,0,&next.seat);if(status)goto done;
+        if(next.seat!=next_driver->tag){status=RF_FORMAT;goto done;}
+        status=scene_jeep_seat_index(resource,1,&boarding_seat);if(status)goto done;
+    }
     if(profile==4||profile==5){
         /* Passive free-flight hulls require their complete saved-pose fluid
          * policy and static fit before promotion, not just player clearance. */
@@ -273,8 +333,8 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     {scene_vehicle_collision collision=r->collision;scene_vehicle_pose seat;float tag[12],offset[3];
      scene_driller_entry_exit entry=r->entry;entry.resource=resource;entry.physics=&prepared;
      query=(scene_vehicle_switch_query){s,target->handle};collision.query=scene_vehicle_switch_query_body;collision.query_context=&query;
-     status=rf_static_model_tag_place(&resource->tags,next.seat,next.physics.orientation,next.physics.position,tag);if(status)goto done;
-     scene_driller_seat_basis(&entry,next.seat,tag,seat.basis);memcpy(seat.position,tag+9,12);
+     status=rf_static_model_tag_place(&resource->tags,boarding_seat,next.physics.orientation,next.physics.position,tag);if(status)goto done;
+     scene_driller_seat_basis(&entry,boarding_seat,tag,seat.basis);memcpy(seat.position,tag+9,12);
      scene_driller_point((const float[3]){0,0,0},seat.basis,r->entry.eye_offset,offset);
      for(uint32_t j=0;j<3;j++)seat.position[j]-=offset[j];
      if(profile==3)status=scene_vehicle_seated_clearance(&collision,&scene_actor_body,r->entry.eye_offset,scene_actor_body.state.position,
@@ -296,6 +356,8 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
      if(!clear){reason=7;goto reject;}}
     memset(&parked,0,sizeof(parked));parked.uid=old.uid;parked.handle=old.handle;parked.damage=r->damage.damage;
     parked.object_kind=11;parked.resource_kind=campaign_selected_vehicle_resource_kind();
+    parked.seat_driver=r->entry.host.driver;memcpy(parked.seat_occupants,r->entry.occupants,sizeof(parked.seat_occupants));
+    incoming_driver=target->seat_driver;memcpy(incoming_occupants,target->seat_occupants,sizeof(incoming_occupants));
     parked.scripted_physics=old.scripted_physics;parked.physics_body_flags=old.body_flags;
     parked.pose.flags=old.view.flags_7c;
     memcpy(parked.pose.base_position,old.physics.position,12);memcpy(parked.pose.base_matrix,old.physics.orientation,36);
@@ -340,6 +402,9 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     r->entry.registration.handle=next.handle;r->entry.view=next.view;r->entry.view.handle=(int32_t)next.handle;
     r->entry.view.occupants=r->entry.occupants;r->entry.view.linked_handle=-1;r->entry.view.flags_7c=r->damage.damage.object_flags;
     r->entry.view.flags_814=r->damage.damage.state.effects.flags_814;r->entry.host.handle=next.handle;
+    /* Publish the staged real slots before ordinary Use sees the new host.
+     * Actor links, binding handles and seated AI never detach or rebind. */
+    r->entry.host.driver=incoming_driver;memcpy(r->entry.occupants,incoming_occupants,sizeof(incoming_occupants));
     /* Runtime allocation is shared, owner life is not. Never carry the old
      * wreck's propulsion/boarding/audio death gate into the healthy host. */
     r->entry.host.alive=!r->damage.damage.destroyed&&r->damage.damage.state.effects.health>0;

@@ -8,6 +8,8 @@ typedef struct scene_npc_seat_checkpoint_stage scene_npc_seat_checkpoint_stage;
 struct scene_turret_checkpoint_stage;
 struct scene_npc_checkpoint_restore_stage;
 struct scene_checkpoint_world_context;
+struct scene_vehicle_switch_checkpoint_stage;
+struct scene_passive_vehicle_checkpoint_stage;
 static uint32_t scene_npc_seat_checkpoint_bytes(const scene_npc_seat_checkpoint_stage *);
 static uint32_t scene_npc_seat_checkpoint_actor(uint32_t);
 static uint32_t scene_npc_seat_checkpoint_host(uint32_t);
@@ -17,7 +19,8 @@ static int scene_npc_seat_checkpoint_capture(unsigned char *,uint32_t,uint32_t,u
 static int scene_npc_seat_checkpoint_prepare(const unsigned char *,uint32_t,uint32_t,
     scene_npc_seat_checkpoint_stage **,const unsigned char **,uint32_t *);
 static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *,
-    const struct scene_turret_checkpoint_stage *,const scene_vehicle_checkpoint_record *,uint32_t);
+    const struct scene_turret_checkpoint_stage *,const scene_vehicle_checkpoint_record *,uint32_t,
+    const struct scene_vehicle_switch_checkpoint_stage *,const struct scene_passive_vehicle_checkpoint_stage *);
 static int scene_npc_seat_checkpoint_basis(const scene_npc_seat_checkpoint_stage *,
     const rf_npc_checkpoint_record *,float [9],uint32_t *);
 static int scene_npc_seat_checkpoint_place(const scene_npc_seat_checkpoint_stage *,uint32_t,
