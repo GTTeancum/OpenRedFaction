@@ -18,6 +18,13 @@ unsigned char *rf_image_pixel(const rf_image *image, uint32_t x, uint32_t y);
  * budget bounds output allocation; input uses a fixed 4096-byte buffer.
  * Close before reuse. Failure leaves image empty. */
 int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
+/* Stream a TGA into an existing RGBA8 atlas rectangle, preserving dimensions,
+ * orientation and alpha. Caller supplies expected source dimensions; a header
+ * mismatch rejects before pixel writes. No allocation or resampling. A later
+ * malformed payload may partially write the rectangle; discard the owning
+ * resource on failure. Padding outside the rectangle is untouched. */
+int rf_image_tga_into(rf_image *atlas,uint32_t x,uint32_t y,uint32_t width,uint32_t height,
+    rf_vpp *archive,const rf_vpp_entry *entry);
 /* Static version-1/2 VBM: 1555/4444/565, validated complete mip payload.
  * Only the base mip is retained; multiple frames are explicitly rejected. */
 int rf_image_vbm(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);

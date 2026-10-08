@@ -11,7 +11,7 @@ if(RF_GEOMOD_EXPANDED_PROFILE)
         SCENE_TERRAIN_CORE_BUDGET=2359296 SCENE_TERRAIN_ATLAS_BUDGET=1572864 SCENE_AUTHORED_DIGEST_BUDGET=1048576
         SCENE_AUTHORED_WRITER_BUDGET=2097152 SCENE_DESTRUCTION_BUDGET=16777216)
 endif()
-add_library(rf_core STATIC src/core/vpp.c src/core/checksum.c src/core/level.c src/core/editor_brush.c src/core/geometry.c src/core/preview.c src/core/image.c src/core/material.c)
+add_library(rf_core STATIC src/core/vpp.c src/core/checksum.c src/core/level.c src/core/editor_brush.c src/core/geometry.c src/core/preview.c src/core/image.c src/core/hud_assets.c src/core/hud_scope.c src/core/material.c)
 add_executable(rf_editor_brush_tests tests/editor_brush_tests.c)
 target_link_libraries(rf_editor_brush_tests PRIVATE rf_core)
 add_executable(rf_opening_wall_probe tests/opening_wall_probe.c)

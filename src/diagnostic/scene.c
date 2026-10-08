@@ -6,6 +6,8 @@
 #include "rf/remote_checkpoint.h"
 #include "rf/checkpoint_placement.h"
 #include "rf/eye.h"
+#include "rf/hud_assets.h"
+#include "rf/hud_scope.h"
 #include "rf/scene_preview.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
@@ -834,6 +836,8 @@ typedef struct scene_glare_snapshot_owner scene_glare_snapshot_owner;
 typedef struct scene_driller_runtime scene_driller_runtime;
 #include "scene_vehicle_profile_pack_decl.inc"
 typedef struct scene_stream {
+    rf_hud_assets *hud_assets;
+    rf_hud_scope_assets *hud_scope;
     scene_campaign_geomod_owner *campaign_geomod;
     scene_campaign_wall_owner *campaign_wall;
     scene_terrain_source_owner *terrain_sources;uint32_t terrain_source_count;
@@ -16016,6 +16020,10 @@ static int combat_hud_rect(rf_scene_particle_sink sink,void *context,float x,flo
     for(i=0;i<4;i++){vertices[i].screen[0]=x+((i==1 || i==2)?width:0);vertices[i].screen[1]=y+(i>=2?height:0);vertices[i].reciprocal_w=1;vertices[i].argb=color;}
     return sink(context,vertices,4,NULL,0x18000);
 }
+uint32_t rf_hud_text_diagnostic[8]; /* native TEXT calls/glyphs,story frames,wrapped lines,truncated,notices,countdowns,status */
+static int scene_hud_text_box(const rf_hud_assets *,rf_scene_particle_sink,void *,uint32_t,
+    const char *,float,float,float,float,uint32_t);
+static int scene_hud_story_draw(rf_scene_particle_sink,void *,const char *);
 static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,float y,const char *text,uint32_t color)
 {
     static const struct {char letter;unsigned char rows[7];} font[]={
@@ -16044,6 +16052,9 @@ static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,flo
         {'(',{2,4,8,8,8,4,2}},{')',{8,4,2,2,2,4,8}},
         {'/',{1,2,2,4,8,8,16}}};
     uint32_t n,i,row,col;
+    if(particle_draw_stream && particle_draw_stream->hud_assets)
+        return scene_hud_text_box(particle_draw_stream->hud_assets,sink,context,RF_HUD_FONT_TEXT,
+            text,x,y,0,0,color);
     for(n=0;text[n];n++)for(i=0;i<sizeof(font)/sizeof(font[0]);i++)if(font[i].letter==(text[n]>='a' && text[n]<='z'?text[n]-'a'+'A':text[n])) {
         for(row=0;row<7;row++)for(col=0;col<5;) {
             uint32_t start=col;int status;
@@ -16055,6 +16066,15 @@ static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,flo
     }
     return RF_OK;
 }
+/* Center variable-width authored text by glyph advance, rather than the old
+ * procedural12-pixel character count. Short overlay labels stay in view. */
+static int combat_hud_centered(rf_scene_particle_sink sink,void *context,float y,const char *text,uint32_t color)
+{
+    if(particle_draw_stream && particle_draw_stream->hud_assets)
+        return scene_hud_text_box(particle_draw_stream->hud_assets,sink,context,RF_HUD_FONT_TEXT,
+            text,24,y,592,0,color);
+    return combat_hud_text(sink,context,(640.f-(float)strlen(text)*12)*.5f,y,text,color);
+}
 static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
 {
     const char *p=campaign_subtitle.text;uint32_t row=0;int expired,status;
@@ -16063,6 +16083,7 @@ static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
     if(campaign_subtitle_deadline<0 || combat_frame==UINT32_MAX)return RF_OK;
     status=rf_timer_expired(campaign_subtitle_deadline,now,&expired);if(status)return status;
     if(expired){campaign_subtitle_deadline=-1;return RF_OK;}
+    if(particle_draw_stream && particle_draw_stream->hud_assets)return scene_hud_story_draw(sink,context,p);
     while(*p && row<5) {
         char line[47];uint32_t n=0,last_space=0;
         while(*p==' ' || *p=='\r' || *p=='\n')++p;
@@ -16083,7 +16104,7 @@ static int scene_scanner_draw(rf_scene_particle_sink sink,void *context)
     if(!scene_scanner_enabled)return RF_OK;
     status=scene_scanner_collect(particle_draw_stream,&scene_scanner_result);rf_scene_scanner[3]=(uint32_t)status;if(status)return status;
     rf_scene_scanner[1]=scene_scanner_result.count;rf_scene_scanner[2]=scene_scanner_result.truncated;
-    status=combat_hud_text(sink,context,268,24,"SCANNER",0xff60ff90);if(status)return status;
+    status=combat_hud_centered(sink,context,24,"SCANNER",0xff60ff90);if(status)return status;
     for(i=0;i<scene_scanner_result.count;i++){
         const rf_weapon_scanner_marker *m=scene_scanner_result.markers+i;
         float x=m->screen[0],y=m->screen[1],r=fminf(22,fmaxf(8,120/m->depth));
@@ -16093,20 +16114,51 @@ static int scene_scanner_draw(rf_scene_particle_sink sink,void *context)
     }
     return RF_OK;
 }
+#include "scene_hud_assets.inc"
+#include "scene_hud_scope.inc"
+#include "scene_hud_messages.inc"
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
 {
     const float arms[4][4]={{310,239,7,2},{323,239,7,2},{319,230,2,7},{319,243,2,7}};
-    uint32_t i,color=0xffeeeeee,vehicle;int32_t vehicle_ammo[2]={-1,-1};float vehicle_health=0;int status;
+    /* Original43a4c3 sets white255: the ordinary reticle's green hue and
+     * coverage are authored in its TGA. Hit/surface feedback below overrides
+     * this neutral multiplier explicitly. */
+    uint32_t i,color=0xffffffffu,vehicle,mounted,armed,loaded=0,reserve=0,magazine=0;
+    int32_t weapon=-1,vehicle_ammo[2]={-1,-1};float vehicle_health=0;int status;
+    const scene_turret_owner *turret=NULL;
     if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
     vehicle=scene_driller_active(particle_draw_stream);
+    mounted=scene_turret_player_controls(scene_turret_player.host);
+    if(mounted)turret=scene_turret_lookup(scene_turret_player.host);
+    /* Read actual owners. campaign_ammo_publish can select another weapon,
+     * so rendering must never use it as a refresh operation. */
+    armed=vehicle || mounted;
+    if(!vehicle && !mounted && !campaign_explicit_unarmed && campaign_equipped_slot<SCENE_WEAPON_SLOTS) {
+        int32_t base=campaign_slot_weapon(campaign_equipped_slot);
+        weapon=campaign_selected_weapon();
+        if(base>=0 && base<64 && weapon>=0 && weapon<64 &&
+           (uint32_t)weapon<campaign_weapon_supply.names.count && campaign_player_inventory.owned[base]) {
+            const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+weapon;
+            armed=1;magazine=d->magazine>0?(uint32_t)d->magazine:0;
+            if(d->ammo_type>=0 && d->ammo_type<32 && campaign_player_inventory.reserve[d->ammo_type]>0)
+                reserve=(uint32_t)campaign_player_inventory.reserve[d->ammo_type];
+            loaded=magazine && campaign_player_inventory.loaded[weapon]>0?
+                (uint32_t)campaign_player_inventory.loaded[weapon]:0;
+            if(!magazine || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9)
+                loaded=reserve;
+        }
+    }
     if(vehicle)scene_vehicle_hud_values(particle_draw_stream,&vehicle_health,vehicle_ammo);
+    status=scene_hud_scope_draw(sink,context,armed&&!vehicle&&!mounted);if(status)return status;
     status=campaign_draw_subtitle(sink,context);if(status)return status;
     /* Cinematic camera keeps dialogue, but gameplay meters and reticle belong
      * to the player-controlled view. */
     if(campaign_cutscene_runtime.active)return RF_OK;
     status=scene_scanner_draw(sink,context);if(status)return status;
     if(rf_scene_pickup_notice[0] && combat_frame-campaign_pickup_notice_frame<180u){
-        status=combat_hud_text(sink,context,26,46,rf_scene_pickup_notice,0xff80ff80);
+        if(particle_draw_stream->hud_assets)status=scene_hud_notice_draw(sink,context,rf_scene_pickup_notice,0,
+            rf_hud_assets_color(particle_draw_stream->hud_assets,RF_HUD_COLOR_MESSAGE));
+        else status=combat_hud_text(sink,context,26,46,rf_scene_pickup_notice,0xff80ff80);
         if(status)return status;
     }
     if(rf_scene_campaign_countdown.remaining>0 && !campaign_endgame.phase){
@@ -16114,18 +16166,35 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
         uint32_t timer_color=seconds<=10?0xffee6060:seconds<=60?0xffffc060:0xffeeeeee;
         if(seconds>5999)seconds=5999;
         snprintf(timer,sizeof(timer),"TIME %02u:%02u",seconds/60,seconds%60);
-        status=combat_hud_rect(sink,context,492,20,132,22,0xff101010);if(status)return status;
-        status=combat_hud_text(sink,context,498,24,timer,timer_color);if(status)return status;
+        if(particle_draw_stream->hud_assets)status=scene_hud_countdown_draw(sink,context,timer,seconds,timer_color);
+        else {
+            status=combat_hud_rect(sink,context,492,20,132,22,0xff101010);if(status)return status;
+            status=combat_hud_text(sink,context,498,24,timer,timer_color);
+        }
+        if(status)return status;
     }
     if(scene_live_save_until&&combat_frame<scene_live_save_until){
         const char *message=scene_live_notice_load?
             (!scene_live_save_status?"GAME LOADED":scene_live_save_status==RF_IO?"LOAD FAILED - STORAGE ERROR":"NO COMPATIBLE SAVE"):
             (!scene_live_save_status?"GAME SAVED":scene_live_save_status==RF_IO?"SAVE FAILED - STORAGE ERROR":"CANNOT SAVE RIGHT NOW");
-        status=combat_hud_text(sink,context,26,28,message,scene_live_save_status?0xffffa060:0xff80ff80);if(status)return status;
+        if(particle_draw_stream->hud_assets)status=scene_hud_notice_draw(sink,context,message,1,
+            scene_live_save_status?0xffffa060:rf_hud_assets_color(particle_draw_stream->hud_assets,RF_HUD_COLOR_MESSAGE));
+        else status=combat_hud_text(sink,context,26,28,message,scene_live_save_status?0xffffa060:0xff80ff80);
+        if(status)return status;
     }
     if(combat_surface_frame!=UINT32_MAX && combat_frame-combat_surface_frame<=6)color=0xffffc060;
     if(combat_hit_frame!=UINT32_MAX && combat_frame-combat_hit_frame<=8)color=rf_scene_riot[0]?0xff80dfff:0xff60ff80;
-    for(i=0;i<4;i++) {
+    if(particle_draw_stream->hud_assets) {
+        status=scene_hud_original(sink,context,vehicle,vehicle_health,vehicle_ammo,mounted,turret,armed,loaded,reserve,magazine,color);
+        rf_hud_assets_diagnostic[7]=(uint32_t)status;if(status)return status;
+        ++rf_hud_assets_diagnostic[5];
+    } else {
+        ++rf_hud_assets_diagnostic[6];
+    /* Authored melee/grenade/shield/no-weapon categories have no reticle.
+     * Keep the geometric fallback until original per-weapon art is admitted. */
+    if(armed && campaign_player_damage.state.effects.health>0 &&
+       (vehicle || mounted || (campaign_equipped_slot!=2 && campaign_equipped_slot!=5 &&
+        campaign_equipped_slot!=9 && campaign_equipped_slot!=11)))for(i=0;i<4;i++) {
         status=combat_hud_rect(sink,context,arms[i][0]-1,arms[i][1]-1,arms[i][2]+2,arms[i][3]+2,0xff101010);if(status)return status;
         status=combat_hud_rect(sink,context,arms[i][0],arms[i][1],arms[i][2],arms[i][3],color);if(status)return status;
     }
@@ -16148,24 +16217,48 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
             status=combat_hud_text(sink,context,458,422,primary,vehicle_ammo[0]?0xffeeeeee:0xffee6060);if(status)return status;
             status=combat_hud_text(sink,context,458,442,secondary,vehicle_ammo[1]?0xffeeeeee:0xffee6060);if(status)return status;
         }
-    }else{
-    status=combat_hud_rect(sink,context,470,436,146,28,0xff101010);if(status)return status;
-    if(campaign_equipped_slot==2) {
-        float charge=(float)rf_scene_combat[5]/campaign_pistol.magazine;
-        status=combat_hud_rect(sink,context,477,443,132,12,0xff484848);if(status)return status;
-        if(charge>0){status=combat_hud_rect(sink,context,477,443,132*charge,12,rf_scene_riot[0]?0xff80dfff:0xffeeeeee);if(status)return status;}
-    } else for(i=0;i<campaign_pistol.magazine;i++) {
-        float step=132.0f/campaign_pistol.magazine;
-        status=combat_hud_rect(sink,context,477+i*step,443,step-2,12,i<rf_scene_combat[5]?0xffeeeeee:0xff484848);if(status)return status;
+    } else if(mounted && turret) {
+        /* Mounted turrets fire without an inventory debit. Never display the
+         * holstered handheld weapon's finite magazine while controlling one. */
+        status=combat_hud_rect(sink,context,454,416,168,48,0xff101010);if(status)return status;
+        status=combat_hud_text(sink,context,460,420,
+            turret->view.weapons[0]==scene_turret_heap_id?"HEAP":"VAUSS",0xffeeeeee);if(status)return status;
+        status=combat_hud_text(sink,context,460,442,"UNLIMITED",0xffeeeeee);if(status)return status;
+    } else if(armed && campaign_equipped_slot!=11) {
+        char rounds[24],stock[16];uint32_t shown=loaded>99999?99999:loaded;
+        status=combat_hud_rect(sink,context,470,436,146,28,0xff101010);if(status)return status;
+        /* Numeric loaded counts remain legible for large magazines. The old
+         * per-round rectangle width became negative beyond66 rounds. */
+        snprintf(rounds,sizeof(rounds),"%u",shown);
+        status=combat_hud_text(sink,context,478,442,rounds,loaded?0xffeeeeee:0xffee6060);if(status)return status;
+        if(magazine) {
+            uint32_t spare=campaign_equipped_slot==2?reserve/magazine:reserve;
+            snprintf(stock,sizeof(stock),"%u",spare>99999?99999:spare);
+            status=combat_hud_rect(sink,context,548,416,68,18,0xff101010);if(status)return status;
+            status=combat_hud_text(sink,context,552,418,stock,reserve?0xffeeeeee:0xffee6060);if(status)return status;
+        }
+        if(campaign_equipped_slot==2 && magazine) {
+            float charge=fminf(1,(float)loaded/magazine);
+            status=combat_hud_rect(sink,context,548,441,60,12,0xff484848);if(status)return status;
+            if(charge>0){status=combat_hud_rect(sink,context,548,441,60*charge,12,rf_scene_riot[0]?0xff80dfff:0xffeeeeee);if(status)return status;}
+        }
+        if(rf_scene_combat[6] && pistol_reload_ticks) {
+            uint32_t remaining=rf_scene_combat[6]>pistol_reload_ticks?pistol_reload_ticks:rf_scene_combat[6];
+            status=combat_hud_rect(sink,context,477,458,128,3,0xff484848);if(status)return status;
+            status=combat_hud_rect(sink,context,477,458,128.0f*(pistol_reload_ticks-remaining)/pistol_reload_ticks,3,0xffffc040);if(status)return status;
+        }
     }
-    {char reserve[16];snprintf(reserve,sizeof(reserve),"%u",campaign_equipped_slot==2?rf_scene_player_ammo[1]/campaign_pistol.magazine:rf_scene_player_ammo[1]);
-     status=combat_hud_rect(sink,context,562,416,54,18,0xff101010);if(status)return status;
-     status=combat_hud_text(sink,context,566,418,reserve,rf_scene_player_ammo[1]?0xffeeeeee:0xffee6060);if(status)return status;}
-    if(rf_scene_combat[6]) {
-        status=combat_hud_rect(sink,context,477,458,128,3,0xff484848);if(status)return status;
-        status=combat_hud_rect(sink,context,477,458,128.0f*(pistol_reload_ticks-rf_scene_combat[6])/pistol_reload_ticks,3,0xffffc040);if(status)return status;
+    if(!vehicle) {
+        char vital[24];float value=campaign_player_damage.state.effects.health;
+        uint32_t number=isfinite(value) && value>0?(value>=99999?99999:(uint32_t)value):0;
+        snprintf(vital,sizeof(vital),"%u",number);
+        status=combat_hud_text(sink,context,70,443,vital,0xffeeeeee);if(status)return status;
+        value=campaign_player_damage.state.effects.armor;
+        number=isfinite(value) && value>0?(value>=99999?99999:(uint32_t)value):0;
+        snprintf(vital,sizeof(vital),"ARMOR %u",number);
+        status=combat_hud_text(sink,context,170,452,vital,0xff80bfff);if(status)return status;
     }
-    }
+    } /* Optional original-art owner; procedural fallback above stays live. */
     if(rf_scene_player_life[2] || rf_scene_enemy_combat[6]) {
         const char *prompt;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -16174,8 +16267,8 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
         prompt=rf_scene_follow_level_exits?"E RECOVER  CTRL RESTART":"E TO RESPAWN";
 #endif
         status=combat_hud_rect(sink,context,170,184,300,64,0xff101010);if(status)return status;
-        status=combat_hud_text(sink,context,272,194,"YOU DIED",0xffee6060);if(status)return status;
-        status=combat_hud_text(sink,context,176,224,prompt,0xffeeeeee);if(status)return status;
+        status=combat_hud_centered(sink,context,194,"YOU DIED",0xffee6060);if(status)return status;
+        status=combat_hud_centered(sink,context,224,prompt,0xffeeeeee);if(status)return status;
     }
     return RF_OK;
 }
@@ -16195,11 +16288,11 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
         snprintf(timer,sizeof(timer),"TIME %02u",(uint32_t)ceilf(campaign_defuse.seconds));
         snprintf(progress,sizeof(progress),"%u / %u",campaign_defuse.progress-start,end-start);
         status=combat_hud_rect(sink,context,0,0,640,480,0xe0101010);if(status)return status;
-        status=combat_hud_text(sink,context,192,84,"DISARM WARHEAD",0xffffc060);if(status)return status;
-        status=combat_hud_text(sink,context,266,126,timer,0xffeeeeee);if(status)return status;
-        status=combat_hud_text(sink,context,176,188,sequence,0xff80ff80);if(status)return status;
-        status=combat_hud_text(sink,context,272,236,progress,0xffeeeeee);if(status)return status;
-        return combat_hud_text(sink,context,128,360,"ENTER THE SEQUENCE WITH D-PAD",0xffeeeeee);
+        status=combat_hud_centered(sink,context,84,"DISARM WARHEAD",0xffffc060);if(status)return status;
+        status=combat_hud_centered(sink,context,126,timer,0xffeeeeee);if(status)return status;
+        status=combat_hud_centered(sink,context,188,sequence,0xff80ff80);if(status)return status;
+        status=combat_hud_centered(sink,context,236,progress,0xffeeeeee);if(status)return status;
+        return combat_hud_centered(sink,context,360,"ENTER THE SEQUENCE WITH D-PAD",0xffeeeeee);
     }
     if(!campaign_endgame.phase)return RF_OK;
     if(campaign_endgame.phase==1){
@@ -16211,9 +16304,13 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
     }
     status=combat_hud_rect(sink,context,0,0,640,480,alpha<<24);if(status)return status;
     if(campaign_endgame.phase!=2)return RF_OK;
-    if(campaign_endgame.credits)return combat_hud_text(sink,context,278,228,"CREDITS",0xffeeeeee);
-    status=combat_hud_text(sink,context,236,90,"MISSION FAILED",0xffee6060);if(status)return status;
-    if(campaign_endgame.description[0]){
+    if(campaign_endgame.credits)return combat_hud_centered(sink,context,228,"CREDITS",0xffeeeeee);
+    status=combat_hud_centered(sink,context,90,"MISSION FAILED",0xffee6060);if(status)return status;
+    if(campaign_endgame.description[0] && particle_draw_stream->hud_assets){
+        status=scene_hud_message_block(particle_draw_stream->hud_assets,sink,context,
+            campaign_endgame.description,sizeof(campaign_endgame.description),568,138,398,16,
+            0xffeeeeee,0xff101010);if(status)return status;
+    } else if(campaign_endgame.description[0]){
         const char *cursor=campaign_endgame.description;uint32_t row=0;
         while(*cursor && row<14){
             const char *end=strchr(cursor,'\n');char line[64];uint32_t length=end?(uint32_t)(end-cursor):(uint32_t)strlen(cursor);
@@ -16224,10 +16321,10 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
             ++row;if(!end)break;cursor=end+1;
         }
     }else{
-        status=combat_hud_text(sink,context,240,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
+        status=combat_hud_centered(sink,context,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
     }
-    status=combat_hud_text(sink,context,236,408,"E/X TO RESTART",0xffeeeeee);if(status)return status;
-    return combat_hud_text(sink,context,158,432,"F9 OR HOLD BACK AND PRESS X",0xffeeeeee);
+    status=combat_hud_centered(sink,context,408,"E/X TO RESTART",0xffeeeeee);if(status)return status;
+    return combat_hud_centered(sink,context,432,"F9 OR HOLD BACK AND PRESS X",0xffeeeeee);
 }
 uint32_t rf_scene_follow_npc_uid;
 static uint32_t scene_inspection_enabled;
@@ -20666,6 +20763,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 campaign_appearances.actor_indices[i],location.room);if(status)goto done;
         }
     }
+    scene_hud_open_optional(stream,tables_path,maps,map_count);
+    scene_hud_scope_open_optional(stream,maps,map_count);
     scene_vehicle_profile_preload(stream,tables_path,&archive,maps,map_count);
     scene_vehicle_profile_preload_merge(stream,materials,material_budget);
     if(sink) {
@@ -20840,6 +20939,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(stream);
     }
 done:
+    rf_hud_scope_assets_close(stream->hud_scope);stream->hud_scope=NULL;
+    rf_hud_assets_close(stream->hud_assets);stream->hud_assets=NULL;
     rf_vpp_close(&terrain_ui);
     if(!status&&!scene_live_load_active)status=scene_world_checkpoint_probe(stream,level,tables_path);
     if(!status&&!scene_live_load_active)status=scene_world_snapshot_capture(stream,level,tables_path);

@@ -31,6 +31,8 @@ static uint32_t stream_start_vblank,stream_start_valid;
 uint32_t rf_renderer_vblank[3];
 #define HUD_BATCH_WORD_LIMIT (32u*1024u) /*128KiB of the512KiB pushbuffer. */
 static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws,hud_batch_open,hud_batch_words,hud_batch_color;
+static uint32_t hud_batch_mode,hud_batch_format;
+static const uint32_t *hud_batch_pixels;
 typedef struct renderer_command_batch {uint32_t *begin,*p,*blocks;} renderer_command_batch;
 static uint32_t *renderer_reserve(renderer_command_batch *,uint32_t);
 static void renderer_flush(renderer_command_batch *);
@@ -39,6 +41,8 @@ static void renderer_flush(renderer_command_batch *);
 uint32_t rf_xbox_hud_batch[8];
 /* Batched triangles: emitted/reused colors and actual/former command packets. */
 uint32_t rf_xbox_hud_reuse[4];
+/* Textured fans, texture-state installs/reuses, solid/texture state switches. */
+uint32_t rf_xbox_hud_texture[4];
 static renderer_command_batch hud_commands={NULL,NULL,rf_xbox_hud_reuse+2};
 static void hud_batch_note_words(uint32_t words)
 {
@@ -94,7 +98,8 @@ static void hud_batch_begin(void)
 {
     memset(rf_xbox_hud_batch,0,sizeof(rf_xbox_hud_batch));
     memset(rf_xbox_hud_reuse,0,sizeof(rf_xbox_hud_reuse));
-    hud_batch_flush();hud_batch_active=1;hud_batch_ready=0;
+    memset(rf_xbox_hud_texture,0,sizeof(rf_xbox_hud_texture));
+    hud_batch_flush();hud_batch_active=1;hud_batch_ready=0;hud_batch_pixels=NULL;
 }
 static void hud_batch_end(void)
 {
@@ -102,7 +107,7 @@ static void hud_batch_end(void)
      * drawn before capture publication, image mutation or an error return. */
     hud_batch_close_primitive();
     while(pb_busy()) {}
-    hud_batch_draws=hud_batch_active=hud_batch_ready=0;
+    hud_batch_draws=hud_batch_active=hud_batch_ready=0;hud_batch_pixels=NULL;
 }
 static void renderer_mark(uint32_t phase,uint32_t *previous,int enabled)
 {
@@ -163,8 +168,18 @@ static int scene_particle_present(void *context,const rf_particle_draw_vertex *v
     if(mode==0x18000u)return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
     return rf_xbox_particle_draw(vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
 }
-/* Only world particles/coronas use this sink. Screen flash, muzzle flash and
- * HUD retain their screen-space projection through scene_particle_present. */
+/* HUD coordinates and UVs are supplied by the scene/asset owners. Texture
+ * dimensions may include padding; never infer sprite size or apply world Z,
+ * camera scope, or reciprocal-world-depth conversion to these overlays. */
+static int scene_hud_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    uint32_t normal=RF_PARTICLE_NORMAL_MODE&~(31u<<20);
+    (void)context;
+    if(mode!=0x18000u && mode!=RF_PARTICLE_NORMAL_MODE && mode!=normal)return RF_NOT_FOUND;
+    return rf_xbox_particle_draw(vertices,count,image,mode&~(31u<<20),1,0,0,0);
+}
+/* Only world particles/coronas use this sink. HUD has its separate screen-space
+ * adapter above; standalone effects retain scene_particle_present semantics. */
 static int scene_world_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     rf_particle_draw_vertex zoomed[12];uint32_t i;float scale=rf_scene_scope_projection;
@@ -705,10 +720,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             if(status){while(pb_busy()) {}return status;}}
         if(streaming) {int status;hud_batch_begin();
             renderer_draw_mark(5,&draw_profile_previous,profiling);
-            status=rf_scene_draw_player_flash(scene_particle_present,NULL);
-            if(!status)status=rf_scene_draw_combat_hud(scene_particle_present,NULL);
-            if(!status)status=rf_scene_draw_player_blackout(scene_particle_present,NULL);
-            if(!status)status=rf_scene_draw_endgame(scene_particle_present,NULL);
+            status=rf_scene_draw_player_flash(scene_hud_present,NULL);
+            if(!status)status=rf_scene_draw_combat_hud(scene_hud_present,NULL);
+            if(!status)status=rf_scene_draw_player_blackout(scene_hud_present,NULL);
+            if(!status)status=rf_scene_draw_endgame(scene_hud_present,NULL);
             renderer_draw_mark(6,&draw_profile_previous,profiling);
             hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
@@ -759,6 +774,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
 #include "particle_vertex.inl"
     };
     gpu_texture texture={0};uint32_t *p,i,j,reuse_state,hud_triangles=0,hud_color_change=0,emit_count=count,base_mode=mode&~(31u<<20);
+    const uint32_t hud_state_words=8+5*(sizeof(program)/16)+128;
     uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u;int status;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !rf_finite_float(depth_scale) || !rf_finite_float(depth_bias))return RF_RANGE;
@@ -774,7 +790,14 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         for(j=0;j<2;j++)if(!rf_finite_float(vertices[i].screen[j]) || !rf_finite_float(vertices[i].uv[j]) ||
             !rf_finite_float(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
     }
-    if(hud_batch_active && !solid)return RF_FORMAT; /* This scope owns solid overlays only. */
+    if(hud_batch_active && !solid) {
+        /* Private HUD textures use ordinary source-alpha blending without Z.
+         * Native storage is owned by the scene until this entire pass drains. */
+        if(base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) || depth_mode ||
+           (fog_enabled&255u))return RF_FORMAT;
+        if(image->width>4096 || image->height>4096 ||
+           (uint64_t)image->width*image->height*(rf_image_is_packed_1555(image)?2u:4u)!=image->bytes)return RF_RANGE;
+    }
     if(!solid){status=upload(&texture,image,0,0);if(status!=RF_OK)return status;
         if(particle_batch_active)rf_xbox_particle_batch[2]+=image->width*image->height;}
     /* Only immediate vertex commands can intervene inside this private pass.
@@ -782,7 +805,20 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
      * completely determined by exact mode and texture address/format. */
     reuse_state=particle_batch_active && particle_batch_ready && particle_batch_mode==mode &&
         particle_batch_pixels==texture.pixels && particle_batch_format==texture.format;
-    if((!hud_batch_active || !hud_batch_ready) && !reuse_state) {
+    if(hud_batch_active)reuse_state=hud_batch_ready && hud_batch_mode==mode &&
+        hud_batch_pixels==texture.pixels && hud_batch_format==texture.format;
+    if(!reuse_state) {
+    if(hud_batch_active) {
+        /* A deferred HUD packet must be published before any independent
+         * shader/texture writer. Charge setup before writing it; a long run
+         * of texture switches must obey the same pushbuffer segment ceiling. */
+        hud_batch_close_primitive();
+        if(hud_batch_words>HUD_BATCH_WORD_LIMIT-hud_state_words)hud_batch_flush();
+        if(hud_batch_ready && ((hud_batch_mode==0x18000u)!=solid))++rf_xbox_hud_texture[3];
+        /* Lazy first-use assets may have been decoded after the frame's bulk
+         * vertex fence. Publish their native write-combined pixel stores now. */
+        if(!solid)__asm__ volatile("sfence" ::: "memory");
+    }
     p=pb_begin();
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_START,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_EXECUTION_MODE,
@@ -822,30 +858,35 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+i*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+    /* HUD forbids fog, but the textured fragment program still adds COLOR1.
+     * Set its exact zero once per state; texture batches may then omit it. */
+    if(hud_batch_active && !solid)p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+4*16,0,0,0,0);
     pb_end(p);if(hud_batch_active) {
-        hud_batch_ready=1;
+        hud_batch_ready=1;hud_batch_mode=mode;hud_batch_pixels=texture.pixels;hud_batch_format=texture.format;
         /* Eight control words, five words per vertex-program instruction,
          * and one state block bounded by pbkit's128-dword pair contract. */
-        hud_batch_note_words(8+5*(sizeof(program)/16)+128);
+        hud_batch_note_words(hud_state_words);
+        if(!solid)++rf_xbox_hud_texture[1];
     }
     if(particle_batch_active) {
         particle_batch_mode=mode;particle_batch_pixels=texture.pixels;
         particle_batch_format=texture.format;particle_batch_ready=1;
     }
-    } else if(reuse_state)++rf_xbox_particle_batch[3];
-    /* Ordinary HUD rectangles/triangles are uniform-color solid fans.
-     * Expand the quad's exact fan triangles, preserving primitive/alpha order
-     * and avoiding flat-shading provoking-vertex differences. Other fans keep
-     * their original topology after closing the pending triangle run. */
+    } else if(particle_batch_active)++rf_xbox_particle_batch[3];
+    else if(hud_batch_active && !solid)++rf_xbox_hud_texture[2];
+    /* Uniform-color HUD triangles/quads can share the exact installed solid
+     * or textured state. Expand the original fan as012/023, including each
+     * vertex's own UV/rhw; never combine across a mode or texture boundary.
+     * Nonuniform colors/larger fans keep their original topology. */
     if(hud_batch_active && count<=4) {
         hud_triangles=1;
         for(i=1;i<count;i++)if(vertices[i].argb!=vertices[0].argb)hud_triangles=0;
     }
     if(hud_triangles)emit_count=count==4?6:3;
     if(hud_batch_active) {
-        /* Include BEGIN/END and any pending triangle-run closure. Uniform
-         * solid output needs one color followed only by position commands. */
-        uint32_t needed=hud_triangles?5+emit_count*4+4:emit_count*20+6;
+        /* Include BEGIN/END and pending closure. Texture vertices add their
+         * own five-word UV/rhw method to the four-word XYZ position. */
+        uint32_t needed=hud_triangles?5+emit_count*(solid?4u:9u)+4:emit_count*20+6;
         if(hud_batch_words>HUD_BATCH_WORD_LIMIT-needed)hud_batch_flush();
     }
     if(hud_triangles) {
@@ -864,9 +905,10 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     }
     if(hud_triangles) {
         static const uint8_t quad_triangles[6]={0,1,2,0,2,3};uint32_t color=vertices[0].argb;
-        uint32_t words=(hud_color_change?5u:0u)+emit_count*4;
-        /* solid_fragment consumes COLOR0 only. Retain identical color values
-         * within this primitive and fill the existing128-word packet bound.
+        uint32_t words=(hud_color_change?5u:0u)+emit_count*(solid?4u:9u);
+        /* Retain identical color inside this primitive and fill the128-word
+         * packet bound. Textured state supplies zero fog; every textured
+         * vertex still writes all UV/rhw values before its position commits.
          * CPU inputs are copied now; only command publication may be delayed. */
         p=renderer_reserve(&hud_commands,words);
         if(hud_color_change) {
@@ -877,6 +919,8 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         } else ++rf_xbox_hud_reuse[1];
         for(i=0;i<emit_count;i++) {
             const rf_particle_draw_vertex *v=vertices+(count==4?quad_triangles[i]:i);
+            if(!solid)p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+9*16,
+                v->uv[0]*v->reciprocal_w,v->uv[1]*v->reciprocal_w,0,v->reciprocal_w);
             /* SET_VERTEX3F commits the same attribute0 with implicit w=1. */
             p=pb_push3f(p,NV097_SET_VERTEX3F,v->screen[0],v->screen[1],depth_bias+depth_scale*v->depth);
         }
@@ -905,6 +949,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     if(hud_batch_active) {
         ++rf_xbox_hud_batch[0];rf_xbox_hud_batch[1]+=count;
         ++rf_xbox_hud_batch[hud_triangles?2:3];rf_xbox_hud_batch[5]+=emit_count;
+        if(!solid)++rf_xbox_hud_texture[0];
     }
     /* HUD segments are admitted by explicit command-word budget above, with
      * END before every guarded reset/final fence. Immediate vertices are

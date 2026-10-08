@@ -183,6 +183,40 @@ static uint32_t image_u32(const unsigned char *p)
 {
     return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
 }
+int rf_image_tga_into(rf_image *atlas,uint32_t left,uint32_t top,uint32_t width,uint32_t height,
+    rf_vpp *archive,const rf_vpp_entry *entry)
+{
+    reader r;unsigned char h[18],pixel[4],id[255];uint32_t at=0,total,stride,alpha;int status;
+    if(!atlas || !atlas->rgba || !archive || !entry || !width || !height ||
+       !atlas->width || !atlas->height || atlas->width>4096 || atlas->height>4096 ||
+       (atlas->width&(atlas->width-1)) || (atlas->height&(atlas->height-1)) ||
+       (uint64_t)atlas->width*atlas->height*4!=atlas->bytes ||
+       (uint64_t)left+width>atlas->width || (uint64_t)top+height>atlas->height)return RF_RANGE;
+    memset(&r,0,sizeof(r));r.archive=archive;r.entry=entry;
+    status=read_bytes(&r,h,sizeof(h));if(status)return status;
+    alpha=h[17]&15;
+    if(h[1] || (h[2]!=2 && h[2]!=10) || (h[16]!=24 && h[16]!=32) ||
+       (h[17]&0xc0) || (alpha!=0 && alpha!=8) || (h[16]==24 && alpha) ||
+       (h[12]|(uint32_t)h[13]<<8)!=width || (h[14]|(uint32_t)h[15]<<8)!=height)return RF_FORMAT;
+    status=read_bytes(&r,id,h[0]);if(status)return status;
+    stride=h[16]/8;total=width*height;
+    while(at<total) {
+        uint32_t count=1,repeat=0,i;
+        if(h[2]==10) {
+            unsigned char packet;status=read_bytes(&r,&packet,1);if(status)return status;
+            count=(packet&127)+1;repeat=packet&128;
+        }
+        if(count>total-at)return RF_FORMAT;
+        for(i=0;i<count;++i,++at) {
+            uint32_t x=at%width,y=at/width;unsigned char *dst;
+            if(!repeat || !i){status=read_bytes(&r,pixel,stride);if(status)return status;}
+            if(h[17]&16)x=width-1-x;if(!(h[17]&32))y=height-1-y;
+            dst=rf_image_pixel(atlas,left+x,top+y);
+            dst[0]=pixel[2];dst[1]=pixel[1];dst[2]=pixel[0];dst[3]=alpha==8?pixel[3]:255;
+        }
+    }
+    return RF_OK;
+}
 static int vbm_decode(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget,
     uint32_t frame,int static_only,uint32_t *frame_count,uint32_t *frame_rate)
 {

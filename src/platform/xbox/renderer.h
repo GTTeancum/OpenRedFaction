@@ -32,6 +32,10 @@ int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materi
  * Native synthetic pixel probes pass; campaign integration remains pending.
  * Private streaming world-particle/HUD scopes batch these calls; their
  * ordered renderer boundaries retain the completed-frame lifetime fence.
+ * The dedicated HUD sink supplies direct screen depth and no-Z ordinary
+ * textured mode in addition to solids. Image pixels must stay owned and
+ * unchanged until the whole HUD pass returns, including error completion.
+ * Normalized UVs may select a logical subrectangle of a padded native image.
  * Standalone callers retain synchronous completion. */
 int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count,
     const rf_image *image,uint32_t mode,float depth_scale,float depth_bias,
