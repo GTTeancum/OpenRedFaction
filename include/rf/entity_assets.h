@@ -52,7 +52,13 @@ int rf_weapon_projectile_light(const rf_weapon_explosive_definition *,
 
 /* Named first-person resource binding: mesh, idle/fire and optional reload/alt.
  * Owns all names; missing/duplicate required fields preserve the output. */
-typedef struct rf_weapon_view_definition {char mesh[64],clips[4][64];uint32_t alt_loop;} rf_weapon_view_definition;
+/* First-person camera-local position relative to the eye and horizontal FOV in
+ * degrees from weapons.tbl. The normal offset is required; absent FOV uses
+ * original4c30a0's90-degree default. Split-screen fields are not SP overrides. */
+typedef struct rf_weapon_view_definition {
+    char mesh[64],clips[4][64];uint32_t alt_loop;
+    float position[3],fov;
+} rf_weapon_view_definition;
 int rf_weapon_view_read(const void *,uint32_t,const char *,rf_weapon_view_definition *);
 int rf_weapon_view_load(rf_vpp *,const char *,uint32_t,rf_weapon_view_definition *);
 

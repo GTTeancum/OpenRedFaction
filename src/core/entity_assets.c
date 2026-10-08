@@ -507,11 +507,26 @@ int rf_item_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_i
     free(text);return status;
 }
 
+static int weapon_view_position(lexer *l,float result[3])
+{
+    uint32_t i,start;char t[256];int quoted;lexer number;float value[3];
+    while(l->at<l->size && l->text[l->at]<=32)++l->at;
+    if(l->at==l->size || l->text[l->at++]!='<')return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        start=l->at;while(l->at<l->size && l->text[l->at]!=(i==2?'>':','))++l->at;
+        if(l->at==l->size)return RF_FORMAT;
+        number=(lexer){l->text+start,l->at-start,0};
+        if(sphere_number(&number,value+i) || token(&number,t,&quoted)!=RF_NOT_FOUND)return RF_FORMAT;
+        ++l->at;
+    }
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
 int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weapon_view_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_view_definition v={0};char t[256],file[64],alternate[64]={0};
     uint32_t mask=0,continuous_alt=0,continuous_primary=0;int selected=0,found=0,q,status,index;
     if(!text || !name || !*name || !result)return RF_RANGE;
+    v.fov=90; /* Original4c3084..4c30a9: optional descriptor+74, global59613c. */
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
         if(same(t,"$Name:")) {
@@ -531,10 +546,20 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
         } else if(same(t,"$1st")) {
             if(token(&l,t,&q) || q || !same(t,"Person"))return RF_FORMAT;
             if(token(&l,t,&q) || q)return RF_FORMAT;
-            if(!same(t,"Mesh:"))continue;
-            if(mask&1)return RF_FORMAT;
-            if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
-            status=rf_model_compiled_filename(file,v.mesh,".v3c");if(status)return status;mask|=1;
+            if(same(t,"Mesh:")) {
+                if(mask&1)return RF_FORMAT;
+                if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
+                status=rf_model_compiled_filename(file,v.mesh,".v3c");if(status)return status;mask|=1;
+            } else if(same(t,"offset:")) {
+                /*4c30ce..4c30e0 requires the normal offset at descriptor+4c.
+                 * "offset SS:" tokenizes differently and must not replace it. */
+                if(mask&64)return RF_FORMAT;
+                if(weapon_view_position(&l,v.position))return RF_FORMAT;mask|=64;
+            } else if(same(t,"FOV:")) {
+                if(mask&128)return RF_FORMAT;
+                if(sphere_number(&l,&v.fov))return RF_FORMAT;
+                if(v.fov<=0 || v.fov>=180)return RF_RANGE;mask|=128;
+            }
         } else if(same(t,"+State:") || same(t,"+Action:")) {
             int action=same(t,"+Action:");
             if(token(&l,t,&q) || !q)return RF_FORMAT;
@@ -554,7 +579,7 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
     if(!(mask&4) && continuous_primary && (mask&16)) {
         memcpy(v.clips[1],v.clips[3],64);mask|=4;
     }
-    if((mask&7)!=7)return RF_FORMAT;
+    if((mask&71)!=71)return RF_FORMAT;
     if(!continuous_alt)memcpy(v.clips[3],alternate,64);
     else if(!(mask&16))return RF_FORMAT;
     v.alt_loop=continuous_alt;

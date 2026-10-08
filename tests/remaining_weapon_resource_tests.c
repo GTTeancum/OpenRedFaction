@@ -1,6 +1,6 @@
 /* Installed remaining hitscan view owners: authored camera/action fixtures,
  * bounded residency reports, and evaluated playback using real meshes/motions.
- * Camera fields are table facts below, not output of the current view parser. */
+ * Camera fixtures below are inverse table offsets, consumed by the view owner. */
 #include "rf/player_weapon.h"
 #include <stdio.h>
 #include <string.h>
@@ -31,9 +31,12 @@ int main(void)
   CHECK(!status); /* Dual-continuous HMG must use the actual parser. */
   CHECK(!strcmp(view.mesh,c->mesh) && !strcmp(view.clips[0],c->idle));
   CHECK(!strcmp(view.clips[1],c->fire) && !strcmp(view.clips[2],c->reload));
+  CHECK(view.fov==c->fov);
+  for(i=0;i<3;i++)CHECK(view.position[i]==-c->camera[i]);
   CHECK(c->alternate_loop?(!strcmp(view.clips[3],c->fire) && view.alt_loop):!view.clips[3][0]);
   CHECK(!rf_weapon_primary_load(&tables,c->name,128*1024,&primary));
   CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&w));
+  CHECK(w->fov==view.fov && !memcmp(w->position,view.position,sizeof(view.position)));
   w->resources[1].looping=c->continuous;
   CHECK(!rf_player_weapon_step(w,0,1.f/60));
   for(action=1;action<4;action++) {

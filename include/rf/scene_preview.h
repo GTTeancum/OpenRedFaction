@@ -871,6 +871,9 @@ extern uint32_t rf_scene_enemy_awareness[8];
 extern uint32_t rf_scene_enemy_combat[8];
 extern uint32_t rf_scene_weapon_audio[9],rf_scene_impact_audio[9];
 extern uint32_t rf_scene_player_weapon[8];
+/* frame,weapon,view slot,offset[3],FOV,camera[3],clip scales[3],vertices,batches,status;
+ * floating values are raw IEEE32 words. */
+extern uint32_t rf_scene_player_weapon_view[16];
 extern uint32_t rf_scene_pistol_rules[7];
 extern uint32_t rf_scene_player_ammo[8];
 extern uint32_t rf_scene_pickups[8];

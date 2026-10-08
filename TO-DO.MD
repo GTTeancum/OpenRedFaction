@@ -1,10 +1,15 @@
 # Red Faction Xbox / PC - open work
 
+Current milestone (2026-10-08 22:27 UTC): restore authored first-person weapon offset/FOV and consistent clip projection; source is integrated and awaits the 23:00 cloud Xbox batch.
+
+Current first-playable implementation estimate is roughly90% overall. Core HUD implementation is complete for this scope; decorative refinements remain deferred. The 22:00 b84d973 build completed240 original L1S1 neutral frames at44.4XEMU presented FPS in64MiB. This does not establish live controller latency or active combat/zoom behavior. The next bounded L4S5 check uses ordinary movement/pickup/fire inputs and must not be compared as the same FPS benchmark.
+
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88% (provisional85-90% range, recalibrated2026-09-30); GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 Estimate correction (2026-09-30): The previous95% overstated integrated late-alpha functionality by treating broad subsystem presence as completion. Remaining work is not merely the last5% of polish. This estimate includes missing gameplay behavior and integration, not exhaustive testing or retail fidelity; no campaign playthrough is required to earn implementation credit.
 
 Remaining first-playable work, grouped for planning:
+- Correct weapon placement: Authored first-person offsets/FOV now drive camera-relative placement and consistent clipping; source-written for23:00 Xbox verification, with dynamic turn lag/sway still separate (docs/WEAPON-VIEW-PLACEMENT.md).
 - Dropped-weapon feedback: Successful corpse-weapon collection now requests the existing authored pickup notice and spatial sound after one-time retirement, with metadata-only class admission and unchanged grants; source-written for22:00 (docs/HUD-DROPPED-WEAPON-FEEDBACK.md).
 - Authored control hints: Training-message action tokens now expand read-only to actual Xbox buttons, with unsupported actions explicitly UNBOUND and stored text/deadlines intact; source-written for22:00, generic hover prompts deferred (docs/HUD-CONTROL-HINTS.md).
 - Detonator HUD correctness: Slot9 now reports live deployed owner-qualified charges and pending detonation, rather than misleading carried-ammo zero; rendering remains read-only and firing/save behavior unchanged, awaiting22:00 (docs/HUD-DETONATOR-STATE.md).

@@ -14,6 +14,9 @@ typedef struct rf_player_weapon {
     rf_motion_playback_state playback;rf_motion_playback_resource resources[4];
     float pose[50][12],prepared[50][12];uint16_t generations[50],prepared_generations[50];
     uint32_t current,initialized,resident_bytes,peak_bytes,clip_count;
+    /* Retained authored normal first-person placement; pose/skinning remain in
+     * model space. Scene placement consumes this once, after animation. */
+    float position[3],fov;
 } rf_player_weapon;
 int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     const rf_weapon_view_definition *definition,uint32_t budget,rf_player_weapon **result);

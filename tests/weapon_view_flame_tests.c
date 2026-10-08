@@ -5,9 +5,9 @@
 int main(void)
 {
     rf_vpp tables={0};rf_weapon_view_definition view,saved;
-    const char *loop_only="$Name: \"test\" $Flags: (\"continuous_fire\") $1st Person Mesh: \"a.v3d\" +State: \"idle\" \"idle.mvf\" +State: \"loop_fire\" \"loop.mvf\" +Action: \"alt_fire\" \"alt.mvf\"";
-    const char *missing="$Name: \"test\" $1st Person Mesh: \"a.v3d\" +State: \"idle\" \"idle.mvf\" +State: \"loop_fire\" \"loop.mvf\"";
-    const char *both="$Name: \"test\" $Flags: (\"continuous_fire\") $1st Person Mesh: \"a.v3d\" +State: \"idle\" \"idle.mvf\" +State: \"loop_fire\" \"loop.mvf\" +Action: \"fire\" \"fire.mvf\"";
+    const char *loop_only="$Name: \"test\" $Flags: (\"continuous_fire\") $1st Person Mesh: \"a.v3d\" $1st Person offset: <0,0,0> +State: \"idle\" \"idle.mvf\" +State: \"loop_fire\" \"loop.mvf\" +Action: \"alt_fire\" \"alt.mvf\"";
+    const char *missing="$Name: \"test\" $1st Person Mesh: \"a.v3d\" $1st Person offset: <0,0,0> +State: \"idle\" \"idle.mvf\" +State: \"loop_fire\" \"loop.mvf\"";
+    const char *both="$Name: \"test\" $Flags: (\"continuous_fire\") $1st Person Mesh: \"a.v3d\" $1st Person offset: <0,0,0> +State: \"idle\" \"idle.mvf\" +State: \"loop_fire\" \"loop.mvf\" +Action: \"fire\" \"fire.mvf\"";
     CHECK(!rf_weapon_view_read(loop_only,(uint32_t)strlen(loop_only),"test",&view));
     CHECK(!strcmp(view.clips[1],"loop.rfa") && !strcmp(view.clips[3],"alt.rfa") && !view.alt_loop);
     saved=view;CHECK(rf_weapon_view_read(missing,(uint32_t)strlen(missing),"test",&view)==RF_FORMAT);

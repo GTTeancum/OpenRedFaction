@@ -172,6 +172,7 @@ int main(int argc,char **argv)
     snprintf(path,sizeof(path),"%s/motions.vpp",argv[1]);CHECK(rf_vpp_open(&motions,path)==RF_OK);
     for(i=0;i<5;i++){snprintf(path,sizeof(path),"%s/%s",argv[1],map_names[i]);CHECK(rf_vpp_open(maps+i,path)==RF_OK);}
     CHECK(rf_player_weapon_open(&meshes,&motions,maps,5,1024*1024,&w)==RF_OK);
+    CHECK(w->fov==65 && w->position[0]==-.110f && w->position[1]==-.140f && w->position[2]==-.342f);
     {
         rf_vpp tables={0};rf_weapon_primary_definition d;
         snprintf(path,sizeof(path),"%s/tables.vpp",argv[1]);CHECK(rf_vpp_open(&tables,path)==RF_OK);
@@ -201,26 +202,39 @@ int main(int argc,char **argv)
         }
         {
             rf_weapon_view_definition view,saved;
-            const char *fixture="$Name: \"test\" $1st Person Mesh: \"test.v3d\" +State: \"idle\" \"idle.mvf\" +Action: \"fire\" \"fire.mvf\" \"\" +Action: \"reload\" \"reload.mvf\" \"\"";
+            const char *fixture="$Name: \"test\" $1st Person Mesh: \"test.v3d\" $1st Person offset: <-.1, .2, 3e-1> +State: \"idle\" \"idle.mvf\" +Action: \"fire\" \"fire.mvf\" \"\" +Action: \"reload\" \"reload.mvf\" \"\"";
             CHECK(rf_weapon_view_read(fixture,(uint32_t)strlen(fixture),"test",&view)==RF_OK);
-            CHECK(!strcmp(view.mesh,"test.v3c") && !strcmp(view.clips[2],"reload.rfa"));saved=view;
+            CHECK(!strcmp(view.mesh,"test.v3c") && !strcmp(view.clips[2],"reload.rfa"));
+            CHECK(view.fov==90 && view.position[0]==-.1f && view.position[1]==.2f && view.position[2]==.3f);saved=view;
             {char duplicate[1024];snprintf(duplicate,sizeof(duplicate),"%s +State: \"idle\" \"other.mvf\"",fixture);
              CHECK(rf_weapon_view_read(duplicate,(uint32_t)strlen(duplicate),"test",&view)==RF_FORMAT && !memcmp(&view,&saved,sizeof(view)));}
+            {char table[1024];const char *bad[]={"$1st Person offset: <1,2,3>","$1st Person FOV: 0",
+                "$1st Person FOV: 180","$1st Person FOV: nan","$1st Person FOV: 65 $1st Person FOV: 70"};
+             for(unsigned k=0;k<sizeof(bad)/sizeof(*bad);k++) {
+                 snprintf(table,sizeof(table),"%s %s",fixture,bad[k]);
+                 CHECK(rf_weapon_view_read(table,(uint32_t)strlen(table),"test",&view)!=RF_OK && !memcmp(&view,&saved,sizeof(view)));
+             }
+             snprintf(table,sizeof(table),"%s $1st Person FOV: 55 $1st Person FOV SS: 40 $1st Person offset SS: <9,8,7>",fixture);
+             CHECK(!rf_weapon_view_read(table,(uint32_t)strlen(table),"test",&view));
+             CHECK(view.fov==55 && !memcmp(view.position,saved.position,sizeof(view.position)));view=saved;}
 
             CHECK(rf_weapon_view_read(fixture,(uint32_t)strlen(fixture),"missing",&view)==RF_NOT_FOUND && !memcmp(&view,&saved,sizeof(view)));
             CHECK(rf_weapon_view_read(fixture,(uint32_t)strlen(fixture)-20,"test",&view)!=RF_OK && !memcmp(&view,&saved,sizeof(view)));
             CHECK(rf_weapon_view_load(&tables,"12mm handgun",128*1024,&view)==RF_OK);
             CHECK(!strcmp(view.mesh,"fp_glock.v3c") && !strcmp(view.clips[1],"fp_glock_fire.rfa"));
+            CHECK(view.fov==65 && !memcmp(view.position,w->position,sizeof(view.position)));
             CHECK(rf_weapon_view_load(&tables,"Assault Rifle",128*1024,&view)==RF_OK);
             CHECK(!strcmp(view.mesh,"fp_aslt_rfl.v3c") && !strcmp(view.clips[1],"fp_aslt_rfl_fire_burst.rfa"));
             CHECK(view.alt_loop && !strcmp(view.clips[3],"fp_aslt_rfl_fire.rfa"));
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024+8192,&rifle)==RF_OK);
+            CHECK(rifle->fov==65 && rifle->position[0]==-.064f && rifle->position[1]==.1f && rifle->position[2]==-.28f);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,rifle->resident_bytes-1,&other)==RF_RANGE && !other);
             memset(view.mesh,'x',64);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&other)==RF_RANGE && !other);
             CHECK(!rf_weapon_view_load(&tables,"Shotgun",128*1024,&view));
             CHECK(!strcmp(view.mesh,"fp_shotgun.v3c") && !strcmp(view.clips[1],"fp_shotgun_fire_slow.rfa"));
             CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&other));
+            CHECK(other->fov==55 && other->position[0]==-.020f && other->position[1]==.056f && other->position[2]==1.071f);
             CHECK(other->clip_count==4 && !view.alt_loop && !strcmp(view.clips[3],"fp_shotgun_fire_fast.rfa") && other->peak_bytes<=1024*1024);
             printf("Shotgun resources: resident=%u peak=%u\n",other->resident_bytes,other->peak_bytes);
             for(unsigned clip=0;clip<4;clip++) {

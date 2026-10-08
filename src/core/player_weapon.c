@@ -16,10 +16,13 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
     uint32_t i,j,used=sizeof(rf_player_weapon),scratch=sizeof(rf_model_file)+4+50*56;int status;
     if(!meshes || !motions || !maps || !map_count || !definition || !result || *result)return RF_RANGE;
     if(!memchr(definition->mesh,0,64) || !definition->mesh[0])return RF_RANGE;
+    if(!isfinite(definition->fov) || definition->fov<=0 || definition->fov>=180)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(definition->position[i]))return RF_RANGE;
     for(i=0;i<4;i++)if(!memchr(definition->clips[i],0,64) || (i<2 && !definition->clips[i][0]))return RF_RANGE;
     if(budget<used || budget-used<scratch)return RF_RANGE;
     w=calloc(1,sizeof(*w));model=calloc(1,sizeof(*model));bones=malloc(4+50*56);
     if(!w || !model || !bones){status=RF_IO;goto done;}
+    memcpy(w->position,definition->position,sizeof(w->position));w->fov=definition->fov;
     w->clip_count=definition->clips[3][0]?4:definition->clips[2][0]?3:2;
     status=rf_model_file_open(model,meshes,definition->mesh);if(status)goto done;
     for(i=0;i<model->section_count;i++)if(model->sections[i].type==0x424f4e45) {
@@ -55,7 +58,8 @@ done:
 int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     uint32_t budget,rf_player_weapon **result)
 {
-    const rf_weapon_view_definition pistol={"fp_glock.v3c",{"fp_glock_idle.rfa","fp_glock_fire.rfa","fp_glock_reload.rfa"},0};
+    const rf_weapon_view_definition pistol={"fp_glock.v3c",{"fp_glock_idle.rfa","fp_glock_fire.rfa","fp_glock_reload.rfa"},0,
+        {-.110f,-.140f,-.342f},65};
     return rf_player_weapon_open_view(meshes,motions,maps,map_count,&pistol,budget,result);
 }
 

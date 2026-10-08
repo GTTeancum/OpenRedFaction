@@ -18558,6 +18558,9 @@ static int scene_grenades_draw(scene_stream *stream)
     return RF_OK;
 }
 uint32_t rf_scene_player_weapon[8]; /* frames,clip,vertices,resident,peak,pose hash,status,reserved */
+/* frame,weapon ID,view slot,authored offset[3],FOV,camera[3],clip scale[3],
+ * emitted vertices,completed batches,status; floats are raw IEEE32 words. */
+uint32_t rf_scene_player_weapon_view[16];
 uint32_t rf_scene_rocket_visual[8]; /* frame, active flights, active meshes, emitted vertices, hash, resource bytes, status, reserved */
 static int scene_rockets_draw(scene_stream *s,uint32_t frame)
 {
@@ -18789,39 +18792,29 @@ static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
     rf_scene_player_weapon[5]=scene_diagnostic_hash(2166136261u,w->prepared,w->bone_count*48);
     stream->player_pose_frame=frame+1;return RF_OK;
 }
+#include "scene_player_weapon_view.inc"
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
 {
-    if(scene_turret_player_active())return RF_OK;
-    rf_player_weapon *w=stream->player_weapon[campaign_view_slot()];rf_model_projection view={0};
+    uint32_t view_slot=campaign_view_slot();
+    rf_player_weapon *w=stream->player_weapon[view_slot];rf_model_projection view={0};
     rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
     rf_model_render_output attributes={1,{255,255,255},255,1,1};
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
-    uint32_t batch,k,start;int status;
-    status=scene_player_weapon_advance(stream,frame);if(status)return status;
+    uint32_t batch,k,start=stream->mesh->count;int status;
+    memset(rf_scene_player_weapon_view,0,sizeof(rf_scene_player_weapon_view));
+    rf_scene_player_weapon_view[0]=frame+1;
+    rf_scene_player_weapon_view[1]=(uint32_t)campaign_slot_weapon(campaign_equipped_slot);
+    rf_scene_player_weapon_view[2]=view_slot;
+    if(scene_turret_player_active())return RF_OK;
+    status=scene_player_weapon_advance(stream,frame);if(status)goto done;
     if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)] || !w)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
-    /* First-pass camera-space presentation; shared65-degree FOV and fitted
-     * per-weapon camera offsets. Rifle pose extends behind the model origin.
-     * Independent depth band preserves self-occlusion without wall clipping. */
-    view.camera[0]=campaign_equipped_slot?-.064f:-.110f;view.camera[1]=campaign_equipped_slot?.3f:.140f;view.camera[2]=campaign_equipped_slot?-.9f:0;
-    if(campaign_equipped_slot==2)view.camera[0]=view.camera[1]=view.camera[2]=0;
-    if(campaign_equipped_slot==3){view.camera[0]=-.020f;view.camera[1]=.056f;view.camera[2]=-1.071f;}
-    /* weapons.tbl first-person offsets become the inverse model-space camera. */
-    if(campaign_equipped_slot==6){view.camera[0]=.05f;view.camera[1]=-.07f;view.camera[2]=.22f;}
-    if(campaign_equipped_slot==7){view.camera[0]=-1.43f;view.camera[1]=-.096f;view.camera[2]=-.277f;}
-    if(campaign_equipped_slot==8){view.camera[0]=-.3f;view.camera[1]=0;view.camera[2]=-.2f;}
-    if(campaign_equipped_slot==9){view.camera[0]=0;view.camera[1]=-.05f;view.camera[2]=.2f;}
-    if(campaign_equipped_slot==10){view.camera[0]=-.144f;view.camera[1]=1.476f;view.camera[2]=-.220f;}
-    if(campaign_equipped_slot==11){view.camera[0]=-.066f;view.camera[1]=.242f;view.camera[2]=-.154f;}
-    if(campaign_equipped_slot==12){view.camera[0]=-.448f;view.camera[1]=-.050f;view.camera[2]=.064f;}
-    if(campaign_equipped_slot==13){view.camera[0]=.294f;view.camera[1]=-.080f;view.camera[2]=-.056f;}
-    if(campaign_equipped_slot==14){view.camera[0]=-.168f;view.camera[1]=0;view.camera[2]=-.085f;}
-    if(campaign_equipped_slot==15){view.camera[0]=.130f;view.camera[1]=.080f;view.camera[2]=.150f;}
-    if(campaign_equipped_slot==16){view.camera[0]=.110f;view.camera[1]=.140f;view.camera[2]=.342f;}
-    view.rotation[0]=view.rotation[8]=view.rotation[4]=1;
-    view.screen[0]=320/tanf((campaign_equipped_slot==13?40.0f:campaign_equipped_slot==15?85.0f:campaign_equipped_slot==12?68.0f:(campaign_equipped_slot>=7 && campaign_equipped_slot<=9)?70.0f:65.0f)*3.14159265f/360);view.screen[1]=-view.screen[0];
-    view.screen[2]=320;view.screen[3]=240;view.perspective=view.compute_clip=view.clipping=1;
-    planes.near_depth=.01f;planes.far_depth=1000;projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
+    status=scene_player_weapon_view_prepare(w,&view,&projection);if(status)goto done;
+    memcpy(rf_scene_player_weapon_view+3,w->position,12);
+    memcpy(rf_scene_player_weapon_view+6,&w->fov,4);
+    memcpy(rf_scene_player_weapon_view+7,view.camera,12);
+    for(k=0;k<3;k++)memcpy(rf_scene_player_weapon_view+10+k,view.rotation+k*4,4);
+    planes.near_depth=.01f;planes.far_depth=1000;
     buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
     buffers.second=(float(*)[3])((uint8_t*)stream->npc_memory+4096*44);
     buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);buffers.capacity=4096;
@@ -18832,18 +18825,21 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
         if(material==UINT32_MAX)continue;
         if(material>=w->materials.count){status=RF_FORMAT;goto done;}
         memcpy(&slot,w->materials.items[material].record.bytes+0x10,4);
-        if(slot>=stream->player_weapon_textures[campaign_view_slot()]){status=RF_FORMAT;goto done;}
+        if(slot>=stream->player_weapon_textures[view_slot]){status=RF_FORMAT;goto done;}
         status=scene_model_scratch_prepare(&buffers,w->geometry.batches[batch].vertices);if(status)goto done;
         status=rf_model_geometry_render_batch(&w->geometry,batch,w->prepared,w->bone_count,&view,&lights,&attributes,&buffers);if(status)goto done;
         status=rf_preview_model_emit(&w->geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
             &attributes,stream->mesh,stream->capacity,&emitted);if(status)goto done;
+        ++rf_scene_player_weapon_view[14];
         for(k=first;k<stream->mesh->count;k++) {
-            rf_preview_vertex *v=stream->mesh->vertices+k;v->material=stream->player_weapon_base[campaign_view_slot()]+slot;
+            rf_preview_vertex *v=stream->mesh->vertices+k;v->material=stream->player_weapon_base[view_slot]+slot;
             v->position[2]=16384.0f/(1.0f+v->texture[2]);
         }
     }
     rf_scene_player_weapon[2]=stream->mesh->count-start;
 done:
+    rf_scene_player_weapon_view[13]=stream->mesh->count-start;
+    rf_scene_player_weapon_view[15]=(uint32_t)status;
     rf_scene_player_weapon[6]=status;return status;
 }
 #include "scene_undercover_gameplay.inc"
