@@ -82,8 +82,10 @@ reuse. Original inputs remain read-only; generated fixtures and compact reports
 are under ignored `artifacts/` paths. Disc configuration is restored after each
 batch.
 
-Generic `Switch` routing and visibility of an already-active vehicle remain
-outside this parked-owner slice. Moving/grouped support paths have consistent
+Generic `Switch` routing and visibility of an already-active vehicle were
+outside this parked-owner slice. Selected unoccupied host visibility and APC
+seated continuation now pass separately in [selected vehicle visibility](VEHICLE-ACTIVE-VISIBILITY.md);
+occupied Hide remains unsupported. Moving/grouped support paths have consistent
 source gates but were not independently exercised here. No new guided-shot,
 visible appearance, audio, dead-owner resurrection or broad campaign claim is
 made. Overall working-alpha and vehicle estimates remain approximately 88% and

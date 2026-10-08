@@ -28,8 +28,7 @@ int main(void)
             CHECK(!(v?scene_jeep_checkpoint_seat_prepare(&stream,&jeep,&player,&placement,&scratch):
                 scene_apc_checkpoint_seat_prepare(&stream,&apc,&player,&placement,&scratch)));
             CHECK(!memcmp(placement.basis,body,36) && placement.query_flags==4 && placement.replaced_room==7);
-            if(v){CHECK(placement.count==1 && placement.spheres==&scratch && !memcmp(&scratch,spheres+1,sizeof(scratch)));}
-            else{CHECK(placement.count==3 && placement.spheres==spheres && !memcmp(&scratch,&saved,sizeof(scratch)));}
+            CHECK(placement.count==1 && placement.spheres==&scratch && !memcmp(&scratch,spheres+1,sizeof(scratch)));
             kept=placement;saved=scratch;player.position[0]+=.02f;
             CHECK((v?scene_jeep_checkpoint_seat_prepare(&stream,&jeep,&player,&placement,&scratch):
                 scene_apc_checkpoint_seat_prepare(&stream,&apc,&player,&placement,&scratch))==RF_FORMAT);

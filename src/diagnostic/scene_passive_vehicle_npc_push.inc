@@ -88,7 +88,7 @@ static int scene_passive_vehicle_npc_push(scene_stream *s,campaign_npc_body *npc
         if(status)goto fail;
         /* The ordinary NPC sweep has no active-host overlay. Keep that host
          * as a clearance blocker too, using this NPC's actual identity. */
-        if(s->driller_runtime){
+        if(scene_driller_visible(s)){
             const scene_driller_runtime *r=s->driller_runtime;scene_driller_actor_collision active={0};
             active.spheres=r->physics.collision;active.count=r->physics.sphere_count;
             active.handle=r->entry.host.handle;active.driver=r->entry.host.driver;

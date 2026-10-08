@@ -23,7 +23,8 @@ static int scene_driller_projectile_query(uint32_t source,const float start[3],c
     if(!start||!delta||!out||!matched||!isfinite(radius)||radius<0||!isfinite(limit)||limit<0||limit>1)return RF_RANGE;
     *matched=0;
     for(i=0;i<3;i++)if(!isfinite(start[i])||!isfinite(delta[i]))return RF_RANGE;
-    if(scene_driller_damage_runtime_valid(owner)&&!scene_driller_projectile_source_excluded(owner,source)) {
+    if(scene_driller_damage_runtime_valid(owner)&&!(owner->damage.object_flags&0x4000u)&&
+       !scene_driller_projectile_source_excluded(owner,source)) {
         physics=owner->entry->physics;
         if(!physics||!physics->sphere_count||physics->sphere_count>8)return RF_RANGE;
         /* Borrow initialized physics spheres; collision-body rows differ in layout. */

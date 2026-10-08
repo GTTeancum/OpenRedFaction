@@ -180,7 +180,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     status=scene_vehicle_switch_quiet(&r->physics.state,&quiet);if(status)goto done;if(!quiet){reason=5;goto reject;}
     range=s->driller->physics.authored.use_radius;if(!isfinite(range)||range<=0){status=RF_FORMAT;goto done;}
     best=0;for(uint32_t j=0;j<3;j++){double d=(double)scene_actor_body.state.position[j]-r->physics.state.position[j];best+=d*d;}
-    if(wreck||best>range*range)best=DBL_MAX; /* Out-of-range hosts do not compete. */
+    if(wreck||!scene_driller_visible(s)||best>range*range)best=DBL_MAX; /* Hidden/out-of-range hosts do not compete. */
     for(uint32_t i=0;i<campaign_passive_vehicle_count;i++){
         scene_passive_vehicle *p=campaign_passive_vehicles+i;double d2=0;uint32_t source;rf_level_entity_spawn spawn;
         uint32_t candidate=p->resource_kind==3?1:p->resource_kind==4?2:p->resource_kind==5?3:p->resource_kind==0?4:p->resource_kind==1?5:0;

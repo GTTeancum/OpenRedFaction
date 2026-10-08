@@ -183,14 +183,16 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
     status=scene_vehicle_physics_checkpoint_admit(stream,vehicle_physics,vehicle_present?&vehicle:NULL,passive);if(status)goto done;
     status=scene_vehicle_switch_checkpoint_admit(stream,vehicle_switch,vehicle_present?&vehicle:NULL,passive,vehicle_physics);if(status)goto done;
-    status=scene_npc_seat_checkpoint_hosts(seats,turrets,vehicle_present?&vehicle:NULL);if(status)goto done;
+    status=scene_npc_seat_checkpoint_hosts(seats,turrets,vehicle_present?&vehicle:NULL,
+        scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
     phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive,seats);if(status)goto done;cost+=world->allocated_bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
         environment->support_point_present?environment->support_point_velocity:NULL,
         vehicle_present?&vehicle:NULL,passive,&player);if(status)goto done;
-    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle,seats);if(status)goto done;}
+    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,&vehicle,seats,
+        scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;}
     if(player.player.player.weapon==UINT32_MAX)found=1;
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){
         selected=i;found=1;break;}

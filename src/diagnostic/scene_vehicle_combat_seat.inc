@@ -4,7 +4,7 @@
 #include "rf/jeep_checkpoint.h"
 #include "rf/player_checkpoint.h"
 /* Pure saved-seat placement. Output borrows immutable world/player resources;
- * Jeep's one sphere lives in caller scratch, never a stack local. RFPL inventory
+ * Ground vehicles' seated head sphere lives in caller scratch, never a stack local. RFPL inventory
  * validation, pending-world fit and publication remain caller responsibilities. */
 static int scene_vehicle_combat_seat_prepare(const scene_stream *s,const rf_vehicle_checkpoint *host,
     const rf_player_checkpoint *player,const char *model,const char *seat,const float *locked_basis,
@@ -43,7 +43,7 @@ static int scene_apc_checkpoint_seat_prepare(const scene_stream *s,const rf_apc_
     const rf_player_checkpoint *player,rf_checkpoint_placement *out,rf_physics_sphere *scratch)
 {
     int status;if(!record)return RF_RANGE;status=rf_apc_checkpoint_validate(record);if(status)return status;
-    return scene_vehicle_combat_seat_prepare(s,&record->vehicle,player,"APC.v3m","interface_1",NULL,0,out,scratch);
+    return scene_vehicle_combat_seat_prepare(s,&record->vehicle,player,"APC.v3m","interface_1",NULL,1,out,scratch);
 }
 static int scene_jeep_checkpoint_seat_prepare(const scene_stream *s,const rf_jeep_checkpoint *record,
     const rf_player_checkpoint *player,rf_checkpoint_placement *out,rf_physics_sphere *scratch)

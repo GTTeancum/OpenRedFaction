@@ -40,7 +40,7 @@ static int scene_world_vehicle_other_pair(void *context,uint32_t i,uint32_t j,
 }
 static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_restore_stage *world,
     const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record,
-    const scene_npc_seat_checkpoint_stage *seats)
+    const scene_npc_seat_checkpoint_stage *seats,uint32_t hidden)
 {
     scene_driller_physics physics;scene_checkpoint_world_context context;
     scene_world_vehicle_pair_context pairs={0};rf_collision_room_location location;
@@ -55,6 +55,12 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     status=scene_vehicle_checkpoint_physics(stream,&record->value.vehicle,&physics);
     rf_scene_vehicle_restore_trace[0]=2;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
     if(status)return status;rf_scene_vehicle_restore_trace[3]=physics.sphere_count;
+    /* Hidden owners have no live hull. Identity, finite rigid state and
+     * hidden/occupancy consistency were admitted before this placement step. */
+    if(hidden){
+        if(hidden!=1||record->value.vehicle.player_occupied)return RF_FORMAT;
+        rf_scene_vehicle_restore_trace[0]=6;return RF_OK;
+    }
     pairs.vehicle.spheres=physics.spheres;pairs.vehicle.count=physics.sphere_count;
     pairs.vehicle.query_flags=4;
     memcpy(pairs.vehicle.position,record->value.vehicle.position,12);

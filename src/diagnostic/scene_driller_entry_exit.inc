@@ -67,6 +67,8 @@ static int scene_driller_player_shape(scene_driller_entry_exit *c,scene_vehicle_
     return scene_vehicle_collision_valid(query);
 }
 #include "scene_vehicle_seated_clearance.inc"
+static uint32_t scene_driller_seated_head(const scene_driller_entry_exit *c)
+{return !strcmp(c->resource->model,"Jeep01.v3m")||!strcmp(c->resource->model,"APC.v3m");}
 /* First Jeep admission: attempts, stage(range1/path2), allowed, status,
  * distance squared, radius, player xyz, host xyz. Floats are bitcasts. */
 uint32_t rf_scene_jeep_entry_probe[12];
@@ -90,6 +92,7 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
     trace[3]=host;memcpy(trace+7,&range,4);memcpy(trace+8,c->player_body->state.position,12);
     *allowed=0;
     if(rf_entity_lookup(c->entities,(int32_t)player)!=c->player_view || host!=c->registration.handle){trace[5]=(uint32_t)RF_NOT_FOUND;return RF_NOT_FOUND;}
+    if(c->view.flags_7c&0x4000u)return RF_OK;
     if(c->resource->physics.authored.movement_index==7){
         ++rf_scene_submarine_boarding[0];
         memcpy(rf_scene_submarine_boarding+5,c->player_body->state.position,12);
@@ -116,7 +119,7 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
         status=c->water_path(c->water_context,spheres,query.count,&from,&seat,&wet);
         if(status || !wet){if(!wet)++rf_scene_submarine_boarding[2];trace[5]=(uint32_t)status;return status;}
     }
-    if(!strcmp(c->resource->model,"Jeep01.v3m")){
+    if(scene_driller_seated_head(c)){
         scene_vehicle_pose from;memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=scene_vehicle_seated_path(c,&from,&seat,allowed);
         if(sample){rf_scene_jeep_entry_probe[1]=2;rf_scene_jeep_entry_probe[2]=*allowed;rf_scene_jeep_entry_probe[3]=(uint32_t)status;}
@@ -154,7 +157,7 @@ static int scene_driller_exit_pose(void *context,uint32_t player,uint32_t host,s
         local[axis]=sign*(extent+body.radius+.15f);
         scene_driller_point(c->physics->state.position,c->physics->state.orientation,local,candidate.position);
         candidate.position[1]=seat.position[1];
-        if(!strcmp(c->resource->model,"Jeep01.v3m")){
+        if(scene_driller_seated_head(c)){
             uint32_t head_clear;
             /* Low seated body origins are below standing floor height. Probe
              * a standing exit from seat-eye height, then establish full-body

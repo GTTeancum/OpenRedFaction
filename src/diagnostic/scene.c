@@ -10250,12 +10250,15 @@ static int campaign_set_vehicle_exit_lock(void *context,uint32_t handle,uint32_t
     return RF_OK;
 }
 #include "scene_nano_shield.inc"
+static int scene_active_vehicle_set_visible(uint32_t handle,uint32_t visible);
 static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
 {
-    uint32_t i;void *registered;(void)context;
+    uint32_t i;void *registered;int status;(void)context;
     if(visible>1)return RF_RANGE;
     registered=rf_object_registry_lookup(&campaign_registry,handle);
     if(!registered)return RF_NOT_FOUND;
+    status=scene_active_vehicle_set_visible(handle,visible);
+    if(status!=RF_NOT_FOUND)return status;
     for(i=0;i<campaign_passive_vehicle_count;i++) {
         scene_passive_vehicle *owner=campaign_passive_vehicles+i;
         uint32_t before,eligible,slot,*trace;
@@ -13039,7 +13042,7 @@ static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,u
 #include "scene_turret_generated_checkpoint_adapter.inc"
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
-    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *);
+    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *,uint32_t);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_storage.inc"
@@ -13157,6 +13160,7 @@ done:
     rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status)printf("GEOMOD_CHECKPOINT_ERROR load %d\n",status);return status;
 }
 static int scene_script_physics_save_allowed(const scene_stream *);
+static uint32_t scene_vehicle_visibility_legacy_save_allowed(const scene_stream *);
 static int scene_checkpoint_capture(scene_stream *s)
 {
     FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
@@ -13173,6 +13177,7 @@ static int scene_checkpoint_capture(scene_stream *s)
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
     if(prefix && !scene_script_physics_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
+    if(prefix && !scene_vehicle_visibility_legacy_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix){status=scene_remote_checkpoint_capture(remote_blob,sizeof(remote_blob),&remote_bytes);if(status)goto done;}
     if(prefix){status=scene_vehicle_checkpoint_capture(s,vehicle_blob,&vehicle_bytes);if(status)goto done;}
     if(s->terrain_authored) {
@@ -17512,6 +17517,8 @@ failed:
  * Routing, slope support and full authored movement-mode semantics remain open. */
 #include "scene_npc_rotating_support_fixture.inc"
 #include "scene_passive_vehicle_npc_push.inc"
+#include "scene_active_vehicle_visibility_fixture.inc"
+#include "scene_active_vehicle_visibility_audit.inc"
 #include "scene_group_control_fixture.inc"
 #include "scene_occupied_mover_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
@@ -19020,15 +19027,19 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
         status=scene_passive_vehicle_draw(stream);if(status)return status;
-        if(stream->driller && (!scene_driller_active(stream) || (rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat)))){uint32_t submissions,vertices;
+        memset(rf_scene_active_vehicle_draw,0,sizeof(rf_scene_active_vehicle_draw));
+        rf_scene_active_vehicle_draw[0]=frame;
+        rf_scene_active_vehicle_draw[3]=stream->driller_runtime&&!scene_driller_visible(stream);
+        if(stream->driller && scene_driller_visible(stream) && (!scene_driller_active(stream) || (rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat)))){uint32_t submissions,vertices;
             status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
             if(status)return status;
+            rf_scene_active_vehicle_draw[1]=submissions;rf_scene_active_vehicle_draw[2]=vertices;
         }
-        if(stream->jeep_gun){uint32_t submissions,vertices;
+        if(stream->jeep_gun && scene_driller_visible(stream)){uint32_t submissions,vertices;
             status=scene_driller_draw(stream,stream->jeep_gun->model,stream->jeep_gun_pose+9,stream->jeep_gun_pose,
                 stream->jeep_gun_base,stream->jeep_gun_textures,&submissions,&vertices);if(status)return status;
         }
-        if(stream->driller_bits){uint32_t bit,submissions,vertices;
+        if(stream->driller_bits && scene_driller_visible(stream)){uint32_t bit,submissions,vertices;
             for(bit=0;bit<2;bit++){float pose[12];
                 status=scene_driller_bit_animation_pose(stream->driller_bits,&stream->driller->tags,
                     stream->driller_position,stream->driller_basis,bit,stream->driller_weapon.phase,pose);if(status)return status;
@@ -19287,6 +19298,8 @@ modal_step_done:
             if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
         scene_player_support_save_fixture_tick(frame);
+        scene_active_vehicle_visibility_fixture_tick(stream,frame);
+        scene_active_vehicle_visibility_audit_tick(stream,frame);
 #ifdef RF_IMAGE_XBOX_NATIVE
         if(scene_section_autosave_pending && frame>=30){
             int saved,ready;

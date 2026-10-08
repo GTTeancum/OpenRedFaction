@@ -118,7 +118,7 @@ static uint32_t scene_npc_seat_checkpoint_owns(const scene_npc_seat_checkpoint_s
 /* Before NPC staging: construct expected seats from candidate host poses,
  * never the freshly spawned host pose. Detached rows need no candidate host. */
 static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *s,
-    const scene_turret_checkpoint_stage *turrets,const scene_vehicle_checkpoint_record *vehicle)
+    const scene_turret_checkpoint_stage *turrets,const scene_vehicle_checkpoint_record *vehicle,uint32_t vehicle_hidden)
 {
     uint32_t i,j;int status;if(!s)return RF_OK;
     for(i=0;i<s->count;i++) {
@@ -131,6 +131,7 @@ static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *s,
         if(j==scene_npc_seat_count)return RF_FORMAT;
         status=scene_npc_seat_host_read(scene_npc_seats+j,&h);if(status)return status;
         if(v->binding.kind==SCENE_NPC_SEAT_JEEP) {
+            if(vehicle_hidden)return RF_FORMAT;
             status=scene_jeep_gunner_checkpoint_host(v,vehicle);if(status)return status;
             position=vehicle->value.jeep.vehicle.position;basis=vehicle->value.jeep.vehicle.orientation;
         }else {

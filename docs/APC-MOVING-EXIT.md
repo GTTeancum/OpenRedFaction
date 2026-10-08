@@ -31,6 +31,12 @@ There is no new persistent owner, allocation, wire format or timing hook in `sce
 
 Parent command: `python tools/xemu_apc_moving_exit.py`. `--prepare-only artifacts/fixtures/apc-moving-exit` only generates ignored fixture inputs. The harness retains the complete installed L1S3 APC9627 record except its transform, uses empty CTF06 geometry under the existing L1S3 selector, and sets a known player-start orientation without changing its position. No NPC passenger is synthesized.
 
+The current harness retains and normally activates original UnHide9628 at
+frame0 because selected hosts now honor authored hidden creation. Settled APC
+entry/exit and saved seating use the shared actual-head policy, verified
+separately in [selected vehicle visibility](VEHICLE-ACTIVE-VISIBILITY.md).
+That batch updated this fixture's preparation but did not rerun its moving replay.
+
 Process-local replay boards30, drives45..140, turns100..140, exits140 and walks150..174; stop180. A pass requires an actually moving exit frame, one completed ownership release, final-pose full-body hull exclusion, no transient error, and subsequent alive on-foot movement. Merely reaching the frame count is insufficient. Native clearance rejection or lack of motion remains a failed fixture, not inferred success. No screenshots, host input, campaign traversal, save/load or destroyed-host exit coverage is claimed.
 
 ## Installed seat scope

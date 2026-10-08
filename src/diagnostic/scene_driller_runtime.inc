@@ -32,6 +32,9 @@ struct scene_driller_runtime {
 uint32_t rf_scene_vehicle_state[16];
 uint32_t rf_scene_jeep_seats[8]; /* ticks,driver frames,gunner frames,switches,role,seat,steer,fire */
 uint32_t rf_scene_vehicle_damage[8]; /* health bits,amount bits,calls,destroyed,pending,exits,source,alive */
+uint32_t rf_scene_active_vehicle_visibility[8]; /* calls,reveals,hides,dead skips,occupied rejects,UID,handle,flags */
+uint32_t rf_scene_active_vehicle_visibility_history[8][8]; /* frame,UID,handle,visible,before,after,health,occupied */
+uint32_t rf_scene_active_vehicle_draw[4]; /* frame,body submissions,vertices,hidden */
 uint32_t rf_scene_passive_npc_blocker_fixture[10]; /* placements,UID,handle,initial XYZ,current XYZ,error */
 uint32_t rf_scene_passive_npc_blocker_separation[4]; /* pairs,min sphere gap bits,axis gap bits,error */
 /* Read-only owner layout for bounded affiliation/handoff/save checks. */
@@ -39,6 +42,45 @@ const uint32_t rf_scene_vehicle_affiliation_layout[3]={
     offsetof(scene_passive_vehicle,damage.state.effects.affiliation),
     offsetof(scene_driller_damage_runtime,damage.state.effects.affiliation),
     offsetof(scene_driller_damage_runtime,damage.state.effects.handle)};
+static uint32_t scene_driller_visible(const scene_stream *s)
+{return s&&s->driller_runtime&&!(s->driller_runtime->damage.damage.object_flags&0x4000u);}
+static uint32_t scene_vehicle_visibility_legacy_save_allowed(const scene_stream *s)
+{
+    if(!s||!s->driller_runtime)return 1;
+    if(!scene_driller_visible(s))return 0;
+    for(uint32_t i=0;i<campaign_seeds.records.count;i++)
+        if(campaign_seeds.records.items[i].record.uid==campaign_authored_vehicle_uid&&
+           (campaign_seeds.items[i].spawn.creation_flags&2u))return 0;
+    return 1; /* RFCP has no active visibility field; ordinary RFWC does. */
+}
+static int scene_active_vehicle_set_visible(uint32_t handle,uint32_t visible)
+{
+    scene_driller_damage_runtime *owner=scene_driller_damage_owner;
+    scene_driller_entry_exit *entry;uint32_t before,slot,*trace,occupied;
+    if(visible>1)return RF_RANGE;
+    if(!scene_driller_damage_runtime_valid(owner)||owner->damage.state.effects.handle!=handle||
+       rf_object_registry_lookup(&campaign_registry,handle)!=&owner->entry->registration)return RF_NOT_FOUND;
+    entry=owner->entry;before=owner->damage.object_flags;
+    occupied=entry->session.active||entry->host.driver!=UINT32_MAX||entry->occupant!=-1||entry->gunner_occupant!=-1;
+    slot=rf_scene_active_vehicle_visibility[0]++;
+    /* Downstream occupied Hide/ejection is not reconstructed. Keep the
+     * existing unsupported result, without changing physical ownership. */
+    if(!visible&&occupied)++rf_scene_active_vehicle_visibility[4];
+    else if(owner->damage.destroyed||!entry->host.alive||owner->damage.state.effects.health<=0||(before&2u))
+        ++rf_scene_active_vehicle_visibility[3];
+    else {
+        if(visible)owner->damage.object_flags&=~0x4000u;else owner->damage.object_flags|=0x4000u;
+        entry->view.flags_7c=owner->damage.object_flags;
+        ++rf_scene_active_vehicle_visibility[visible?1:2];
+    }
+    rf_scene_active_vehicle_visibility[5]=(uint32_t)campaign_authored_vehicle_uid;
+    rf_scene_active_vehicle_visibility[6]=handle;rf_scene_active_vehicle_visibility[7]=owner->damage.object_flags;
+    if(slot<8){trace=rf_scene_active_vehicle_visibility_history[slot];
+        trace[0]=rf_scene_profile_stage[0];trace[1]=(uint32_t)campaign_authored_vehicle_uid;
+        trace[2]=handle;trace[3]=visible;trace[4]=before;trace[5]=owner->damage.object_flags;
+        memcpy(trace+6,&owner->damage.state.effects.health,4);trace[7]=occupied;}
+    return !visible&&occupied?RF_NOT_FOUND:RF_OK;
+}
 uint32_t rf_scene_drill_state[8]; /* ticks,contacts,damage,cuts,requests,rejections,postwork,status */
 static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t handle,
     float position[3],float *health)
@@ -49,7 +91,7 @@ static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t han
     if(r&&handle==r->entry.host.handle){
         memcpy(position,r->physics.state.position,12);
         *health=r->damage.damage.state.effects.health;
-        return r->entry.host.alive && *health>0;
+        return r->entry.host.alive && *health>0 && !(r->damage.damage.object_flags&(2u|0x4000u));
     }
     for(i=0;i<campaign_passive_vehicle_count;i++){
         const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
@@ -88,7 +130,7 @@ static int scene_driller_player_collision(scene_stream *s,const rf_collision_bod
     rf_geometry_body_hit *hit,uint32_t *matched)
 {
     scene_driller_actor_collision host={0};scene_driller_runtime *r;int status;
-    if(!s || !(r=s->driller_runtime))return RF_OK;
+    if(!s || !(r=s->driller_runtime) || !scene_driller_visible(s))return RF_OK;
     host.spheres=r->physics.collision;host.count=r->physics.sphere_count;
     host.handle=r->entry.host.handle;host.driver=r->entry.host.driver;host.material=s->driller->physics.material.index;
     memcpy(host.position,r->physics.state.position,12);memcpy(host.next_position,host.position,12);
@@ -582,6 +624,7 @@ static int scene_driller_runtime_open(scene_stream *s)
          * Occupied damage attribution still follows the current driver. */
         authored_damage.state.effects.affiliation=campaign_seeds.items[source].spawn.friendliness;
         authored_damage.object_flags=vitals.object_flags;
+        if(campaign_seeds.items[source].spawn.creation_flags&2u)authored_damage.object_flags|=0x4000u;
         authored_damage.destroyed=vitals.health<=0;
     }
     if(rf_scene_vehicle_enabled==1){
@@ -635,6 +678,8 @@ static void scene_driller_runtime_audio_start(scene_stream *s)
     if(rf_scene_vehicle_enabled==2)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"APC_idle.wav",8,.5f,.4f);
     else if(rf_scene_vehicle_enabled==3)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"Jeep_idle.wav",6,.8f,.6f);
     else if(rf_scene_vehicle_enabled==1)(void)scene_driller_audio_open(&r->audio,r->physics.state.position);
+    if(r->audio.active&&!scene_driller_visible(s))
+        (void)scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,1);
 }
 #include "scene_vehicle_ai_mode.inc"
 /* Shared rigid owner follows the event's authored waypoint path. This is a
@@ -869,7 +914,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     status=scene_driller_player_publish(&r->player,&r->entry,changed);if(status)goto fail;
     if(rf_scene_vehicle_enabled==3 && was && !r->entry.session.active){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     if(!controls)r->jeep_seat.held=player_input.cycle_weapon;
-    stage=4;if(r->audio.active){status=scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,!r->entry.host.alive);if(status)goto fail;}
+    stage=4;if(r->audio.active){status=scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,!r->entry.host.alive||!scene_driller_visible(s));if(status)goto fail;}
     stage=5;
     r->contact.stream=s;r->contact.frame=frame;r->contact.source=r->entry.host.handle;r->contact.has_world=0;
     if(rf_scene_vehicle_enabled==1){scene_driller_weapon_backend weapon_backend={&r->contact,scene_driller_live_trace,scene_driller_live_damage,scene_driller_runtime_cut};

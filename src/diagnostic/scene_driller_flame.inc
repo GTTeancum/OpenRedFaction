@@ -31,7 +31,7 @@ static int scene_driller_flame_pulse(scene_stream *stream,uint32_t frame,const f
     if(!stream||!origin||!forward||!request||!contact||!amount||request->kind!=4||
        !isfinite(request->amount)||request->amount<0)return RF_RANGE;
     *contact=0;*amount=0;
-    if(!scene_driller_damage_runtime_valid(owner)||owner->damage.destroyed||
+    if(!scene_driller_damage_runtime_valid(owner)||owner->damage.destroyed||(owner->damage.object_flags&0x4000u)||
        scene_driller_projectile_source_excluded(owner,request->source))return RF_OK;
     physics=owner->entry->physics;if(!physics||!physics->sphere_count||physics->sphere_count>8)return RF_RANGE;
     for(i=0;i<physics->sphere_count;i++){

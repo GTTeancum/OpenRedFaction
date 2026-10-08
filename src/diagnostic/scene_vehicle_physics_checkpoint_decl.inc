@@ -3,6 +3,7 @@
 typedef struct scene_vehicle_physics_checkpoint_stage scene_vehicle_physics_checkpoint_stage;
 struct scene_passive_vehicle_checkpoint_stage;
 static uint32_t scene_vehicle_physics_checkpoint_bytes(const scene_vehicle_physics_checkpoint_stage *);
+static uint32_t scene_vehicle_physics_checkpoint_active_hidden(const scene_vehicle_physics_checkpoint_stage *);
 static void scene_vehicle_physics_checkpoint_close(scene_vehicle_physics_checkpoint_stage **);
 static int scene_vehicle_physics_checkpoint_capture(const scene_stream *,unsigned char *,uint32_t,uint32_t,uint32_t *);
 static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *,const unsigned char *,uint32_t,uint32_t,
