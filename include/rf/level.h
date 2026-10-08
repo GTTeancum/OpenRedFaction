@@ -201,6 +201,19 @@ typedef struct rf_level_entity_spawn {
  * checks raw span boundaries/exact exhaustion; errors preserve output. This is
  * a projection of validated input, not complete factory state initialization. */
 int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result);
+/* 46423b/464246 ->46498d..4649be: second byte in the six-byte block
+ * following the two relationship strings; exactly1 starts vehicle lamps ON.
+ * Validates the complete retained v180 span without changing spawn ABI. */
+int rf_level_entity_headlamp_read(const rf_level_owned_entity *entity,uint32_t *enabled);
+
+typedef struct rf_level_entity_ai {
+    uint32_t enabled,mode,attack_style;int32_t fov_degrees;
+} rf_level_entity_ai;
+/*46423b/464996: exact1 in the second early switch enables actor810 bit10000.
+ *4643ad/4643bf retain the two AI bytes;464319 reads signed instance FOV.
+ * Validates the complete v180 record, without changing spawn ABI or inferring
+ * combat from affiliation. Values are authored inputs, not a live AI state. */
+int rf_level_entity_ai_read(const rf_level_owned_entity *,rf_level_entity_ai *);
 
 typedef struct rf_level_entity_vitals {float health,armor;} rf_level_entity_vitals;
 /* Retained v180 instance values, before class clamping. Exactly -1 inherits;

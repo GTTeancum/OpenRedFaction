@@ -11,6 +11,7 @@ typedef struct scene_npc_checkpoint_restore_entry {
     rf_npc_checkpoint_record saved,before;
     campaign_npc_body owner_before;rf_entity_pose pose_before;
     rf_physics_body_state body;rf_entity_room_state room;rf_physics_support_contact support;
+    rf_movement_settings movement;uint32_t movement_slot;
     rf_entity_motion_selection selection;rf_motion_playback_state playback;
     rf_level_waypoint_path move_path;rf_entity_navigation_candidate *move_nodes[4];
     float basis[9],look_basis[9],published[3],eye[3];int32_t idle;
@@ -191,6 +192,12 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     for(i=0;i<campaign_npc_body_count;i++){
         /* Fresh boot may still display its initialization clip; it may not
          * silently discard active routes, combat or unsupported gameplay. */
+        /* Pre-boss saves omit only the new hidden generated dependency. The
+         * world phase join must still require a living original fighter. */
+        if(fresh_boot&&scene_masako_seed_is(i)){
+            for(j=0;j<count;j++)if(rows[j].uid==SCENE_MASAKO_GENERATED_UID)break;
+            if(j==count)continue;
+        }
         status=scene_npc_checkpoint_row_mode(i,now,&current,fresh_boot);
         if(status==RF_NOT_FOUND)continue;if(status)return status;expected++;
     }
@@ -291,7 +298,22 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         rf_motion_playback_initialize(&e->playback);
         if(rows[i].retired)continue;
         if(!campaign_model_owners||j>=campaign_model_owner_count||!campaign_poses.items||j>=campaign_poses.count){status=RF_RANGE;goto fail;}
-        e->body=o->body.state;memcpy(e->body.position,rows[i].position,12);memcpy(e->body.next_position,rows[i].position,12);
+        e->movement=o->movement;e->movement_slot=o->movement_slot;
+        if(rows[i].movement_present){
+            uint32_t slot=rows[i].movement_slot;
+            if(!campaign_npc_movement_configs||slot>=16||(slot&&!(campaign_modes[slot].enabled&255u))||
+               (rows[i].support_uid&&campaign_modes[slot].index!=1)){status=RF_FORMAT;goto fail;}
+            status=rf_movement_set_mode(&e->movement,campaign_npc_movement_configs+cls,
+                (int32_t)rows[i].speed_mode,-1,o->body.state.mass,0);if(status)goto fail;
+            if(e->movement.speed<0){status=RF_FORMAT;goto fail;}e->movement_slot=slot;
+        }
+        e->body=o->body.state;
+        if(rows[i].movement_present){
+            e->body.coefficients[1]=e->movement.response;
+            if(campaign_modes[e->movement_slot].index==3||campaign_modes[e->movement_slot].index==8)e->body.flags|=1u;
+            else if(campaign_modes[e->movement_slot].index==1)e->body.flags&=~1u;
+        }
+        memcpy(e->body.position,rows[i].position,12);memcpy(e->body.next_position,rows[i].position,12);
         if(seated)e->body.flags&=~(1u|0x400000u);
         memcpy(e->body.orientation,e->basis,36);memcpy(e->body.next_orientation,e->basis,36);memset(e->body.velocity,0,12);
         status=rf_physics_spheres_bounds(o->body.spheres.items,o->body.spheres.count,e->body.position,&e->body.bounds);if(status)goto fail;
@@ -528,6 +550,8 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             rf_physics_body_close(&o->body);o->object_flags|=2|0x4000u;o->view.flags_810|=1;o->damage.effects.flags_810=o->view.flags_810;
         }else{
             o->body.state=e->body;o->room=e->room;o->support=e->support;o->selection=e->selection;memcpy(o->eye_position,e->eye,12);
+            if(e->saved.movement_present){o->movement=e->movement;o->movement_slot=e->movement_slot;o->movement_orientation=campaign_identity[0];}
+
             memcpy(o->support_velocity,e->saved.support_velocity,12);
             memcpy(campaign_model_owners[e->slot].position,e->published,12);memcpy(campaign_model_owners[e->slot].basis,e->basis,36);
             campaign_model_owners[e->slot].room=e->room.room?e->room.room-1:UINT32_MAX;

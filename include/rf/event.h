@@ -81,6 +81,14 @@ int rf_trigger_actor_resolve(const rf_entity_registry *registry,const rf_entity_
 typedef struct rf_trigger_volume {
     uint32_t shape;float center[3],radius,matrix[3][3],size[3];
 } rf_trigger_volume;
+/* Optional caller-owned memo of pure sphere/box contact, not eligibility or
+ * dwell state. Zero initialize once. Every geometry input is compared exactly;
+ * changed actor poses, translated/rotated volumes, restores and slot reuse all
+ * miss without an external invalidation hook. No pointers or gameplay state. */
+typedef struct rf_trigger_contact_cache {
+    uint32_t valid,flags,contact;
+    rf_trigger_volume volume;float pose[3][3];
+} rf_trigger_contact_cache;
 typedef struct rf_trigger_occupant { uint32_t handle,flags;float position[3]; } rf_trigger_occupant;
 typedef void (*rf_trigger_occupant_wake)(void *context,uint32_t handle);
 /* 46a1e0 actor scan / 46a280 actor-then-item scan, after source-trigger lookup
@@ -311,13 +319,15 @@ typedef struct rf_level_transition_request {
     char anchor[256];float anchor_position[3];
 } rf_level_transition_request;
 int rf_level_transition_enqueue(rf_level_transition_request *,const rf_level_event *,uint32_t source,uint32_t actor);
-/* First-pass arrival translation from matching named Load_Level anchors.
- * Destination anchor must name the destination itself; ambiguity/malformed
- * coordinates fail without changing offset. Missing names return NOT_FOUND.
+/* Arrival translation from matching named event anchors (original4bd740).
+ * The marker's outbound target and action type do not govern arrival lookup.
+ * Ambiguity/malformed coordinates fail without changing offset. Missing names return NOT_FOUND.
  * No placement, rotation or geometry clearance is implied by this lookup. */
 int rf_level_transition_offset(const rf_level_transition_request *,const rf_level *,float offset[3]);
 /* Translate a departing entity-origin pose into destination spawn coordinates.
- * Facing is retained. No body clearance, room lookup or rotation between levels;
+ * When authored flags[0]'s low byte is nonzero, retain the destination player
+ * start position and facing instead (original4bbc01/435e0a). Otherwise facing
+ * is retained. No body clearance, room lookup or rotation between levels;
  * those remain caller responsibilities. Failure preserves the level spawn. */
 int rf_level_transition_place(const rf_level_transition_request *,rf_level *,
     const float position[3],const float orientation[9]);
@@ -421,6 +431,9 @@ typedef struct rf_runtime_triggers {
     /* Monitor_State49 configures linked screens and their first linked camera on ON. */
     int (*monitor_state)(void *,const rf_level_event *,const uint32_t *uids,uint32_t count);
     void *monitor_context;
+    /* Shake_Player18: local camera, authored percent strength and duration. */
+    int (*shake_player)(void *,const rf_level_event *,int32_t);
+    void *shake_context;
     /* Black_Out_Player; the scene owns the timed visual state. */
     int (*black_out_player)(void *,const rf_level_event *,int32_t,uint32_t);
     void *blackout_context;
@@ -484,6 +497,14 @@ typedef struct rf_runtime_triggers {
      * NOT_FOUND skips unsupported owners; common propagation follows. */
     int (*set_physics_enabled)(void *context,uint32_t handle,uint32_t enabled);
     void *physics_state_context;
+    /* Headlamp_State53 ON/OFF, original4b92e0/4ba0e0. Scene owns entity810
+     * bit4000, marked glare children and linked-entity parent traversal. */
+    int (*set_headlamp)(void *context,uint32_t handle,uint32_t enabled);
+    void *headlamp_context;
+    /* Historical Make_Fly26 name: original4b9540 calls428030(entity,0),
+     * the existing slow/standing transition. ON only; no flight is implied. */
+    int (*set_actor_slow)(void *context,uint32_t handle);
+    void *actor_slow_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
@@ -556,6 +577,12 @@ int rf_trigger_contact_filter_authored(const rf_runtime_trigger *trigger,
 int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
     const rf_trigger_actor_facts *actor,const float pose[3][3],
     const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready);
+/* Identical registry, gate, ordering and timer behavior, with optional exact
+ * geometry reuse. NULL cache follows the ordinary uncached path. */
+int rf_runtime_trigger_contact_cached(rf_runtime_triggers *triggers,uint32_t handle,
+    const rf_trigger_actor_facts *actor,const float pose[3][3],
+    const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready,
+    rf_trigger_contact_cache *cache);
 /* Explicit runtime activation after caller-resolved contact/key/player gates.
  * Uses the shared registry/link dispatcher and SP bookkeeping on the owned
  * trigger. The same supported action families as startup are available;

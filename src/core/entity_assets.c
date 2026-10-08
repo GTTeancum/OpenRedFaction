@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+#include <stdio.h>
 int rf_entity_vitals_config_load(rf_vpp *tables,const char *class_name,uint32_t budget,
     rf_entity_creation_vitals_class *result)
 {
@@ -1630,6 +1631,31 @@ int rf_entity_unholster_delay_read(const void *text,uint32_t bytes,const char *n
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;*result=value;return RF_OK;
 }
+int rf_entity_blind_pursuit_read(const void *text,uint32_t bytes,const char *name,float *result)
+{
+    lexer l={(const unsigned char *)text,bytes,0};float value=0;char t[256];int status,q,found=0,seen=0;
+    if(!text||!name||!*name||!result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK){
+        if(q)continue;
+        if(same(t,"$Name:")){
+            if(found)break;if(token(&l,t,&q)||!q)return RF_FORMAT;found=same(t,name);
+        }else if(found&&same(t,"$Blind")){
+            if(!metadata_tag(&l,"Pursuit")||!metadata_tag(&l,"Time:")||seen++||sphere_number(&l,&value))return RF_FORMAT;
+            if(!isfinite(value)||value<0)return RF_RANGE;
+        }
+    }
+    if(status!=RF_OK&&status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if(!seen)return RF_FORMAT;*result=value;return RF_OK;
+}
+int rf_entity_blind_pursuit_load(rf_vpp *tables,const char *name,uint32_t budget,float *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables||!result)return RF_RANGE;
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    if(!entry.size||entry.size>budget)return RF_RANGE;text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_entity_blind_pursuit_read(text,entry.size,name,result);free(text);return status;
+}
 int rf_entity_eye_limits_read(const void *text,uint32_t bytes,const char *name,rf_entity_eye_limits *result)
 {
     lexer l={(const unsigned char*)text,bytes,0};rf_entity_eye_limits value={{-1.5707963705062866f,0,0},{1.5707963705062866f,0,0}};
@@ -2456,6 +2482,37 @@ int rf_clutter_flags_read(const void *text,uint32_t bytes,uint32_t *flags,uint32
 }
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {return class_assets_read(text,bytes,class_name,skin,assets,0,NULL,NULL);}
+int rf_entity_corona_read(const void *text,uint32_t bytes,const char *class_name,
+    uint32_t ordinal,char glare[64],uint32_t *headlamp)
+{
+    char result[64]={0};uint32_t lamp=0,have=0;
+    if(!text||!class_name||!*class_name||!ordinal||!glare||!headlamp)return RF_RANGE;
+    /* The original stores marked glare-class IDs in a separate array. A
+     * second pass preserves that rule when multiple slots share one class. */
+    for(uint32_t pass=0;pass<2;pass++){
+        lexer l={text,bytes,0};char t[256],name[64],label[32];int q,status,found=0;
+        snprintf(label,sizeof(label),"%u:",ordinal);
+        while((status=token(&l,t,&q))==RF_OK){
+            if(q)continue;
+            if(same(t,"$Name:")){
+                if(found)break;
+                if(token(&l,t,&q)||!q)return RF_FORMAT;
+                found=same(t,class_name);continue;
+            }
+            if(!found||!same(t,"$Corona"))continue;
+            if(!metadata_tag(&l,"( Glare )")||token(&l,t,&q)||q)return RF_FORMAT;
+            uint32_t selected=!strcmp(t,label);
+            if(metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            lexer next=l;uint32_t marked=0;
+            if(token(&next,t,&q)==RF_OK&&q){marked=same(t,"headlamp");l=next;}
+            if(!pass&&selected){if(have)return RF_FORMAT;strcpy(result,name);have=1;}
+            if(pass&&marked&&same(name,result))lamp=1;
+        }
+        if(status!=RF_OK&&status!=RF_NOT_FOUND)return status;
+        if(!found||!have)return RF_NOT_FOUND;
+    }
+    memcpy(glare,result,sizeof(result));*headlamp=lamp;return RF_OK;
+}
 int rf_clutter_assets_read(const void *text,uint32_t bytes,const char *class_name,const char *skin,rf_entity_assets *assets)
 {return class_assets_read(text,bytes,class_name,skin,assets,1,NULL,NULL);}
 int rf_clutter_skin_assets_read(const void *text,uint32_t bytes,const char *class_name,
@@ -3443,14 +3500,22 @@ static int entity_pose_evaluate_shared(rf_entity_pose *pose,const rf_entity_skel
     if(!batch)return rf_entity_pose_evaluate(pose,skeletons,catalog,displacement);
     if(!batch->count){batch->skeletons=skeletons;batch->catalog=catalog;}
     if(batch->count>16 || batch->next>=16 || batch->skeletons!=skeletons || batch->catalog!=catalog ||
-       !pose->bone_count || pose->bone_count>50 || pose->playback.generation>65535)goto bypass;
+       !pose->bone_count || pose->bone_count>50 || pose->playback.generation>65535 ||
+       pose->playback.completion.active.count>16)goto bypass;
     for(i=0;i<pose->bone_count;++i)
         if(pose->generations[i]==(uint16_t)pose->playback.generation ||
            (pose->overrides && pose->overrides[i].enabled))goto bypass;
     for(i=0;i<batch->count;++i) {
         entry=batch->entries+i;
+        /* Sampling reads only live motion/tick/weight slots and primary_slot.
+         * Inactive slots and freeze/dominant selectors carry actor history,
+         * not evaluated pose inputs. Each actor already advanced its own
+         * controllers, events and reference counts before this lookup. */
         if(entry->skeleton!=pose->skeleton || entry->bone_count!=pose->bone_count ||
-           memcmp(&entry->active,&pose->playback.completion.active,sizeof(entry->active)) ||
+           entry->active.count!=pose->playback.completion.active.count ||
+           entry->active.primary_slot!=pose->playback.completion.active.primary_slot ||
+           memcmp(entry->active.slots,pose->playback.completion.active.slots,
+               entry->active.count*sizeof(*entry->active.slots)) ||
            memcmp(entry->displacement,displacement,sizeof(entry->displacement)))continue;
         memcpy(pose->matrices,entry->matrices,pose->bone_count*sizeof(*pose->matrices));
         for(i=0;i<pose->bone_count;++i)pose->generations[i]=(uint16_t)pose->playback.generation;

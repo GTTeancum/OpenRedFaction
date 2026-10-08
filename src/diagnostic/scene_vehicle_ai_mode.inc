@@ -46,6 +46,7 @@ static int campaign_vehicle_set_ai_mode(void *context,uint32_t handle,int32_t ac
     next.ai_action=action;
     rf_scene_vehicle_ai_mode[3]=campaign_vehicle_route.active;
     rf_scene_vehicle_ai_mode[4]=rf_scene_vehicle_route_state[3];
+    scene_vehicle_attack_cancel(handle);
     campaign_vehicle_route=next;++rf_scene_vehicle_ai_mode[0];
     rf_scene_vehicle_route_state[0]=next.active;rf_scene_vehicle_route_state[1]=next.index;
     rf_scene_vehicle_route_state[2]=next.path.count;rf_scene_vehicle_route_state[5]=next.event;

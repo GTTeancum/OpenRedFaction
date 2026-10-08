@@ -93,7 +93,7 @@ static int scene_passive_vehicle_destroy(void *context,uint32_t host,uint32_t re
     scene_passive_vehicle *owner=context;(void)responsible;
     if(!owner||owner->handle!=host||
        rf_object_registry_lookup(&campaign_registry,host)!=owner)return RF_NOT_FOUND;
-    return RF_OK; /* Retain the wreck pose and registry identity for When_Dead. */
+    return scene_masako_vehicle_destroy(host); /* Other wrecks keep their When_Dead identity. */
 }
 /* Shared firearm and terminal projectile direct hit. Caller retains separate
  * radial blast behavior. Unknown tags remain unhandled; stale host generations

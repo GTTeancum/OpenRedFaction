@@ -337,7 +337,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
             for(i=0;i<campaign_passive_vehicle_count;i++){
                 const scene_passive_vehicle *host=campaign_passive_vehicles+i;
                 if(host->handle!=o->support.handle)continue;
-                if(!terminal_dead&&host->attached&&!host->damage.destroyed&&
+                if(!terminal_dead&&(host->attached||scene_secondary_vehicle_supports(host->handle))&&!host->damage.destroyed&&
                    host->damage.state.effects.health>0&&o->support.material>=0&&
                    !(o->body.state.flags&1u)&&
                    rf_object_registry_lookup(&campaign_registry,host->handle)==host)support_uid=host->uid;
@@ -390,6 +390,12 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     row->controller_uid=controller_uid;
     row->combat_alert=terminal_dead?0:o->combat_alert;
     row->dead_pose=terminal_dead;
+    if(!terminal_dead&&!key->retired){
+        if(o->movement_slot>=16||o->movement.mode<0||o->movement.mode>2||
+           o->movement_orientation!=campaign_identity[0]||(o->view.flags_810&0x400u))
+            return scene_npc_checkpoint_reject(index,"movement_state",o->movement_slot,o->movement.mode,RF_NOT_FOUND);
+        row->movement_present=1;row->movement_slot=o->movement_slot;row->speed_mode=(uint32_t)o->movement.mode;
+    }
     if(terminal_dead){row->death_flags_810=o->view.flags_810;row->death_action=o->death.action_824;}
     else {
         if(o->combat_scripted==3||o->combat_scripted==1||o->combat_scripted==2){

@@ -141,7 +141,7 @@ static int scene_apc_primary_tick(scene_stream *stream,uint32_t frame)
     {
         scene_apc_primary_launch_context launch={stream,scene_vehicle_player_fire_owner(&runtime->entry)};
         uint32_t jeep=rf_scene_vehicle_enabled==3;
-        uint32_t allowed=scene_vehicle_physics_allows_control(stream)&&runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0&&
+        uint32_t allowed=(scene_vehicle_loadout_selected_mask()&1u)&&scene_vehicle_physics_allows_control(stream)&&runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0&&
             (!jeep||scene_jeep_can_fire(&runtime->jeep_seat));
         const rf_static_model_tags *tags=jeep?&stream->jeep_gun->model->tags:&stream->driller->tags;
         const float *position=jeep?stream->jeep_gun_pose+9:runtime->physics.state.position;

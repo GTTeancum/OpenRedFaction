@@ -252,6 +252,20 @@ int rf_geometry_movers_open(const rf_level *level,uint32_t budget,rf_geometry_mo
         take(&c,(uint64_t)u32(g->data+g->tail_offset)*12);
         if(c.error) {status=c.error;goto fail;}
         g->bytes=c.at;at+=c.at;m.allocated_bytes+=g->allocated_bytes;
+        /* The full local mesh can be far from its transform origin. Its
+         * origin-radius sphere is safe for collision but unnecessarily loose
+         * for whole-mesh frustum rejection. Retain the immutable local AABB
+         * once; the enclosing record allocation already accounts for it. */
+        for(j=0;j<g->vertices;j++) {
+            float position[3];uint32_t axis;
+            status=rf_geometry_vertex(g,j,position);if(status)goto fail;
+            for(axis=0;axis<3;axis++) {
+                if(!isfinite(position[axis])){status=RF_FORMAT;goto fail;}
+                if(!j || position[axis]<item->minimum[axis])item->minimum[axis]=position[axis];
+                if(!j || position[axis]>item->maximum[axis])item->maximum[axis]=position[axis];
+            }
+        }
+        item->bounds_valid=g->vertices!=0;
         if(section->size-at<12) {status=RF_FORMAT;goto fail;}
         for(j=0;j<3;j++)item->trailer[j]=u32(m.data+at+j*4);
         at+=12;item->bytes=at-item->offset;
@@ -1239,7 +1253,11 @@ static int geometry_collision_body_sweep(const rf_geometry_collision_world *worl
         memcpy(m->origin,pose->position,12);memcpy(m->matrix,pose->input_matrix,36);
         memcpy(m->velocity,pose->velocity,12);m->flags=pose->flags;m->object_id=movers->views[i].object_id;
     }
-    memset(&c,0,sizeof(c));c.validation=batch?batch:&c.batch;c.world=world;c.movers=movers;c.metadata=metadata;c.context=context;c.room_textures=rooms;c.mover_textures=moving;
+    /* An external immutable-world batch need not zero an unused local copy
+     * (about3 KiB) on every body query. The contact accumulator remains fresh. */
+    if(!batch)memset(&c.batch,0,sizeof(c.batch));
+    memset(&c.value,0,sizeof(c.value));
+    c.validation=batch?batch:&c.batch;c.world=world;c.movers=movers;c.metadata=metadata;c.context=context;c.room_textures=rooms;c.mover_textures=moving;
     status=rf_collision_body_sweep(body,scratch,movers->count,geometry_body_query,&c,&c.value.contact,&found);
     if(status)return status;if(found)*result=c.value;*matched=found;return RF_OK;
 }

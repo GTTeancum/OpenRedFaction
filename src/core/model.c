@@ -1,4 +1,5 @@
 #include "rf/model.h"
+#include "rf/finite.h"
 #include "rf/projectile.h"
 #include "rf/model_file.h"
 #include "rf/clutter.h"
@@ -2012,7 +2013,7 @@ static int make_transform(const float rotation[4], const float position[3], floa
     result[7] = (float)(2.0 * (w * x + z * y));
     result[8] = (float)((double)one_minus_xx - 2.0 * y * y);
     for (i = 0; i < 3; ++i) result[i + 9] = position[i];
-    for (i = 0; i < 12; ++i) if (!isfinite(result[i])) return RF_RANGE;
+    for (i = 0; i < 12; ++i) if (!rf_finite_float(result[i])) return RF_RANGE;
     memcpy(transform, result, sizeof(result));
     return RF_OK;
 }
@@ -2033,7 +2034,7 @@ int rf_model_compose_transform(const float local[12], const float parent[12], fl
     uint32_t i;
     if (!local || !parent || !result) return RF_RANGE;
     for (i = 0; i < 12; ++i)
-        if (!isfinite(local[i]) || !isfinite(parent[i])) return RF_FORMAT;
+        if (!rf_finite_float(local[i]) || !rf_finite_float(parent[i])) return RF_FORMAT;
     for (i = 0; i < 4; ++i) {
         double x = local[i * 3], y = local[i * 3 + 1], z = local[i * 3 + 2];
         double w = i == 3 ? 1.0 : 0.0;
@@ -2042,7 +2043,7 @@ int rf_model_compose_transform(const float local[12], const float parent[12], fl
         out[i * 3 + 1] = (float)(((w * parent[10] + z * parent[7]) + x * parent[1]) + y * parent[4]);
         out[i * 3 + 2] = (float)(((z * parent[8] + x * parent[2]) + w * parent[11]) + y * parent[5]);
     }
-    for (i = 0; i < 12; ++i) if (!isfinite(out[i])) return RF_RANGE;
+    for (i = 0; i < 12; ++i) if (!rf_finite_float(out[i])) return RF_RANGE;
     memcpy(result, out, sizeof(out));
     return RF_OK;
 }
@@ -2073,7 +2074,7 @@ int rf_model_basis_rotation(const float basis[9],float out[4])
 {
     float q[4],diagonal_pair;double trace,root,scale;unsigned i,axis;
     if(!basis || !out)return RF_RANGE;
-    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_FORMAT;
+    for(i=0;i<9;++i)if(!rf_finite_float(basis[i]))return RF_FORMAT;
     diagonal_pair=(float)((double)basis[4]+basis[8]);
     trace=((double)basis[4]+basis[8])+basis[0];
     if(trace>=0) {
@@ -2102,7 +2103,7 @@ int rf_model_basis_rotation(const float basis[9],float out[4])
             q[3]=(float)(((double)basis[3]-basis[1])*scale);
         }
     }
-    for(i=0;i<4;++i)if(!isfinite(q[i]))return RF_RANGE;
+    for(i=0;i<4;++i)if(!rf_finite_float(q[i]))return RF_RANGE;
     memcpy(out,q,sizeof(q));return RF_OK;
 }
 /* Float quaternion path 0x519da0, distinct from packed key interpolation. */
@@ -2114,7 +2115,7 @@ static int pose_interpolate(const float a[4], const float b[4], float t, float o
 {
     float difference[4], sum[4], second[4], dot;
     double wa, wb, value; unsigned i; int opposite;
-    if(!isfinite(t))return RF_FORMAT;
+    if(!rf_finite_float(t))return RF_FORMAT;
     while(t<0) {float next=t+1;if(next==t)return RF_RANGE;t=next;}
     while(t>1) {float next=t-1;if(next==t)return RF_RANGE;t=next;}
 
@@ -2122,7 +2123,7 @@ static int pose_interpolate(const float a[4], const float b[4], float t, float o
     if (pose_dot(sum,sum)<=(float)pose_dot(difference,difference))
         for (i=0;i<4;++i) second[i]=-second[i];
     dot=(float)pose_dot(a,second);
-    if (!isfinite(dot)) return RF_RANGE;
+    if (!rf_finite_float(dot)) return RF_RANGE;
     opposite=(double)dot+1<=(double)1.0e-6f;
     if (opposite) {
         wa=sin((1.0-t)*(double)1.5707963705062866f); wb=sin((double)t*(double)1.5707963705062866f);
@@ -2144,8 +2145,8 @@ int rf_model_override_pose(float matrix[12],const float basis[9],float weight)
 {
     float target[4],current[4],blended[4],result[12];int status;unsigned i;
     if(!matrix || !basis)return RF_RANGE;
-    if(!isfinite(weight))return RF_FORMAT;
-    for(i=0;i<12;++i)if(!isfinite(matrix[i]))return RF_FORMAT;
+    if(!rf_finite_float(weight))return RF_FORMAT;
+    for(i=0;i<12;++i)if(!rf_finite_float(matrix[i]))return RF_FORMAT;
     status=rf_model_basis_rotation(basis,target);if(status)return status;
     status=rf_model_basis_rotation(matrix,current);if(status)return status;
     status=pose_interpolate(current,target,weight,blended);if(status)return status;
@@ -2158,9 +2159,9 @@ int rf_model_blend_pose(const float (*rotations)[4], const float (*positions)[3]
     float q[4]={0,0,0,1}, p[3]={0,0,0}, matrix[12], cumulative=0; uint32_t i,c; int status;
     if (!rotations || !positions || !weights || !out || !count || count>16) return RF_RANGE;
     for (i=0;i<count;++i) {
-        if (!isfinite(weights[i]) || weights[i]<=0 || weights[i]>1) return RF_FORMAT;
-        for (c=0;c<4;++c) if (!isfinite(rotations[i][c])) return RF_FORMAT;
-        for (c=0;c<3;++c) if (!isfinite(positions[i][c])) return RF_FORMAT;
+        if (!rf_finite_float(weights[i]) || weights[i]<=0 || weights[i]>1) return RF_FORMAT;
+        for (c=0;c<4;++c) if (!rf_finite_float(rotations[i][c])) return RF_FORMAT;
+        for (c=0;c<3;++c) if (!rf_finite_float(positions[i][c])) return RF_FORMAT;
     }
     if (count==1) { memcpy(q,rotations[0],sizeof(q)); memcpy(p,positions[0],sizeof(p)); }
     else {
@@ -2223,7 +2224,7 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
     const rf_motion_slot_state *active;
     if (!bones || !state || !root_displacement || !matrices || !count || count>256 || capacity<count) return RF_RANGE;
     if (generations && state->generation>65535) return RF_FORMAT;
-    for (j=0;j<3;++j) if (!isfinite(root_displacement[j])) return RF_FORMAT;
+    for (j=0;j<3;++j) if (!rf_finite_float(root_displacement[j])) return RF_FORMAT;
     active=&state->completion.active;
     if (active->count>16 || (active->count && (!motions || !resources))) return RF_RANGE;
     for (j=0;j<active->count;++j) {
@@ -2233,20 +2234,25 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
     }
     status=rf_model_bone_order(bones,count,order,sizeof(order)); if (status!=RF_OK) return status;
     for (i=0;i<count;++i) {
-        rf_motion_weight_envelope envelopes[16]; float weights[16], compact[16], rotations[16][4], positions[16][3], local[12];
+        rf_motion_track tracks[16];rf_motion_weight_envelope envelopes[16];
+        _Static_assert(sizeof(tracks)<=640,"Bounded call-local motion descriptors");
+        float weights[16], compact[16], rotations[16][4], positions[16][3], local[12];
         uint32_t contributions=0;
         const float identity[4]={0,0,0,1}, zero[3]={0,0,0};
         index=order[i];
         if (generations && generations[index]==(uint16_t)state->generation) continue;
+        /* Keep descriptors only through this bone's weights and samples.
+         * Motion files are immutable during evaluation; no cross-frame cache
+         * or resource-lifetime dependency is introduced. */
         for (j=0;j<active->count;++j) {
-            rf_motion_track track;
-            status=rf_motion_file_track(motions[active->slots[j].motion],index,&track); if (status!=RF_OK) return status;
-            envelopes[j]=track.envelope;
+            status=rf_motion_file_track(motions[active->slots[j].motion],index,tracks+j); if (status!=RF_OK) return status;
+            envelopes[j]=tracks[j].envelope;
         }
         status=rf_motion_bone_weights(active,envelopes,mask,weights); if (status!=RF_OK) return status;
         for (j=0;j<active->count;++j) if (weights[j]>0) {
             rf_motion_sample sample;
-            status=rf_motion_file_sample(motions[active->slots[j].motion],index,active->slots[j].tick,(mask & (1u<<j))!=0,&sample);
+            status=rf_motion_file_sample_track(motions[active->slots[j].motion],tracks+j,
+                active->slots[j].tick,(mask & (1u<<j))!=0,&sample);
             if (status!=RF_OK) return status;
             memcpy(rotations[contributions],sample.rotation,sizeof(sample.rotation));
             memcpy(positions[contributions],sample.position,sizeof(sample.position));
@@ -2260,7 +2266,7 @@ static int model_sample_playback(const rf_model_bone *bones, uint32_t count, con
              * Later roots in this evaluation receive positive zero. */
             for (j=0;j<3;++j) {
                 local[9+j]=root_displacement[j]+local[9+j];
-                if (!isfinite(local[9+j])) return RF_RANGE;
+                if (!rf_finite_float(local[9+j])) return RF_RANGE;
             }
             root_displacement[0]=root_displacement[1]=root_displacement[2]=0;
             memcpy(matrices[index],local,sizeof(local));
@@ -2306,9 +2312,9 @@ int rf_model_place_tag(const float local[12], const float orientation[9], const 
 {
     float result[12]; double a,b,c; unsigned i;
     if (!local || !orientation || !position || !out) return RF_RANGE;
-    for (i=0;i<12;++i) if (!isfinite(local[i])) return RF_FORMAT;
-    for (i=0;i<9;++i) if (!isfinite(orientation[i])) return RF_FORMAT;
-    for (i=0;i<3;++i) if (!isfinite(position[i])) return RF_FORMAT;
+    for (i=0;i<12;++i) if (!rf_finite_float(local[i])) return RF_FORMAT;
+    for (i=0;i<9;++i) if (!rf_finite_float(orientation[i])) return RF_FORMAT;
+    for (i=0;i<3;++i) if (!rf_finite_float(position[i])) return RF_FORMAT;
     for (i=0;i<9;++i) {
         unsigned row=i/3, col=i%3;
         a=(double)local[row*3]*orientation[col];
@@ -2325,7 +2331,7 @@ int rf_model_place_tag(const float local[12], const float orientation[9], const 
                               (double)local[11]*orientation[i+6]);
         result[9+i]=rotated+position[i];
     }
-    for (i=0;i<12;++i) if (!isfinite(result[i])) return RF_RANGE;
+    for (i=0;i<12;++i) if (!rf_finite_float(result[i])) return RF_RANGE;
     memcpy(out,result,sizeof(result)); return RF_OK;
 }
 

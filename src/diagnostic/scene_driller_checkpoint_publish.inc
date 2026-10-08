@@ -30,6 +30,7 @@ static void scene_vehicle_checkpoint_publish_staged(scene_stream *s,const scene_
     damage.effects.class_flags_728=effects->class_flags_728;damage.effects.handle=effects->handle;
     damage.effects.affiliation=effects->affiliation;damage.effects.voice=UINT32_MAX;
     damage.effects.health=candidate.health;damage.effects.armor=candidate.armor;
+    damage.effects.flags_810=scene_vehicle_headlamp_initial(effects->handle);
     damage.responsible_handle=damage.burn_source=UINT32_MAX;
     /* Inertia and coefficients are current authored metadata; stage reconstructs
      * angular momentum and zeros old forces/torques/skip-forces. */
@@ -37,8 +38,13 @@ static void scene_vehicle_checkpoint_publish_staged(scene_stream *s,const scene_
     r->entry.gunner_occupant=-1;
     r->physics.state=candidate.physics;r->damage.damage.state=damage;
     r->damage.damage.destroyed=!candidate.alive;r->damage.damage.destruction_pending=0;
-    r->damage.damage.object_flags&=~0x200000u; /* Unsaved hit-event signal. */
-    r->entry.view.flags_7c=r->damage.damage.object_flags;r->entry.view.flags_810=0;
+    /* Bare/legacy vehicle records have no immunity field. Restore the same
+     * class default as rf_entity_creation_vitals; ordinary RFPV3 publication
+     * subsequently supplies the saved override. A same-session load must not
+     * retain Make_Invulnerable from the world it replaces. */
+    r->damage.damage.object_flags=(r->damage.damage.object_flags&~0x200004u)|
+        (!(damage.effects.class_health>=0)?4u:0u);
+    r->entry.view.flags_7c=r->damage.damage.object_flags;r->entry.view.flags_810=damage.effects.flags_810;
     r->entry.host.alive=candidate.alive;
     r->damage.eject_pending=0;r->damage.last_destroyer=UINT32_MAX;r->damage.last_amount=0;
     r->damage.damage_calls=0;r->damage.exit_count=0;

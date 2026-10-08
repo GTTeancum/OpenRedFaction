@@ -28,6 +28,7 @@ static void scene_campaign_wall_refresh_script_room(scene_stream *s)
 {
     uint32_t i;scene_campaign_wall_owner *owner=s->campaign_wall;
     if(!owner || !owner->active)return;
+    campaign_dry_sweep_invalidate();
     for(i=0;i<2;i++){
         rf_geometry_collision_world *world=&owner->overlay[i].world;
         world->rooms[28]=s->terrain_collision.world.rooms[28];
@@ -137,6 +138,7 @@ static int scene_campaign_wall_cut(scene_stream *s,const float center[3],float r
     free(s->terrain_face_offsets);s->terrain_face_offsets=offsets;offsets=NULL;
     s->terrain_geometry.face_offsets=s->terrain_face_offsets;
     s->terrain_geometry.faces=count;
+    campaign_dry_sweep_invalidate();
     s->collision=&owner->overlay[1].world;
     campaign_trigger_collision=s->collision;
     memcpy(owner->center,center,sizeof(owner->center));owner->radius=radius;owner->active=1;

@@ -5,6 +5,104 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+/* Bounded426ca0 admission, stopping before original426d73 muzzle selection.
+ * 426f40 backoff and4fa360/4fa3f0 retain the shared wrapped game-clock rules.
+ * No affiliation/AI-mode shortcut may manufacture a firing request here. */
+int rf_weapon_secondary_request_admit(rf_weapon_secondary_request_state *state,
+    const rf_weapon_secondary_request *request,rf_weapon_secondary_admission *out)
+{
+    rf_weapon_secondary_request_state next;rf_weapon_secondary_admission result={0,0};
+    int expired,status;uint32_t bypass;
+    if(!state||!request||!out||request->now_ms<0||request->now_ms>RF_TIMER_PERIOD||
+       request->owned>1||request->local_player>1)return RF_RANGE;
+    next=*state;bypass=request->bypass&255u;
+    if((request->dying_al&255u)==1u)goto done;
+    if(!bypass){
+        status=rf_timer_expired(next.deadline_4bc,request->now_ms,&expired);
+        if(status)return status;if(!expired)goto done;
+    }
+    if(request->weapon<0)goto unavailable;
+    if(!request->owned)goto done; /* Missing ownership has no empty backoff. */
+    if(request->available_ammo<=0)goto unavailable;
+    if(!bypass&&(request->weapon_flags_264&0x08000000u)){
+        status=rf_timer_set(&next.scheduled_504,request->now_ms,0);if(status)return status;
+        next.remaining_508=request->scheduled_count_444;
+        result.action=RF_WEAPON_SECONDARY_SCHEDULED;
+    }else result.action=RF_WEAPON_SECONDARY_DIRECT;
+    goto done;
+unavailable:
+    status=rf_timer_set(&next.deadline_4bc,request->now_ms,500);if(status)return status;
+    result.empty_feedback=request->local_player;
+done:
+    *state=next;*out=result;return RF_OK;
+}
+
+int rf_weapon_scheduled_tick(rf_weapon_scheduled_owner *owner,int32_t now_ms,
+    const rf_weapon_scheduled_ops *ops,void *context,uint32_t *completed)
+{
+    uint32_t channel;int expired,status;float seconds;double milliseconds;
+    if(!owner||!ops||!ops->fire||!ops->period||!completed||now_ms<0||now_ms>RF_TIMER_PERIOD)
+        return RF_RANGE;
+    /* Validate both input timer domains before producing external effects. */
+    for(channel=0;channel<2;channel++)if(owner->channel[channel].deadline>RF_TIMER_PERIOD)return RF_RANGE;
+    *completed=0;
+    for(channel=0;channel<2;channel++){
+        rf_weapon_scheduled_channel *pending=&owner->channel[channel];
+        if(!pending->remaining||pending->remaining>INT32_MAX)continue;
+        status=rf_timer_expired(pending->deadline,now_ms,&expired);if(status)return status;
+        if(!expired)continue;
+        ops->fire(context,channel,1);
+        /* Original decrements the owner's live word, not a pre-call copy. */
+        --pending->remaining;*completed|=1u<<channel;
+        status=ops->period(context,channel,&seconds);
+        if(status){rf_timer_clear(&pending->deadline);return status;}
+        milliseconds=(double)seconds*1000.0;
+        if(!isfinite(milliseconds)||milliseconds< -RF_TIMER_PERIOD||milliseconds>RF_TIMER_PERIOD){
+            rf_timer_clear(&pending->deadline);return RF_RANGE;
+        }
+        status=rf_timer_set(&pending->deadline,now_ms,(int32_t)milliseconds);
+        if(status){rf_timer_clear(&pending->deadline);return status;}
+    }
+    return RF_OK;
+}
+
+int rf_weapon_ai_secondary_admit(const rf_weapon_ai_secondary_input *in,
+    int (*sight)(void *,const float[3],const float[3],uint32_t *),void *context,uint32_t *result)
+{
+    float delta[3],aim[3],sorted[3];double distance,length=0,dot=0,minimum;
+    uint32_t i,j,blocked;int expired,status;
+    if(!in||!result||!sight)return RF_RANGE;
+    if(!(in->global_enabled&255u)||!(in->ai_flags_530&1u)||
+       (in->hendrix_al&255u)==1||(in->animation_blocked_al&255u)==1||
+       !in->target_present||in->weapon<0){*result=0;return RF_OK;}
+    status=rf_timer_expired(in->deadline,in->now_ms,&expired);if(status)return status;
+    if(!expired||(!(in->visible_29c&255u)&&!(in->visible_29d&255u)&&!(in->ai_flags_530&0x1000u))){*result=0;return RF_OK;}
+    if(!isfinite(in->maximum_range)||!isfinite(in->minimum_range)||
+       !isfinite(in->source_radius)||!isfinite(in->target_radius))return RF_RANGE;
+    for(i=0;i<3;i++){
+        double d;
+        if(!isfinite(in->source[i])||!isfinite(in->target[i])||!isfinite(in->eye[i])||!isfinite(in->forward[i]))return RF_RANGE;
+        d=(double)in->target[i]-in->source[i];if(fabs(d)>FLT_MAX)return RF_RANGE;
+        delta[i]=(float)d;sorted[i]=fabsf(delta[i]);
+    }
+    for(i=0;i<2;i++)for(j=i+1;j<3;j++)if(sorted[j]>sorted[i]){float swap=sorted[i];sorted[i]=sorted[j];sorted[j]=swap;}
+    distance=(double)sorted[0]+.375*(double)sorted[1]+.1875*(double)sorted[2];
+    minimum=(double)in->minimum_range+in->source_radius+in->target_radius;
+    if(distance>in->maximum_range||distance<minimum){*result=0;return RF_OK;}
+    for(i=0;i<3;i++){
+        double target=i==1&&(in->flatten_aim_al&255u)==1?in->source[i]:in->target[i];
+        double d=target-in->eye[i];if(fabs(d)>FLT_MAX)return RF_RANGE;
+        aim[i]=(float)d;length+=(double)aim[i]*aim[i];
+    }
+    if(length==0){*result=0;return RF_OK;}
+    length=sqrt(length);
+    /*4faaf0 publishes normalized binary32 components before the dot. */
+    for(i=0;i<3;i++){aim[i]=(float)((double)aim[i]/length);dot+=(double)aim[i]*in->forward[i];}
+    if(dot<.95){*result=0;return RF_OK;}
+    status=sight(context,in->eye,in->target,&blocked);if(status)return status;
+    *result=!blocked||!!(in->ai_flags_530&0x1000u);return RF_OK;
+}
+
 int rf_grenade_lifecycle_tick(rf_grenade_lifecycle *state,float dt,uint32_t *detonate)
 {
     rf_grenade_lifecycle next;uint32_t fire=0;

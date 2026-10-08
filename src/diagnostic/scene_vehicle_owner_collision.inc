@@ -3,7 +3,7 @@
 /* Independent chassis use the same committed world. Queries identify the
  * chassis, never its player adapter. Bodies step sequentially against the
  * latest committed other pose; this is not a coupled impulse solver. */
-static int scene_vehicle_owner_collision_query(scene_stream *s,uint32_t actor,
+static int scene_vehicle_owner_collision_query_ex(scene_stream *s,uint32_t actor,uint32_t carry_host,
     const rf_collision_body_query *query,rf_geometry_body_hit *hit,uint32_t *found)
 {
     int status;
@@ -13,7 +13,7 @@ static int scene_vehicle_owner_collision_query(scene_stream *s,uint32_t actor,
         const scene_passive_vehicle *o=campaign_passive_vehicles+i;scene_driller_actor_collision body={0};
         uint32_t kind=o->resource_kind;
         /* Visible wrecks remain obstacles, matching ordinary passive hulls. */
-        if(o->handle==actor||(o->damage.object_flags&0x4000u))continue;
+        if(o->handle==actor||o->handle==carry_host||(o->damage.object_flags&0x4000u))continue;
         if(rf_object_registry_lookup(&campaign_registry,o->handle)!=o)return RF_FORMAT;
         if(kind>=6||!s->passive_vehicle_sphere_count[kind]||s->passive_vehicle_sphere_count[kind]>8)return RF_FORMAT;
         body.spheres=s->passive_vehicle_spheres[kind];body.count=s->passive_vehicle_sphere_count[kind];
@@ -24,11 +24,18 @@ static int scene_vehicle_owner_collision_query(scene_stream *s,uint32_t actor,
         memcpy(body.position,o->pose.position,12);memcpy(body.next_position,o->pose.position,12);
         memcpy(body.orientation,o->pose.input_matrix,36);memcpy(body.next_orientation,o->pose.input_matrix,36);
         memcpy(body.velocity,o->velocity,12);
+        const scene_secondary_vehicle_runtime *independent=scene_secondary_vehicle_find(o->handle);
+        if(independent){
+            if(scene_secondary_vehicle_owner(independent)!=o)return RF_FORMAT;
+            status=scene_driller_checkpoint_rotate_tensor(independent->physics.state.orientation,
+                independent->physics.state.inverse_inertia,independent->physics.state.momentum,body.angular_velocity);
+            if(status)return status;
+        }
         status=scene_driller_actor_compose(&body,actor,UINT32_MAX,query,hit,found);if(status)return status;
     }
     if(s->driller_runtime){
         const scene_driller_runtime *r=s->driller_runtime;
-        if(r->entry.host.handle!=actor&&!(r->damage.damage.object_flags&0x4000u)){
+        if(r->entry.host.handle!=actor&&r->entry.host.handle!=carry_host&&!(r->damage.damage.object_flags&0x4000u)){
             scene_driller_actor_collision body={0};
             if(!scene_driller_damage_runtime_valid(&r->damage))return RF_FORMAT;
             body.spheres=r->physics.collision;body.count=r->physics.sphere_count;
@@ -44,13 +51,17 @@ static int scene_vehicle_owner_collision_query(scene_stream *s,uint32_t actor,
     }
     if(campaign_player_object.view&&scene_actor_body.allocated_bytes&&
        !(campaign_player_view.flags_7c&(2u|0x4000u))&&
+       !scene_secondary_vehicle_rider(actor,campaign_player_object.handle)&&
+       !scene_secondary_vehicle_rider(carry_host,campaign_player_object.handle)&&
        !(s->driller_runtime&&s->driller_runtime->entry.host.handle==actor&&
          s->driller_runtime->entry.session.active&&s->driller_runtime->entry.player.handle==campaign_player_object.handle)){
         status=scene_vehicle_wreck_actor_sweep(&scene_actor_body,campaign_player_object.handle,actor,query,hit,found);if(status)return status;
     }
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
-        if(!scene_vehicle_entry_npc_live(o)||scene_npc_seat_related(o->registration.handle,actor))continue;
+        if(!scene_vehicle_entry_npc_live(o)||scene_npc_seat_related(o->registration.handle,actor)||
+           scene_secondary_vehicle_rider(actor,o->registration.handle)||
+           scene_secondary_vehicle_rider(carry_host,o->registration.handle))continue;
         status=scene_vehicle_wreck_actor_sweep(&o->body,o->registration.handle,actor,query,hit,found);if(status)return status;
     }
     for(uint32_t i=0;i<scene_turret_count;i++){
@@ -86,6 +97,9 @@ static int scene_vehicle_owner_collision_query(scene_stream *s,uint32_t actor,
     }
     return RF_OK;
 }
+static int scene_vehicle_owner_collision_query(scene_stream *s,uint32_t actor,
+    const rf_collision_body_query *query,rf_geometry_body_hit *hit,uint32_t *found)
+{return scene_vehicle_owner_collision_query_ex(s,actor,UINT32_MAX,query,hit,found);}
 static int scene_vehicle_owner_selected_query(void *context,const rf_collision_body_query *query,
     rf_geometry_body_hit *hit,uint32_t *found)
 {

@@ -48,3 +48,7 @@ Three earlier startup FAIL runs are preserved(`230932`,`231449`,`231739`). The f
 ## Remaining work
 
 More than one independent secondary owner, submarine/Fighter autonomous motion, moving ownership transfer, riders/passengers, autonomous weapons, simultaneous vehicle impulses/crush and full route arrival remain outside this increment. L20S2's two Fighters provide an authored concurrent-flight case for later integration. L1S3 removes APC 26 when revealing APC 9627; it does not establish natural simultaneous APC driving. The later friendliness/retarget chain remains a separate authored behavior gap.
+
+## Subsequent pooled-owner integration
+
+The later [concurrent Fighter milestone](VEHICLE-CONCURRENT-FIGHTERS.md) replaces the singleton with stable owner slots and adds RFSV2 for multiple owners or a Fighter. This milestone's original RFSV1 save was loaded unchanged on the new code and its graph motion continued. The historical one-APC evidence and its limits above remain unchanged.

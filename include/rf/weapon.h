@@ -3,6 +3,77 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 #include "rf/collision.h"
+/* Original426ca0..426d73 secondary request admission. This boundary decides
+ * whether to reject, schedule owner504/508, or proceed to muzzle selection;
+ * it does not itself launch a projectile, debit ammo or choose an AI target.
+ * Source owner/weapon/ammo/predicate results are a stable caller snapshot.
+ * The player-input caller4a4e80 is established; autonomous initiation is not. */
+typedef struct rf_weapon_secondary_request_state {
+    int32_t deadline_4bc,scheduled_504;
+    uint32_t remaining_508;
+} rf_weapon_secondary_request_state;
+typedef struct rf_weapon_secondary_request {
+    int32_t now_ms,weapon,available_ammo;
+    uint32_t dying_al,bypass,owned,local_player;
+    uint32_t weapon_flags_264,scheduled_count_444;
+} rf_weapon_secondary_request;
+enum {
+    RF_WEAPON_SECONDARY_BLOCKED=0,
+    RF_WEAPON_SECONDARY_DIRECT=1,
+    RF_WEAPON_SECONDARY_SCHEDULED=2
+};
+typedef struct rf_weapon_secondary_admission {
+    uint32_t action,empty_feedback;
+} rf_weapon_secondary_admission;
+/* dying_al uses its low byte and rejects exactly1. Nonzero low-byte bypass
+ * skips deadline/scheduling only; ownership and positive ammo still apply.
+ * owned/local_player are resolved booleans. A missing weapon or no ammo writes
+ * now+500 and requests the original local-only empty feedback. Disabled timers
+ * do not expire. Scheduling copies the count word unchanged, with no invented
+ * default. Inputs/state/result must be disjoint. Errors preserve outputs. */
+int rf_weapon_secondary_request_admit(rf_weapon_secondary_request_state *,
+    const rf_weapon_secondary_request *,rf_weapon_secondary_admission *);
+
+/* Original409280 consumes at most one due primary and then one due secondary
+ * request per AI tick. Counts are raw words with signed-positive admission.
+ * This is an owner scheduler, not a projectile pool or autonomous fire policy. */
+typedef struct rf_weapon_scheduled_channel {int32_t deadline;uint32_t remaining;} rf_weapon_scheduled_channel;
+typedef struct rf_weapon_scheduled_owner {rf_weapon_scheduled_channel channel[2];} rf_weapon_scheduled_owner;
+typedef struct rf_weapon_scheduled_ops {
+    /* channel0 primary425830(owner,1,0,0,0,0), channel1 secondary426ca0(owner,1).
+     * A rejected firing attempt is still a consumed request. No reentry. */
+    void (*fire)(void *,uint32_t channel,uint32_t bypass);
+    /* Read the currently selected weapon AFTER fire, returning descriptor448
+     * seconds. The callback must not change scheduler state. */
+    int (*period)(void *,uint32_t channel,float *seconds);
+} rf_weapon_scheduled_ops;
+/* Wrapped game-clock deadlines; descriptor seconds*1000 truncates toward zero.
+ * Fire may change owner selection/state, just as the original call can. The
+ * consumed count is reread after fire. No catch-up loop. If period lookup fails
+ * after firing, the attempt remains consumed and that timer is disabled; prior
+ * effects are never rolled back or replayed. completed is a channel bit mask,
+ * written also on a later callback error. Inputs/outputs must not alias. */
+int rf_weapon_scheduled_tick(rf_weapon_scheduled_owner *,int32_t now_ms,
+    const rf_weapon_scheduled_ops *,void *context,uint32_t *completed);
+
+/*406330/406390 through406543, before the optional humanoid speech timer.
+ * This gate requires an already-acquired target. It never creates a target,
+ * switches an AI action, or interprets an authored movement order as fire. */
+typedef struct rf_weapon_ai_secondary_input {
+    int32_t now_ms,deadline,weapon;
+    uint32_t global_enabled,ai_flags_530,hendrix_al,animation_blocked_al;
+    uint32_t target_present,visible_29c,visible_29d,flatten_aim_al;
+    float source[3],target[3],eye[3],forward[3];
+    float maximum_range,minimum_range,source_radius,target_radius;
+} rf_weapon_ai_secondary_input;
+/* Sight corresponds to498e80(eye,target,3,0), returning nonzero if obstructed.
+ * The1000 AI flag permits unseen/occluded fire but never bypasses geometry.
+ * Original distance is max(abs(delta))+.375*middle+.1875*minimum; alignment
+ * rejects strictly below .95. Negative weapon IDs safely reject in the port.
+ * Errors preserve result; callback effects are caller-owned and not undone. */
+int rf_weapon_ai_secondary_admit(const rf_weapon_ai_secondary_input *,
+    int (*sight)(void *,const float[3],const float[3],uint32_t *blocked),void *,uint32_t *result);
+
 typedef struct rf_weapon_flight {
     float position[3],velocity[3],radius;
     double remaining;

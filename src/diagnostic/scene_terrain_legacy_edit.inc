@@ -48,6 +48,7 @@ static int scene_terrain_legacy_edit(scene_stream *s,const scene_legacy_request 
         rf_geometry_collision_overlay *live=&s->terrain_collision;
         /* Everything below is a nonfailing copy into existing live owners.
          * Candidate tree storage is now committed; preserve overlay addresses. */
+        campaign_dry_sweep_invalidate();
         room=live->room;
         memcpy(live->source_indices,p->overlay.source_indices,p->faces*sizeof(*live->source_indices));
         live->world.rooms[room]=p->overlay.world.rooms[room];

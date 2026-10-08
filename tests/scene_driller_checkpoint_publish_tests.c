@@ -52,7 +52,7 @@ int main(void)
     runtime.damage.damage.destroyed=runtime.damage.damage.destruction_pending=1;
     runtime.damage.damage.state.effects.health=-5;runtime.entry.host.alive=0;
     runtime.damage.damage.state.responsible_handle=123;runtime.damage.last_destroyer=123;
-    runtime.damage.damage.object_flags|=0x200000u;runtime.support.hits=6;runtime.support.support_handle=123;
+    runtime.damage.damage.object_flags|=0x200004u;runtime.support.hits=6;runtime.support.support_handle=123;
     runtime.support.velocity[0]=3;runtime.contact.has_world=1;runtime.last_frame=100;
     stream.driller_weapon.held=1;stream.driller_weapon.contact_active=1;stream.driller_weapon.contact_seconds=.5f;
     stream.driller_weapon.phase=2;stream.driller_weapon.damage_wait=1;
@@ -62,7 +62,8 @@ int main(void)
     CHECK(runtime.physics.state.position[0]==decoded.position[0] && stream.driller_position[0]==decoded.position[0]);
     CHECK(runtime.damage.damage.state.effects.health==850 && runtime.entry.host.alive && !runtime.damage.damage.destroyed);
     CHECK(!runtime.damage.damage.destruction_pending && runtime.damage.last_destroyer==UINT32_MAX);
-    CHECK(!(runtime.damage.damage.object_flags&0x200000u) && runtime.damage.damage.state.responsible_handle==UINT32_MAX);
+    CHECK(!(runtime.damage.damage.object_flags&0x200004u) && runtime.damage.damage.state.responsible_handle==UINT32_MAX);
+    CHECK(runtime.entry.view.flags_7c==runtime.damage.damage.object_flags);
     CHECK(!runtime.physics.state.force[0] && !runtime.physics.state.torque[1] && !runtime.physics.state.skip_forces);
     CHECK(!runtime.support.hits && runtime.support.support_handle==UINT32_MAX && !runtime.support.velocity[0]);
     CHECK(!runtime.contact.has_world && runtime.last_frame==UINT32_MAX);

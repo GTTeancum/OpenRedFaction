@@ -1,7 +1,9 @@
 #ifndef RF_SCENE_VEHICLE_PHYSICS_CHECKPOINT_INCLUDED
 #define RF_SCENE_VEHICLE_PHYSICS_CHECKPOINT_INCLUDED
-/* RFPV1/2 wrap RFVA/ordinary vehicle bytes, beneath RFNS. Version2 adds the
- * hidden object bit in the existing row; version1 retains its exact mask.
+/* RFPV1..4 wrap RFVA/ordinary vehicle bytes, beneath RFNS. Version2 adds the
+ * hidden object bit; version3 adds selected-host invulnerability in the same
+ * row. Version4 uses the formerly zero final word for headlamp810 bit4000.
+ * Older versions retain their exact masks, reserved zero and wire size.
  * Source identity and checksum belong to RFWC. No runtime handles or pointers
  * enter the wire.
  * Include after vehicle runtime and passive checkpoint definitions. */
@@ -9,6 +11,7 @@ enum {SCENE_VEHICLE_PHYSICS_HEADER=16,SCENE_VEHICLE_PHYSICS_ROW=72};
 typedef struct scene_vehicle_physics_saved {
     uint32_t uid,role,scripted,body_flags,pending,object_bits,entity_bits,skip_forces;
     float velocity[3],force[3],torque[3];
+    uint32_t headlamp_bits;
 } scene_vehicle_physics_saved;
 struct scene_vehicle_physics_checkpoint_stage {
     uint32_t count,bytes,admitted,version;
@@ -25,18 +28,19 @@ static uint32_t scene_vehicle_physics_checkpoint_bytes(const scene_vehicle_physi
 static void scene_vehicle_physics_checkpoint_close(scene_vehicle_physics_checkpoint_stage **s)
 {if(s&&*s){free((*s)->rows);free(*s);*s=NULL;}}
 static uint32_t scene_vehicle_physics_checkpoint_object_mask(uint32_t version)
-{return version==2?0x06004000u:0x06000000u;}
+{return version>=3?0x06004004u:version==2?0x06004000u:0x06000000u;}
 /* Use only after admission. Old active saves always restored a visible host,
  * including authored-hidden hosts; they contain no persisted visibility. */
 static uint32_t scene_vehicle_physics_checkpoint_active_hidden(const scene_vehicle_physics_checkpoint_stage *stage)
 {
-    return stage&&stage->admitted&&stage->version==2&&stage->count&&stage->rows&&
+    return stage&&stage->admitted&&stage->version>=2&&stage->count&&stage->rows&&
         !stage->rows[0].role&&!!(stage->rows[0].object_bits&0x4000u);
 }
 static int scene_vehicle_physics_saved_valid(const scene_vehicle_physics_saved *v,uint32_t version)
 {
-    if((version!=1&&version!=2)||v->uid==UINT32_MAX||v->role>1||v->scripted>1||v->pending>1||v->skip_forces>1||
+    if((version<1||version>4)||v->uid==UINT32_MAX||v->role>1||v->scripted>1||v->pending>1||v->skip_forces>1||
        (v->object_bits&~scene_vehicle_physics_checkpoint_object_mask(version))||(v->entity_bits&~0x800u))return RF_FORMAT;
+    if(v->headlamp_bits&~(version==4?0x4000u:0u))return RF_FORMAT;
     if(v->role&&(!v->uid||v->pending||v->skip_forces))return RF_FORMAT;
     if(v->pending&&!(v->entity_bits&0x800u))return RF_FORMAT;
     if(v->scripted&&!(v->body_flags&0x80000000u)&&
@@ -75,6 +79,7 @@ static int scene_vehicle_physics_checkpoint_live(const scene_stream *s,uint32_t 
     }
     v.object_bits=damage->object_flags&scene_vehicle_physics_checkpoint_object_mask(version);
     v.entity_bits=damage->state.effects.flags_814&0x800u;
+    v.headlamp_bits=version==4?damage->state.effects.flags_810&0x4000u:0;
     if(scene_vehicle_physics_saved_valid(&v,version))return RF_FORMAT;*out=v;return RF_OK;
 }
 static int scene_vehicle_physics_checkpoint_capture(const scene_stream *s,unsigned char *p,uint32_t capacity,
@@ -102,8 +107,15 @@ static int scene_vehicle_physics_checkpoint_capture(const scene_stream *s,unsign
                 }
             if(matches!=1)return RF_NOT_FOUND;
         }
+        /* RFVA2 already owns passive immunity. The selected RFVC family does
+         * not: use v3 when protection is set, or when an authored protected
+         * class needs an explicit OFF value. No mode/history marker needed. */
+        if((s->driller_runtime->damage.damage.object_flags&4u)||
+           !(s->driller_runtime->damage.damage.state.effects.class_health>=0))version=3;
+        if((s->driller_runtime->damage.damage.state.effects.flags_810&0x4000u)||
+           scene_vehicle_headlamp_initial(s->driller_runtime->entry.host.handle))version=4;
     }
-    affected=version==2;
+    affected=version>=2;
     /* Preflight every row before shifting the caller's inner record. */
     for(uint32_t i=0;i<count;i++){status=scene_vehicle_physics_checkpoint_live(s,i,version,&v);if(status)return status;
         affected|=v.scripted|v.pending|v.entity_bits;}
@@ -119,7 +131,7 @@ static int scene_vehicle_physics_checkpoint_capture(const scene_stream *s,unsign
         scene_history_put(row+20,v.object_bits);scene_history_put(row+24,v.entity_bits);scene_history_put(row+28,v.skip_forces);
         for(uint32_t j=0;j<3;j++){scene_history_put_float(row+32+j*4,v.velocity[j]);
             scene_history_put_float(row+44+j*4,v.force[j]);scene_history_put_float(row+56+j*4,v.torque[j]);}
-        scene_history_put(row+68,0);
+        scene_history_put(row+68,v.headlamp_bits);
     }
     ++rf_scene_vehicle_physics_checkpoint[0];rf_scene_vehicle_physics_checkpoint[1]=count;
     *written=(uint32_t)required;return RF_OK;
@@ -132,7 +144,7 @@ static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *s,const 
     *inner=p;*inner_bytes=bytes;
     if(bytes<4||memcmp(p,"RFPV",4))return RF_OK; /* Exact legacy payload. */
     if(bytes<SCENE_VEHICLE_PHYSICS_HEADER)return RF_FORMAT;
-    version=scene_history_word(p+4);if(version!=1&&version!=2)return RF_FORMAT;
+    version=scene_history_word(p+4);if(version<1||version>4)return RF_FORMAT;
     nested=scene_history_word(p+8);count=scene_history_word(p+12);
     required=SCENE_VEHICLE_PHYSICS_HEADER+(uint64_t)nested+(uint64_t)count*SCENE_VEHICLE_PHYSICS_ROW;
     cost=sizeof(*stage)+(uint64_t)count*sizeof(*stage->rows);
@@ -149,9 +161,10 @@ static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *s,const 
         v->uid=scene_history_word(row);v->role=scene_history_word(row+4);v->scripted=scene_history_word(row+8);
         v->body_flags=scene_history_word(row+12);v->pending=scene_history_word(row+16);
         v->object_bits=scene_history_word(row+20);v->entity_bits=scene_history_word(row+24);v->skip_forces=scene_history_word(row+28);
+        v->headlamp_bits=scene_history_word(row+68);
         for(uint32_t j=0;j<3;j++){v->velocity[j]=scene_history_float(row+32+j*4);
             v->force[j]=scene_history_float(row+44+j*4);v->torque[j]=scene_history_float(row+56+j*4);}
-        if(v->uid!=live.uid||v->role!=live.role||scene_history_word(row+68)||scene_vehicle_physics_saved_valid(v,version)){
+        if(v->uid!=live.uid||v->role!=live.role||scene_vehicle_physics_saved_valid(v,version)){
             scene_vehicle_physics_checkpoint_close(&stage);return RF_FORMAT;
         }
         for(uint32_t j=0;j<i;j++)if(stage->rows[j].uid==v->uid){scene_vehicle_physics_checkpoint_close(&stage);return RF_FORMAT;}
@@ -164,7 +177,7 @@ static int scene_vehicle_physics_checkpoint_admit(const scene_stream *s,scene_ve
     if(!stage)return RF_OK;
     stage->admitted=0;
     if(!s||stage->count!=scene_vehicle_physics_checkpoint_count(s)||!stage->rows||
-       (stage->version!=1&&stage->version!=2))return RF_FORMAT;
+       (stage->version<1||stage->version>4))return RF_FORMAT;
     for(uint32_t i=0;i<stage->count;i++){
         const scene_vehicle_physics_saved *v=stage->rows+i;scene_vehicle_physics_saved live;
         int status=scene_vehicle_physics_checkpoint_live(s,i,stage->version,&live);if(status)return status;
@@ -180,6 +193,7 @@ static int scene_vehicle_physics_checkpoint_admit(const scene_stream *s,scene_ve
             saved=passive->rows+slot;
             if(!saved->loaded||!saved->has_damage||saved->uid!=v->uid||
                (saved->object_flags&scene_vehicle_physics_checkpoint_object_mask(stage->version))!=v->object_bits||
+               (stage->version==4&&(saved->flags_810&0x4000u)!=v->headlamp_bits)||
                (saved->flags_814&0x800u)!=v->entity_bits)return RF_FORMAT;
         }
     }
@@ -202,7 +216,10 @@ static void scene_vehicle_physics_checkpoint_assign(scene_stream *s,const scene_
         const scene_vehicle_physics_saved *v=stage->rows+i;
         if(!v->role){
             r->scripted_physics=v->scripted;r->scripted_exit_pending=v->pending;r->physics.body_flags=v->body_flags;
-            r->damage.damage.object_flags=(r->damage.damage.object_flags&~0x06004000u)|v->object_bits;
+            r->damage.damage.object_flags=(r->damage.damage.object_flags&
+                ~(0x06004000u|(stage->version>=3?4u:0u)))|v->object_bits;
+            if(stage->version==4)r->damage.damage.state.effects.flags_810=
+                (r->damage.damage.state.effects.flags_810&~0x4000u)|v->headlamp_bits;
             r->damage.damage.state.effects.flags_814=(r->damage.damage.state.effects.flags_814&~0x800u)|v->entity_bits;
             r->physics.state.skip_forces=v->skip_forces;
             memcpy(r->physics.state.force,v->force,12);memcpy(r->physics.state.torque,v->torque,12);
@@ -214,6 +231,7 @@ static void scene_vehicle_physics_checkpoint_assign(scene_stream *s,const scene_
     }
     if(r){
         r->entry.view.flags_7c=r->damage.damage.object_flags;r->entry.view.flags_814=r->damage.damage.state.effects.flags_814;
+        r->entry.view.flags_810=(r->entry.view.flags_810&~0x4000u)|(r->damage.damage.state.effects.flags_810&0x4000u);
         probe[1]=(uint32_t)campaign_authored_vehicle_uid;probe[2]=r->scripted_physics;probe[3]=r->physics.body_flags;
         probe[4]=r->scripted_exit_pending;probe[5]=r->damage.damage.object_flags;probe[6]=r->damage.damage.state.effects.flags_814;
         probe[7]=r->physics.state.skip_forces;memcpy(probe+8,r->physics.state.velocity,12);

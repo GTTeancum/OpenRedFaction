@@ -44,7 +44,7 @@ static int scene_secondary_vehicle_fixture_remaining(int32_t deadline,uint32_t *
 }
 static void scene_secondary_vehicle_fixture_collision(scene_stream *s,uint32_t frame)
 {
-    scene_secondary_vehicle_runtime *r=campaign_secondary_vehicle,before;
+    scene_secondary_vehicle_runtime *r=scene_secondary_vehicle_find_uid(26),before;
     scene_driller_runtime *selected=s?s->driller_runtime:NULL;scene_passive_vehicle *owner;
     scene_passive_vehicle owner_before;rf_vehicle_rigid_state selected_before;
     scene_driller_entry_exit entry_before;scene_driller_damage damage_before;
@@ -100,7 +100,7 @@ static void scene_secondary_vehicle_fixture_tick(scene_stream *s,uint32_t frame)
     rf_scene_secondary_vehicle_clocks[i]=(uint32_t)campaign_blackout_now;
     p=rf_scene_secondary_vehicle_samples[i];p[0]=1;p[1]=frame;p[2]=rf_scene_secondary_vehicle_fixture[1];
     ++rf_scene_secondary_vehicle_fixture[2];
-    r=campaign_secondary_vehicle;selected=s?s->driller_runtime:NULL;
+    r=scene_secondary_vehicle_find_uid(26);selected=s?s->driller_runtime:NULL;
     if(!campaign_spawn||strcmp(campaign_current_level,"L1S3.rfl")||campaign_authored_vehicle_uid!=9627||
        campaign_seeds.records.count!=2||campaign_passive_vehicle_count!=1||campaign_events.count!=7||
        !r||!selected||r->uid!=26||sizeof(r->physics.state)!=34*4){status=RF_FORMAT;goto done;}

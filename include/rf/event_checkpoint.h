@@ -30,8 +30,9 @@ typedef struct rf_event_checkpoint_refs {
  * from the registry by the composer before gameplay resumes; this component
  * does not own the registry. No effects dispatch during restore. All buffers
  * disjoint. Errors preserve output/owner; no allocation. RFEC2 remains readable
- * as settled state; RFEC1 rejects. Missing Play_Sound/Look_At/Explode/Music/
- * Black_Out gameplay dispatch is explicitly exposed through requirement flags. */
+ * as settled state; RFEC1 rejects. All known original types retain their common
+ * state; queued effects and already-applied external owners need the separate
+ * requirement/admission checks even when their event header is supported. */
 int rf_event_checkpoint_type_supported(uint32_t type);
 int rf_event_checkpoint_encode_mapped(const unsigned char identity[32],const rf_runtime_event *,int32_t now,
     const rf_event_checkpoint_refs *,void *output,uint32_t capacity);

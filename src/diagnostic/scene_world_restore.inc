@@ -23,6 +23,7 @@ typedef struct scene_world_restore_stage {
     scene_stream *stream;
     const scene_passive_vehicle_checkpoint_stage *passive;
     const scene_npc_seat_checkpoint_stage *seats;
+    const scene_secondary_vehicle_checkpoint_stage *secondary;
     const rf_npc_checkpoint_record *placement_rows;uint32_t placement_count,placement_next;
 } scene_world_restore_stage;
 static inline int scene_world_event_probe(scene_stream *,const scene_world_restore_stage *,int32_t);
@@ -67,7 +68,11 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
         if(actor==UINT32_MAX||!campaign_npc_movement_configs||
            campaign_seeds.items[actor].class_index>=campaign_seeds.class_count)return RF_FORMAT;
         for(host=0;host<s->passive->count;host++)if(s->passive->rows[host].uid==support_uid)break;
-        if(host==s->passive->count||!s->passive->rows[host].attached)return RF_FORMAT;
+        if(host==s->passive->count)return RF_FORMAT;
+        if(!s->passive->rows[host].attached){
+            status=scene_secondary_vehicle_checkpoint_support(s->secondary,support_uid,campaign_passive_vehicles[host].handle);
+            if(status)return status;
+        }
         world.class_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
         return scene_world_passive_support_place(s->stream,&world,placement,s->passive,host,
             campaign_npc_bodies[actor].registration.handle,(uint32_t)campaign_npc_bodies[actor].view.linked_handle,room,support);
@@ -136,7 +141,7 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     const unsigned char identity[32],uint32_t required_mask,const rf_npc_checkpoint_catalog *catalog,
     int32_t now,const scene_checkpoint_world_context *world,uint32_t budget,scene_world_restore_stage **out,
     scene_stream *stream,const scene_passive_vehicle_checkpoint_stage *passive,
-    const scene_npc_seat_checkpoint_stage *seats)
+    const scene_npc_seat_checkpoint_stage *seats,const scene_secondary_vehicle_checkpoint_stage *secondary)
 {
     const uint32_t mask=RF_WORLD_CHECKPOINT_MASK(RF_WORLD_NPC)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_MOVER)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_CLUTTER);
     rf_world_checkpoint envelope;scene_world_restore_stage *s=NULL;
@@ -160,7 +165,7 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     temp=(uint64_t)prop_count*sizeof(rf_clutter_checkpoint_record);
     if(fixed+resident+temp>budget||fixed+resident>UINT32_MAX)return RF_RANGE;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;s->envelope=envelope;s->allocated_bytes=(uint32_t)fixed;
-    s->stream=stream;s->passive=passive;s->seats=seats;
+    s->stream=stream;s->passive=passive;s->seats=seats;s->secondary=secondary;
     if(prop_count){s->candidate_props=calloc(prop_count,sizeof(*s->candidate_props));s->prop_views=calloc(prop_count,sizeof(*s->prop_views));s->authored_prop_views=calloc(prop_count,sizeof(*s->authored_prop_views));}
     if(campaign_movers.count)s->scratch=calloc(campaign_movers.count,sizeof(*s->scratch));
     if((prop_count&&(!s->candidate_props||!s->prop_views||!s->authored_prop_views))||(campaign_movers.count&&!s->scratch)){status=RF_IO;goto fail;}
@@ -213,7 +218,7 @@ fail:
 static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
     const unsigned char identity[32],uint32_t required_mask,const rf_npc_checkpoint_catalog *catalog,
     int32_t now,const scene_checkpoint_world_context *world,uint32_t budget,scene_world_restore_stage **out)
-{return scene_world_restore_prepare_with_passive(data,bytes,identity,required_mask,catalog,now,world,budget,out,NULL,NULL,NULL);}
+{return scene_world_restore_prepare_with_passive(data,bytes,identity,required_mask,catalog,now,world,budget,out,NULL,NULL,NULL,NULL);}
 /* Read-only real-scene endpoint probe. A successful result proves this subset
  * staged against real resources/geometry; nothing is published or loaded. */
 static inline int scene_world_restore_probe(scene_stream *stream,const void *data,uint32_t bytes,

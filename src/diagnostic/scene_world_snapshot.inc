@@ -77,6 +77,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
+    /* RFEC retains pending modal events, but the active modal owner has no
+     * sidecar yet. Never silently resume before its already-applied effect. */
+    if(campaign_endgame.phase||campaign_defuse.active){status=RF_NOT_FOUND;goto done;}
+    status=scene_item_pickup_states_valid(s);if(status)goto done;
     if(!campaign_npc_physics_save_allowed()){status=RF_NOT_FOUND;goto done;}
     if(scene_turret_heap_pending()){status=RF_NOT_FOUND;goto done;}
     scene_turret_player_checkpoint_scope(1);
@@ -162,7 +166,8 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(!status)status=rf_campaign_triggers_checkpoint_encode(identity.bytes,triggers,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);
     SNAP_END(RF_WORLD_TRIGGER);free(triggers);triggers=NULL;
     SNAP_START("goals");status=rf_campaign_goals_checkpoint_encode(identity.bytes,&rf_scene_mission_goals,&campaign_local_goals,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_GOALS);
-    SNAP_START("pickups");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&rf_scene_campaign_pickups,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_PICKUPS);
+    SNAP_START("pickups");status=rf_campaign_pickups_checkpoint_encode_states(identity.bytes,&rf_scene_campaign_pickups,
+        campaign_pickup_states,RF_CAMPAIGN_PICKUP_SLOTS,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_PICKUPS);
     SNAP_START("clutter");status=scene_clutter_checkpoint_capture(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CLUTTER);
     SNAP_START("weapon_modes");status=scene_weapon_modes_checkpoint_capture(s,&modes);
     if(!status)status=rf_weapon_modes_checkpoint_encode(scene_remote_checkpoint_catalog_hash(),&modes,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_WEAPON_MODES);
@@ -187,6 +192,18 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         if(!status)bytes=wrapped;
     }
     if(!status){uint32_t wrapped=0;
+        status=scene_vehicle_allegiance_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
+        status=scene_vehicle_attack_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
+        status=scene_vehicle_ai_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
         status=scene_npc_seat_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
         if(!status)bytes=wrapped;
     }
@@ -206,6 +223,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     }
     if(!status){uint32_t wrapped=0;
         status=scene_corpse_lifetime_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,now,&wrapped);
+        if(!status)bytes=wrapped;
+    }
+    if(!status){uint32_t wrapped=0;
+        status=scene_masako_checkpoint_capture(buffer+at,RF_CHECKPOINT_FILE_MAX-at,bytes,&wrapped);
         if(!status)bytes=wrapped;
     }
     if(!status){uint32_t wrapped=0;

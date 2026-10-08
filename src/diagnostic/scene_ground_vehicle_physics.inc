@@ -4,7 +4,8 @@
 #include "rf/vehicle_suspension.h"
 #include "rf/collision.h"
 #include <math.h>
-/* Include after entity/model metadata headers. APC, Jeep01, Driller01, sub and Fighter01.
+/* Include after entity/model metadata headers. APC, Jeep01, Driller01, sub and
+ * the two distinct fighter classes (Fighter01 and masako_fighter).
  * Uses the same core sphere/body/tensor services and inertia policy as Driller.
  * Spring coefficients remain authored, including unequal Jeep front/rear pairs.
  * Retains no model/archive pointer.
@@ -25,13 +26,16 @@ static int scene_vehicle_body_physics_initialize(const char *class_name,const rf
     rf_physics_mass_tensor initial={0},generated;rf_entity_physics_config config;
     rf_physics_body body={0};rf_vehicle_rigid_command command={0};
     rf_vehicle_rigid_support support={0};rf_vehicle_rigid_proposal probe;
-    uint32_t i,j,expected_springs;float scale;int status;
+    uint32_t i,j,expected_springs,aircraft;float scale;int status;
     if(!class_name||!physics||!movement||!rotation||!render||!position||!basis||!out||!render->spheres||!render->sphere_count||
        render->sphere_count>8||!isfinite(gravity)||gravity<0)return RF_RANGE;
-    if(physics->authored.use_kind!=1||physics->authored.movement_index!=(!strcmp(class_name,"sub")?7:!strcmp(class_name,"Fighter01")?9:5))return RF_FORMAT;
+    /* entity.tbl assigns both aircraft movement9/use1. Their resources,
+     * collision spheres, overrides and vitals still belong to each class. */
+    aircraft=!strcmp(class_name,"Fighter01")||!strcmp(class_name,"masako_fighter");
+    if(physics->authored.use_kind!=1||physics->authored.movement_index!=(!strcmp(class_name,"sub")?7:aircraft?9:5))return RF_FORMAT;
     if(!strcmp(class_name,"Driller01"))expected_springs=6;
     else if(!strcmp(class_name,"APC") || !strcmp(class_name,"Jeep01"))expected_springs=4;
-    else if(!strcmp(class_name,"sub") || !strcmp(class_name,"Fighter01"))expected_springs=0;
+    else if(!strcmp(class_name,"sub") || aircraft)expected_springs=0;
     else return RF_FORMAT;
     value.sphere_count=render->sphere_count;
     for(i=0;i<value.sphere_count;i++){
@@ -66,7 +70,7 @@ static int scene_vehicle_body_physics_initialize(const char *class_name,const rf
     /* Actual sub model has one collision sphere despite seven named table
      * overrides. A point-mass-only tensor is singular. First-pass submarine
      * policy includes solid-sphere self inertia; ground behavior stays exact. */
-    if(!strcmp(class_name,"sub") || !strcmp(class_name,"Fighter01"))for(i=0;i<value.sphere_count;i++){
+    if(!strcmp(class_name,"sub") || aircraft)for(i=0;i<value.sphere_count;i++){
         double radius=value.spheres[i].radius;
         double mass=radius*radius*radius*physics->material.density*4.18879032135009765625;
         float self=(float)(.4*mass*radius*radius);
@@ -97,7 +101,7 @@ static int scene_ground_vehicle_physics_initialize(const char *name,const rf_ent
     const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
     const rf_static_render_resource *render,const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
 {
-    if(!name || (!strcmp(name,"sub")) || !strcmp(name,"Fighter01"))return RF_FORMAT;
+    if(!name || !strcmp(name,"sub") || !strcmp(name,"Fighter01") || !strcmp(name,"masako_fighter"))return RF_FORMAT;
     return scene_vehicle_body_physics_initialize(name,physics,movement,rotation,render,position,basis,gravity,out);
 }
 #endif

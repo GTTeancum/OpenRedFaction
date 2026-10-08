@@ -13,6 +13,8 @@
 uint32_t rf_animation_progress[4];
 /* Suppressed, actual mesh bytes, actual scratch bytes, omitted payload bytes. */
 uint32_t rf_animation_render_memory[4];
+/* Enabled mode, fast frames, skipped cache probes, skipped skinned vertices. */
+uint32_t rf_animation_diagnostic_work[4];
 
 static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
 {
@@ -128,6 +130,7 @@ static int animation_player_swap_prepare(rf_vpp *meshes,const rf_model_bone *cur
 fail:
     free(payload);free(v);return status;
 }
+#include "animation_motion_residency.inc"
 static int animation_run(const char *meshes_path,const char *motions_path,uint32_t out[8],rf_preview_mesh *preview,uint32_t preview_frame,uint32_t budget,rf_animation_frame_sink sink,void *sink_context,const rf_animation_placement *placement,const rf_entity_state_set *authored)
 {
     static const char *names[4]={"ult2_stand.rfa","ult2_crouch.rfa",
@@ -141,6 +144,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     uint32_t motion_identities[4]={0};uint8_t motion_flags[4]={0};int32_t registered[4];
     rf_model_motion_registry registration={motion_identities,motion_flags,0,4};
     rf_motion_cache_record *motion_cache=NULL;
+    animation_motion_cache *player_motion_cache=NULL;
+    const rf_motion_file *resident_handles[23];
     rf_turn_effects effects={0}; rf_turn_actor actor={0};
     rf_locomotion_candidate_input selection={0,1,{0,0,0},0};
     rf_locomotion_candidates candidates;
@@ -176,6 +181,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     uint32_t frame_count=sink && placement && placement->frame_count?placement->frame_count:64;
     memset(rf_animation_render_memory,0,sizeof(rf_animation_render_memory));
+    memset(rf_animation_diagnostic_work,0,sizeof(rf_animation_diagnostic_work));
+    memset(rf_animation_motion_residency,0,sizeof(rf_animation_motion_residency));
     memset(rf_animation_progress,0,sizeof(rf_animation_progress));rf_animation_progress[0]=UINT32_MAX;
     if(placement && placement->animation_timing && !placement->animation_timing_wrap && frame_count>(placement->animation_timing_capacity?placement->animation_timing_capacity:64))return RF_RANGE;
     if (!out || (placement && (!isfinite(placement->step_seconds) || placement->step_seconds<0))) return RF_RANGE;
@@ -303,15 +310,27 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     entity.flags_7d0=10; registry.slots[0]=&entity;
     actor.direction.orientation[0]=actor.direction.orientation[4]=actor.direction.orientation[8]=1;
     for (i=3;i<=6;++i) out[i]=2166136261u;
+    if(placement && placement->campaign_player) {
+        /* Only active clips become resident. This optional owner adds no
+         * failure requirement; non-player diagnostic streams are unchanged. */
+        player_motion_cache=calloc(1,sizeof(*player_motion_cache));
+        rf_animation_motion_residency[6]=ANIMATION_MOTION_BUDGET;
+        rf_animation_motion_residency[7]=player_motion_cache?sizeof(*player_motion_cache):0;
+    }
     published.model=&model;published.bones=bones;published.bone_count=count;
     published.matrices=(const float (*)[12])matrices;published.playback=&state;
     for (frame=0;frame<frame_count;++frame) {
+        uint32_t diagnostics;
+        const rf_motion_file *const *frame_handles=handles;
         rf_animation_progress[0]=frame;rf_animation_progress[1]=1;
         float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
         if(placement && placement->begin_frame) {
             status=placement->begin_frame(placement->frame_context,frame);
             if(status==RF_NOT_FOUND){status=RF_OK;goto done;}if(status)goto done;
         }
+        diagnostics=!placement || !placement->diagnostic_checksums || *placement->diagnostic_checksums;
+        rf_animation_diagnostic_work[0]=diagnostics!=0;
+        if(!diagnostics)++rf_animation_diagnostic_work[1];
         if(placement && placement->player_form && placement->player_model_state) {
             uint32_t target=placement->player_form[0]?(placement->player_form[1]?2u:1u):0u;
             if(target!=player_model_class) {
@@ -421,26 +440,38 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             }
         }
         rf_animation_progress[1]=3;
-        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
+        if(player_motion_cache) {
+            frame_handles=animation_motion_bind(player_motion_cache,handles,resource_count,&state,resident_handles);
+        }
+        status=rf_model_evaluate_playback(bones,count,&state,frame_handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
         status=rf_model_compose_transform(local,matrices[eye.parent],tag); if (status!=RF_OK) goto done;
-        out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
-        out[4]=hash_bytes(out[4],&controller,sizeof(controller));
-        for (i=0;i<resource_count;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
-        out[4]=hash_bytes(out[4],&effects,sizeof(effects));
-        out[4]=hash_bytes(out[4],&sound_class,4);
-        out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
-        out[4]=hash_bytes(out[4],&ready,4); out[4]=hash_bytes(out[4],&eligible,4);
-        out[4]=hash_bytes(out[4],&weapon_state,sizeof(weapon_state));
-        out[4]=hash_bytes(out[4],effect_objects,sizeof(effect_objects));
-        out[4]=hash_bytes(out[4],&reserve,4); out[4]=hash_bytes(out[4],&replacement,4);
-        out[4]=hash_bytes(out[4],&empty_action,sizeof(empty_action));
-        out[4]=hash_bytes(out[4],&weapon_selection,sizeof(weapon_selection));
-        displacement[0]=1;
-        status=rf_model_evaluate_playback(bones,count,&state,handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
-        if (displacement[0]!=1) { status=RF_FORMAT; goto done; }
-        out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
-        out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
-        status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
+        /* These outputs are diagnostic parity only. In particular, the second
+         * evaluation deliberately injects an X displacement to prove that the
+         * already-current generation skips sampling; it is not player motion. */
+        if(diagnostics) {
+            out[3]=hash_bytes(out[3],matrices,count*48); out[4]=hash_bytes(out[4],&state,sizeof(state)); out[6]=hash_bytes(out[6],tag,48);
+            out[4]=hash_bytes(out[4],&controller,sizeof(controller));
+            for (i=0;i<resource_count;++i) out[4]=hash_bytes(out[4],&resources[i].references,4);
+            out[4]=hash_bytes(out[4],&effects,sizeof(effects));
+            out[4]=hash_bytes(out[4],&sound_class,4);
+            out[4]=hash_bytes(out[4],&candidates,sizeof(candidates));
+            out[4]=hash_bytes(out[4],&ready,4); out[4]=hash_bytes(out[4],&eligible,4);
+            out[4]=hash_bytes(out[4],&weapon_state,sizeof(weapon_state));
+            out[4]=hash_bytes(out[4],effect_objects,sizeof(effect_objects));
+            out[4]=hash_bytes(out[4],&reserve,4); out[4]=hash_bytes(out[4],&replacement,4);
+            out[4]=hash_bytes(out[4],&empty_action,sizeof(empty_action));
+            out[4]=hash_bytes(out[4],&weapon_selection,sizeof(weapon_selection));
+            displacement[0]=1;
+            status=rf_model_evaluate_playback(bones,count,&state,frame_handles,resources,resource_count,displacement,matrices,generations,256); if (status!=RF_OK) goto done;
+            if (displacement[0]!=1) { status=RF_FORMAT; goto done; }
+            out[5]=hash_bytes(out[5],matrices,count*48); out[5]=hash_bytes(out[5],displacement,12);
+            out[5]=hash_bytes(out[5],generations,count*2); displacement[0]=0;
+        } else ++rf_animation_diagnostic_work[2];
+        /* Hidden first-person bodies publish the same ordinary bone matrices.
+         * Skinning matrices feed only the omitted mesh and diagnostic scan. */
+        if(diagnostics || !(placement && placement->suppress_mesh)) {
+            status=rf_model_prepare_skinning(stored,matrices,count,(uint16_t)state.generation,prepared,prepared_generations,count);if(status)goto done;
+        }
         if(placement && placement->published_model)*placement->published_model=&published;
         if(placement && placement->physics_config && placement->physics_body) {
             rf_animation_progress[1]=4;
@@ -466,8 +497,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             if(placement->physics_diagnostic) {
                 uint32_t *d=placement->physics_diagnostic;
                 d[0]=0x52465041;d[1]=1;d[2]=frame+1;d[3]=body->spheres.count;d[4]=body->allocated_bytes;
-                d[5]=hash_bytes(2166136261u,&body->state,sizeof(body->state));
-                d[6]=hash_bytes(2166136261u,body->spheres.items,body->spheres.count*sizeof(*body->spheres.items));
+                d[5]=diagnostics?hash_bytes(2166136261u,&body->state,sizeof(body->state)):2166136261u;
+                d[6]=diagnostics?hash_bytes(2166136261u,body->spheres.items,body->spheres.count*sizeof(*body->spheres.items)):2166136261u;
                 memcpy(d+7,&body->state.bounds.radius,4);
             }
         }
@@ -482,12 +513,17 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
         rf_animation_progress[1]=6;
-        out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
-        for(vertex_index=0;vertex_index<vertex_count;++vertex_index) {
-            rf_model_vertex *v=vertices+vertex_index;float position[3];
-            status=rf_model_collision_vertex(v->position,v->weights,v->bones,prepared,count,position);if(status)goto done;
-            out[5]=hash_bytes(out[5],position,sizeof(position));
-        }
+        /* Collision ownership uses body spheres and the published bone pose,
+         * not these discarded per-vertex positions. Retain this diagnostic in
+         * checksummed runs, including its full validation and hash ordering. */
+        if(diagnostics) {
+            out[5]=hash_bytes(out[5],prepared,count*48);out[5]=hash_bytes(out[5],prepared_generations,count*2);
+            for(vertex_index=0;vertex_index<vertex_count;++vertex_index) {
+                rf_model_vertex *v=vertices+vertex_index;float position[3];
+                status=rf_model_collision_vertex(v->position,v->weights,v->bones,prepared,count,position);if(status)goto done;
+                out[5]=hash_bytes(out[5],position,sizeof(position));
+            }
+        } else rf_animation_diagnostic_work[3]+=vertex_count;
         for(render_batch=0;!(placement && placement->suppress_mesh) && render_batch<geometry.batch_count;++render_batch) {
             rf_animation_progress[1]=7;rf_animation_progress[3]=render_batch;
             const rf_model_draw_batch *draw=geometry.batches+render_batch;uint32_t n;
@@ -520,6 +556,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
 done:
     rf_animation_progress[2]=(uint32_t)status;
     if(placement && placement->published_model)*placement->published_model=NULL;
+    animation_motion_close(player_motion_cache);
     free(motion_cache);
     free(workspace);
     free(clip_pool);free(render_indices);

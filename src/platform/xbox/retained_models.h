@@ -29,7 +29,8 @@ uint32_t rf_xbox_model_visibility[8],rf_xbox_model_culling_disabled;
 uint32_t rf_xbox_bounds_poses[2]; /* Full bounds evaluations, reused poses this frame. */
 static void retained_models_begin(void)
 {
-    retained_draw_count=0;memset(rf_xbox_bounds_poses,0,sizeof(rf_xbox_bounds_poses));
+    retained_draw_count=0;memset(rf_xbox_texture_reuse,0,sizeof(rf_xbox_texture_reuse));
+    memset(rf_xbox_bounds_poses,0,sizeof(rf_xbox_bounds_poses));
     memset(rf_xbox_model_visibility,0,5*sizeof(uint32_t));rf_xbox_model_visibility[6]=0;
     rf_xbox_model_visibility[7]=rf_xbox_model_culling_disabled;
     rf_xbox_retained_models[0]=rf_xbox_retained_models[1]=rf_xbox_retained_models[4]=rf_xbox_retained_models[5]=rf_xbox_retained_models[6]=0;
@@ -207,6 +208,25 @@ static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t bat
 fallback:
     ++rf_xbox_retained_models[6];return RF_NOT_FOUND;
 }
+/* Retained models bind a known 1x1 0xffffffff fallback on unit1 and emit
+ * lightmap coordinates (0,0,0,1). Preserve both register-combiner iterations,
+ * including their intermediate clamp and stage1 x2 operation, but replace
+ * that texture operand with exact ONE = ZERO | UNSIGNED_INVERT. */
+static void retained_model_lightmap_mode(uint32_t white)
+{
+    uint32_t *p=pb_begin();
+    p=pb_push1(p,NV097_SET_SHADER_STAGE_PROGRAM,
+        field(NV097_SET_SHADER_STAGE_PROGRAM_STAGE0,NV097_SET_SHADER_STAGE_PROGRAM_STAGE0_2D_PROJECTIVE)|
+        field(NV097_SET_SHADER_STAGE_PROGRAM_STAGE1,white?
+            NV097_SET_SHADER_STAGE_PROGRAM_STAGE1_PROGRAM_NONE:NV097_SET_SHADER_STAGE_PROGRAM_STAGE1_2D_PROJECTIVE));
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,white?0:NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_COMBINER_COLOR_ICW+4,
+        field(NV097_SET_COMBINER_COLOR_ICW_A_SOURCE,4)|
+        field(NV097_SET_COMBINER_COLOR_ICW_A_MAP,6)|
+        field(NV097_SET_COMBINER_COLOR_ICW_B_SOURCE,white?0:9)|
+        field(NV097_SET_COMBINER_COLOR_ICW_B_MAP,white?1:6));
+    pb_end(p);
+}
 static int retained_model_render(uint32_t request,const rf_materials *materials,const gpu_texture *textures,uint32_t install_program)
 {
     static const uint32_t skinned_program[]={
@@ -217,25 +237,46 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
     };
     const retained_model_draw *draw=retained_draws+request;const retained_model_entry *entry=retained_models+draw->entry;
     const gpu_texture *texture=draw->material<materials->count && textures[draw->material].pixels?textures+draw->material:textures+materials->count;
-    const gpu_texture *white=textures+materials->count;uint32_t i,part_index,*p;
+    const gpu_texture *white=textures+materials->count,*previous_texture=NULL;uint32_t i,part_index,*p;
     renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks+4};
+    /* install_program starts each CPU-boundary/same-shader run. Within that
+     * run, the immediately preceding request proves the last unit0 binding;
+     * no cross-pass/frame pointer cache or caller-owned mutation is needed. */
+    if(!install_program && request) {
+        uint32_t previous_material=retained_draws[request-1].material;
+        previous_texture=previous_material<materials->count && textures[previous_material].pixels?
+            textures+previous_material:white;
+    }
     if(install_program) {
         if(entry->bones)vertex_program(skinned_program,sizeof(skinned_program)/4);
         else vertex_program(rigid_program,sizeof(rigid_program)/4);
+        retained_model_lightmap_mode(1);
     }
     p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
     pb_push(p++,NV097_SET_TRANSFORM_CONSTANT,12);memcpy(p,draw->rows,48);p+=12;
     p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,draw->screen[0],draw->screen[1],draw->screen[2],draw->screen[3]);
-    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,(1000.0f/999.9f)*16777215.0f,.1f,1,0);
-    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,.5f,.5f,.5f,1);
-    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,1,0,0); /* Cg literal c6. */
+    /* The caller resets install_program at every CPU-mesh boundary and
+     * shader-kind change. Intervening same-kind draws only alter c0..c3 and
+     * the bone palette at c8+, so these constants remain identical. */
+    if(install_program) {
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,(1000.0f/999.9f)*16777215.0f,.1f,1,0);
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,.5f,.5f,.5f,1);
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,1,0,0); /* Cg literal c6. */
+    }
     pb_end(p);
     p=pb_begin();p=pb_push1(p,NV097_SET_FRONT_FACE,draw->front_face);
-    p=pb_push1(p,NV097_SET_CULL_FACE,NV097_SET_CULL_FACE_V_BACK);
+    if(install_program)p=pb_push1(p,NV097_SET_CULL_FACE,NV097_SET_CULL_FACE_V_BACK);
     p=pb_push1(p,NV097_SET_BLEND_ENABLE,texture->transparent);p=pb_push1(p,NV097_SET_DEPTH_MASK,!texture->transparent);
-    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
-    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)white->pixels&0x03ffffff);p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,white->format);
-    for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+    if(!previous_texture ||
+       (((uint32_t)previous_texture->pixels^(uint32_t)texture->pixels)&0x03ffffffu) ||
+       previous_texture->format!=texture->format) {
+        p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);++rf_xbox_texture_reuse[2];
+    } else ++rf_xbox_texture_reuse[3];
+    if(install_program) {
+        /* Unit1 is disabled for this exact constant-white specialization. */
+        for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+    }
     {const uint32_t skinned_attribute[4]={0,1,10,9},skinned_offset[4]={0,12,28,44},skinned_size[4]={3,4,4,2};
      const uint32_t rigid_attribute[2]={0,9},rigid_offset[2]={0,12},rigid_size[2]={3,2};
      const uint32_t *attribute=entry->bones?skinned_attribute:rigid_attribute;
@@ -243,7 +284,9 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
      const uint32_t *size=entry->bones?skinned_size:rigid_size;
      uint32_t count=entry->bones?4:2;
      for(i=0;i<count;i++) {
-        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute[i]*4,
+        /* Stride/layout depend only on the unchanged rigid/skinned kind;
+         * GPU source addresses still change with every geometry entry. */
+        if(install_program)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute[i]*4,
             field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)|
             field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,size[i])|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,entry->stride));
         p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute[i]*4,((uint32_t)entry->gpu+offset[i])&0x03ffffff);

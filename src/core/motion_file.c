@@ -1,10 +1,11 @@
 #include "rf/motion_file.h"
+#include "rf/finite.h"
 #include <math.h>
 #include <string.h>
 int rf_motion_marker_register(rf_motion_cache_record *record,const char *name,float frame)
 {
     uint32_t length=0,i,empty=2;double tick;int32_t value;
-    if(!record || !name || !isfinite(frame))return RF_RANGE;
+    if(!record || !name || !rf_finite_float(frame))return RF_RANGE;
     while(length<16 && name[length])++length;
     if(length==16)return RF_RANGE;
     for(i=0;i<2;++i) {
@@ -134,7 +135,7 @@ int rf_motion_file_track(const rf_motion_file *file, uint32_t index, rf_motion_t
     track.envelope.weight=get_float(raw);
     track.envelope.start_tick=signed32(file->header[4]); track.envelope.end_tick=signed32(file->header[5]);
     track.envelope.fade_in=signed32(file->header[9]); track.envelope.fade_out=signed32(file->header[10]);
-    if (!isfinite(track.envelope.weight)) return RF_FORMAT;
+    if (!rf_finite_float(track.envelope.weight)) return RF_FORMAT;
     *out=track; return RF_OK;
 }
 int rf_motion_file_open(rf_motion_file *file, rf_vpp *archive, const char *name)
@@ -181,39 +182,65 @@ static int find_pair(const rf_motion_file *file, uint32_t offset, uint32_t count
     if (low==count) low=count-1;
     *first=low-1; return RF_OK;
 }
-int rf_motion_file_sample(const rf_motion_file *file, uint32_t index, int32_t tick, int bypass_fades, rf_motion_sample *out)
+/* A sample keeps one validated immutable track descriptor for all four key
+ * reads. The public indexed accessors still validate independently. */
+static int motion_track_rotation(const rf_motion_file *file,const rf_motion_track *track,
+    uint32_t key,rf_motion_rotation_key *out);
+static int motion_track_position(const rf_motion_file *file,const rf_motion_track *track,
+    uint32_t key,rf_motion_position_key *out);
+static int motion_sample_track(const rf_motion_file *file,const rf_motion_track *track,
+    int32_t tick,int bypass_fades,rf_motion_sample *out)
 {
-    rf_motion_track track; rf_motion_sample result;
+    rf_motion_sample result;
     rf_motion_rotation_key rotations[2]; rf_motion_position_key positions[2];
     uint32_t first,n,i; int status;
-    if (!out) return RF_RANGE;
-    status=rf_motion_file_track(file,index,&track); if (status!=RF_OK) return status;
-    status=find_pair(file,track.offset+8,track.rotation_count,16,tick,&first); if (status!=RF_OK) return status;
-    n=track.rotation_count<2 ? track.rotation_count : 2;
+    status=find_pair(file,track->offset+8,track->rotation_count,16,tick,&first); if (status!=RF_OK) return status;
+    n=track->rotation_count<2 ? track->rotation_count : 2;
     for (i=0;i<n;++i) {
-        status=rf_motion_file_rotation(file,index,first+i,&rotations[i]); if (status!=RF_OK) return status;
+        status=motion_track_rotation(file,track,first+i,&rotations[i]); if (status!=RF_OK) return status;
     }
     status=rf_motion_sample_rotation(rotations,n,tick,result.rotation); if (status!=RF_OK) return status;
-    status=find_pair(file,track.offset+8+track.rotation_count*16,track.position_count,40,tick,&first);
+    status=find_pair(file,track->offset+8+track->rotation_count*16,track->position_count,40,tick,&first);
     if (status!=RF_OK) return status;
-    n=track.position_count<2 ? track.position_count : 2;
+    n=track->position_count<2 ? track->position_count : 2;
     for (i=0;i<n;++i) {
-        status=rf_motion_file_position(file,index,first+i,&positions[i]); if (status!=RF_OK) return status;
+        status=motion_track_position(file,track,first+i,&positions[i]); if (status!=RF_OK) return status;
     }
     if (n==2 && first>0 && tick==positions[0].tick)
         status=rf_motion_interpolate_position(&positions[0],&positions[1],0,result.position);
     else status=rf_motion_sample_position(positions,n,tick,result.position);
     if (status!=RF_OK) return status;
-    status=rf_motion_sample_weight(&track.envelope,tick,bypass_fades,&result.weight); if (status!=RF_OK) return status;
+    status=rf_motion_sample_weight(&track->envelope,tick,bypass_fades,&result.weight); if (status!=RF_OK) return status;
     *out=result; return RF_OK;
 }
-int rf_motion_file_rotation(const rf_motion_file *file, uint32_t index, uint32_t key, rf_motion_rotation_key *out)
+int rf_motion_file_sample(const rf_motion_file *file,uint32_t index,int32_t tick,int bypass_fades,rf_motion_sample *out)
 {
-    rf_motion_track track; rf_motion_rotation_key result; unsigned char raw[16]; uint32_t i; int status;
-    if (!out) return RF_RANGE;
-    status=rf_motion_file_track(file,index,&track); if (status!=RF_OK) return status;
-    if (key>=track.rotation_count) return RF_RANGE;
-    status=motion_read(file,track.offset+8+key*16,raw,16); if (status!=RF_OK) return status;
+    rf_motion_track track;int status;
+    if(!out)return RF_RANGE;
+    status=rf_motion_file_track(file,index,&track);if(status)return status;
+    return motion_sample_track(file,&track,tick,bypass_fades,out);
+}
+int rf_motion_file_sample_track(const rf_motion_file *file,const rf_motion_track *track,
+    int32_t tick,int bypass_fades,rf_motion_sample *out)
+{
+    uint64_t end,size;
+    if(!file || (!file->archive && !file->resident) || !track || !out)return RF_RANGE;
+    /* The descriptor is borrowed from a successful track lookup on this same
+     * immutable file. Bound its spans without repeating that metadata read. */
+    end=(uint64_t)track->offset+track->size;
+    size=8+(uint64_t)track->rotation_count*16+(uint64_t)track->position_count*40;
+    if(track->offset<80+(uint64_t)file->header[6]*4 || end>file->header[18] ||
+       end>file->entry.size || track->rotation_count>INT16_MAX || track->position_count>INT16_MAX ||
+       track->size!=size || !rf_finite_float(track->envelope.weight))return RF_FORMAT;
+    return motion_sample_track(file,track,tick,bypass_fades,out);
+}
+
+static int motion_track_rotation(const rf_motion_file *file,const rf_motion_track *track,
+    uint32_t key,rf_motion_rotation_key *out)
+{
+    rf_motion_rotation_key result; unsigned char raw[16]; uint32_t i; int status;
+    if (key>=track->rotation_count) return RF_RANGE;
+    status=motion_read(file,track->offset+8+key*16,raw,16); if (status!=RF_OK) return status;
     result.tick=signed32(get32(raw));
     for (i=0;i<4;++i) result.packed[i]=signed16(raw+4+i*2);
     if (raw[12]>127 || raw[13]>127) return RF_FORMAT;
@@ -221,18 +248,32 @@ int rf_motion_file_rotation(const rf_motion_file *file, uint32_t index, uint32_t
     result.reserved[0]=raw[14]; result.reserved[1]=raw[15];
     *out=result; return RF_OK;
 }
-int rf_motion_file_position(const rf_motion_file *file, uint32_t index, uint32_t key, rf_motion_position_key *out)
+static int motion_track_position(const rf_motion_file *file,const rf_motion_track *track,
+    uint32_t key,rf_motion_position_key *out)
 {
-    rf_motion_track track; rf_motion_position_key result; unsigned char raw[40]; uint32_t i; int status;
-    if (!out) return RF_RANGE;
-    status=rf_motion_file_track(file,index,&track); if (status!=RF_OK) return status;
-    if (key>=track.position_count) return RF_RANGE;
-    status=motion_read(file,track.offset+8+track.rotation_count*16+key*40,raw,40);
+    rf_motion_position_key result; unsigned char raw[40]; uint32_t i; int status;
+    if (key>=track->position_count) return RF_RANGE;
+    status=motion_read(file,track->offset+8+track->rotation_count*16+key*40,raw,40);
     if (status!=RF_OK) return status;
     result.tick=signed32(get32(raw));
     for (i=0;i<3;++i) {
         result.position[i]=get_float(raw+4+i*4); result.incoming[i]=get_float(raw+16+i*4); result.outgoing[i]=get_float(raw+28+i*4);
-        if (!isfinite(result.position[i]) || !isfinite(result.incoming[i]) || !isfinite(result.outgoing[i])) return RF_FORMAT;
+        if (!rf_finite_float(result.position[i]) || !rf_finite_float(result.incoming[i]) || !rf_finite_float(result.outgoing[i])) return RF_FORMAT;
     }
     *out=result; return RF_OK;
+}
+
+int rf_motion_file_rotation(const rf_motion_file *file,uint32_t index,uint32_t key,rf_motion_rotation_key *out)
+{
+    rf_motion_track track;int status;
+    if(!out)return RF_RANGE;
+    status=rf_motion_file_track(file,index,&track);if(status)return status;
+    return motion_track_rotation(file,&track,key,out);
+}
+int rf_motion_file_position(const rf_motion_file *file,uint32_t index,uint32_t key,rf_motion_position_key *out)
+{
+    rf_motion_track track;int status;
+    if(!out)return RF_RANGE;
+    status=rf_motion_file_track(file,index,&track);if(status)return status;
+    return motion_track_position(file,&track,key,out);
 }

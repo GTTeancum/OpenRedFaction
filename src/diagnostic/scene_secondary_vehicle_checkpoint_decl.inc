@@ -8,6 +8,7 @@ static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *,const unsig
     scene_secondary_vehicle_checkpoint_stage **,const unsigned char **,uint32_t *);
 static int scene_secondary_vehicle_checkpoint_admit(const scene_stream *,scene_secondary_vehicle_checkpoint_stage *,
     const scene_passive_vehicle_checkpoint_stage *,const scene_vehicle_physics_checkpoint_stage *);
+static int scene_secondary_vehicle_checkpoint_support(const scene_secondary_vehicle_checkpoint_stage *,uint32_t,uint32_t);
 static void scene_secondary_vehicle_checkpoint_assign(scene_stream *,scene_secondary_vehicle_checkpoint_stage *);
 static int scene_secondary_vehicle_checkpoint_audit(scene_stream *);
 #endif

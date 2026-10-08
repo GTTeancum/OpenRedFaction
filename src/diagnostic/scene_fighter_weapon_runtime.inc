@@ -94,9 +94,11 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
         }
         if(round->flight.active)++rf_scene_fighter_weapon[5];
     }
+    /* The scripted owner advances its own scheduler after this flight pass. */
+    if(!runtime->entry.session.active&&scene_vehicle_attack_busy(runtime->entry.host.handle))return RF_OK;
     allowed=scene_vehicle_physics_allows_control(s)&&runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0;
     status=scene_fighter_weapon_fire(state,&s->driller->tags,runtime->physics.state.position,runtime->physics.state.orientation,NULL,
-        runtime->entry.host.handle,runtime->entry.host.driver,0,player_input.fire,allowed,dt,scene_fighter_live_launch,s,&fired);if(status)return status;
+        runtime->entry.host.handle,runtime->entry.host.driver,0,player_input.fire,allowed&&!!(scene_vehicle_loadout_selected_mask()&1u),dt,scene_fighter_live_launch,s,&fired);if(status)return status;
     if(fired){++rf_scene_fighter_weapon[1];++rf_scene_fighter_weapon[5];combat_sound("Vauss1 Fire",runtime->physics.state.position);}
     for(free_slot=0;free_slot<4&&state->rockets[free_slot].flight.active;free_slot++){}
     /* Fixed forward guns: preserve the rocket mount origin, but use the
@@ -105,20 +107,20 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
         runtime->physics.state.orientation,runtime->physics.state.position,aim_pose);if(status)return status;
     memcpy(rf_scene_fighter_aim_probe,aim_pose+6,12);
     status=scene_fighter_weapon_fire(state,&s->driller->tags,runtime->physics.state.position,runtime->physics.state.orientation,aim_pose+6,
-        runtime->entry.host.handle,runtime->entry.host.driver,1,player_input.alt_fire,allowed,dt,NULL,NULL,&fired);if(status)return status;
+        runtime->entry.host.handle,runtime->entry.host.driver,1,player_input.alt_fire,allowed&&!!(scene_vehicle_loadout_selected_mask()&2u),dt,NULL,NULL,&fired);if(status)return status;
     if(fired){++rf_scene_fighter_weapon[2];++rf_scene_fighter_weapon[5];combat_sound("Fighter Rocket Launch",state->rockets[free_slot].flight.position);}
     rf_scene_fighter_weapon[6]=(uint32_t)state->primary_reserve;rf_scene_fighter_weapon[7]=(uint32_t)state->rocket_reserve;return RF_OK;
 }
 /* Minigun tracer is explicit shared first-pass beam presentation. Actual
  * DrillMissile01.VFX rocket submission is integrated in scene_rockets_draw. */
-static int scene_fighter_weapon_draw(scene_stream *s)
+static int scene_fighter_rounds_draw(scene_stream *s,const scene_submarine_weapon_round *rounds,uint32_t count)
 {
     uint32_t i,j,k;int status;
     if(!s||!s->mesh||!s->mesh->vertices||s->mesh->bytes>s->capacity||
        s->mesh->count>s->capacity/sizeof(rf_preview_vertex)||s->mesh->bytes!=s->mesh->count*sizeof(rf_preview_vertex))return RF_RANGE;
-    if(rf_scene_vehicle_enabled!=5)return RF_OK;
-    for(i=0;i<48;i++){
-        const scene_submarine_weapon_round *round=s->fighter_weapon.bullets+i;rf_particle_screen_polygon polygon;float length=0;
+    if(!rounds&&count)return RF_RANGE;
+    for(i=0;i<count;i++){
+        const scene_submarine_weapon_round *round=rounds+i;rf_particle_screen_polygon polygon;float length=0;
         if(!round->flight.active)continue;
         for(k=0;k<3;k++){float d=round->flight.position[k]-round->previous[k];length+=d*d;}
         if(length<1e-10f)continue;
@@ -141,4 +143,6 @@ static int scene_fighter_weapon_draw(scene_stream *s)
     }
     return RF_OK;
 }
+static int scene_fighter_weapon_draw(scene_stream *s)
+{return rf_scene_vehicle_enabled==5?scene_fighter_rounds_draw(s,s->fighter_weapon.bullets,48):RF_OK;}
 #endif

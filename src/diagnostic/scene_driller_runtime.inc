@@ -489,7 +489,8 @@ static int scene_passive_vehicle_npc_retain(scene_stream *s,campaign_npc_body *n
         rf_object_registry_lookup(&campaign_registry,npc->support.handle)==campaign_passive_vehicles+i) {
         owner=campaign_passive_vehicles+i;break;
     }
-    if(!owner || !owner->attached || (owner->damage.object_flags&0x4000u))return RF_OK;
+    if(!owner || (!owner->attached&&!scene_secondary_vehicle_supports(owner->handle)) ||
+       (owner->damage.object_flags&0x4000u))return RF_OK;
     kind=owner->resource_kind;
     if(kind>=6 || !s->passive_vehicle_sphere_count[kind])return RF_OK;
     actor=&npc->body.state;body=&npc->body.spheres;
@@ -662,6 +663,7 @@ static int scene_driller_runtime_open(scene_stream *s)
     if(rf_scene_vehicle_enabled==4){r->entry.water_context=&r->submarine;r->entry.water_path=scene_submarine_player_water;}
     if(rf_scene_vehicle_enabled==3){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&authored_damage);if(status)goto fail;
+    stage=5;status=scene_vehicle_loadout_apply(s,rf_scene_vehicle_enabled,(uint32_t)campaign_authored_vehicle_uid,&r->entry.view);if(status)goto fail;
     r->entry.host.alive=!authored_damage.destroyed&&authored_damage.state.effects.health>0;
     /* Ambient slots are initialized later in level startup. Bind the idle
      * voice only after that reset and its initial authored scheduling. */
@@ -695,8 +697,8 @@ static int scene_campaign_vehicle_route_command(const scene_driller_runtime *r,r
     uint32_t visited=0,node;const float *target;float dx,dz,distance,forward_x,forward_z,angle;
     if((r->entry.session.active&&!scene_jeep_npc_gunner_active(&r->entry))||
        !scene_npc_seat_driver_admits(r->entry.host.handle))return RF_OK;
-    if(!campaign_vehicle_route.active || campaign_vehicle_route.pursuit ||
-       r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
+    if(!campaign_vehicle_route.active || r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
+    if(campaign_vehicle_route.pursuit)return rf_scene_vehicle_enabled==2?scene_vehicle_selected_goto_command(r,command):RF_OK;
     if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;
     while(visited++<campaign_vehicle_route.path.count){
         node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
@@ -746,6 +748,9 @@ static int scene_campaign_submarine_script_command(const scene_driller_runtime *
     if(!campaign_vehicle_route.active || !campaign_vehicle_route.pursuit ||
        r->entry.host.handle!=campaign_authored_vehicle_handle || r->entry.session.active ||
        !r->entry.host.alive)return RF_OK;
+    if(campaign_vehicle_route.pursuit==2&&scene_vehicle_pursuit_finished(r->entry.host.handle,r->physics.state.position)){
+        campaign_vehicle_route.active=0;rf_scene_vehicle_route_state[0]=0;return RF_OK;
+    }
     target=campaign_vehicle_route.pursuit==2?scene_actor_body.state.position:
         campaign_vehicle_route.target;
     dx=target[0]-r->physics.state.position[0];
@@ -777,9 +782,9 @@ static int scene_campaign_fighter_route_command(const scene_driller_runtime *r,
 {
     uint32_t visited=0,node;const float *target;
     float dx,dy,dz,horizontal,distance,forward_x,forward_z,angle;
-    if(!campaign_vehicle_route.active || campaign_vehicle_route.pursuit ||
-       r->entry.host.handle!=campaign_authored_vehicle_handle || r->entry.session.active ||
+    if(!campaign_vehicle_route.active || r->entry.host.handle!=campaign_authored_vehicle_handle || r->entry.session.active ||
        !r->entry.host.alive)return RF_OK;
+    if(campaign_vehicle_route.pursuit)return scene_vehicle_selected_flight_command(r,command);
     if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;
     while(visited++<campaign_vehicle_route.path.count){
         node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
@@ -876,6 +881,9 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         status=scene_campaign_vehicle_route_command(r,&command);
         rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
     }
+    if(controls&&rf_scene_vehicle_enabled==2&&!r->entry.session.active&&!campaign_vehicle_route.active){
+        status=scene_vehicle_ai_ground_steer(r->entry.host.handle,&r->physics.state,&command);if(status)goto fail;
+    }
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
     r->physics.parameters.gravity=scene_gravity.acceleration;
     stage=2;if(frame&&!scene_vehicle_physics_frozen(s)){
@@ -893,7 +901,11 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
             }
             else if(controls && rf_scene_vehicle_enabled==5 && campaign_authored_vehicle_uid){
                 status=scene_campaign_fighter_route_command(r,&sub);
+                if(!status)status=scene_vehicle_attack_steer(r->entry.host.handle,&r->physics.state,&sub);
                 rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
+            }
+            if(controls&&!r->entry.session.active&&!campaign_vehicle_route.active){
+                status=scene_vehicle_ai_steer(r->entry.host.handle,&r->physics.state,&sub);if(status)goto fail;
             }
             status=rf_vehicle_submersible_step(&r->physics.state,&r->submarine_parameters,&sub,scene_step_seconds,&wet_backend,&result);
         }else status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);
@@ -924,7 +936,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     r->contact.stream=s;r->contact.frame=frame;r->contact.source=r->entry.host.handle;r->contact.has_world=0;
     if(rf_scene_vehicle_enabled==1){scene_driller_weapon_backend weapon_backend={&r->contact,scene_driller_live_trace,scene_driller_live_damage,scene_driller_runtime_cut};
      status=scene_driller_weapon_tick(&s->driller_weapon,&s->driller->tags,r->physics.state.position,
-        r->physics.state.orientation,r->entry.host.handle,controls && r->entry.session.active && r->entry.host.alive && player_input.fire,
+        r->physics.state.orientation,r->entry.host.handle,controls && r->entry.session.active && r->entry.host.alive && (scene_vehicle_loadout_selected_mask()&1u) && player_input.fire,
         frame?scene_step_seconds:0,&weapon_backend);if(status)goto fail;}
     ++rf_scene_drill_state[0];rf_scene_drill_state[1]=s->driller_weapon.contacts;
     rf_scene_drill_state[2]=s->driller_weapon.damage_calls;rf_scene_drill_state[3]=s->driller_weapon.accepted_cuts;

@@ -478,6 +478,10 @@ int rf_entity_vitals_config_read(const void *text,uint32_t bytes,const char *cla
     rf_entity_creation_vitals_class *result);
 int rf_entity_vitals_config_load(rf_vpp *tables,const char *class_name,uint32_t scratch_budget,
     rf_entity_creation_vitals_class *result);
+/* Required class718 seconds, original41c4ff..41c510. Selected declaration
+ * only, finite nonnegative value, duplicate/missing clause rejects. */
+int rf_entity_blind_pursuit_read(const void *,uint32_t,const char *,float *);
+int rf_entity_blind_pursuit_load(rf_vpp *,const char *,uint32_t,float *);
 
 typedef struct rf_entity_assets {
     char model[64];
@@ -491,6 +495,12 @@ typedef struct rf_entity_assets {
  * on failure. Limits: token 255 bytes, asset 63 bytes, 64 skin replacements. */
 int rf_entity_assets_read(const void *text,uint32_t bytes,const char *class_name,
     const char *skin,rf_entity_assets *assets);
+/* Original41c2a5..41c461 numbered $Corona (Glare) metadata. Headlamp is
+ * membership by glare class name, as in42351f..42356c, not by tag slot.
+ * One-based ordinal, no allocation; absent class/ordinal returns NOT_FOUND.
+ * Empty authored name is valid. Both outputs are preserved on failure. */
+int rf_entity_corona_read(const void *text,uint32_t bytes,const char *class_name,
+    uint32_t ordinal,char glare[64],uint32_t *headlamp);
 /* Bounded clutter.tbl model/replacement metadata, with the same storage limits.
  * $Class Name selects the class; first matching skin wins (410d30).
  * Empty skin selects base materials. No glare lookup, compiled filename
@@ -659,7 +669,10 @@ int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skele
  * before every tick and before any skeleton/catalog payload changes or releases.
  * No heap allocation; 16 bounded entries (<44KiB on either supported build).
  * Enabled overrides and partially current generation caches use the ordinary
- * evaluator. Owners and immutable motion payloads must outlive the batch. */
+ * evaluator. Exact sampling keys include skeleton, active count and live
+ * motion/tick/weight slots, primary slot and pending displacement; inactive
+ * slots and post-update controller selectors are not pose inputs. Owners and
+ * immutable motion payloads must outlive the batch. */
 typedef struct rf_entity_pose_batch_entry {
     uint32_t skeleton,bone_count;
     rf_motion_slot_state active;

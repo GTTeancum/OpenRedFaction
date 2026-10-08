@@ -291,21 +291,39 @@ int rf_trigger_reach_point(const rf_trigger_volume *v,const float origin[3],
     if(!isfinite(distance))return RF_FORMAT;
     *found=distance<=reach*reach;if(*found)memcpy(point,target,12);return RF_OK;
 }
-int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
+static int trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
     const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
-    int32_t now,uint32_t input,uint32_t *ready)
+    int32_t now,uint32_t input,uint32_t *ready,rf_trigger_contact_cache *cache)
 {
     uint32_t accepted;int status;
     if(!volume || !pose || !timer || !ready)return RF_RANGE;
     status=rf_trigger_eligible(gate,actor,now,input,&accepted);if(status)return status;
     if(accepted && !(gate->flags&4)) {
-        if(volume->shape==0)status=rf_trigger_sphere_contact(volume->center,volume->radius,pose[0],&accepted);
-        else if(volume->shape==1)status=rf_trigger_box_contact(volume->center,volume->matrix,volume->size,
-            gate->flags,pose[0],pose[1],pose[2],&accepted);
-        else accepted=0;
-        if(status)return status;
+        /* 4bf620/4c0a80 depend only on these geometry values and box bit0x20.
+         * Always run 4c06d0 eligibility and 4bfc60 dwell with today's state;
+         * notably, a rejected actor must still clear a positive contact delay. */
+        if(cache && cache->valid && cache->flags==(gate->flags&32u) &&
+           !memcmp(cache->pose,pose,sizeof(cache->pose)) &&
+           !memcmp(&cache->volume,volume,sizeof(*volume)))accepted=cache->contact;
+        else {
+            if(volume->shape==0)status=rf_trigger_sphere_contact(volume->center,volume->radius,pose[0],&accepted);
+            else if(volume->shape==1)status=rf_trigger_box_contact(volume->center,volume->matrix,volume->size,
+                gate->flags,pose[0],pose[1],pose[2],&accepted);
+            else accepted=0;
+            if(status)return status;
+            if(cache) {
+                cache->volume=*volume;memcpy(cache->pose,pose,sizeof(cache->pose));
+                cache->flags=gate->flags&32u;cache->contact=accepted;cache->valid=1;
+            }
+        }
     }
     return rf_trigger_contact_delay(timer,now,accepted,ready);
+}
+int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
+    const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
+    int32_t now,uint32_t input,uint32_t *ready)
+{
+    return trigger_contact_poll(gate,actor,volume,pose,timer,now,input,ready,NULL);
 }
 int rf_event_continuous_damage_action(const rf_event_damage_state *state,uint32_t action,
     const rf_event_damage_backend *backend)
@@ -422,7 +440,7 @@ static int transition_name_equal(const char *a,const char *b)
 }
 int rf_level_transition_offset(const rf_level_transition_request *request,const rf_level *level,float offset[3])
 {
-    rf_level_event_reader reader;rf_level_event event;rf_level_transition_request marker;
+    rf_level_event_reader reader;rf_level_event event;
     float delta[3]={0};uint32_t i,found=0;int status;
     if(!request || !level || !offset)return RF_RANGE;
     if(!request->pending || !memchr(request->anchor,0,sizeof(request->anchor)) ||
@@ -432,9 +450,10 @@ int rf_level_transition_offset(const rf_level_transition_request *request,const 
     for(i=0;i<3;i++)if(!isfinite(request->anchor_position[i]))return RF_FORMAT;
     status=rf_level_events_begin(level,&reader);if(status)return status;
     while((status=rf_level_event_next(&reader,&event))==RF_OK) {
-        if(strcmp(event.type,"Load_Level") || !transition_name_equal(event.name,request->anchor))continue;
-        memset(&marker,0,sizeof(marker));status=rf_level_transition_enqueue(&marker,&event,0,0);if(status)return status;
-        if(!transition_name_equal(marker.level,request->level))continue;
+        /* Original4bd740 compares event names, not the marker's action type
+         * or outbound level. L9S1's valid L9S1A arrival marker still contains
+         * the obsolete outbound spelling L9S1A, which must not discard it. */
+        if(!transition_name_equal(event.name,request->anchor))continue;
         if(found++)return RF_FORMAT;
         for(i=0;i<3;i++) {
             delta[i]=event.position[i]-request->anchor_position[i];
@@ -454,6 +473,18 @@ int rf_level_transition_place(const rf_level_transition_request *request,rf_leve
     if(!request || !level || !position || !orientation)return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_FORMAT;
     for(i=0;i<9;i++)if(!isfinite(orientation[i]))return RF_FORMAT;
+    /* Original4bbc01 sets64607c from the first authored flag. Its arrival
+     * consumer435e0a uses the new level's player-start position AND facing,
+     * bypassing the named-marker relative transform. L14S3 exit9826 has both
+     * this flag and a matching L15S1 anchor, so fallback alone is insufficient.
+     * The platform has just opened level; retain its untouched spawn fields. */
+    if(request->flags[0]&255u) {
+        if(!request->pending || !memchr(request->level,0,sizeof(request->level)) ||
+           !transition_name_equal(request->level,level->entry.name))return RF_FORMAT;
+        for(i=0;i<3;i++)if(!isfinite(level->player_position[i]))return RF_FORMAT;
+        for(i=0;i<9;i++)if(!isfinite(level->player_orientation[i/3][i%3]))return RF_FORMAT;
+        return RF_OK;
+    }
     status=rf_level_transition_offset(request,level,offset);if(status)return status;
     for(i=0;i<3;i++){placed[i]=position[i]+offset[i];if(!isfinite(placed[i]))return RF_RANGE;}
     memcpy(facing,orientation,sizeof(facing));
@@ -555,10 +586,12 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
-    /* These effects own no link-target action. Their normal activation still
-     * carries ordered outgoing event links after the effect callback. */
-    if(action==2 && (state->type==0 || state->type==10 || state->type==15 ||
-       state->type==41 || state->type==42 || state->type==61 || state->type==71)) {
+    /* Original4b8b70/4b8ce0 invokes the effect before this common link phase.
+     * Handle that phase BEFORE every early-returning effect adapter: an
+     * animation/alarm/invulnerability action may also continue an authored
+     * event chain. Do not replay its target effect as an OFF action here.
+     * UnHide retains its deferred-target/synchronous-event split below. */
+    if(action==2 && state->type!=50) {
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
@@ -662,6 +695,19 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(!c->triggers->monitor_state){++c->report->unsupported_actions;return;}
         c->status=c->triggers->monitor_state(c->triggers->monitor_context,
             &c->event->authored->record,c->event->authored->links,c->event->authored->record.link_count);
+        return;
+    }
+    if(state->type==18) {
+        if(action!=1)return; /* Original4bb660 ON; generic OFF does nothing. */
+        if(!c->triggers->shake_player){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->shake_player(c->triggers->shake_context,
+            &c->event->authored->record,c->now);
+        return;
+    }
+    if(state->type==60) {
+        /* Original4b9af0 invalidates cached monitor render images. This port
+         * has no retained monitor image cache to invalidate; configuration
+         * remains Monitor_State49. Common phase2 still forwards authored links. */
         return;
     }
     if(state->type==61) {
@@ -769,6 +815,29 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     }
     if(state->type==50) {
         if(action!=2)c->status=rf_unhide_request(&c->event->unhide,action==1);
+        else for(i=0;i<c->event->authored->record.link_count && !c->status;i++) {
+            const rf_level_link_target *link=c->event->links+i;void *object;uint32_t kind;
+            /* The common activation prefix propagates type50 (4b8b70 /
+             * 4b8c40), independently of its deferred4bcdf0 visibility work.
+             * Entity links remain exclusively with that deferred callback;
+             * dispatch linked events through the existing recursion guard. */
+            if(link->kind!=1 && link->kind!=2)continue;
+            object=rf_object_registry_lookup(c->triggers->registry,link->value);if(!object)continue;
+            memcpy(&kind,object,4);
+            if(kind==6)startup_target(c,link,source,actor,(mode&255u)==1);
+        }
+        return;
+    }
+    if(state->type==53) {
+        if(action==2)return;
+        if(!c->triggers->set_headlamp){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1&&link->kind!=2)continue;
+            status=c->triggers->set_headlamp(c->triggers->headlamp_context,link->value,action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
         return;
     }
     if(state->type==24) {
@@ -805,11 +874,6 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
             if(status){c->status=status;return;}
         }
-        return;
-    }
-    if(action==2) {
-        for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
-            startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
     if(state->type==80) {
@@ -884,6 +948,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     }
     if(state->type==20) {
         c->status=rf_event_cycle_enable(&c->event->cycle,action==1);return;
+    }
+    if(state->type==26) {
+        if(action!=1)return; /* Original4b9f80 maps26 to RET4ba008. */
+        if(!c->triggers->set_actor_slow){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++){
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if((link->kind!=1&&link->kind!=2)||!rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->set_actor_slow(c->triggers->actor_slow_context,link->value);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
     }
     if(state->type==62) {
         /* Generic ON4b9380 sleeps object physics; OFF4ba180 wakes it. */
@@ -1169,9 +1245,10 @@ int rf_trigger_contact_filter_authored(const rf_runtime_trigger *trigger,
     }
     *result=value;return RF_OK;
 }
-int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
+int rf_runtime_trigger_contact_cached(rf_runtime_triggers *triggers,uint32_t handle,
     const rf_trigger_actor_facts *actor,const float pose[3][3],
-    const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready)
+    const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready,
+    rf_trigger_contact_cache *cache)
 {
     rf_runtime_trigger *trigger;rf_trigger_gate gate;uint32_t kind;
     if(!triggers || !triggers->registry || !filter)return RF_RANGE;
@@ -1181,7 +1258,13 @@ int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
     gate.limit=trigger->activation.limit;gate.deadline=trigger->state.deadline;
     gate.filter=filter->kind;gate.attached=filter->attached;
     gate.allowed_count=filter->allowed_count;gate.allowed_handles=filter->allowed_handles;
-    return rf_trigger_contact_poll(&gate,actor,&trigger->volume,pose,&trigger->contact_timer,now,input,ready);
+    return trigger_contact_poll(&gate,actor,&trigger->volume,pose,&trigger->contact_timer,now,input,ready,cache);
+}
+int rf_runtime_trigger_contact(rf_runtime_triggers *triggers,uint32_t handle,
+    const rf_trigger_actor_facts *actor,const float pose[3][3],
+    const rf_trigger_contact_filter *filter,int32_t now,uint32_t input,uint32_t *ready)
+{
+    return rf_runtime_trigger_contact_cached(triggers,handle,actor,pose,filter,now,input,ready,NULL);
 }
 static void runtime_trigger_dispatch(void *context,rf_trigger_activation *trigger,
     uint32_t actor,uint32_t suppress_movers)
@@ -1493,6 +1576,8 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==19 && triggers->give_item) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
+           !(event->state.type==26 && triggers->set_actor_slow) &&
+           !(event->state.type==53 && triggers->set_headlamp) &&
            !(event->state.type==76 && triggers->set_nano_shield) &&
            !(event->state.type==80 && triggers->set_vehicle_exit_lock) &&
            !(event->state.type==34 && triggers->set_ai_mode) &&
@@ -1507,7 +1592,13 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==0 && triggers->play_sound) &&
            !((event->state.type==41 || event->state.type==42) && triggers->music) &&
            !(event->state.type==69 && triggers->navpoint) &&
+           !(event->state.type==43 && triggers->bolt_state) &&
+           !(event->state.type==58 && triggers->detach_object) &&
+           !(event->state.type==72 && triggers->pause_mover) &&
+           !(event->state.type==86 && triggers->defuse_nuke) &&
            !((event->state.type==73 || event->state.type==74) && triggers->countdown) &&
+           !(event->state.type==18 && triggers->shake_player) &&
+           !(event->state.type==60) &&
            !(event->state.type==61 && triggers->black_out_player) &&
            !(event->state.type==71 && triggers->endgame) &&
            !(event->state.type==67 && triggers->clear_endgame_if_killed) &&

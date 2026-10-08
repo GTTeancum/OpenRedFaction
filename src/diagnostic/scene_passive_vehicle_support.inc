@@ -34,9 +34,10 @@ static int scene_passive_vehicle_support_point(uint32_t handle,uint32_t actor,co
     if(!owner||(owner->damage.object_flags&0x4000u))return RF_OK;
     for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_FORMAT;
     memcpy(point,position,12);
-    /* Stopped/detached or restore-invalidated hosts have no current interval.
+    /* Unowned detached or restore-invalidated hosts have no current interval.
      * Do not replay their last rotation or extrapolate a stale saved velocity. */
-    if(owner->attached&&owner->motion_valid&&campaign_passive_vehicle_motion_active){
+    if((owner->attached||scene_secondary_vehicle_supports(handle))&&
+       owner->motion_valid&&campaign_passive_vehicle_motion_active){
         memcpy(interval.start,owner->previous_position,12);memcpy(interval.end,owner->pose.position,12);
         memcpy(interval.matrix,owner->previous_basis,36);memcpy(interval.end_matrix,owner->pose.input_matrix,36);
         interval.handle=handle;interval.changed=(memcmp(interval.start,interval.end,12)!=0)|

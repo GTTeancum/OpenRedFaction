@@ -53,4 +53,11 @@ typedef struct rf_motion_sample {
  * No allocation; output stays unchanged on error. The archive is immutable
  * while this handle is open. Disk seeks still require a playback cache. */
 int rf_motion_file_sample(const rf_motion_file *file, uint32_t track, int32_t tick, int bypass_fades, rf_motion_sample *out);
+/* Reuse a descriptor just returned by rf_motion_file_track on this exact file.
+ * File/header/payload and descriptor must stay immutable through the call.
+ * Intended for an evaluator that already needed the envelope; no retained
+ * cache or ownership transfer. Spans/key reads remain bounded, sample math and
+ * output-on-error behavior match the indexed sampler. */
+int rf_motion_file_sample_track(const rf_motion_file *file,const rf_motion_track *track,
+    int32_t tick,int bypass_fades,rf_motion_sample *out);
 #endif

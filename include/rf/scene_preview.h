@@ -575,6 +575,12 @@ int rf_scene_stage_force(rf_level *level,uint32_t uid);
 /* Optional port-owned profiling clock in milliseconds; NULL disables. Counts
  * start at tick 16 to exclude startup work. No changes to simulation timing. */
 void rf_scene_set_profile(uint32_t (*milliseconds)(void));
+/* Runtime payload checksums default on for replay/probe compatibility. Disable
+ * before interactive play to omit mesh, pose, PCM and particle hashing only;
+ * simulation, integrity checks, counters and profile timings remain active.
+ * Disabled payload hash fields are not valid parity evidence. */
+void rf_scene_set_diagnostic_checksums(uint32_t enabled);
+extern uint32_t rf_scene_diagnostic_checksums_enabled;
 /* Rows: boundary, animation/stance, view/projection, view hash, model rendering,
  * scene checks/support, platform presentation/checks, physics commit.
  * Each row: calls, elapsed low/high ms, maximum ms. */

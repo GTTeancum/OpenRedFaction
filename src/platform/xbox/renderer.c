@@ -18,6 +18,8 @@
 /* Millisecond presentation phases after the first 16 stream submissions.
  * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
 uint32_t rf_renderer_profile[8][4];
+/* Nested draw phase: existing command submission and completion boundaries. */
+uint32_t rf_renderer_draw_profile[8][4];
 /* Last frame: draw batches, former methods, submitted methods, state changes. */
 uint32_t rf_renderer_submission[4];
 uint32_t rf_xbox_draw_audit[4];
@@ -27,6 +29,32 @@ static uint32_t stream_start_vblank,stream_start_valid;
 /* Streaming frame starts: explicit waits, already crossed VBlank, last counter. */
 uint32_t rf_renderer_vblank[3];
 static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws;
+/* Private world-particle pass: immediate vertices live in push commands and
+ * all referenced animation images remain owned until the pass is drained. */
+static uint32_t particle_batch_active,particle_batch_draws;
+static uint32_t particle_batch_ready,particle_batch_mode,particle_batch_format;
+static const uint32_t *particle_batch_pixels;
+/* Last streaming pass: fans, command-buffer resets, omitted image texels, reused states. */
+uint32_t rf_xbox_particle_batch[4];
+static void particle_batch_flush(void)
+{
+    /* pb_reset has a void timeout path, so retain the complete pre-reset
+     * idle guard before any command storage is recycled. */
+    while(pb_busy()) {}
+    pb_reset();particle_batch_draws=particle_batch_ready=0;particle_batch_pixels=NULL;
+    ++rf_xbox_particle_batch[1];
+}
+static void particle_batch_begin(void)
+{
+    memset(rf_xbox_particle_batch,0,sizeof(rf_xbox_particle_batch));
+    particle_batch_flush();particle_batch_active=1;
+}
+static void particle_batch_end(void)
+{
+    /* The following HUD begin recycles the command buffer. The final HUD end
+     * fences every draw before publication, simulation or owner retirement. */
+    particle_batch_active=particle_batch_ready=0;particle_batch_pixels=NULL;
+}
 static void hud_batch_flush(void)
 {
     while(pb_busy()) {}
@@ -35,7 +63,12 @@ static void hud_batch_flush(void)
 static void hud_batch_begin(void)
 {hud_batch_flush();hud_batch_active=1;hud_batch_ready=0;}
 static void hud_batch_end(void)
-{hud_batch_flush();hud_batch_active=hud_batch_ready=0;}
+{
+    /* Keep the completed-frame/lifetime contract: particles and HUD are fully
+     * drawn before capture publication, image mutation or an error return. */
+    while(pb_busy()) {}
+    hud_batch_draws=hud_batch_active=hud_batch_ready=0;
+}
 static void renderer_mark(uint32_t phase,uint32_t *previous,int enabled)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -52,7 +85,15 @@ static uint32_t field(uint32_t mask, uint32_t value)
     return (value << shift) & mask;
 }
 typedef struct gpu_texture { uint32_t *pixels, format,transparent; } gpu_texture;
-static int upload(gpu_texture *out, const rf_image *image, int fallback)
+static void renderer_draw_mark(uint32_t phase,uint32_t *previous,int enabled)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!enabled)return;
+    now=GetTickCount();elapsed=now-*previous;*previous=now;row=rf_renderer_draw_profile[phase];
+    total=((uint64_t)row[2]<<32)+row[1]+elapsed;++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
+static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t classify_alpha)
 {
     uint32_t x, y, u = 0, v = 0;int packed=rf_image_is_packed_1555(image);
     if (!image->width || !image->height || (image->width & (image->width-1)) || (image->height & (image->height-1))) return RF_FORMAT;
@@ -65,7 +106,9 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback)
         if(!out->pixels)return RF_RANGE;
         *out->pixels=0xffffffff;
     }
-    for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)
+    /* Only material sorting needs alpha classification. Particle blending is
+     * fixed by its mode, so inspecting every texel on every quad is redundant. */
+    if(classify_alpha)for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)
         if(packed?!(rf_image_pixel(image,x,y)[1]&128u):rf_image_pixel(image,x,y)[3]<255)out->transparent=1;
     out->format = field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE, NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR) |
@@ -134,7 +177,7 @@ static struct {
     float position[3],orientation[3][3];
 } retained_world;
 /* state, GPU bytes, descriptor bytes, cached vertices, visible vertices,
- * visible faces, draw ranges, fallback count. No correctness-test dependency. */
+ * visible faces, array ranges/indexed groups, fallback count. */
 uint32_t rf_xbox_retained_world[8];
 uint32_t rf_xbox_world_grouping_disabled,rf_xbox_world_groups[2];
 static int retained_face_material_order(const void *left,const void *right)
@@ -142,11 +185,16 @@ static int retained_face_material_order(const void *left,const void *right)
     const retained_face *a=left,*b=right;
     if(a->material!=b->material)return a->material<b->material?-1:1;
     if(a->lightmap!=b->lightmap)return a->lightmap<b->lightmap?-1:1;
-    /* Keep original order within an identical material/lightmap group. */
+    /* Before upload, start holds the authored face index. Its order is the
+     * same as the old vertex offset for every nonempty face, so the rendered
+     * order within an identical material/lightmap group is unchanged. */
     return a->start<b->start?-1:a->start>b->start;
 }
+static void retained_world_indices_close(void);
+static void retained_world_indices_open(void);
 static void retained_world_close(void)
 {
+    retained_world_indices_close();
     if(retained_world.vertices){if(stream_device_ready)while(pb_busy()){} MmFreeContiguousMemory(retained_world.vertices);}
     free(retained_world.faces);memset(&retained_world,0,sizeof(retained_world));
 }
@@ -176,39 +224,54 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
             retained_world_close();retained_world.source=g;retained_world.ready=-1;
             ++rf_xbox_retained_world[7];return RF_NOT_FOUND;
         }
+        /* Build CPU descriptors first. Temporarily retain the authored face
+         * index in start; no GPU vertex data exists yet and no extra scratch
+         * allocation is needed. Sorting only descriptors after upload leaves
+         * adjacent draw-order faces scattered across GPU memory. */
         for(f=0;f<g->faces;f++) {
-            rf_geometry_face face;retained_face *out=retained_world.faces+f;uint32_t corner,lightmap=UINT32_MAX;float color;
+            rf_geometry_face face;retained_face *out=retained_world.faces+f;uint32_t lightmap=UINT32_MAX;
             status=rf_geometry_get_face(g,f,&face);if(status)return status;
             if(face.portal || (face.flags&1) || face.texture==UINT32_MAX || face.corners<3)continue;
             if(face.texture>=g->textures || !scene->slots)return RF_FORMAT;
             if(face.lightmap_mapping!=UINT32_MAX){status=rf_geometry_lightmap(g,face.lightmap_mapping,UINT32_MAX,&lightmap);if(status)return status;}
-            color=.25f+.6f*fabsf(face.plane[0]*.3f+face.plane[1]*.8f+face.plane[2]*.5f);if(color>1)color=1;
-            out->start=at;out->count=(face.corners-2)*3;out->material=scene->slots[face.texture];out->lightmap=lightmap;
+            out->start=f;out->count=(face.corners-2)*3;out->material=scene->slots[face.texture];out->lightmap=lightmap;
             out->room=face.room;out->detail=face.room<g->rooms?g->data[g->room_offsets[face.room]+34]!=0:1;
             memcpy(out->plane,face.plane,16);
+        }
+        /* Preserve the existing opaque pass's exact rendered face order. Its
+         * blend/depth/material/visibility policy is unchanged. */
+        if(!rf_xbox_world_grouping_disabled)
+            qsort(retained_world.faces,g->faces,sizeof(retained_face),retained_face_material_order);
+        for(f=0;f<g->faces;f++) {
+            retained_face *out=retained_world.faces+f;
+            rf_geometry_face face;uint32_t source_face=out->start,corner;float color;
+            if(!out->count)continue;
+            status=rf_geometry_get_face(g,source_face,&face);if(status)return status;
+            if(face.corners<3 || (face.corners-2)*3!=out->count ||
+               at>count || out->count>count-at)return RF_FORMAT;
+            out->start=at;
+            color=.25f+.6f*fabsf(face.plane[0]*.3f+face.plane[1]*.8f+face.plane[2]*.5f);if(color>1)color=1;
             for(corner=1;corner+1<face.corners;corner++) {
                 uint32_t j,indices[3]={0,corner,corner+1};
                 for(j=0;j<3;j++) {
                     rf_geometry_corner c;rf_preview_vertex v={0};
-                    status=rf_geometry_get_corner(g,f,indices[j],&c);if(status)return status;
+                    status=rf_geometry_get_corner(g,source_face,indices[j],&c);if(status)return status;
                     status=rf_geometry_vertex(g,c.vertex,v.position);if(status)return status;
                     v.texture[0]=c.uv[0];v.texture[1]=c.uv[1];v.texture[2]=1;
                     v.lightmap_texture[0]=c.lightmap_uv[0];v.lightmap_texture[1]=c.lightmap_uv[1];v.lightmap_texture[2]=1;
                     v.color[0]=color;v.color[1]=color*.85f;v.color[2]=color*.65f;
-                    v.material=out->material;v.lightmap=lightmap;
+                    v.material=out->material;v.lightmap=out->lightmap;
                     retained_world.vertices[at++]=v; /* Write once; never read WC memory. */
                 }
             }
         }
-        /* This pass disables blending, writes depth and draws opaque surfaces.
-         * Only descriptors move: never read back write-combined GPU vertices. */
-        if(!rf_xbox_world_grouping_disabled)
-            qsort(retained_world.faces,g->faces,sizeof(retained_face),retained_face_material_order);
+        if(at!=count)return RF_FORMAT;
         __asm__ volatile("sfence" ::: "memory");
         retained_world.count=count;retained_world.face_count=g->faces;
         retained_world.bytes=count*sizeof(rf_preview_vertex);retained_world.ready=1;
         rf_xbox_retained_world[0]=1;rf_xbox_retained_world[1]=retained_world.bytes;
         rf_xbox_retained_world[2]=g->faces*sizeof(retained_face);rf_xbox_retained_world[3]=count;
+        retained_world_indices_open();
     }
     if(retained_world.ready!=1)return RF_NOT_FOUND;
     retained_world.visibility=visibility;memcpy(retained_world.position,position,12);
@@ -239,16 +302,20 @@ static int retained_face_visible(const retained_face *face)
     if(v && !face->detail && face->room<v->count && !v->rooms[face->room].visible)return 0;
     return rf_preview_plane_visible(face->plane,retained_world.position)!=0;
 }
+/* Optional visible-only element stream; the array path below stays intact. */
+#include "retained_world_indices.h"
 static int retained_world_draw(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
 {
     const uint32_t program[]={
 #include "world_vertex.inl"
     };
     uint32_t i,j,*p,visible=0,faces=0,draws=0,active=0,bound_material=0,bound_lightmap=0;float rows[3][4];
-    renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};
+    renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};int indexed;
     memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
     if(retained_world.ready!=1)return RF_OK;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
+    indexed=retained_world_indices_prepare();
+    if(indexed!=RF_OK && indexed!=RF_NOT_FOUND)return indexed;
     vertex_program(program,sizeof(program)/4);
     for(i=0;i<3;i++) {
         memcpy(rows[i],retained_world.orientation[i],12);rows[i][3]=0;
@@ -274,6 +341,7 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00010101);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
     p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,0x02020000);pb_end(p);
+    if(indexed==RF_OK)return retained_world_indices_draw(materials,lightmaps,textures);
     for(i=0;i<retained_world.face_count;) {
         const retained_face *face=retained_world.faces+i;uint32_t start,count,material,lightmap,textured;const gpu_texture *texture,*lighting;
         if(!retained_face_visible(face)){++i;continue;}
@@ -323,6 +391,7 @@ void rf_xbox_scene_stream_close(void)
     retained_models_close();
     retained_world_close();
     stream_profile_frames=0;memset(rf_renderer_profile,0,sizeof(rf_renderer_profile));
+    memset(rf_renderer_draw_profile,0,sizeof(rf_renderer_draw_profile));
     stream_start_valid=0;memset(rf_renderer_vblank,0,sizeof(rf_renderer_vblank));
     if(!stream_gpu)return;
     while(pb_busy()) {}
@@ -382,7 +451,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         const rf_image *image = i < materials->count ? &materials->items[i].image : i == materials->count ? &fallback : lightmaps->images + i - materials->count - 1;
         if (!image->rgba) continue;
         rf_xbox_renderer_stage[0]=1000+i;
-        result = upload(textures+i, image,i==materials->count);
+        result = upload(textures+i, image,i==materials->count,1);
         if (result) {
             if(i>materials->count && textures[materials->count].pixels)MmFreeContiguousMemory(textures[materials->count].pixels);
             free(textures); MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=0; return result;
@@ -398,12 +467,18 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         __asm__ volatile("sfence" ::: "memory");
     }
     renderer_mark(1,&profile_previous,profiling);
-    memcpy(gpu,mesh->vertices,mesh->bytes);
-    for (i = 0; i < mesh->count; ++i) if (!RF_PREVIEW_IS_VERTEX_LIT(gpu[i].lightmap) && gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
-        gpu[i].color[0] = gpu[i].color[1] = gpu[i].color[2] = 1.0f;
-    }
-    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap == UINT32_MAX || RF_PREVIEW_IS_VERTEX_LIT(gpu[i].lightmap)) {
-        gpu[i].color[0] *= 0.5f; gpu[i].color[1] *= 0.5f; gpu[i].color[2] *= 0.5f;
+    /* GPU memory is PAGE_WRITECOMBINE. Reading it back on the733MHz CPU
+     * for material tests and color scaling defeats the streaming upload.
+     * Preserve both color rules in cacheable local storage, then write each
+     * complete vertex once. Never mutate the shared source/diagnostic mesh. */
+    for (i = 0; i < mesh->count; ++i) {
+        rf_preview_vertex value=mesh->vertices[i];
+        if (!RF_PREVIEW_IS_VERTEX_LIT(value.lightmap) && value.material < materials->count && textures[value.material].pixels)
+            value.color[0] = value.color[1] = value.color[2] = 1.0f;
+        if (value.lightmap == UINT32_MAX || RF_PREVIEW_IS_VERTEX_LIT(value.lightmap)) {
+            value.color[0] *= 0.5f; value.color[1] *= 0.5f; value.color[2] *= 0.5f;
+        }
+        gpu[i]=value;
     }
     __asm__ volatile("sfence" ::: "memory");
     {
@@ -462,8 +537,13 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         pb_reset(); pb_target_back_buffer();
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
-        while (pb_busy()) {}
+        /* The clear and draws share one ordered pushbuffer. Preserve GPU idle
+         * before drawing without spinning the CPU: it can submit following
+         * commands while clear completes. No CPU framebuffer access, resource
+         * reuse or pb_reset intervenes; end-of-frame lifetime fences remain. */
+        p=pb_begin();p=pb_push1(p,NV097_WAIT_FOR_IDLE,0);pb_end(p);
         renderer_mark(4,&profile_previous,profiling);
+        uint32_t draw_profile_previous=profile_previous;
         if(model==4 && retained_world.ready==1) {
             int status=retained_world_draw(materials,lightmaps,textures);if(status)return status;
             vertex_program(program,sizeof(program)/4);
@@ -471,6 +551,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);pb_end(p);
         }
 
+        renderer_draw_mark(0,&draw_profile_previous,profiling);
         p = pb_begin();
         /* pb_target_back_buffer restores W buffering each frame. Our projected
          * vertices carry screen-space Z and a constant W, so restore Z here. */
@@ -506,6 +587,12 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
                     if(status)return status;loaded=shader;++retained_next;
                 }
                 while(retained_next<retained_total && retained_draws[retained_next].at_vertex==i);
+                /* No CPU vertex follows this completed retained run. The
+                 * particle/HUD pass and next frame install their own state. */
+                if(i==mesh->count)break;
+                /* CPU geometry may carry real lightmaps. Restore the full
+                 * normal stage1 contract before any of its vertices draw. */
+                retained_model_lightmap_mode(0);
                 vertex_program(program,sizeof(program)/4);
                 p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
                 p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);
@@ -519,7 +606,6 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
                     p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)gpu+(j==3?40:j*12))&0x03ffffff);
                 }
                 pb_end(p);bound_texture=bound_lighting=NULL;bound_blend=UINT32_MAX;bound_alpha=UINT32_MAX;
-                if(i==mesh->count)break;
             }
             uint32_t count = 3, material = mesh->vertices[i].material, lightmap = mesh->vertices[i].lightmap;
             const gpu_texture *texture;
@@ -560,7 +646,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(model==4)retained_draw_count=0;
         rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
         rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
-        while (pb_busy()) {}
+        renderer_draw_mark(1,&draw_profile_previous,profiling);
+        /* The following particle begin already performs the full idle guard
+         * before recycling command storage. Standalone and command-audit
+         * consumers still need this immediate completion fence. */
+        if(!streaming || audit_begin)while(pb_busy()) {}
         if(audit_begin) {
             uint32_t bytes=(uint32_t)(p-audit_begin)*4;
             if(!bytes || bytes>256u*1024u)return RF_RANGE;
@@ -569,14 +659,24 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             memcpy((void *)rf_xbox_draw_audit[1],audit_begin,bytes);
             rf_xbox_draw_audit[2]=bytes;++rf_xbox_draw_audit[3];
         }
-        if(streaming) {int status=rf_scene_draw_particles(scene_world_particle_present,NULL);if(status)return status;
-            status=rf_scene_draw_coronas(scene_world_particle_present,NULL);if(status)return status;}
+        renderer_draw_mark(2,&draw_profile_previous,profiling);
+        if(streaming) {int status;particle_batch_begin();
+            renderer_draw_mark(3,&draw_profile_previous,profiling);
+            status=rf_scene_draw_particles(scene_world_particle_present,NULL);
+            if(!status)status=rf_scene_draw_coronas(scene_world_particle_present,NULL);
+            particle_batch_end();
+            renderer_draw_mark(4,&draw_profile_previous,profiling);
+            /* On success, the HUD's final fence owns all remaining commands.
+             * Errors must still finish this pass before any owner can retire. */
+            if(status){while(pb_busy()) {}return status;}}
         if(streaming) {int status;hud_batch_begin();
+            renderer_draw_mark(5,&draw_profile_previous,profiling);
             status=rf_scene_draw_player_flash(scene_particle_present,NULL);
             if(!status)status=rf_scene_draw_combat_hud(scene_particle_present,NULL);
             if(!status)status=rf_scene_draw_player_blackout(scene_particle_present,NULL);
             if(!status)status=rf_scene_draw_endgame(scene_particle_present,NULL);
-            hud_batch_end();if(status)return status;}
+            renderer_draw_mark(6,&draw_profile_previous,profiling);
+            hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
@@ -624,7 +724,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     const uint32_t program[]={
 #include "particle_vertex.inl"
     };
-    gpu_texture texture={0};uint32_t *p,i,j,base_mode=mode&~(31u<<20);
+    gpu_texture texture={0};uint32_t *p,i,j,reuse_state,base_mode=mode&~(31u<<20);
     uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u;int status;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !isfinite(depth_scale) || !isfinite(depth_bias))return RF_RANGE;
@@ -641,8 +741,14 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
             !isfinite(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
     }
     if(hud_batch_active && !solid)return RF_FORMAT; /* This scope owns solid overlays only. */
-    if(!solid){status=upload(&texture,image,0);if(status!=RF_OK)return status;}
-    if(!hud_batch_active || !hud_batch_ready) {
+    if(!solid){status=upload(&texture,image,0,0);if(status!=RF_OK)return status;
+        if(particle_batch_active)rf_xbox_particle_batch[2]+=image->width*image->height;}
+    /* Only immediate vertex commands can intervene inside this private pass.
+     * Fog/depth conversion are encoded in those vertices; the setup block is
+     * completely determined by exact mode and texture address/format. */
+    reuse_state=particle_batch_active && particle_batch_ready && particle_batch_mode==mode &&
+        particle_batch_pixels==texture.pixels && particle_batch_format==texture.format;
+    if((!hud_batch_active || !hud_batch_ready) && !reuse_state) {
     p=pb_begin();
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_START,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_EXECUTION_MODE,
@@ -683,7 +789,11 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+i*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
     pb_end(p);if(hud_batch_active)hud_batch_ready=1;
+    if(particle_batch_active) {
+        particle_batch_mode=mode;particle_batch_pixels=texture.pixels;
+        particle_batch_format=texture.format;particle_batch_ready=1;
     }
+    } else if(reuse_state)++rf_xbox_particle_batch[3];
     p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);pb_end(p);
     for(i=0;i<count;i++) {
         const rf_particle_draw_vertex *v=vertices+i;
@@ -704,7 +814,13 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
      * within the512KiB pushbuffer. Immediate vertices are copied into commands;
      * no borrowed CPU vertex storage survives this call. Preserve draw order. */
     if(hud_batch_active){if(++hud_batch_draws==64)hud_batch_flush();}
-    else {while(pb_busy()) {}pb_reset();}
+    else if(particle_batch_active) {
+        ++rf_xbox_particle_batch[0];
+        /* Mode/texture changes still install their exact state, with no draw
+         * reordering. Even with setup for every fan, 64 fans stay below128KiB
+         * of the512KiB pushbuffer. Draining invalidates the state cache. */
+        if(++particle_batch_draws==64)particle_batch_flush();
+    } else {while(pb_busy()) {}pb_reset();}
     return RF_OK;
 }
 

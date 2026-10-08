@@ -27,15 +27,27 @@ void rf_xbox_input_close(void)
 }
 int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
 {
-    SDL_Event event;int i;float horizontal,vertical;(void)context;
+    int i;float horizontal,vertical;(void)context;
     if(!initialized || !input)return RF_RANGE;
     memset(input,0,sizeof(*input));
-    while(SDL_PollEvent(&event)) { /* Pump only this application's SDL device events. */ }
+    /* Bundled NXDK SDL_PollEvent pumps joysticks on EVERY call, including
+     * each event discarded by a drain loop. One explicit pump obtains the
+     * current controller state and hotplug changes without repolling USB
+     * hubs in proportion to queue length. This owner consumes state only. */
+    SDL_PumpEvents();
     if(controller && !SDL_GameControllerGetAttached(controller)) {SDL_GameControllerClose(controller);controller=NULL;}
     if(!controller)for(i=0;i<SDL_NumJoysticks();++i)if(SDL_IsGameController(i)) {
-        controller=SDL_GameControllerOpen(i);if(controller)break;
+        controller=SDL_GameControllerOpen(i);
+        if(controller){
+            /* It was not open during the pump; sample this newly attached
+             * controller now rather than adding one frame of neutral input. */
+            SDL_GameControllerUpdate();break;
+        }
     }
-    SDL_GameControllerUpdate();rf_player_input_diagnostic[2]=frame+1;
+    /* Unlike PollEvent, this bundled SDL_FlushEvents does not pump again.
+     * Keep the existing policy of ignoring the application's SDL events. */
+    SDL_FlushEvents(SDL_FIRSTEVENT,SDL_LASTEVENT);
+    rf_player_input_diagnostic[2]=frame+1;
     rf_player_input_diagnostic[3]=controller!=NULL;
     if(!controller){rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;}
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK) &&

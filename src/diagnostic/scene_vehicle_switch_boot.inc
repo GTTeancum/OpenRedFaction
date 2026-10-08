@@ -24,7 +24,7 @@ static int scene_vehicle_switch_boot_seats_read(const rf_level *level,const unsi
     uint32_t switch_version=scene_history_word(p+4),switch_profile=scene_history_word(p+16);
     uint32_t switch_count=scene_history_word(p+20),selected=scene_history_word(p+12);
     uint32_t n=scene_history_word(p+8);p+=SCENE_VEHICLE_SWITCH_HEADER;(void)bytes;
-    for(uint32_t depth=0;depth<6;depth++){
+    for(uint32_t depth=0;depth<7;depth++){
         if(n<4)return RF_OK;
         if(!memcmp(p,"RFNS",4)){
             if(n<16)return RF_FORMAT;
@@ -66,10 +66,11 @@ static int scene_vehicle_switch_boot_seats_read(const rf_level *level,const unsi
             return RF_OK;
         }
         uint32_t row=0,count,inner,version;
-        if(memcmp(p,"RFCL",4)&&memcmp(p,"RFTP",4)&&memcmp(p,"RFTU",4))return RF_OK;
+        if(memcmp(p,"RFMB",4)&&memcmp(p,"RFCL",4)&&memcmp(p,"RFTP",4)&&memcmp(p,"RFTU",4))return RF_OK;
         if(n<16)return RF_FORMAT;
         version=scene_history_word(p+4);inner=scene_history_word(p+8);count=scene_history_word(p+12);
-        if(!memcmp(p,"RFCL",4)){if(version!=1)return RF_FORMAT;row=SCENE_CORPSE_LIFETIME_ROW;}
+        if(!memcmp(p,"RFMB",4)){if(version!=1||count!=1)return RF_FORMAT;row=16;}
+        else if(!memcmp(p,"RFCL",4)){if(version!=1)return RF_FORMAT;row=SCENE_CORPSE_LIFETIME_ROW;}
         else if(!memcmp(p,"RFTP",4)){if(version!=1||count!=SCENE_TURRET_PLAYER_CP_ROW)return RF_FORMAT;row=count;count=1;}
         else {if(version==1)row=SCENE_TURRET_CHECKPOINT_ROW;else if(version==2)row=SCENE_TURRET_GENERATED_CHECKPOINT_ROW;else if(version==3)row=SCENE_TURRET_RETIREMENT_ROW;else return RF_FORMAT;}
         if(16ull+inner+(uint64_t)count*row!=n)return RF_FORMAT;

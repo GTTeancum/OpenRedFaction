@@ -38,7 +38,7 @@ static int scene_world_vehicle_pursuit_event(uint32_t uid,uint32_t *pursuit,floa
 {
     uint32_t i,j,found=0;
     if(!uid||!pursuit||!target||!campaign_authored_vehicle_handle||
-       rf_scene_vehicle_enabled!=4)return RF_NOT_FOUND;
+       (rf_scene_vehicle_enabled!=2&&rf_scene_vehicle_enabled!=4&&rf_scene_vehicle_enabled!=5))return RF_NOT_FOUND;
     for(i=0;i<campaign_events.count;i++){
         const rf_runtime_event *event=campaign_events.items+i;
         const rf_level_event *record;uint32_t links=0,kind;
@@ -47,7 +47,7 @@ static int scene_world_vehicle_pursuit_event(uint32_t uid,uint32_t *pursuit,floa
         record=&event->authored->record;
         kind=!strcmp(record->type,"Goto")?1:
             !strcmp(record->type,"Goto_Player")?2:0;
-        if(!kind)return RF_FORMAT;
+        if(!kind||(rf_scene_vehicle_enabled==2&&kind!=1))return RF_FORMAT;
         for(j=0;j<record->link_count;j++)if(event->links[j].value==campaign_authored_vehicle_handle &&
             (event->links[j].kind==1||event->links[j].kind==2))++links;
         if(links!=1)return RF_FORMAT;
@@ -143,7 +143,7 @@ static int scene_world_vehicle_route_write(void *data,uint32_t capacity,uint32_t
 }
 static void scene_world_vehicle_route_assign(const scene_campaign_vehicle_route *route)
 {
-    campaign_vehicle_route=*route;
+    scene_vehicle_selected_navigation_reset();campaign_vehicle_route=*route;
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
     rf_scene_vehicle_route_state[0]=route->active;rf_scene_vehicle_route_state[1]=route->index;
     rf_scene_vehicle_route_state[2]=route->path.count;rf_scene_vehicle_route_state[5]=route->event;

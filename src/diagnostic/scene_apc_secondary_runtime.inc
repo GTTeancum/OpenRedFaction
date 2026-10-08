@@ -48,7 +48,7 @@ static int scene_apc_secondary_tick(scene_stream *stream,uint32_t frame,uint32_t
         }
         if(round->flight.active)++rf_scene_apc_secondary[4];
     }
-    if(held&&allowed&&scene_vehicle_physics_allows_control(stream)&&runtime->entry.session.active&&runtime->entry.host.alive&&
+    if(held&&allowed&&(scene_vehicle_loadout_selected_mask()&2u)&&scene_vehicle_physics_allows_control(stream)&&runtime->entry.session.active&&runtime->entry.host.alive&&
        campaign_player_damage.state.effects.health>0&&state->cooldown<=1.e-6f&&state->reserve>0){
         for(i=0;i<SCENE_APC_SECONDARY_CAPACITY&&state->rounds[i].flight.active;i++){}
         if(i==SCENE_APC_SECONDARY_CAPACITY)++rf_scene_apc_secondary[5];

@@ -350,6 +350,19 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
 }
 uint32_t rf_scene_fragment_stage_ms[8]; /* sum/max pairs: spheres,corners,mover vertices,world vertices */
 uint32_t rf_scene_fragment_profile[24]; /* v,ticks,active ticks,bodies,max bodies,queries,corners,reciprocal,triangles,poses,total ms,active ms,max ms,frame,max active ms,max queries,active peak frame,bodies,queries,triangle builds,local rejects,shape builds,fallbacks,reserved */
+/* Large runtime payload hashes are for replay parity, never gameplay input.
+ * Keep them on by default for existing probes; an interactive port can opt out
+ * before starting a scene without disabling counters, timings or state rings. */
+uint32_t rf_scene_diagnostic_checksums_enabled=1;
+void rf_scene_set_diagnostic_checksums(uint32_t enabled)
+{rf_scene_diagnostic_checksums_enabled=enabled!=0;}
+static uint32_t scene_diagnostic_hash(uint32_t hash,const void *data,uint32_t bytes)
+{
+    const unsigned char *p=data;
+    if(!rf_scene_diagnostic_checksums_enabled)return hash;
+    while(bytes--)hash=(hash^*p++)*16777619u;
+    return hash;
+}
 static uint32_t (*profile_clock)(void);
 static uint32_t profile_last,profile_active;
 /* View failures101..108: listener, camera effect, ambient, camera setup,
@@ -684,6 +697,9 @@ static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","As
 #include "scene_extra_pickups.inc"
 static int scene_extra_pickups_collect(const rf_level_item *,const rf_item_definition *,rf_weapon_pickup_grant *,uint32_t *);
 static int scene_extra_pickups_resource_validate(const char *,const rf_item_definition *,uint32_t *);
+typedef struct scene_pickup_draw_entry {
+    float position[3];uint32_t room,valid;
+} scene_pickup_draw_entry;
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
     uint32_t base,textures,resident,peak;
@@ -798,6 +814,22 @@ typedef struct scene_terrain_source_owner {
 } scene_terrain_source_owner;
 uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch peak, ready */
 
+/* Two independent exact-point queries: player body for wet-room state and
+ * final camera for portal visibility. No room approximation or motion cache. */
+typedef struct scene_player_room_lookup {
+    const rf_geometry_collision_world *world;const void *views,*terrain;
+    uint32_t generation,campaign_bits,valid;
+    float position[3];rf_collision_room_location location;
+} scene_player_room_lookup;
+typedef struct scene_world_projection_pose {
+    float position[3],matrix[9];uint32_t flags;
+} scene_world_projection_pose;
+typedef struct scene_world_projection_cache {
+    scene_world_projection_pose *poses;uint32_t count,valid,vertices;
+    const rf_scene_world_geometry *source;const void *source_items,*slots,*offsets;
+    rf_preview_vertex *destination;uint32_t material_count;
+    float position[3],orientation[9];
+} scene_world_projection_cache;
 typedef struct scene_driller_runtime scene_driller_runtime;
 #include "scene_vehicle_profile_pack_decl.inc"
 typedef struct scene_stream {
@@ -810,6 +842,7 @@ typedef struct scene_stream {
     scene_authored_clutter_baseline *checkpoint_clutter;
     rf_liquid_room *liquid_rooms;uint32_t swim_room_count,swim_bytes;
     rf_motion_controller initial_swim_controller;uint32_t initial_swim_controller_ready;
+    scene_player_room_lookup player_room_lookup[2];
     unsigned char terrain_checkpoint_identity[128];uint32_t terrain_checkpoint_loaded;
     const rf_level *player_checkpoint_level;
     uint32_t player_checkpoint_started,player_checkpoint_look;
@@ -835,9 +868,13 @@ typedef struct scene_stream {
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
+    scene_world_projection_cache world_projection;
+    float player_look_rates[3]; /* Actual class+64 for miner/suit/scientist forms. */
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken,*pickup_state;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
+    scene_pickup_draw_entry *pickup_draw_cache;uint32_t pickup_draw_count,pickup_draw_generation,pickup_draw_campaign_bits;
+    const rf_geometry_collision_world *pickup_draw_world;const void *pickup_draw_views;
     rf_weapon_flight rockets[SCENE_ROCKETS];rf_weapon_flight_liquid_state rocket_liquid[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
     scene_rocket_visual *rocket_visual,*ripple_visual,*fusion_visual,*fighter_rocket_visual;rf_level rocket_camera;
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
@@ -871,6 +908,7 @@ typedef struct scene_stream {
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+static int scene_player_room_locate(scene_stream *,uint32_t,const float *,rf_collision_room_location *);
 static int scene_driller_damage_source(uint32_t,uint32_t *);
 #define SCENE_DRILLER_PROJECTILE_OWNER 0x08000000u
 #define SCENE_TURRET_PROJECTILE_OWNER 0x04000000u
@@ -1027,7 +1065,7 @@ static int scene_lights_scratch_open(scene_stream *stream,const rf_geometry_coll
 }
 static int scene_lights_tick(scene_stream *stream,float seconds)
 {
-    rf_level_owned_lights *owner=stream->lights;uint32_t i,j,visibility,hash=2166136261u;int status;
+    rf_level_owned_lights *owner=stream->lights;uint32_t i,visibility,hash=2166136261u;int status;
     if(!owner)return RF_OK;
     for(i=0;i<owner->count;i++) {
         const rf_level_light_runtime *item=owner->items+i;
@@ -1046,7 +1084,7 @@ static int scene_lights_tick(scene_stream *stream,float seconds)
             ++rf_scene_light_ticks[3];
         }
     }
-    for(j=0;j<owner->count*sizeof(*owner->clocks);j++)hash=(hash^((unsigned char *)owner->clocks)[j])*16777619u;
+    hash=scene_diagnostic_hash(hash,owner->clocks,owner->count*sizeof(*owner->clocks));
     ++rf_scene_light_ticks[0];rf_scene_light_ticks[4]=hash;rf_scene_light_ticks[5]=owner->pool.generation;
     return RF_OK;
 }
@@ -1057,7 +1095,7 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
 {
     rf_particle_screen_polygon polygon;rf_particle_draw_vertex vertices[12];rf_particle_vertex_environment environment={0};
     rf_particle_render_environment render_environment={1,1,0,2};rf_particle_render_states states={0};
-    const rf_particle *p;const rf_particle_animation *animation;const rf_image *image;uint32_t frame,mode,i,j;int status;
+    const rf_particle *p;const rf_particle_animation *animation;const rf_image *image;uint32_t frame,mode,i;int status;
     if(index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     p=stream->particles.state->records+index;++row[2];
     if(p->bitmap>=0x50000000u){animation=scene_script_explode_effects_image(p->bitmap-0x50000000u);if(!animation)return RF_RANGE;}
@@ -1090,7 +1128,7 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
     for(i=0;i<polygon.count;i++) {
         const unsigned char *bytes=(const unsigned char*)(vertices+i);
         status=rf_particle_vertex_encode(&environment,polygon.vertices+i,vertices+i);if(status)return status;
-        for(j=0;j<sizeof(*vertices);j++)row[5]=(row[5]^bytes[j])*16777619u;
+        row[5]=scene_diagnostic_hash(row[5],bytes,sizeof(*vertices));
     }
     row[5]=(row[5]^mode)*16777619u;row[5]=(row[5]^p->bitmap)*16777619u;
     if(sink){status=sink(context,vertices,polygon.count,image,mode);if(status)return status;}
@@ -1158,6 +1196,7 @@ static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_
     vitals.object_flags=8;rf_entity_creation_vitals(&vitals,&cls,0);owner.object_flags=vitals.object_flags;
     owner.state.effects.health=vitals.health;owner.state.effects.armor=vitals.armor;
     owner.state.effects.class_health=cls.health;owner.state.effects.class_armor=cls.armor;
+    owner.state.effects.affiliation=2; /* Original4a40f0/4a4109 player selection ->489f70. */
     owner.state.effects.class_flags_728=physics->flags2;owner.class_flags=physics->flags;
     owner.state.effects.voice=UINT32_MAX;owner.state.responsible_handle=UINT32_MAX;owner.state.burn_source=UINT32_MAX;
     campaign_player_damage=owner;
@@ -1176,8 +1215,7 @@ static void campaign_force_snapshot(void)
 {
     uint32_t i,hash=2166136261u,enabled=0;
     for(i=0;i<campaign_forces.count;++i)if(campaign_forces.items[i].active&255u)++enabled;
-    for(i=0;i<campaign_forces.count*sizeof(*campaign_forces.items);++i)
-        hash=(hash^((const unsigned char *)campaign_forces.items)[i])*16777619u;
+    hash=scene_diagnostic_hash(hash,campaign_forces.items,campaign_forces.count*sizeof(*campaign_forces.items));
     rf_scene_force_state[0]=campaign_forces.count;rf_scene_force_state[1]=enabled;rf_scene_force_state[2]=hash;
 }
 static rf_object_registry campaign_registry;
@@ -1194,7 +1232,7 @@ uint32_t rf_scene_switch_state[3]; /* count, enabled count, ordered persistent s
 static int campaign_switch_clutter_snapshot(void *object,uint32_t *flags);
 static void campaign_switch_snapshot(void)
 {
-    uint32_t i,j,count=0,enabled=0,hash=2166136261u;
+    uint32_t i,count=0,enabled=0,hash=2166136261u;
     for(i=0;i<campaign_events.count;++i)if(campaign_events.items[i].switch_state) {
         const rf_switch_state *state=campaign_events.items[i].switch_state;
         ++count;if(!state->disabled)++enabled;
@@ -1210,7 +1248,7 @@ static void campaign_switch_snapshot(void)
                 rf_scene_switch_detail[6]=kind;
             }
         }
-        for(j=0;j<sizeof(*state);++j)hash=(hash^((const unsigned char *)state)[j])*16777619u;
+        hash=scene_diagnostic_hash(hash,state,sizeof(*state));
     }
     rf_scene_switch_state[0]=count;rf_scene_switch_state[1]=enabled;rf_scene_switch_state[2]=hash;
 }
@@ -1292,6 +1330,8 @@ rf_campaign_goals rf_scene_mission_goals;
 rf_campaign_countdown rf_scene_campaign_countdown;
 static rf_campaign_local_goals campaign_local_goals;
 rf_campaign_pickups rf_scene_campaign_pickups;
+/* Same stable level/UID slots as the collected-item ledger; no runtime handles. */
+static uint8_t campaign_pickup_states[RF_CAMPAIGN_PICKUP_SLOTS];
 /* First-pass first-entry inventory policy; separate from collected world items.
  * Environment startup still runs. This is not a complete section checkpoint. */
 static rf_campaign_pickups campaign_startup_inventory;
@@ -1573,11 +1613,18 @@ static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
 static rf_entity_seeds campaign_seeds;
+#include "scene_masako_seed.inc"
 #include "scene_turret_dependent_classes.inc"
 #include "scene_turret_models.inc"
 static int scene_turret_uid_life(uint32_t,uint32_t *,uint32_t *);
 static int scene_turret_set_ai_mode(uint32_t,int32_t);
 static int scene_turret_set_friendliness(uint32_t,uint32_t);
+#include "scene_vehicle_allegiance_decl.inc"
+#include "scene_vehicle_attack_decl.inc"
+#include "scene_vehicle_ai_decl.inc"
+#include "scene_vehicle_authority_decl.inc"
+#include "scene_vehicle_headlamp_decl.inc"
+static void scene_vehicle_loadout_refresh(scene_stream *);
 static void scene_turret_combat_close(void);
 static uint32_t scene_npc_seat_attached(uint32_t);
 static int scene_npc_seat_unbind(uint32_t,int32_t);
@@ -1728,15 +1775,24 @@ static int campaign_model_geometry_open(void)
 }
 static int campaign_model_collision_refresh(uint32_t slot)
 {
-    rf_entity_pose *pose;rf_collision_model_skin_pose view;uint32_t i,n;int status=campaign_model_pose(slot,&pose);
+    rf_entity_pose *pose;rf_collision_model_skin_pose view;uint32_t n;int status=campaign_model_pose(slot,&pose);
     if(status)return status;
     if(!pose || !campaign_collision_caches || !campaign_render_models.items || pose->skeleton>=campaign_render_models.count)return RF_RANGE;
     if(campaign_render_models.items[pose->skeleton].bone_count!=pose->bone_count)return RF_RANGE;
     status=rf_entity_collision_cache_view(campaign_collision_caches+slot,pose,campaign_render_models.items[pose->skeleton].stored,&view);
-    if(!status)status=rf_model_prepare_skinning(view.stored,view.evaluated,view.bone_count,view.generation,view.prepared,view.generations,view.capacity);
+    if(status){++rf_scene_npc_collision_cache[5];return status;}
+    if(!rf_scene_diagnostic_checksums_enabled) {
+        /* Render and collision consumers both prepare this owned cache on
+         * demand. Invalidate each newly published pose, even when its 16-bit
+         * generation wraps to an old cache stamp. Do not compose a second,
+         * unused copy for actors that no consumer asks to skin this tick. */
+        for(n=0;n<view.bone_count;n++)view.generations[n]=(uint16_t)(view.generation-1u);
+        ++rf_scene_npc_collision_cache[2];return RF_OK;
+    }
+    status=rf_model_prepare_skinning(view.stored,view.evaluated,view.bone_count,view.generation,view.prepared,view.generations,view.capacity);
     if(status){++rf_scene_npc_collision_cache[5];return status;}
     ++rf_scene_npc_collision_cache[2];n=pose->bone_count*50;
-    for(i=0;i<n;++i)rf_scene_npc_collision_cache[3]=(rf_scene_npc_collision_cache[3]^((unsigned char*)campaign_collision_caches[slot].matrices)[i])*16777619u;
+    rf_scene_npc_collision_cache[3]=scene_diagnostic_hash(rf_scene_npc_collision_cache[3],campaign_collision_caches[slot].matrices,n);
     return RF_OK;
 }
 int rf_scene_model_clear_bone_override(uint32_t slot,uint32_t bone)
@@ -2294,6 +2350,16 @@ int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float 
     if(rf_entity_lookup(&campaign_entities,(int32_t)player_entity_handle)!=&campaign_player_view)return RF_NOT_FOUND;
     return rf_camera_effect_start(&campaign_camera_effect,strength,duration,now);
 }
+static int campaign_shake_player(void *context,const rf_level_event *event,int32_t now)
+{
+    float strength;int status;(void)context;
+    if(!event)return RF_RANGE;
+    /* Original4bb66f..4bb686 scales authored strength by the binary float
+     * 0.01 then sends values[1] unchanged to the local camera's40e0b0 owner. */
+    strength=(float)((double)event->values[0]*(double)0.009999999776482582f);
+    status=rf_scene_player_feedback((uint32_t)campaign_player_view.handle,strength,event->values[1],now);
+    return status==RF_NOT_FOUND?RF_OK:status;
+}
 static rf_registered_entity_view campaign_player_object;
 uint32_t rf_scene_campaign_player[4]; /* registered handle, kind, initial object flags, adapter bytes */
 uint32_t rf_scene_trigger_contacts[6]; /* polls, ready, last ready UID, lower door ready, unsupported, status */
@@ -2799,10 +2865,9 @@ static int campaign_ambient_schedule(int32_t now,uint32_t initial)
     rf_scene_ambient_schedule[4]=rf_scene_ambient_schedule[5]=2166136261u;
     for(i=0;i<RF_AMBIENT_SLOTS;i++)rf_scene_ambient_schedule[2]+=campaign_ambient_slots[i].sample>=0;
     for(i=0;i<campaign_ambient_instances.count;i++)rf_scene_ambient_schedule[3]+=campaign_ambient_instances.items[i].deadline>=0;
-    for(i=0;i<campaign_ambient_instances.count*sizeof(*campaign_ambient_instances.items);i++)
-        rf_scene_ambient_schedule[4]=(rf_scene_ambient_schedule[4]^((unsigned char *)campaign_ambient_instances.items)[i])*16777619u;
-    for(i=0;i<sizeof(campaign_ambient_slots);i++)
-        rf_scene_ambient_schedule[5]=(rf_scene_ambient_schedule[5]^((unsigned char *)campaign_ambient_slots)[i])*16777619u;
+    rf_scene_ambient_schedule[4]=scene_diagnostic_hash(rf_scene_ambient_schedule[4],campaign_ambient_instances.items,
+        campaign_ambient_instances.count*sizeof(*campaign_ambient_instances.items));
+    rf_scene_ambient_schedule[5]=scene_diagnostic_hash(rf_scene_ambient_schedule[5],campaign_ambient_slots,sizeof(campaign_ambient_slots));
     return RF_OK;
 }
 static int campaign_audio_open(const char *tables_path,const char *level_name,const char *player_class)
@@ -3289,6 +3354,15 @@ unsupported:
     ++rf_scene_airlock[3];return 0;
 }
 uint32_t rf_scene_npc_triggers[6]; /* checks, ready, last actor UID, last trigger UID, occupancy hits, status */
+/* Bounded, discardable geometry-only cache: 29 KiB on the stock Xbox ABI.
+ * Handles choose a slot; the complete current geometry is the actual key.
+ * Hash collisions only recompute and cannot suppress contacts or timer work. */
+static rf_trigger_contact_cache campaign_trigger_contact_cache[256];
+static rf_trigger_contact_cache *campaign_trigger_cache_slot(uint32_t trigger,uint32_t actor)
+{
+    uint32_t key=trigger*0x9e3779b9u+actor*0x85ebca6bu;
+    key^=key>>16;return campaign_trigger_contact_cache+(key&255u);
+}
 static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const float positions[3][3],int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use,uint32_t npc)
 {
     uint32_t i,clock_bits;float seconds=(float)now*.001f;int32_t player=campaign_player_view.handle;
@@ -3303,7 +3377,11 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
         if(trigger->activation.object_flags&2)continue;
         if(record->value_byte>4 || record->fields[2]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || (record->script[0] && strcmp(record->script,"-1")) ||
-           (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
+           (trigger->state.flags&2u)) {++rf_scene_trigger_contacts[4];continue;}
+        /* Original4c0843 admits flag0x80 through4290d0: this exact actor must
+         * resolve to an entity linked to a live class-use1 host. The existing
+         * rf_trigger_actor_resolve/rf_trigger_eligible pair already owns that
+         * gate. Do not blanket-skip the authored mission trigger beforehand. */
         status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
         if(!npc && use && (trigger->state.flags&1) && !(trigger->state.flags&(16|32)) && campaign_trigger_collision &&
            (trigger->activation.limit==-1 || trigger->state.count<(uint32_t)trigger->activation.limit)) {
@@ -3320,7 +3398,8 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
                 } else ++rf_scene_use_reach[2];
             }
         }
-        status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,contact_positions,&filter,now,use,&ready);
+        status=rf_runtime_trigger_contact_cached(&campaign_triggers,trigger->handle,&facts,contact_positions,&filter,now,use,&ready,
+            campaign_trigger_cache_slot(trigger->handle,facts.handle));
         ++rf_scene_trigger_contacts[0];if(npc)++rf_scene_npc_triggers[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
         if(ready && !campaign_airlock_ready(trigger))continue;
         if(ready && extended)++rf_scene_use_reach[3];
@@ -3529,7 +3608,7 @@ static int campaign_controller_commit(void)
     rf_scene_music[3]=campaign_music_stream.active;
     rf_scene_music[6]=campaign_music_stream.block_index;
     rf_scene_music[7]=campaign_music_stream.fade_remaining;
-    for(i=0;i<sizeof(campaign_audio_frame);i++)rf_scene_live_audio[7]=(rf_scene_live_audio[7]^((const uint8_t *)campaign_audio_frame)[i])*16777619u;
+    rf_scene_live_audio[7]=scene_diagnostic_hash(rf_scene_live_audio[7],campaign_audio_frame,sizeof(campaign_audio_frame));
     rf_scene_live_audio[6]+=800;
     if(campaign_audio_sink)campaign_audio_sink(campaign_audio_context,campaign_audio_frame,800);
     if(campaign_audio_events.poll)campaign_audio_events.poll(campaign_audio_events_context);
@@ -3544,6 +3623,25 @@ static int campaign_controller_commit(void)
     }
     campaign_mover_interval_seconds=scene_step_seconds;
     ++rf_scene_live_motion[0];return RF_OK;
+}
+/* One active scene owns immutable static-room topology between publication
+ * transactions. Retain only the existing batch's structural validation and
+ * immutable face-block bounds, never contacts, query inputs or mover poses. */
+static rf_collision_sweep_batch campaign_dry_sweep_cache;
+static const rf_geometry_collision_world *campaign_dry_sweep_world;
+static void campaign_dry_sweep_invalidate(void)
+{
+    campaign_dry_sweep_world=NULL;
+    memset(&campaign_dry_sweep_cache,0,sizeof(campaign_dry_sweep_cache));
+}
+static rf_collision_sweep_batch *campaign_dry_sweep_batch(const rf_geometry_collision_world *world)
+{
+    /* Synthetic or staged caller worlds retain ordinary per-query validation. */
+    if(!scene_actor_collision_owner || world!=scene_actor_collision_owner->collision)return NULL;
+    if(campaign_dry_sweep_world!=world) {
+        campaign_dry_sweep_invalidate();campaign_dry_sweep_world=world;
+    }
+    return &campaign_dry_sweep_cache;
 }
 static rf_collision_body_mover *campaign_sweep_scratch;
 static const rf_geometry **campaign_surface_sources;
@@ -3927,7 +4025,8 @@ static int campaign_glare_instances_close(void)
     if(campaign_glare_list.count){++rf_scene_glare_instances[9];return RF_FORMAT;}
     free(campaign_attachment_nodes);campaign_attachment_nodes=NULL;campaign_attachment_scratch=NULL;campaign_attachment_count=0;
     free(campaign_glare_rooms);campaign_glare_rooms=NULL;
-    free(campaign_glare_instances);campaign_glare_instances=NULL;campaign_glare_instance_count=campaign_glare_instance_capacity=0;return RF_OK;
+    free(campaign_glare_instances);campaign_glare_instances=NULL;campaign_glare_instance_count=campaign_glare_instance_capacity=0;
+    scene_vehicle_headlamp_close();return RF_OK;
 }
 typedef struct campaign_glare_context {rf_clutter_base_owner *parent;uint32_t scratch;} campaign_glare_context;
 static int campaign_glare_pose(void *context,uint32_t parent,int32_t tag,float pose[12])
@@ -5314,7 +5413,7 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         uint32_t pursuit=!strcmp(event->type,"Goto")?1:
             !strcmp(event->type,"Goto_Player")?2:0;
         if(strcmp(event->type,"Follow_Waypoints") &&
-           !(rf_scene_vehicle_enabled==4 && pursuit))return RF_NOT_FOUND;
+           !((rf_scene_vehicle_enabled==4||rf_scene_vehicle_enabled==5||(rf_scene_vehicle_enabled==2&&pursuit==1)) && pursuit))return RF_NOT_FOUND;
         if(on){
             if(!pursuit)for(i=0;i<path.count;i++){
                 uint32_t node=rf_level_waypoint_node(&path,i);
@@ -5322,6 +5421,7 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
                 for(j=0;j<3;j++)if(!isfinite(campaign_navigation.nodes[node].candidate.position[j]))return RF_FORMAT;
             }
             else for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
+            scene_vehicle_attack_cancel(handle);scene_vehicle_ai_cancel(handle);scene_vehicle_selected_navigation_reset();
             campaign_vehicle_route.path=path;campaign_vehicle_route.index=0;
             campaign_vehicle_route.mode=mode;campaign_vehicle_route.reverse=0;
             campaign_vehicle_route.event=event->uid;campaign_vehicle_route.active=1;
@@ -5666,7 +5766,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 rf_entity_creation_vitals_state vitals={0};vitals.object_flags=flags;
                 rf_entity_creation_vitals(&vitals,&definition->vitals,0);
                 {rf_level_entity_vitals authored;
-                 status=rf_level_entity_vitals_read(campaign_seeds.records.items+actor,&authored);if(status)goto done;
+                 status=scene_masako_instance_vitals(campaign_seeds.records.items+actor,&authored);if(status)goto done;
                  status=scene_npc_vitals_apply(&authored,&vitals,&definition->vitals);if(status)goto done;}
                 owner->object_flags=vitals.object_flags;owner->field_840=vitals.field_840;
                 owner->damage.effects.health=vitals.health;owner->damage.effects.armor=vitals.armor;
@@ -5888,6 +5988,7 @@ static void campaign_close_movers(void)
     rf_geometry_collision_movers_close(&campaign_movers);
     free(campaign_mover_intervals);campaign_mover_intervals=NULL;campaign_mover_interval_seconds=0;
     free(campaign_fragment_mover_poses);campaign_fragment_mover_poses=NULL;
+    campaign_dry_sweep_invalidate();
     free(campaign_sweep_scratch);campaign_sweep_scratch=NULL;
     free(campaign_surface_sources);campaign_surface_sources=NULL;
     free(campaign_surface_palette);campaign_surface_palette=NULL;
@@ -6000,6 +6101,7 @@ static int campaign_bind_passive_vehicles(void)
 {
     uint64_t capacity=0;uint32_t group,used=0,source;int status=RF_OK;
     if(campaign_passive_vehicles || campaign_general_handles || !campaign_controller_views)return RF_RANGE;
+    memset(rf_scene_vehicle_allegiance,0,sizeof(rf_scene_vehicle_allegiance));
     memset(rf_scene_passive_attachment,0,sizeof(rf_scene_passive_attachment));
     memset(rf_scene_passive_collision,0,sizeof(rf_scene_passive_collision));
     memset(rf_scene_passive_damage,0,sizeof(rf_scene_passive_damage));
@@ -8573,6 +8675,11 @@ static int campaign_collision_views_check(uint32_t frame)
     status=campaign_pair_dispatch_fixture(frame);if(status)return status;
     if(!frame){memset(rf_scene_collision_views,0,sizeof(rf_scene_collision_views));rf_scene_collision_views[1]=rf_scene_collision_views[2]=2166136261u;}
     if(!frame){memset(rf_scene_collision_responses,0,sizeof(rf_scene_collision_responses));rf_scene_collision_responses[1]=rf_scene_collision_responses[2]=2166136261u;}
+    /* These reconstructed views only feed the diagnostic snapshots below.
+     * Real collision queries build their own current owner views at use sites.
+     * Keep explicit fixtures above, but do not rebuild every actor merely to
+     * produce disabled live-play checksums. */
+    if(!rf_scene_diagnostic_checksums_enabled && !rf_scene_actor_pair_test_enabled)return RF_OK;
     status=rf_scene_player_collision_view(campaign_player_object.handle,&view);if(status)goto done;
     rf_scene_collision_views[1]=collision_view_hash(rf_scene_collision_views[1],&view);rf_scene_collision_views[4]=view.model;
     status=rf_scene_player_collision_response(campaign_player_object.handle,&response);if(status)goto done;
@@ -8717,6 +8824,9 @@ static int campaign_body_query_batch_for(const rf_geometry_collision_world *worl
             movers->count,campaign_body_surface,&surfaces,campaign_alpha_body_backends,
             campaign_alpha_body_backends+world->room_count,contact,matched);
     }
+    /* Only dry, non-alpha static geometry participates. Caller-scoped batches
+     * keep their original ownership and moving solids are still rebuilt. */
+    if(!batch && !(query->flags&0x1000u))batch=campaign_dry_sweep_batch(world);
     if(batch)return rf_geometry_collision_body_sweep_batch(world,movers,query,campaign_sweep_scratch,
         movers->count,campaign_body_surface,&surfaces,batch,contact,matched);
     return rf_geometry_collision_body_sweep(world,movers,query,campaign_sweep_scratch,
@@ -9234,6 +9344,20 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
         rf_collision_body_sphere spheres[8];int status;
         status=campaign_physics_body_sweep(world,state,&scene_actor_body.spheres,query_flags,
             spheres,8,&rf_scene_actor_body_contact,&matched);
+        if(!status&&matched&&rf_scene_actor_body_contact.contact.object_id==campaign_support_handle&&
+           rf_scene_actor_body_contact.contact.normal[1]>=.5f&&
+           scene_secondary_vehicle_rider(campaign_support_handle,campaign_player_object.handle)){
+            uint32_t clear=0;status=scene_secondary_vehicle_player_destination(campaign_support_handle,state,&clear);
+            if(!status&&clear){
+                /* Same full query, excluding only this qualified support.
+                 * Restore the temporary link before every error/return. */
+                int32_t linked=campaign_player_view.linked_handle;
+                campaign_player_view.linked_handle=(int32_t)campaign_support_handle;
+                status=campaign_physics_body_sweep(world,state,&scene_actor_body.spheres,query_flags,
+                    spheres,8,&rf_scene_actor_body_contact,&matched);
+                campaign_player_view.linked_handle=linked;
+            }
+        }
         ++rf_scene_actor_body_sweeps[0];rf_scene_actor_body_sweeps[3]=(uint32_t)status;
         if(status)return status;
         if(matched) {
@@ -9406,7 +9530,7 @@ static int campaign_swim_update(scene_stream *s,uint32_t frame,const rf_motion_c
     /* This live owner is the ordinary unattached miner. Vehicle handling and
      * ladder ownership remain separate; no wet-body-wide gravity change. */
     if((rf_scene_actor_movement_config.flags&0x400u) || rf_scene_actor_landing[1]==2)return RF_OK;
-    status=rf_geometry_collision_world_locate(s->collision,scene_actor_body.state.position,&room);if(status)return status;
+    status=scene_player_room_locate(s,0,scene_actor_body.state.position,&room);if(status)return status;
     has_room=room.room!=UINT32_MAX;
     memcpy(eye.position,scene_actor_body.state.position,12);memcpy(eye.orientation,scene_actor_body.state.orientation,36);
     memcpy(eye.standing_offset,rf_scene_actor_initial_eye_offsets,12);memcpy(eye.crouching_offset,rf_scene_actor_initial_eye_offsets+3,12);
@@ -9860,7 +9984,13 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
             actor_look.state.command[0]=player_poll?player_input.look[0]:frame?((frame%180)<90?.25f:-.25f):0;
             actor_look.state.command[1]=player_poll?player_input.look[1]:rf_scene_actor_turn_enabled && frame?((frame%240)<120?.2f:-.2f):0;
             actor_look.state.command[0]*=scene_scope_look;actor_look.state.command[1]*=scene_scope_look;
-            status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status)return status;
+            /* Original49de6f/49de90 uses class+64 ($Rot Acceleration),
+             * not class+60 ($Max Rot Vel). Keep controller normalization and
+             * scope scaling separate from this authored integration scalar. */
+            uint32_t form=rf_scene_player_model[0];
+            if(campaign_spawn&&form>=3)return RF_FORMAT;
+            status=rf_look_update_pose(&actor_look.state,campaign_spawn?stream->player_look_rates[form]:1.0f,
+                scene_step_seconds,&actor_look);if(status)return status;
             if(rf_scene_actor_turn_enabled) {
                 float tensor[9];
                 status=rf_physics_tensor_world(scene_actor_body.state.local_tensor,actor_look.body_orientation,tensor);if(status)return status;
@@ -10232,9 +10362,12 @@ static struct {
     rf_physics_sphere spheres[8];uint32_t count,stance,landing[8],support;
     float support_velocity[3];
 } life_start;
+static int scene_vehicle_set_invulnerable(uint32_t handle,uint32_t enabled);
 static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enabled)
 {
-    uint32_t i;(void)context;
+    uint32_t i;int status;(void)context;
+    status=scene_vehicle_set_invulnerable(handle,enabled);
+    if(status!=RF_NOT_FOUND)return status;
     {scene_turret_owner *o=scene_turret_lookup(handle);if(o){
         if(enabled)o->view.flags_7c|=4u;else o->view.flags_7c&=~4u;return RF_OK;
     }}
@@ -10389,6 +10522,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
 }
 static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t value)
 {
+    int vehicle_status=scene_vehicle_set_friendliness(handle,value);if(vehicle_status!=RF_NOT_FOUND)return vehicle_status;
     int turret_status=scene_turret_set_friendliness(handle,value);if(turret_status!=RF_NOT_FOUND)return turret_status;
     uint32_t i;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);(void)context;
     if(!view)return RF_NOT_FOUND;
@@ -11060,8 +11194,10 @@ static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,u
 }
 static int campaign_script_attack(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on)
 {
-    uint32_t i,j,target=UINT32_MAX;campaign_npc_body *owner=NULL;(void)context;
-    if(!event || (event->link_count && !links))return RF_RANGE;
+    uint32_t i,j,target=UINT32_MAX,handled=0;campaign_npc_body *owner=NULL;int status;
+    if(!event || (event->link_count && !links)||on>1)return RF_RANGE;
+    status=scene_vehicle_attack_order(context?context:scene_actor_collision_owner,event,links,on,&handled);
+    if(handled||status!=RF_NOT_FOUND)return status;
     for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==event->words[0]) {
         owner=campaign_npc_bodies+i;break;
     }
@@ -11663,6 +11799,8 @@ static int campaign_pickups_restore(scene_stream *stream)
         if(status)return status;
         stream->pickup_slots[i]=slot;
         stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[slot].retired;
+        if(campaign_pickup_states[slot]>2)return RF_FORMAT;
+        stream->pickup_state[i]=campaign_pickup_states[slot];
     }
     return RF_OK;
 }
@@ -11883,6 +12021,7 @@ static int scene_terrain_bind(scene_stream *s)
     if(view.mesh.face_count>SCENE_TERRAIN_FACES)return RF_RANGE;
     status=scene_terrain_subdivide(s,&view);if(status)return status;
     for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
+    campaign_dry_sweep_invalidate();
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,view.tree,s->terrain_ids,view.mesh.face_count);if(status)return status;
     rf_scene_geomod[0]=1;rf_scene_geomod[1]=view.cuts;rf_scene_geomod[2]=view.mesh.generation;
     rf_scene_geomod[3]=view.resident_bytes+s->terrain_collision.resident_bytes;
@@ -12328,6 +12467,7 @@ static int scene_campaign_wall_checkpoint_get(const scene_stream *s,float center
 static int scene_campaign_wall_cut(scene_stream *s,const float center[3],float radius);
 #include "scene_campaign_geomod.inc"
 #include "scene_campaign_wall.inc"
+#include "scene_player_room_cache.inc"
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -13068,6 +13208,7 @@ static int scene_secondary_vehicle_restore_admit(scene_stream *,const scene_worl
     const scene_secondary_vehicle_checkpoint_stage *,uint32_t);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
+#include "scene_masako_checkpoint.inc"
 #include "scene_world_storage.inc"
 #include "scene_world_snapshot.inc"
 #include "scene_world_load.inc"
@@ -13184,6 +13325,7 @@ done:
 }
 static int scene_script_physics_save_allowed(const scene_stream *);
 static uint32_t scene_vehicle_visibility_legacy_save_allowed(const scene_stream *);
+static uint32_t scene_vehicle_invulnerability_legacy_save_allowed(void);
 static int scene_checkpoint_capture(scene_stream *s)
 {
     FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
@@ -13201,6 +13343,10 @@ static int scene_checkpoint_capture(scene_stream *s)
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
     if(prefix && !scene_script_physics_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_vehicle_visibility_legacy_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
+    if(prefix && !scene_vehicle_invulnerability_legacy_save_allowed()){status=RF_NOT_FOUND;goto done;}
+    if(prefix && !scene_vehicle_headlamp_legacy_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
+    if(prefix && !scene_vehicle_allegiance_legacy_save_allowed()){status=RF_NOT_FOUND;goto done;}
+    if(prefix && (scene_vehicle_attack_has_state()||scene_vehicle_ai_has_state())){status=RF_NOT_FOUND;goto done;}
     if(prefix){status=scene_remote_checkpoint_capture(remote_blob,sizeof(remote_blob),&remote_bytes);if(status)goto done;}
     if(prefix){status=scene_vehicle_checkpoint_capture(s,vehicle_blob,&vehicle_bytes);if(status)goto done;}
     if(s->terrain_authored) {
@@ -13879,7 +14025,7 @@ static int scene_debris_draw(scene_stream *s)
     if(rf_scene_debris_visibility[4]!=rf_scene_debris_visibility[5])return RF_FORMAT;
     rf_scene_debris[1]=0;for(i=0;i<80;i++)rf_scene_debris[1]+=p->chunks[i].active!=0;
     rf_scene_debris[4]=s->mesh->count-start;
-    rf_scene_debris[5]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
+    rf_scene_debris[5]=scene_diagnostic_hash(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
 }
 
 uint32_t rf_scene_detached_motion[8]; /* bodies,steps,contacts,stopped,limited,pose hash,status,spheres */
@@ -16090,7 +16236,12 @@ static uint32_t scene_vehicle_physics_frozen(const scene_stream *);
 static uint32_t scene_vehicle_physics_allows_control(const scene_stream *);
 static int scene_vehicle_physics_exit_tick(scene_stream *,uint32_t *);
 static void scene_vehicle_entry_collision_bind(scene_stream *);
+#include "scene_vehicle_loadout.inc"
 #include "scene_driller_runtime.inc"
+#include "scene_vehicle_loadout_state.inc"
+#include "scene_vehicle_allegiance.inc"
+#include "scene_vehicle_invulnerability.inc"
+#include "scene_vehicle_headlamp.inc"
 #include "scene_secondary_vehicle_runtime.inc"
 #include "scene_vehicle_profile_pack_state.inc"
 static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
@@ -16113,6 +16264,7 @@ static int scene_vehicle_wreck_exit_try(scene_stream *,uint32_t,uint32_t,uint32_
 static int scene_vehicle_switch_boot_passive_seat(uint32_t,uint32_t,int32_t *);
 #include "scene_npc_seat_bind.inc"
 #include "scene_npc_teleport.inc"
+#include "scene_masako_runtime.inc"
 #include "scene_npc_seat_checkpoint.inc"
 #include "scene_npc_jeep_seat_save_admit.inc"
 #include "scene_apc_primary_runtime.inc"
@@ -16122,6 +16274,10 @@ static int scene_vehicle_switch_boot_passive_seat(uint32_t,uint32_t,int32_t *);
 #include "scene_apc_primary_draw.inc"
 #include "scene_submarine_weapon_runtime.inc"
 #include "scene_fighter_weapon_runtime.inc"
+#include "scene_vehicle_attack.inc"
+#include "scene_vehicle_attack_checkpoint.inc"
+#include "scene_vehicle_ai.inc"
+#include "scene_vehicle_ai_checkpoint.inc"
 static const char *scene_vehicle_hud_label(const scene_stream *s)
 {
     if(rf_scene_vehicle_enabled==3)return scene_jeep_can_fire(&s->driller_runtime->jeep_seat)?"GUNNER":"DRIVER";
@@ -16136,12 +16292,14 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
     if(rf_scene_vehicle_enabled==5){ammo[0]=s->fighter_weapon.primary_reserve;ammo[1]=s->fighter_weapon.rocket_reserve;}
     else if(rf_scene_vehicle_enabled==4)ammo[0]=s->submarine_weapon.reserve;
     else if(rf_scene_vehicle_enabled>=2){ammo[0]=s->apc_primary.reserve;ammo[1]=rf_scene_vehicle_enabled==2?s->apc_secondary.reserve:-1;}
+    uint32_t mask=scene_vehicle_loadout_selected_mask();if(!(mask&1u))ammo[0]=-1;if(!(mask&2u))ammo[1]=-1;
 }
 #include "scene_driller_flame.inc"
 #include "scene_driller_checkpoint_adapter.inc"
 #include "scene_vehicle_wreck_exit.inc"
 #include "scene_vehicle_entry_collision.inc"
 #include "scene_vehicle_owner_collision.inc"
+#include "scene_secondary_vehicle_carry.inc"
 #include "scene_vehicle_switch.inc"
 #include "scene_vehicle_switch_checkpoint.inc"
 #include "scene_vehicle_combat_restore.inc"
@@ -16161,6 +16319,7 @@ static uint32_t scene_npc_jeep_seat_save_dead_contact(
 #include "scene_world_vehicle_restore.inc"
 #include "scene_passive_jeep_seat_restore.inc"
 #include "scene_secondary_vehicle_restore.inc"
+#include "scene_world_projection_cache.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -16189,10 +16348,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_driller_runtime_tick(stream,frame);if(status)return status;
     status=scene_apc_aim_tick(stream,frame);if(status)return status;
     status=scene_jeep_gun_tick(stream);if(status)return status;
+    scene_vehicle_ai_player_sync(stream,0);
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
+    scene_vehicle_attack_player_sync(stream,0);
     status=scene_fighter_weapon_tick(stream,frame);if(status)return status;
+    scene_vehicle_attack_player_sync(stream,1);
+    scene_vehicle_ai_player_sync(stream,1);
+    status=scene_vehicle_attack_tick(stream,frame);if(status)return status;
+    status=scene_vehicle_ai_tick(stream,frame);if(status)return status;
     status=scene_turret_player_tick(stream,frame);if(status)return status;
     status=scene_turret_heap_tick(stream,frame);if(status)return status;
     status=scene_turret_player_active()?scene_turret_player_camera(position,orientation):
@@ -16289,7 +16454,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(parameters.origin,position,12);memcpy(parameters.basis,orientation,36);
         status=rf_visibility_camera_setup(&parameters,&camera);if(status){rf_scene_profile_stage[1]=104;return status;}
         stream->particle_camera=camera;stream->particle_frame=frame;
-        status=rf_geometry_collision_world_locate(stream->collision,position,&room);if(status){rf_scene_profile_stage[1]=105;return status;}
+        status=scene_player_room_locate(stream,1,position,&room);if(status){rf_scene_profile_stage[1]=105;return status;}
         world_profile_mark(3,&world_clock);
         status=rf_level_visibility_begin_render(&stream->visibility);if(status){rf_scene_profile_stage[1]=106;return status;}
         status=rf_level_visibility_view(&stream->visibility,&camera,640,480,room.room,UINT32_MAX,0,1);if(status){rf_scene_profile_stage[1]=107;return status;}
@@ -16310,6 +16475,10 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
         static_world_retained=status==RF_OK;
     }
+    /* Retained static geometry is still submitted above every frame. Only
+     * reuse the unchanged immutable-mover CPU prefix with an exact camera and
+     * pose key; all other world preparation and simulation remain live. */
+    if(!scene_world_projection_hit(stream,render_world,position,orientation,terrain_cuts)) {
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
     {rf_preview_mesh world_mesh=*stream->mesh;
@@ -16382,6 +16551,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
      *stream->mesh=world_mesh;}
+    scene_world_projection_capture(stream,render_world,position,orientation,terrain_cuts);
+    }
     world_profile_mark(6,&world_clock);profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
@@ -16391,7 +16562,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);
     {uint32_t i,*d=rf_scene_actor_follow_summary;if(!frame) {d[0]=d[2]=0;d[1]=d[3]=2166136261u;}
      d[0]=frame+1;d[4]=stream->capacity;if(stream->mesh->bytes>d[2])d[2]=stream->mesh->bytes;
-     for(i=0;i<stream->mesh->bytes;++i)d[1]=(d[1]^((const unsigned char*)stream->mesh->vertices)[i])*16777619u;
+     d[1]=scene_diagnostic_hash(d[1],stream->mesh->vertices,stream->mesh->bytes);
      for(i=0;i<sizeof(rf_scene_actor_follow_frames[0]);++i)d[3]=(d[3]^((const unsigned char*)r)[i])*16777619u;}
     profile_mark(3);return RF_OK;
 }
@@ -16529,6 +16700,7 @@ static int campaign_attachment_motion_fixture(uint32_t frame)
     memcpy(telemetry,rf_scene_attachments,sizeof(telemetry));
     for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
         rf_glare_base_owner *glare=campaign_glare_instances[i],saved_glare=*glare;
+        if(scene_vehicle_headlamp_parent(glare->state.parent))continue;
         rf_clutter_base_owner *parent,saved_parent;rf_attachment_node *child=campaign_attachment_nodes+campaign_clutter_records.count+i;
         float expected[12];uint32_t before;
         status=campaign_clutter_registered(glare->state.parent,&j,&model);if(status)break;
@@ -16590,6 +16762,9 @@ static int campaign_attachments_pass(void)
             node->flags=&owner->state.flags;node->parent=UINT32_MAX;node->owner=&owner->state;
         } else {
             rf_glare_base_owner *owner=campaign_glare_instances[i-campaign_clutter_records.count];if(!owner)continue;
+            /* Vehicle lamps consume their actual moving hull tags in the
+             * vehicle pass; no skeletal/clutter proxy parent is fabricated. */
+            if(scene_vehicle_headlamp_parent(owner->state.parent))continue;
             node->flags=&owner->flags;node->parent=owner->state.parent;node->owner=&owner->state;
         }
         *node->flags&=~0x01000000u;
@@ -17543,12 +17718,16 @@ failed:
 }
 /* First-pass horizontal approach, bounded by the existing body/world sweep.
  * Routing, slope support and full authored movement-mode semantics remain open. */
+#include "scene_scripted_actor_speed.inc"
 #include "scene_npc_rotating_support_fixture.inc"
 #include "scene_passive_vehicle_npc_push.inc"
 #include "scene_active_vehicle_visibility_fixture.inc"
 #include "scene_active_vehicle_visibility_audit.inc"
 #include "scene_passive_jeep_driver_fixture.inc"
 #include "scene_secondary_vehicle_fixture.inc"
+#include "scene_secondary_fighter_fixture.inc"
+#include "scene_secondary_fighter_pursuit_fixture.inc"
+#include "scene_vehicle_allegiance_fixture.inc"
 #include "scene_group_control_fixture.inc"
 #include "scene_occupied_mover_fixture.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
@@ -17569,7 +17748,12 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         if(o->script_move.stop) {
             if(o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)){status=campaign_script_locomotion(i,0);if(status)return status;}o->script_move.stop=0;
         }
-        if(o->ai_mode.action_280==1)continue;
+        if(o->ai_mode.action_280==1){
+            if(scene_secondary_vehicle_supports(o->support.handle)){
+                status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame);if(status)return status;
+            }
+            continue;
+        }
         if(!o->script_move.active && o->combat_alert && o->registration.view && o->damage.effects.health>0 &&
            !(o->object_flags&(2|0x4000)) && !(o->view.flags_810&1) && o->view.weapons[0]>=0) {
             const float *aim=scene_actor_body.state.position;
@@ -17666,7 +17850,10 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         }
         if(distance<.25f){if(!o->script_move.follow)o->script_move.active=0;++rf_scene_script_movement[2];
             status=campaign_script_locomotion(i,0);if(status)return status;continue;}
-        step=fminf(1.5f*elapsed,distance);proposal=o->body.state;
+        /*427450 already resolved the class/slow/alternate speed. Scripted
+         * approach must consume it rather than erase Make_Fly26 with1.5m/s. */
+        if(!isfinite(o->movement.speed)||o->movement.speed<0)return RF_FORMAT;
+        step=fminf(o->movement.speed*elapsed,distance);proposal=o->body.state;
         for(j=0;j<3;j++)proposal.next_position[j]=proposal.position[j]+delta[j]*(step/distance);
         status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
         status=rf_scene_npc_body_sweep(stream->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
@@ -17788,8 +17975,8 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         }
         status=campaign_npc_eye_update(i);if(status)return status;
         ++actors;bones+=pose->bone_count;
-        h=npc_hash_bytes(h,&pose->playback,sizeof(pose->playback));
-        p=npc_hash_bytes(p,pose->matrices,pose->bone_count*48);p=npc_hash_bytes(p,pose->generations,pose->bone_count*2);
+        h=scene_diagnostic_hash(h,&pose->playback,sizeof(pose->playback));
+        p=scene_diagnostic_hash(p,pose->matrices,pose->bone_count*48);p=scene_diagnostic_hash(p,pose->generations,pose->bone_count*2);
         markers|=pose->playback.event_mask;
         npc_playback_elapsed(timing,6,&clock);
     }
@@ -17884,14 +18071,30 @@ static int scene_npc_render_family(void *context,uint32_t kind)
 {
     scene_npc_render_context *c=context;scene_stream *stream=c->stream;uint32_t actor=c->actor;
     rf_entity_pose *pose=c->pose;const rf_entity_render_model *model;
-    const campaign_model_owner *owner=campaign_model_owners+actor;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
+    const campaign_model_owner *owner=campaign_model_owners+actor;rf_model_projection view;
+    float local_prepared[50][12],(*prepared)[12]=local_prepared;uint16_t generations[50];
     uint32_t appearance,first,last,lod,batch,k,retained=0,start_actor=stream->mesh->count;int status;
     if(kind!=0)return RF_RANGE;
     appearance=owner->appearance;if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
     first=campaign_npc_materials.offsets[appearance];last=campaign_npc_materials.offsets[appearance+1];
     model=campaign_render_models.items+pose->skeleton;
-    memset(prepared,0,sizeof(prepared));memset(generations,0,sizeof(generations));
-    status=rf_model_prepare_skinning(model->stored,pose->matrices,pose->bone_count,(uint16_t)pose->playback.generation,prepared,generations,50);if(status)return status;
+    {
+        rf_collision_model_skin_pose skin;
+        /* A restore or just-started owner may not yet publish a fully current
+         * pose. Retain the previous scratch rendering behavior in that case;
+         * only a validated complete pose may enter the shared skin cache. */
+        if(!rf_scene_diagnostic_checksums_enabled && campaign_collision_caches && actor<campaign_model_owner_count &&
+           rf_entity_collision_cache_view(campaign_collision_caches+actor,pose,model->stored,&skin)==RF_OK) {
+            status=rf_model_prepare_skinning(skin.stored,skin.evaluated,skin.bone_count,skin.generation,
+                skin.prepared,skin.generations,skin.capacity);
+            if(!status)prepared=skin.prepared;
+        } else {
+            memset(local_prepared,0,sizeof(local_prepared));memset(generations,0,sizeof(generations));
+            status=rf_model_prepare_skinning(model->stored,pose->matrices,pose->bone_count,
+                (uint16_t)pose->playback.generation,prepared,generations,50);
+        }
+    }
+    if(status)return status;
     status=rf_model_local_view(&stream->npc_view,owner->position,owner->basis,&view);if(status)return status;
     for(lod=0;lod<model->file.lod_count;++lod) {
         const rf_model_geometry *geometry=model->lods+lod;uint32_t previous;
@@ -17974,7 +18177,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         ++rf_scene_live_corpses[2];rf_scene_live_corpses[3]+=rf_scene_npc_draw[1]-before;
     }
     rf_scene_npc_draw[2]=stream->mesh->count-start_all;
-    rf_scene_npc_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_npc_draw[2]*sizeof(rf_preview_vertex));
+    rf_scene_npc_draw[3]=scene_diagnostic_hash(2166136261u,stream->mesh->vertices+start_all,rf_scene_npc_draw[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
 uint32_t rf_scene_clutter_draw[6]; /* frame, contributing placements, vertices, hash, room bytes, submitted batches */
@@ -18068,7 +18271,7 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
         rf_scene_clutter_render_dispatch[4]=npc_hash_bytes(rf_scene_clutter_render_dispatch[4],&owner->state.flags,4);
     }
     rf_scene_clutter_draw[2]=stream->mesh->count-start_all;
-    rf_scene_clutter_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_clutter_draw[2]*sizeof(rf_preview_vertex));
+    rf_scene_clutter_draw[3]=scene_diagnostic_hash(2166136261u,stream->mesh->vertices+start_all,rf_scene_clutter_draw[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
 uint32_t rf_scene_weapon_draw[6]; /* frame, actors, submissions, vertices, vertex hash, flags hash */
@@ -18185,18 +18388,19 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
     rf_scene_rocket_visual[5]=v?sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes:0;
     if(s->fusion_visual)rf_scene_rocket_visual[5]+=sizeof(*s->fusion_visual)+s->fusion_visual->geometry->resident_bytes+s->fusion_visual->materials->resident_bytes;
     if(s->fighter_rocket_visual)rf_scene_rocket_visual[5]+=sizeof(*s->fighter_rocket_visual)+s->fighter_rocket_visual->geometry->resident_bytes+s->fighter_rocket_visual->materials->resident_bytes;
-    for(shot=0;shot<SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY+SCENE_FUSION_CAPACITY+4;shot++) {
+    for(shot=0;shot<SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY+SCENE_FUSION_CAPACITY+4+scene_vehicle_ai_rocket_count();shot++) {
         uint32_t fighter=shot>=SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY+SCENE_FUSION_CAPACITY;
         uint32_t fusion=!fighter && shot>=SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY;
         uint32_t index=fighter?shot-SCENE_ROCKETS-SCENE_AI_ROCKET_CAPACITY-SCENE_FUSION_CAPACITY:fusion?shot-SCENE_ROCKETS-SCENE_AI_ROCKET_CAPACITY:0;
-        const rf_weapon_flight *flight=fighter?&s->fighter_weapon.rockets[index].flight:fusion?&scene_fusion_projectiles[index].flight:shot<SCENE_ROCKETS?s->rockets+shot:&scene_ai_rockets[shot-SCENE_ROCKETS].flight;
+        float ai_lifetime=0;
+        const rf_weapon_flight *flight=fighter?(index<4?&s->fighter_weapon.rockets[index].flight:scene_vehicle_ai_rocket(index-4,&ai_lifetime)):fusion?&scene_fusion_projectiles[index].flight:shot<SCENE_ROCKETS?s->rockets+shot:&scene_ai_rockets[shot-SCENE_ROCKETS].flight;
         float fighter_basis[9];const float *basis=fighter?fighter_basis:fusion?scene_fusion_projectiles[index].basis:shot<SCENE_ROCKETS?s->rocket_basis[shot]:scene_ai_rockets[shot-SCENE_ROCKETS].basis;
         v=fighter?s->fighter_rocket_visual:fusion?s->fusion_visual:s->rocket_visual;
-        if(!flight->active || !v)continue;
+        if(!flight||!flight->active || !v)continue;
         if(fighter){status=scene_apc_secondary_visual_basis(flight->velocity,fighter_basis);if(status)return status;}
         /* Fighter uses the actual DrillMissile01 animation with current flight
          * direction, including homing changes. ShellTest keeps its own clock. */
-        float lifetime=fighter?s->fighter_weapon.rocket.lifetime:fusion?scene_fusion_projectiles[index].definition.lifetime:
+        float lifetime=fighter?(index<4?s->fighter_weapon.rocket.lifetime:ai_lifetime):fusion?scene_fusion_projectiles[index].definition.lifetime:
             shot<SCENE_ROCKETS?campaign_rocket.lifetime:scene_ai_rockets[shot-SCENE_ROCKETS].definition->lifetime;
         float time=fmodf((lifetime-flight->remaining)*15,fusion?30.f:16.f);
         rf_level camera=s->rocket_camera;++rf_scene_rocket_visual[1];
@@ -18237,7 +18441,7 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
         }
     }
     rf_scene_rocket_visual[3]=s->mesh->count-start;
-    rf_scene_rocket_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_rocket_visual[3]*sizeof(rf_preview_vertex));return RF_OK;
+    rf_scene_rocket_visual[4]=scene_diagnostic_hash(2166136261u,s->mesh->vertices+start,rf_scene_rocket_visual[3]*sizeof(rf_preview_vertex));return RF_OK;
 }
 /* Original liquid VFX: fixed identity/unit scale, action0 ends at frame24.
  * Geometry instances are reused serially for the bounded active contact pool. */
@@ -18361,7 +18565,7 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
         }
     }
     rf_scene_ripple_visual[3]=s->mesh->count-first;
-    rf_scene_ripple_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+first,rf_scene_ripple_visual[3]*sizeof(rf_preview_vertex));
+    rf_scene_ripple_visual[4]=scene_diagnostic_hash(2166136261u,s->mesh->vertices+first,rf_scene_ripple_visual[3]*sizeof(rf_preview_vertex));
     rf_scene_ripple_vertex_state[1]=rf_scene_ripple_visual[3];
     rf_scene_ripple_vertex_state[2]=rf_scene_ripple_visual[3]>384?384:rf_scene_ripple_visual[3];
     rf_scene_ripple_vertex_state[4]=rf_scene_ripple_visual[3]>384;
@@ -18403,7 +18607,7 @@ static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
     status=scene_undercover_after_advance(stream);if(status)return status;
     rf_scene_player_weapon[0]=frame+1;rf_scene_player_weapon[1]=w->current;
     rf_scene_player_weapon[2]=0;rf_scene_player_weapon[3]=w->resident_bytes;rf_scene_player_weapon[4]=w->peak_bytes;
-    rf_scene_player_weapon[5]=npc_hash_bytes(2166136261u,w->prepared,w->bone_count*48);
+    rf_scene_player_weapon[5]=scene_diagnostic_hash(2166136261u,w->prepared,w->bone_count*48);
     stream->player_pose_frame=frame+1;return RF_OK;
 }
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
@@ -18492,12 +18696,15 @@ static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
         if(status)return status;rf_scene_weapon_draw[5]=npc_hash_bytes(rf_scene_weapon_draw[5],&draw.view.flags_810,4);
     }
     rf_scene_weapon_draw[3]=stream->mesh->count-start;
-    rf_scene_weapon_draw[4]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start,rf_scene_weapon_draw[3]*sizeof(rf_preview_vertex));return RF_OK;
+    rf_scene_weapon_draw[4]=scene_diagnostic_hash(2166136261u,stream->mesh->vertices+start,rf_scene_weapon_draw[3]*sizeof(rf_preview_vertex));return RF_OK;
 }
+#include "scene_pickup_room_cache.inc"
 static int scene_pickups_draw(scene_stream *stream)
 {
     scene_weapon_context c={0};uint32_t i,start=stream->mesh->count,state[20]={0},model;int status;
     rf_scene_pickups[6]=0;if(!stream->pickup_taken || campaign_pistol_id<0)return RF_OK;
+    ++rf_scene_pickup_room_cache[0];rf_scene_pickup_room_cache[3]=rf_scene_pickup_room_cache[4]=0;
+    if(stream->visibility.storage){status=scene_pickup_room_cache_sync(stream);if(status)return status;}
     c.stream=stream;c.pickup=1;state[0]=0x80;model=campaign_weapon_models.weapons[campaign_pistol_id].model;
     if(!model)return RF_NOT_FOUND;
     c.buffers.cache=stream->npc_memory;c.buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
@@ -18507,10 +18714,11 @@ static int scene_pickups_draw(scene_stream *stream)
     for(i=0;i<stream->pickups.count;i++)if(!stream->pickup_taken[i]) {
         int kind=pickup_class(stream->pickups.items[i].class_name);rf_weapon_hand_placement pose={0};
         if(kind<0)continue;
-        if(stream->visibility.storage){rf_collision_room_location room;
-            status=rf_geometry_collision_world_locate(stream->collision,stream->pickups.items[i].position,&room);if(status)return status;
-            if(room.room<stream->visibility.state.count && !stream->visibility.state.rooms[room.room].visible)continue;
+        if(stream->visibility.storage){uint32_t room;
+            status=scene_pickup_room_cached(stream,i,&room);if(status)return status;
+            if(room<stream->visibility.state.count && !stream->visibility.state.rooms[room].visible){++rf_scene_pickup_room_cache[4];continue;}
         }
+        ++rf_scene_pickup_room_cache[3];
         c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
     }
@@ -18663,7 +18871,7 @@ static int scene_corona_geometry(scene_corona_context *c,const float first[3],co
     for(i=0;i<polygon.count;++i){status=rf_particle_vertex_encode(&e,polygon.vertices+i,vertices+i);if(status)return status;}
     if(c->sink){status=c->sink(c->context,vertices,polygon.count,image,mode);if(status)return status;}
     ++row[3];row[4]+=polygon.count;
-    row[5]=npc_hash_bytes(row[5],vertices,polygon.count*sizeof(*vertices));
+    row[5]=scene_diagnostic_hash(row[5],vertices,polygon.count*sizeof(*vertices));
     row[5]=npc_hash_bytes(row[5],&c->bitmap,4);return RF_OK;
 }
 static int scene_corona_billboard(void *c,const float p[3],float angle,float size,uint32_t mode)
@@ -18673,6 +18881,7 @@ static int scene_corona_oriented(void *c,const float p[3],const float q[3],float
 static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
 {
     scene_corona_context *c=context;const rf_glare_visibility_object *parent;uint32_t room;int status;
+    status=scene_vehicle_headlamp_visible(c->stream,handle,visible);if(status!=RF_NOT_FOUND)return status;
     status=scene_glare_lookup(&c->snapshot,handle,&parent);if(status)return status;*visible=1;if(!parent)return RF_OK;
     if(parent->geometry.flags&(2u|0x4000u)){*visible=0;return RF_OK;}
     status=scene_glare_room(&c->snapshot,parent,&room);if(status)return status;
@@ -18727,6 +18936,10 @@ static int scene_volume_actor_lookup(void *context,uint32_t handle,const rf_glar
 static int scene_volume_actor(void *context,rf_glare_base_owner *owner,float *length,float *width,uint32_t *draw)
 {
     scene_corona_context *c=context;float dimensions[2];int status;
+    /* Original414307..41441e excludes headlamp glare bit2 from actor aim
+     * modulation. Vehicle parents need no fabricated NPC command/occupant. */
+    c->volume_actor_count=0;
+    if(owner->state.flags&2u)return RF_OK;
     if(!c->stream->particles.state)return RF_NOT_FOUND;c->volume_actor_count=0;
     status=rf_glare_volume_actor_update(owner->parent_handle,owner->state.flags,*length,*width,scene_volume_actor_lookup,c,
         &c->stream->particles.state->random,dimensions,draw);
@@ -18839,7 +19052,7 @@ static int scene_bolts_draw(scene_stream *stream,rf_scene_particle_sink sink,voi
                 }
                 if(sink){status=sink(context,vertices,polygon.count,image,RF_PARTICLE_GLOW_MODE);if(status)return status;}
                 ++rf_scene_bolt_draw[2];rf_scene_bolt_draw[3]+=polygon.count;
-                rf_scene_bolt_draw[4]=npc_hash_bytes(rf_scene_bolt_draw[4],vertices,polygon.count*sizeof(*vertices));
+                rf_scene_bolt_draw[4]=scene_diagnostic_hash(rf_scene_bolt_draw[4],vertices,polygon.count*sizeof(*vertices));
             }
             memcpy(previous,next,sizeof(previous));
         }
@@ -19007,9 +19220,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         memcpy(rf_scene_actor_movement_frames[frame%64],&rf_scene_actor_movement_settings,12);
         rf_scene_actor_stance_frames[frame%64][0]=rf_scene_actor_stance_request;
         rf_scene_actor_stance_frames[frame%64][1]=rf_scene_actor_stance_flags;
-        {uint32_t j,h=2166136261u;const unsigned char *p=(const unsigned char*)scene_actor_body.spheres.items;
-         for(j=0;j<scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items);++j)h=(h^p[j])*16777619u;
-         rf_scene_actor_stance_frames[frame%64][2]=h;}
+        rf_scene_actor_stance_frames[frame%64][2]=scene_diagnostic_hash(2166136261u,scene_actor_body.spheres.items,
+            scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items));
         rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
         status=actor_room_refresh(stream->collision,frame);if(status)return status;
         status=campaign_death_clearance_fixture(stream->collision,frame);if(status)return status;
@@ -19033,15 +19245,15 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         }
         actor_command(frame,rf_scene_actor_input_frames[frame%64]);
         rf_scene_actor_ring_frames[frame%64]=frame;
-        for(i=0;i<actor->bytes;++i)hash=(hash^((const unsigned char*)actor->vertices)[i])*16777619u;
+        hash=scene_diagnostic_hash(hash,actor->vertices,actor->bytes);
         rf_scene_actor_render_frames[frame%64][0]=actor->count;rf_scene_actor_render_frames[frame%64][1]=hash;
         memcpy(rf_scene_actor_render_frames[frame%64]+2,scene_actor_body.state.position,12);
         if(rf_scene_actor_live_enabled) {
             uint32_t *d=rf_scene_actor_live_summary;
             if(!frame) {memset(d,0,32);d[0]=0x52464c56;d[2]=d[3]=2166136261u;}
             d[1]=frame+1;
-            for(i=0;i<actor->bytes;++i)d[2]=(d[2]^((const unsigned char*)actor->vertices)[i])*16777619u;
-            for(i=0;i<sizeof(scene_actor_body.state);++i)d[3]=(d[3]^((const unsigned char*)&scene_actor_body.state)[i])*16777619u;
+            d[2]=scene_diagnostic_hash(d[2],actor->vertices,actor->bytes);
+            d[3]=scene_diagnostic_hash(d[3],&scene_actor_body.state,sizeof(scene_actor_body.state));
             d[4]=rf_scene_actor_landing[1];d[5]=rf_scene_actor_landing[3];d[6]=rf_scene_actor_landing[7];d[7]=1;
         }
     }
@@ -19087,6 +19299,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
         status=scene_submarine_weapon_draw(stream);if(status)return status;
         status=scene_fighter_weapon_draw(stream);if(status)return status;
+        status=scene_vehicle_attack_draw(stream);if(status)return status;
+        status=scene_vehicle_ai_draw(stream);if(status)return status;
         status=scene_remote_draw(stream);if(status)return status;
         status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
@@ -19249,8 +19463,13 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=scene_turret_death_effects_tick(stream,frame);if(status)return status;
                 status=scene_script_explode_effects_tick(stream,frame);if(status)return status;
                 campaign_hit_flags_clear();
-                status=campaign_watch_snapshot();if(status)return status;
-                campaign_force_snapshot();campaign_switch_snapshot();
+                /* Read-only audit snapshots rescan the event/force owners.
+                 * Runtime events, hit clearing and tick counters stay live;
+                 * keep initial snapshots and an explicitly requested watch. */
+                if(!frame || rf_scene_diagnostic_checksums_enabled || rf_scene_watch_test_uid) {
+                    status=campaign_watch_snapshot();if(status)return status;
+                    campaign_force_snapshot();campaign_switch_snapshot();
+                }
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));
                 for(j=0;j<9;++j)rf_scene_event_ticks[3+j]+=words[j];
@@ -19263,7 +19482,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 if(status)return status;
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
                     particle_now,NULL,NULL,&last);if(status)return status;
-                for(particle_index=0;particle_index<RF_PARTICLE_CAPACITY;particle_index++)if(stream->particles.state->records[particle_index].flags&1u) {
+                if(rf_scene_diagnostic_checksums_enabled)for(particle_index=0;particle_index<RF_PARTICLE_CAPACITY;particle_index++)if(stream->particles.state->records[particle_index].flags&1u) {
                     const unsigned char *payload=(const unsigned char*)(stream->particles.state->records+particle_index);
                     for(byte_index=0;byte_index<sizeof(rf_particle);byte_index++)hash=(hash^payload[byte_index])*16777619u;
                 }
@@ -19300,6 +19519,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
+                status=scene_masako_runtime_tick(stream);if(status)return status;
                 npc_step_profile_mark(1,&npc_clock);
                 status=campaign_npc_rooms_pass(frame);if(status)return status;
                 npc_step_profile_mark(2,&npc_clock);
@@ -19308,6 +19528,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_glare_retirement_pass(frame);if(status)return status;
                 status=campaign_glare_loss_verify(frame);if(status)return status;
                 npc_step_profile_mark(3,&npc_clock);
+                status=scene_vehicle_headlamp_tick(stream);if(status)return status;
                 status=campaign_attachments_pass();if(status)return status;
                 npc_step_profile_mark(4,&npc_clock);
                 status=campaign_attachment_motion_fixture(frame);if(status)return status;
@@ -19333,6 +19554,9 @@ modal_step_done:
         scene_active_vehicle_visibility_audit_tick(stream,frame);
         scene_passive_jeep_driver_fixture_tick(stream,frame);
         scene_secondary_vehicle_fixture_tick(stream,frame);
+        scene_secondary_fighter_fixture_tick(stream,frame);
+        scene_secondary_fighter_pursuit_tick(stream,frame);
+        scene_vehicle_allegiance_fixture_tick(stream,frame);
 #ifdef RF_IMAGE_XBOX_NATIVE
         if(scene_section_autosave_pending && frame>=30){
             int saved,ready;
@@ -19483,6 +19707,15 @@ static int scene_pickup_resources_open(scene_stream *stream,const char *tables_p
 {
     uint32_t kind,i;rf_vpp tables={0};rf_model_file *file=NULL;int status;
     stream->pickup_resources=calloc(SCENE_PICKUP_CLASSES-1,sizeof(*stream->pickup_resources));if(!stream->pickup_resources)return RF_IO;
+    memset(rf_scene_pickup_room_cache,0,sizeof(rf_scene_pickup_room_cache));
+    /* Optional bounded acceleration storage; allocation failure keeps the
+     * existing uncached path rather than preventing level entry. */
+    if(stream->pickups.count&&stream->pickups.count<=RF_CAMPAIGN_PICKUP_SLOTS){
+        stream->pickup_draw_cache=calloc(stream->pickups.count,sizeof(*stream->pickup_draw_cache));
+        if(stream->pickup_draw_cache){stream->pickup_draw_count=stream->pickups.count;
+            rf_scene_pickup_room_cache[5]=stream->pickup_draw_count*sizeof(*stream->pickup_draw_cache);}
+    }
+    rf_scene_pickup_room_cache[7]=stream->pickups.count&&!stream->pickup_draw_cache;
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     file=calloc(1,sizeof(*file));if(!file){status=RF_IO;goto done;}
     for(kind=1;kind<SCENE_PICKUP_CLASSES;kind++) {
@@ -19580,7 +19813,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
+    campaign_dry_sweep_invalidate();
+    memset(campaign_trigger_contact_cache,0,sizeof(campaign_trigger_contact_cache));
     scene_extra_pickups_resources_reset();
+    scene_masako_reset();
     scene_turret_player_reset();
     scene_turret_player_checkpoint_reset();
     scene_turret_heap_reset();
@@ -19591,6 +19827,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_item_pickup_state_reset();
     scene_vehicle_wreck_exit_reset();
     scene_script_physics_reset();scene_vehicle_physics_reset();scene_vehicle_switch_reset();
+    memset(rf_scene_vehicle_invulnerability,0,sizeof(rf_scene_vehicle_invulnerability));
     memset(rf_scene_turret_draw,0,sizeof(rf_scene_turret_draw));
     memset(rf_scene_turret_checkpoint,0,sizeof(rf_scene_turret_checkpoint));
     memset(rf_scene_turret_restore_probe,0,sizeof(rf_scene_turret_restore_probe));
@@ -19643,6 +19880,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     stream=calloc(1,sizeof(*stream));if(!stream){rf_vpp_close(&archive);return RF_RANGE;}
+    scene_world_projection_open(stream);
+    memset(rf_scene_player_room_cache,0,sizeof(rf_scene_player_room_cache));
+    rf_scene_player_room_cache[5]=sizeof(stream->player_room_lookup);
     scene_actor_collision_owner=stream;memset(rf_scene_detached_player,0,sizeof(rf_scene_detached_player));
     memset(&campaign_piece_support,0,sizeof(campaign_piece_support));memset(scene_ground_piece_support,0,sizeof(scene_ground_piece_support));
     stream->world=mesh->count;stream->base=materials->count;stream->geometry=geometry;
@@ -19683,6 +19923,20 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink) {
         rf_vpp tables;status=rf_vpp_open(&tables,tables_path);if(status)goto done;
         status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
+        if(!status&&campaign_spawn){
+            static const char *const forms[3]={"miner1","parker_suit","parker_sci"};
+            rf_vpp_entry entry;void *text=NULL;
+            status=rf_vpp_find(&tables,"entity.tbl",&entry);
+            if(!status&&(!entry.size||entry.size>512u*1024u))status=RF_RANGE;
+            if(!status){text=malloc(entry.size);if(!text)status=RF_IO;}
+            if(!status)status=rf_vpp_read(&tables,&entry,0,text,entry.size);
+            for(uint32_t form=0;!status&&form<3;form++){
+                rf_entity_rotation_values values;
+                status=rf_entity_rotation_values_read(text,entry.size,forms[form],&values);
+                if(!status)stream->player_look_rates[form]=values.acceleration;
+            }
+            free(text);
+        }
         if(!status && campaign_spawn) {
             campaign_force_class_flags=physics_config.authored.flags;campaign_force_class_kind=physics_config.authored.use_kind;
             campaign_player_material=physics_config.material.index;
@@ -19713,6 +19967,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"ctf06.rfl"))status=RF_FORMAT;
             else status=scene_dev_npc_seeds(tables_path,&tables);
         } else if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
+        if(!status && collision && campaign_spawn)status=scene_masako_seeds_open(&campaign_seeds,level,2*1024*1024);
         if(!status && collision && campaign_spawn)status=scene_turret_dependent_classes_open(&campaign_seeds,&tables,2*1024*1024);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
         if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
@@ -19753,7 +20008,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {scene_machine_carry_reset();scene_undercover_carry_reset_all();memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));rf_scene_campaign_countdown.difficulty=1;memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {scene_machine_carry_reset();scene_undercover_carry_reset_all();memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));rf_scene_campaign_countdown.difficulty=1;memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(campaign_pickup_states,0,sizeof(campaign_pickup_states));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -19768,6 +20023,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_teleport_ready=campaign_teleport_pending=0;
             campaign_triggers.teleport_player=campaign_teleport_player;campaign_triggers.teleport_context=NULL;
             campaign_triggers.teleport_npc=campaign_teleport_npc;campaign_triggers.npc_teleport_context=NULL;
+            campaign_triggers.set_actor_slow=campaign_set_actor_slow;campaign_triggers.actor_slow_context=stream;
+            memset(rf_scene_scripted_actor_speed,0,sizeof(rf_scene_scripted_actor_speed));
             campaign_triggers.drop_npc_weapon=campaign_drop_npc_weapon;campaign_triggers.drop_weapon_context=NULL;
             campaign_triggers.ignite_npc=campaign_ignite_npc;campaign_triggers.ignite_context=NULL;
             campaign_triggers.query_vitals=campaign_query_vitals;campaign_triggers.query_vitals_context=NULL;
@@ -19779,6 +20036,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_alarm_voice=campaign_alarm_deadline=-1;
             memset(rf_scene_alarm,0,sizeof(rf_scene_alarm));rf_scene_alarm[5]=UINT32_MAX;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
+            campaign_triggers.set_headlamp=scene_vehicle_headlamp_set;campaign_triggers.headlamp_context=stream;
             campaign_triggers.set_vehicle_exit_lock=campaign_set_vehicle_exit_lock;
             campaign_triggers.shoot_at=campaign_script_shoot_at;
             campaign_triggers.shoot_once=campaign_script_shoot_once;
@@ -19796,6 +20054,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.bolt_state=campaign_bolt_state;
             campaign_triggers.monitor_state=campaign_monitor_state;
+            campaign_triggers.shake_player=campaign_shake_player;campaign_triggers.shake_context=NULL;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
             campaign_triggers.defuse_nuke=scene_script_defuse;campaign_triggers.defuse_context=stream;
@@ -19915,6 +20174,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         memset(&campaign_player_contact,0,sizeof(campaign_player_contact));campaign_player_material=physics_config.material.index;
         placement.campaign_player=campaign_spawn;
         placement.suppress_mesh=campaign_spawn && rf_scene_actor_eye_enabled;
+        placement.diagnostic_checksums=&rf_scene_diagnostic_checksums_enabled;
         placement.published_model=campaign_spawn?&campaign_player_model:NULL;
         campaign_crouched=0;placement.player_stance=campaign_spawn?actor_player_stance:NULL;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;
@@ -20069,6 +20329,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                      owner->damage.object_flags|=0x4000u;
                  owner->damage.state.effects.affiliation=campaign_seeds.items[source].spawn.friendliness;
              }
+             if(!status)status=scene_vehicle_attack_open(stream,&tables);
+             if(!status)status=scene_vehicle_ai_open(stream,&tables,&archive,maps,map_count);
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;
             status=scene_npc_shields_load(tables_path);if(status)goto done;
@@ -20081,6 +20343,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 status=scene_driller_runtime_open(stream);if(status)goto done;
                 campaign_authored_vehicle_handle=stream->driller_runtime->entry.host.handle;
             }
+            status=scene_vehicle_headlamp_open(stream,tables_path);if(status)goto done;
             rf_scene_campaign_load_stage=29;status=campaign_resolve_trigger_links();if(status)goto done;
             rf_scene_campaign_load_stage=30;status=campaign_npc_motion_residency();if(status)goto done;
             status=campaign_npc_damage_fixture();if(status)goto done;
@@ -20202,6 +20465,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         status=scene_undercover_merge(stream,materials);if(status)goto done;
         if(stream->jeep_gun){status=scene_driller_materials_merge(stream->jeep_gun->model,materials,&stream->jeep_gun_base,&stream->jeep_gun_textures);if(status)goto done;}
         if(stream->submarine_torpedo){status=scene_driller_materials_merge(stream->submarine_torpedo,materials,&stream->submarine_torpedo_base,&stream->submarine_torpedo_textures);if(status)goto done;}
+        if(scene_vehicle_ai_torpedo){status=scene_driller_materials_merge(scene_vehicle_ai_torpedo,materials,&scene_vehicle_ai_torpedo_base,&scene_vehicle_ai_torpedo_textures);if(status)goto done;}
         if(stream->apc_mortar){status=scene_apc_secondary_visual_merge(stream->apc_mortar,materials,&stream->apc_mortar_base,&stream->apc_mortar_textures);if(status)goto done;}
         if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
             if(stream->driller_bits)status=scene_driller_materials_merge(&stream->driller_bits->model,materials,&stream->driller_bit_base,&stream->driller_bit_textures);if(status)goto done;
@@ -20210,7 +20474,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=scene_driller_materials_merge(stream->passive_vehicle_resources[i],materials,
                 &stream->passive_vehicle_base[i],&stream->passive_vehicle_textures[i]);if(status)goto done;
         }
-        uint32_t fighter_visual_needed=rf_scene_vehicle_enabled==5||stream->passive_vehicle_resources[1]!=NULL;
+        uint32_t fighter_visual_needed=rf_scene_vehicle_enabled==5||stream->passive_vehicle_resources[1]!=NULL||stream->passive_vehicle_resources[2]!=NULL;
         if(rf_scene_dev_room_enabled || scene_fusion_resources || scene_rocket_resources || fighter_visual_needed) {
             uint32_t visual;
             for(visual=0;visual<(fighter_visual_needed?4u:scene_fusion_resources?3u:2u);visual++) {
@@ -20297,7 +20561,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                     status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
-            if(rf_scene_dev_room_enabled || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()) {
+            if(rf_scene_dev_room_enabled || scene_vehicle_ai_ready || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
             }
@@ -20402,6 +20666,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_switch_runtime,0,sizeof(rf_scene_switch_runtime));memset(rf_scene_switch_detail,0,sizeof(rf_scene_switch_detail));
             campaign_inventory_ready=campaign_item_pending_count=0;memset(rf_scene_script_grants,0,sizeof(rf_scene_script_grants));
             status=campaign_actors_restore();if(status)goto done;
+            status=scene_masako_runtime_initialize();if(status)goto done;
             status=campaign_event_startup_retire();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
@@ -20409,7 +20674,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.pause_mover=campaign_pause_mover;
             campaign_triggers.stop_mover=campaign_stop_mover;
             campaign_triggers.detach_object=campaign_passive_vehicle_detach;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.move_context=stream;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.move_context=stream;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.attack_context=stream;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;
@@ -20463,6 +20728,7 @@ done:
         if(!status)campaign_actors_capture();
     }
     {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
+    scene_vehicle_ai_close();scene_vehicle_attack_close();
     scene_secondary_vehicle_close();
     scene_vehicle_switch_close();
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
@@ -20487,7 +20753,7 @@ done:
     if(stream->rocket_visual){rf_vfx_asset_materials_close(&stream->rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->rocket_visual->geometry);free(stream->rocket_visual);}
     if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}
-    rf_level_owned_items_close(&stream->pickups);free(stream->pickup_taken);free(stream->pickup_state);free(stream->pickup_slots);
+    rf_level_owned_items_close(&stream->pickups);free(stream->pickup_taken);free(stream->pickup_state);free(stream->pickup_slots);free(stream->pickup_draw_cache);
     free(stream->npc_memory);free(stream->npc_indices);free(stream->npc_pool);
     rf_level_visibility_close(&stream->visibility);
     free(stream->light_scratch_memory);
@@ -20595,7 +20861,7 @@ done:
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     free(stream->checkpoint_clutter);
     if(scene_actor_collision_owner==stream)scene_actor_collision_owner=NULL;
-    rf_vpp_close(&archive);free(stream);return status;
+    rf_vpp_close(&archive);free(stream->world_projection.poses);free(stream);return status;
 }
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,

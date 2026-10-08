@@ -139,6 +139,7 @@ static inline int scene_l1s2_detail_publish(scene_l1s2_detail_owner *d)
     rf_collision_composition_view cv;int status;
     if(!d || !d->has_pending)return RF_RANGE;
     status=rf_collision_composition_pending(d->composition,&cv);if(status)return status;
+    campaign_dry_sweep_invalidate();
     status=rf_geometry_collision_overlay_bind(&d->overlay,cv.tree,cv.face_ids,cv.count);
     if(status)return status;
     status=rf_collision_composition_commit(d->composition);if(status)return status;
@@ -544,7 +545,9 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
             &next_offsets,&next_faces);
         if(status)return status;
     }
-    /* Bind first; commit releases the old tree only after overlay replacement. */
+    /* Bind first; commit releases the old tree only after overlay replacement.
+     * Drop validation before any in-place bind, even if later rollback occurs. */
+    campaign_dry_sweep_invalidate();
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,cv.tree,cv.face_ids,cv.count);
     if(status){free(next_offsets);return status;}
     scene_l1s2_detail_sync_base(p->detail,&s->terrain_collision);

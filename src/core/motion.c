@@ -1,4 +1,5 @@
 #include "rf/motion.h"
+#include "rf/finite.h"
 double rf_motion_duration(int32_t start_tick,int32_t end_tick)
 {
     uint32_t span=(uint32_t)end_tick-(uint32_t)start_tick;
@@ -108,8 +109,8 @@ int rf_motion_select_priority(rf_motion_controller *controller, const int32_t mo
 {
     int32_t selected; int unconditional=0,status;
     if (!controller || !motions || !priority || !handled) return RF_RANGE;
-    if (priority->linked_present>1 || !isfinite(priority->velocity[0]) ||
-        !isfinite(priority->velocity[1]) || !isfinite(priority->velocity[2])) return RF_FORMAT;
+    if (priority->linked_present>1 || !rf_finite_float(priority->velocity[0]) ||
+        !rf_finite_float(priority->velocity[1]) || !rf_finite_float(priority->velocity[2])) return RF_FORMAT;
     if (priority->forced_state!=-1) selected=priority->forced_state;
     else if (priority->flags & 0x02000000u) selected=22;
     else if (priority->linked_present && priority->linked_class_type==4) selected=15;
@@ -135,7 +136,7 @@ int rf_motion_select_movement(rf_motion_controller *controller, const int32_t mo
 {
     int moving; int32_t selected=-1;
     if (!controller || !motions || !movement) return RF_RANGE;
-    if (!isfinite(movement->vector[0]) || !isfinite(movement->vector[1]) || !isfinite(movement->vector[2]) ||
+    if (!rf_finite_float(movement->vector[0]) || !rf_finite_float(movement->vector[1]) || !rf_finite_float(movement->vector[2]) ||
         movement->idle_state<0 || movement->idle_state>=23 || movement->move_state<0 || movement->move_state>=23 ||
         movement->alternate_state<0 || movement->alternate_state>=23) return RF_FORMAT;
     moving=movement->vector[0]!=0 || movement->vector[1]!=0 || movement->vector[2]!=0;
@@ -171,7 +172,7 @@ int rf_motion_select_stance(rf_motion_controller *controller,const int32_t motio
 {
     rf_motion_stance_decision value={0,RF_MOTION_STANCE_NONE};int status;
     if(!controller || !motions || !decision || special_state<0 || special_state>=23 || eligible>1)return RF_RANGE;
-    if(!isfinite(controller->duration) || !isfinite(controller->elapsed))return RF_FORMAT;
+    if(!rf_finite_float(controller->duration) || !rf_finite_float(controller->elapsed))return RF_FORMAT;
     if(eligible) {
         value.handled=1;
         if(!rf_motion_has_state(controller,special_state)) {
@@ -189,8 +190,8 @@ int rf_motion_request_state(rf_motion_controller *controller, const int32_t moti
     if (!controller || !motions) return RF_RANGE;
     next=*controller;
     if (next.current<0 || next.current>=23 || next.next < -1 || next.next>=23 ||
-        !isfinite(duration) || duration<0 || !isfinite(next.duration) || next.duration<0 ||
-        !isfinite(next.elapsed) || next.elapsed<0 ||
+        !rf_finite_float(duration) || duration<0 || !rf_finite_float(next.duration) || next.duration<0 ||
+        !rf_finite_float(next.elapsed) || next.elapsed<0 ||
         (next.duration>0 && (next.next<0 || next.elapsed>next.duration))) return RF_FORMAT;
     for (i=0;i<23;++i) if (motions[i]<-1) return RF_FORMAT;
     if (requested<0 || requested>=23 || motions[requested]==-1) requested=0;
@@ -217,8 +218,8 @@ int rf_motion_apply_controller(rf_motion_controller *controller, const int32_t m
     next=*controller; staged=*state;
     if (next.current<0 || next.current>=23 || next.next < -1 || next.next>=23 ||
         next.override_enabled>1 || (next.override_enabled && (next.override_state<0 || next.override_state>=23)) ||
-        !isfinite(elapsed) || elapsed<0 || !isfinite(next.duration) || next.duration<0 ||
-        !isfinite(next.elapsed) || next.elapsed<0 || (next.duration>0 && next.next<0)) return RF_FORMAT;
+        !rf_finite_float(elapsed) || elapsed<0 || !rf_finite_float(next.duration) || next.duration<0 ||
+        !rf_finite_float(next.elapsed) || next.elapsed<0 || (next.duration>0 && next.next<0)) return RF_FORMAT;
     for (i=0;i<23;++i) if (motions[i]<-1 || (motions[i]>=0 && (uint32_t)motions[i]>=resource_count)) return RF_RANGE;
     if (next.duration>0) {
         /* fst retains the unspilled sum for the original completion comparison. */
@@ -306,7 +307,7 @@ int rf_motion_map_loop(int32_t start, int32_t end, float phase, int32_t previous
                        const int32_t markers[2], int wrapped, rf_motion_loop_result *out)
 {
     int64_t duration=(int64_t)end-start; unsigned i; rf_motion_loop_result result;
-    if (!markers || !out || !isfinite(phase) || phase<0 || phase>1) return RF_RANGE;
+    if (!markers || !out || !rf_finite_float(phase) || phase<0 || phase>1) return RF_RANGE;
     if (duration<=0) return RF_FORMAT;
     if (duration>INT32_MAX) return RF_RANGE;
     result.tick=(int32_t)((int64_t)floor((double)phase*(double)duration)+start);
@@ -356,7 +357,7 @@ int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, f
 {
     float rate=0, total=0, greatest=0; uint32_t i;
     rf_motion_phase_result result={0,-1,0}; double advanced;
-    if (!slots || !out || !count || count>16 || !isfinite(phase) || phase<0 || phase>1 || delta_ticks<0) return RF_RANGE;
+    if (!slots || !out || !count || count>16 || !rf_finite_float(phase) || phase<0 || phase>1 || delta_ticks<0) return RF_RANGE;
     for (i=0;i<count;++i) {
         if (slots[i].duration<=0 || !isfinite(slots[i].weight) || slots[i].weight<0) return RF_FORMAT;
         if (!slots[i].looping) continue;
@@ -364,7 +365,7 @@ int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, f
         total+=slots[i].weight;
         if (slots[i].weight>greatest) { greatest=slots[i].weight; result.dominant_slot=(int32_t)i; }
     }
-    if (!isfinite(rate) || !isfinite(total)) return RF_RANGE;
+    if (!rf_finite_float(rate) || !rf_finite_float(total)) return RF_RANGE;
     if (total!=0) {
         advanced=((double)rate/total)*delta_ticks+phase;
         if (!isfinite(advanced) || advanced>=16777216.0) return RF_RANGE;
@@ -380,7 +381,7 @@ int rf_motion_advance_phase(const rf_motion_phase_slot *slots, uint32_t count, f
 int rf_motion_elapsed_ticks(float elapsed, int32_t *out)
 {
     double ticks;
-    if (!out || !isfinite(elapsed)) return RF_RANGE;
+    if (!out || !rf_finite_float(elapsed)) return RF_RANGE;
     ticks = ((double)elapsed * 30.0) * 160.0;
     if (ticks <= (double)INT32_MIN-1.0 || ticks >= (double)INT32_MAX+1.0) return RF_RANGE;
     *out = (int32_t)ticks;
@@ -392,7 +393,7 @@ static int sample_weight_extended(const rf_motion_weight_envelope *envelope, int
     int64_t duration, elapsed;
     double result;
     if (!envelope || !out) return RF_RANGE;
-    if (!isfinite(envelope->weight) || envelope->fade_in < 0 || envelope->fade_out < 0 ||
+    if (!rf_finite_float(envelope->weight) || envelope->fade_in < 0 || envelope->fade_out < 0 ||
         envelope->end_tick < envelope->start_tick) return RF_FORMAT;
     duration = (int64_t)envelope->end_tick - envelope->start_tick;
     elapsed = (int64_t)tick - envelope->start_tick;
@@ -427,7 +428,7 @@ int rf_motion_advance_candidate(rf_motion_completion_state *state, uint32_t inde
     rf_motion_completion_state next; int64_t tick; int status, replace; double candidate, primary;
     if (!state || state->active.count>16 || index>=state->active.count || delta<0) return RF_RANGE;
     if (state->active.primary_slot < -1 || state->active.primary_slot>=(int32_t)state->active.count ||
-        !isfinite(state->active.slots[index].weight)) return RF_FORMAT;
+        !rf_finite_float(state->active.slots[index].weight)) return RF_FORMAT;
     if (state->active.slots[index].weight==0) return RF_OK;
     tick=(int64_t)state->active.slots[index].tick+delta;
     if (tick>INT32_MAX) return RF_RANGE;
@@ -525,7 +526,7 @@ static int motion_control(rf_motion_playback_state *state, rf_motion_playback_re
     if (!state || !resources || motion<0 || (uint32_t)motion>=resource_count) return RF_RANGE;
     active=&state->completion.active; resource=&resources[motion];
     if (active->count>16) return RF_RANGE;
-    if (!isfinite(weight) || (!restart && weight<0) || resource->references<0 || resource->looping>255 ||
+    if (!rf_finite_float(weight) || (!restart && weight<0) || resource->references<0 || resource->looping>255 ||
         active->freeze_slot < -1 || active->primary_slot < -1 || active->dominant_slot < -1 ||
         active->freeze_slot>=(int32_t)active->count || active->primary_slot>=(int32_t)active->count ||
         active->dominant_slot>=(int32_t)active->count) return RF_FORMAT;
@@ -605,7 +606,7 @@ int rf_motion_bone_weights(const rf_motion_slot_state *active, const rf_motion_w
     if (!active || !weights || active->count>16 || (active->count && !envelopes)) return RF_RANGE;
     if (active->primary_slot < -1 || active->primary_slot>=(int32_t)active->count) return RF_FORMAT;
     for (i=0;i<active->count;++i)
-        if (!isfinite(active->slots[i].weight) || active->slots[i].weight<0) return RF_FORMAT;
+        if (!rf_finite_float(active->slots[i].weight) || active->slots[i].weight<0) return RF_FORMAT;
     if (active->primary_slot>=0 && active->slots[active->primary_slot].weight!=0) {
         i=(uint32_t)active->primary_slot;
         status=sample_weight_extended(&envelopes[i],active->slots[i].tick,0,&value);
@@ -620,7 +621,7 @@ int rf_motion_bone_weights(const rf_motion_slot_state *active, const rf_motion_w
         if (looping_mask & (1u<<i)) value*=attenuation;
         if (value>0) { total=(float)(value+total); result[i]=(float)value; }
     }
-    if (!isfinite(total)) return RF_RANGE;
+    if (!rf_finite_float(total)) return RF_RANGE;
     for (i=0;i<active->count;++i) if (result[i]>0) result[i]/=total;
     memcpy(weights,result,sizeof(result)); return RF_OK;
 }
@@ -649,7 +650,7 @@ int rf_motion_interpolate_rotation(const int16_t a[4], const int16_t b[4], float
     double wa, wb;
     unsigned i;
     int opposite;
-    if (!a || !b || !out || !isfinite(t) || t < 0 || t > 1) return RF_RANGE;
+    if (!a || !b || !out || !rf_finite_float(t) || t < 0 || t > 1) return RF_RANGE;
     for (i = 0; i < 4; ++i) {
         first[i] = a[i]; second[i] = b[i];
         difference[i] = motion_wrap16(first[i] - second[i]);
@@ -668,7 +669,7 @@ int rf_motion_interpolate_rotation(const int16_t a[4], const int16_t b[4], float
         double angle = acos((double)dot);
         float rounded_angle = (float)angle;
         float reciprocal = (float)(1.0 / sin(angle));
-        if (!isfinite(angle) || !isfinite(reciprocal)) return RF_FORMAT;
+        if (!isfinite(angle) || !rf_finite_float(reciprocal)) return RF_FORMAT;
         wa = sin((1.0 - t) * rounded_angle) * reciprocal;
         wb = sin((double)t * rounded_angle) * reciprocal;
     }
@@ -718,8 +719,8 @@ static float motion_ease(float t, int8_t outgoing, int8_t incoming)
 int rf_motion_rotation_ease(float t,int8_t outgoing,int8_t incoming,float *out)
 {
     float value;
-    if(!out || !isfinite(t) || t<0 || t>1 || outgoing<0 || incoming<0)return RF_RANGE;
-    value=motion_ease(t,outgoing,incoming);if(!isfinite(value) || value<0 || value>1)return RF_RANGE;*out=value;return RF_OK;
+    if(!out || !rf_finite_float(t) || t<0 || t>1 || outgoing<0 || incoming<0)return RF_RANGE;
+    value=motion_ease(t,outgoing,incoming);if(!rf_finite_float(value) || value<0 || value>1)return RF_RANGE;*out=value;return RF_OK;
 }
 
 int rf_motion_sample_rotation(const rf_motion_rotation_key *keys, uint32_t count, int32_t tick, float out[4])
@@ -765,7 +766,7 @@ int rf_motion_sample_position(const rf_motion_position_key *keys, uint32_t count
     for (i = 0; i < count; ++i) {
         if (i && keys[i].tick <= keys[i-1].tick) return RF_FORMAT;
         for (c = 0; c < 3; ++c)
-            if (!isfinite(keys[i].position[c]) || !isfinite(keys[i].incoming[c]) || !isfinite(keys[i].outgoing[c])) return RF_FORMAT;
+            if (!rf_finite_float(keys[i].position[c]) || !rf_finite_float(keys[i].incoming[c]) || !rf_finite_float(keys[i].outgoing[c])) return RF_FORMAT;
     }
     if (!count) { memcpy(out, result, sizeof(result)); return RF_OK; }
     if (tick <= keys[0].tick) { memcpy(out, keys[0].position, sizeof(result)); return RF_OK; }
@@ -783,10 +784,10 @@ int rf_motion_sample_position(const rf_motion_position_key *keys, uint32_t count
 int rf_motion_interpolate_position(const rf_motion_position_key *previous, const rf_motion_position_key *next, float t, float out[3])
 {
     uint32_t c; float s, result[3];
-    if (!previous || !next || !out || !isfinite(t) || t<0 || t>1) return RF_RANGE;
+    if (!previous || !next || !out || !rf_finite_float(t) || t<0 || t>1) return RF_RANGE;
     for (c=0;c<3;++c)
-        if (!isfinite(previous->position[c]) || !isfinite(previous->outgoing[c]) ||
-            !isfinite(next->position[c]) || !isfinite(next->incoming[c])) return RF_FORMAT;
+        if (!rf_finite_float(previous->position[c]) || !rf_finite_float(previous->outgoing[c]) ||
+            !rf_finite_float(next->position[c]) || !rf_finite_float(next->incoming[c])) return RF_FORMAT;
     s = 1.0f - t;
     for (c = 0; c < 3; ++c) {
         float a = previous->position[c], b = previous->outgoing[c];

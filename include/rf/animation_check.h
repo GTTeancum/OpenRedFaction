@@ -9,8 +9,10 @@
  * pose hash, playback/controller/reference hash, cache hash, eye hash,
  * temporary bone payload bytes. Uses scripted logical requests and overrides.
  * All entry points own a fixed 27 KiB bone/pose heap workspace; the legacy
- * fixture also owns a 496-byte motion descriptor cache. Both are freed on every
- * exit; preview budget controls output mesh storage, not total memory. */
+ * fixture also owns a 496-byte motion descriptor cache. Campaign player streams
+ * optionally retain at most 128 KiB of active clip payloads and a small private
+ * descriptor owner, falling back to archive reads when unavailable. All are
+ * freed on every exit; preview budget controls mesh storage, not total memory. */
 int rf_animation_check(const char *meshes_path, const char *motions_path, uint32_t out[8]);
 /* Inspection fixture: one scripted pose through recovered render/triangle stages.
  * Fixed close camera, raw model material indices; caller resolves texture slots.
@@ -70,6 +72,7 @@ typedef struct rf_animation_placement {
     uint32_t (*animation_timing)[3]; /* Per-frame delta, resulting phase and generation; caller supplies capacity. */
     uint32_t *initial_animation; /* Seed phase/generation, first controller and active slot (12 words). */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
+    const uint32_t *diagnostic_checksums; /* NULL/enabled preserves full diagnostics; zero omits hashes and hash-only pose/vertex probes. Borrowed for this call. */
 } rf_animation_placement;
 /* Placed streams honor frame_count (zero defaults to 64) without restarting
  * controller, playback or cache state. Fixed authored fixture requests repeat

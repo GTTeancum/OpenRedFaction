@@ -1,24 +1,22 @@
 #ifndef RF_SCENE_SECONDARY_VEHICLE_RESTORE_INCLUDED
 #define RF_SCENE_SECONDARY_VEHICLE_RESTORE_INCLUDED
-/* World, actors and all vehicle rows are candidates. The secondary owner is
- * unoccupied, so no seated actor or authored overlap exception is borrowed. */
+/* World, actors and every secondary row remain candidates until all owners
+ * pass. No seated actor or authored-overlap exception is borrowed. */
 uint32_t rf_scene_secondary_vehicle_clearance[6]; /* calls,phase,UID,room,pairs,status */
-static int scene_secondary_vehicle_restore_admit(scene_stream *stream,
+static int scene_secondary_vehicle_restore_one(scene_stream *stream,
     const scene_world_restore_stage *world,const scene_world_player_stage *player,
     const scene_vehicle_checkpoint_record *vehicle,const scene_passive_vehicle_checkpoint_stage *passive,
-    const scene_secondary_vehicle_checkpoint_stage *stage,uint32_t active_hidden)
+    const scene_secondary_vehicle_runtime *r,uint32_t active_hidden)
 {
     uint32_t *probe=rf_scene_secondary_vehicle_clearance,retired;int status;
     rf_checkpoint_placement hull={0},other={0};rf_physics_sphere other_spheres[8];
     scene_checkpoint_world_context context;rf_collision_room_location location;
     rf_entity_room_state room;rf_physics_support_contact support;
-    if(!stage)return RF_OK;
-    if(!stream||!world||!world->npcs||!player||!passive||!stage->admitted||!stage->runtime)return RF_FORMAT;
-    const scene_secondary_vehicle_runtime *r=stage->runtime;
+    if(!stream||!world||!world->npcs||!player||!passive||!r)return RF_FORMAT;
     if(r->slot>=passive->count)return RF_FORMAT;
-    if(player->support.handle==r->handle)return RF_NOT_FOUND;
-    for(uint32_t i=0;i<world->npcs->count;i++)
-        if(world->npcs->entries[i].saved.support_uid==r->uid)return RF_NOT_FOUND;
+    /* RFEN/RFNC support was admitted against this exact RFSV candidate and
+     * actual roof contact. Keep the complete actor/hull pair checks below;
+     * support never grants an overlap or world-clearance exemption. */
     const scene_passive_vehicle_saved *saved=passive->rows+r->slot;
     ++probe[0];probe[1]=1;probe[2]=r->uid;probe[5]=0;
     /* Hidden and retired candidates have no hull. Their ownership, wire
@@ -26,6 +24,23 @@ static int scene_secondary_vehicle_restore_admit(scene_stream *stream,
     if(saved->object_flags&0x4000u){probe[1]=6;return RF_OK;}
     hull.spheres=r->physics.spheres;hull.count=r->physics.sphere_count;hull.query_flags=4;
     memcpy(hull.position,r->physics.state.position,12);memcpy(hull.basis,r->physics.state.orientation,36);
+    if(scene_secondary_vehicle_aircraft_profile(r->profile)){
+        scene_fighter_motion air=r->fighter;uint32_t dry=0;
+        /* Liquid metadata is immutable level data. Geometry and pose belong
+         * to this candidate transaction, including any admitted overlay. */
+        air.collision.world=world->world.world;air.collision.movers=world->world.movers;
+        probe[1]=7;
+        status=scene_fighter_dry_body_path(&air,r->physics.collision,r->physics.sphere_count,
+            hull.position,hull.basis,hull.position,hull.basis,&dry);if(status)goto fail;
+        if(!dry){status=RF_NOT_FOUND;goto fail;}
+    }else if(r->profile==4){
+        scene_submarine_motion water=r->submarine;uint32_t wet=0;
+        water.collision.world=world->world.world;water.collision.movers=world->world.movers;
+        probe[1]=7;
+        status=scene_submarine_water_body_path(&water,r->physics.collision,r->physics.sphere_count,
+            hull.position,hull.basis,hull.position,hull.basis,&wet);if(status)goto fail;
+        if(!wet){status=RF_NOT_FOUND;goto fail;}
+    }else if(r->profile!=2){status=RF_FORMAT;goto fail;}
     context=world->world;context.allow_no_contact=1;context.dt=scene_step_seconds;context.class_speed=0;
     context.authored_position=context.authored_basis=NULL;context.authored_props=NULL;
     context.authored_rotating_npc=context.authored_center_shift_npc=context.support_uid=0;
@@ -58,5 +73,22 @@ static int scene_secondary_vehicle_restore_admit(scene_stream *stream,
     }
     probe[1]=6;return RF_OK;
 fail:probe[5]=(uint32_t)status;return status;
+}
+static int scene_secondary_vehicle_restore_admit(scene_stream *stream,
+    const scene_world_restore_stage *world,const scene_world_player_stage *player,
+    const scene_vehicle_checkpoint_record *vehicle,const scene_passive_vehicle_checkpoint_stage *passive,
+    const scene_secondary_vehicle_checkpoint_stage *stage,uint32_t active_hidden)
+{
+    int status;
+    if(!stage)return RF_OK;
+    if(!stage->admitted||!stage->count||!stage->entries||!stage->pool||
+       stage->capacity!=campaign_passive_vehicle_count||stage->count>stage->capacity)return RF_FORMAT;
+    for(uint32_t i=0;i<stage->count;i++){
+        const scene_secondary_vehicle_runtime *r=stage->entries[i].runtime;
+        if(!r||r->slot>=stage->capacity||stage->pool[r->slot]!=r)return RF_FORMAT;
+        status=scene_secondary_vehicle_restore_one(stream,world,player,vehicle,passive,r,active_hidden);
+        if(status)return status;
+    }
+    return RF_OK;
 }
 #endif

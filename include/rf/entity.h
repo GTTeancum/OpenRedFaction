@@ -1555,5 +1555,9 @@ int rf_entity_navigation_steer(rf_entity_navigation_steering *state,const float 
  * Full/zero-quantity pickups restore zero. Errors preserve both outputs. */
 int rf_entity_vital_pickup_sp(float *current,float maximum,int32_t quantity,
     uint32_t difficulty,float *restored);
+/*405d71..405db5 /406dbf..406e06: strict elapsed>class718, disabled in either
+ * low-byte network mode. Finite game-second snapshots, no target mutation. */
+int rf_entity_ai_blind_pursuit_expired(float now,float last_seen,float duration,
+    uint32_t network_a,uint32_t network_b,uint32_t *expired);
 
 #endif

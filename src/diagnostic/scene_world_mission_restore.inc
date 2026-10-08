@@ -3,12 +3,13 @@
 /* Paused-scene staging for mission stores and live trigger/pickup bindings.
  * Caller validates the entire world before assignment-only publication. */
 typedef struct scene_world_mission_trigger {rf_runtime_trigger before,next;uint32_t removed;} scene_world_mission_trigger;
-typedef struct scene_world_mission_pickup {uint32_t before_slot,next_slot,uid;uint8_t before_taken,next_taken;} scene_world_mission_pickup;
+typedef struct scene_world_mission_pickup {uint32_t before_slot,next_slot,uid;uint8_t before_taken,next_taken,before_state,next_state;} scene_world_mission_pickup;
 typedef struct scene_world_mission_stage {
     rf_campaign_goals goals;rf_campaign_local_goals local;
     rf_campaign_pickups pickups,startup;rf_campaign_triggers triggers;
+    uint8_t pickup_states[RF_CAMPAIGN_PICKUP_SLOTS],pickup_states_before[RF_CAMPAIGN_PICKUP_SLOTS];
     scene_stream *stream;rf_runtime_trigger *trigger_owner;
-    uint32_t trigger_count,pickup_count,bytes;uint8_t *taken_owner;uint32_t *slot_owner;
+    uint32_t trigger_count,pickup_count,bytes;uint8_t *taken_owner,*state_owner;uint32_t *slot_owner;
     scene_world_mission_trigger *live_triggers;scene_world_mission_pickup *live_pickups;
 } scene_world_mission_stage;
 static inline void scene_world_mission_close(scene_world_mission_stage **out)
@@ -37,10 +38,21 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
     s=calloc(1,(size_t)cost);if(!s)return RF_IO;s->bytes=(uint32_t)cost;
     s->stream=stream;s->trigger_owner=campaign_triggers.items;s->trigger_count=campaign_triggers.count;s->pickup_count=stream->pickups.count;
-    s->taken_owner=stream->pickup_taken;s->slot_owner=stream->pickup_slots;
+    memcpy(s->pickup_states_before,campaign_pickup_states,sizeof(s->pickup_states_before));
+    s->taken_owner=stream->pickup_taken;s->state_owner=stream->pickup_state;s->slot_owner=stream->pickup_slots;
     s->live_triggers=(scene_world_mission_trigger*)(s+1);s->live_pickups=(scene_world_mission_pickup*)(s->live_triggers+s->trigger_count);
     v=world->sections+RF_WORLD_GOALS-1;status=rf_campaign_goals_checkpoint_decode(v->data,v->bytes,world->identity,&s->goals,&s->local);if(status)goto fail;
-    v=world->sections+RF_WORLD_PICKUPS-1;status=rf_campaign_pickups_checkpoint_decode(v->data,v->bytes,world->identity,&s->pickups);if(status)goto fail;
+    v=world->sections+RF_WORLD_PICKUPS-1;
+    status=rf_campaign_pickups_checkpoint_decode_states(v->data,v->bytes,world->identity,&s->pickups,
+        s->pickup_states,RF_CAMPAIGN_PICKUP_SLOTS);if(status)goto fail;
+    /* Bind every current-level override to an actual authored item, including
+     * a retired one. Other-section identities remain with the existing ledger. */
+    for(i=0;i<s->pickups.count;i++)if(s->pickup_states[i]&&
+       scene_npc_checkpoint_level_equal(s->pickups.levels[s->pickups.items[i].level],campaign_current_level)){
+        uint32_t matches=0;
+        for(j=0;j<stream->pickups.count;j++)matches+=stream->pickups.items[j].uid==s->pickups.items[i].uid;
+        if(matches!=1){status=RF_FORMAT;goto fail;}
+    }
     v=world->sections+RF_WORLD_STARTUP-1;status=rf_campaign_pickups_checkpoint_decode(v->data,v->bytes,world->identity,&s->startup);if(status)goto fail;
     v=world->sections+RF_WORLD_TRIGGER-1;status=rf_campaign_triggers_checkpoint_decode(v->data,v->bytes,world->identity,&s->triggers);if(status)goto fail;
     for(i=0;i<s->trigger_count;i++){
@@ -58,6 +70,8 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
     }
     for(i=0;i<s->pickup_count;i++){
         scene_world_mission_pickup *r=s->live_pickups+i;r->uid=(uint32_t)stream->pickups.items[i].uid;
+        r->before_state=s->state_owner?s->state_owner[i]:0;
+        if(r->before_state>2){status=RF_FORMAT;goto fail;}
         for(j=0;j<i;j++)if(s->live_pickups[j].uid==r->uid){status=RF_FORMAT;goto fail;}
         status=scene_world_mission_key(s->pickups.levels,s->pickups.level_count,s->pickups.items,s->pickups.count,r->uid,&slot);
         /* Unsupported authored item classes have no runtime pickup owner and
@@ -69,6 +83,8 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
         }
         if(status)goto fail;
         r->before_slot=stream->pickup_slots[i];r->before_taken=stream->pickup_taken[i];r->next_slot=slot;r->next_taken=(uint8_t)s->pickups.items[slot].retired;
+        r->next_state=s->pickup_states[slot];
+        if(r->next_state&&!s->state_owner){status=RF_NOT_FOUND;goto fail;}
     }
     *out=s;return RF_OK;
 fail:free(s);return status;
@@ -76,23 +92,36 @@ fail:free(s);return status;
 static inline int scene_world_mission_validate(const scene_world_mission_stage *s)
 {
     uint32_t i;if(!s||!s->stream||s->trigger_owner!=campaign_triggers.items||s->trigger_count!=campaign_triggers.count||
-        s->stream->pickups.count!=s->pickup_count||s->taken_owner!=s->stream->pickup_taken||s->slot_owner!=s->stream->pickup_slots)return RF_FORMAT;
+        s->stream->pickups.count!=s->pickup_count||s->taken_owner!=s->stream->pickup_taken||s->state_owner!=s->stream->pickup_state||s->slot_owner!=s->stream->pickup_slots)return RF_FORMAT;
+    if(memcmp(campaign_pickup_states,s->pickup_states_before,sizeof(s->pickup_states_before)))return RF_FORMAT;
     for(i=0;i<s->trigger_count;i++)if(memcmp(s->trigger_owner+i,&s->live_triggers[i].before,sizeof(rf_runtime_trigger))||
         rf_object_registry_lookup(&campaign_registry,s->trigger_owner[i].handle)!=s->trigger_owner+i)return RF_FORMAT;
     for(i=0;i<s->pickup_count;i++)if(s->live_pickups[i].uid!=(uint32_t)s->stream->pickups.items[i].uid||
-        s->live_pickups[i].before_slot!=s->slot_owner[i]||s->live_pickups[i].before_taken!=s->taken_owner[i])return RF_FORMAT;
+        s->live_pickups[i].before_slot!=s->slot_owner[i]||s->live_pickups[i].before_taken!=s->taken_owner[i]||
+        s->live_pickups[i].before_state!=(s->state_owner?s->state_owner[i]:0))return RF_FORMAT;
     return RF_OK;
 }
 /* No callbacks, dispatch or fallible operations. Must follow full-world validation. */
 static inline void scene_world_mission_assign(const scene_world_mission_stage *s)
 {
     uint32_t i;rf_scene_mission_goals=s->goals;campaign_local_goals=s->local;
-    rf_scene_campaign_pickups=s->pickups;campaign_startup_inventory=s->startup;campaign_trigger_history=s->triggers;
+    rf_scene_campaign_pickups=s->pickups;memcpy(campaign_pickup_states,s->pickup_states,sizeof(campaign_pickup_states));
+    /* Lookup caches must observe the newly published world, even when a
+     * restored topology happens to reuse the old generation number. */
+    campaign_dry_sweep_invalidate();
+    s->stream->pickup_draw_world=NULL;
+    s->stream->world_projection.valid=0;
+    memset(s->stream->player_room_lookup,0,sizeof(s->stream->player_room_lookup));
+    campaign_startup_inventory=s->startup;campaign_trigger_history=s->triggers;
     for(i=0;i<s->trigger_count;i++){
         s->trigger_owner[i]=s->live_triggers[i].next;
         if(s->live_triggers[i].removed)(void)rf_object_registry_remove(&campaign_registry,s->trigger_owner[i].handle);
     }
-    for(i=0;i<s->pickup_count;i++){s->slot_owner[i]=s->live_pickups[i].next_slot;s->taken_owner[i]=s->live_pickups[i].next_taken;}
+    for(i=0;i<s->pickup_count;i++){
+        s->slot_owner[i]=s->live_pickups[i].next_slot;s->taken_owner[i]=s->live_pickups[i].next_taken;
+        /* Restore alongside retirement without replaying Item_Pickup_State. */
+        if(s->state_owner)s->state_owner[i]=s->live_pickups[i].next_state;
+    }
 }
 static inline int scene_world_mission_probe(scene_stream *stream,const rf_world_checkpoint *world,int32_t now)
 {

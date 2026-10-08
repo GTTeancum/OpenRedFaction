@@ -18,11 +18,28 @@ uint32_t rf_scene_vehicle_switch_apply[32];
 uint32_t rf_scene_vehicle_switch_history[4][32]; /* First four immutable commits. */
 /* valid,old UID/handle,old health bits,old destroyed,new UID/handle,new alive. */
 uint32_t rf_scene_vehicle_switch_wreck[8];
+/* Immutable source loadout remains authoritative for both fresh and retained
+ * parked owners. None clears selection while preserving dormant ammunition. */
+static int scene_vehicle_loadout_parked_normalize(scene_vehicle_parked_state *v)
+{
+    int32_t weapons[2];uint32_t mask;int status=scene_vehicle_loadout_resolve(v->uid,v->profile,weapons,&mask);
+    if(status)return status;
+    v->view.weapons[0]=weapons[0];v->view.weapons[1]=weapons[1];
+    if(!(mask&1u)){v->primary.held=0;v->primary.warmup=0;}
+    if(!(mask&2u)){v->fighter_secondary.held=0;v->fighter_secondary.warmup=0;}
+    return RF_OK;
+}
 static uint32_t scene_vehicle_switch_has_parked(void){return scene_vehicle_switch_count!=0;}
+static uint32_t scene_vehicle_switch_parked_uid(uint32_t uid)
+{
+    for(uint32_t i=0;scene_vehicle_parked&&i<scene_vehicle_parked_count;i++)
+        if(scene_vehicle_parked[i].valid&&!scene_vehicle_parked[i].motion_delegated&&scene_vehicle_parked[i].uid==uid)return 1;
+    return 0;
+}
 static void scene_vehicle_switch_close(void)
 {
     free(scene_vehicle_parked);scene_vehicle_parked=NULL;scene_vehicle_parked_count=scene_vehicle_switch_count=0;
-    scene_vehicle_switch_stream=NULL; /* Keep native phase5 evidence. */
+    scene_vehicle_switch_stream=NULL;scene_vehicle_selected_navigation_reset(); /* Keep native phase5 evidence. */
 }
 static void scene_vehicle_switch_reset(void)
 {memset(rf_scene_vehicle_switch,0,sizeof(rf_scene_vehicle_switch));memset(rf_scene_vehicle_switch_apply,0,sizeof(rf_scene_vehicle_switch_apply));memset(rf_scene_vehicle_switch_history,0,sizeof(rf_scene_vehicle_switch_history));memset(rf_scene_vehicle_switch_wreck,0,sizeof(rf_scene_vehicle_switch_wreck));}
@@ -65,7 +82,7 @@ static scene_npc_seat_binding *scene_vehicle_switch_driver(uint32_t uid,uint32_t
 static uint32_t scene_vehicle_switch_dependency(uint32_t uid,uint32_t handle,
     const scene_npc_seat_binding *driver)
 {
-    if(campaign_support_handle==handle)return 1;
+    if(campaign_support_handle==handle||scene_vehicle_attack_busy(handle)||scene_vehicle_ai_busy(handle))return 1;
     for(uint32_t i=0;i<scene_npc_seat_count;i++) {
         const scene_npc_seat_binding *b=scene_npc_seats+i;
         if((b->host_uid==uid||b->host==handle)&&
@@ -97,7 +114,13 @@ static uint32_t scene_vehicle_switch_dependency(uint32_t uid,uint32_t handle,
         const rf_runtime_event *e=campaign_events.items+i;if(!e->authored)continue;
         const rf_level_event *v=&e->authored->record;
         if(strcmp(v->type,"Follow_Waypoints")&&strcmp(v->type,"Goto")&&strcmp(v->type,"Goto_Player")&&strcmp(v->type,"Set_AI_Mode"))continue;
-        for(uint32_t j=0;j<v->link_count;j++)if(e->links[j].value==handle)return 1;
+        for(uint32_t j=0;j<v->link_count;j++)if(e->links[j].value==handle){
+            uint32_t slot;if(scene_vehicle_switch_seed(uid,&slot))return 1;
+            const char *cls=campaign_seeds.records.items[slot].record.class_name;
+            if(!strcmp(v->type,"Goto")&&(!strcmp(cls,"APC")||!strcmp(cls,"sub")||!strcmp(cls,"Fighter01")))continue;
+            if(!strcmp(v->type,"Goto_Player")&&(!strcmp(cls,"sub")||!strcmp(cls,"Fighter01")))continue;
+            return 1;
+        }
     }
     return 0;
 }
@@ -180,11 +203,12 @@ static uint32_t scene_vehicle_switch_fighter_pending(const scene_stream *s)
         s->fighter_weapon.primary_fire.warmup>0||s->fighter_weapon.rocket_fire.held||
         s->fighter_weapon.rocket_fire.cooldown>0||s->fighter_weapon.rocket_fire.warmup>0;
 }
+#include "scene_vehicle_authority.inc"
 static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
 {
     scene_driller_runtime *r=s?s->driller_runtime:NULL;scene_passive_vehicle *target=NULL,parked;
     scene_vehicle_parked_state old,next;scene_vehicle_switch_query query;
-    const scene_vehicle_profile_pack *pack=NULL;
+    const scene_vehicle_profile_pack *pack=NULL;scene_secondary_vehicle_runtime *independent=NULL;
     const scene_driller_resources *resource=s?s->driller:NULL;
     scene_driller_physics prepared;
     scene_npc_seat_binding *old_driver=NULL,*next_driver=NULL;
@@ -211,7 +235,8 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     wreck=!r->entry.host.alive&&r->damage.damage.destroyed&&r->damage.damage.state.effects.health<=0;
     if((!wreck&&(!r->entry.host.alive||r->damage.damage.destroyed||r->damage.damage.state.effects.health<=0))||
        r->damage.damage.state.effects.burn||r->damage.damage.destruction_pending||r->damage.eject_pending||r->scripted_exit_pending){reason=2;goto reject;}
-    if(campaign_vehicle_route.active||campaign_vehicle_route.path.count||campaign_vehicle_route.event||campaign_vehicle_route.pursuit||
+    if((!scene_vehicle_switch_route_finished(&campaign_vehicle_route)&&
+        (campaign_vehicle_route.active||campaign_vehicle_route.path.count||campaign_vehicle_route.event||campaign_vehicle_route.pursuit))||
        scene_vehicle_switch_dependency((uint32_t)campaign_authored_vehicle_uid,r->entry.host.handle,old_driver)){reason=3;goto reject;}
     if(player_input.fire||player_input.alt_fire||player_input.cycle_weapon||scene_apc_primary_pending(s)||scene_apc_secondary_pending(s)||
        s->apc_primary.scheduler.held||s->apc_primary.scheduler.cooldown>0||s->apc_primary.scheduler.warmup>0||
@@ -228,7 +253,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         const scene_vehicle_profile_pack *candidate_pack=NULL;
         const scene_driller_resources *candidate_resource=s->driller;
         scene_npc_seat_binding *candidate_driver=NULL;
-        if(!candidate||scene_secondary_vehicle_owns(p->handle))continue;
+        if(!candidate||!scene_vehicle_switch_independent_admits(p))continue;
         if(old_driver&&candidate!=3)continue; /* Occupied ownership stays Jeep-to-Jeep. */
         if(candidate!=oldprofile){candidate_pack=scene_vehicle_profile_pack_get(s,candidate);
             if(!candidate_pack||!scene_vehicle_profile_pack_get(s,oldprofile))continue;
@@ -267,7 +292,8 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         scene_vehicle_parked=calloc(campaign_passive_vehicle_count,sizeof(*scene_vehicle_parked));if(!scene_vehicle_parked){status=RF_IO;goto done;}
         scene_vehicle_parked_count=campaign_passive_vehicle_count;scene_vehicle_switch_stream=s;
     }
-    scene_vehicle_switch_capture(s,&old);next=scene_vehicle_parked[selected];restored=next.valid;
+    scene_vehicle_switch_capture(s,&old);if(scene_vehicle_switch_route_finished(&old.route))memset(&old.route,0,sizeof(old.route));next=scene_vehicle_parked[selected];restored=next.valid;
+    independent=scene_secondary_vehicle_find(target->handle);
     if(old_driver){
         old.jeep_role=0;status=scene_jeep_seat_index(s->driller,0,&old.seat);if(status)goto done;
         if(old.seat!=old_driver->tag){status=RF_FORMAT;goto done;}
@@ -294,9 +320,13 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
         next.view.occupants=NULL;next.view.weapon_owner=NULL;next.seat=cross?pack->seat:s->driller->seat;
         if(profile==3){status=scene_jeep_seat_index(resource,0,&next.seat);if(status)goto done;}
     }
+    if(independent){next.physics=independent->physics.state;next.body_flags=independent->physics.body_flags;
+        next.scripted_physics=independent->scripted_physics;next.motion_delegated=0;}
+    scene_vehicle_switch_supply_export(&next);
+    status=scene_vehicle_loadout_parked_normalize(&next);if(status)goto done;
     /* Passive damage/pose and freeze changes remain authoritative while parked. */
     memcpy(next.physics.position,target->pose.position,12);memcpy(next.physics.orientation,target->pose.input_matrix,36);
-    if(!restored)memcpy(next.physics.velocity,target->velocity,12);
+    if(!restored&&!independent)memcpy(next.physics.velocity,target->velocity,12);
     next.scripted_physics=target->scripted_physics;
     if(target->scripted_physics)next.body_flags=target->physics_body_flags;
     status=scene_vehicle_switch_quiet(&next.physics,&quiet);if(status)goto done;if(!quiet){reason=5;goto reject;}
@@ -397,11 +427,13 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     p[18]=r->damage.damage.state.effects.flags_814;p[19]=target->damage.state.effects.flags_814;
     p[20]=old.body_flags;p[21]=next.body_flags;p[22]=old.scripted_physics;p[23]=next.scripted_physics;
     p[24]=restored;p[25]=old.route.event;p[26]=next.route.event;p[27]=old.jeep_role;p[28]=next.jeep_role;
+    scene_vehicle_switch_independent_commit(independent);scene_vehicle_selected_navigation_reset();
     r->damage.damage=target->damage;*target=parked;scene_vehicle_parked[selected]=old;
     campaign_entities.slots[old.handle&0xffffu]=NULL;campaign_entities.slots[next.handle&0xffffu]=&r->entry.view;
     r->entry.registration.handle=next.handle;r->entry.view=next.view;r->entry.view.handle=(int32_t)next.handle;
     r->entry.view.occupants=r->entry.occupants;r->entry.view.linked_handle=-1;r->entry.view.flags_7c=r->damage.damage.object_flags;
     r->entry.view.flags_814=r->damage.damage.state.effects.flags_814;r->entry.host.handle=next.handle;
+    r->entry.view.flags_810=(r->entry.view.flags_810&~0x4000u)|(r->damage.damage.state.effects.flags_810&0x4000u);
     /* Publish the staged real slots before ordinary Use sees the new host.
      * Actor links, binding handles and seated AI never detach or rebind. */
     r->entry.host.driver=incoming_driver;memcpy(r->entry.occupants,incoming_occupants,sizeof(incoming_occupants));
@@ -426,6 +458,7 @@ static int scene_vehicle_switch_use(scene_stream *s,uint32_t *switched)
     r->damage.last_destroyer=UINT32_MAX;r->damage.last_amount=0;r->damage.damage_calls=r->damage.exit_count=0;
     r->last_frame=UINT32_MAX;campaign_vehicle_mode_publish(s);
     if(cross)scene_driller_runtime_audio_start(s);
+    scene_vehicle_owner_collision_bind(s,campaign_secondary_vehicle_count!=0);
     ++scene_vehicle_switch_count;++rf_scene_vehicle_switch[1];rf_scene_vehicle_switch[9]=restored;
     rf_scene_vehicle_switch[10]=p[8];rf_scene_vehicle_switch[11]=p[9];
     rf_scene_vehicle_switch[12]=scene_vehicle_parked_count;rf_scene_vehicle_switch[13]=clear;rf_scene_vehicle_switch[15]=next.uid;

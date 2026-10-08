@@ -383,6 +383,65 @@ typedef struct mover_render_context {
     rf_preview_mesh *mesh;const rf_geometry *geometry;const rf_level *level;
     uint32_t capacity,disabled;const float *origin;const float (*matrix)[3];
 } mover_render_context;
+/* Retained immutable mover AABBs bound every local vertex. Reject only that
+ * transformed box entirely outside a generate_source frustum plane. Legacy
+ * hand-built records without AABBs retain the wider origin-radius fallback.
+ * This is independent of room membership and accepts rotated/scaled poses.
+ * A loose rounding guard keeps near-boundary geometry on the original path. */
+uint32_t rf_preview_mover_bounds[4]; /* calls, rejected, uncertain, retained */
+static uint32_t mover_render_outside(const rf_geometry_mover *source,
+    const rf_group_attached_pose *pose,const rf_level *level)
+{
+    double center[3]={0},transform[3][3]={{0}},extent[3]={0},coordinate_scale=1;
+    double local_center[3]={0},half[3];uint32_t i,j,k;
+    ++rf_preview_mover_bounds[0];
+    if(!source || !pose || !level)goto uncertain;
+    if(source->bounds_valid)for(i=0;i<3;i++) {
+        double low=source->minimum[i],high=source->maximum[i];
+        if(!isfinite(low) || !isfinite(high) || low>high)goto uncertain;
+        local_center[i]=(low+high)*.5;half[i]=(high-low)*.5;
+    } else {
+        if(!isfinite(pose->radius) || pose->radius<=0)goto uncertain;
+        half[0]=half[1]=half[2]=pose->radius;
+    }
+    for(i=0;i<3;i++) {
+        if(!isfinite(pose->position[i]) || !isfinite(level->player_position[i]))goto uncertain;
+        coordinate_scale+=fabs((double)pose->position[i])+fabs((double)level->player_position[i]);
+        for(j=0;j<3;j++) {
+            if(!isfinite(pose->output_matrix[i*3+j]) || !isfinite(level->player_orientation[i][j]))goto uncertain;
+        }
+    }
+    for(i=0;i<3;i++) {
+        for(j=0;j<3;j++) {
+            center[i]+=((double)pose->position[j]-level->player_position[j])*level->player_orientation[i][j];
+            coordinate_scale+=(fabs((double)pose->position[j])+fabs((double)level->player_position[j]))*
+                fabs((double)level->player_orientation[i][j]);
+            for(k=0;k<3;k++) {
+                double term=(double)pose->output_matrix[j*3+k]*level->player_orientation[i][k];
+                transform[i][j]+=term;
+                coordinate_scale+=fabs(term)*(fabs(local_center[j])+half[j]);
+            }
+            center[i]+=transform[i][j]*local_center[j];
+            extent[i]+=fabs(transform[i][j])*half[j];
+        }
+        if(!isfinite(center[i]) || !isfinite(extent[i]))goto uncertain;
+    }
+    /* Independent axis intervals are intentionally looser than an OBB/frustum
+     * test. They encompass every rounded vertex without requiring a square
+     * root, normalized basis, extra allocation or per-face inspection. */
+    for(i=0;i<6;i++) {
+        double distance,reach,guard;
+        if(i==0){distance=center[2]-.1;reach=extent[2];}
+        else if(i==1){distance=1000-center[2];reach=extent[2];}
+        else if(i<4){distance=center[2]+(i==2?center[0]:-center[0]);reach=extent[2]+extent[0];}
+        else {distance=.75*center[2]+(i==4?center[1]:-center[1]);reach=.75*extent[2]+extent[1];}
+        guard=.001*(coordinate_scale+fabs(distance)+reach);
+        if(isfinite(guard) && distance+reach < -guard){++rf_preview_mover_bounds[1];return 1;}
+    }
+    ++rf_preview_mover_bounds[3];return 0;
+uncertain:
+    ++rf_preview_mover_bounds[2];return 0;
+}
 /* Preview geometry has explicit vertex colors; no retained white render state. */
 static int mover_render_white(void *context){(void)context;return RF_OK;}
 static int mover_render_kind(void *context,uint32_t model,uint32_t *kind)
@@ -433,6 +492,8 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
             if(i && render_poses) {
                 uint32_t flags=render_poses[i-1].flags;
                 mover_render_context context={&part,g,level,capacity-at,disabled,origin,matrix};
+                if(!(flags&2u) && !(uint8_t)disabled && mover_render_outside(movers->items+i-1,render_poses+i-1,level))
+                    context.geometry=NULL;
                 rf_object_render_backend backend={mover_render_white,mover_render_kind,mover_render_prepare,mover_render_family,&context};
                 /* Local flags: sizing and failed emission must not publish markers. */
                 status=rf_object_render_dispatch(&flags,9,0,&backend);

@@ -167,6 +167,7 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
         if(saved->profile==2 || saved->profile==3){s->apc_aim.angles[0]=combat.aim_pitch;s->apc_aim.angles[1]=combat.aim_yaw;
             s->apc_aim.angles[2]=0;s->apc_aim_active=1;}
     }
+    scene_vehicle_loadout_refresh(s);
     if(saved->profile==5)printf("FIGHTER_SAVE_RESTORE ammo%d/%d cooldown%.9g/%.9g shots%u/%u\n",
         s->fighter_weapon.primary_reserve,s->fighter_weapon.rocket_reserve,s->fighter_weapon.primary_fire.cooldown,
         s->fighter_weapon.rocket_fire.cooldown,s->fighter_weapon.primary_fire.shots,s->fighter_weapon.rocket_fire.shots);

@@ -43,7 +43,7 @@ int main(void)
     CHECK(!rf_event_checkpoint_encode(identity,&live,20,wire,192));fresh=live;
     CHECK(!rf_event_checkpoint_restore(wire,192,identity,&fresh,1000));
     CHECK(!rf_timer_remaining(fresh.state.deadline,1000,&remaining)&&remaining==10);
-    live.state.deadline=-1;live.state.type=89;
+    live.state.deadline=-1;live.state.type=90;
     CHECK(rf_event_checkpoint_encode(identity,&live,20,wire,192)==RF_NOT_FOUND);
     live.state.type=16;live.death_fired=1;live.death_time=19;
     CHECK(!rf_event_checkpoint_encode(identity,&live,20,wire,192));fresh=live;fresh.death_fired=fresh.death_time=0;
@@ -138,8 +138,8 @@ int main(void)
     CHECK(rf_event_checkpoint_type_supported(47));
     CHECK(rf_event_checkpoint_external_requirements(47)==RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY);
     CHECK(rf_event_checkpoint_external_requirements(60)==RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL);
-    CHECK(rf_event_checkpoint_external_requirements(62)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
+    CHECK(rf_event_checkpoint_external_requirements(62)==(RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_NPC));
     CHECK(rf_event_checkpoint_external_requirements(69)==RF_EVENT_CHECKPOINT_EXTERNAL_WORLD);
-    CHECK(rf_event_checkpoint_external_requirements(71)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
+    CHECK(rf_event_checkpoint_external_requirements(71)==(RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL));
     puts("PASS L1S1 event fields, delayed dispatch, UnHide requests, UID remapping and RFEC2 compatibility");return 0;
 }

@@ -139,6 +139,7 @@ static int scene_campaign_geomod_cut(scene_stream *s,const float center[3],float
         }
     }
     for(i=0;i<owner->mesh.vertex_count;i++)owner->colors[i][0]=owner->colors[i][1]=owner->colors[i][2]=1;
+    campaign_dry_sweep_invalidate();
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,&owner->tree,
         owner->face_ids,owner->mesh.face_count);if(status){rf_collision_tree_close(&owner->tree);goto done;}
     scene_campaign_wall_refresh_script_room(s);

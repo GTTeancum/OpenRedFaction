@@ -372,6 +372,39 @@ static int entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity
 
 int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result)
 {return entity_spawn_read(entity,result,1);}
+int rf_level_entity_headlamp_read(const rf_level_owned_entity *entity,uint32_t *enabled)
+{
+    rf_level_entity_spawn checked;uint32_t at=4,size;int status;
+    if(!enabled)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    size=entity->record.bytes;
+    status=entity_raw_string(entity->raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,48);if(status)return status;
+    status=entity_raw_string(entity->raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,13);if(status)return status;
+    for(uint32_t i=0;i<2;i++){status=entity_raw_string(entity->raw,size,&at);if(status)return status;}
+    if(at>size||size-at<29)return RF_FORMAT;
+    *enabled=entity->raw[at+1]==1;return RF_OK;
+}
+
+int rf_level_entity_ai_read(const rf_level_owned_entity *entity,rf_level_entity_ai *result)
+{
+    rf_level_entity_spawn checked;rf_level_entity_ai value;
+    const uint8_t *raw;uint32_t cursor=4,size,start,bits,i;int status;
+    if(!result)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&cursor);if(status)return status;
+    status=entity_raw_skip(size,&cursor,48);if(status)return status;
+    status=entity_raw_string(raw,size,&cursor);if(status)return status;
+    status=entity_raw_skip(size,&cursor,13);if(status)return status;
+    for(i=0;i<2;i++){status=entity_raw_string(raw,size,&cursor);if(status)return status;}
+    start=cursor;status=entity_raw_skip(size,&cursor,29);if(status)return status;
+    value.enabled=raw[start+1]==1;bits=le32(raw+start+25);memcpy(&value.fov_degrees,&bits,4);
+    for(i=0;i<7;i++){status=entity_raw_string(raw,size,&cursor);if(status)return status;}
+    start=cursor;status=entity_raw_skip(size,&cursor,18);if(status)return status;
+    value.mode=raw[start];value.attack_style=raw[start+1];*result=value;return RF_OK;
+}
 
 int rf_level_entity_vitals_read(const rf_level_owned_entity *entity,rf_level_entity_vitals *result)
 {

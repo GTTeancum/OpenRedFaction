@@ -176,7 +176,8 @@ static void scene_passive_vehicle_checkpoint_assign(const scene_passive_vehicle_
             owner->damage.object_flags=saved->object_flags;
             owner->damage.destroyed=saved->destroyed;
             owner->damage.destruction_pending=0;
-        }
+        }else owner->damage.state.effects.flags_810=(owner->damage.state.effects.flags_810&~0x4000u)|
+            scene_vehicle_headlamp_initial(owner->handle);
         memset(owner->velocity,0,12);owner->motion_valid=0;detached+=owner->group_owned&&!saved->attached;
     }
     for(group=0;group<campaign_group_runtime.count;group++){

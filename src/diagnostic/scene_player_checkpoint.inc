@@ -56,22 +56,31 @@ static int scene_checkpoint_player_support_uid(const scene_stream *s,uint32_t *u
 }
 /* RFEN7's optional player cache mirrors RFNC support velocity. This read-only
  * admission requires the actual accepted end-frame point and current chassis
- * interval; an event-detached/hidden/dead host or stale generation cannot gain
+ * interval; an unowned detached/hidden/dead host or stale generation cannot gain
  * save scope. Keep the center-only helper above for legacy RFCP callers. */
 static int scene_checkpoint_player_rotating_point(uint32_t handle,const float position[3],
     const float velocity[3],uint32_t *uid)
 {
-    const scene_passive_vehicle *owner;scene_mover_interval interval={0};float expected[3];int status;
+    const scene_passive_vehicle *owner;scene_mover_interval interval={0};float expected[3]={0};uint32_t independent;int status;
     if(!position||!velocity||!uid)return RF_RANGE;*uid=0;
     for(uint32_t i=0;i<3;i++)if(!isfinite(position[i])||!isfinite(velocity[i])||fabsf(velocity[i])>10000.f)return RF_FORMAT;
-    if(handle!=campaign_support_handle||!(owner=scene_passive_vehicle_support_owner(handle))||
-       !owner->uid||owner->uid==UINT32_MAX||!owner->attached||!owner->group_owned||
+    if(handle!=campaign_support_handle||!(owner=scene_passive_vehicle_support_owner(handle)))return RF_NOT_FOUND;
+    independent=scene_secondary_vehicle_supports(handle);
+    if(!owner->uid||owner->uid==UINT32_MAX||(!independent&&(!owner->attached||!owner->group_owned))||
        owner->damage.state.effects.handle!=handle||owner->damage.destroyed||
        !isfinite(owner->damage.state.effects.health)||owner->damage.state.effects.health<=0||
-       (owner->damage.object_flags&(2u|0x4000u))||!owner->motion_valid||
-       !campaign_passive_vehicle_motion_active||!campaign_player_support_epoch||
-       campaign_player_support_epoch!=campaign_passive_vehicle_motion_epoch||
-       !memcmp(owner->previous_basis,owner->pose.input_matrix,36))return RF_NOT_FOUND;
+       (owner->damage.object_flags&(2u|0x4000u))||!campaign_passive_vehicle_motion_active||
+       (!independent&&(!owner->motion_valid||!campaign_player_support_epoch||
+        campaign_player_support_epoch!=campaign_passive_vehicle_motion_epoch||
+        !memcmp(owner->previous_basis,owner->pose.input_matrix,36))))return RF_NOT_FOUND;
+    /* Independent translating/stopped supports also need RFEN7's point cache:
+     * RFVA has no velocity and a fresh boot must not replace it with zero.
+     * Frozen intervals admit only the actual neutral cache, never old motion. */
+    if(independent&&(!owner->motion_valid||!memcmp(owner->previous_basis,owner->pose.input_matrix,36))){
+        if(owner->motion_valid)memcpy(expected,owner->velocity,12);
+        if(memcmp(expected,velocity,12))return RF_NOT_FOUND;
+        *uid=owner->uid;return RF_OK;
+    }
     memcpy(interval.start,owner->previous_position,12);memcpy(interval.end,owner->pose.position,12);
     memcpy(interval.matrix,owner->previous_basis,36);memcpy(interval.end_matrix,owner->pose.input_matrix,36);
     interval.handle=handle;interval.changed=2u|!!memcmp(interval.start,interval.end,12);
@@ -84,7 +93,9 @@ static int scene_checkpoint_player_support_state(const scene_stream *s,uint32_t 
 {
     int status;if(!uid||!point||!present)return RF_RANGE;
     *present=0;memset(point,0,12);
-    status=scene_checkpoint_player_support_uid(s,uid);if(!status)return RF_OK;
+    if(!scene_secondary_vehicle_supports(campaign_support_handle)){
+        status=scene_checkpoint_player_support_uid(s,uid);if(!status)return RF_OK;
+    }
     if(!s||s->terrain||!(scene_actor_body.state.flags&0x400000u)||campaign_piece_support.tag||
        rf_scene_actor_landing[1]!=1||campaign_player_view.linked_handle!=-1||
        rf_object_registry_lookup(&campaign_registry,campaign_player_object.handle)!=&campaign_player_object||

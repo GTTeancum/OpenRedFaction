@@ -190,3 +190,49 @@ crash fix; full traversal and performance remain separate requirements.
 The renderer profile includes a4168ms resource-stage outlier and mixes sections,
 so it must not serve as a steady-state FPS benchmark. User-observed4FPS makes
 CPU/GPU timing and bounded HUD batching the next priority.
+
+## Authored destination-start placement (2026-10-08)
+
+The original executable confirms that Load_Level's first authored flag is a
+real placement mode. Loader462270 reads the first flag,462584 forwards it to
+constructor4b8140, and4b8205/4b8211 stores its low byte at event+2c0.
+Action4bb970 reads that byte at4bbc01 and writes global64607c. During arrival,
+435df0 checks64607c at435e0a: a nonzero value passes destination player-start
+position6460fc and orientation646108 to435cb0, bypassing named-marker placement.
+The RFL player-start reader463d20 installs those two values. The ordinary zero
+branch uses the named marker and retained relative offset at435e45..435ee0.
+Reference RF.exe SHA-256 is
+b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836.
+
+The shared placement consumer now retains the newly opened destination's spawn
+position AND facing when that flag is nonzero. Xbox and the shared PC staging
+loader already call this consumer, so no platform-specific alternate behavior
+or new save format is introduced. Input/identity failures still leave the spawn
+unchanged. Inventory, vitals, mission flags and deferred teardown remain intact.
+
+Read-only inventory found273 Load_Level records: all have empty second strings
+and zero argument words, while seven set this flag: train02/9092, L20S2/18303,
+L14S3/9826, L15S4/9616, L17S3/18265, L17S4/18265 and L18S3/11321.
+L14S3 exit9826 has a same-named anchor9504 in L15S1, so the previous unconditional
+translation actually overrode its intended spawn; the other six reached the
+existing missing-anchor fallback by accident. No destination was guessed for
+legacy references to absent L11S4/L9S1A. Original4bb9c9..4bba27 also rejects an
+equal level basename, supporting the existing same-level suppression policy.
+
+This is source reconstruction and written code only. No build, test fixture,
+emulator or campaign traversal was run; parent owns the next hourly build.
+
+### Marker identity correction in the same source slice
+
+Original435e57 calls4bd740, whose loop compares only each registered event's
+name at+1c against the saved departure marker name. It does not compare event
+type or the marker's outbound level. The old port added both restrictions.
+L8S4 exit2446 targets real L9S1, but the valid L9S1 arrival marker2446 named
+L9S1A retains an obsolete outbound L9S1A string. The extra target check discarded
+that marker and placed the player at the default spawn instead of preserving
+the authored corridor-relative position. Named arrival lookup now follows the
+original name identity; the caller still validates the requested destination.
+Existing malformed-coordinate/ambiguous-name rejection and missing-name fallback
+remain bounded port policies. A read-only census found no ambiguous authored
+arrival names; the remaining missing L6S3/1797 marker still uses fallback.
+This does not redirect or execute the obsolete L9S1A outbound exit.

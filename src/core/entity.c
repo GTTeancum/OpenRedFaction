@@ -6,6 +6,13 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+int rf_entity_ai_blind_pursuit_expired(float now,float last_seen,float duration,
+    uint32_t network_a,uint32_t network_b,uint32_t *expired)
+{
+    if(!expired||!isfinite(now)||!isfinite(last_seen)||!isfinite(duration))return RF_RANGE;
+    *expired=!((network_a|network_b)&255u)&&((double)now-(double)last_seen>(double)duration);
+    return RF_OK;
+}
 int rf_entity_vital_pickup_sp(float *current,float maximum,int32_t quantity,
     uint32_t difficulty,float *restored)
 {

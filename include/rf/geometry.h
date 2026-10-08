@@ -132,6 +132,9 @@ typedef struct rf_geometry_mover {
     float position[3],orientation[3][3];
     uint32_t offset,bytes,geometry_offset,trailer[3];
     rf_geometry geometry;
+    /* Immutable local vertex extent retained at open for conservative render
+     * rejection. It belongs to this geometry, not the moving physics pose. */
+    float minimum[3],maximum[3];uint32_t bounds_valid;
 } rf_geometry_mover;
 typedef struct rf_geometry_movers {
     unsigned char *data;

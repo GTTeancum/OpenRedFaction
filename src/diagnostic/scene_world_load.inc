@@ -28,6 +28,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
+    scene_vehicle_allegiance_stage *allegiance=NULL;
+    scene_vehicle_attack_stage *vehicle_attack=NULL;scene_vehicle_ai_stage *vehicle_ai=NULL;
     scene_vehicle_physics_checkpoint_stage *vehicle_physics=NULL;
     scene_secondary_vehicle_checkpoint_stage *secondary=NULL;
     scene_vehicle_switch_checkpoint_stage *vehicle_switch=NULL;
@@ -36,6 +38,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_npc_seat_checkpoint_stage *seats=NULL;
     scene_jeep_gunner_checkpoint_stage *gunner=NULL;
     scene_corpse_lifetime_stage *corpses=NULL;
+    scene_masako_checkpoint_stage masako={0};
     scene_turret_player_checkpoint_stage *turret_player=NULL;
     scene_vehicle_checkpoint_record vehicle={0};scene_campaign_vehicle_route vehicle_route={0};
     uint32_t vehicle_present=0,vehicle_base=0,vehicle_bytes=0,authored_terrain=0,authored_cuts=0;
@@ -77,6 +80,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="vehicle_switch";v=envelope.sections+RF_WORLD_VEHICLE-1;
     status=scene_vehicle_switch_checkpoint_prepare(stream,v->data,v->bytes,budget-cost,&vehicle_switch,&vehicle_data,&vehicle_bytes);if(status)goto done;
     cost+=scene_vehicle_switch_checkpoint_bytes(vehicle_switch);
+    phase="masako_phase";
+    status=scene_masako_checkpoint_prepare(vehicle_data,vehicle_bytes,&masako,&vehicle_data,&vehicle_bytes);if(status)goto done;
     phase="corpse_lifetime";
     status=scene_corpse_lifetime_checkpoint_prepare(vehicle_data,vehicle_bytes,budget-cost,&corpses,&vehicle_data,&vehicle_bytes);if(status)goto done;
     if(corpses)cost+=corpses->allocated_bytes;
@@ -160,6 +165,19 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_npc_seat_checkpoint_prepare(vehicle_data,vehicle_bytes,budget-cost,&seats,&vehicle_data,&vehicle_bytes);if(status)goto done;
     cost+=scene_npc_seat_checkpoint_bytes(seats);
     if(cost>budget){status=RF_RANGE;goto done;}
+    phase="vehicle_ai";
+    status=scene_vehicle_ai_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,&vehicle_ai,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    cost+=scene_vehicle_ai_bytes(vehicle_ai);if(cost>budget){status=RF_RANGE;goto done;}
+    phase="vehicle_attack";
+    status=scene_vehicle_attack_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,
+        &vehicle_attack,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    cost+=scene_vehicle_attack_bytes(vehicle_attack);
+    if(cost>budget){status=RF_RANGE;goto done;}
+    phase="vehicle_allegiance";
+    status=scene_vehicle_allegiance_prepare(vehicle_data,vehicle_bytes,budget-cost,
+        &allegiance,&vehicle_data,&vehicle_bytes);if(status)goto done;
+    cost+=scene_vehicle_allegiance_bytes(allegiance);
+    if(cost>budget){status=RF_RANGE;goto done;}
     phase="vehicle_physics";
     status=scene_vehicle_physics_checkpoint_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,&vehicle_physics,&vehicle_data,&vehicle_bytes);if(status)goto done;
     cost+=scene_vehicle_physics_checkpoint_bytes(vehicle_physics);
@@ -168,6 +186,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_secondary_vehicle_checkpoint_prepare(stream,vehicle_data,vehicle_bytes,budget-cost,
         &secondary,&vehicle_data,&vehicle_bytes);if(status)goto done;
     cost+=scene_secondary_vehicle_checkpoint_bytes(secondary);
+    status=scene_vehicle_attack_admit(vehicle_attack,secondary);if(status)goto done;
+    status=scene_vehicle_ai_admit(vehicle_ai,secondary,vehicle_attack);if(status)goto done;
     /* Old passive-only saves cannot silently become a different active owner. */
     if(campaign_vehicle_selection_fallback && (!vehicle_bytes ||
        (vehicle_bytes>=SCENE_PASSIVE_VEHICLE_HEADER && !memcmp(vehicle_data,"RFVA",4) && !scene_history_word(vehicle_data+8)))){
@@ -189,10 +209,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
     status=scene_vehicle_physics_checkpoint_admit(stream,vehicle_physics,vehicle_present?&vehicle:NULL,passive);if(status)goto done;
     status=scene_secondary_vehicle_checkpoint_admit(stream,secondary,passive,vehicle_physics);if(status)goto done;
-    status=scene_vehicle_switch_checkpoint_admit(stream,vehicle_switch,vehicle_present?&vehicle:NULL,passive,vehicle_physics);if(status)goto done;
+    status=scene_vehicle_switch_checkpoint_admit(stream,vehicle_switch,vehicle_present?&vehicle:NULL,passive,vehicle_physics,secondary);if(status)goto done;
     status=scene_npc_seat_checkpoint_hosts(seats,turrets,vehicle_present?&vehicle:NULL,
         scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics),vehicle_switch,passive);if(status)goto done;
-    phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive,seats);if(status)goto done;cost+=world->allocated_bytes;
+    phase="world";status=scene_world_restore_prepare_with_passive(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget-cost,&world,stream,passive,seats,secondary);if(status)goto done;cost+=world->allocated_bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,
@@ -213,6 +233,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="mission";status=scene_world_mission_prepare(stream,&envelope,0,budget-cost,&mission);if(status)goto done;cost+=mission->bytes;
     phase="history";v=envelope.sections+RF_WORLD_CAMPAIGN_HISTORY-1;
     status=scene_campaign_history_checkpoint_prepare(identity.bytes,v->data,v->bytes,budget-cost,&history);if(status)goto done;cost+=(uint32_t)sizeof(*history);
+    status=scene_masako_checkpoint_legacy_history(&masako,history);if(status)goto done;
     status=scene_campaign_history_checkpoint_rebind_prepare(history,budget-cost,&bindings);if(status)goto done;cost+=bindings->bytes;
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
@@ -227,6 +248,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
     phase="validate";
+    status=scene_masako_checkpoint_admit(&masako,world->npcs,passive);if(status)goto done;
     status=scene_npc_checkpoint_restore_validate(world->npcs);if(status)goto done;
     status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;
     status=scene_passive_vehicle_checkpoint_validate(passive);if(status)goto done;
@@ -306,6 +328,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_vehicle_physics_checkpoint_assign(stream,vehicle_physics);
     scene_vehicle_switch_checkpoint_assign(stream,vehicle_switch);
     scene_secondary_vehicle_checkpoint_assign(stream,secondary);
+    scene_vehicle_allegiance_assign(allegiance);
+    scene_vehicle_attack_assign(vehicle_attack);scene_vehicle_ai_assign(vehicle_ai);
+    scene_vehicle_headlamp_assign(stream);
+    scene_vehicle_loadout_refresh(stream);
+    scene_masako_checkpoint_assign(&masako);
     campaign_support_handle=player.support.handle;memcpy(campaign_support_velocity,player.support_velocity,12);
     campaign_player_support_epoch=0; /* No pre-load chassis interval may authorize a new capture. */
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
@@ -338,6 +365,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_jeep_gunner_checkpoint_close(&gunner);
     scene_corpse_lifetime_checkpoint_close(&corpses);
     scene_turret_player_checkpoint_close(&turret_player);
+    scene_vehicle_allegiance_close(&allegiance);
+    scene_vehicle_attack_stage_close(&vehicle_attack);scene_vehicle_ai_stage_close(&vehicle_ai);
     scene_secondary_vehicle_checkpoint_close(&secondary);
     scene_vehicle_physics_checkpoint_close(&vehicle_physics);
     scene_vehicle_switch_checkpoint_close(&vehicle_switch);

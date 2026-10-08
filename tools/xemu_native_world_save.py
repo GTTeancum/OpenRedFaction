@@ -61,7 +61,14 @@ def address(mapping, name):
 
 def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
               allow_guest_error=False, allow_player_dead=False, capture_world=False,
-              probe=None, probe_frame=None, final_probe=None, final_probe_frame=None):
+              probe=None, probe_frame=None, final_probe=None, final_probe_frame=None,
+              measure_fps=False):
+    # Observe existing diagnostic reads only; pausing callbacks would make the
+    # elapsed wall-clock window unsuitable for presented FPS.
+    if measure_fps and (probe is not None or final_probe is not None):
+        raise ValueError('FPS measurement cannot include pausing probe callbacks')
+    fps_first = fps_last = None
+    fps_samples = 0
     phase_dir = run / name
     phase_dir.mkdir()
     shutil.copyfile(EMULATOR / 'eeprom.bin', phase_dir / 'eeprom.bin')
@@ -146,7 +153,9 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                     if memory.get('base-memory') != 64 * 1024 * 1024:
                         raise RuntimeError(f'{name}: not stock 64 MiB')
                 try:
+                    sampled_before = time.monotonic() if measure_fps else 0
                     diagnostic = words(monitor, symbols['rf_diagnostic'], 58)
+                    sampled_after = time.monotonic() if measure_fps else 0
                 except RuntimeError as exc:
                     if 'received 0' not in str(exc):
                         raise
@@ -155,6 +164,12 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 if diagnostic[0] != 0x52464447:
                     time.sleep(.5)
                     continue
+                if measure_fps and diagnostic[2] == 2 and diagnostic[37] >= 64:
+                    sample = ((sampled_before + sampled_after) * .5, diagnostic[37])
+                    if fps_first is None:
+                        fps_first = sample
+                    fps_last = sample
+                    fps_samples += 1
                 if probe and probe_frame is not None and interim_probe is None and \
                    diagnostic[37] >= probe_frame and diagnostic[2] == 2:
                     monitor.command('stop')
@@ -198,6 +213,18 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                           campaign_load_stage=load_stage, follow_exits=follow_exits,
                           level_request=level_request,
                           shallow_contacts=dict(npc=route_contact[0], player=route_contact[1]))
+            if measure_fps:
+                elapsed = fps_last[0] - fps_first[0] if fps_first and fps_last else 0
+                presented = fps_last[1] - fps_first[1] if fps_first and fps_last else 0
+                result['presented_performance'] = dict(
+                    available=elapsed > 0 and presented > 0, platform='XEMU',
+                    presented_frames=presented, wall_seconds=elapsed,
+                    presented_fps=presented / elapsed if elapsed > 0 and presented > 0 else None,
+                    first_frame=fps_first[1] if fps_first else None,
+                    last_frame=fps_last[1] if fps_last else None, samples=fps_samples,
+                    scope='Unpaused host-wallclock observation of normal presented-frame reads '
+                          'after64-frame warmup; excludes loading, terminal cleanup and QMP stop. '
+                          'Emulator result, not hardware FPS or measured controller latency.')
             if extra_addresses:
                 result['extra'] = {key: words(monitor, extra_addresses[key], count)
                                    for key, count in extra_symbols.items()}

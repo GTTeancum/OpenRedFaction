@@ -263,6 +263,10 @@ static int group_storage_check(void)
     if(hash!=rf_group_runtime_diagnostic[6]) {rf_group_runtime_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
     return resident_membership_ready?membership_check():RF_OK;
 }
+/* Immutable diagnostic copies are checked at setup/teardown and in replay
+ * mode. Do not rehash every authored byte after every live simulation frame. */
+static int scene_frame_storage_check(void)
+{return rf_scene_diagnostic_checksums_enabled?group_storage_check():RF_OK;}
 static int group_storage_open(const rf_level *level)
 {
     uint32_t i;int status=logic_storage_open(level);if(status)return status;
@@ -533,8 +537,8 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
         status=rf_scene_actor_fall_check(&resident_collision,rf_actor_fall_diagnostic);if(status)return status;
     }
     rf_diagnostic[57]=world;
-    if(player_pacing && !rf_frame_clock_present(&rf_player_frame_clock,GetTickCount()))return group_storage_check();
-    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:group_storage_check();}
+    if(player_pacing && !rf_frame_clock_present(&rf_player_frame_clock,GetTickCount()))return scene_frame_storage_check();
+    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:scene_frame_storage_check();}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
@@ -625,6 +629,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     campaign_scene_start=campaign_total_frames;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(profile_milliseconds);
+    rf_scene_set_diagnostic_checksums(1); /* Preserve existing bounded/replay diagnostics. */
     rf_xbox_enable_retained_world();
     stream_flag=fopen("D:\\renderer-draw-audit.flag","rb");rf_xbox_draw_audit[0]=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
@@ -637,6 +642,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     {extern uint32_t rf_xbox_world_grouping_disabled;FILE *stream_flag;
      stream_flag=fopen("D:\\renderer-world-off.flag","rb");rf_xbox_world_grouping_disabled=stream_flag!=NULL;
      if(stream_flag)fclose(stream_flag);}
+    {extern uint32_t rf_xbox_world_indexed_disabled;FILE *flag;
+     flag=fopen("D:\\renderer-world-indices-off.flag","rb");rf_xbox_world_indexed_disabled=flag!=NULL;
+     if(flag)fclose(flag);}
     {extern uint32_t rf_scene_debris_player_test_enabled;FILE *flag=fopen("D:\\debris-player-test.flag","rb");
      rf_scene_debris_player_test_enabled=flag!=NULL;if(flag)fclose(flag);}
     {extern uint32_t rf_scene_ripple_test_enabled;FILE *ripple_flag=fopen("D:\\ripple-test.flag","rb");
@@ -745,6 +753,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             rf_player_replay_diagnostic[2]=campaign_total_frames;
         } else {status=rf_xbox_input_open();if(status)return status;}
         player_controls=1;player_pacing=!player_replay && limit==0;
+        rf_scene_set_diagnostic_checksums(!player_pacing);
         if(player_pacing)rf_scene_set_profile(profile_milliseconds);
         campaign_frame_limit=limit;
         if(limit && campaign_total_frames>=limit){player_input_close();return RF_RANGE;}
@@ -752,6 +761,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }
+    /* Explicit fast-path timing option for an existing bounded run. This
+     * controls diagnostics only; simulation, input, RNG and save checks stay. */
+    stream_flag=fopen("D:\\diagnostic-checksums-off.flag","rb");
+    if(stream_flag){fclose(stream_flag);rf_scene_set_diagnostic_checksums(0);}
+    printf("SCENE_DIAGNOSTIC_CHECKSUMS %u\n",rf_scene_diagnostic_checksums_enabled);
     if(rf_scene_actor_live_enabled) {
         stream_flag=fopen("D:\\campaign-spawn.flag","rb");
         if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}

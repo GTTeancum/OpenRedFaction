@@ -52,3 +52,7 @@
 - User update (2026-09-30): Three implementation helpers are authorized again to accelerate bounded gameplay work; parent owns shared scene integration and serial Xbox builds/checks. This supersedes the September22 helper pause; do not restart a separate coordinator.
 
 - User update (2026-10-03): Concentrate parent and implementation helpers on one gameplay system at a time. Current focus is vehicles: finish the active integration slice before starting unrelated NPC or item work. Split ownership within that system (implementation, compatibility review, focused harness) rather than spreading agents across subsystems.
+
+- User update (2026-10-08): Prioritize decompilation/source reconstruction and code writing; consolidate testing into one parent-coordinated batch per hour rather than testing each implementation slice. Helpers must not independently compile, test, launch XEMU, or create new per-slice gameplay fixtures. Report newly written code as unverified until the scheduled batch.
+
+- User update (2026-10-08,13:45 UTC): Vehicles are complete for the current first-playable scope; promotion, rider and APC AI refinements do not justify delaying objectives/level progression. Freeze already-written vehicle changes for the hourly compile and prioritize playable completion over perfection.

@@ -10,13 +10,10 @@ static uint32_t hash(const unsigned char *p)
 {uint32_t i,h=2166136261u;for(i=0;i<192;i++){h^=i>=12&&i<16?0:p[i];h*=16777619u;}return h;}
 int rf_event_checkpoint_type_supported(uint32_t type)
 {
-    switch(type){
-    case 0:case 1:case 2:case 3:case 4:case 5:case 6:case 7:case 8:case 9:case 10:case 17:case 11:case 12:case 13:case 14:case 15:case 18:
-    case 16:case 19:case 20:case 22:case 24:case 28:case 30:case 32:case 34:
-    case 35:case 36:case 37:case 38:case 39:case 44:case 46:case 47:case 48:case 50:
-    case 41:case 42:case 43:case 49:case 53:case 55:case 58:case 59:case 60:case 61:case 62:case 63:case 51:case 52:case 56:case 64:case 65:case 67:case 69:case 71:case 73:case 74:case 75:case 76:case 77:case 78:case 79:case 80:case 81:case 83:case 84:case 87:case 88:case 89:return 1;
-    default:return 0;
-    }
+    /* Every parsed original type owns this same common scheduler/header.
+     * Keep inert unsupported records in a whole-level save; pending effects
+     * require separate capability admission below and in the scene composer. */
+    return type<90;
 }
 uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
 {
@@ -25,9 +22,12 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
     case 41:case 42:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO;
     case 9:case 79:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
     case 76:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE;
-    case 7:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
-    case 10:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL|RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
-    case 49:case 60:case 61:return RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
+    case 4:case 7:case 8:case 26:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
+    /* A queued blast has not changed terrain/vitals or created emitters yet.
+     * Scene setup binds its real callback/resources; the world composer owns
+     * admission of already-mutated terrain and damage. Keep the deadline. */
+    case 10:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
+    case 18:case 49:case 60:case 61:return RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
     case 1:case 13:case 14:case 17:return RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE;
     case 5:case 6:case 11:case 12:case 24:case 28:case 30:case 34:case 38:case 67:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 15:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
@@ -37,10 +37,18 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
     case 73:case 74:case 75:case 84:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
     /* Keep dormant authored owners serializable; a queued dispatch still
      * needs an implemented effect owner before it can be restored. */
-    case 4:case 8:case 18:case 43:case 59:case 62:case 71:case 80:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
+    case 62:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
+    case 71:return RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
+    case 72:case 86:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
+    case 82:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
+    case 54:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
+    case 43:case 59:case 80:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
     case 46:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 3:case 48:return 0;
-    default:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
+    case 2:case 16:case 20:case 32:case 39:case 44:case 50:case 51:case 52:case 53:
+    case 55:case 58:case 63:case 69:case 77:case 78:case 83:case 87:case 88:case 89:
+        return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
+    default:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
     }
 }
 static int owner_valid(const rf_runtime_event *e,int32_t now)
