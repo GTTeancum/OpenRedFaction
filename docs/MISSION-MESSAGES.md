@@ -106,3 +106,12 @@ Remaining: native validation, voice ownership/playback, longer-text presentation
 coverage, full character/language support, authored queue and interruption
 behavior, speaker placement and timing. The current display is a playable
 first pass, not original presentation parity.
+
+## Source-grounded voice ownership follow-up (2026-10-09)
+
+The earlier single centered voice is superseded by independent radio/persona,
+NPC speaker and per-event flat speech owners. Registration parameters and routing
+are grounded in RF.exe 467953/4b7f60/4bb210/4299b0/439400; the actual PCM path
+remains unchanged. Subtitle duration now covers longer loaded speech. This is
+source-written only; see [ownership and native verification plan](VOICEOVER-PLAYBACK-OWNERSHIP.md).
+The old aggregate APU snapshots do not certify the new routing or intelligibility.

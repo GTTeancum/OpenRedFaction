@@ -20,4 +20,9 @@ extern const rf_scene_audio_events rf_xbox_audio_events;
  * DMA observation is not proof of host-speaker audibility. */
 extern uint32_t rf_xbox_audio_diagnostic[12];
 extern uint32_t rf_xbox_audio_close_phase;
+/* Music: created, starts, queued blocks, completed blocks, starvation polls,
+ * errors, queued PCM frames, nonzero queued samples, bounded adapter bytes,
+ * current queued buffers, track revision, last error. Completion is native
+ * consumption evidence, not proof that host speakers are audible. */
+extern volatile uint32_t rf_xbox_music_diagnostic[12];
 #endif

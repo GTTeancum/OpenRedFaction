@@ -2380,6 +2380,7 @@ static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_vpp campaign_music_archive;
 static rf_music_stream campaign_music_stream;
+static uint32_t campaign_music_revision;
 uint32_t rf_scene_music[8]; /* starts,stops,failures,active,last UID,last status,decoded blocks,fade frames */
 static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
@@ -2653,8 +2654,10 @@ static int campaign_monitor_state(void *context,const rf_level_event *event,cons
     ++rf_scene_monitor_bindings[4];return RF_OK;
 }
 static rf_vpp campaign_audio_archive;
-/* Only lazily loaded ambient PCM is eligible; preload users cannot yet reload. */
+/* Only reload-capable users are eligible: lazy effects/speech and controller
+ * samples. Active software/native borrowers still prevent eviction. */
 static uint8_t campaign_audio_evictable[2600];
+static void campaign_message_audio_reset(void);
 static int32_t campaign_ambient_pan[RF_AMBIENT_SLOTS];
 uint32_t rf_scene_ambient_audio[8]; /* sweeps, starts, stops, refreshes, failures, lazy PCM bytes, active, effect hash */
 static rf_sound_metadata_owner campaign_audio_metadata;
@@ -2896,7 +2899,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     memset(rf_scene_sound_bank,0,sizeof(rf_scene_sound_bank));
     memset(rf_scene_switch_audio,0,sizeof(rf_scene_switch_audio));
     memset(rf_scene_controller_audio,0,sizeof(rf_scene_controller_audio));
-    rf_music_reset(&campaign_music_stream);memset(rf_scene_music,0,sizeof(rf_scene_music));
+    rf_music_reset(&campaign_music_stream);campaign_music_revision=0;
+    memset(rf_scene_music,0,sizeof(rf_scene_music));
     memset(rf_scene_ambient_audio,0,sizeof(rf_scene_ambient_audio));rf_scene_ambient_audio[7]=2166136261u;
     memset(campaign_ambient_pan,0,sizeof(campaign_ambient_pan));
     rf_audio_voice_ids_init(&campaign_device_voice_ids);
@@ -3031,13 +3035,19 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     if(!status)for(i=0;i<campaign_group_runtime.count;i++)for(j=0;j<4;j++) {
         const char *name=campaign_group_runtime.items[i].source->record.sounds[j];
         if(!name[0])continue;
-        int loaded=rf_audio_bank_register(&campaign_audio_bank,name,
+        int loaded=rf_audio_bank_declare(&campaign_audio_bank,name,
             !strcmp(level_name,"L14S2.rfl")?10.0f:5.0f,
             campaign_group_runtime.items[i].source->record.sound_values[j],1.0f,&index);
-        if(!loaded)loaded=rf_audio_bank_reload(&campaign_audio_bank,&archive,index);
-        if(!loaded)campaign_controller_requests[i].sounds.samples[j]=(int32_t)index;
-        else if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
-        else ++rf_scene_live_audio[3];
+        if(!loaded) {
+            /* Retain a reloadable declaration even if the optional preload is
+             * full. L14 tram/controller PCM otherwise pins over1MiB and makes
+             * ordinary 235KiB mission speech permanently inadmissible. */
+            campaign_controller_requests[i].sounds.samples[j]=(int32_t)index;
+            if(index!=0x53u)campaign_audio_evictable[index]=1; /* Force callback still borrows its pinned slot directly. */
+            loaded=rf_audio_bank_reload(&campaign_audio_bank,&archive,index);
+        }
+        if(loaded==RF_NOT_FOUND)++rf_scene_live_audio[2];
+        else if(loaded)++rf_scene_live_audio[3];
     }
     {
         uint32_t before=campaign_audio_bank.bytes,rejection=0;
@@ -3098,8 +3108,18 @@ static int32_t campaign_sound_start(int32_t sample,const float position[3],float
     const rf_wave_pcm *pcm;const rf_sound_metadata *metadata;uint32_t handle,looping;int32_t id;
     float gains[2];campaign_spatial_voice *voice;
     (void)category; /* Category settings still default to unity. */
-    pcm=sample<0?NULL:rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
-    if(!pcm)goto failed;
+    if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count)goto failed;
+    pcm=rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
+    if(!pcm) {
+        /* Controllers and switches retain sample IDs, not PCM pointers. Reload
+         * through the same budget/device-safe idle eviction owner as speech. */
+        if(campaign_ambient_reload((uint32_t)sample))goto failed;
+        pcm=rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample);
+        if(!pcm)goto failed;
+        if((uint32_t)sample!=0x53u)campaign_audio_evictable[sample]=1;
+        ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[sample].bytes;
+        rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+    }
     metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,
         campaign_audio_bank.samples[sample].name);
     looping=metadata?(metadata->loop_flags>>30)&1u:0;
@@ -3628,7 +3648,11 @@ static int campaign_controller_commit(void)
         ++rf_scene_controller_audio[2];
         rf_scene_controller_audio[3]+=campaign_audio_mixer.voices[i].frame<before[i];
      }}
-    status=rf_music_mix(&campaign_music_stream,campaign_audio_frame,800);
+    /* Native music advances with completed device buffers, not the fixed
+     * simulation step. Mixing it here as well would consume every sample twice. */
+    status=campaign_audio_events.music?
+        campaign_audio_events.music(campaign_audio_events_context,&campaign_music_stream,campaign_music_revision):
+        rf_music_mix(&campaign_music_stream,campaign_audio_frame,800);
     if(status){rf_scene_music[5]=(uint32_t)status;++rf_scene_music[2];rf_music_reset(&campaign_music_stream);}
     rf_scene_music[3]=campaign_music_stream.active;
     rf_scene_music[6]=campaign_music_stream.block_index;
@@ -5994,6 +6018,7 @@ static void campaign_close_movers(void)
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);
+    campaign_message_audio_reset();
     memset(&campaign_weapon_reset,0,sizeof(campaign_weapon_reset));
     free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);campaign_debris_sound_group=-1;
     free(campaign_pain_groups);campaign_pain_groups=NULL;
@@ -10096,31 +10121,7 @@ static rf_level_message campaign_subtitle;
 static int32_t campaign_subtitle_deadline=-1;
 static uint32_t campaign_subtitle_uid;
 static int32_t campaign_message_voice=-1;
-uint32_t rf_scene_message_audio[4]; /* requests,starts,failures,last status */
-static void campaign_message_stop(void)
-{
-    uint32_t handle;
-    if(campaign_message_voice>=0 && !rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,campaign_message_voice,&handle)) {
-        rf_audio_voice_stop(&campaign_audio_mixer,handle);
-        if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,handle);
-    }
-    campaign_message_voice=-1;
-}
-static void campaign_message_play(const char *name)
-{
-    uint32_t index;int status;const float position[3]={0,0,0};
-    campaign_message_stop();if(!name[0])return;
-    ++rf_scene_message_audio[0];
-    status=rf_audio_bank_declare(&campaign_audio_bank,name,1,1,1,&index);
-    if(!status && !rf_audio_bank_sample(&campaign_audio_bank,index)) {
-        status=campaign_ambient_reload(index);
-        if(!status){campaign_audio_evictable[index]=1;++rf_scene_sound_bank[1];
-            rf_scene_sound_bank[2]+=campaign_audio_bank.samples[index].bytes;rf_scene_live_audio[1]=campaign_audio_bank.bytes;}
-    }
-    if(!status){campaign_message_voice=campaign_sound_start((int32_t)index,position,1,0,0,0);if(campaign_message_voice<0)status=RF_RANGE;}
-    rf_scene_message_audio[3]=(uint32_t)status;
-    if(status)++rf_scene_message_audio[2];else ++rf_scene_message_audio[1];
-}
+#include "scene_message_audio.inc"
 #include "scene_script_sound.inc"
 static int scene_script_music(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
@@ -10129,9 +10130,18 @@ static int scene_script_music(void *context,const rf_level_event *event,int32_t 
     rf_scene_music[4]=event->uid;
     if(!strcmp(event->type,"Music_Start")) {
         status=rf_music_start(&campaign_music_stream,&campaign_music_archive,event->texts[0]);
-        if(!status)++rf_scene_music[0];
+        if(!status){
+            const rf_sound_metadata *metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,
+                campaign_audio_metadata.order,event->texts[0]);
+            /* Original505d30 selects543b90/543b10 from sample loop metadata.
+             * All36 looping tracks in the installed archive use loop start0. */
+            campaign_music_stream.looping=metadata && (metadata->loop_flags&0x40000000u) &&
+                !(metadata->loop_flags&0x07ffffffu);
+            ++rf_scene_music[0];++campaign_music_revision;
+        }
     } else if(!strcmp(event->type,"Music_Stop")) {
         rf_music_stop(&campaign_music_stream,event->values[0]);++rf_scene_music[1];
+        if(!campaign_music_stream.active)++campaign_music_revision;
     } else return RF_FORMAT;
     rf_scene_music[3]=campaign_music_stream.active;
     rf_scene_music[5]=(uint32_t)status;
@@ -10391,14 +10401,17 @@ static int campaign_cutscene_tick(scene_stream *stream,int32_t now,uint32_t fram
 }
 static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
-    rf_level_message next;int status;int32_t duration,deadline;
-    if(!on){if(campaign_subtitle_uid==event->uid){campaign_subtitle_deadline=-1;campaign_message_stop();}return RF_OK;}
+    rf_level_message next;int status;int32_t duration,deadline;uint32_t voice_duration;
+    if(!on){campaign_message_stop(event->uid);if(campaign_subtitle_uid==event->uid)campaign_subtitle_deadline=-1;return RF_OK;}
     status=rf_level_message_read(context,event->words[0],&next);if(status)return status;
-    /* First-pass reading time, independent of missing voice resources. Latest wins. */
+    /* Subtitle-only/missing-resource fallback stays readable. Audio ownership
+     * is independent: another speaker must not truncate an active line. */
     duration=(int32_t)strlen(next.text)*55;if(duration<4000)duration=4000;if(duration>12000)duration=12000;
+    voice_duration=campaign_message_play(event,next.voice);
+    if(voice_duration>(uint32_t)duration)duration=(int32_t)voice_duration;
     status=rf_timer_set(&deadline,now,duration);if(status)return status;
     campaign_subtitle=next;campaign_subtitle_uid=event->uid;campaign_subtitle_deadline=deadline;
-    campaign_message_play(next.voice);return RF_OK;
+    return RF_OK;
 }
 static rf_weapon_trigger_state combat_trigger;
 uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,nonhostile,last handle,status */
@@ -16572,6 +16585,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     world_profile_mark(0,&world_clock);
     if(campaign_spawn) {
         campaign_audio_listener(position,orientation[0]);
+        campaign_message_audio_refresh();
         /* Original480ef7 follows listener refresh. Use the owned replay clock;
          * rendering the same frame again must not add a simulation tick. */
         if(campaign_ambient_frame!=frame) {
@@ -20346,7 +20360,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_nonweapon_items,0,sizeof(rf_scene_nonweapon_items));
             memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));memset(rf_scene_endgame_text,0,sizeof(rf_scene_endgame_text));memset(rf_scene_endgame_clear,0,sizeof(rf_scene_endgame_clear));
             memset(&campaign_defuse,0,sizeof(campaign_defuse));memset(rf_scene_defuse,0,sizeof(rf_scene_defuse));
-            campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
+            campaign_message_audio_reset();
+            memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
+            memset(rf_scene_message_playback,0,sizeof(rf_scene_message_playback));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;

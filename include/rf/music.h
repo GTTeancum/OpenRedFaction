@@ -11,6 +11,9 @@ typedef struct rf_music_stream {
     rf_vpp_entry entry;
     uint32_t data_offset,data_bytes,total_frames,block_index,decoded_frames,decoded_at;
     uint32_t phase,active,fade_remaining,fade_total;
+    /* Whole-track looping follows Bluebeard loop metadata, not event flags.
+     * Installed music loop starts are zero. Configure looping after start. */
+    uint32_t looping,loops,end_pending;
     int16_t coefficients[7][2];
     int16_t decoded[1012*2],current[2],next[2];
 } rf_music_stream;

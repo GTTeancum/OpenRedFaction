@@ -75,7 +75,10 @@ static int music_block(rf_music_stream *s)
 static int music_next(rf_music_stream *s,int16_t out[2])
 {
     int status;
-    if(s->decoded_at>=s->decoded_frames){status=music_block(s);if(status)return status;}
+    if(s->decoded_at>=s->decoded_frames){
+        if(s->looping && s->block_index==s->data_bytes/1024){s->block_index=0;++s->loops;}
+        status=music_block(s);if(status)return status;
+    }
     out[0]=s->decoded[s->decoded_at*2];out[1]=s->decoded[s->decoded_at*2+1];++s->decoded_at;
     return RF_OK;
 }
@@ -88,7 +91,8 @@ int rf_music_start(rf_music_stream *stream,rf_vpp *archive,const char *name)
     if(next.entry.size<90)return RF_FORMAT;
     status=music_header(&next);if(status)return status;
     status=music_next(&next,next.current);if(status)return status;
-    status=music_next(&next,next.next);if(status==RF_NOT_FOUND)memcpy(next.next,next.current,sizeof(next.next));
+    status=music_next(&next,next.next);
+    if(status==RF_NOT_FOUND){memcpy(next.next,next.current,sizeof(next.next));next.end_pending=1;}
     else if(status)return status;
     next.active=1;*stream=next;return RF_OK;
 }
@@ -119,9 +123,15 @@ int rf_music_mix(rf_music_stream *stream,int16_t *stereo,uint32_t frames)
         stream->phase+=22050;
         if(stream->phase>=48000){
             stream->phase-=48000;
+            if(stream->end_pending){stream->active=0;break;}
             memcpy(stream->current,stream->next,sizeof(stream->current));
             status=music_next(stream,stream->next);
-            if(status==RF_NOT_FOUND){stream->active=0;break;}
+            if(status==RF_NOT_FOUND){
+                /* Hold the final source frame for its full resampled interval.
+                 * Stopping here would discard it when next-lookahead reaches EOF. */
+                memcpy(stream->next,stream->current,sizeof(stream->next));
+                stream->end_pending=1;continue;
+            }
             if(status){stream->active=0;return status;}
         }
     }

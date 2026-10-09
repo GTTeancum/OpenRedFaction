@@ -59,6 +59,7 @@ extern uint32_t rf_scene_follow_npc_uid; /* Process-local inspection camera only
 int rf_scene_inspection_camera(const float eye[3],const float target[3]);
 extern uint32_t rf_scene_script_slays[6];
 extern uint32_t rf_scene_message_audio[4];
+extern uint32_t rf_scene_message_playback[16];
 extern uint32_t rf_scene_cutscene[12];
 extern uint32_t rf_scene_model_scratch_full_test;
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now);
@@ -612,6 +613,7 @@ void rf_scene_set_audio(rf_scene_audio_sink sink,void *context);
 struct rf_wave_pcm;
 struct rf_audio_mixer;
 struct rf_audio_bank;
+struct rf_music_stream;
 /* Optional diagnostic observer immediately before each scene mix block.
  * Borrowed state is read-only and valid only during the callback. Configure
  * outside streaming; NULL disables. No allocations or device operations here. */
@@ -634,6 +636,12 @@ typedef struct rf_scene_audio_events {
      * replay time; muted running sources still count. Does not certify PCM
      * release or that already queued output has reached the speakers. */
     uint32_t (*playing)(void *context,uint32_t handle);
+    /* Optional main-thread, device-clock music consumer. Decode only into free
+     * bounded device buffers; never retain this stream pointer or read it from
+     * an interrupt callback. Revision changes flush a replaced/immediately
+     * stopped track. An unchanged inactive stream drains already queued PCM.
+     * When present, this owns music advancement instead of the scene PCM mix. */
+    int (*music)(void *context,struct rf_music_stream *stream,uint32_t revision);
 } rf_scene_audio_events;
 /* Device event adapter: PCM is borrowed until reset, which MUST synchronously
  * release all device references before returning. Events use logical mixer

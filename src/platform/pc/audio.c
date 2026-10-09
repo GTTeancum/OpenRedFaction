@@ -132,4 +132,4 @@ static uint32_t playing(void *context,uint32_t handle)
 static void reset(void *context){(void)context;rf_pc_audio_close();}
 static int release_idle_sample(void *context,const uint8_t *samples)
 {(void)context;return rf_pc_audio_release_idle_sample(samples);}
-const rf_scene_audio_events rf_pc_audio_events={play,stop,NULL,reset,gain,play_mode,release_idle_sample,playing};
+const rf_scene_audio_events rf_pc_audio_events={play,stop,NULL,reset,gain,play_mode,release_idle_sample,playing,NULL};

@@ -60,9 +60,9 @@ static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_
     if(campaign_forces.count)s->flags|=SCENE_WORLD_EVENT_MISSING_FORCES;
     if(rf_scene_level_transition.pending)s->flags|=SCENE_WORLD_EVENT_MISSING_TRANSITION;
     /* Presentation is explicitly deferred in the first pass, not a save veto.
-     * campaign_subtitle + deadline/uid/message_voice and alarm voice/deadline
+     * campaign_subtitle + deadline/uid, independent speech owners and alarm voice/deadline
      * are not restored. NPC alarm consequences are already staged in RFNC. */
-    if(campaign_subtitle_deadline>=0||campaign_message_voice>=0)s->flags|=SCENE_WORLD_EVENT_PRESENTATION_MESSAGE;
+    if(campaign_subtitle_deadline>=0||campaign_message_audio_pending())s->flags|=SCENE_WORLD_EVENT_PRESENTATION_MESSAGE;
     if(campaign_alarm_deadline>=0||campaign_alarm_voice>=0||rf_scene_alarm[4])s->flags|=SCENE_WORLD_EVENT_PRESENTATION_ALARM;
     if(stream->particles.state)s->flags|=SCENE_WORLD_EVENT_PARTICLE_PRESENTATION;
     status=scene_world_checkpoint_uid_map_open(stream,&objects,&count,budget-(uint32_t)sizeof(*s));if(status)goto done;
