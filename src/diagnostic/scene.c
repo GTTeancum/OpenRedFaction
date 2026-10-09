@@ -51,6 +51,7 @@
 #include "scene_fighter_weapon.inc"
 #include "scene_vehicle_aim.inc"
 #include "scene_jeep_gun_aim.inc"
+#include "scene_jeep_gunner_view_resources.inc"
 #include "scene_driller_damage.inc"
 #include "scene_driller_bit_animation.inc"
 #include "scene_driller_cockpit.inc"
@@ -893,6 +894,7 @@ typedef struct scene_stream {
     scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_damage driller_damage_prototype;scene_driller_weapon driller_weapon;scene_apc_primary_state apc_primary;scene_apc_secondary_state apc_secondary;
     scene_vehicle_aim apc_aim;rf_entity_eye_limits apc_aim_limits;float apc_aim_eye[3],apc_aim_basis[9];uint32_t apc_aim_active;
     scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
+    scene_jeep_gunner_view *jeep_gunner_view; /* Scene-owned, independent of active vehicle profile packs. */
     scene_driller_resources *apc_mortar;uint32_t apc_mortar_base,apc_mortar_textures;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_driller_resources *passive_vehicle_resources[6];uint32_t passive_vehicle_base[6],passive_vehicle_textures[6];
     scene_vehicle_profile_pack *vehicle_profile_packs[6]; /* Ground/submarine/Fighter classes; chassis borrowed. */
@@ -937,6 +939,7 @@ extern uint32_t rf_scene_jeep_gunner_restore[38];
 static uint32_t scene_campaign_vehicle_target(const scene_stream *,uint32_t,float [3],float *);
 static int scene_apc_aim_direction(scene_stream *,const float [3],float [3]);
 static void scene_vehicle_hud_values(const scene_stream *,float *,int32_t [2]);
+static void scene_vehicle_hud_presentation(const scene_stream *,float *,uint32_t *);
 static const char *scene_vehicle_hud_label(const scene_stream *);
 static int scene_driller_player_collision(scene_stream *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
 static int scene_passive_vehicle_actor_collision(scene_stream *,uint32_t,uint32_t,
@@ -16458,6 +16461,14 @@ static const char *scene_vehicle_hud_label(const scene_stream *s)
     if(rf_scene_vehicle_enabled==3)return scene_jeep_can_fire(&s->driller_runtime->jeep_seat)?"GUNNER":"DRIVER";
     return "VEHICLE";
 }
+/* The art HUD precedes the complete vehicle runtime declaration. Keep all
+ * read-only runtime field access behind this typed presentation snapshot. */
+static void scene_vehicle_hud_presentation(const scene_stream *s,float *health,uint32_t *gunner)
+{
+    const scene_driller_runtime *r=s->driller_runtime;
+    *health=r?r->damage.damage.state.effects.health:0;
+    *gunner=r&&rf_scene_vehicle_enabled==3&&scene_jeep_can_fire(&r->jeep_seat);
+}
 static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t ammo[2])
 {
     const scene_driller_runtime *r=s->driller_runtime;
@@ -18842,6 +18853,7 @@ done:
     rf_scene_player_weapon_view[15]=(uint32_t)status;
     rf_scene_player_weapon[6]=status;return status;
 }
+#include "scene_jeep_gunner_view.inc"
 #include "scene_undercover_gameplay.inc"
 static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
 {
@@ -19527,7 +19539,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(status)return status;
             rf_scene_active_vehicle_draw[1]=submissions;rf_scene_active_vehicle_draw[2]=vertices;
         }
-        if(stream->jeep_gun && scene_driller_visible(stream)){uint32_t submissions,vertices;
+        if(stream->jeep_gun && scene_driller_visible(stream) && !scene_jeep_gunner_view_active(stream)){uint32_t submissions,vertices;
             status=scene_driller_draw(stream,stream->jeep_gun->model,stream->jeep_gun_pose+9,stream->jeep_gun_pose,
                 stream->jeep_gun_base,stream->jeep_gun_textures,&submissions,&vertices);if(status)return status;
         }
@@ -19564,8 +19576,17 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             v->position[0]=320+(v->position[0]-320)*rf_scene_scope_projection;
             v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
         }
+        status=scene_jeep_gunner_view_draw(stream,frame);if(status){rf_scene_profile_stage[1]=205;return status;}
         status=scene_driller_active(stream) || campaign_cutscene_runtime.active?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         if(scene_driller_active(stream) && !(rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat))){uint32_t faces;const unsigned char lighting[3]={200,200,200};
+            int32_t hud_ammo[2];float hud_fraction;uint32_t hud_capacity[2]={0,0};
+            scene_vehicle_hud_values(stream,&hud_fraction,hud_ammo);
+            if(rf_scene_vehicle_enabled==2){hud_capacity[0]=stream->apc_primary.definition.capacity;hud_capacity[1]=stream->apc_secondary.definition.capacity;}
+            else if(rf_scene_vehicle_enabled==4)hud_capacity[0]=stream->submarine_weapon.definition.capacity;
+            else if(rf_scene_vehicle_enabled==5){hud_capacity[0]=stream->fighter_weapon.primary.capacity;hud_capacity[1]=stream->fighter_weapon.rocket.capacity;}
+            scene_vehicle_cockpit_hud_state(&stream->driller_cockpit->hud,stream->driller_cockpit->materials,
+                stream->driller_runtime->damage.damage.state.effects.health,
+                stream->driller_damage_prototype.state.effects.class_health,hud_ammo,hud_capacity);
             status=scene_driller_cockpit_draw(stream->driller_cockpit,stream->driller_runtime->driver_seconds,stream->rocket_camera.player_position,
                 scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
             if(status){rf_scene_profile_stage[1]=211;return status;}
@@ -20059,6 +20080,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
 #include "scene_extra_pickups_gameplay.inc"
 #include "scene_precision_drop_demand.inc"
 #include "scene_ai_projectile_demand.inc"
+#include "scene_late_load_diagnostic.inc"
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -20069,6 +20091,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
+    memset(rf_scene_late_load,0,sizeof(rf_scene_late_load));
     campaign_dry_sweep_invalidate();
     memset(campaign_trigger_contact_cache,0,sizeof(campaign_trigger_contact_cache));
     scene_extra_pickups_resources_reset();
@@ -20794,37 +20817,50 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 campaign_appearances.actor_indices[i],location.room);if(status)goto done;
         }
     }
+    scene_late_load_mark(40,materials);
     scene_hud_open_optional(stream,tables_path,maps,map_count);
+    scene_late_load_mark(41,materials);
     scene_hud_scope_open_optional(stream,maps,map_count);
+    scene_late_load_mark(42,materials);
     scene_vehicle_profile_preload(stream,tables_path,&archive,maps,map_count);
+    scene_late_load_mark(43,materials);
     scene_vehicle_profile_preload_merge(stream,materials,material_budget);
+    scene_late_load_mark(44,materials);
+    status=scene_jeep_gunner_view_resources(stream,tables_path,&archive,&motions,maps,map_count,materials,material_budget);if(status)goto done;
     if(sink) {
         rf_preview_close(&actor);
         stream->mesh=mesh;stream->materials=materials;stream->bundle=&bundle;
         if(actor_follow_world) {
+            scene_late_load_mark(45,materials);
             status=rf_level_visibility_open(geometry,64*1024,&stream->visibility);if(status)goto done;
+            scene_late_load_mark(46,materials);
             status=rf_level_particles_open(&stream->particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
             {rf_vpp effect_tables={0};
+                scene_late_load_mark(47,materials);
                 status=rf_vpp_open(&effect_tables,tables_path);if(status)goto done;
                 for(i=0;!status && i<campaign_events.count;i++)if(campaign_events.items[i].state.type==10){
                     const char *name=campaign_events.items[i].authored->record.texts[0];
                     int32_t clip=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,name);
+                    rf_scene_late_load[7]=campaign_events.items[i].authored->record.uid;
                     if(clip>=0)status=scene_script_explode_effects_open(&effect_tables,maps,map_count,(uint32_t)clip,name);
                 }
+                if(!status)scene_late_load_mark(48,materials);
                 if(!status)status=scene_turret_death_effects_open(&effect_tables,maps,map_count);
                 rf_vpp_close(&effect_tables);if(status)goto done;
             }
             for(i=0;i<campaign_clutter_records.count;i++)if(campaign_clutter_bodies&&campaign_clutter_bodies[i]){
                 int32_t cls=campaign_clutter_bodies[i]->state.class_index;
                 if(cls>=0&&campaign_clutter_damage_profiles[cls].break_effect){
+                    scene_late_load_mark(49,materials);
                     status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
             if(rf_scene_dev_room_enabled || scene_vehicle_ai_ready || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()) {
+                scene_late_load_mark(50,materials);
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
             }
-            if(scene_flame_resources){status=scene_flame_effects_open(tables_path,maps,map_count);if(status)goto done;}
+            if(scene_flame_resources){scene_late_load_mark(51,materials);status=scene_flame_effects_open(tables_path,maps,map_count);if(status)goto done;}
             if(rf_scene_dev_room_enabled) {
 
                 {rf_vpp tables={0};rf_particle_definition billboard={0};uint32_t budget=512*1024;
@@ -20841,17 +20877,23 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 
             }
             if(scene_fusion_resources){
+                scene_late_load_mark(52,materials);
                 if(!stream->impact){stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_IO;goto done;}}
                 status=scene_fusion_effects_open(tables_path,maps,map_count);if(status)goto done;
             }
             if(campaign_spawn) {
                 rf_random_state *rng=stream->particles.state?&stream->particles.state->random:NULL;
+                scene_late_load_mark(53,materials);
                 status=rf_visibility_light_world_storage_open(geometry,collision,512*1024,&stream->light_storage);if(status)goto done;
+                scene_late_load_mark(54,materials);
                 status=scene_lights_scratch_open(stream,collision);if(status)goto done;
                 memset(rf_scene_lightmap_updates,0,sizeof(rf_scene_lightmap_updates));
+                scene_late_load_mark(55,materials);
                 status=rf_lightmap_rgb_open(&stream->light_rgb,level,4u*1024u*1024u);if(status)goto done;
+                scene_late_load_mark(56,materials);
                 status=scene_light_regeneration_open(stream,level);if(status)goto done;
                 if(rf_scene_lightmap_regeneration_test)for(i=0;i<stream->light_storage->dirty_count;i++)stream->light_storage->dirty[i]|=2;
+                scene_late_load_mark(57,materials);
                 stream->light_overlay_work=malloc(1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source)));
                 if(!stream->light_overlay_work){status=RF_IO;goto done;}
                 rf_scene_lightmap_updates[4]=stream->light_rgb.allocated_bytes;
@@ -20861,6 +20903,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 for(i=0;i<stream->light_storage->face_count*sizeof(*stream->light_storage->faces);i++)rf_scene_light_storage[3]=(rf_scene_light_storage[3]^((unsigned char *)stream->light_storage->faces)[i])*16777619u;
                 for(i=0;i<stream->light_storage->dirty_count;i++)rf_scene_light_storage[4]=(rf_scene_light_storage[4]^stream->light_storage->dirty[i])*16777619u;
                 rf_scene_light_owner[6]=rng?rng->value:0;
+                scene_late_load_mark(58,materials);
                 status=rf_level_owned_lights_open(level,256*1024,1,1,rng,&stream->lights);
                 if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
                 rf_scene_light_owner[7]=rng?rng->value:0;
@@ -20882,6 +20925,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 }
             }
 
+            scene_late_load_mark(59,materials);
             stream->particle_workspace=calloc(1,sizeof(*stream->particle_workspace));if(!stream->particle_workspace){status=RF_IO;goto done;}
             memset(rf_scene_particle_draw_summary,0,sizeof(rf_scene_particle_draw_summary));
             memset(rf_scene_particle_draw_frames,0,sizeof(rf_scene_particle_draw_frames));
@@ -20896,6 +20940,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.prepare_view=actor_follow_view;placement.view_context=stream;
         }
         stream->capacity=(uint32_t)capacity;stream->sink=sink;stream->context=context;stream->collision=collision;
+        scene_late_load_mark(60,materials);
         if(terrain_ui.stream) {
             rf_vpp identity_sources[9];
             if(map_count>8){status=RF_RANGE;goto done;}
@@ -20908,14 +20953,17 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
          * weapon IDs. Resolve catalog identities as soon as views exist. */
         if(campaign_spawn){
             memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
+            scene_late_load_mark(61,materials);
             status=campaign_ammo_reset();if(status)goto done;
         }
         if(rf_scene_player_checkpoint_enabled && stream->terrain_authored) {
+            scene_late_load_mark(62,materials);
             stream->checkpoint_clutter=calloc(1,sizeof(*stream->checkpoint_clutter));
             if(!stream->checkpoint_clutter){status=RF_IO;goto done;}
             status=scene_authored_clutter_baseline_capture(stream->terrain_authored->source_identity,0,stream->checkpoint_clutter);
             if(status){printf("AUTHORED_SCOPE_CAPTURE_ERROR %d\n",status);goto done;}
         }
+        scene_late_load_mark(63,materials);
         status=scene_checkpoint_begin(stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
@@ -20924,8 +20972,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
             memset(rf_scene_switch_runtime,0,sizeof(rf_scene_switch_runtime));memset(rf_scene_switch_detail,0,sizeof(rf_scene_switch_detail));
             campaign_inventory_ready=campaign_item_pending_count=0;memset(rf_scene_script_grants,0,sizeof(rf_scene_script_grants));
+            scene_late_load_mark(64,materials);
             status=campaign_actors_restore();if(status)goto done;
+            scene_late_load_mark(65,materials);
             status=scene_masako_runtime_initialize();if(status)goto done;
+            scene_late_load_mark(66,materials);
             status=campaign_event_startup_retire();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
@@ -20936,18 +20987,22 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_npc_idle_ground,0,sizeof(rf_scene_npc_idle_ground));memset(rf_scene_npc_mover_support,0,sizeof(rf_scene_npc_mover_support));memset(rf_scene_npc_platform_probe,0,sizeof(rf_scene_npc_platform_probe));memset(rf_scene_npc_script_mover,0,sizeof(rf_scene_npc_script_mover));memset(rf_scene_npc_idle_impact,0,sizeof(rf_scene_npc_idle_impact));memset(rf_scene_npc_script_ground,0,sizeof(rf_scene_npc_script_ground));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.move_context=stream;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.attack_context=stream;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
+                scene_late_load_mark(67,materials);
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;
                 rf_scene_switch_runtime[6]=campaign_events.items[i].authored->record.uid;
             }
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
+            scene_late_load_mark(68,materials);
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             scene_driller_runtime_audio_start(stream);
             {uint32_t slot;
+             scene_late_load_mark(69,materials);
              status=rf_campaign_pickup_register(&campaign_startup_inventory,campaign_current_level,0,&slot);if(status)goto done;
              memset(rf_scene_startup_inventory,0,sizeof(rf_scene_startup_inventory));
              rf_scene_startup_inventory[0]=campaign_startup_inventory.items[slot].retired;
              rf_scene_startup_inventory[3]=sizeof(campaign_startup_inventory);
              campaign_startup_inventory_replay=rf_scene_startup_inventory[0];
+             scene_late_load_mark(70,materials);
              status=campaign_trigger_startup_disable();if(!status)
                  status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream->particles, &campaign_forces,&rf_scene_startup_events);
              campaign_startup_inventory_replay=0;
@@ -20955,21 +21010,30 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              campaign_startup_inventory.items[slot].retired=1;}
 
             memset(rf_scene_switch_history,0,sizeof(rf_scene_switch_history));
+            scene_late_load_mark(71,materials);
             status=campaign_switch_checkpoint(0);if(status)goto done;
             memset(rf_scene_trigger_history,0,sizeof(rf_scene_trigger_history));
+            scene_late_load_mark(72,materials);
             status=campaign_trigger_checkpoint(0,0);if(status)goto done;
+            scene_late_load_mark(73,materials);
             status=campaign_event_checkpoint(0,0,stream);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
             stream->world_checkpoint_level=level;stream->world_checkpoint_tables=tables_path;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }
         scene_turret_operator_reset();
+        scene_late_load_mark(74,materials);
         status=scene_npc_seats_open(stream,0);if(status)goto done;
+        scene_late_load_mark(80,materials);
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,stream);
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(stream);
     }
 done:
+    rf_scene_late_load[1]=(uint32_t)status;rf_scene_late_load[6]=rf_scene_profile_stage[1];
+#ifdef RF_IMAGE_XBOX_NATIVE
+    rf_scene_late_load[5]=rf_xbox_available_memory_pages();
+#endif
     rf_hud_scope_assets_close(stream->hud_scope);stream->hud_scope=NULL;
     rf_hud_assets_close(stream->hud_assets);stream->hud_assets=NULL;
     rf_vpp_close(&terrain_ui);
@@ -21003,6 +21067,7 @@ done:
     scene_driller_cockpit_close(&stream->driller_cockpit);
     scene_driller_bit_animation_close(&stream->driller_bits);
     scene_jeep_gun_resources_close(&stream->jeep_gun);
+    scene_jeep_gunner_view_close(&stream->jeep_gunner_view);
     scene_apc_secondary_visual_close(&stream->apc_mortar);
     scene_driller_resources_close(&stream->driller);
     for(i=0;i<6;++i)scene_driller_resources_close(&stream->passive_vehicle_resources[i]);

@@ -5,7 +5,7 @@ image capture or image generation was performed by this helper. Parent owns
 integration and the 20:00 stock-64-MiB validation batch.
 
 `rf_hud_assets_open` owns one 512x1024 RGBA atlas with one-pixel edge gutters,
-40 original sprite rectangles and glyphs from three original fonts. It reads
+43 original sprite rectangles and glyphs from three original fonts. It reads
 original VPP entries directly, closes no caller-owned archive, and retains no
 archive or source-byte references after loading. Every sprite preserves its
 authored dimensions, orientation, colors and alpha. No resizing is performed.
@@ -49,8 +49,9 @@ original neutral-gamma 4-bit alpha conversion, but there is no original global
 gamma-table binding. VF1 retains the original per-channel4-bit quantization.
 Font width measurement supports newlines; actual layout/wrapping is scene-owned.
 
-No vehicle-health art, damage-direction strips, persona portraits, menu panels
-or new scope mask are included in this bounded owner. Scene resource admission,
+The original Jeep/Driller vehicle-health silhouettes and frame were added in
+`VEHICLE-AUTHORED-HUD.md`. Damage-direction strips, persona portraits, menu
+panels and new scope masks remain outside this bounded owner. Scene resource admission,
 live-state selection, texture/solid ordering and frame lifetime remain with
 their respective scene/renderer owners. This source change is unverified until
 the parent batch, and it does not claim pixel-perfect retail HUD parity.

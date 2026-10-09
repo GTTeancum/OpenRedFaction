@@ -28,7 +28,8 @@ static const char *const other_names[]={
     "reticle_0.tga","scope_ret_0.tga","reticle_rocket_0.tga","reticle_rocketlock_0.tga","reticle_apc_0.tga",
     "ammo_bar_0.tga","ammo_bar_power_0.tga","noclip_ammo_bar_0.tga","ammo_signal_red_0.tga","ammo_signal_green_0.tga",
     "bullet_icon_0.tga","bullet_icon_556_0.tga","bullet_icon_shotgun_0.tga","bullet_icon_50cal_0.tga",
-    "bullet_icon_powercell_0.tga","bullet_icon_rocket_0.tga","bullet_icon_gascanister_0.tga","bullet_icon_aluminum_0.tga"
+    "bullet_icon_powercell_0.tga","bullet_icon_rocket_0.tga","bullet_icon_gascanister_0.tga","bullet_icon_aluminum_0.tga",
+    "health_jeep.tga","health_driller.tga","health_vehicleframe.tga"
 };
 static const char *const font_names[]={"smallfont.vf","bigfont.vf","rfpc-medium.vf"};
 static int source_find(hud_source *s,const char *name,rf_vpp *ui,rf_vpp *maps,uint32_t count)
@@ -46,13 +47,19 @@ static int append_rect(hud_plan *p,hud_rect *r)
 }
 static int pack(hud_plan *p)
 {
-    uint32_t i,j,x=0,y=0,row=0;
+    uint16_t row_x[HUD_RECTS],row_y[HUD_RECTS];uint32_t i,j,rows=0,height=0;
     for(i=1;i<p->count;i++){hud_rect *r=p->rects[i];j=i;while(j && p->rects[j-1]->h<r->h){p->rects[j]=p->rects[j-1];--j;}p->rects[j]=r;}
     for(i=0;i<p->count;i++){
         hud_rect *r=p->rects[i];uint32_t w=r->w+2u,h=r->h+2u;
-        if(x+w>HUD_WIDTH){y+=row;x=row=0;}
-        if(y+h>HUD_HEIGHT)return RF_RANGE;
-        r->x=(uint16_t)(x+1);r->y=(uint16_t)(y+1);x+=w;if(h>row)row=h;
+        /* First-fit decreasing shelves reuse the earlier rows' horizontal
+         * gaps. Sorted heights guarantee every subsequent rect fits that
+         * row vertically. No source resizing, gutter loss or atlas growth. */
+        for(j=0;j<rows;j++)if((uint32_t)row_x[j]+w<=HUD_WIDTH)break;
+        if(j==rows){
+            if(rows>=HUD_RECTS || height+h>HUD_HEIGHT)return RF_RANGE;
+            row_x[rows]=0;row_y[rows]=(uint16_t)height;height+=h;++rows;
+        }
+        r->x=(uint16_t)(row_x[j]+1);r->y=(uint16_t)(row_y[j]+1);row_x[j]=(uint16_t)(row_x[j]+w);
     }
     return RF_OK;
 }

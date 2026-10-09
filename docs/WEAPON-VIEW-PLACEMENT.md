@@ -109,3 +109,25 @@ responsibility. The subsequent original `4aa7ab..4aaa7c` dynamic angular
 response and tag-relative corrections are not newly implemented here;
 full turn lag/sway remains separate. Split-screen, original near/depth policy
 and retail appearance validation are also outside this slice.
+
+## Undercover silencer attachment (2026-10-09)
+
+The separate `scene_undercover_draw` path now calls the same authored-view
+helper before `rf_model_local_view` composes the evaluated silencer attachment.
+Its former fixed camera `(0.110, 0.140, 0.342)` and FOV65 matched the installed
+undercover handgun's current values, but its identity clip matrix and
+focal-length-only screen projection still used the old clipping convention.
+Both meshes now share the owner's offset, FOV, clip scaling and viewport.
+The attachment's authored local translation is applied exactly once; no
+extra handgun offset is added to its evaluated pose.
+
+Original evidence: `4c8d00..4c8d46` resolves/caches the `silencer` tag on the
+first-person model. `4ac21a` places that tag with player weapon basis `+ff4`
+and origin `+1018`; `4ac247` draws the separate silencer model. Only afterward
+does `4ac393` restore the world FOV. Existing attachment-to-bone composition,
+visibility/toggle policy, animation and depth band are unchanged.
+
+Source-written for the parent 01:00 UTC batch; this attachment path has not
+been built or executed by the helper. Existing `rf_scene_undercover[6]` reports
+its emitted vertices when actually visible. No synthetic Go_Undercover event,
+new gameplay fixture, screenshot or independent test was introduced.

@@ -3,7 +3,8 @@
 /* Requires scene_undercover_mode.inc and scene_stream fields:
  * scene_undercover_resources *undercover;
  * uint32_t undercover_base,undercover_textures,undercover_alt_held;
- * Include after render/scratch helpers. Forward declare input/after_advance
+ * Include after render/scratch helpers and scene_player_weapon_view_prepare.
+ * Forward declare input/after_advance
  * where combat/view advance need them. Call close before FP views teardown. */
 static int scene_undercover_open(scene_stream *s,rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t count)
 {
@@ -82,12 +83,13 @@ static int scene_undercover_draw(scene_stream *s)
        !campaign_player_inventory.owned[campaign_slot_weapon(16)] || campaign_player_damage.state.effects.health<=0 ||
        !scene_undercover_mode_visible(&o->mode))return RF_OK;
     status=scene_undercover_mode_pose(&o->mode,s->player_weapon[16],pose);if(status)return status;
-    camera.camera[0]=.110f;camera.camera[1]=.140f;camera.camera[2]=.342f;
-    camera.rotation[0]=camera.rotation[4]=camera.rotation[8]=1;
-    camera.screen[0]=320/tanf(65.0f*3.14159265f/360);camera.screen[1]=-camera.screen[0];
-    camera.screen[2]=320;camera.screen[3]=240;camera.perspective=camera.compute_clip=camera.clipping=1;
+    /* RF.exe4ac21a places the silencer tag through the current weapon pose;
+     * 4ac247 draws it before4ac393 restores the world FOV. Use the same
+     * authored view/clip projection as its parent, then enter tag-local space.
+     * The evaluated attachment pose already supplies its local translation. */
+    status=scene_player_weapon_view_prepare(s->player_weapon[16],&camera,&projection);if(status)return status;
     status=rf_model_local_view(&camera,pose+9,pose,&view);if(status)return status;
-    planes.near_depth=.01f;planes.far_depth=1000;projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
+    planes.near_depth=.01f;planes.far_depth=1000;
     buffers.cache=s->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)s->npc_memory+4096*32);
     buffers.second=(float(*)[3])((uint8_t*)s->npc_memory+4096*44);
     buffers.vertices=(uint8_t(*)[40])((uint8_t*)s->npc_memory+4096*56);buffers.capacity=4096;

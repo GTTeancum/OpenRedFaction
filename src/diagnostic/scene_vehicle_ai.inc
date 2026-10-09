@@ -168,7 +168,11 @@ static int scene_vehicle_ai_open(scene_stream *s,rf_vpp *tables,rf_vpp *meshes,r
     if(sub&&!s->submarine_torpedo){
         status=scene_submarine_weapon_model_open(meshes,maps,map_count,512*1024,&scene_vehicle_ai_torpedo);if(status)return status;
     }
-    if(sub||fighter){status=scene_rocket_definitions_open(tables);if(status)return status;}
+    /* The shared impact image owner is demanded by all ready vehicle classes,
+     * including an APC-only section with no handheld explosive resources.
+     * Load its definition under that same demand; otherwise resolved remains
+     * zero and the bounded material loader rejects it before allocating. */
+    if(sub||fighter||apc){status=scene_rocket_definitions_open(tables);if(status)return status;}
     scene_vehicle_ai_ready=!!(sub||fighter||apc);return RF_OK;
 }
 static int scene_vehicle_ai_launch_bullet(void *context,uint32_t source,const scene_vehicle_primary_definition *definition,

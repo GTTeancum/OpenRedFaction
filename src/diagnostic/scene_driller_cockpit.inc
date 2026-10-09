@@ -4,15 +4,18 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include "scene_vehicle_cockpit_hud.inc"
 /* Authored driller01.vfx, six Scene Root meshes. Original4a77a0 parent is
  * refreshed PLAYER EYE position plus PLAYER BODY basis, not look basis/tag19.
  * Caller supplies separate final view camera. Retain owner across board/exit.
  * Elapsed driver-active seconds -> shared15Hz/endpoint loop is first-pass clock
- * policy; no separate clock per mesh. No cockpit-state selection/lighting polish.
+ * policy; no separate clock per mesh. Live authored cockpit values are selected
+ * separately from animation time; exact lighting polish remains deferred.
  * Box03 alpha uses existing faded mode; exact alpha-test+depth-write is deferred. */
 typedef struct scene_driller_cockpit {
     rf_vfx_geometry_asset *geometry;rf_vfx_asset_materials *materials;
     uint32_t endpoint,resident_bytes,peak_bytes,merged,texture_base[64],texture_frames;
+    scene_vehicle_cockpit_hud hud;
 } scene_driller_cockpit;
 static void scene_driller_cockpit_close(scene_driller_cockpit **owner)
 {
@@ -32,6 +35,8 @@ static int scene_vehicle_cockpit_open(const char *name,rf_vpp *meshes,rf_vpp *ma
     used+=o->geometry->resident_bytes;
     for(i=0;i<o->geometry->count;i++)if(strcmp(o->geometry->meshes[i]->prefix.parent,"Scene Root")){status=RF_FORMAT;goto fail;}
     status=rf_vfx_asset_materials_open(o->geometry,maps,map_count,budget-used,&o->materials);if(status)goto fail;
+    if(o->peak_bytes<used+o->materials->resident_bytes)o->peak_bytes=used+o->materials->resident_bytes;
+    status=scene_vehicle_cockpit_hud_open(&o->hud,o->materials,name,maps,map_count,budget-used);if(status)goto fail;
     if(o->materials->textures.texture_count>64){status=RF_RANGE;goto fail;}
     o->resident_bytes=used+o->materials->resident_bytes;
     if(o->peak_bytes<o->resident_bytes)o->peak_bytes=o->resident_bytes;
@@ -82,8 +87,13 @@ static int scene_driller_cockpit_draw(scene_driller_cockpit *o,float seconds,con
             status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
             status=rf_vfx_asset_material_index(o->geometry,o->materials,m,face.material,&material);if(status)return status;
             slot=o->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
-            status=rf_vfx_material_texture_sample(&o->materials->textures,o->materials->views+material,material,0,phase,0,&image);if(status)return status;
-            frame=(uint32_t)(image-o->materials->textures.textures[slot].animation.images);
+            if(o->hud.channel[material]){
+                if(!o->hud.ready)return RF_FORMAT;
+                frame=o->hud.frame[material];
+            }else {
+                status=rf_vfx_material_texture_sample(&o->materials->textures,o->materials->views+material,material,0,phase,0,&image);if(status)return status;
+                frame=(uint32_t)(image-o->materials->textures.textures[slot].animation.images);
+            }
             status=rf_vfx_mesh_material_sample(source,o->geometry->material_bank,face.material,1,phase,&brightness);if(status && status!=RF_NOT_FOUND)return status;
             status=rf_vfx_mesh_material_sample(source,o->geometry->material_bank,face.material,2,phase,&opacity);if(status && status!=RF_NOT_FOUND)return status;
             alpha=(uint32_t)((double)(255.f*fminf(1.f,fmaxf(0.f,opacity)))+.5);if(!alpha)continue;
@@ -102,7 +112,9 @@ static int scene_driller_cockpit_draw(scene_driller_cockpit *o,float seconds,con
             tag=(o->materials->views[material].words[2]&255)?RF_PREVIEW_ADDITIVE_FADE_TAG|alpha:
                 (!strcmp(source->prefix.name,"Box03") || alpha<255)?RF_PREVIEW_FADE_TAG|alpha:RF_PREVIEW_VERTEX_LIT;
             for(j=0;j<emitted.count;j++){emitted.vertices[j].lightmap=tag;for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);}
-            output->count+=emitted.count;output->bytes+=emitted.bytes;if(emitted.count)count++;
+            output->count+=emitted.count;output->bytes+=emitted.bytes;if(emitted.count){
+                count++;if(o->hud.channel[material])++rf_scene_vehicle_cockpit_hud[3];
+            }
         }
     }
     *faces_drawn=count;return RF_OK;

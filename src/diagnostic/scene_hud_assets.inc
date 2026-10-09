@@ -1,5 +1,6 @@
 /* Original asset composition; gameplay owners are read-only during this pass.
  * The renderer borrows atlas pixels until the complete HUD sink returns. */
+uint32_t rf_hud_vehicle_diagnostic[8]; /* presentations,profile,flat health sprite,raw hull HP,primary,secondary,reticle,status */
 uint32_t rf_hud_assets_diagnostic[8]; /* attempts,status,active,resident,peak,art frames,fallback frames,draw status */
 static uint32_t scene_hud_integer(float value)
 {return isfinite(value)&&value>0?(value>=99999?99999:(uint32_t)value):0;}
@@ -27,7 +28,7 @@ static int scene_hud_sprite_at(const rf_hud_assets *a,rf_scene_particle_sink sin
      * backplate/signal owner4375e0 supplies white alpha70 at full fade;
      *43a643 restores alpha255 for the actual ammunition icon. Keep source
      * texture alpha intact and multiply it by the appropriate draw opacity. */
-    if(id<RF_HUD_RETICLE)tint=0x78ffffffu;
+    if(id<RF_HUD_RETICLE || id>=RF_HUD_HEALTH_JEEP)tint=0x78ffffffu;
     else if(id>=RF_HUD_AMMO_BAR && id<=RF_HUD_AMMO_SIGNAL_GREEN)tint=0x46ffffffu;
     return scene_hud_sprite_draw(sink,context,&sprite,(float)xy[0],(float)xy[1],1,tint);
 }
@@ -74,34 +75,58 @@ static uint32_t scene_hud_ammo_icon(void)
     default:return RF_HUD_AMMO_BULLET;
     }
 }
-static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t vehicle,
+static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uint32_t vehicle,
     float vehicle_health,const int32_t vehicle_ammo[2],uint32_t mounted,const scene_turret_owner *turret,
     uint32_t armed,uint32_t loaded,uint32_t reserve,uint32_t magazine,uint32_t remote_pending,uint32_t reticle_color)
 {
     const rf_hud_assets *a=particle_draw_stream->hud_assets;
     int32_t p[19][2];uint32_t i,color=rf_hud_assets_color(a,RF_HUD_COLOR_DEFAULT);int status;
     const uint32_t full=rf_hud_assets_color(a,RF_HUD_COLOR_FULL),mid=rf_hud_assets_color(a,RF_HUD_COLOR_MID);
-    float health=vehicle?vehicle_health*100:campaign_player_damage.state.effects.health;
-    float armor=vehicle?0:campaign_player_damage.state.effects.armor;
+    float health=campaign_player_damage.state.effects.health;
+    float armor=campaign_player_damage.state.effects.armor;
     float maximum=campaign_player_damage.state.effects.class_armor;
+    uint32_t profile=vehicle?rf_scene_vehicle_enabled:0,jeep_gunner=0;
+    if(vehicle)scene_vehicle_hud_presentation(particle_draw_stream,&health,&jeep_gunner);
+    uint32_t vehicle_reticle=vehicle&&(profile==2||jeep_gunner)&&vehicle_ammo[0]>=0;
+    (void)vehicle_health;
     for(i=0;i<19;i++){status=rf_hud_assets_position(a,i,p[i]);if(status)return status;}
+    memset(rf_hud_vehicle_diagnostic+1,0,7*sizeof(uint32_t));
+    if(vehicle){
+        ++rf_hud_vehicle_diagnostic[0];rf_hud_vehicle_diagnostic[1]=profile;
+        rf_hud_vehicle_diagnostic[4]=(uint32_t)vehicle_ammo[0];rf_hud_vehicle_diagnostic[5]=(uint32_t)vehicle_ammo[1];
+        rf_hud_vehicle_diagnostic[3]=scene_hud_integer(health);
+        /* Original439d80: only Jeep and Driller have a flat health panel.
+         * APC/Sub/Fighter present their authored health on cockpit surfaces. */
+        if(profile==1||profile==3){
+            int32_t xy[3][2];uint32_t base=profile==3?42:45;
+            uint32_t sprite=profile==3?RF_HUD_HEALTH_JEEP:RF_HUD_HEALTH_DRILLER;
+            for(i=0;i<3;i++){status=rf_hud_assets_position(a,base+i,xy[i]);if(status)return status;}
+            status=scene_hud_sprite_at(a,sink,context,sprite,xy[0]);if(status)return status;
+            status=scene_hud_sprite_at(a,sink,context,RF_HUD_HEALTH_VEHICLE_FRAME,xy[1]);if(status)return status;
+            char text[16];snprintf(text,sizeof(text),"%u",scene_hud_integer(health));
+            status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_SMALL,text,(float)xy[2][0],(float)xy[2][1],0,0,full);if(status)return status;
+            rf_hud_vehicle_diagnostic[2]=sprite;
+        }
+    }else {
     /* Original439fbb then43a009: health first, suit second. Transparent
      * source borders overlap, so preserve this order with alpha modulation. */
     status=scene_hud_sprite_at(a,sink,context,RF_HUD_HEALTH_0+scene_hud_bucket(health*.1f),p[0]);if(status)return status;
-    if(!vehicle){status=scene_hud_sprite_at(a,sink,context,RF_HUD_ARMOR_0+scene_hud_bucket(maximum>0?armor/maximum*10:0),p[3]);if(status)return status;}
+    status=scene_hud_sprite_at(a,sink,context,RF_HUD_ARMOR_0+scene_hud_bucket(maximum>0?armor/maximum*10:0),p[3]);if(status)return status;
     /* Original43a011/43a094 choose HUD full/mid, including authored alpha;
      * these are separate health/armor colors, not the opaque default color. */
     status=scene_hud_number(a,sink,context,RF_HUD_FONT_SMALL,scene_hud_integer(health),p[1],p[2],full);if(status)return status;
-    if(!vehicle){status=scene_hud_number(a,sink,context,RF_HUD_FONT_SMALL,scene_hud_integer(armor),p[4],p[5],mid);if(status)return status;}
+    status=scene_hud_number(a,sink,context,RF_HUD_FONT_SMALL,scene_hud_integer(armor),p[4],p[5],mid);if(status)return status;
+    }
     if(armed&&campaign_player_damage.state.effects.health>0&&
-       !(scene_scope.active && particle_draw_stream->hud_scope &&
+       !(!vehicle&&!mounted&&scene_scope.active && particle_draw_stream->hud_scope &&
          (campaign_equipped_slot==6 || campaign_equipped_slot==15))&&
-       (mounted||(vehicle&&rf_scene_vehicle_enabled!=1)||(!vehicle&&campaign_equipped_slot!=2&&
+       (mounted||vehicle_reticle||(!vehicle&&campaign_equipped_slot!=2&&
         campaign_equipped_slot!=5&&campaign_equipped_slot!=9&&campaign_equipped_slot!=11))){
-        uint32_t id=vehicle&&rf_scene_vehicle_enabled==2?RF_HUD_RETICLE_APC:
-            !vehicle&&!mounted&&campaign_equipped_slot==6&&!scene_scope.active?RF_HUD_RETICLE_SCOPE:
+        /* Installed APC Minigun/APC Rocket/Jeep Gun all name reticle.tga. */
+        uint32_t id=!vehicle&&!mounted&&campaign_equipped_slot==6&&!scene_scope.active?RF_HUD_RETICLE_SCOPE:
             !vehicle&&!mounted&&(campaign_equipped_slot==4||campaign_equipped_slot==12)?RF_HUD_RETICLE_ROCKET:RF_HUD_RETICLE;
         rf_hud_sprite sprite;status=rf_hud_assets_sprite(a,id,&sprite);if(status)return status;
+        if(vehicle)rf_hud_vehicle_diagnostic[6]=id;
         /* Original43a41b centers by viewport and selected bitmap dimensions. */
         status=scene_hud_sprite_draw(sink,context,&sprite,(640.f-sprite.width)*.5f,(480.f-sprite.height)*.5f,1,reticle_color);if(status)return status;
     }
@@ -110,9 +135,15 @@ static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t
         return scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,"UNLIMITED",518,34,108,18,color);
     }
     if(vehicle){
-        char text[32];status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,scene_vehicle_hud_label(particle_draw_stream),24,160,140,18,color);if(status)return status;
-        if(vehicle_ammo[0]>=0){snprintf(text,sizeof(text),"GUN %d",vehicle_ammo[0]);status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,text,482,12,144,18,color);if(status)return status;}
-        if(vehicle_ammo[1]>=0){snprintf(text,sizeof(text),"ROCKET %d",vehicle_ammo[1]);status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,text,482,34,144,18,color);if(status)return status;}
+        /* Jeep's gunner keeps the ordinary clipless ammo HUD. Its driver,
+         * Driller and the three cockpit-display vehicles do not duplicate it. */
+        if(jeep_gunner&&vehicle_ammo[0]>=0){
+            uint32_t rounds=(uint32_t)vehicle_ammo[0];
+            status=scene_hud_sprite_at(a,sink,context,RF_HUD_AMMO_NOCLIP,p[14]);if(status)return status;
+            status=scene_hud_sprite_at(a,sink,context,rounds?RF_HUD_AMMO_SIGNAL_GREEN:RF_HUD_AMMO_SIGNAL_RED,p[15]);if(status)return status;
+            status=scene_hud_sprite_at(a,sink,context,RF_HUD_AMMO_BULLET,p[16]);if(status)return status;
+            return scene_hud_number(a,sink,context,RF_HUD_FONT_BIG,rounds,p[17],p[18],mid);
+        }
         return RF_OK;
     }
     if(!armed||campaign_equipped_slot==11)return RF_OK;
@@ -149,10 +180,20 @@ static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t
     }
     return RF_OK;
 }
+static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t vehicle,
+    float vehicle_health,const int32_t vehicle_ammo[2],uint32_t mounted,const scene_turret_owner *turret,
+    uint32_t armed,uint32_t loaded,uint32_t reserve,uint32_t magazine,uint32_t remote_pending,uint32_t reticle_color)
+{
+    int status=scene_hud_original_draw(sink,context,vehicle,vehicle_health,vehicle_ammo,mounted,turret,
+        armed,loaded,reserve,magazine,remote_pending,reticle_color);
+    rf_hud_vehicle_diagnostic[7]=(uint32_t)status;return status;
+}
 static void scene_hud_open_optional(scene_stream *stream,const char *tables_path,rf_vpp *maps,uint32_t map_count)
 {
     rf_vpp ui={0},tables={0};char path[1024];uint32_t i,prefix=0;int status;
     memset(rf_hud_assets_diagnostic,0,sizeof(rf_hud_assets_diagnostic));
+    memset(rf_hud_vehicle_diagnostic,0,sizeof(rf_hud_vehicle_diagnostic));
+    memset(rf_scene_vehicle_cockpit_hud,0,sizeof(rf_scene_vehicle_cockpit_hud));
     memset(rf_hud_text_diagnostic,0,sizeof(rf_hud_text_diagnostic));
     memset(rf_hud_control_text_diagnostic,0,sizeof(rf_hud_control_text_diagnostic));
     if(!campaign_spawn)return;
