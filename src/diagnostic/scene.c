@@ -18106,6 +18106,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
 uint32_t rf_scene_pose_sharing[4],rf_scene_pose_sharing_disabled;
 static rf_entity_pose_batch campaign_pose_batch;
 _Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache");
+#include "scene_npc_footsteps.inc"
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
@@ -19808,6 +19809,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_script_physics_sample(frame);
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
+                scene_npc_footsteps_tick(frame);
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
                 status=scene_masako_runtime_tick(stream);if(status)return status;
                 npc_step_profile_mark(1,&npc_clock);
@@ -20130,6 +20132,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(rf_scene_vehicle_resume_probe,0,sizeof(rf_scene_vehicle_resume_probe));
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
     memset(rf_scene_npc_support_lifecycle,0,sizeof(rf_scene_npc_support_lifecycle));
+    scene_npc_footsteps_reset();
     memset(rf_scene_npc_carry_collision,0,sizeof(rf_scene_npc_carry_collision));
     scene_npc_rotating_fixture_reset();
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));

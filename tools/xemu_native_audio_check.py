@@ -322,7 +322,10 @@ use_dsp = true
                     (folder / 'guest-result.json').write_text(json.dumps(result, indent=2) + '\n')
     if capture.error:
         raise RuntimeError('Native audio capture failed: ' + capture.error)
-    if not result['terminal']['rf_player_replay_diagnostic'][0]:
+    # main.c player_input_close() clears only the active flag on normal
+    # teardown. The retained record/consumed/status fields certify the run.
+    replay = result['terminal']['rf_player_replay_diagnostic']
+    if not replay[1]:
         raise RuntimeError('Xbox did not admit the ordinary replay; inspect scene-preview/player-control staging')
     if scene_start is None:
         raise RuntimeError('No live original scene was observed; recording cannot establish game output')
@@ -335,8 +338,8 @@ use_dsp = true
         raise RuntimeError('Original audio interval unexpectedly left its level')
     if not 0 < terminal['rf_diagnostic'][44] <= 16384:
         raise RuntimeError('Stock-memory availability was not valid at completion')
-    if terminal['rf_player_replay_diagnostic'][2] != frames:
-        raise RuntimeError('Ordinary process-local input was not fully consumed')
+    if replay[1:] != [frames, frames, 0]:
+        raise RuntimeError(f'Ordinary replay record/consumed/read-status mismatch: {replay}')
     audio = terminal['rf_xbox_audio_diagnostic']
     if audio[3] or audio[11] or not audio[4]:
         raise RuntimeError(f'Native audio failed or did not reset cleanly: {audio}')

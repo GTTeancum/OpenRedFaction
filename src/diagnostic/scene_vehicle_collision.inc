@@ -18,6 +18,12 @@ typedef struct scene_vehicle_collision {
     int (*query)(void *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
     void *query_context;
 } scene_vehicle_collision;
+/* Last downward world/mover support contact from a real host translation
+ * sweep, not an extra support query. Count,frame,solid,room,face,sphere,
+ * fraction,normal xyz,point xyz,start xyz,end xyz,hit sphere radius.
+ * Shared by host resolvers: bind frame/pose before attributing to a vehicle.
+ * Float fields are bitcasts; reset when a new entry owner is opened. */
+uint32_t rf_scene_vehicle_ground_probe[20];
 static int scene_vehicle_collision_query(const scene_vehicle_collision *c,
     const rf_collision_body_query *q,rf_geometry_body_hit *h,uint32_t *found)
 {
@@ -58,6 +64,18 @@ static int scene_vehicle_collision_resolve(void *context,const rf_vehicle_rigid_
         scene_vehicle_collision_body(c,at,end,current->orientation,&q);
         status=scene_vehicle_collision_query(c,&q,&hit,&found);if(status)return status;
         if(!found){memcpy(at,end,12);break;}
+        if(remaining[1]<0 && hit.contact.normal[1]>=.5f &&
+           hit.contact.fraction>=0 && hit.contact.fraction<=1 &&
+           (hit.solid!=UINT32_MAX||hit.room!=UINT32_MAX)){
+            uint32_t *p=rf_scene_vehicle_ground_probe;++p[0];p[1]=UINT32_MAX;
+#ifdef RF_IMAGE_XBOX_NATIVE
+            p[1]=rf_scene_profile_stage[0];
+#endif
+            p[2]=hit.solid;p[3]=hit.room;p[4]=hit.face;p[5]=hit.sphere;
+            memcpy(p+6,&hit.contact.fraction,4);memcpy(p+7,hit.contact.normal,12);
+            memcpy(p+10,hit.contact.point,12);memcpy(p+13,at,12);memcpy(p+16,end,12);
+            p[19]=0;if(hit.sphere<c->count)memcpy(p+19,&c->spheres[hit.sphere].radius,4);
+        }
         /* A resting suspension sphere can report the floor at fraction zero
          * on every nearly horizontal sweep. Requery five millimetres above
          * that floor before accepting tangential travel; a wall or step still
