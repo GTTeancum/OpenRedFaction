@@ -357,7 +357,10 @@ def main():
                         help='Record natural startup VO at original spawn, without music-trigger placement')
     parser.add_argument('--input', type=Path, help='Existing ordinary replay; no host input is sent')
     parser.add_argument('--out', type=Path)
+    parser.add_argument('--footstep-telemetry', action='store_true', help='Read actual player/NPC movement-audio counters; does not synthesize steps')
     args = parser.parse_args()
+    if args.footstep_telemetry:
+        COUNTS.update(rf_scene_npc_footsteps=13, rf_scene_player_footsteps=16, rf_scene_player_footstep_values=8, rf_scene_player_footstep_events=192)
     payload = args.input.read_bytes() if args.input else b'RFI6' + struct.pack('<I', 48) + bytes(args.frames * 48)
     frames = replay_frames(payload)
     if not 120 <= frames <= 1800 or not 30 <= args.seconds <= 900:

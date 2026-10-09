@@ -2585,6 +2585,7 @@ static uint32_t campaign_clutter_uid_cursor;
 uint32_t rf_scene_clutter_bodies[10]; /* created, physics-enabled, spheres, retained, peak, hash, load refs, retired, final refs, cleanup errors */
 
 static int32_t (*campaign_footstep_groups)[10];
+static int scene_player_footsteps_load(rf_vpp *,const void *,uint32_t,const char *);
 static int32_t (*campaign_pain_groups)[2];
 static int32_t *campaign_impact_groups,*campaign_squash_groups;
 static int32_t campaign_contact_sound_group=-1;
@@ -3001,6 +3002,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             if(status)goto audio_done;
         }
         if(player_class) {
+            status=scene_player_footsteps_load(&tables,entity_text,entity_entry.size,player_class);if(status)goto audio_done;
             status=rf_entity_squash_sound_group_read(entity_text,entity_entry.size,player_class,&campaign_foley,&campaign_player_squash_group);if(status)goto audio_done;
             status=rf_entity_damage_sound_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
             if(status)goto audio_done;
@@ -18107,6 +18109,7 @@ uint32_t rf_scene_pose_sharing[4],rf_scene_pose_sharing_disabled;
 static rf_entity_pose_batch campaign_pose_batch;
 _Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache");
 #include "scene_npc_footsteps.inc"
+#include "scene_player_footsteps.inc"
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
@@ -19717,6 +19720,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
             if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return status;}
+            if(campaign_spawn)scene_player_footsteps_tick(stream,frame,(uint32_t)walkable,
+                walkable?(int32_t)contact->contact.material:-1);
             scene_moving_support_record(frame);
             if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return status;}
             step_profile_mark(1,&step_clock);
@@ -20133,6 +20138,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(rf_scene_npc_rotating_support,0,sizeof(rf_scene_npc_rotating_support));
     memset(rf_scene_npc_support_lifecycle,0,sizeof(rf_scene_npc_support_lifecycle));
     scene_npc_footsteps_reset();
+    scene_player_footsteps_reset();
     memset(rf_scene_npc_carry_collision,0,sizeof(rf_scene_npc_carry_collision));
     scene_npc_rotating_fixture_reset();
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
