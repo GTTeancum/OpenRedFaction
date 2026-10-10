@@ -1,6 +1,7 @@
 #ifndef RF_SCENE_NPC_CHECKPOINT_CAPTURE_INCLUDED
 #define RF_SCENE_NPC_CHECKPOINT_CAPTURE_INCLUDED
 #include "rf/npc_checkpoint.h"
+#include "scene_npc_pain_checkpoint.inc"
 /* Include after campaign NPC/seed/pose/persistence declarations. Caller owns
  * stable scene state throughout both passes. Global projectile, shield, burn,
  * mover, event and pickup admission remains the composed caller's duty. */
@@ -197,7 +198,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
-    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;
+    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
@@ -293,14 +294,16 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
 #undef NPC_CAPTURE_ZERO
     for(i=0;i<64;i++)if(o->firing.active[i])return scene_npc_checkpoint_reject(index,"firing.active",i,o->firing.active[i],RF_RANGE);
     if(o->registration.view){
-        for(i=0;i<5;i++){status=rf_timer_pending(deadlines[i],now,&pending);
-            if(status||(pending&&!(burning_profile&&o->damage.effects.burn&&i<3)))
-                return scene_npc_checkpoint_reject(index,"deadline",i,deadlines[i],status?status:RF_RANGE);}
         if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;
         /* Owned corpses transferred the original array pose at death. */
         pose=(index<campaign_model_owner_count && campaign_model_owners &&
               campaign_model_owners[index].owned)?campaign_model_owners[index].pose:campaign_poses.items+index;
         if(!pose)return RF_FORMAT;
+        status=scene_npc_pain_checkpoint_capture(o,pose,now,&pain);
+        if(status)return scene_npc_checkpoint_reject(index,"pain_owner",0,o->pain.selected_action,status);
+        for(i=0;i<5;i++){status=rf_timer_pending(deadlines[i],now,&pending);
+            if(status||(pending&&!(i<3&&(pain.present||(burning_profile&&o->damage.effects.burn)))))
+                return scene_npc_checkpoint_reject(index,"deadline",i,deadlines[i],status?status:RF_RANGE);}
         if(pose->playback.completion.active.count>16)return scene_npc_checkpoint_reject(index,"motion_count",0,pose->playback.completion.active.count,RF_RANGE);
         if(!initializing&&!pose->playback.completion.active.count&&!o->script_animation.active&&
            (pose->controller.override_enabled||pose->controller.duration!=0||pose->controller.current>0||pose->controller.next>0))
@@ -318,6 +321,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                !campaign_playback_resources.models[pose->skeleton].resources||
                (!initializing&&!o->script_animation.active&&!terminal_dead&&
                 !campaign_playback_resources.models[pose->skeleton].resources[motion].looping&&
+                !scene_npc_pain_checkpoint_clip(&pain,&o->selection,motion)&&
                 !(burning_profile&&o->damage.effects.burn&&o->pain.selected_action>=0&&o->pain.selected_action<45&&
                   motion==o->selection.mapping.actions[o->pain.selected_action])&&
                 !((o->combat_alert==1||o->combat_scripted==3||o->combat_scripted==1||o->combat_scripted==2)&&
@@ -366,6 +370,9 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     /* RFNS reconstructs the full admitted host/tag basis, not yaw alone. */
     for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated)return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
     memset(row,0,sizeof(*row));row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
+    row->pain=pain;
+    if(!terminal_dead&&!key->retired)
+        row->holster=((o->view.flags_810&0x800u)?1u:0u)|((o->view.flags_7d0&0x200u)?2u:0u);
     row->support_uid=support_uid;if(support_uid)memcpy(row->support_velocity,o->support_velocity,12);
     row->retired=key->retired;row->flags=o->object_flags&0x4004u;row->affiliation=o->damage.effects.affiliation;
     row->health=o->damage.effects.health;row->armor=o->damage.effects.armor;
@@ -444,6 +451,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         memset(row->playback.completion.active.slots+row->playback.completion.active.count,0,
             (16-row->playback.completion.active.count)*sizeof(row->playback.completion.active.slots[0]));
     }
+    status=scene_npc_physics_checkpoint_capture(o,row);
+    if(status)return scene_npc_checkpoint_reject(index,"script_physics",0,o->scripted_physics,status);
     return RF_OK;
 }
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)

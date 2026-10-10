@@ -27,6 +27,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
+    uint32_t projectile_audio_resume=0,world_published=0;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_allegiance_stage *allegiance=NULL;
     scene_vehicle_attack_stage *vehicle_attack=NULL;scene_vehicle_ai_stage *vehicle_ai=NULL;
@@ -281,6 +282,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         status=scene_vehicle_checkpoint_publish(stream);if(status)goto done;}
     /* Publish validated world owners before restoring the occupied vehicle:
      * driver possession needs the saved player body and health in place. */
+    scene_alarm_siren_stop_voices();
+    scene_npc_loop_audio_close();scene_turret_audio_close();scene_vehicle_loop_audio_close();
+    scene_grenade_empty_input_reset();scene_machine_pistol_audio_close();scene_hmg_audio_close();scene_rifle_audio_close();scene_weapon_loop_audio_close();
     scene_npc_seat_checkpoint_detach(seats);
     scene_jeep_gunner_checkpoint_host_assign(stream,gunner);
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
@@ -343,9 +347,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         (double)campaign_support_velocity[1],(double)campaign_support_velocity[2]);
     scene_turret_player_checkpoint_assign(turret_player);
     scene_player_impact_relocated();
+    campaign_switch_ambient_restore();
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
     scene_world_startup_snapshot_consumed=1;
+    projectile_audio_resume=projectiles!=NULL;world_published=1;
  done:
     if(status){const unsigned char *name=(const unsigned char *)phase;uint32_t hash=2166136261u;
         while(*name)hash=(hash^*name++)*16777619u;
@@ -356,6 +362,12 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
 #endif
+    /* Transient melee belongs to the replaced timeline only after the load
+     * succeeds. Preparation, rejection and storage failure preserve it. */
+    if(!status && world_published)scene_ai_drone_smash_reset();
+    /* Voice reconstruction follows ALL fallible publication and storage
+     * close work. Failed/absent staged loads never start a new flight loop. */
+    if(!status && projectile_audio_resume)scene_projectile_flight_audio_resume(stream);
     if(status)printf("WORLD_SNAPSHOT_LOAD_REJECT phase%s status%d\n",phase,status);
     scene_authored_checkpoint_stage_discard(&terrain_stage);
     scene_authored_collection_stage_discard(&collection_stage);

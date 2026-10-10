@@ -115,6 +115,9 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     status=campaign_enemy_weapon_select(owner->view.weapons[0],ids,campaign_primary,
         campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(owner->view.weapons[0],&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_tankbot_primary_select(owner->view.weapons[0],&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_reeper_claw_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_drone_smash_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND&&((owner->view.weapons[0]==campaign_grenade_id&&scene_grenade_resources)||
        (owner->view.weapons[0]==campaign_rocket_id&&scene_rocket_resources)))status=RF_OK;
     if(status==RF_NOT_FOUND)return RF_OK;if(status)goto fail;

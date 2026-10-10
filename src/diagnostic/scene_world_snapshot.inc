@@ -80,8 +80,10 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     /* RFEC retains pending modal events, but the active modal owner has no
      * sidecar yet. Never silently resume before its already-applied effect. */
     if(campaign_endgame.phase||campaign_defuse.active){status=RF_NOT_FOUND;goto done;}
+    /* No runtime-only Drone damage may be silently omitted from a save. */
+    if(scene_ai_drone_smash_save_pending()){part="npc_drone_smash";status=RF_NOT_FOUND;goto done;}
     status=scene_item_pickup_states_valid(s);if(status)goto done;
-    if(!campaign_npc_physics_save_allowed()){status=RF_NOT_FOUND;goto done;}
+    /* RFNC14 admits the exact supported NPC freeze/wake owner below. */
     if(scene_turret_heap_pending()){status=RF_NOT_FOUND;goto done;}
     scene_turret_player_checkpoint_scope(1);
     if(!s||!level||!tables_path||(s->terrain&&!scene_world_l1s2_authored_terrain(s))||

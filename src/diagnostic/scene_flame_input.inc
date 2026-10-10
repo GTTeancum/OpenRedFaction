@@ -2,8 +2,9 @@
 #define RF_SCENE_FLAME_INPUT_INC
 /* Include after scene_flame_gameplay.inc. Selected-slot caller must return
  * before generic trigger/reload/hitscan code: scene_flame_tick alone drains gas.
- * Sound requests use existing combat_sound; continuous voice ownership remains
- * presentation work. Alternate canister launch is not implemented here. */
+ * One-shot sounds use combat_sound; the shared original player weapon-loop
+ * owner retains the continuous Launch voice. Alternate canister launch is
+ * owned by the separate canister adapter. */
 static struct {uint32_t ignition,delay,reload_left,reload_elapsed,drained;} scene_flame_input;
 /* Standalone RFCP admission still declines active input. Ordinary RFWC3
  * stores ignition, reload and fractional fuel through RFAP3. Completed reload
@@ -14,9 +15,10 @@ static uint32_t scene_flame_input_pending(void)
         scene_flame_input.reload_left!=0 || scene_flame_gas_remainder!=0;
 }
 static void scene_flame_input_reset(void)
-{memset(&scene_flame_input,0,sizeof(scene_flame_input));scene_flame_reset();}
+{scene_weapon_loop_audio_stop(campaign_flame_id);memset(&scene_flame_input,0,sizeof(scene_flame_input));scene_flame_reset();}
 static void scene_flame_input_stop(const float position[3])
 {
+    scene_weapon_loop_audio_stop(campaign_flame_id);
     if(scene_flame_input.ignition)combat_sound("Flame Thrower Ignite 3",position);
     scene_flame_input.ignition=scene_flame_input.delay=0;
 }
@@ -64,7 +66,9 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
             combat_sound("Flame Thrower Ignite 1",position);
         } else if(scene_flame_input.delay)--scene_flame_input.delay;
         if(!scene_flame_input.delay) {
-            if(scene_flame_input.ignition==1)combat_sound("Flame Thrower Ignite 2",position);
+            /* Reconcile a restored ignition2 on its next admitted live tick,
+             * without replaying ignition1 or changing saved fuel/cadence. */
+            scene_weapon_loop_audio_start(weapon,"Flame Thrower Ignite 2",position);
             scene_flame_input.ignition=2;admitted=1;
         }
     }

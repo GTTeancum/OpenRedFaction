@@ -195,6 +195,7 @@ static int scene_npc_seat_jeep_mode(campaign_npc_body *o,int32_t action,int32_t 
 {
     rf_entity_ai_transition_state next=o->ai_mode;int status;
     status=rf_entity_ai_set_action(&next,action,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+    scene_ai_drone_smash_cancel_source(o->registration.handle);
     campaign_pursuit_stop(o);o->script_move.active=0;o->script_move.stop=1;o->navigation.retained.count=0;
     o->script_shoot.active=0;while(o->script_once.count)campaign_script_single_pop(o,0);
     o->combat_scripted=o->combat_target=o->combat_alert=o->combat_due=o->combat_burst_remaining=0;

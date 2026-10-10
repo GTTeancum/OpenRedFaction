@@ -12,7 +12,9 @@ confirm success or report unavailable state/storage failure. Quick-load selects 
 campaign archives, and checks source identity before rebuilding the saved scene.
 Missing/incompatible saves keep the current scene running. Cross-level loading
 passes PC; the Xbox cross-level runtime check remains open. A title/pause menu
-and explicit save-slot selection remain open.
+and explicit save-slot selection remain open. Start-only simulation/audio pause
+is now source-written for Xbox (docs/PLAYER-PAUSE.md), awaiting hourly build and
+controller runtime validation.
 
 Save admission requires supported, settled ordinary-world state. Active weapon
 actions, destruction/vehicles and some NPC states can reject a save without
@@ -22,7 +24,7 @@ save/fire/load/fire passes with matched state, and compiled Xbox chord/edge chec
 pass. Physical controller operation has not been rechecked for these new chords.
 
 Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
-RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right or Right Shoulder cycles forward through owned supported weapons, D-pad Left or Left Shoulder cycles backward, and Back+Start ends
+RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right or Right Shoulder cycles forward through owned supported weapons, D-pad Left or Left Shoulder cycles backward, Start pauses/resumes (source-written, runtime unverified), and Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed

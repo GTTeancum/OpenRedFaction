@@ -52,10 +52,10 @@ static int scene_authored_clutter_fingerprint_mode(const unsigned char source[32
         checkpoint_sha_add(&hash,r->name,(uint32_t)strlen(r->name)+1);checkpoint_sha_add(&hash,r->resource_name,(uint32_t)strlen(r->resource_name)+1);
         checkpoint_sha_add(&hash,cls->model,(uint32_t)strlen(cls->model)+1);
         WORD(cls->flags);if(!mutable_props)WORD(cls->timer);FLOAT(cls->life);FLOAT(cls->radius);WORD(cls->material);WORD(cls->model_kind);
-        WORD(state->handle);WORD(state->first_word);WORD(state->flags&~(0x05000010u|(mutable_props?0x204002u:0u)));WORD(state->physics_flags);
+        WORD(state->handle);WORD(state->first_word);WORD(state->flags&~(0x05000010u|(mutable_props?0x204006u:0u)));WORD(state->physics_flags);
         /* Only visited01000000, room-dirty04000000 and rendered10 are excluded:
          * scene attachments pass and rf_object_render_dispatch update these. RFCP4
-         * additionally persists retired/hidden/hit flags, health and class timer. */
+         * additionally persists retired/hidden/hit/immunity flags, health and class timer. */
         VECTOR(state->position,3);if(!mutable_props)FLOAT(state->health);FLOAT(state->armor);WORD(state->corpse);WORD(state->skin);
         WORD(state->timer_a4);WORD(state->word_a8);WORD(state->timer_b0);WORD(state->timer_b4);WORD(state->emitter_head);WORD(state->word_b8);
         WORD(state->sound);WORD(state->sound_d0);WORD(state->byte_cc);WORD(state->slot);

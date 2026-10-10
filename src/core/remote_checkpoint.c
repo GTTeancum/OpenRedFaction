@@ -42,19 +42,29 @@ static int remote_charge_valid(const rf_remote_charge *c,uint32_t owner_key,uint
 }
 static int remote_scheduler_valid(uint32_t held,uint32_t pending,uint32_t delay,uint32_t cooldown)
 {return held<=3 && pending<=2 && delay<=21 && cooldown<=45 && (pending || !delay) && (pending!=2 || delay<=15);}
+static int remote_followup_valid(uint32_t selected,uint32_t pending,uint32_t delay,uint32_t target,uint32_t ticks)
+{
+    if(!target)return !ticks;
+    if(target>2 || !ticks || ticks>RF_REMOTE_FOLLOWUP_MAX_TICKS)return 0;
+    if(target==1)return selected==2 && !pending;
+    return selected==1 && (!pending || ticks>delay);
+}
 int rf_remote_checkpoint_encode(const rf_remote_checkpoint *state,uint32_t level,uint32_t catalog,
     void *output,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=output;uint32_t i,count=0,at=RF_REMOTE_CHECKPOINT_HEADER,bytes;
+    unsigned char *p=output;uint32_t i,count=0,at,header,bytes;
     if(!state || !p || !written)return RF_RANGE;
-    if(state->selected_mode>2 || !remote_scheduler_valid(state->held,state->pending,state->delay,state->cooldown))return RF_FORMAT;
+    if(state->selected_mode>2 || !remote_scheduler_valid(state->held,state->pending,state->delay,state->cooldown) ||
+       !remote_followup_valid(state->selected_mode,state->pending,state->delay,state->followup_target,state->followup_ticks))return RF_FORMAT;
     for(i=0;i<32;i++){
         if(state->charges[i].flight.lifecycle.active>1)return RF_FORMAT;
         if(state->charges[i].flight.lifecycle.active){if(!remote_charge_valid(state->charges+i,state->owner_keys[i],state->host_keys[i]))return RF_FORMAT;++count;}}
-    bytes=RF_REMOTE_CHECKPOINT_HEADER+count*RF_REMOTE_CHECKPOINT_RECORD;if(capacity<bytes)return RF_RANGE;
-    memset(p,0,RF_REMOTE_CHECKPOINT_HEADER);memcpy(p,"RFRM",4);remote_write32(p+4,1);remote_write32(p+8,bytes);
+    header=state->followup_target?RF_REMOTE_CHECKPOINT_HEADER:RF_REMOTE_CHECKPOINT_HEADER_V1;at=header;
+    bytes=header+count*RF_REMOTE_CHECKPOINT_RECORD;if(capacity<bytes)return RF_RANGE;
+    memset(p,0,header);memcpy(p,"RFRM",4);remote_write32(p+4,state->followup_target?2:1);remote_write32(p+8,bytes);
     remote_write32(p+12,count);remote_write32(p+16,level);remote_write32(p+20,catalog);
     remote_write32(p+24,state->held);remote_write32(p+28,state->pending);remote_write32(p+32,state->delay);remote_write32(p+36,state->cooldown);remote_write32(p+40,state->selected_mode);
+    if(state->followup_target){remote_write32(p+48,state->followup_target);remote_write32(p+52,state->followup_ticks);}
     for(i=0;i<32;i++)if(state->charges[i].flight.lifecycle.active){
         rf_remote_charge c=state->charges[i];uint32_t slot=i,tag=state->tags[i],owner_key=state->owner_keys[i],host_key=state->host_keys[i];
         remote_record(p+at,&c,&slot,&tag,&owner_key,&host_key,0);at+=RF_REMOTE_CHECKPOINT_RECORD;}
@@ -62,29 +72,34 @@ int rf_remote_checkpoint_encode(const rf_remote_checkpoint *state,uint32_t level
 }
 int rf_remote_checkpoint_preflight(const void *input,uint32_t bytes,uint32_t level,uint32_t catalog)
 {
-    const unsigned char *p=input;uint32_t count,i,mask=0,slot,tag,owner_key,host_key;
+    const unsigned char *p=input;uint32_t count,i,mask=0,slot,tag,owner_key,host_key,version,header;
     rf_remote_charge c;
     if(!p)return RF_RANGE;
-    if(bytes<RF_REMOTE_CHECKPOINT_HEADER || bytes>RF_REMOTE_CHECKPOINT_MAX || memcmp(p,"RFRM",4) ||
-       remote_read32(p+4)!=1 || remote_read32(p+8)!=bytes || remote_read32(p+16)!=level || remote_read32(p+20)!=catalog ||
+    if(bytes<RF_REMOTE_CHECKPOINT_HEADER_V1 || bytes>RF_REMOTE_CHECKPOINT_MAX || memcmp(p,"RFRM",4) ||
+       remote_read32(p+8)!=bytes || remote_read32(p+16)!=level || remote_read32(p+20)!=catalog ||
        remote_read32(p+40)>2 || remote_read32(p+44))return RF_FORMAT;
-    count=remote_read32(p+12);if(count>32 || bytes!=RF_REMOTE_CHECKPOINT_HEADER+count*RF_REMOTE_CHECKPOINT_RECORD ||
+    version=remote_read32(p+4);if(version!=1 && version!=2)return RF_FORMAT;
+    header=version==2?RF_REMOTE_CHECKPOINT_HEADER:RF_REMOTE_CHECKPOINT_HEADER_V1;
+    count=remote_read32(p+12);if(count>32 || bytes!=header+count*RF_REMOTE_CHECKPOINT_RECORD ||
        !remote_scheduler_valid(remote_read32(p+24),remote_read32(p+28),remote_read32(p+32),remote_read32(p+36)))return RF_FORMAT;
+    if(version==2 && !remote_followup_valid(remote_read32(p+40),remote_read32(p+28),remote_read32(p+32),
+        remote_read32(p+48),remote_read32(p+52)))return RF_FORMAT;
     /* First pass validates all records before touching the candidate. */
     for(i=0;i<count;i++){
-        memset(&c,0,sizeof(c));remote_record((unsigned char*)p+RF_REMOTE_CHECKPOINT_HEADER+i*RF_REMOTE_CHECKPOINT_RECORD,&c,&slot,&tag,&owner_key,&host_key,1);
+        memset(&c,0,sizeof(c));remote_record((unsigned char*)p+header+i*RF_REMOTE_CHECKPOINT_RECORD,&c,&slot,&tag,&owner_key,&host_key,1);
         if(slot>=32 || (mask&(1u<<slot)) || !remote_charge_valid(&c,owner_key,host_key))return RF_FORMAT;mask|=1u<<slot;}
     return RF_OK;
 }
 int rf_remote_checkpoint_decode(const void *input,uint32_t bytes,uint32_t level,uint32_t catalog,rf_remote_checkpoint *out)
 {
-    const unsigned char *p=input;uint32_t count,i,slot,tag,owner_key,host_key;rf_remote_charge c={0};int status;
+    const unsigned char *p=input;uint32_t count,i,slot,tag,owner_key,host_key,version,header;rf_remote_charge c={0};int status;
     if(!out)return RF_RANGE;
     status=rf_remote_checkpoint_preflight(input,bytes,level,catalog);if(status)return status;
-    count=remote_read32(p+12);
+    count=remote_read32(p+12);version=remote_read32(p+4);header=version==2?RF_REMOTE_CHECKPOINT_HEADER:RF_REMOTE_CHECKPOINT_HEADER_V1;
     memset(out,0,sizeof(*out));out->held=remote_read32(p+24);out->pending=remote_read32(p+28);out->delay=remote_read32(p+32);out->cooldown=remote_read32(p+36);out->selected_mode=remote_read32(p+40);
+    if(version==2){out->followup_target=remote_read32(p+48);out->followup_ticks=remote_read32(p+52);}
     for(i=0;i<count;i++){
-        remote_record((unsigned char*)p+RF_REMOTE_CHECKPOINT_HEADER+i*RF_REMOTE_CHECKPOINT_RECORD,&c,&slot,&tag,&owner_key,&host_key,1);
+        remote_record((unsigned char*)p+header+i*RF_REMOTE_CHECKPOINT_RECORD,&c,&slot,&tag,&owner_key,&host_key,1);
         out->charges[slot]=c;out->tags[slot]=tag;out->owner_keys[slot]=owner_key;out->host_keys[slot]=host_key;}
     return RF_OK;
 }

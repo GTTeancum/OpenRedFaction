@@ -55,10 +55,12 @@ static uint32_t campaign_npc_drop_uid,campaign_npc_drop_frame;
 static float campaign_npc_drop_speed;
 static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
+/* enters,resumes,held polls,status,entry frame,pacing rebases,active,reserved */
+volatile uint32_t rf_xbox_pause_diagnostic[8];
 static void player_input_close(void)
 {
     if(player_replay){fclose(player_replay);player_replay=NULL;}
-    rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();
+    rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();rf_xbox_pause_diagnostic[6]=0;
 }
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
@@ -117,7 +119,34 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         uint32_t wait;
         while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
     }
-    return rf_xbox_input_poll(context,frame,input);
+    {
+        int status=rf_xbox_input_poll(context,frame,input);
+        if(status || !rf_xbox_input_pause_pressed())return status;
+        ++rf_xbox_pause_diagnostic[0];rf_xbox_pause_diagnostic[4]=frame;
+        rf_xbox_pause_diagnostic[6]=1;rf_xbox_input_set_paused(1);
+        status=rf_xbox_audio_set_paused(1);
+        rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
+        /* Hold this provider call, so no scene tick, event deadline or replay
+         * record advances. The last presented frame stays visible; SDL alone
+         * is pumped for resume/exit and controller reconnect. */
+        for(;;) {
+            Sleep(10);
+            status=rf_xbox_input_poll(context,frame,input);
+            ++rf_xbox_pause_diagnostic[2];
+            rf_xbox_pause_diagnostic[3]=(uint32_t)status;
+            if(status)return status; /* Ordinary close releases paused voices. */
+            if(!rf_xbox_input_pause_pressed())continue;
+            rf_xbox_input_set_paused(0);
+            status=rf_xbox_audio_set_paused(0);
+            rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
+            ++rf_xbox_pause_diagnostic[1];rf_xbox_pause_diagnostic[6]=0;
+            /* Paused wall time must not create catch-up simulation debt. */
+            rf_player_frame_clock.last_ms=rf_player_frame_clock.last_present_ms=GetTickCount();
+            rf_player_frame_clock.credit=rf_player_frame_clock.skipped=0;
+            ++rf_xbox_pause_diagnostic[5];
+            memset(input,0,sizeof(*input));return RF_OK;
+        }
+    }
 }
 volatile uint32_t rf_door_render_diagnostic[10]={0x52464452u};
 static rf_geometry_collision_world resident_collision;

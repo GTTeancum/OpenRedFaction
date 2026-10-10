@@ -8,6 +8,9 @@ typedef struct rf_clutter_checkpoint_record {
 } rf_clutter_checkpoint_record;
 /* RFPC1: LE header magic/version/bytes/checksum/count/reserved/identity32/reserved8,
  * then UID-sorted24-byte records. Mutable flags: retired2, hidden4000, hit200000.
+ * Disk bit4 is immunity XOR the authored class default (negative class life).
+ * Legacy rows omit it and retain that default. The caller normalizes bit4 to
+ * live immunity before publication; older readers reject new nonzero bit4.
  * Positive-health GeoMod retirement is valid. Nonpositive health must be retired.
  * Cooldown is remaining0..50ms or disabled-1; rows of a shared class must agree.
  * Caller supplies identity over authored level/classes and validates UID/class,

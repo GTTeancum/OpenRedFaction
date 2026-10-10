@@ -3,8 +3,20 @@
 #include "rf/campaign.h"
 #include "rf/motion.h"
 enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW_V9=588,RF_NPC_CHECKPOINT_ROW=600,
-    RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,RF_NPC_CHECKPOINT_ROW_MAX=1504,
+    RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,
+    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_ROW_MAX=1608,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
+/* Event sleep/wake, the angular prepare gate, and falling/support bits. Class,
+ * sphere and unrelated descriptor flags remain reconstructed from the owner. */
+#define RF_NPC_CHECKPOINT_PHYSICS_BODY_MASK 0x99400001u
+#define RF_NPC_CHECKPOINT_PHYSICS_OBJECT_MASK 0x06000000u
+typedef struct rf_npc_checkpoint_physics {
+    uint32_t present,scripted,body_bits,object_bits;
+    float velocity[3],angular[3],momentum[3],force[3],torque[3];
+} rf_npc_checkpoint_physics;
+typedef struct rf_npc_checkpoint_pain {
+    uint32_t present;int32_t remaining[3],action;uint32_t random;
+} rf_npc_checkpoint_pain;
 typedef struct rf_npc_checkpoint_move {
     uint32_t active,event,follow,path_index,path_mode,path_reverse,path_count,route_index,retry,retained_count;
     uint32_t retained_nodes[4];float target[3],fall_speed,route_start[3],route_goal[3];
@@ -41,6 +53,9 @@ typedef struct rf_npc_checkpoint_record {
     uint32_t shot_count,shot_rng,shield_disabled;rf_npc_checkpoint_shot shots[16];
     float look_command[3],look_delta[3],look_offset[3],look_vector[3];
     uint32_t movement_present,movement_slot,speed_mode; /* RFNC13 class-derived speed/descriptor continuation. */
+    rf_npc_checkpoint_physics physics; /* RFNC14 live / RFNC17 terminal-source freeze/wake continuation. */
+    rf_npc_checkpoint_pain pain; /* RFNC15 live non-burning damage reaction. */
+    uint32_t holster; /* RFNC16: bit0 entity810/800, bit1 entity7d0/200; living only. */
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     rf_motion_playback_state playback;
@@ -51,7 +66,11 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC13 component (RFNC1-12 remain readable; writer emits13 for retained
+/* RFNC17 component (RFNC1-16 remain readable; writer emits17 only for retained
+ * terminal-source physics, otherwise16 for retained
+ * living holster bits, otherwise15 only for retained
+ * pain state, otherwise14 for retained
+ * script-physics state, otherwise13 for retained
  * movement state, otherwise12 for reactive targets,11 for generated-head Attack
  * or10), not a composed
  * save/profile. UID sorted, 600-byte LE base rows followed by optional 168-byte movement/look and 40-byte combat extensions, optional24*shot_count queued-fire bytes and optional108+12*slot_count
@@ -88,11 +107,43 @@ typedef struct rf_npc_checkpoint_catalog {
  * presence, descriptor slot and speed mode (0 slow,1 normal,2 alternate).
  * Absent fields are zero; scene resolves enabled descriptors and rebuilds the
  * numeric settings from the authored class without replaying a script event.
+ * RFNC14 appends76 bytes after the RFNC13 movement tail on EVERY row: presence,
+ * scripted marker, masked body/object bits, then velocity/angular/momentum/
+ * force/torque XYZ. Absent tails are all zero; pre14 decodes absent. Presence
+ * distinguishes a known post-wake state from an older unsaved physics owner.
+ * Existing quiet linear velocity admission (absolute component <=.001) stays;
+ * other vectors must be finite. Suspended means scripted && !(body80000000),
+ * and requires body18000000. Scene checks current immunity, owned body,
+ * supported attachments and full candidate-world placement before assignment.
+ * RFNC15 appends24 bytes after the RFNC14 physics tail on EVERY row: presence,
+ * remaining AI/animation-lock/cooldown milliseconds, selected pain action and
+ * shared pain RNG. Disabled deadlines are -1, expired deadlines are0. Absent
+ * tails are all zero; pre15 decodes absent. Only living ordinary pain actions
+ * -1/22/23 are admitted. The scene validates selected clips against the actor's
+ * real motion mapping, reconciles the shared RNG and stages rebased deadlines.
+ * Burning reactions retain their existing RFAP4 owner rather than a duplicate
+ * RFNC pain tail. No damage, flinch-start or sound callback runs during restore.
+ * RFNC16 appends4 bytes after the RFNC15 pain tail on EVERY row: compact
+ * holster bits0/1 retain entity810/800 and entity7d0/200 independently. Other
+ * bits are invalid. Nonzero state requires a living nonretired owner; terminal
+ * corpse entity810 remains in death_flags_810. Pre16 supplies zero, allowing
+ * an in-session living restore to clear later holstering without touching
+ * unrelated flags. No inventory, weapon selection or animation is changed.
+ * RFNC17 keeps the exact RFNC16 layout and row maximum; it additionally allows
+ * a present physics tail on a nonretired terminal dead_pose. All existing
+ * death health/flags/single-clip and no-active-script checks still apply.
+ * Both marked and seen-only source bodies retain the same masked bits/vectors;
+ * this neither thaws the source nor copies its freeze to a separate corpse.
+ * Dead moving support, seats, nonfinite vectors and nonquiet linear velocity
+ * remain invalid.
+ * Pre17 rejects present physics combined with dead_pose, including RFNC14-16.
+ * Scene placement retains full candidate clearance and existing suspension
+ * semantics. Restoring saved bits/vectors is assignment-only, without callbacks.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
  * Supported basic modes -1/0/1/2/11 and seated mode13. The composed scene must
  * admit mode13 against explicit saved seat ownership; the codec alone does not
  * establish a valid linked actor. Scene must reject other scripted combat,
- * unsupported movement, reload/pain/death transitions, projectiles, linked/carried objects
+ * unsupported movement, reload/death transitions, projectiles, linked/carried objects
  * and other unsaved state; validate UID/class, class vitals, affiliation,
  * pose clearance and resource availability before any publication.
  * Complete inventory preserves dormant magazines after authored None clears

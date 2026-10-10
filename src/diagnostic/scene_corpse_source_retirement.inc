@@ -45,19 +45,9 @@ static int scene_corpse_source_retire(uint32_t model,uint32_t uid)
         actor->damage.effects.health=health; /* Preserve the actual fatal value. */
         ++rf_scene_corpse_source_retirement[0];
     }
-    /* A retired actor cannot execute its previous orders. These inline banks
-     * borrow level resources; clearing them frees no external resources and
-     * prevents RFNC from requiring a discarded dead actor's animation/route. */
-    while(actor->script_once.count)campaign_script_single_pop(actor,0);
-    memset(&actor->script_move,0,sizeof(actor->script_move));
-    memset(&actor->script_look,0,sizeof(actor->script_look));
-    memset(&actor->script_shoot,0,sizeof(actor->script_shoot));
-    memset(&actor->script_animation,0,sizeof(actor->script_animation));
-    actor->navigation.retained.count=0;actor->controller_handle=0;
-    actor->combat_alert=actor->combat_due=actor->combat_burst_remaining=0;
-    actor->combat_reload_due=0;actor->combat_reload_weapon=-1;
-    actor->combat_scripted=actor->combat_target=actor->combat_navigation_due=0;
-    actor->ai_mode.action_280=actor->view.action_520=1;
+    /* Also covers an already-retired source; ordinary removal now cancels
+     * these same borrowed banks before returning. Repeating is inert. */
+    scene_npc_retirement_cancel_orders(actor);
     key->retired=1;rf_scene_defeated_actors.vitals[persistent].valid=0;
     rf_scene_defeated_actors.vitals[persistent].health=health;
     rf_scene_defeated_actors.vitals[persistent].armor=actor->damage.effects.armor;

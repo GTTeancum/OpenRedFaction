@@ -7,7 +7,11 @@
  * lifetime and quarter-second batching are explicit first-pass port policy.
  * Include after combat feedback callbacks and combat_death_start. */
 #define SCENE_BURNING_CAPACITY 64u
-typedef struct scene_burning_record {uint32_t target,source,left,phase;} scene_burning_record;
+typedef struct scene_burning_record {
+    uint32_t target,source,left,phase;
+    uint32_t source_uid; /* Nonzero: historical authored NPC, independent of source liveness. */
+} scene_burning_record;
+#include "scene_burning_source_identity.inc"
 static scene_burning_record scene_burning_records[SCENE_BURNING_CAPACITY];
 /* ignitions, damage pulses, retirements, deaths, capacity refusals */
 uint32_t rf_scene_burning[5];
@@ -42,7 +46,8 @@ static uint32_t scene_burning_create(uint32_t target,uint32_t source)
     for(i=0;i<SCENE_BURNING_CAPACITY;i++)if(scene_burning_records[i].left && scene_burning_records[i].target==target)return i+1;
     for(i=0;i<SCENE_BURNING_CAPACITY && scene_burning_records[i].left;i++){}
     if(i==SCENE_BURNING_CAPACITY){++rf_scene_burning[4];return 0;}
-    scene_burning_records[i]=(scene_burning_record){target,source,300,0};owner->damage.burn_source=source;
+    scene_burning_records[i]=(scene_burning_record){target,source,300,0,scene_burning_source_uid(source)};
+    owner->damage.burn_source=source;
     ++rf_scene_burning[0];return i+1;
 }
 static int scene_burning_tick(scene_stream *stream,uint32_t frame)
@@ -57,6 +62,7 @@ static int scene_burning_tick(scene_stream *stream,uint32_t frame)
         campaign_npc_body *owner=scene_burning_owner(r->target,&index);
         if(!owner || owner->damage.effects.burn!=i+1 || owner->damage.effects.health<=0 ||
            (owner->object_flags&(2u|0x4000u)) || (owner->view.flags_810&1u)){scene_burning_retire(i);continue;}
+        r->source=scene_burning_source_native(r);owner->damage.burn_source=r->source;
         if(stream->collision && stream->liquid_rooms){rf_collision_room_location location;
             status=rf_geometry_collision_world_locate(stream->collision,owner->body.state.position,&location);if(status)return status;
             if(location.room<stream->swim_room_count){const rf_liquid_room *liquid=stream->liquid_rooms+location.room;

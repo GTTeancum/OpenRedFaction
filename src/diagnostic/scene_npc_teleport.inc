@@ -83,6 +83,7 @@ static int campaign_teleport_npc(void *context,uint32_t handle,const rf_level_ev
     scene_npc_teleport_host_probe(old_parent,&old_driver,&old_health,old_host_position);
     if(was_seated){status=scene_npc_seat_unbind(handle,now);if(status)goto fail;}
     status=campaign_ai_mode_apply(o,2,now);if(status)goto fail;
+    scene_npc_loop_audio_remove(handle);
     memset(&o->script_move,0,sizeof(o->script_move));o->script_move.stop=1;
     memset(&o->navigation,0,sizeof(o->navigation));
     memcpy(o->navigation.start.position,event->position,12);

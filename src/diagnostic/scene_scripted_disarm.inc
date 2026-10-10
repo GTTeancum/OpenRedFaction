@@ -86,6 +86,7 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
         ++rf_scene_scripted_disarm[2];
     }
     /* All fallible work completed. Inventory/model publication cannot fail. */
+    scene_ai_drone_smash_cancel_source(handle);
     before[0]=1;before[1]=rf_scene_scripted_disarm[5];before[2]=handle;before[3]=(uint32_t)campaign_blackout_now;
     before[4]=(uint32_t)weapon;before[5]=(uint32_t)o->view.weapons[1];before[8]=owned;
     memcpy(before+13,&o->damage.effects.health,4);before[15]=o->script_move.active;

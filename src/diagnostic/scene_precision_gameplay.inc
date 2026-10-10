@@ -1,10 +1,12 @@
 /* Include immediately before combat_tick, after retained damage/death helpers.
- * Port first-pass precision shots. Rail pierces_all is authored; scope/scanner,
- * sniper material piercing remains separate.
+ * Port first-pass precision shots. Sniper consumes authored object power;
+ * world-metal exit/ricochet traversal remains separate. Rail is unchanged.
  * Call only for an accepted PRIMARY shot, after one ammo consumption. */
 #include "rf/weapon_precision.h"
+#include "scene_sniper_penetration.inc"
 typedef struct scene_precision_contact {
     rf_hitscan_selection actor;scene_npc_shield_candidate shield;uint32_t shield_hit;
+    float query_fraction; /* Local advanced-ray fraction; shield token stays intact. */
 } scene_precision_contact;
 /* Stable near-to-far ordering carries the original shield query token intact. */
 static void scene_precision_insert(scene_precision_contact *hits,uint32_t *count,
@@ -19,11 +21,19 @@ static void scene_precision_insert(scene_precision_contact *hits,uint32_t *count
 static int scene_precision_fire(scene_stream *stream,uint32_t frame,
     const float position[3],const float forward[3],uint32_t rail)
 {
-    scene_precision_contact hits[RF_WEAPON_PRECISION_HITS];uint32_t count=0,i;
-    scene_clutter_precision_contact prop={UINT32_MAX,UINT32_MAX,1};
-    float delta[3],end[3],nearest=1;int status;
-    rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_selected=0;
+    scene_sniper_penetration sniper;float delta[3],end[3];uint32_t i;int status;
+    float sniper_base=campaign_pistol.damage;int32_t sniper_kind=campaign_pistol.damage_kind;
+    int32_t weapon=campaign_selected_weapon(); /* Retain the accepted shot's identity across damage callbacks. */
     for(i=0;i<3;++i){delta[i]=forward[i]*100.0f;end[i]=position[i]+delta[i];}
+    if(!rail){status=scene_sniper_penetration_begin(campaign_pistol.piercing_enabled,
+        campaign_pistol.piercing_power,position,delta,&sniper);if(status)return status;}
+    for(;;){
+    scene_precision_contact hits[RF_WEAPON_PRECISION_HITS];uint32_t count=0,continue_sniper=0;
+    scene_clutter_precision_contact prop={UINT32_MAX,UINT32_MAX,1};
+    rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_selected=0;
+    float nearest=1,sniper_damage=sniper_base;
+    const float *actor_position=rail?position:sniper.start,*actor_delta=rail?delta:sniper.delta;
+    if(!rail){status=scene_sniper_penetration_damage(&sniper,sniper_base,&sniper_damage);if(status)return status;}
     /* One borrowed candidate at a time avoids an actor-count-sized allocation.
      * Retain globally nearest hits even if a far actor was enumerated first. */
     for(i=0;i<campaign_npc_body_count;++i){
@@ -34,33 +44,40 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
            owner->damage.effects.health<=0 ||
            (owner->view.flags_810&1))continue;
         if(rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration)continue;
+        if(!rail && scene_sniper_penetration_visited(&sniper,owner->registration.handle))continue;
         hit.actor=(rf_hitscan_selection){0,i,owner->registration.handle,1};
         if(owner->body.allocated_bytes) {
             candidate=(rf_hitscan_candidate){owner->registration.handle,1,&owner->registration,&owner->body,NULL};
-            status=rf_weapon_precision_select(&campaign_registry,&candidate,1,position,delta,1,
+            status=rf_weapon_precision_select(&campaign_registry,&candidate,1,actor_position,actor_delta,1,
                 rail?RF_WEAPON_PRECISION_RAIL:RF_WEAPON_PRECISION_SNIPER,NULL,NULL,&selected);
             if(status)return status;
             if(selected.count){hit.actor=selected.hits[0];hit.actor.index=i;}
         }
         if(scene_npc_shields.owners) {
-            status=scene_npc_shield_query(i,position,end,1,&hit.shield,&accepted);
+            status=scene_npc_shield_query(i,actor_position,end,1,&hit.shield,&accepted);
             if(status && status!=RF_NOT_FOUND)return status;
             if(!status && accepted){
                 uint32_t body_before=0;
                 /* A coarse sphere can extend beyond the shield. Resolve the
                  * actual body surface before allowing that proxy to occlude it. */
                 if(hit.actor.matched && hit.actor.fraction<hit.shield.hit.time) {
-                    status=scene_npc_shield_body_before(&hit.shield,position,end,&body_before);
+                    status=scene_npc_shield_body_before(&hit.shield,actor_position,end,&body_before);
                     if(status)return status;
                 }
                 if(!body_before){hit.shield_hit=1;hit.actor.matched=1;hit.actor.fraction=hit.shield.hit.time;}
             }
         }
-        if(hit.actor.matched)scene_precision_insert(hits,&count,capacity,&hit);
+        if(hit.actor.matched){
+            hit.query_fraction=hit.actor.fraction;
+            if(!rail)hit.actor.fraction=sniper.cursor+(1-sniper.cursor)*hit.actor.fraction;
+            scene_precision_insert(hits,&count,capacity,&hit);
+        }
     }
     if(count)nearest=hits[0].actor.fraction;
-    /* Sniper stops at its nearest target; authored rail pierces world and all
-     * retained targets, including this additional single vehicle candidate. */
+    /* Sniper rechecks ALL competing cover from the original shot origin on
+     * every pass. Advancing through an actor must not leap over a wall, prop,
+     * vehicle or detached piece inside that advance or behind earlier actors.
+     * Rail retains its original single full-ray pass. */
     status=scene_driller_firearm_select(campaign_player_object.handle,position,delta,
         rail?1:nearest,&vehicle_contact,&vehicle_selected);if(status)return status;
     if(vehicle_selected&&!rail)nearest=vehicle_contact.hit.fraction;
@@ -81,57 +98,74 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
                 if(status)return status;
             }
             if(!wall){
-                status=scene_detached_sources_damage(stream,hit.batch,hit.piece.piece,campaign_pistol.damage);
+                status=scene_detached_sources_damage(stream,hit.batch,hit.piece.piece,rail?campaign_pistol.damage:sniper_damage);
                 rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
                 ++rf_scene_detached_hitscan[1];rf_scene_detached_hitscan[3]=hit.batch;
                 rf_scene_detached_hitscan[4]=hit.piece.piece;
                 rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);
                 combat_surface_frame=frame;
-            }
+                scene_weapon_impact_audio_contact(weapon,-1,hit.piece.hit.point);
+            }else if(!rail)scene_weapon_impact_audio_world(stream,weapon,position,delta,hit.piece.hit.fraction);
             if(!rail)return RF_OK;
         }
     }
 
     if(rail){uint32_t prop_hits;
-        status=scene_clutter_precision_rail(position,delta,campaign_pistol.damage,campaign_pistol.damage_kind,&prop_hits);if(status)return status;
+        status=scene_clutter_precision_rail(position,delta,campaign_pistol.damage,campaign_pistol.damage_kind,weapon,&prop_hits);if(status)return status;
     }else{uint32_t handled;
-        status=scene_clutter_precision_commit(stream,position,delta,&prop,campaign_pistol.damage,campaign_pistol.damage_kind,&handled);if(status)return status;
+        status=scene_clutter_precision_commit(stream,position,delta,&prop,sniper_damage,sniper_kind,weapon,&handled);if(status)return status;
         if(handled)return RF_OK;
     }
     if(vehicle_selected){uint32_t blocked=0,handled;float applied;
         if(!rail){status=combat_shot_obstructed(stream,position,delta,vehicle_contact.hit.fraction,&blocked);if(status)return status;}
         if(!blocked){
+            uint32_t audio_contact=scene_weapon_impact_audio_ready(weapon) &&
+                scene_driller_projectile_contact_live(&vehicle_contact,campaign_player_object.handle);
             status=scene_driller_projectile_damage(&vehicle_contact,campaign_player_object.handle,
-                campaign_pistol.damage,campaign_pistol.damage_kind,frame,&handled,&applied);if(status)return status;
-        }
+                rail?campaign_pistol.damage:sniper_damage,rail?campaign_pistol.damage_kind:sniper_kind,frame,&handled,&applied);if(status)return status;
+            if(handled && audio_contact)scene_weapon_impact_audio_contact(weapon,-1,vehicle_contact.hit.point);
+        }else if(!rail)scene_weapon_impact_audio_world(stream,weapon,position,delta,vehicle_contact.hit.fraction);
         if(!rail)return RF_OK;
     }
     for(i=0;i<count;++i){
         campaign_npc_body *owner=campaign_npc_bodies+hits[i].actor.index;
         uint32_t handle=hits[i].actor.handle,entered=0,bits,blocked=0;
-        float amount=0,seconds=(float)frame/60;
-        rf_damage_request request={campaign_pistol.damage,campaign_player_object.handle,
-            campaign_pistol.damage_kind,0,UINT32_MAX,0};
+        float amount=0,seconds=(float)frame/60,point[3];
+        rf_damage_request request={rail?campaign_pistol.damage:sniper_base,campaign_player_object.handle,
+            rail?campaign_pistol.damage_kind:sniper_kind,0,UINT32_MAX,0};
         combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
         rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
             combat_random,combat_notify,combat_playing,combat_play,&feedback};
         if(rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration ||
-           owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)))continue;
+           owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000))){
+            if(!rail)return RF_OK;continue;
+        }
         if(!rail){status=combat_shot_obstructed(stream,position,delta,hits[i].actor.fraction,&blocked);
-            if(status)return status;if(blocked)continue;}
+            if(status)return status;if(blocked){
+                scene_weapon_impact_audio_world(stream,weapon,position,delta,hits[i].actor.fraction);return RF_OK;}}
         if(hits[i].shield_hit){
             uint32_t accepted,broken;
-            status=scene_npc_shield_commit(&hits[i].shield,position,end,request.amount,request.kind,&accepted,&broken);
+            status=scene_npc_shield_commit(&hits[i].shield,actor_position,end,request.amount,request.kind,&accepted,&broken);
             if(status && status!=RF_NOT_FOUND)return status;
             /* A shield-only candidate never falls through to body damage if
              * ownership changed. Rail continues with later ordered owners. */
-            continue;
+            if(!rail)return RF_OK;continue;
         }
-        {uint32_t consumed;status=scene_nano_weapon_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
-         if(status)return status;if(consumed){combat_hit_frame=frame;if(rail)return RF_OK;continue;}}
+        {uint32_t consumed;status=scene_nano_weapon_contact(owner,rail?campaign_slot_weapon(campaign_equipped_slot):weapon,request.amount,&consumed);
+         if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
+        for(uint32_t j=0;j<3;j++)point[j]=actor_position[j]+actor_delta[j]*hits[i].query_fraction;
+        if(!rail){
+            /* Nano and physical shields precede4c9b20; they keep unscaled base
+             * damage and consume the shot. Snapshot this real body's radius
+             * before ordinary damage/death can retire or rebuild its owner. */
+            request.amount=sniper_damage;
+            status=scene_sniper_penetration_body(&sniper,handle,owner->body.state.bounds.radius,
+                hits[i].actor.fraction,point,end,&continue_sniper);if(status)return status;
+        }
         memcpy(&bits,&seconds,4);
         status=rf_scene_npc_damage(handle,&request,1,bits,&effects,&amount);
         if(!status)status=feedback.status;if(status)return status;
+        scene_weapon_impact_audio_contact(weapon,(int32_t)owner->collision_material,point);
         if(amount>0){
             combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
             if(!owner->combat_alert && owner->view.weapons[0]>=0){
@@ -147,5 +181,10 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
             if(entered){++rf_scene_combat[2];status=combat_death_start(hits[i].actor.index);if(status)return status;}
         }
     }
+    if(!rail && continue_sniper)continue;
+    /* A sniper miss can still contact world geometry. Rail deliberately has
+     * no synthetic world hit: its pierced world-contact sequence is not retained. */
+    if(!rail && !count)scene_weapon_impact_audio_world(stream,weapon,position,delta,nearest);
     return RF_OK;
+    }
 }

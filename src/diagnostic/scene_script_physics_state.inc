@@ -38,6 +38,7 @@ static int campaign_set_physics_enabled(void *context,uint32_t handle,uint32_t e
         rf_scene_physics_state[4]=(uint32_t)campaign_seeds.records.items[i].record.uid;
         status=rf_physics_set_enabled(&o->body.state,&o->object_flags,enabled);
         if(!status){
+            o->scripted_physics_seen=1; /* RFNC14 owns accepted ON and OFF state. */
             if(enabled)o->scripted_physics=0;else if(!(o->object_flags&0x08000000u))o->scripted_physics=1;
             o->view.flags_7c=o->object_flags;rf_scene_physics_state[6]=o->body.state.flags;
             uint32_t n;for(n=0;n<scene_script_physics_count;n++)if(scene_script_physics_npcs[n]==handle)break;

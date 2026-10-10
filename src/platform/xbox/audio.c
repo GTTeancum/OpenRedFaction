@@ -9,6 +9,8 @@
 typedef struct audio_slot {nxAudioVoice voice;nxAudioBuffer buffer;uint32_t handle,created;} audio_slot;
 static audio_slot slots[VOICES];
 static int initialized;
+static uint32_t audio_paused,paused_slots,paused_music;
+uint32_t rf_xbox_audio_pause_diagnostic[8];
 #define MUSIC_FRAMES 4096u
 /* Exactly 32 KiB of PCM; descriptors and pages remain stable until completion.
  * This voice is independent of the thirty ordinary static SFX/VO slots. */
@@ -33,13 +35,63 @@ static int stopped(nxAudioVoice *voice,uint32_t timeout)
     }
     return 1;
 }
+int rf_xbox_audio_set_paused(uint32_t paused)
+{
+    uint32_t i;int status=RF_OK;KIRQL irql;
+    if(paused>1)return RF_RANGE;
+    if(!initialized || paused==audio_paused)return RF_OK;
+    /* Pause/Start perform their own nested DPC exclusion and issue PIO only.
+     * Keep the state test, operation and ownership mark together: completion
+     * must not turn an already-finished one-shot into a new paused borrower. */
+    irql=KeRaiseIrqlToDpcLevel();
+    if(paused) {
+        paused_slots=paused_music=0;
+        for(i=0;i<VOICES;i++)if(slots[i].created &&
+            nxAudioVoiceGetState(&slots[i].voice)==NX_PLAYING) {
+            if(nxAudioVoicePause(&slots[i].voice))paused_slots|=1u<<i;
+            else status=RF_IO;
+        }
+        if(music.created && nxAudioVoiceGetState(&music.voice)==NX_PLAYING) {
+            if(nxAudioVoicePause(&music.voice))paused_music=1;
+            else status=RF_IO;
+        }
+        ++rf_xbox_audio_pause_diagnostic[1];
+        rf_xbox_audio_pause_diagnostic[3]=0;
+        for(i=0;i<VOICES;i++)rf_xbox_audio_pause_diagnostic[3]+=!!(paused_slots&(1u<<i));
+        rf_xbox_audio_pause_diagnostic[4]=paused_music;
+    } else {
+        for(i=0;i<VOICES;i++)if(paused_slots&(1u<<i)) {
+            if(slots[i].created && nxAudioVoiceGetState(&slots[i].voice)==NX_PAUSED) {
+                if(!nxAudioVoiceStart(&slots[i].voice))status=RF_IO;
+            } else ++rf_xbox_audio_pause_diagnostic[5];
+        }
+        if(paused_music) {
+            if(music.created && nxAudioVoiceGetState(&music.voice)==NX_PAUSED) {
+                if(music.voice.buffers_hardware[0] || music.voice.buffers_hardware[1]) {
+                    if(!nxAudioVoiceStart(&music.voice))status=RF_IO;
+                } else {
+                    /* A pending completion DPC can finish removing lists that
+                     * drained just before hardware accepted Pause. Start
+                     * rejects an empty voice. Leave started/revision/decoder
+                     * intact for music_poll's existing drained-queue path. */
+                    ++rf_xbox_audio_pause_diagnostic[6];
+                }
+            } else ++rf_xbox_audio_pause_diagnostic[5];
+        }
+        paused_slots=paused_music=0;++rf_xbox_audio_pause_diagnostic[2];
+    }
+    audio_paused=paused;rf_xbox_audio_pause_diagnostic[0]=paused;
+    KfLowerIrql(irql);
+    if(status)++rf_xbox_audio_pause_diagnostic[7];return status;
+}
 int rf_xbox_audio_release_voice(uint32_t handle)
 {
     uint32_t i;
     if(!initialized)return RF_NOT_FOUND;
     for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle) {
         if(!nxAudioVoiceStop(&slots[i].voice) || !stopped(&slots[i].voice,1000))return RF_IO;
-        nxAudioVoiceDestroy(&slots[i].voice);memset(slots+i,0,sizeof(slots[i]));return RF_OK;
+        nxAudioVoiceDestroy(&slots[i].voice);memset(slots+i,0,sizeof(slots[i]));
+        paused_slots&=~(1u<<i);return RF_OK;
     }
     return RF_NOT_FOUND;
 }
@@ -52,6 +104,7 @@ int rf_xbox_audio_release_idle_sample(const uint8_t *samples)
         (slots[i].voice.looping || nxAudioVoiceGetState(&slots[i].voice)!=NX_STOPPED))return RF_RANGE;
     for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].buffer.buffer==samples) {
         nxAudioVoiceDestroy(&slots[i].voice);memset(slots+i,0,sizeof(slots[i]));
+        paused_slots&=~(1u<<i);
     }
     return RF_OK;
 }
@@ -82,6 +135,7 @@ void rf_xbox_audio_close(void)
         }
     }
     memset(slots,0,sizeof(slots));memset(&music,0,sizeof(music));initialized=0;
+    audio_paused=paused_slots=paused_music=0;rf_xbox_audio_pause_diagnostic[0]=0;
     rf_xbox_music_diagnostic[0]=0;rf_xbox_music_diagnostic[9]=0;
     rf_xbox_audio_diagnostic[10]=available();rf_xbox_audio_diagnostic[0]=0;
     ++rf_xbox_audio_diagnostic[4];rf_xbox_audio_close_phase=4;
@@ -90,6 +144,8 @@ int rf_xbox_audio_open(void)
 {
     nxAudioInitParams init={0};
     if(initialized)return RF_RANGE;
+    audio_paused=paused_slots=paused_music=0;
+    memset(rf_xbox_audio_pause_diagnostic,0,sizeof(rf_xbox_audio_pause_diagnostic));
     memset(rf_xbox_audio_diagnostic,0,sizeof(rf_xbox_audio_diagnostic));
     memset(rf_xbox_audio_snapshot,0,sizeof(rf_xbox_audio_snapshot));
     memset(&music,0,sizeof(music));
@@ -119,14 +175,43 @@ static int music_release(void)
 {
     if(!music.created)return RF_OK;
     if(!nxAudioVoiceStop(&music.voice) || !stopped(&music.voice,1000))return RF_IO;
-    nxAudioVoiceDestroy(&music.voice);music.created=music.started=0;
+    nxAudioVoiceDestroy(&music.voice);music.created=music.started=0;paused_music=0;
     rf_xbox_music_diagnostic[0]=0;rf_xbox_music_diagnostic[9]=0;
     return RF_OK;
 }
+static int music_create(void)
+{
+    nxAudioFormat format={0};
+    format.sample_rate=48000;format.channels=2;format.bytes_per_sample=2;
+    format.codec=NX_AUDIO_CODEC_PCM;format.type=NX_VOICE_TYPE_2D_STREAM;
+    if(!nxAudioVoiceCreate(&music.voice,&format))return RF_IO;
+    music.created=1;
+    nxAudioBufferSetCallback(&music.voice,music_completed,NULL);return RF_OK;
+}
+static int music_queue(const nxAudioBuffer *buffer)
+{
+    uint32_t busy;int status;KIRQL irql=KeRaiseIrqlToDpcLevel();
+    /* Decoding may block on archive I/O after the earlier borrower check.
+     * If the last list drained meanwhile, Queue's first-free A/B selection
+     * need not match the hardware's next list. Keep this check and Queue in
+     * one DPC exclusion; the backend explicitly supports Queue at this IRQL. */
+    if(music.started && !music_borrowed(&busy)) {
+        KfLowerIrql(irql);
+        ++rf_xbox_music_diagnostic[4];
+        /* Wait/recreate only at the caller's ordinary IRQL. The decoded PCM
+         * and its descriptor stay intact; do not reset the decoder or index. */
+        status=music_release();if(status)return status;
+        status=music_create();if(status)return status;
+        irql=KeRaiseIrqlToDpcLevel();
+    }
+    status=nxAudioBufferQueue(&music.voice,buffer)?RF_OK:RF_IO;
+    KfLowerIrql(irql);return status;
+}
 static int music_poll(void *context,rf_music_stream *stream,uint32_t revision)
 {
-    uint32_t busy,queued,attempt;int status;nxAudioFormat format={0};(void)context;
+    uint32_t busy,queued,attempt;int status;(void)context;
     if(!initialized)return RF_NOT_FOUND;
+    if(audio_paused)return RF_OK; /* Do not decode, refill, retire or restart. */
     if(revision!=music.revision) {
         music.revision=revision;music.failed=0;rf_xbox_music_diagnostic[10]=revision;
         status=music_release();if(status)goto fail;
@@ -141,11 +226,8 @@ static int music_poll(void *context,rf_music_stream *stream,uint32_t revision)
     }
     if(!music.created) {
         if(!stream->active)return RF_OK;
-        format.sample_rate=48000;format.channels=2;format.bytes_per_sample=2;
-        format.codec=NX_AUDIO_CODEC_PCM;format.type=NX_VOICE_TYPE_2D_STREAM;
-        if(!nxAudioVoiceCreate(&music.voice,&format)){status=RF_IO;goto fail;}
-        music.created=1;music.next_buffer=0;
-        nxAudioBufferSetCallback(&music.voice,music_completed,NULL);
+        status=music_create();if(status)goto fail;
+        music.next_buffer=0;
     }
     /* Queue only into descriptors whose previous PCM borrower has completed.
      * The DPC can only remove borrowers; it cannot acquire a free buffer while
@@ -156,8 +238,8 @@ static int music_poll(void *context,rf_music_stream *stream,uint32_t revision)
         pcm=music_pcm[music.next_buffer];memset(pcm,0,sizeof(music_pcm[0]));
         status=rf_music_mix(stream,pcm,MUSIC_FRAMES);if(status)goto fail;
         for(i=0;i<MUSIC_FRAMES*2;i++)nonzero+=pcm[i]!=0;
-        if(!nxAudioBufferInitialize(music.buffers+music.next_buffer,pcm,sizeof(music_pcm[0])) ||
-           !nxAudioBufferQueue(&music.voice,music.buffers+music.next_buffer)){status=RF_IO;goto fail;}
+        if(!nxAudioBufferInitialize(music.buffers+music.next_buffer,pcm,sizeof(music_pcm[0]))){status=RF_IO;goto fail;}
+        status=music_queue(music.buffers+music.next_buffer);if(status)goto fail;
         ++rf_xbox_music_diagnostic[2];rf_xbox_music_diagnostic[6]+=MUSIC_FRAMES;
         rf_xbox_music_diagnostic[7]+=nonzero;music.next_buffer^=1;
     }
@@ -179,12 +261,12 @@ fail:
 static int32_t allocation_status(void *context,uint32_t slot,uint32_t *bits)
 {(void)context;*bits=nxAudioVoiceGetState(&slots[slot].voice)==NX_STOPPED?0u:1u;return 0;}
 static void allocation_release(void *context,uint32_t index)
-{(void)context;nxAudioVoiceDestroy(&slots[index].voice);memset(slots+index,0,sizeof(*slots));}
+{(void)context;nxAudioVoiceDestroy(&slots[index].voice);memset(slots+index,0,sizeof(*slots));paused_slots&=~(1u<<index);}
 static int play_mode(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right,uint32_t looping)
 {
     uint32_t i;int32_t selected;nxAudioFormat format={0};audio_slot *slot;rf_audio_allocation_slot facts[VOICES];(void)context;
     static const rf_audio_allocation_backend backend={allocation_status,allocation_release};
-    if(!initialized)return RF_NOT_FOUND;
+    if(!initialized || audio_paused)return RF_NOT_FOUND;
     if(!(left>=0 && left<=1 && right>=0 && right<=1) || looping>1 || !pcm || !pcm->samples || !pcm->frames ||
        !pcm->rate || pcm->rate>192000 || (pcm->channels!=1 && pcm->channels!=2) || (pcm->bits!=8 && pcm->bits!=16) ||
        (uint64_t)pcm->frames*pcm->channels*(pcm->bits/8)!=pcm->bytes){++rf_xbox_audio_diagnostic[3];return RF_RANGE;}

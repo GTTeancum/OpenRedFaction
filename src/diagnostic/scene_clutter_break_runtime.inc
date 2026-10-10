@@ -75,6 +75,27 @@ static int scene_clutter_break_tick(scene_stream *s,uint32_t frame)
         if(profile->break_effect&&scene_clutter_break_effects[profile->break_effect-1]){
             status=scene_clutter_break_impact_start(s,&contact,frame,profile->break_radius,profile->break_effect-1);if(status)return status;
             combat_sound(scene_clutter_break_effects[profile->break_effect-1]->foley,contact.hit.point);
+        } else if((uint32_t)owner->state.definition->explosion<64) {
+            uint32_t sound=scene_clutter_break_foley_groups[owner->state.definition->explosion];
+            if(sound && sound<=campaign_foley.group_count && campaign_foley.groups) {
+                /* This is the same consumed health-death request and class
+                 * cooldown as visual breaks. Missing/exhausted audio remains
+                 * nonfatal through combat_sound; never queue a second attempt. */
+                uint32_t starts=rf_scene_weapon_audio[2],errors=rf_scene_weapon_audio[7];
+                combat_sound(campaign_foley.groups[sound-1].name,contact.hit.point);
+                ++rf_scene_clutter_break_audio[0];
+                rf_scene_clutter_break_audio[1]+=rf_scene_weapon_audio[2]-starts;
+                rf_scene_clutter_break_audio[2]+=rf_scene_weapon_audio[7]-errors;
+                rf_scene_clutter_break_audio[3]=campaign_clutter_records.items[i].uid;
+                rf_scene_clutter_break_audio[4]=frame;
+                rf_scene_clutter_break_audio[5]=(uint32_t)owner->state.definition->explosion;
+                rf_scene_clutter_break_audio[6]=sound-1;
+                rf_scene_clutter_break_audio[7]=rf_scene_weapon_audio[5];
+                rf_scene_clutter_break_audio[8]=rf_scene_weapon_audio[8];
+                rf_scene_clutter_break_audio[9]=rf_scene_weapon_audio[2]-starts;
+                if(rf_scene_combat_trace)printf("CLUTTER_BREAK_FOLEY uid%u frame%u clip%d group%u\n",
+                    campaign_clutter_records.items[i].uid,frame,owner->state.definition->explosion,sound-1);
+            }
         }
         /* Mark the shared cooldown before delivering damage. Other owners only
          * enqueue a pending break; this bounded scan never calls itself. */

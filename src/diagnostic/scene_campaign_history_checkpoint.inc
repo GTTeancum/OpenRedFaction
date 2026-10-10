@@ -165,6 +165,7 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
                 else if(type==20){if(scene_history_word(r+20)>1||scene_history_word(r+24)||scene_history_signed(r+28)<-1||scene_history_signed(r+28)>RF_TIMER_PERIOD)return RF_FORMAT;}
                 else if(type==87||type==88){if(scene_history_word(r+16)||scene_history_word(r+20)||scene_history_word(r+24)>1||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
                 else if(type==84){if(scene_history_word(r+16)||scene_history_word(r+20)>1||scene_history_word(r+24)>1||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
+                else if(type==45){if(scene_history_word(r+16)||scene_history_word(r+20)>1||fired||scene_history_signed(r+28)!=-1)return RF_FORMAT;}
                 else if(common<0||scene_history_word(r+16)||scene_history_word(r+20)||fired||scene_history_signed(r+28)!=-1)return RF_FORMAT;
             } else {
                 if(scene_history_word(r+12)>1||!isfinite(scene_history_float(r+16))||!isfinite(scene_history_float(r+20))||scene_history_float(r+20)<0||
@@ -210,7 +211,7 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,con
             s->event_saved[slot]=value;s->events.items[slot].retired=1;continue;}
         if(e->switch_state){status=rf_campaign_pickup_register(&s->switches,campaign_current_level,e->authored->record.uid,&slot);if(status)goto event_done;
             s->switch_saved[slot]=*e->switch_state;s->switches.items[slot].retired=1;}
-        if(e->state.deadline>=0||e->state.type==20||e->state.type==84||e->state.type==87||e->state.type==88){campaign_event_saved value;
+        if(e->state.deadline>=0||e->state.type==20||e->state.type==45||e->state.type==84||e->state.type==87||e->state.type==88){campaign_event_saved value;
             status=campaign_event_capture(e,now,&refs,&value);if(status)goto event_done;
             status=rf_campaign_pickup_register(&s->events,campaign_current_level,e->authored->record.uid,&slot);if(status)goto event_done;
             s->event_saved[slot]=value;s->events.items[slot].retired=1;}

@@ -15,7 +15,12 @@ static uint32_t scene_remote_checkpoint_catalog_hash(void)
 {
     uint32_t hash=rf_scene_weapon_supply[3];
     hash=npc_hash_bytes(hash,&campaign_remote,sizeof(campaign_remote));
-    return npc_hash_bytes(hash,&campaign_remote_primary,sizeof(campaign_remote_primary));
+    /* RFRM1/2 catalog identity predates appended piercing metadata. Remote
+     * charges do not consume it; retain the exact legacy primary prefix. */
+    _Static_assert(offsetof(rf_weapon_primary_definition,piercing_enabled)==76u,
+                   "RFRM legacy primary catalog prefix");
+    return npc_hash_bytes(hash,&campaign_remote_primary,
+        (uint32_t)offsetof(rf_weapon_primary_definition,piercing_enabled));
 }
 static int scene_remote_checkpoint_npc_key(uint32_t index,uint32_t *key)
 {
@@ -52,6 +57,7 @@ static int scene_remote_checkpoint_capture(void *output,uint32_t capacity,uint32
     memset(state,0,sizeof(*state));state->held=scene_remote_held;state->pending=scene_remote_pending;
     state->delay=scene_remote_delay;state->cooldown=scene_remote_cooldown;
     state->selected_mode=campaign_equipped_slot==8?1u:campaign_equipped_slot==9?2u:0u;
+    state->followup_target=scene_remote_followup_target;state->followup_ticks=scene_remote_followup_ticks;
     for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)if(scene_remote_charges[i].flight.lifecycle.active){
         rf_remote_charge *charge=state->charges+i;uint32_t tag=scene_remote_host_tags[i],index=tag&0xffffu;
         *charge=scene_remote_charges[i];state->tags[i]=UINT32_MAX;state->host_keys[i]=UINT32_MAX;
@@ -160,6 +166,9 @@ static void scene_remote_checkpoint_publish(void)
     memcpy(scene_remote_host_tags,scene_remote_restore_state.tags,sizeof(scene_remote_host_tags));
     scene_remote_held=scene_remote_restore_state.held;scene_remote_pending=scene_remote_restore_state.pending;
     scene_remote_delay=scene_remote_restore_state.delay;scene_remote_cooldown=scene_remote_restore_state.cooldown;
+    /* Selection restoration below may cancel the live scheduler. Keep it inert
+     * until the saved charge/detonator mode has been assigned successfully. */
+    scene_remote_followup_target=scene_remote_followup_ticks=0;
     memset(rf_scene_remote,0,sizeof(rf_scene_remote));for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)rf_scene_remote[4]+=scene_remote_charges[i].flight.lifecycle.active!=0;
     memset((void *)rf_scene_remote_restored,0,sizeof(rf_scene_remote_restored));
     for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)if(scene_remote_charges[i].flight.lifecycle.active){
@@ -182,9 +191,14 @@ static uint32_t scene_remote_checkpoint_keep_restored(void)
 static void scene_remote_checkpoint_apply_selection(void)
 {
     uint32_t mode=scene_remote_restore_state.selected_mode;if(!scene_remote_restore_select)return;scene_remote_restore_select=0;
-    if(!mode || campaign_explicit_unarmed || campaign_selected_weapon()!=campaign_remote_id ||
+    scene_remote_followup_target=scene_remote_followup_ticks=0;
+    if(!mode || campaign_explicit_unarmed || campaign_remote_id<0 || campaign_remote_id>=64 || campaign_selected_weapon()!=campaign_remote_id ||
        !campaign_player_inventory.owned[campaign_remote_id])return;
     campaign_select_primary(mode==2?9:8);campaign_ammo_publish();
+    /* Assignment only: do not expire, request, launch or invoke followup
+     * callbacks while restoring. Version1/absent state supplies both zeros. */
+    scene_remote_followup_target=scene_remote_restore_state.followup_target;
+    scene_remote_followup_ticks=scene_remote_restore_state.followup_ticks;
 }
 /* Ordinary world load publishes after frame0's combat tick. Apply its saved
  * charge/detonator mode here, after restoring the shared weapon ID, and do

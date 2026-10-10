@@ -8,9 +8,29 @@ typedef struct scene_clutter_break_effects_owner {
     struct {rf_explosion_clock clock;uint32_t slots[6];} instances[8];
 } scene_clutter_break_effects_owner;
 static scene_clutter_break_effects_owner *scene_clutter_break_effects[2];
+/* Original class.explosion already indexes the 64-slot vclip catalog. Sound-only
+ * definitions borrow the scene Foley owner: group+1, with zero for no binding.
+ * No new effect instance, PCM owner, material, emitter or debris allocation. */
+static uint32_t scene_clutter_break_foley_groups[64];
+uint32_t rf_scene_clutter_break_audio[10]; /* requests,starts,errors,uid,frame,clip,group,sample,name hash,last start delta */
+static int scene_clutter_break_foley_bind(uint32_t index,const rf_vclip_definition *clip,
+    const rf_foley_owner *sounds)
+{
+    int32_t group=-1;int status;
+    if(index>=64 || !clip || !sounds)return RF_RANGE;
+    /* Admit the complete sound-only contract, never the audio portion of an
+     * unsupported visual effect. Existing central-effect owners keep theirs. */
+    if(clip->has_foley && !clip->flags && !clip->vbm[0] && !clip->vfx[0] &&
+       !clip->explosion[0] && !clip->has_particle && clip->damage==0) {
+        status=rf_foley_find(sounds,clip->foley,&group);if(status)return status;
+    }
+    scene_clutter_break_foley_groups[index]=group<0?0:(uint32_t)group+1;
+    return RF_OK;
+}
 static void scene_clutter_break_effects_close(void)
 {
     uint32_t kind;
+    memset(scene_clutter_break_foley_groups,0,sizeof(scene_clutter_break_foley_groups));
     for(kind=0;kind<2;kind++)if(scene_clutter_break_effects[kind]){
         rf_explosion_materials_close(&scene_clutter_break_effects[kind]->materials);
         free(scene_clutter_break_effects[kind]);scene_clutter_break_effects[kind]=NULL;

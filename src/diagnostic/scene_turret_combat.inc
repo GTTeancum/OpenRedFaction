@@ -40,6 +40,7 @@ static uint32_t scene_turret_combat_ready;
 uint32_t rf_scene_turret_combat[10]; /* ticks,acquired,turned,shots,cover,aim holds,inert,last UID,last target,errors */
 static void scene_turret_combat_close(void)
 {
+    scene_turret_audio_close();
     memset(scene_turret_combat_states,0,sizeof(scene_turret_combat_states));
     memset(&scene_turret_primary,0,sizeof(scene_turret_primary));
     scene_turret_vauss_id=scene_turret_heap_id=-1;scene_turret_combat_ready=0;
@@ -83,6 +84,7 @@ static int scene_turret_combat_open(rf_vpp *tables,int32_t vauss_id)
 }
 static void scene_turret_combat_release(scene_turret_owner *o,scene_turret_combat_state *s)
 {
+    scene_turret_audio_stop(s->handle);
     o->target=UINT32_MAX;o->fire_due=0;s->burst=0;memset(&s->angular,0,sizeof(s->angular));
 }
 static float scene_turret_angle_error(float desired,float current)
@@ -131,8 +133,10 @@ static int scene_turret_combat_turn(scene_turret_owner *o,scene_turret_combat_st
 static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_backend *be)
 {
     uint32_t i,j,k;int status;
-    if(!scene_turret_count)return RF_OK;
-    if(!scene_turret_combat_ready || !be || !be->target || !be->blocked || !be->shot || be->count>1024)return RF_RANGE;
+    if(!scene_turret_count){scene_turret_audio_close();return RF_OK;}
+    if(!scene_turret_combat_ready || !be || !be->target || !be->blocked || !be->shot || be->count>1024) {
+        scene_turret_audio_close();return RF_RANGE;
+    }
     ++rf_scene_turret_combat[0];
     for(i=0;i<scene_turret_count;i++) {
         scene_turret_owner *o=scene_turrets+i;scene_turret_combat_state *s=scene_turret_combat_states+i;
@@ -140,7 +144,7 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
         const rf_weapon_primary_definition *primary=scene_turret_primary_for(o->view.weapons[0]);
         scene_turret_combat_target chosen={0};float eye[3],delta[3],best=primary?primary->ai_attack_range:0;
         uint32_t generated_ready=0,generated=0,alive,affiliation,found=0,blocked,reachable,operator_bound,operator_eligible,operator_actor;float cone;
-        if(s->handle!=o->registration.handle || scene_turret_lookup(s->handle)!=o)return RF_FORMAT;
+        if(s->handle!=o->registration.handle || scene_turret_lookup(s->handle)!=o){scene_turret_audio_close();return RF_FORMAT;}
         /* The player owns aim/cadence until exit. Do not release or rewrite
          * that state through the autonomous action/target branches below. */
         if(scene_turret_player_controls(s->handle))continue;
@@ -179,34 +183,37 @@ static int scene_turret_combat_tick(uint32_t frame,const scene_turret_combat_bac
             chosen=candidate;best=distance;found=1;
         }
         if(!found){scene_turret_combat_release(o,s);continue;}
-        if(o->target!=chosen.handle){o->target=chosen.handle;o->fire_due=0;s->burst=0;++rf_scene_turret_combat[1];}
+        if(o->target!=chosen.handle){scene_turret_audio_stop(s->handle);o->target=chosen.handle;o->fire_due=0;s->burst=0;++rf_scene_turret_combat[1];}
         rf_scene_turret_combat[7]=o->uid;rf_scene_turret_combat[8]=chosen.handle;
         status=scene_turret_combat_turn(o,s,eye,chosen.point,&reachable);if(status)goto fail;
-        if(!reachable){++rf_scene_turret_combat[5];continue;}
+        if(!reachable){scene_turret_audio_stop(s->handle);++rf_scene_turret_combat[5];continue;}
+        /* Existing target/ready/turn gates admit a continuous firing episode.
+         * A cadence wait is not release; no new voice is allocated here. */
+        scene_turret_audio_keep(o,operator_bound?operator_actor:UINT32_MAX,o->view.weapons[0]);
         if(frame<o->fire_due)continue;
         status=scene_turret_target(s->handle,eye,&affiliation,&alive);if(status)goto fail;
         {float distance=0,dot=0,pose[12],muzzle[3],ray[3];uint32_t remaining=s->burst,due;
          for(k=0;k<3;k++){delta[k]=chosen.point[k]-eye[k];distance+=delta[k]*delta[k];dot+=o->basis[6+k]*delta[k];}
-         if(distance<.0001f || distance>primary->ai_attack_range*primary->ai_attack_range)continue;
+         if(distance<.0001f || distance>primary->ai_attack_range*primary->ai_attack_range){scene_turret_audio_stop(s->handle);continue;}
          /* Five-degree convergence is a first-pass policy; never shoot through
           * the authored pitch limits toward an unreachable target. */
-         if(dot<.996194698f*sqrtf(distance)){++rf_scene_turret_combat[5];continue;}
+         if(dot<.996194698f*sqrtf(distance)){scene_turret_audio_stop(s->handle);++rf_scene_turret_combat[5];continue;}
          status=scene_turret_model_tag(o->live_model,"muzzle_1",o->position,o->basis,pose);if(status)goto fail;
          memcpy(muzzle,pose+9,12);
          /* Sight and muzzle line must both be clear, including a barrel whose
           * presentation position has turned behind nearby world geometry. */
          status=be->blocked(be->context,s->handle,eye,delta,&blocked);if(status)goto fail;
-         if(blocked){++rf_scene_turret_combat[4];continue;}
+         if(blocked){scene_turret_audio_stop(s->handle);++rf_scene_turret_combat[4];continue;}
          for(k=0;k<3;k++)ray[k]=chosen.point[k]-muzzle[k];
          status=be->blocked(be->context,s->handle,muzzle,ray,&blocked);if(status)goto fail;
-         if(blocked){++rf_scene_turret_combat[4];continue;}
+         if(blocked){scene_turret_audio_stop(s->handle);++rf_scene_turret_combat[4];continue;}
          for(k=0;k<3;k++)ray[k]=delta[k]*(primary->ai_attack_range/sqrtf(distance));
          status=campaign_enemy_cadence(primary,frame,&remaining,&due);if(status)goto fail;
          status=be->shot(be->context,s->handle,chosen.handle,o->view.weapons[0],eye,muzzle,ray,primary);
-         if(status==RF_NOT_FOUND)continue;if(status)goto fail;
+         if(status==RF_NOT_FOUND){scene_turret_audio_stop(s->handle);continue;}if(status)goto fail;
          s->burst=remaining;o->fire_due=due;++rf_scene_turret_combat[3];}
     }
     return RF_OK;
 fail:
-    ++rf_scene_turret_combat[9];return status;
+    scene_turret_audio_close();++rf_scene_turret_combat[9];return status;
 }

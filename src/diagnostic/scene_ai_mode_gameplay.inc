@@ -36,6 +36,7 @@ static int campaign_ai_mode_apply(campaign_npc_body *owner,int32_t action,int32_
     }
     next=owner->ai_mode;
     status=rf_entity_ai_set_action(&next,action,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+    scene_ai_drone_smash_cancel_source(owner->registration.handle);
     campaign_pursuit_stop(owner);
     owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
     owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;

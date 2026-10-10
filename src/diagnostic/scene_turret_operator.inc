@@ -31,6 +31,8 @@ static scene_turret_operator_binding *scene_turret_operator_find(uint32_t host)
  * Never call to detach a single occupied live seat: use unbind first. */
 static void scene_turret_operator_reset(void)
 {
+    for(uint32_t i=0;i<SCENE_TURRET_OWNER_LIMIT;i++)
+        if(scene_turret_operator_rows[i].active)scene_turret_audio_stop(scene_turret_operator_rows[i].host);
     memset(scene_turret_operator_rows,0,sizeof(scene_turret_operator_rows));
     memset(rf_scene_turret_operator,0,sizeof(rf_scene_turret_operator));
 }
@@ -67,6 +69,7 @@ static int scene_turret_operator_bind(uint32_t host,uint32_t actor,int32_t tag,i
     if(!restoring){
         scene_turret_combat_state *combat=scene_turret_combat_states+(turret-scene_turrets);
         if(!scene_turret_combat_ready||combat->handle!=host)return RF_NOT_FOUND;
+        scene_ai_drone_smash_cancel_source(actor);
         campaign_pursuit_stop(npc);npc->combat_alert=npc->combat_due=npc->combat_burst_remaining=npc->combat_navigation_due=0;
         npc->ai_mode=next;npc->view.action_520=next.action_280;
         /* Original4096b9..4096dc; do not replace a protected host AI action. */
@@ -74,7 +77,7 @@ static int scene_turret_operator_bind(uint32_t host,uint32_t actor,int32_t tag,i
         turret->view.flags_810|=0x10000u;turret->damage.effects.flags_810=turret->view.flags_810;
         scene_turret_combat_release(turret,combat);combat->action=turret->view.action_520;
     }
-    scene_turret_operator_rows[slot]=value;
+    scene_turret_audio_stop(host);scene_turret_operator_rows[slot]=value;
     ++rf_scene_turret_operator[0];rf_scene_turret_operator[6]=value.actor_uid;return RF_OK;
 }
 /* Called before the physical seat bank removes its pair. Death/removal may
@@ -99,7 +102,7 @@ static int scene_turret_operator_unbind(uint32_t host,uint32_t actor,int32_t now
         if(row->owns_host_flag)turret->view.flags_810&=~0x10000u;
         turret->damage.effects.flags_810=turret->view.flags_810;
     }
-    memset(row,0,sizeof(*row));++rf_scene_turret_operator[1];return RF_OK;
+    scene_turret_audio_stop(host);memset(row,0,sizeof(*row));++rf_scene_turret_operator[1];return RF_OK;
 }
 /* Bound control remains inhibited when an endpoint dies or becomes stale;
  * the seat owner must detach it before ordinary unoccupied policy resumes.

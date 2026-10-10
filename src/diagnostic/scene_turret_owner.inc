@@ -11,6 +11,9 @@ typedef struct scene_turret_owner {
     float position[3],basis[9];
     uint32_t target,fire_due; /* Reserved for the parent's ordinary AI binding. */
 } scene_turret_owner;
+static void scene_turret_audio_stop(uint32_t host);
+static void scene_turret_audio_close(void);
+static void scene_turret_audio_keep(scene_turret_owner *,uint32_t,int32_t);
 static void scene_turret_death_effects_queue(scene_turret_owner *);
 static scene_turret_owner *scene_turrets;
 static uint32_t scene_turret_count,scene_turret_authored_count,scene_turret_capacity;
@@ -37,6 +40,7 @@ static uint32_t scene_turret_uid_handle(uint32_t uid)
 static int scene_turrets_close(void)
 {
     uint32_t i;int status;
+    scene_turret_audio_close();
     /* Never free a wrapper still referenced by a mismatched registration. */
     for(i=0;i<scene_turret_count;i++)if(scene_turrets[i].registration.view &&
         scene_turret_lookup(scene_turrets[i].registration.handle)!=scene_turrets+i)return RF_FORMAT;
@@ -173,6 +177,7 @@ static int scene_turret_damage_receive(uint32_t handle,const rf_damage_request *
     o->view.flags_7c=c.object.flags;o->damage.effects.health=c.object.health;
     o->view.flags_810=o->damage.effects.flags_810;o->view.flags_814=o->damage.effects.flags_814;
     if(o->damage.effects.health<=0) {
+        scene_turret_audio_stop(handle);
         o->dead=1;o->model=o->dead_model;o->view.flags_810|=1u;o->damage.effects.flags_810=o->view.flags_810;
         o->target=o->fire_due=0;++rf_scene_turret_owners[3];
         scene_turret_death_effects_queue(o);

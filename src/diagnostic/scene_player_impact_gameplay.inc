@@ -42,7 +42,7 @@ static void scene_player_impact_frame_begin(uint32_t frame,uint32_t relocated)
 static void scene_player_impact_cancel(void)
 {campaign_player_impact.enabled=campaign_player_impact.ready=0;}
 static void scene_player_impact_relocated(void)
-{scene_player_impact_cancel();campaign_player_impact_skip=1;}
+{scene_player_impact_cancel();campaign_player_impact_skip=1;scene_player_landing_audio_relocated();scene_player_water_audio_close();scene_weapon_empty_audio_forget();scene_grenade_empty_input_reset();scene_machine_pistol_audio_close();scene_hmg_audio_close();scene_rifle_audio_close();scene_weapon_loop_audio_close();}
 /* Call immediately after successful real actor_contact, passing its returned
  * impact speed and the actual sweep collision material/pre-landing mode. */
 static int scene_player_impact_contact(const rf_physics_body_state *body,

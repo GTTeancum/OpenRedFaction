@@ -19,10 +19,13 @@ typedef struct rf_event_checkpoint_refs {
     int (*handle_from_uid)(void *,uint32_t uid,uint32_t *handle);
     void *context;
 } rf_event_checkpoint_refs;
-/* RFEC3 single-event component; see docs/EVENT-CHECKPOINT-COMPONENT.md.
+/* RFEC3 single-event component, RFEC4 for Alarm_Siren45 only; see
+ * docs/EVENT-CHECKPOINT-COMPONENT.md and docs/ALARMS.md.
  * Common delayed dispatch/UnHide requests retain remaining time and refs.
  * Supported event-owned state includes common flags/mode,
- * removal latch, monitors, cycles, Switch and UnHide cooldown. External effects
+ * removal latch, monitors, cycles, Switch, UnHide cooldown and siren active
+ * latch. Siren voice IDs are never saved; the normal tick recreates active
+ * sirens after the composer releases previous device voices. External effects
  * (NPC routes/animations, alarms, messages, level transitions, etc.) require
  * caller-owned capture/admission: this codec does not establish scene safety.
  * Caller identity covers authored settings. Recreate links/registry; preflight

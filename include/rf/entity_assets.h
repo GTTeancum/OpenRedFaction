@@ -13,7 +13,7 @@
 /* First-pass primary-fire settings from a named weapons.tbl declaration.
  * SP values only; finite positive fire timing/damage and a bounded magazine.
  * Explosives (including secondaries identified by explosive damage type) and
- * explicitly continuous-fire weapons with both clip fields absent return
+ * explicitly continuous-fire or melee weapons with both clip fields absent return
  * magazine/reload_seconds zero. Partial clip pairs still reject. Callers own
  * clipless supply policy and must not initiate magazine reload.
  * Output is preserved on malformed, duplicate or missing required fields. */
@@ -26,9 +26,22 @@ typedef struct rf_weapon_primary_definition {
     float ai_spread_degrees; /* SP primary cone half-angle; zero when absent. */
     float ai_attack_range; /* SP value; zero when absent, caller retains fallback. */
     float ai_damage_scale[2]; /* Authored pair, default1; normal setup uses[0], alternate uses[1]. */
+    uint32_t piercing_enabled;float piercing_power; /* Optional authored bool/power; zero when disabled. */
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
+/* Original4c3d98..4c3e24 independent primary/alternate impact-delay slots.
+ * First matching named declaration; repeated $Impact Delay: and $Alt Impact
+ * Delay: fields retain authored order, at most two each. Missing slots/counts
+ * are zero; an explicitly authored zero still counts. Values must be finite
+ * and nonnegative. Read allocates nothing; load owns one budgeted scratch
+ * block. Errors preserve output. Metadata only: no attack admission, timers,
+ * damage scheduling, or changes to primary/descriptor/save layouts. */
+typedef struct rf_weapon_impact_delays {
+    float primary_seconds[2],alt_seconds[2];uint32_t primary_count,alt_count;
+} rf_weapon_impact_delays;
+int rf_weapon_impact_delays_read(const void *text,uint32_t bytes,const char *name,rf_weapon_impact_delays *result);
+int rf_weapon_impact_delays_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_impact_delays *result);
 typedef struct rf_weapon_explosive_definition {
     float speed,lifetime,collision_radius,damage_radius,crater_radius;
     uint32_t glow;float glow_inner,glow_outer,glow_color[3];
@@ -82,6 +95,17 @@ typedef struct rf_weapon_names {
  * Port name limit63, capacity64; output unchanged on errors. */
 int rf_weapon_names_read(const void *text,uint32_t bytes,rf_weapon_names *result);
 int rf_weapon_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_names *result);
+/* Original4c6801/4c2c37 authored preference map, copied by4a23a0. Position0
+ * has highest priority; gaps retain-1. Only primary player_wep declarations
+ * populate the32 slots. Requires Flags for every declaration and Pref Position
+ * iff player_wep; duplicate/out-of-range primary positions fail.
+ * Names, primary boundary and order must match the supplied immutable catalog.
+ * Read allocates nothing; load uses one budgeted temporary archive block.
+ * Both preserve all32 outputs on failure; supply/catalog/save layouts unchanged. */
+int rf_weapon_preference_read(const void *text,uint32_t bytes,
+    const rf_weapon_names *names,int32_t preference[32]);
+int rf_weapon_preference_load(rf_vpp *tables,uint32_t scratch_budget,
+    const rf_weapon_names *names,int32_t preference[32]);
 /* Original513020 list syntax and4c2dce/4c2e06 vocabularies. secondary=0
  * selects23 Flags names;1 selects11 Flags2 names. Errors preserve outputs. */
 int rf_weapon_flags_read(const void *text,uint32_t bytes,uint32_t secondary,
@@ -142,6 +166,15 @@ int rf_weapon_reset_catalog_read(const void *text,uint32_t bytes,
     const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result);
 int rf_weapon_reset_catalog_load(rf_vpp *tables,uint32_t scratch_budget,
     const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result);
+
+/* Original4c3d16..4c3d50 weapon170 $Launch Fail Foley binding. The supplied
+ * stable catalog must match every authored weapon in order. Missing, empty or
+ * unknown sound names retain-1. No sample loading/RNG; errors preserve all64
+ * output groups. Kept separate from the established reset-catalog layout. */
+int rf_weapon_launch_fail_groups_read(const void *text,uint32_t bytes,
+    const rf_weapon_names *names,const rf_foley_owner *sounds,int32_t groups[64]);
+int rf_weapon_launch_fail_groups_load(rf_vpp *tables,uint32_t scratch_budget,
+    const rf_weapon_names *names,const rf_foley_owner *sounds,int32_t groups[64]);
 
 /* 4c81f0 lookup over stable loaded names: first ASCII-insensitive match or-1.
  * NULL query behaves as empty. Table must be valid; no allocation. */
@@ -229,6 +262,18 @@ int rf_game_liquid_damage_read(const void *text,uint32_t bytes,float rates[2]);
 int rf_game_liquid_damage_load(rf_vpp *tables,uint32_t budget,float rates[2]);
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height);
 int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height);
+/* Optional entity.tbl $JumpSnd: -> class120, resolved against434cb0's Foley
+ * names. Missing/empty/unknown sound names yield-1. First case-insensitive
+ * class match; duplicate/malformed fields preserve output. No allocation,
+ * sample loading or retained text pointers. Absent class is NOT_FOUND. */
+int rf_entity_jump_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group);
+/* Repeated $LandSnd: Foley names bind the group's material slot0..9.
+ * Bounded-port contract: initialize slots to-1, ignore empty/unknown names,
+ * reject duplicate resolved materials and preserve output on errors. First
+ * case-insensitive class match; no allocation or resource playback. */
+int rf_entity_land_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[10]);
 
 typedef struct rf_entity_movement_values {
     float speed,slow_factor,fast_factor,acceleration;

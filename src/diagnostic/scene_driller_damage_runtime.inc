@@ -53,6 +53,7 @@ static int scene_driller_damage_runtime_destroy(void *context,uint32_t host,uint
 {
     scene_driller_damage_runtime *owner=context;
     if(!scene_driller_damage_runtime_valid(owner)||host!=owner->entry->host.handle)return RF_NOT_FOUND;
+    scene_vehicle_loop_audio_remove(host);
     owner->entry->host.alive=0;owner->last_destroyer=responsible;
     owner->eject_pending=owner->entry->session.active;
     /* Damage is committed. Exit/world publication is scheduled separately;
@@ -74,7 +75,7 @@ static int scene_driller_damage_runtime_receive(scene_driller_damage_runtime *ow
     /* Core damage may commit before a feedback error; publish its flags and
      * destruction gate even when caller needs to report that later error. */
     owner->entry->view.flags_7c=owner->damage.object_flags;
-    if(owner->damage.destroyed){owner->entry->host.alive=0;owner->eject_pending=owner->entry->session.active;}
+    if(owner->damage.destroyed){scene_vehicle_loop_audio_remove(target);owner->entry->host.alive=0;owner->eject_pending=owner->entry->session.active;}
     if(status)return status;
     if(feedback.status)return feedback.status;
     ++owner->damage_calls;owner->last_amount=*amount;

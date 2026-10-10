@@ -15,7 +15,7 @@ static scene_ai_rocket_projectile scene_ai_rockets[SCENE_AI_ROCKET_CAPACITY];
 uint32_t rf_scene_ai_rockets[5];
 uint32_t rf_scene_ai_rocket_timing[3]; /* latest launch, impact, expiry frames */
 static void scene_ai_rocket_reset(void)
-{memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));memset(rf_scene_ai_rocket_timing,0,sizeof(rf_scene_ai_rocket_timing));}
+{scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_NPC_ROCKET);memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));memset(rf_scene_ai_rocket_timing,0,sizeof(rf_scene_ai_rocket_timing));}
 static uint32_t scene_ai_rocket_pending(void)
 {uint32_t i;for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active)return 1;return 0;}
 static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3],
@@ -43,7 +43,10 @@ static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3
     shot.liquid.query_flags=0x1004u|(definition->collision_radius<.05f?0x100u:0);
     status=rf_weapon_consume_shot(&owner->inventory,campaign_weapon_supply.definitions,
         campaign_weapon_supply.names.count,weapon);if(status)return status;
-    scene_ai_rockets[i]=shot;++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];rf_scene_ai_rocket_timing[0]=combat_frame;return RF_OK;
+    scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);
+    scene_ai_rockets[i]=shot;
+    if(definition==&campaign_rocket)scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,shot.flight.position);
+    ++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];rf_scene_ai_rocket_timing[0]=combat_frame;return RF_OK;
 }
 static int scene_ai_rocket_launch(campaign_npc_body *owner,const float target[3])
 {return scene_ai_missile_launch(owner,target,campaign_rocket_id,&campaign_rocket,
@@ -64,7 +67,10 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};scene_ai_projectile_query query={stream,shot->source};
         if(!shot->flight.active)continue;
         if(!definition)return RF_RANGE;
-        status=rf_weapon_flight_step_liquid(&shot->flight,1.f/60,&shot->liquid,&policy,scene_ai_projectile_sweep,&query,&move);if(status)return status;
+        status=rf_weapon_flight_step_liquid(&shot->flight,1.f/60,&shot->liquid,&policy,scene_ai_projectile_sweep,&query,&move);
+        if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);return status;}
+        scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,
+            shot->flight.active && definition==&campaign_rocket,shot->flight.position);
         if(move.has_liquid){combat_sound("Medium Water Splash",move.liquid_contact.hit.point);scene_ripple_start(stream,move.liquid_contact.hit.point,frame,0);}
         if(move.terminal.kind==2){++rf_scene_ai_rockets[2];rf_scene_ai_rocket_timing[2]=frame;}
         if(move.terminal.kind==1){

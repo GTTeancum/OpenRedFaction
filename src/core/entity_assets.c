@@ -600,7 +600,7 @@ int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapo
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
-    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0,explosive=0,continuous=0;int selected=0,found=0,q,status;
+    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0,explosive=0,continuous=0,melee=0;int selected=0,found=0,q,status;
     if(!text || !name || !*name || !result)return RF_RANGE;
     v.burst_count=1;v.projectiles=1;v.ai_damage_scale[0]=v.ai_damage_scale[1]=1;
     while((status=token(&l,t,&q))==RF_OK) {
@@ -628,6 +628,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 if(!q)return RF_FORMAT;
                 if(same(t,"semi_automatic"))v.semi_automatic=1;
                 if(same(t,"continuous_fire"))continuous=1;
+                if(same(t,"melee"))melee=1;
             }
         } else if(same(t,"$AI")) {
             float paired;
@@ -661,6 +662,15 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
             bit=131072;if(mask&bit)return RF_FORMAT;
             if(sphere_number(&l,&v.spread_degrees))return RF_FORMAT;
             if(!(v.spread_degrees>=0 && v.spread_degrees<=90))return RF_RANGE;
+        } else if(same(t,"$Piercing:")) {
+            bit=1048576;if(mask&bit)return RF_FORMAT;
+            if(token(&l,t,&q) || q || (!same(t,"true") && !same(t,"false")))return RF_FORMAT;
+            v.piercing_enabled=same(t,"true");
+        } else if(same(t,"+Piercing")) {
+            if(token(&l,t,&q) || q || !same(t,"Power:"))return RF_FORMAT;
+            bit=2097152;if(mask&bit)return RF_FORMAT;
+            if(sphere_number(&l,&v.piercing_power))return RF_FORMAT;
+            if(!(v.piercing_power>0 && v.piercing_power<=1000000))return RF_RANGE;
         } else if(same(t,"$Burst")) {
             if(token(&l,t,&q) || q || !same(t,"Mode:"))return RF_FORMAT;
             bit=64;if(mask&bit)return RF_FORMAT;
@@ -744,10 +754,13 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;
-    /* Authored Vauss has continuous_fire and no magazine/reload declarations.
-     * Admit only a wholly absent clip pair; partial pairs still reject. */
-    if((mask&44)!=44 || ((mask&3)!=3 && (!(explosive || continuous) || (mask&3))))return RF_FORMAT;
+    /* Authored Vauss/creature claws have continuous_fire/melee respectively
+     * and no magazine/reload declarations. Admit only a wholly absent clip
+     * pair; partial pairs and all supplied field value guards still reject. */
+    if((mask&44)!=44 || ((mask&3)!=3 && (!(explosive || continuous || melee) || (mask&3))))return RF_FORMAT;
     if(!(((mask&3)?v.reload_seconds>0 && v.reload_seconds<=60:v.reload_seconds==0) && v.fire_seconds>0 && v.fire_seconds<=60 && v.damage>0 && v.damage<=1000000))return RF_RANGE;
+    if(v.piercing_enabled && !(mask&2097152))return RF_FORMAT;
+    if(!v.piercing_enabled)v.piercing_power=0;
     if(burst_enabled && (mask&384)!=384)return RF_FORMAT;
     if(!burst_enabled || burst_alt){v.burst_count=1;v.burst_seconds=0;}
     if(!(mask&1024))v.alt_fire_seconds=v.fire_seconds;
@@ -765,6 +778,55 @@ int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_we
     text=malloc(entry.size);if(!text)return RF_IO;
     status=rf_vpp_read(tables,&entry,0,text,entry.size);
     if(!status)status=rf_weapon_primary_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
+int rf_weapon_impact_delays_read(const void *text,uint32_t bytes,const char *name,rf_weapon_impact_delays *result)
+{
+    lexer l={text,bytes,0};rf_weapon_impact_delays value={0};char t[256];
+    int selected=0,found=0,q,status;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        uint32_t *count;float *seconds;
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=found=same(t,name);continue;
+        }
+        if(!selected)continue;
+        if(same(t,"#End"))break;
+        if(same(t,"$Impact")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Delay:"))continue;
+            count=&value.primary_count;seconds=value.primary_seconds;
+        } else if(same(t,"$Alt")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Impact"))continue;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Delay:"))continue;
+            count=&value.alt_count;seconds=value.alt_seconds;
+        } else continue;
+        /* Original4c3d98 zeroes both pairs;4c3dc8/4c3e03 bound independent
+         * stores to two. Reject excess fields rather than discard metadata. */
+        if(*count==2)return RF_RANGE;
+        if(sphere_number(&l,seconds+*count))return RF_FORMAT;
+        if(seconds[*count]<0)return RF_RANGE;
+        ++*count;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    *result=value;return RF_OK;
+}
+int rf_weapon_impact_delays_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_impact_delays *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_impact_delays_read(text,entry.size,name,result);
     free(text);return status;
 }
 
@@ -899,6 +961,77 @@ int rf_weapon_explosive_load(rf_vpp *tables,const char *name,uint32_t budget,rf_
     text=malloc(entry.size);if(!text)return RF_IO;
     status=rf_vpp_read(tables,&entry,0,text,entry.size);
     if(!status)status=rf_weapon_explosive_read(text,entry.size,name,out);
+    free(text);return status;
+}
+static int weapon_preference_store(uint32_t index,uint32_t primary_count,
+    uint32_t seen,uint32_t flags,uint32_t position,int32_t preference[32])
+{
+    if(!(seen&1) || ((flags&0x80u)!=0)!=((seen&2)!=0))return RF_FORMAT;
+    /*4c4850 parses secondary descriptors but never inserts preference slots. */
+    if(index>=primary_count || !(flags&0x80u))return RF_OK;
+    if(position>=32)return RF_RANGE;
+    if(preference[position]!=-1)return RF_FORMAT; /*4c2c15 duplicate assertion. */
+    preference[position]=(int32_t)index;return RF_OK;
+}
+int rf_weapon_preference_read(const void *text,uint32_t bytes,
+    const rf_weapon_names *names,int32_t preference[32])
+{
+    lexer l={text,bytes,0};char t[256],name[64];int32_t value[32];
+    uint32_t index=0,i,seen=0,flags=0,position=0,used;
+    int q,status,section=0,active=0;
+    if(!text || !bytes || !names || !preference || names->count>64 ||
+       names->primary_count>names->count)return RF_RANGE;
+    for(i=0;i<names->count;i++)if(!memchr(names->names[i],0,sizeof(names->names[i])))return RF_FORMAT;
+    for(i=0;i<32;i++)value[i]=-1; /*4c6801: preserve gaps; never sort/compact. */
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"#Primary") || same(t,"#Secondary")) {
+            int next=same(t,"#Primary")?1:3;
+            if((next==1 && section!=0) || (next==3 && section!=2))return RF_FORMAT;
+            if(token(&l,t,&q) || q || !same(t,"Weapons"))return RF_FORMAT;
+            section=next;
+        } else if(same(t,"#End")) {
+            if(section!=1 && section!=3)return RF_FORMAT;
+            if(active) {
+                status=weapon_preference_store(index-1,names->primary_count,seen,flags,position,value);
+                if(status)return status;
+            }
+            if(index!=(section==1?names->primary_count:names->count))return RF_FORMAT;
+            active=0;++section;
+        } else if(same(t,"$Name:")) {
+            if((section!=1 && section!=3) || index>=names->count ||
+               (section==1 && index>=names->primary_count))return RF_FORMAT;
+            if(active) {
+                status=weapon_preference_store(index-1,names->primary_count,seen,flags,position,value);
+                if(status)return status;
+            }
+            status=metadata_string(&l,name,sizeof(name));if(status)return status;
+            if(!same(name,names->names[index]))return RF_FORMAT;
+            ++index;active=1;seen=flags=position=0;
+        } else if(same(t,"$Flags:")) {
+            if(!active || (seen&1))return RF_FORMAT;
+            status=rf_weapon_flags_read(l.text+l.at,l.size-l.at,0,&flags,&used);if(status)return status;
+            l.at+=used;seen|=1;
+        } else if(same(t,"$Pref")) {
+            if(!active || (seen&2) || !metadata_tag(&l,"Position:"))return RF_FORMAT;
+            status=metadata_integer(&l,&position);if(status)return status;seen|=2;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(section!=4 || active || index!=names->count)return RF_FORMAT;
+    memcpy(preference,value,sizeof(value));return RF_OK;
+}
+int rf_weapon_preference_load(rf_vpp *tables,uint32_t budget,
+    const rf_weapon_names *names,int32_t preference[32])
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !names || !preference || names->count>64 ||
+       names->primary_count>names->count)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_preference_read(text,entry.size,names,preference);
     free(text);return status;
 }
 int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
@@ -1123,6 +1256,47 @@ int rf_weapon_reset_catalog_load(rf_vpp *tables,uint32_t budget,
     free(text);return status;
 }
 
+int rf_weapon_launch_fail_groups_read(const void *text,uint32_t bytes,
+    const rf_weapon_names *names,const rf_foley_owner *sounds,int32_t groups[64])
+{
+    lexer l={text,bytes,0};char t[256],name[64];int32_t value[64];
+    uint32_t index=0,i;int q,status,active=0,seen=0;
+    if(!text || !bytes || !names || names->count>64 || !sounds || !groups)return RF_RANGE;
+    for(i=0;i<names->count;i++)if(!memchr(names->names[i],0,sizeof(names->names[i])))return RF_FORMAT;
+    memset(value,0xff,sizeof(value));
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(index>=names->count)return RF_FORMAT;
+            status=metadata_string(&l,name,sizeof(name));if(status)return status;
+            if(!same(name,names->names[index]))return RF_FORMAT;
+            ++index;active=1;seen=0;
+        } else if(same(t,"#End"))active=0;
+        else if(active && same(t,"$Launch")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Fail:"))continue;
+            if(seen)return RF_FORMAT;seen=1;
+            status=metadata_string(&l,name,sizeof(name));if(status)return status;
+            status=rf_foley_find(sounds,name,value+index-1);if(status)return status;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(index!=names->count)return RF_FORMAT;
+    memcpy(groups,value,sizeof(value));return RF_OK;
+}
+int rf_weapon_launch_fail_groups_load(rf_vpp *tables,uint32_t budget,
+    const rf_weapon_names *names,const rf_foley_owner *sounds,int32_t groups[64])
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !names || !sounds || !groups)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_launch_fail_groups_read(text,entry.size,names,sounds,groups);
+    free(text);return status;
+}
+
 int rf_weapon_supply_load(rf_vpp *tables,uint32_t budget,rf_weapon_supply_catalog *result)
 {
     rf_vpp_entry ammo,weapons;unsigned char *text;int status;
@@ -1344,6 +1518,55 @@ int rf_foley_find(const rf_foley_owner *owner,const char *name,int32_t *group)
     for(i=0;i<owner->group_count;++i)if(!memchr(owner->groups[i].name,0,32))return RF_FORMAT;
     if(*name)for(i=0;i<owner->group_count;++i)if(same(owner->groups[i].name,name)){value=(int32_t)i;break;}
     *group=value;return RF_OK;
+}
+int rf_entity_jump_sound_group_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t *group)
+{
+    lexer l={text,bytes,0};char t[256],name[64];int status,quoted,selected=0,seen=0;
+    int32_t value=-1;
+    if(!text || !bytes || !class_name || !*class_name || !group)return RF_RANGE;
+    status=rf_foley_find(owner,"",&value);if(status)return status;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(selected)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);
+        } else if(same(t,"#End"))break;
+        else if(selected && same(t,"$JumpSnd:")) {
+            if(seen++ || metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            status=rf_foley_find(owner,name,&value);if(status)return status;
+        }
+    }
+    if(!selected)return RF_NOT_FOUND;*group=value;return RF_OK;
+}
+int rf_entity_land_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
+    const rf_foley_owner *owner,int32_t groups[10])
+{
+    lexer l={text,bytes,0};char t[256],name[64];int status,quoted,selected=0;
+    int32_t value[10];uint32_t seen=0;
+    if(!text || !bytes || !class_name || !*class_name || !groups)return RF_RANGE;
+    status=rf_foley_bind_materials(owner,NULL,0,value);if(status)return status;
+    for(;;) {
+        status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(quoted)continue;
+        if(same(t,"$Name:")) {
+            if(selected)break;
+            if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+            selected=same(t,class_name);
+        } else if(same(t,"#End"))break;
+        else if(selected && same(t,"$LandSnd:")) {
+            int32_t group;uint32_t material;
+            if(metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            status=rf_foley_find(owner,name,&group);if(status)return status;
+            if(group<0)continue;
+            material=owner->groups[group].material;
+            if(seen&(1u<<material))return RF_FORMAT;seen|=1u<<material;
+            value[material]=group;
+        }
+    }
+    if(!selected)return RF_NOT_FOUND;memcpy(groups,value,sizeof(value));return RF_OK;
 }
 static int entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t *groups,uint32_t count)
@@ -3761,3 +3984,5 @@ int rf_explosion_clock_tick(const rf_explosion_recipe *recipe,float dt,
     }
     *clock=next;*actions=out;return RF_OK;
 }
+
+#include "weapon_impact_audio_reader.inc"

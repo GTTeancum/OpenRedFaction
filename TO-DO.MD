@@ -1,15 +1,91 @@
 # Red Faction Xbox / PC - open work
 
-Current milestone (2026-10-09 03:20 UTC): finish grounded Fighter exit and connect authored player/NPC footsteps to live spatial audio, with one parent-owned 04:00 cloud Xbox batch. Voice-over and music initial playback now reach actual native XEMU output; larger routing/residency and long-loop refinements remain separate.
+- Drone Smash: exact owned primary now has a separate authored400-ms pending strike with ordinary90-frame cadence, full-handle cancellation, actor-on-foot contact and save-only transient guards. Integrated after02 build; uncompiled/runtime-unverified, pending03 batch (docs/DRONE-DELAYED-STRIKE.md).
 
-Current first-playable implementation estimate is roughly 90% overall. All 18 handheld view resources passed bounded authored placement/projection/HUD checks, and live HUD values were exercised for all five vehicle types. Submarine, Driller, Jeep and primary-only APC exit passed; grounded Fighter exit remains a concrete failure. The completed 03:00 run produced 600 frames and a native recording containing the original full PA speech and sustained Spirits_02 music, confirmed by waveform correlation. Its original FAIL report is retained because the harness incorrectly required a replay-active bit after normal teardown; the validator is corrected separately. No listening-quality claim is made. Exact weapon/vehicle source and recovered audio are published; the original assets/firmware/HDD have been transferred from the owner's PC and verified after the cloud reset. Keep complete source checkpoints durable before long tests.
+- Authored impact delays: separate bounded primary/alternate reader now retains up to two ordered delays per mode without changing primary/save layouts; source-reviewed, 02:00 Xbox compilation passed. Drone delayed-strike admission and lifecycle remain unimplemented (docs/WEAPON-IMPACT-DELAYS.md).
 
+- Tankbot actor penetration: exact authored-enabled accepted shots now use bounded fresh-base/body-radius continuation, retained source identity and separate actual player/vehicle damage accounting; source-reviewed, 02:00 Xbox compilation passed. Action runtime remains unverified and world-metal traversal deferred (docs/TANKBOT-ACTOR-PENETRATION.md).
+
+- Mutant Attack 1/2: actual owned L10S1 primaries now share the exact ammo-free creature melee registry; source-reviewed, 02:00 Xbox compilation passed. Authored delayed impacts, flesh-contact audio and shield parity remain deferred (docs/REEPER-CLAW-MELEE.md).
+
+- Reeper claws: exact owned/live adult and baby claw primaries now reach ordinary/opposed NPC combat through ammo-free shared first-playable melee, retaining authored range/damage/cadence; 02:00 Xbox compilation passed. Actual contact, delayed double impacts and physical-shield parity remain unverified/deferred (docs/REEPER-CLAW-MELEE.md).
+
+- Tankbot Chaingun primary: exact authored clipless admission now reaches ordinary and opposed NPC combat with finite mapped-reserve readiness/debit, original burst-onset audio and unchanged shared cadence/cover/shield/damage; 02:00 Xbox compilation passed; actual firing/exhaustion/audio unverified (docs/TANKBOT-PRIMARY-FIRE.md, docs/TANKBOT-BURST-AUDIO.md).
+
+- Mounted Vauss actor penetration: authored-enabled player/autonomous shots now have integrated bounded fresh-base/radius continuation with accepted-operator exclusion, physical shields and full-ray terminal cover preserved; 02:00 Xbox compilation passed, with gameplay, world-metal exits and ordinary NPC/Tankbot expansion unverified/deferred (docs/MOUNTED-ACTOR-PENETRATION.md).
+
+- Ordinary handheld actor penetration: authored-enabled AR/HMG/scoped rifle/MP Special now have an integrated bounded post-spread continuation adapter preserving ordinary damage/cadence and full-ray cover; 01:00 Xbox compilation and original neutral startup admission passed, with gameplay/runtime and world-metal exits unverified/deferred (docs/HANDHELD-ACTOR-PENETRATION.md).
+
+- Sniper actor penetration: authored power now controls bounded body continuation, fresh per-contact damage and actual-radius advance, retaining competing cover and legacy Remote Charge catalog identity; 01:00 Xbox compilation and original neutral startup admission passed. Multi-actor runtime and world-metal exit/ricochet remain unverified/deferred (docs/SNIPER-PENETRATION.md).
+
+- Native player pause: Start now owns a blocking input-provider pause with native SFX/VO/music cursor retention, pacing re-anchor and held-action release guards; 01:00 Xbox compilation passed; actual physical/native pause runtime remains unverified. No menu, overlay or replay ABI changes (docs/PLAYER-PAUSE.md).
+
+- Rocket/grenade flight audio: accepted player/NPC projectiles now own bounded generation-qualified positional motor/tick loops, closing on terminal/reuse/reset and resuming only after successful checkpoint publication and storage close. 00:00 Xbox compilation passed; native output and restore runtime unverified (docs/PROJECTILE-FLIGHT-AUDIO.md).
+
+- Precision and NPC bullet impact audio: qualified retained sniper/rail object contacts, sniper world stops, ordinary NPC rays and shotgun pellets now share dry material/default playback; 00:00 Xbox compilation passed. Stale vehicle handling is explicitly excluded; rail world chains, ambiguous covered clutter and underwater branches remain deferred (docs/PRECISION-IMPACT-AUDIO.md, docs/NPC-BULLET-IMPACT-AUDIO.md).
+
+- Player bullet impact audio: authored dry material/default groups now reach actual normal-hitscan contacts through a bounded resident shared sound bank; optional startup admission and playback cannot reject shots. 23:00 Xbox build and16 ordinary pistol impact playback starts passed; audible output, precision/NPC/underwater consumers and ordered-world overlap refinement remain unverified/deferred (docs/WEAPON-IMPACT-AUDIO.md).
+
+- Autonomous conventional reload: original empty-magazine update now requests the existing reload only after actual fire presentation returns to idle, using real reserve and preserving timing, modes, ownership and save format; 23:00 Xbox build and original L3S1 sixteen-shot autonomous refill passed (docs/WEAPON-AUTO-RELOAD.md).
+
+- Remote charge controls: authored charge/detonator follow-up selection and compatible RFRM2 countdown persistence are integrated with actual action timing, held-input gating and unchanged independent charge ownership; 22:00 Xbox compilation passed; ordinary switching/save runtime unverified (docs/REMOTE-AUTO-SELECTION.md).
+
+- Unarmed weapon acquisition: accepted placed/extra/corpse weapon pickups now equip the actual owned/resource-admitted primary when explicitly unarmed, preserving inventory, saved-unarmed semantics and retained modes; shared input release gating prevents unintended fire. 22:00 Xbox compilation passed; action runtime unverified; active forms and scripted grants remain outside this bounded adapter (docs/UNARMED-PICKUP-SELECTION.md).
+
+- Exhausted grenade selection: successful final release now uses independent authored preference ranks and the original grenade-only empty-weapon exception to choose an owned/resource-admitted replacement; projectile/cooldown and save ABI remain intact, held controls require release. Explicit strict-rank port policy and paired-mode limitation documented; 22:00 Xbox compilation passed; selection runtime unverified (docs/GRENADE-EMPTY-SELECTION.md, docs/WEAPON-PREFERENCE-ORDER.md).
+
+- Frozen terminal NPC saves: RFNC17 now preserves qualified retained source-body physics on an already-admitted terminal death pose without thawing, callbacks, row-size growth or relaxed clearance; RFNC1–16 semantics remain. 22:00 Xbox compilation passed; actual save/load unverified (docs/FROZEN-DEATH-CHECKPOINT.md).
+
+- NPC environmental damage: ordinary lava/acid exposure now derives own-body wet membership and consumes original rates through shared qualified damage/death after room refresh; no drowning/swim rewrite or new timer. 22:00 Xbox compilation passed; hazard runtime unverified; frozen-death checkpoint support is separately source-written in RFNC17 and unverified (docs/NPC-LIQUID-DAMAGE.md, docs/FROZEN-DEATH-CHECKPOINT.md).
+
+- NPC action Foley: fire/reload labels now reuse the original registered positional body-origin callback independently of weapon Launch, with bounded nonloop admission and unchanged action/reload timing. 22:00 Xbox compilation passed; action runtime unverified (docs/NPC-ACTION-FOLEY.md).
+
+- NPC weapon audio: accepted shots now independently consume original positional Launch groups, with retained MP/HMG primary loop owners and unchanged rifle burst specialization; authored action Foley remains separate. 22:00 Xbox compilation passed; playback and queued single-fire loop presentation remain unverified/deferred (docs/NPC-LAUNCH-AUDIO.md, docs/NPC-LOOP-AUDIO.md).
+
+- Continuous combat audio: source-integrated machine-pistol, per-turret and per-vehicle loop owners retain one generation-qualified firing episode and close on release/control/lifecycle boundaries; authored vehicle group corrections and player APC/Jeep primary feedback are included. 22:00 Xbox compilation passed after the preserved21:00 failure; native playback remains unverified (docs/MACHINE-PISTOL-LOOP-AUDIO.md, docs/TURRET-LOOP-AUDIO.md, docs/VEHICLE-LOOP-AUDIO.md).
+
+- HMG audio lifetime: both authored looping modes now share one generation-qualified player voice episode with release/reload/mode/owner lifecycle closure; cadence, ammo and immediate onset are unchanged. 22:00 Xbox compilation passed; natural runtime unverified (docs/HMG-LOOP-AUDIO.md).
+
+- Player continuous weapon audio: shared generation-qualified loop ownership now closes flamethrower and Assault alternate episodes; player and NPC rifle primary use one authored nonlooping burst sample per actual burst, with positional NPC playback. Fuel, damage, cadence and saves are unchanged; 20:00 Xbox compilation passed; natural runtime remains unverified (docs/PLAYER-WEAPON-LOOP-AUDIO.md).
+
+- Empty-fire feedback: ordinary firearm Launch Fail consumer compiled in19:00; the original Riot Stick negative_Beep branch is now 20:00 Xbox compilation passed. No proportional ordinary finite-ammo case was found without route expansion or altered inventory, so natural playback remains unverified (docs/WEAPON-EMPTY-AUDIO.md).
+
+- Authored NPC holstering: original type64 now reaches living NPC presentation/fire flags with existing draw/firing consumers and a compatible RFNC16 two-bit tail; 18:00 Xbox compilation passed. Natural holster and save/load runtime remain unverified (docs/AUTHORED-WEAPON-HOLSTER.md).
+
+- Native music refill ordering: a post-decode empty-queue check and native queue admission now share supported DPC exclusion, preserving prepared PCM through any voice recreation; 18:00 Xbox compilation passed. The race runtime and earlier startup starvation cause remain unverified (docs/NATIVE-AUDIO-20261009.md).
+
+- Player water audio: original surface-swim and underwater loop owners now use authored samples17/16, speed gain and true body/camera water membership; generation-safe relocation/teardown cleanup is integrated, source-reviewed and 17:00 Xbox compilation passed. 19:00 original L10S3 neutral wet-spawn confirmed one stable native underwater voice owner; audible output and surface transitions remain unverified (docs/PLAYER-WATER-AUDIO.md).
+
+- Authored warning sirens: original Alarm_Siren45 now consumes positional sample28 with ON/OFF/delay/link ownership and active-only RFEC/RFCH restore; source-reviewed, 17:00 Xbox compilation passed; natural audio/runtime coverage remains unverified (docs/ALARMS.md).
+
+- Authored energy-sound switches: original L7S1 unique immediate ambient targets now have a source-written existing-slot volume consumer and saved-Switch volume reconstruction; integrated after the16:00 checkpoint, 18:00 build and ordinary original Switch3714 OFF passed; other switches/ON/save restoration remain unverified (docs/SWITCH-AMBIENT-TARGETS.md).
+
+- Prop-destruction event integration: connect retained original clutter owners to When_Dead so authored destruction links can continue; retained-owner query and shared scene hook compiled in08:00, with authored event runtime still unverified (docs/CLUTTER-DEATH-WATCHERS.md).
+
+- Authored prop protection: original L3S4 startup Make_Invulnerable now reaches the qualified console owner; class-relative RFPC immunity override preserves existing saves, 08:00 build and original startup protection callback passed; OFF and save runtime unverified (docs/CLUTTER-INVULNERABILITY.md).
+
+- Standing-player prop checkpoint support: staged original stationary solid meshes now supply candidate-owned support during ordinary load validation, preserving all clearance guards; 09:00 Xbox build passed, prop-top runtime unverified (docs/PLAYER-PROP-CHECKPOINT-SUPPORT.md).
+
+- Authored frozen-NPC saves: 10:00 Xbox build and original L11S3 native RFNC14 save reached success; the wrapper's off-by-one observer failure is preserved, strict N-2 observer correction admitted the saved evidence, but the14:43 native fresh load failed world staging; 16:00 actual pinned-save fresh load passed with both original frozen owners assigned and continuing (docs/NPC-PHYSICS-CHECKPOINT.md).
+
+- Combat damage-reaction saves: RFNC15 now retains living non-burning pain/flinch deadlines, selected action, clip playback and shared RNG; 15:00 Xbox build passed, reaction runtime unverified (docs/NPC-PAIN-CHECKPOINT.md).
+
+- Removed ignition-source continuity: active burns retain authored NPC identity independently of native registration; RFAP4 wire layout unchanged, source-written with private candidate retirement normalization, 16:00 Xbox compilation passed, removed-source runtime unverified (docs/FLAME-PICKUP-FIRST-PASS.md).
+
+- Removed NPC lifecycle: ordinary Remove_Object now shares corpse-expiry order cancellation, retires only the removed target's burn/backlink and clears freeze markers after physical owner closure; strict checkpoint guards remain, 16:00 Xbox compilation passed, removal runtime unverified (docs/EVENT-REMOVAL.md).
+
+Current milestone (2026-10-10 01:03 UTC): the01:00 Xbox build at7cdfd7a4 and120-frame original L1S1 neutral stock64MiB startup passed, including mandatory authored piercing-metadata table admission. New pause and sniper/handheld penetration behavior is compiled but action runtime remains unverified (docs/HOURLY-20261010-0100.md).
+
+Current first-playable estimate remains roughly90% overall. Prior bounded audio, Fighter exit, props contact/destruction and startup protection passed; prop-top checkpoint support compiled only. No comprehensive save-state coverage, visual parity or unmeasured FPS claim. Steve explicitly requires active coding between hourly tests; Git publication is secondary and cannot block independent development. The last create-tree call was cancelled; latest confirmed remote remains29478036. Continue local commits and durable checkpoints.
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88% (provisional85-90% range, recalibrated2026-09-30); GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 Estimate correction (2026-09-30): The previous95% overstated integrated late-alpha functionality by treating broad subsystem presence as completion. Remaining work is not merely the last5% of polish. This estimate includes missing gameplay behavior and integration, not exhaustive testing or retail fidelity; no campaign playthrough is required to earn implementation credit.
 
 Remaining first-playable work, grouped for planning:
+- Authored prop Slay: Original grate/button/monitor targets now reach shared untyped damage, retirement and deferred break ownership; compiled in07:00, event runtime unverified (docs/SCRIPTED-CLUTTER-SLAY.md).
+- Player landing audio: Authored material/water samples have a live airborne-to-grounded adapter with pre-response velocity capture and unchanged physics; 05:00 ordinary jump/landing Xbox/native-output batch passed its bounded scope (docs/PLAYER-LANDING-AUDIO.md).
+- Authored jump audio: Accepted jumps now have source-written per-form Foley binding and first-sample native flat playback, with callback acceptance preserved on silent/failed audio; integrated and passed the05:00 ordinary jump/landing batch, with shared landing-group parser admission (docs/PLAYER-JUMP-AUDIO.md).
 - Native voice-over/music: The03:00 original L1S1 run completed600 frames in stock64MiB; actual captured output matches the full PA line and sustained Spirits_02 track, with one startup music starvation; correct the false terminal-active validator in the04:00 batch and retain broader routing/loop/quality work as follow-up (docs/NATIVE-AUDIO-20261009.md).
 - Mounted Jeep view: The original second-occupant branch now consumes the real fp_jgun mesh, idle/fire clips and authored offset/FOV through the shared first-person projection; isolated 1.5 MiB admission and read-only driver/gunner/exit evidence await the 01:00 Xbox batch (docs/JEEP-AUTHORED-GUNNER-VIEW.md).
 - Correct weapon placement: Authored first-person offsets/FOV now drive camera-relative placement and consistent clipping; source-written for23:00 Xbox verification, with dynamic turn lag/sway still separate (docs/WEAPON-VIEW-PLACEMENT.md).
@@ -706,7 +782,7 @@ requests add allowed ammo without reacquiring an owned weapon. The live9870
 regression grants Riot Stick ID2 with one loaded unit; a second request adds
 one reserve unit. This does not equip Riot Stick: usable selection, melee,
 first-person presentation and authored Strip_Player_Weapons remain critical
-open work. Non-weapon item grants are unsupported. All37 PC tests and both
+open work. Non-weapon health, armor and suit grants are integrated. Authored keycard/Brainstem notice-only dispatch passed00:00 Xbox compilation; it does not invent persistent keys (docs/SCRIPTED-NOTICE-ITEMS.md). All37 PC tests and both
 startup/repeated-grant replays pass. Original4bb690 creates a temporary item
 through459100 before pickup dispatch; this practical path reuses decoded item
 benefits without creating that object. Reproduce:python tools/replay_script_grants.py.

@@ -63,6 +63,7 @@ static int campaign_event_capture(const rf_runtime_event *event,int32_t now,
     } else if(saved.type==87 || saved.type==88)saved.fired=event->threshold.fired!=0;
     else if(saved.type==84){saved.enabled=event->countdown_armed;saved.fired=event->countdown_fired;
         if(saved.enabled>1||saved.fired>1)return RF_FORMAT;}
+    else if(saved.type==45){saved.enabled=event->siren_active;if(saved.enabled>1)return RF_FORMAT;}
     else if(saved.common_remaining<0)return RF_NOT_FOUND;
     }
     *result=saved;return RF_OK;
@@ -83,6 +84,7 @@ static int campaign_event_restore(rf_runtime_event *event,int32_t now,
         if(registered){status=rf_object_registry_remove(&campaign_registry,event->handle);if(status)return status;}
         event->state.deadline=-1;event->state.flags|=1u;event->state.source=event->state.actor=UINT32_MAX;
         event->retired=1;event->death_fired=1;
+        if(event->state.type==45)event->siren_active=0;
         event->unhide.on=event->unhide.off=0;return RF_OK;
     }
     if(event->retired || !registered)return RF_NOT_FOUND;
@@ -101,6 +103,8 @@ static int campaign_event_restore(rf_runtime_event *event,int32_t now,
         if(saved->count || saved->enabled || saved->fired>1 || saved->cycle_remaining!=-1)return RF_FORMAT;
     } else if(saved->type==84) {
         if(saved->count||saved->enabled>1||saved->fired>1||saved->cycle_remaining!=-1)return RF_FORMAT;
+    } else if(saved->type==45) {
+        if(saved->count||saved->enabled>1||saved->fired||saved->cycle_remaining!=-1)return RF_FORMAT;
     } else if(saved->count || saved->enabled || saved->fired || saved->cycle_remaining!=-1 || saved->common_remaining<0)return RF_FORMAT;
     event->state.deadline=common_deadline;
     event->state.mode=common_deadline>=0?saved->mode:0;
@@ -108,6 +112,9 @@ static int campaign_event_restore(rf_runtime_event *event,int32_t now,
     if(saved->type==20){event->cycle.deadline=cycle_deadline;event->cycle.count=saved->count;event->cycle.enabled=saved->enabled;}
     else if(saved->type==87||saved->type==88)event->threshold.fired=saved->fired;
     else if(saved->type==84){event->countdown_armed=saved->enabled;event->countdown_fired=saved->fired;}
+    /* Scene releases the previous transient voice after successful section
+     * restoration; the next ordinary tick acquires audio without event replay. */
+    else if(saved->type==45)event->siren_active=saved->enabled;
     return RF_OK;
 }
 static int campaign_event_history_find(const rf_campaign_pickups *history,const char *level,uint32_t uid,uint32_t *slot)
@@ -167,7 +174,7 @@ static int campaign_event_checkpoint(uint32_t save,int32_t now,scene_stream *str
     status=RF_OK;
     for(i=0;i<campaign_events.count;i++) {
         rf_runtime_event *event=campaign_events.items+i;campaign_event_saved captured={0};
-        uint32_t tracked=event->state.type==20 || event->state.type==84 || event->state.type==87 || event->state.type==88;
+        uint32_t tracked=event->state.type==20 || event->state.type==45 || event->state.type==84 || event->state.type==87 || event->state.type==88;
         if(!event->authored){status=RF_FORMAT;goto done;}
         if(save){
             if(!tracked&&!event->retired&&event->state.deadline<0){

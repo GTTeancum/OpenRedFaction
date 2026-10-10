@@ -1,4 +1,5 @@
 #include "rf/npc_checkpoint.h"
+#include "rf/timer.h"
 #include <math.h>
 #include <string.h>
 _Static_assert(sizeof(float)==4,"RFNC requires binary32");
@@ -66,6 +67,58 @@ static uint32_t combat_bytes(const rf_npc_checkpoint_record *r)
 {rf_npc_checkpoint_combat zero={0};return memcmp(&r->combat,&zero,sizeof(zero))?RF_NPC_CHECKPOINT_COMBAT_BYTES:0;}
 static uint32_t shot_bytes(const rf_npc_checkpoint_record *r)
 {return r->shot_count*24u;}
+static int pain_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_pain *p=&r->pain;rf_npc_checkpoint_pain zero={0};uint32_t i;
+    if(p->present>1)return RF_FORMAT;
+    if(!p->present)return memcmp(p,&zero,sizeof(zero))?RF_FORMAT:RF_OK;
+    if(r->retired||r->dead_pose||r->health<=0||
+       (p->action!=-1&&p->action!=22&&p->action!=23))return RF_FORMAT;
+    for(i=0;i<3;i++)if(p->remaining[i]< -1||p->remaining[i]>RF_TIMER_PERIOD/2)return RF_FORMAT;
+    return RF_OK;
+}
+static void read_pain(const unsigned char *p,rf_npc_checkpoint_pain *r)
+{
+    uint32_t i;r->present=word(p);
+    for(i=0;i<3;i++)r->remaining[i]=signed_word(p+4+4*i);
+    r->action=signed_word(p+16);r->random=word(p+20);
+}
+static void write_pain(unsigned char *p,const rf_npc_checkpoint_pain *r)
+{
+    uint32_t i;put(p,r->present);
+    for(i=0;i<3;i++)put(p+4+4*i,(uint32_t)r->remaining[i]);
+    put(p+16,(uint32_t)r->action);put(p+20,r->random);
+}
+static int physics_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_physics *p=&r->physics;rf_npc_checkpoint_physics zero={0};
+    const float *vectors[5]={p->velocity,p->angular,p->momentum,p->force,p->torque};uint32_t i,j;
+    if(p->present>1||p->scripted>1)return RF_FORMAT;
+    if(!p->present)return memcmp(p,&zero,sizeof(zero))?RF_FORMAT:RF_OK;
+    /* RFNC17 admits the existing terminal death profile's source body. The
+     * enclosing validator still proves fatal health, death flags and clip. */
+    if(r->retired||(!r->dead_pose&&r->health<=0)||r->ai_mode==13||
+       (p->body_bits&~RF_NPC_CHECKPOINT_PHYSICS_BODY_MASK)||
+       (p->object_bits&~RF_NPC_CHECKPOINT_PHYSICS_OBJECT_MASK)||
+       (p->scripted&&!(p->body_bits&0x80000000u)&&(p->body_bits&0x18000000u)!=0x18000000u)||
+       (!!r->support_uid!=!!(p->body_bits&0x400000u))||
+       (r->support_uid&&(p->body_bits&1u)))return RF_FORMAT;
+    for(i=0;i<5;i++)for(j=0;j<3;j++)if(!isfinite(vectors[i][j])||
+        (!i&&fabsf(vectors[i][j])>.001f))return RF_FORMAT;
+    return RF_OK;
+}
+static void read_physics(const unsigned char *p,rf_npc_checkpoint_physics *r)
+{
+    float *vectors[5]={r->velocity,r->angular,r->momentum,r->force,r->torque};uint32_t i,j;
+    r->present=word(p);r->scripted=word(p+4);r->body_bits=word(p+8);r->object_bits=word(p+12);
+    for(i=0;i<5;i++)for(j=0;j<3;j++)vectors[i][j]=real(p+16+12*i+4*j);
+}
+static void write_physics(unsigned char *p,const rf_npc_checkpoint_physics *r)
+{
+    const float *vectors[5]={r->velocity,r->angular,r->momentum,r->force,r->torque};uint32_t i,j;
+    put(p,r->present);put(p+4,r->scripted);put(p+8,r->body_bits);put(p+12,r->object_bits);
+    for(i=0;i<5;i++)for(j=0;j<3;j++)put_real(p+16+12*i+4*j,vectors[i][j]);
+}
 static void read_animation(const unsigned char *p,rf_npc_checkpoint_record *r)
 {
     rf_motion_playback_state *b=&r->playback;rf_motion_slot_state *a=&b->completion.active;uint32_t i,j;
@@ -97,6 +150,8 @@ static void write_animation(unsigned char *p,const rf_npc_checkpoint_record *r)
 static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catalog *c)
 {
     uint32_t i,j;uint8_t used[32]={0};rf_npc_checkpoint_move zero_move={0};rf_npc_checkpoint_look zero_look={0};rf_npc_checkpoint_combat zero_combat={0};
+    if(physics_valid(r)||pain_valid(r))return RF_FORMAT;
+    if(r->holster>3 || (r->holster&&(r->retired||r->dead_pose||r->health<=0)))return RF_FORMAT;
     if(r->movement_present>1||r->movement_slot>=16||r->speed_mode>2||
        (!r->movement_present&&(r->movement_slot||r->speed_mode))||
        (r->movement_present&&(r->retired||r->dead_pose||r->health<=0)))return RF_FORMAT;
@@ -232,6 +287,9 @@ static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_r
     if(version>=13){
         uint32_t tail=RF_NPC_CHECKPOINT_ROW+word(p+564)+word(p+568)+shot_bytes(r)+word(p+540);
         r->movement_present=word(p+tail);r->movement_slot=word(p+tail+4);r->speed_mode=word(p+tail+8);
+        if(version>=14)read_physics(p+tail+12,&r->physics);
+        if(version>=15)read_pain(p+tail+12+RF_NPC_CHECKPOINT_PHYSICS_BYTES,&r->pain);
+        if(version>=16)r->holster=word(p+tail+12+RF_NPC_CHECKPOINT_PHYSICS_BYTES+RF_NPC_CHECKPOINT_PAIN_BYTES);
     }
 }
 static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r,uint32_t version)
@@ -278,26 +336,39 @@ static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r,uint32_
     if(version>=13){
         uint32_t tail=combat_at+combat_bytes(r)+shot_bytes(r)+animation_bytes(r);
         put(p+tail,r->movement_present);put(p+tail+4,r->movement_slot);put(p+tail+8,r->speed_mode);
+        if(version>=14)write_physics(p+tail+12,&r->physics);
+        if(version>=15)write_pain(p+tail+12+RF_NPC_CHECKPOINT_PHYSICS_BYTES,&r->pain);
+        if(version>=16)put(p+tail+12+RF_NPC_CHECKPOINT_PHYSICS_BYTES+RF_NPC_CHECKPOINT_PAIN_BYTES,r->holster);
     }
 }
 int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     const rf_npc_checkpoint_record *rows,uint32_t count,void *output,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=output;uint32_t i,bytes,at,version=10;int status;
+    unsigned char *p=output;uint32_t i,bytes,at,version=10,pain_seen=0,pain_random=0;int status;
     if(!identity||!output||!written||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
     bytes=64+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
     for(i=0;i<count;i++){
         status=valid(rows+i,c);if(status)return status;if(i&&rows[i-1].uid>=rows[i].uid)return RF_FORMAT;
-        if(rows[i].movement_present)version=13;
+        if(rows[i].pain.present){
+            if(pain_seen&&pain_random!=rows[i].pain.random)return RF_FORMAT;
+            pain_seen=1;pain_random=rows[i].pain.random;if(version<15)version=15;
+        }
+        else if(rows[i].physics.present&&version<14)version=14;
+        else if(rows[i].movement_present&&version<13)version=13;
         else if(rows[i].combat.active==4&&version<12)version=12;
         else if(rows[i].combat.active==3&&version<11)version=11;
+        if(rows[i].holster&&version<16)version=16;
+        if(rows[i].physics.present&&rows[i].dead_pose&&version<17)version=17;
         bytes+=extension_bytes(rows+i)+combat_bytes(rows+i)+shot_bytes(rows+i)+animation_bytes(rows+i);
     }
     if(version>=13)bytes+=count*12;
+    if(version>=14)bytes+=count*RF_NPC_CHECKPOINT_PHYSICS_BYTES;
+    if(version>=15)bytes+=count*RF_NPC_CHECKPOINT_PAIN_BYTES;
+    if(version>=16)bytes+=count*RF_NPC_CHECKPOINT_HOLSTER_BYTES;
     if(bytes>capacity)return RF_RANGE;
     memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,version);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
-    for(i=0,at=64;i<count;i++){write_row(p+at,rows+i,version);at+=RF_NPC_CHECKPOINT_ROW+extension_bytes(rows+i)+combat_bytes(rows+i)+shot_bytes(rows+i)+animation_bytes(rows+i)+(version>=13?12:0);}
+    for(i=0,at=64;i<count;i++){write_row(p+at,rows+i,version);at+=RF_NPC_CHECKPOINT_ROW+extension_bytes(rows+i)+combat_bytes(rows+i)+shot_bytes(rows+i)+animation_bytes(rows+i)+(version>=13?12:0)+(version>=14?RF_NPC_CHECKPOINT_PHYSICS_BYTES:0)+(version>=15?RF_NPC_CHECKPOINT_PAIN_BYTES:0)+(version>=16?RF_NPC_CHECKPOINT_HOLSTER_BYTES:0);}
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
 static int row_span(const unsigned char *p,uint32_t available,uint32_t version,uint32_t *span)
@@ -314,23 +385,31 @@ static int row_span(const unsigned char *p,uint32_t available,uint32_t version,u
     }}
     *span=base+extension+combat+shots+n;
     if(version>=13){if(available-*span<12)return RF_FORMAT;*span+=12;}
+    if(version>=14){if(available-*span<RF_NPC_CHECKPOINT_PHYSICS_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_PHYSICS_BYTES;}
+    if(version>=15){if(available-*span<RF_NPC_CHECKPOINT_PAIN_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_PAIN_BYTES;}
+    if(version>=16){if(available-*span<RF_NPC_CHECKPOINT_HOLSTER_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_HOLSTER_BYTES;}
     return RF_OK;
 }
 static int decode(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *out_count,uint32_t publish)
 {
-    const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,span,at,previous=0;int status;
+    const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,span,at,previous=0,pain_seen=0,pain_random=0;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
-    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>13||
+    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>17||
        word(p+8)!=bytes||word(p+20)||word(p+60)||word(p+56)!=c->hash||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
     version=word(p+4);count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_FORMAT;
     if(publish&&(count>capacity||(count&&!rows)))return RF_RANGE;
     for(i=0,at=64;i<count;i++){
         status=row_span(p+at,bytes-at,version,&span);if(status)return status;
         read_row(p+at,version,&r);
-        if((version<11&&r.combat.active==3)||(version<12&&r.combat.active==4))return RF_FORMAT;
+        if((version<11&&r.combat.active==3)||(version<12&&r.combat.active==4)||
+           (version<17&&r.physics.present&&r.dead_pose))return RF_FORMAT;
         status=valid(&r,c);if(status)return status;
+        if(r.pain.present){
+            if(pain_seen&&pain_random!=r.pain.random)return RF_FORMAT;
+            pain_seen=1;pain_random=r.pain.random;
+        }
         if(i&&previous>=r.uid)return RF_FORMAT;previous=r.uid;at+=span;
     }
     if(at!=bytes)return RF_FORMAT;

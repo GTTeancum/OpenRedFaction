@@ -922,6 +922,7 @@ static int scene_driller_damage_source(uint32_t,uint32_t *);
 #define SCENE_TURRET_PROJECTILE_OWNER 0x04000000u
 static int scene_driller_projectile_compose(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *,uint32_t *);
 static int scene_driller_firearm_select(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *);
+static uint32_t scene_driller_projectile_contact_live(const rf_weapon_flight_contact *,uint32_t);
 static int scene_driller_projectile_damage(const rf_weapon_flight_contact *,uint32_t,float,int32_t,uint32_t,uint32_t *,float *);
 static int scene_vehicle_script_slay(uint32_t,uint32_t,int32_t,uint32_t *);
 static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float,uint32_t,int32_t);
@@ -2422,6 +2423,14 @@ static rf_random_state campaign_conventional_random;
 uint32_t rf_scene_machine_mode[8]; /* mode,pending,ammo ID,loaded,reserve,starts,commits,status */
 uint32_t rf_scene_undercover[8]; /* attached,pending,visible,starts,commits,suppressed shots,prop vertices,status */
 static int campaign_enemy_extra_weapons_open(rf_vpp *,const rf_weapon_supply_catalog *);
+static int campaign_enemy_tankbot_primary_open(rf_vpp *,const rf_weapon_supply_catalog *);
+static uint32_t campaign_enemy_tankbot_primary_weapon(int32_t);
+static int campaign_enemy_reeper_claws_open(rf_vpp *,const rf_weapon_supply_catalog *,const rf_weapon_reset_catalog *);
+static int campaign_enemy_drone_smash_open(rf_vpp *,const rf_weapon_supply_catalog *,const rf_weapon_reset_catalog *);
+static void scene_ai_drone_smash_cancel_source(uint32_t);
+static void scene_ai_drone_smash_cancel_handle(uint32_t);
+static void scene_ai_drone_smash_reset(void);
+static uint32_t scene_ai_drone_smash_save_pending(void);
 static int32_t campaign_enemy_extra_fallback_pick(const rf_weapon_inventory *,const rf_weapon_supply_catalog *,int32_t,uint32_t);
 static uint32_t scene_ai_rocket_pending(void);
 static uint32_t scene_fusion_projectile_pending(void);
@@ -2524,6 +2533,41 @@ int rf_scene_campaign_player_set(const rf_campaign_player_state *state)
 
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
 static uint32_t pistol_reload_ticks,pistol_fire_ticks;
+static void scene_player_auto_select_inputs(void);
+static void scene_remote_selection_cancel(void);
+static int scene_grenade_empty_load(rf_vpp *);
+static void scene_grenade_empty_reset(void);
+static void scene_grenade_empty_input_reset(void);
+static void scene_npc_loop_audio_close(void);
+static void scene_npc_loop_audio_reset(void);
+static void scene_npc_loop_audio_remove(uint32_t);
+static void scene_turret_audio_close(void);
+static void scene_turret_audio_reset(void);
+static void scene_vehicle_loop_audio_close(void);
+static void scene_vehicle_loop_audio_reset(void);
+static void scene_vehicle_loop_audio_remove(uint32_t);
+static void scene_machine_pistol_audio_close(void);
+static void scene_machine_pistol_audio_reset(void);
+static void scene_hmg_audio_close(void);
+static void scene_hmg_audio_reset(void);
+static void scene_rifle_audio_close(void);
+static void scene_rifle_audio_reset(void);
+static void scene_rifle_audio_stop(const float *);
+static void scene_weapon_loop_audio_close(void);
+static void scene_weapon_loop_audio_reset(void);
+static void scene_weapon_empty_audio_reset(void);
+static void scene_weapon_empty_audio_close(void);
+static void scene_weapon_empty_audio_forget(void);
+static int scene_weapon_empty_audio_load(rf_vpp *);
+static void scene_projectile_flight_audio_reset(void);
+static void scene_projectile_flight_audio_close(void);
+static void scene_projectile_flight_audio_load(rf_vpp *);
+static void scene_tankbot_burst_audio_reset(void);
+static void scene_tankbot_burst_audio_close(void);
+static void scene_tankbot_burst_audio_load(rf_vpp *);
+static void scene_weapon_impact_audio_reset(void);
+static void scene_weapon_impact_audio_close(void);
+static void scene_weapon_impact_audio_load(rf_vpp *,rf_vpp *);
 uint32_t rf_scene_pistol_rules[7]; /* magazine,reload ticks,fire ticks,SP damage bits,semi-auto,definition bytes,damage kind */
 static int32_t campaign_slot_weapon(uint32_t slot)
 {return slot>=13 && slot<=16?campaign_extra_ids[slot-13]:slot==12?campaign_fusion_id:slot==11?campaign_shield_id:slot==10?campaign_flame_id:slot==9?campaign_remote_id:slot==8?campaign_remote_id:slot==7?campaign_rail_id:slot==6?campaign_sniper_id:slot==5?campaign_grenade_id:slot==4?campaign_rocket_id:slot==3?campaign_shotgun_id:slot==2?campaign_riot_id:slot==1?campaign_rifle_id:campaign_pistol_id;}
@@ -2532,6 +2576,11 @@ static int32_t campaign_selected_weapon(void)
 static uint32_t campaign_view_slot(void){return campaign_equipped_slot==13 && campaign_machine_mode.special?17:campaign_equipped_slot;}
 static void campaign_select_primary(uint32_t slot)
 {
+    scene_remote_selection_cancel();
+    scene_weapon_empty_audio_forget();
+    scene_machine_pistol_audio_close();scene_hmg_audio_close();
+    scene_rifle_audio_stop(scene_actor_body.state.position);
+    scene_weapon_loop_audio_close();
     /* Fractional Riot Stick drain belongs to a continuous held attack, not
      * the inventory cell count. Leaving the weapon ends that attack. */
     if(campaign_equipped_slot==2 && slot!=2)riot_charge_remainder=0;
@@ -2586,6 +2635,19 @@ uint32_t rf_scene_clutter_bodies[10]; /* created, physics-enabled, spheres, reta
 
 static int32_t (*campaign_footstep_groups)[10];
 static int scene_player_footsteps_load(rf_vpp *,const void *,uint32_t,const char *);
+static int scene_player_jump_audio_load(const void *,uint32_t,const char *);
+static void scene_player_jump_audio_reset(void);
+static void scene_player_water_audio_reset(void);
+static void scene_player_water_audio_close(void);
+static int32_t scene_player_jump_audio_group(void);
+static void scene_player_jump_audio_play(int32_t,uint32_t);
+static int scene_player_landing_audio_load(const void *,uint32_t,const char *);
+static void scene_player_landing_audio_reset(void);
+static void scene_player_landing_audio_begin(scene_stream *,uint32_t);
+static void scene_player_landing_audio_end(void);
+static void scene_player_landing_audio_relocated(void);
+static void scene_player_landing_audio_contact(const rf_physics_body_state *,const float[3]);
+static void scene_player_landing_audio_commit(uint32_t,const float[3],const rf_physics_body_state *,int32_t);
 static int32_t (*campaign_pain_groups)[2];
 static int32_t *campaign_impact_groups,*campaign_squash_groups;
 static int32_t campaign_contact_sound_group=-1;
@@ -2891,6 +2953,9 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     campaign_foley_registration foley_registration={0};int status;
     memset(rf_scene_foley,0,sizeof(rf_scene_foley));
     memset(rf_scene_npc_pain_groups,0,sizeof(rf_scene_npc_pain_groups));
+    scene_npc_loop_audio_close();scene_turret_audio_close();scene_vehicle_loop_audio_close();
+    scene_projectile_flight_audio_close();
+    scene_tankbot_burst_audio_close();
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     memset(campaign_listener_position,0,sizeof(campaign_listener_position));
     memset(campaign_listener_right,0,sizeof(campaign_listener_right));campaign_listener_right[0]=-1;
@@ -2968,6 +3033,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         memset(&campaign_weapon_reset,0,sizeof(campaign_weapon_reset));
         memset(rf_scene_weapon_reset_catalog,0,sizeof(rf_scene_weapon_reset_catalog));
         status=rf_weapon_reset_catalog_load(&tables,128*1024,initial_flags,&campaign_foley,&campaign_weapon_reset);if(status)goto audio_done;
+        status=scene_weapon_empty_audio_load(&tables);if(status)goto audio_done;
         rf_scene_weapon_reset_catalog[0]=campaign_weapon_reset.names.count;
         for(i=0;i<campaign_weapon_reset.names.count;++i)rf_scene_weapon_reset_catalog[1]+=campaign_weapon_reset.definitions[i].release_sound_class>=0;
         rf_scene_weapon_reset_catalog[2]=sizeof(campaign_weapon_reset);
@@ -3003,6 +3069,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         }
         if(player_class) {
             status=scene_player_footsteps_load(&tables,entity_text,entity_entry.size,player_class);if(status)goto audio_done;
+            status=scene_player_jump_audio_load(entity_text,entity_entry.size,player_class);if(status)goto audio_done;
+            status=scene_player_landing_audio_load(entity_text,entity_entry.size,player_class);if(status)goto audio_done;
             status=rf_entity_squash_sound_group_read(entity_text,entity_entry.size,player_class,&campaign_foley,&campaign_player_squash_group);if(status)goto audio_done;
             status=rf_entity_damage_sound_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
             if(status)goto audio_done;
@@ -3022,7 +3090,9 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         rf_scene_foley[3]+=campaign_seeds.class_count*sizeof(*campaign_squash_groups);
         if(rf_scene_foley[3]+entity_entry.size>rf_scene_foley[4])rf_scene_foley[4]=rf_scene_foley[3]+entity_entry.size;
     }
-    free(declarations);declarations=NULL;rf_vpp_close(&tables);
+    /* Impact metadata is admitted after mandatory startup PCM below. Keep
+     * this local read-only table archive open until the shared audio_done. */
+    free(declarations);declarations=NULL;
     /* All installed section500 records precede section3000 controllers. Their
      * first successful metadata registration must retain parameter precedence.
      * The deterministic port sound bank is enabled even without a host device. */
@@ -3079,6 +3149,10 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         status=rf_audio_bank_reload(&campaign_audio_bank,&archive,0x53);if(status)goto audio_done;
         break;
     }
+    scene_weapon_impact_audio_load(&tables,&archive);
+    scene_projectile_flight_audio_load(&archive);
+    scene_tankbot_burst_audio_load(&archive);
+    rf_scene_live_audio[0]=campaign_audio_bank.count;
     rf_scene_live_audio[1]=campaign_audio_bank.bytes;
     for(i=0;i<campaign_audio_bank.count;i++)if(rf_audio_bank_sample(&campaign_audio_bank,i)) {
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[i].bytes;
@@ -3154,8 +3228,9 @@ static int32_t campaign_sound_start(int32_t sample,const float position[3],float
 failed:
     ++rf_scene_live_audio[5];return -1;
 }
-/* Live first-pass switch services. Trigger/event effects dispatch in event.c;
- * unsupported controller/sound-object/light/renderable links remain counted. */
+/* Live Switch services. Trigger/event effects dispatch in event.c; controllers,
+ * qualified ambient sounds and NPC/clutter visibility use the scene owners. */
+#include "scene_switch_ambient.inc"
 static int campaign_switch_object_lookup(uint32_t family,uint32_t handle,rf_switch_target *target);
 static int campaign_switch_object_dispatch(const rf_switch_request *request);
 static int campaign_switch_mover_lookup(uint32_t family,uint32_t handle,rf_switch_target *target);
@@ -3164,6 +3239,7 @@ static int campaign_switch_lookup(void *context,uint32_t family,uint32_t link,rf
 {
     void *object=rf_object_registry_lookup(&campaign_registry,link);uint32_t kind=0;(void)context;
     if(family==RF_SWITCH_CONTROLLER)return campaign_switch_mover_lookup(family,link,target);
+    if(family==RF_SWITCH_SOUND)return campaign_switch_ambient_lookup(family,link,target);
     if(object)memcpy(&kind,object,4);
     if((family==RF_SWITCH_TRIGGER && kind==5) || (family==RF_SWITCH_EVENT && kind==6 && !((rf_runtime_event*)object)->retired)) {
         memset(target,0,sizeof(*target));target->token=link;
@@ -3175,7 +3251,12 @@ static int campaign_switch_lookup(void *context,uint32_t family,uint32_t link,rf
     return RF_NOT_FOUND;
 }
 static int campaign_switch_dispatch(void *context,const rf_switch_request *request)
-{(void)context;if(request && request->family==RF_SWITCH_OBJECT)return campaign_switch_object_dispatch(request);return campaign_switch_mover_dispatch(request);}
+{
+    (void)context;
+    if(request && request->family==RF_SWITCH_SOUND)return campaign_switch_ambient_dispatch(request);
+    if(request && request->family==RF_SWITCH_OBJECT)return campaign_switch_object_dispatch(request);
+    return campaign_switch_mover_dispatch(request);
+}
 static int campaign_switch_sound(void *context,const rf_runtime_event *event,uint32_t effect,int32_t now)
 {
     const char *name=event->authored->record.texts[0];int32_t sample=-1;uint32_t i,j;(void)context;(void)now;
@@ -4591,7 +4672,11 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));
     memset(rf_scene_weapon_supply,0,sizeof(rf_scene_weapon_supply));
     status=rf_weapon_supply_load(&tables,128*1024,&campaign_weapon_supply);
+    if(!status)status=scene_grenade_empty_load(&tables);
     if(!status)status=campaign_enemy_extra_weapons_open(&tables,&campaign_weapon_supply);
+    if(!status)status=campaign_enemy_tankbot_primary_open(&tables,&campaign_weapon_supply);
+    if(!status)status=campaign_enemy_reeper_claws_open(&tables,&campaign_weapon_supply,&campaign_weapon_reset);
+    if(!status)status=campaign_enemy_drone_smash_open(&tables,&campaign_weapon_supply,&campaign_weapon_reset);
     if(!status) {
         rf_scene_weapon_supply[0]=campaign_weapon_supply.names.count;
         rf_scene_weapon_supply[1]=campaign_weapon_supply.names.primary_count;
@@ -4660,6 +4745,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status)status=rf_clutter_classes_load(&tables,&campaign_clutter_catalogs.names,
         256*1024-campaign_clutter_catalogs.allocated_bytes,&campaign_clutter_classes,&peak);
     memset(rf_scene_clutter_damage,0,sizeof(rf_scene_clutter_damage));
+    memset(rf_scene_clutter_break_audio,0,sizeof(rf_scene_clutter_break_audio));
     if(!status){rf_vpp_entry entry;void *raw=NULL;
         status=rf_vpp_find(&tables,"clutter.tbl",&entry);
         if(!status && entry.size>512*1024)status=RF_RANGE;
@@ -4677,7 +4763,9 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
                 if(clip_index>=64){status=RF_RANGE;break;}
                 if(!resolved[clip_index]){rf_vclip_definition clip;
                     status=rf_vclip_definition_load(&tables,campaign_clutter_catalogs.names.vclips[clip_index],65536,&clip);
-                    if(status)break;clip_damage[clip_index]=clip.damage;resolved[clip_index]=1;
+                    if(status)break;
+                    status=scene_clutter_break_foley_bind((uint32_t)clip_index,&clip,&campaign_foley);if(status)break;
+                    clip_damage[clip_index]=clip.damage;resolved[clip_index]=1;
                 }
                 profile->break_damage=(float)((double)clip_damage[clip_index]*profile->break_radius*profile->break_damage);
                 if(!isfinite(profile->break_damage))status=RF_RANGE;
@@ -4857,7 +4945,7 @@ typedef struct campaign_npc_body {
     struct {uint32_t count;campaign_single_fire_request requests[16];} script_once;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     uint32_t combat_alert,combat_due,combat_burst_remaining;
-    uint32_t scripted_physics;
+    uint32_t scripted_physics,scripted_physics_seen;
     uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
@@ -5286,6 +5374,8 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 static void scene_npc_shields_close(void);
 static void campaign_npc_bodies_close(void)
 {
+    scene_ai_drone_smash_reset();
+    scene_npc_loop_audio_close();
     rf_model_materials_close(&campaign_weapon_materials);
     rf_weapon_models_close(&campaign_weapon_models);
     uint32_t i;for(i=0;i<campaign_npc_body_count;++i) {
@@ -5301,6 +5391,7 @@ static void campaign_npc_bodies_close(void)
     free(campaign_npc_eyes);campaign_npc_eyes=NULL;
 }
 static int scene_vehicle_uid_life(uint32_t,uint32_t *,uint32_t *);
+#include "scene_clutter_death_query.inc"
 static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
 {
     uint32_t i;(void)context;
@@ -5323,7 +5414,7 @@ static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uin
         *alive=*present&&!owner->damage.destroyed && owner->damage.state.effects.health>0;
         return RF_OK;
     }
-    return RF_NOT_FOUND;
+    return campaign_clutter_uid_life(uid,present,alive);
 }
 static uint32_t *campaign_controller_actor_slot(uint32_t handle)
 {
@@ -5409,6 +5500,7 @@ static int campaign_play_animation(void *context,uint32_t handle,const rf_level_
         status=loop?rf_motion_set_weight(&pose->playback,model->resources,model->count,motion,1):
             rf_motion_start(&pose->playback,model->resources,model->count,motion,1,event->flags[0]);
         if(status)return status;
+        scene_ai_drone_smash_cancel_source(handle);
         owner->script_animation.active=1;owner->script_animation.loop=loop;owner->script_animation.freeze=event->flags[0]==1;owner->script_animation.motion=motion;
         owner->script_move.active=owner->script_move.stop=owner->combat_alert=owner->combat_scripted=0;
         owner->navigation.retained.count=0;
@@ -5509,6 +5601,7 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
             owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
             owner->combat_navigation_due=owner->combat_due=owner->combat_burst_remaining=owner->combat_reload_due=0;
             owner->combat_reload_weapon=-1;}
+        scene_ai_drone_smash_cancel_source(handle);
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
         owner->navigation.retained.count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
         owner->script_move.follow=!strcmp(event->type,"Goto_Player");
@@ -5550,6 +5643,7 @@ static int campaign_script_look_at(void *context,const rf_level_event *event,
 }
 static int scene_turret_generated_remove(uint32_t actor,int32_t now,uint32_t *handled);
 static uint32_t scene_turret_generated_retired(uint32_t head);
+#include "scene_npc_retirement_orders.inc"
 static int campaign_remove_object(void *context,uint32_t handle)
 {
     uint32_t i,handled;int status;(void)context;
@@ -5559,13 +5653,23 @@ static int campaign_remove_object(void *context,uint32_t handle)
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        if(owner->script_once.count>16)return RF_FORMAT;
         status=scene_npc_seat_unbind(handle,0);if(status)return status;
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);if(status)return status;
-        owner->script_move.active=0;owner->navigation.retained.count=0;
+        scene_ai_drone_smash_cancel_handle(handle); /* Unregister zeroed the wrapper. */
+        scene_npc_loop_audio_remove(handle);
+        /* Successful unregister has made scene_burning_owner unable to find
+         * this target. Retire its live slot, then clear the retained backlink. */
+        scene_burning_extinguish(handle);
+        owner->damage.effects.burn=0;owner->damage.burn_source=UINT32_MAX;
+        scene_npc_retirement_cancel_orders(owner);
         owner->damage.effects.health=0;owner->view.flags_810|=1;
         owner->damage.effects.flags_810=owner->view.flags_810;
         owner->object_flags|=2|0x4000;owner->view.flags_7c=owner->room.flags=owner->object_flags;
         rf_physics_body_close(&owner->body);
+        /* The physical owner is gone; retain no executable freeze/wake state.
+         * RFNC still rejects unsupported live frozen-death profiles. */
+        owner->scripted_physics=owner->scripted_physics_seen=0;
         ++rf_scene_actor_retirement[1]; /* Excluded from this scene's live owners. */
         if(owner->persistence_registered)rf_scene_defeated_actors.items[owner->persistence_slot].retired=1;
         return RF_OK;
@@ -6017,6 +6121,14 @@ static void campaign_close_movers(void)
     rf_entity_motion_catalog_close(&campaign_motion_catalog);
     rf_entity_base_motions_close(&campaign_base_motions);
     rf_entity_skeletons_close(&campaign_skeletons);
+    scene_player_water_audio_close();
+    scene_npc_loop_audio_close();scene_turret_audio_close();scene_vehicle_loop_audio_close();
+    scene_projectile_flight_audio_close();
+    scene_tankbot_burst_audio_close();
+    scene_weapon_impact_audio_close();
+    scene_weapon_empty_audio_close();scene_grenade_empty_reset();
+    scene_machine_pistol_audio_close();scene_hmg_audio_close();scene_rifle_audio_close();
+    scene_weapon_loop_audio_close();
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);
@@ -6897,7 +7009,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
     memcpy(owner->command_714,state.vector_714,12);
     memcpy(owner->body.state.velocity,state.vector_144,12);memcpy(owner->body.state.vector_c8,state.vector_150,12);
-    if(*entered){status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
+    if(*entered){scene_ai_drone_smash_cancel_handle(handle);scene_npc_loop_audio_remove(handle);status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
     return RF_OK;
 }
 
@@ -7100,7 +7212,9 @@ int rf_scene_npc_weapon_reset(uint32_t handle,int32_t weapon,
     campaign_weapon_reset_reload(&c);c.owner->firing.character_present=1;c.owner->firing.player_present=0;
     status=rf_weapon_reset(&c.owner->firing,weapon,descriptors,context,&pose->playback,
         model->resources,model->count,&bridge,&c);
-    campaign_weapon_reset_publish(&c);return status;
+    campaign_weapon_reset_publish(&c);
+    if(!status && weapon==c.owner->view.weapons[0])scene_ai_drone_smash_cancel_source(handle);
+    return status;
 }
 
 typedef struct campaign_pain_context {
@@ -8375,11 +8489,6 @@ int rf_scene_npc_refresh_support(uint32_t handle)
 }
 static uint32_t campaign_npc_physics_suspended(const campaign_npc_body *o)
 {return o->scripted_physics && !(o->body.state.flags&0x80000000u);}
-static uint32_t campaign_npc_physics_save_allowed(void)
-{
-    for(uint32_t i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].scripted_physics)return 0;
-    return 1;
-}
 static int campaign_npc_refresh_support_tick(void)
 {
     uint32_t i;int status;
@@ -9012,6 +9121,7 @@ static int scene_npc_ground_query_piece(const rf_geometry_collision_world *world
 int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t handle,float elapsed,
     rf_physics_ground_probe *probe,rf_collision_actor_contact *contact,uint32_t *matched)
 {return scene_npc_ground_query_piece(world,handle,elapsed,probe,contact,matched,NULL);}
+#include "scene_player_clutter_collision.inc"
 /* Caller owns conversion scratch; no per-query allocation or player globals. */
 static int campaign_physics_body_sweep_for(const rf_geometry_collision_world *world,
     const rf_physics_body_state *state,const rf_physics_spheres *source,uint32_t flags,
@@ -9032,6 +9142,8 @@ static int campaign_physics_body_sweep_for(const rf_geometry_collision_world *wo
         status=scene_driller_player_collision(scene_actor_collision_owner,&query,&value,&found);if(status)return status;
         status=scene_passive_vehicle_actor_collision(scene_actor_collision_owner,campaign_player_object.handle,
             (uint32_t)campaign_player_view.linked_handle,&query,&value,&found);if(status)return status;
+        status=scene_player_clutter_compose(campaign_player_object.handle,
+            (uint32_t)campaign_player_view.linked_handle,&query,&value,&found,NULL);if(status)return status;
     }
     if(found)*hit=value;*matched=found;return RF_OK;
 }
@@ -9260,7 +9372,7 @@ static int actor_ground_query_state(const rf_geometry_collision_world *world,con
         state->position,state->state_124,rf_scene_actor_landing[1]==3,
         scene_step_seconds,rf_scene_actor_movement_values.speed,campaign_spawn?campaign_support_velocity[1]:0,&r->probe);if(status)return status;
     if(campaign_spawn) {
-        rf_collision_body_sphere sphere;rf_collision_body_query query={0};
+        rf_collision_body_sphere sphere;rf_collision_body_query query={0};uint32_t clutter_replaced=0;
         memcpy(sphere.center,r->probe.sphere.center,12);sphere.radius=r->probe.sphere.radius;
         memcpy(query.start,r->probe.start,12);memcpy(query.end,r->probe.end,12);
         for(k=0;k<3;k++)query.matrix[k][k]=1;
@@ -9272,6 +9384,9 @@ static int actor_ground_query_state(const rf_geometry_collision_world *world,con
             &query,contact,&r->matched);
         ++rf_scene_passive_collision[2];
         if(r->matched && contact->contact.object_id==rf_scene_passive_collision[5])++rf_scene_passive_collision[3];
+        if(!status)status=scene_player_clutter_compose(campaign_player_object.handle,
+            (uint32_t)campaign_player_view.linked_handle,&query,contact,&r->matched,&clutter_replaced);
+        if(!status && clutter_replaced && support)memset(support,0,sizeof(*support));
         ++rf_scene_actor_ground_queries[0];rf_scene_actor_ground_queries[3]=(uint32_t)status;
         if(status)return status;
         if(r->matched) {
@@ -9459,15 +9574,17 @@ uint32_t rf_scene_actor_stance_support[64][9]; /* query, mode before/after, posi
 static int actor_stance_ground_commit(const rf_geometry_collision_world *world,uint32_t frame)
 {
     actor_ground_record *r=rf_scene_actor_stance_ground+(frame%64);rf_geometry_body_hit contact;scene_piece_support support;
-    uint32_t *d=rf_scene_actor_stance_support[frame%64];int status,walkable;
+    uint32_t *d=rf_scene_actor_stance_support[frame%64],landed=0;int status,walkable;
+    float landing_velocity[3];
     d[0]=1;d[1]=rf_scene_actor_landing[1];memcpy(d+3,scene_actor_body.state.position,12);
     status=actor_ground_query(world,r,&contact,&support);
     if(status){printf("STANCE_GROUND_FAILURE %u %d %u %u\n",frame,status,scene_actor_body.state.state_124,r->probe.query_flags);return status;}
     walkable=r->matched && r->hit.hit.fraction<1 && r->hit.hit.normal[1]>=.5f;
     if(walkable) {
         if(rf_scene_actor_landing[1]==3) {
+            memcpy(landing_velocity,scene_actor_body.state.velocity,12);
             status=actor_support_commit(&scene_actor_body.state,r,&contact,1,&support);if(status)return status;
-            rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
+            rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;landed=1;
             ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
         } else {
             status=actor_support_commit(&scene_actor_body.state,r,&contact,0,&support);if(status)return status;
@@ -9478,6 +9595,8 @@ static int actor_stance_ground_commit(const rf_geometry_collision_world *world,u
         campaign_player_passive_support_release(&scene_actor_body.state,frame);
     }
     status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
+    if(campaign_spawn && landed)scene_player_landing_audio_commit(frame,landing_velocity,
+        &scene_actor_body.state,(int32_t)contact.contact.material);
     d[2]=rf_scene_actor_landing[1];memcpy(d+6,scene_actor_body.state.position,12);return RF_OK;
 }
 typedef struct actor_clearance_context {const rf_geometry_collision_world *world;int frame;} actor_clearance_context;
@@ -9586,7 +9705,12 @@ static int campaign_climb_update(scene_stream *stream,uint32_t frame)
     return RF_OK;
 }
 static void campaign_jump_sound(void *context,const rf_player_jump_state *state,int32_t sound)
-{(void)context;(void)state;(void)sound;++rf_scene_player_jump[2]; /* Asset resolution/playback pending. */}
+{
+    uint32_t frame=context?*(const uint32_t *)context:UINT32_MAX;(void)state;
+    /* Physics uses this callback count as its accepted-jump signal. Keep it
+     * unconditional even for silent classes, failed loads or a full mixer. */
+    ++rf_scene_player_jump[2];scene_player_jump_audio_play(sound,frame);
+}
 uint32_t rf_scene_player_swim[12]; /* room,wet,eye,mode,entries,exits,blocked,bytes,height,bodyY,eyeY,status */
 /* Snapshot original room minY/depth while geometry is resident. Never derive
  * water height from CSG-expanded collision bounds or retain source pointers. */
@@ -9651,12 +9775,12 @@ static int campaign_jump_update(uint32_t frame)
             rf_player_jump_state state={rf_scene_actor_stance_flags,scene_actor_body.state.flags,
                 scene_actor_body.state.velocity[1],campaign_modes+selected,campaign_identity,0};
             /* Configured impulse uses the same initialized gravity state as falling.
-             * Runtime gravity events do not recompute it; audio remains open. */
+             * Runtime gravity events do not recompute it. */
             rf_player_jump_input input={campaign_modes,campaign_identity,
-                campaign_jump_strength,scene_step_seconds,0,0,-1,0};
+                campaign_jump_strength,scene_step_seconds,0,0,scene_player_jump_audio_group(),0};
             float now=(float)((double)frame*scene_step_seconds);uint32_t sounds=rf_scene_player_jump[2];
             memcpy(&input.now,&now,4);
-            status=rf_player_jump(&state,&input,&selected,campaign_jump_sound,NULL);if(status)return status;
+            status=rf_player_jump(&state,&input,&selected,campaign_jump_sound,&frame);if(status)return status;
             accepted=rf_scene_player_jump[2]!=sounds;
             rf_scene_actor_stance_flags=state.actor_flags;scene_actor_body.state.flags=state.physics_flags;
             scene_actor_body.state.velocity[1]=state.vertical_velocity;rf_scene_actor_landing[1]=selected;
@@ -9670,6 +9794,7 @@ static int campaign_jump_update(uint32_t frame)
 }
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
+    scene_player_landing_audio_begin((scene_stream*)context,frame);
     if(scene_driller_active((scene_stream*)context)||scene_turret_player_active())return RF_OK;
     int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
     update_status=campaign_swim_update((scene_stream*)context,frame,controller);rf_scene_player_swim[11]=(uint32_t)update_status;if(update_status)return update_status;
@@ -9929,6 +10054,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
             memcpy(record+15,campaign_spawn?rf_scene_actor_body_contact.contact.velocity:support,12);
             ++contacts;
             status=rf_physics_contact_advance(state,remaining,fraction,&remaining);if(status)return status;
+            if(campaign_spawn)scene_player_landing_audio_contact(state,normal);
             status=actor_contact(state,normal,support,command,rf_scene_actor_landing[1],&impact);if(status)return status;
             if(campaign_spawn){status=scene_player_impact_contact(state,rf_scene_actor_landing[1],rf_scene_actor_body_contact.contact.material,impact);if(status)return status;}
             memcpy(record+18,state->velocity,24);memcpy(record+24,&impact,4);
@@ -10114,6 +10240,18 @@ static void combat_sound(const char *name,const float position[3])
     /* A missing sound or exhausted voice budget must not stop gameplay. */
     if(status)++rf_scene_weapon_audio[7];
 }
+#include "scene_projectile_flight_audio.inc"
+#include "scene_weapon_empty_audio.inc"
+#include "scene_weapon_loop_audio.inc"
+#include "scene_rifle_audio.inc"
+#include "scene_hmg_audio.inc"
+#include "scene_machine_pistol_audio.inc"
+#include "scene_npc_rifle_audio.inc"
+#include "scene_tankbot_burst_audio.inc"
+#include "scene_npc_launch_audio.inc"
+#include "scene_npc_action_foley.inc"
+#include "scene_npc_loop_audio.inc"
+#include "scene_vehicle_loop_audio.inc"
 uint32_t rf_scene_combat_death[8]; /* entered,action,motion,status,tick,weight bits,frozen,generation */
 uint32_t rf_scene_combat[8];
 static uint32_t combat_frame,combat_hit_frame,combat_surface_frame;
@@ -10428,6 +10566,7 @@ static struct {
     rf_physics_sphere spheres[8];uint32_t count,stance,landing[8],support;
     float support_velocity[3];
 } life_start;
+#include "scene_clutter_invulnerability.inc"
 static int scene_vehicle_set_invulnerable(uint32_t handle,uint32_t enabled);
 static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enabled)
 {
@@ -10447,7 +10586,7 @@ static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enab
         if(enabled)owner->object_flags|=4;else owner->object_flags&=~4u;
         owner->view.flags_7c=owner->room.flags=owner->object_flags;return RF_OK;
     }
-    return RF_NOT_FOUND;
+    return campaign_clutter_set_invulnerable(handle,enabled);
 }
 static int campaign_set_vehicle_exit_lock(void *context,uint32_t handle,uint32_t locked)
 {
@@ -10502,6 +10641,7 @@ static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
         if(!owner->registration.view || owner->registration.handle!=handle || registered!=&owner->registration)continue;
         /* Practical SP visibility transition; never resurrect dead owners. */
         if(owner->damage.effects.health<=0 || (owner->object_flags&2))return RF_OK;
+        if(!visible)scene_ai_drone_smash_cancel_handle(handle);
         if(visible)owner->object_flags&=~0x4000u;else owner->object_flags|=0x4000u;
         owner->view.flags_7c=owner->room.flags=owner->object_flags;
         return RF_OK;
@@ -10559,6 +10699,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
             ++rf_scene_alarm[6];
             if(owner->damage.effects.affiliation==0 && owner->view.weapons[0]>=0) {
                 status=campaign_animation_cancel(owner);if(status)return status;
+                scene_ai_drone_smash_cancel_source(owner->registration.handle);
                 if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;}
                 owner->combat_scripted=0;owner->combat_target=campaign_player_object.handle;
                 owner->combat_alert=1;owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
@@ -10595,6 +10736,7 @@ static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t valu
     if(view==&campaign_player_view){campaign_player_damage.state.effects.affiliation=value;return RF_OK;}
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view==view) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
+        scene_ai_drone_smash_cancel_source(handle);
         owner->damage.effects.affiliation=value;
         /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
         campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->combat_scripted=owner->combat_target=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=0;return RF_OK;
@@ -10628,6 +10770,7 @@ static void campaign_ammo_publish(void)
     if(!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])rf_scene_player_ammo[0]=UINT32_MAX;
     rf_scene_player_ammo[2]=rf_scene_combat[5];rf_scene_player_ammo[6]=sizeof(campaign_player_inventory);
 }
+#include "scene_unarmed_pickup_selection.inc"
 /* Gameplay portion of original 4b00f0/4b0380. The original recreates the
  * actor as parker_suit/parker_sci and back to miner1; model/camera replacement
  * is still open. Keep the existing body and health stable while applying the
@@ -10731,6 +10874,8 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     life_use=input->use;life_restart_held=input->crouch;
     if(!life_valid || campaign_player_damage.state.effects.health>0)return RF_OK;
     if(!rf_scene_player_life[2]) {
+        scene_ai_drone_smash_cancel_handle(campaign_player_object.handle);
+        scene_machine_pistol_audio_close();scene_hmg_audio_close();scene_rifle_audio_close();scene_weapon_loop_audio_close();
         ++rf_scene_player_life[0];rf_scene_player_life[2]=1;rf_scene_player_life[3]=frame;
         for(i=0;i<campaign_npc_body_count;i++)campaign_pursuit_stop(campaign_npc_bodies+i);
         memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
@@ -10760,6 +10905,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     if(has_weapon){status=campaign_ammo_reset();if(status)return status;}else campaign_ammo_publish();
     memset(&combat_trigger,0,sizeof(combat_trigger));combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=(uint32_t)campaign_player_inventory.loaded[campaign_selected_weapon()];rf_scene_combat[6]=0;
     for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
+    scene_ai_drone_smash_reset();
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
     return RF_OK;
@@ -10826,6 +10972,7 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
     if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
        (!owner->combat_scripted && s==campaign_player_object.handle)))return;
     if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;}
+    scene_ai_drone_smash_cancel_source(owner->registration.handle);
     owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
     owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
     ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=t;rf_scene_enemy_retaliation[2]=s;
@@ -10943,13 +11090,16 @@ static int combat_shot_obstructed(scene_stream *stream,const float start[3],cons
     }
     return status;
 }
+#include "scene_weapon_impact_audio.inc"
+#include "scene_npc_bullet_impact_audio.inc"
 /* Actual fired NPC ray, separate from visibility/pickup probes. A missed
  * actor still permits a nearer fragment hit. Test world only up to that
  * fragment so a wall behind the chunk cannot suppress its direct damage. */
-static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],const float delta[3],
-    float fraction,float damage,uint32_t *blocked)
+static int combat_enemy_fragment_shot_contact(scene_stream *stream,const float start[3],const float delta[3],
+    float fraction,float damage,uint32_t *blocked,scene_npc_bullet_contact *contact)
 {
     rf_geomod_registry_hit hit;uint32_t matched,j,wall;float end[3];int status;
+    if(contact)memset(contact,0,sizeof(*contact));
     status=scene_detached_sources_sweep(stream,0x460,start,delta,0,fraction,&hit,&matched);
     rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
     if(matched)fraction=hit.piece.hit.fraction;
@@ -10960,8 +11110,16 @@ static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],
         status=scene_detached_sources_damage(stream,hit.batch,hit.piece.piece,damage);
         rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
         ++rf_scene_detached_hitscan[2];
+        if(contact){contact->kind=2;contact->limit=fraction;memcpy(contact->point,hit.piece.hit.point,12);}
     }
+    if(contact && wall){contact->kind=1;contact->limit=fraction;}
     *blocked=wall || matched;return RF_OK;
+}
+/* Existing melee/turret/clutter consumers remain silent and keep their API. */
+static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],const float delta[3],
+    float fraction,float damage,uint32_t *blocked)
+{
+    return combat_enemy_fragment_shot_contact(stream,start,delta,fraction,damage,blocked,NULL);
 }
 uint32_t rf_scene_live_death_audio[4]; /* requested, played, silent, failed */
 uint32_t rf_scene_live_death_selection[4]; /* attempts, selected, generic fallback, last action */
@@ -11067,13 +11225,16 @@ static int campaign_liquid_damage_tick(scene_stream *s,uint32_t frame,int32_t no
     memcpy(rf_scene_liquid_damage+5,&amount,4);memcpy(rf_scene_liquid_damage+6,&campaign_player_damage.state.effects.health,4);
     rf_scene_liquid_damage[7]=(uint32_t)status;return status;
 }
+#include "scene_npc_liquid_damage.inc"
 #include "scene_turret_generated_death.inc"
 uint32_t rf_scene_script_slays[6]; /* requests,death entries,last UID,health bits,clock,status */
+#include "scene_scripted_clutter_slay.inc"
 static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,int32_t now)
 {
     uint32_t i,entered,clock_bits;float amount,seconds=(float)now*.001f;int status;(void)context;
     combat_feedback feedback={now,0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    status=campaign_slay_clutter(handle,now);if(status!=RF_NOT_FOUND)return status;
     {uint32_t handled=0;status=scene_vehicle_script_slay(handle,source,now,&handled);if(status||handled)return status;}
     {scene_turret_owner *o=scene_turret_lookup(handle);if(o){
         rf_damage_request request={o->damage.effects.health+fmaxf(0,o->damage.effects.armor)+1,source,-1,0,UINT32_MAX,1};
@@ -11120,6 +11281,7 @@ static void campaign_pickup_notice_grant(const char messages[4][64],uint32_t acq
     snprintf(rf_scene_pickup_notice,sizeof(rf_scene_pickup_notice),message,(int)rounds);
     campaign_pickup_notice_frame=combat_frame==UINT32_MAX?0:combat_frame;
 }
+#include "scene_scripted_notice_items.inc"
 /* RF.exe45a050, registered for Miner Envirosuit at4589b9. Both world
  * pickup4597d1 and Give_Item4bb78c invoke the class-specific callback. */
 static float campaign_miner_suit_grant(void)
@@ -11137,6 +11299,7 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
         memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
         rf_scene_combat[6]=0;campaign_ammo_publish();return scene_player_shield_damage_sync();
     }
+    if(scene_scripted_notice_item_apply(request))return RF_OK;
     /* The suit has a class-specific armor callback. Other no-weapon/no-ammo
      * items use45a3d0/45a100 notices without mutating weapon inventory. */
     if(request->weapon==CAMPAIGN_ITEM_MINER_SUIT || request->weapon==CAMPAIGN_ITEM_DOCTOR_UNIFORM){
@@ -11198,7 +11361,7 @@ static int campaign_give_item(void *context,const char *name)
             scene_pickup_name_equal(name,"Doctor Uniform")?CAMPAIGN_ITEM_DOCTOR_UNIFORM:
             scene_pickup_name_equal(name,"Medical Kit")?CAMPAIGN_ITEM_MEDICAL_KIT:
             scene_pickup_name_equal(name,"First Aid Kit")?CAMPAIGN_ITEM_FIRST_AID:
-            scene_pickup_name_equal(name,"Suit Repair")?CAMPAIGN_ITEM_SUIT_REPAIR:-7;
+            scene_pickup_name_equal(name,"Suit Repair")?CAMPAIGN_ITEM_SUIT_REPAIR:scene_scripted_notice_item_id(name);
         if(request.weapon==-7)return RF_NOT_FOUND;
     }else {request.weapon=rf_weapon_name_find(&campaign_weapon_supply.names,item.weapon);
         if(request.weapon<0)return RF_NOT_FOUND;}
@@ -11269,7 +11432,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     }
     if(!owner || !owner->registration.view || owner->damage.effects.health<=0)return RF_NOT_FOUND;
     if(on&&scene_npc_seat_attached(owner->registration.handle))return RF_NOT_FOUND;
-    if(!on){if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
+    if(!on){scene_ai_drone_smash_cancel_source(owner->registration.handle);if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
         else {float aim[3],health;
@@ -11283,6 +11446,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(target==UINT32_MAX)return RF_NOT_FOUND;
     memset(rf_scene_attack_recovery,0,sizeof(rf_scene_attack_recovery));memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
     {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;}
+    scene_ai_drone_smash_cancel_source(owner->registration.handle);
     owner->script_shoot.active=0;
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_burst_remaining=owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
@@ -11331,6 +11495,7 @@ static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mo
         for(j=0;j<3;j++)length+=owner->look.orientation[6+j]*owner->look.orientation[6+j];
         if(!isfinite(length)||length<.25f||length>4.f)return RF_RANGE;
         if(owner->script_once.count>=16)return RF_RANGE;
+        scene_ai_drone_smash_cancel_source(handle);
         campaign_single_fire_request *request=owner->script_once.requests+owner->script_once.count;
         for(j=0;j<3;j++)request->point[j]=owner->eye_position[j]+
             40.f*owner->look.orientation[6+j]/sqrtf(length);
@@ -11387,12 +11552,14 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
             if(on&&scene_npc_seat_attached(owner->registration.handle))return RF_NOT_FOUND;
             if(!on) {
                 if(owner->script_shoot.active && owner->script_shoot.event==event->uid) {
+                    scene_ai_drone_smash_cancel_source(owner->registration.handle);
                     owner->script_shoot.active=0;campaign_pursuit_stop(owner);
                     owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
                     owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
                 }
             } else {
                 status=campaign_animation_cancel(owner);if(status)return status;
+                scene_ai_drone_smash_cancel_source(owner->registration.handle);
                 campaign_pursuit_stop(owner);owner->script_move.active=0;
                 owner->script_shoot.active=1;owner->script_shoot.event=event->uid;
                 memcpy(owner->script_shoot.point,event->position,12);
@@ -11408,17 +11575,23 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
     return matched?RF_OK:RF_NOT_FOUND;
 }
 uint32_t rf_scene_enemy_fire[6]; /* shots, motion starts, missing, sounds, last motion, status */
-static int campaign_enemy_fire_presentation(uint32_t slot,uint32_t animate)
+static int campaign_enemy_fire_presentation(uint32_t slot,uint32_t animate,
+    const rf_weapon_primary_definition *definition,uint32_t burst_before,uint32_t once)
 {
     campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;
     rf_entity_playback_model *model;int32_t sounds[45],sound,motion;uint32_t i;int status,active;
-    const char *label=owner->selection.action_sounds[2];
     ++rf_scene_enemy_fire[0];
-    if((!label || !label[0]) && campaign_weapon_supply.names.count) {
-        if(owner->view.weapons[0]==campaign_pistol_id)label="Glock Launch";
-        else if(owner->view.weapons[0]==campaign_rifle_id)label="Assault Loop";
+    if(owner->view.weapons[0]==campaign_rifle_id) {
+        rf_scene_enemy_fire[3]+=scene_npc_rifle_audio_shot(definition,burst_before,once,owner->eye_position);
+    } else if(campaign_enemy_tankbot_primary_weapon(owner->view.weapons[0])) {
+        rf_scene_enemy_fire[3]+=scene_tankbot_burst_audio_shot(definition,burst_before,once,owner->eye_position);
+    } else if(scene_npc_loop_audio_weapon(owner->view.weapons[0])) {
+        rf_scene_enemy_fire[3]+=scene_npc_loop_audio_shot(slot,once);
+    } else {
+        rf_scene_enemy_fire[3]+=scene_npc_launch_audio_shot(owner->view.weapons[0],owner->eye_position);
     }
-    if(label && label[0]){combat_sound(label,owner->eye_position);++rf_scene_enemy_fire[3];}
+    /* Original weapon Launch is independent of authored animation Foley. */
+    rf_scene_enemy_fire[3]+=scene_npc_action_foley_play(slot,2);
     if(!animate)return RF_OK;
     /* Pure damage fixtures have no pose owner; absent authored clips are optional. */
     if(slot>=campaign_poses.count || !campaign_poses.items)return RF_NOT_FOUND;
@@ -11502,12 +11675,17 @@ done:
 #include "scene_ai_target_liveness.inc"
 #include "scene_ai_weapon_selection.inc"
 #include "scene_ai_extra_weapons.inc"
+#include "scene_ai_tankbot_primary.inc"
+#include "scene_ai_reeper_claw.inc"
 #include "scene_ai_reload.inc"
 #include "scene_clutter_enemy_fire.inc"
 #include "scene_ai_actor_ray.inc"
 #include "scene_ai_actor_hit_probe.inc"
+#include "scene_ai_tankbot_penetration.inc"
 #include "scene_ai_shotgun.inc"
 #include "scene_ai_melee_contact.inc"
+#include "scene_authored_holster.inc"
+#include "scene_ai_drone_smash.inc"
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
 static int scene_ai_rocket_launch(campaign_npc_body *,const float *);
 static int scene_ai_tankbot_missile_launch(campaign_npc_body *,const float *);
@@ -11515,14 +11693,22 @@ static int scene_ai_tankbot_missile_launch(campaign_npc_body *,const float *);
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
+    /* Impact timing is independent of the next fire deadline, acquisition,
+     * pain lock and all per-owner suppression early-outs. Invalid owners are
+     * cancelled by the service even while the movement fixture is quiet. */
+    {int status=scene_ai_drone_smash_service(stream,frame,player_eye);if(status)return status;}
     /* Explicit movement fixture: quiet authored pool, no enemy combat. */
     if(rf_scene_swim_test_enabled)return RF_OK;
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count;i++) {
-        campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
-        uint32_t point_spread_ready=0,once,vehicle_damage_applied=0;
+        campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],point_spread_ray[3],bullet_point[3],distance=0,amount=0,player_amount=0;int status;
+        int32_t bullet_material=-1;
+        uint32_t point_spread_ready=0,once,vehicle_damage_applied=0,tankbot_penetrated=0;
+        scene_ai_tankbot_penetration_shot tankbot_shot={0};
+        scene_ai_tankbot_penetration_result tankbot_result={0};
+        float tankbot_eye[3]={0};
         campaign_single_fire_request *single=owner->script_once.requests;
         if(scene_turret_generated_activation_suppresses(owner->registration.handle)||scene_turret_operator_suppresses(owner->registration.handle)||scene_npc_seat_attached(owner->registration.handle))continue;
         while(owner->script_once.count && frame>single->expires)campaign_script_single_pop(owner,0);
@@ -11530,6 +11716,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(once && single->mode==1){
             if(!owner->registration.view || (owner->object_flags&(2u|0x4000u)) ||
                owner->damage.effects.health<=0 || (owner->view.flags_810&1u))continue;
+            if(campaign_npc_holster_blocks_fire(owner))continue;
             status=scene_ai_tankbot_missile_launch(owner,single->point);
             if(status==RF_NOT_FOUND)continue;
             if(status)return status;
@@ -11552,6 +11739,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         status=campaign_enemy_weapon_select(weapon,ids,campaign_primary,campaign_weapon_supply.definitions,
             campaign_weapon_supply.names.count,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(weapon,&campaign_weapon_supply,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_tankbot_primary_select(weapon,&campaign_weapon_supply,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_reeper_claw_select(owner,&campaign_weapon_supply,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_drone_smash_select(owner,&campaign_weapon_supply,&selected);
         if(status && status!=RF_NOT_FOUND)return status;
         if(weapon==campaign_grenade_id){
             if(!scene_grenade_resources)continue;
@@ -11642,8 +11832,11 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         }
         if(selected.ammo) {
             uint32_t ready,event;
-            status=campaign_enemy_ammo_ready(&owner->inventory,selected.ammo,
-                definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);if(status)return status;
+            if(selected.reserve_fed)status=campaign_enemy_tankbot_primary_ready(&owner->inventory,
+                selected.ammo,weapon,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);
+            else status=campaign_enemy_ammo_ready(&owner->inventory,selected.ammo,
+                definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);
+            if(status)return status;
             if(event==1){owner->combat_burst_remaining=0;
                 status=campaign_enemy_reload_presentation(i);if(status && status!=RF_NOT_FOUND)return status;}
             if(rf_scene_combat_trace && (event==1 || event==2))printf("ENEMY_RELOAD_TRACE %u %u %u %d\n",frame,campaign_seeds.records.items[i].record.uid,event,owner->inventory.loaded[weapon]);
@@ -11655,7 +11848,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             }
             if(!ready)continue;
         }
-        if(!once && frame<owner->combat_due)continue;
+        if(campaign_npc_holster_blocks_fire(owner))continue;
+        if(!once && frame<owner->combat_due){scene_npc_loop_audio_tick(i);continue;}
         /* Practical live-AI integration of428740's retained animation lock.
          * Preserve the attack deadline so expiry resumes without a new delay. */
         {
@@ -11688,15 +11882,42 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(status==RF_NOT_FOUND)continue;
             if(status)return status;
         }
+        if(campaign_enemy_drone_smash_weapon(weapon)) {
+            uint32_t started;
+            /* This first slice requires a live retained actor target. Never
+             * let Drone Smash enter the immediate creature-melee branch. */
+            if(point_target || vehicle_victim)continue;
+            status=scene_ai_drone_smash_begin(stream,i,intended_handle,frame,player_eye,&started);
+            if(status)return status;
+            continue;
+        }
+        uint32_t burst_before=owner->combat_burst_remaining;
         if(!once){status=campaign_enemy_cadence(definition,frame,&owner->combat_burst_remaining,&owner->combat_due);if(status)return status;}
-        if(selected.ammo && weapon!=campaign_rocket_id)--owner->inventory.loaded[weapon];
+        if(selected.ammo && weapon!=campaign_rocket_id){
+            if(selected.reserve_fed){
+                status=rf_weapon_consume_shot(&owner->inventory,campaign_weapon_supply.definitions,
+                    campaign_weapon_supply.names.count,weapon);if(status)return status;
+            }else --owner->inventory.loaded[weapon];
+        }
+        /* Snapshot accepted identity and fresh AI-scaled damage before fire
+         * presentation can invoke callbacks. Ammo/cadence remain single-shot. */
+        if(campaign_enemy_tankbot_primary_weapon(weapon) && definition->piercing_enabled) {
+            /* Preserve ordinary source registry admission once; subsequent
+             * contacts retain the accepted generation across callbacks. */
+            if(!scene_ai_tankbot_penetration_npc_identity(i,owner->registration.handle))return RF_NOT_FOUND;
+            tankbot_shot.source=owner->registration.handle;
+            tankbot_shot.intended=intended_handle;tankbot_shot.weapon=weapon;
+            tankbot_shot.kind=definition->damage_kind;tankbot_shot.enabled=definition->piercing_enabled;
+            tankbot_shot.base=shot_damage;tankbot_shot.power=definition->piercing_power;
+            memcpy(tankbot_eye,owner->eye_position,12);
+        }
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
-        status=campaign_enemy_fire_presentation(i,!(once && single->mode==2));rf_scene_enemy_fire[5]=(uint32_t)status;
+        status=campaign_enemy_fire_presentation(i,!(once && single->mode==2),definition,burst_before,once);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
         if(weapon==campaign_grenade_id || weapon==campaign_rocket_id)goto enemy_shot_done;
         if(point_target && melee)goto enemy_shot_done;
@@ -11728,7 +11949,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(!contact)goto enemy_shot_done;
         }
         if(!melee) {
-            float ray[3],spread_ray[3],fraction,body_fraction,end[3];
+            float ray[3],spread_ray[3],impact_start[3],fraction,body_fraction,end[3];
             scene_ai_shield_ray_selection npc_shield={0};rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
             ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
             if(point_spread_ready)memcpy(spread_ray,point_spread_ray,12);
@@ -11739,6 +11960,16 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             }
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
+            if(tankbot_shot.enabled) {
+                status=scene_ai_tankbot_penetration_fire(stream,frame,owner,i,&tankbot_shot,
+                    tankbot_eye,spread_ray,player_eye,clock_bits,&effects,&feedback,&tankbot_result);
+                if(status)return status;
+                tankbot_penetrated=1;amount=tankbot_result.total_applied;
+                player_amount=tankbot_result.player_applied;
+                vehicle_damage_applied=tankbot_result.vehicle_applied>0;
+                goto enemy_shot_done;
+            }
+            memcpy(impact_start,owner->eye_position,12);
             /* Every fired ray resolves actual intervening bodies/shields, independently
              * of the AI order's intended target. Cover arbitration follows below. */
             scene_ai_actor_ray_selection actor;
@@ -11750,18 +11981,24 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
             status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
             if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
-            {uint32_t consumed;
-                status=campaign_clutter_enemy_fire(stream,owner->eye_position,spread_ray,fraction,
-                    shot_damage,definition?definition->damage_kind:0,selected.penetrates_world,&consumed);if(status)return status;
+            {uint32_t consumed;float contact_fraction;
+                status=campaign_clutter_enemy_fire_contact(stream,owner->eye_position,spread_ray,fraction,
+                    shot_damage,definition?definition->damage_kind:0,selected.penetrates_world,&consumed,&contact_fraction);if(status)return status;
+                if(contact_fraction>=0)scene_npc_bullet_impact_ray(weapon,-1,impact_start,spread_ray,contact_fraction);
                 if(consumed)goto enemy_shot_done;
             }
             blocked=0;
-            if(!selected.penetrates_world){status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
+            if(!selected.penetrates_world){scene_npc_bullet_contact contact;
+                status=combat_enemy_fragment_shot_contact(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked,&contact);if(status)return status;
+                scene_npc_bullet_impact_stop(stream,weapon,impact_start,spread_ray,&contact);}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
             if(vehicle_hit){uint32_t handled=0;float applied=0;
                 if(!selected.penetrates_world){status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,fraction,&blocked);if(status)return status;}
-                if(!blocked){status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
+                if(!blocked){uint32_t impact_live=scene_npc_bullet_impact_ready(weapon) &&
+                        scene_driller_projectile_contact_live(&vehicle_contact,owner->registration.handle);
+                    status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
                     definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return status;
+                    if(handled && impact_live)scene_npc_bullet_impact_contact(weapon,-1,vehicle_contact.hit.point);
                     if(handled&&applied>0){amount=applied;vehicle_damage_applied=1;}}
                 goto enemy_shot_done;
             }
@@ -11777,6 +12014,10 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,body_fraction,&blocked);if(status)return status;if(blocked)goto enemy_shot_done;}
             }
             if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
+            /* Retain the actual selected body's entry point/material before
+             * damage/death callbacks. Shield-only misses never reach here. */
+            for(j=0;j<3;j++)bullet_point[j]=impact_start[j]+spread_ray[j]*body_fraction;
+            bullet_material=victim?(int32_t)victim->collision_material:(int32_t)campaign_player_material;
             ++rf_scene_enemy_spread[2];
         }
         {int32_t kind=definition?definition->damage_kind:0;
@@ -11795,7 +12036,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                  if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return status;}
              }
          } else {status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
-            if(!melee)scene_ai_actor_hit_probe(owner,intended_handle,victim?victim->registration.handle:campaign_player_object.handle,frame,amount);
+            if(!melee){scene_npc_bullet_impact_contact(weapon,bullet_material,bullet_point);
+                scene_ai_actor_hit_probe(owner,intended_handle,victim?victim->registration.handle:campaign_player_object.handle,frame,amount);}
         }
 enemy_shot_done:
         if(once)campaign_script_single_pop(owner,1);
@@ -11806,10 +12048,16 @@ enemy_shot_done:
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
         }
         if(amount>0){++rf_scene_enemy_combat[3];
-            if(weapon!=campaign_shotgun_id && !victim && !vehicle_damage_applied)player_amount=amount;
+            if(!tankbot_penetrated && weapon!=campaign_shotgun_id && !victim && !vehicle_damage_applied)player_amount=amount;
             if(point_target && !once && player_amount>0)++rf_scene_script_shoot_at[7];
-            if(player_amount>0)campaign_combat_event(frame,1,owner->registration.handle,player_amount,campaign_player_damage.state.effects.health);
-            if(vehicle_damage_applied)campaign_combat_event(frame,2,owner->registration.handle,amount,vehicle_health);}
+            if(player_amount>0)campaign_combat_event(frame,1,tankbot_penetrated?tankbot_shot.source:owner->registration.handle,player_amount,campaign_player_damage.state.effects.health);
+            if(vehicle_damage_applied) {
+                if(tankbot_penetrated) {
+                    float hit_eye[3],hit_health=0;
+                    (void)scene_campaign_vehicle_target(stream,tankbot_result.vehicle_handle,hit_eye,&hit_health);
+                    campaign_combat_event(frame,2,tankbot_shot.source,tankbot_result.vehicle_applied,hit_health);
+                } else campaign_combat_event(frame,2,owner->registration.handle,amount,vehicle_health);
+            }}
     }
     memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
@@ -11890,6 +12138,7 @@ static int campaign_weapon_drops_tick(scene_stream *stream,const float eye[3])
                         drop->state=2;++rf_scene_weapon_drops[1];rf_scene_weapon_drops[2]+=grant.rounds;
                         rf_scene_weapon_drops[3]=rf_scene_defeated_actors.items[owner->persistence_slot].uid;
                         scene_weapon_drop_feedback(stream,drop,&grant,rf_scene_weapon_drops[3]);
+                        (void)scene_unarmed_pickup_select(stream,drop->weapon,1,&grant);
                         campaign_ammo_publish();
                     }
                 }
@@ -11905,7 +12154,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
     uint32_t i;int status;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
     for(i=0;i<stream->pickups.count;i++) {
-        const rf_level_item *item=stream->pickups.items+i;float delta[3],distance=0;uint32_t k,blocked=0;rf_weapon_pickup_grant grant={0};int kind=pickup_class(item->class_name);float restored=0;const rf_item_definition *definition;
+        const rf_level_item *item=stream->pickups.items+i;float delta[3],distance=0;uint32_t k,blocked=0;rf_weapon_pickup_grant grant={0};int32_t acquired_weapon=-1;int kind=pickup_class(item->class_name);float restored=0;const rf_item_definition *definition;
         if(stream->pickup_taken[i] || kind<0)continue;
         definition=kind?&stream->pickup_resources[kind-1].definition:&stream->handgun_pickup;
         for(k=0;k<3;k++){float d=item->position[k]-scene_actor_body.state.position[k];distance+=d*d;delta[k]=item->position[k]-eye[k];}
@@ -11930,9 +12179,10 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         } else {
             uint32_t extra_handled=0;
             status=scene_extra_pickups_collect(item,definition,&grant,&extra_handled);if(status){printf("PICKUP_GRANT_ERROR %u %s %d quantity%d\n",item->uid,item->class_name,status,item->quantity);return status;}
+            if(extra_handled && definition->gives_weapon)acquired_weapon=rf_weapon_name_find(&campaign_weapon_supply.names,definition->weapon);
             if(!extra_handled){int32_t slot=scene_pickup_weapon_slot(kind),id;
             if(slot<0)return RF_FORMAT;id=campaign_slot_weapon((uint32_t)slot);
-            if(id<0 || id>=64)return RF_FORMAT;
+            if(id<0 || id>=64)return RF_FORMAT;acquired_weapon=id;
             status=id==campaign_shield_id?
                 scene_player_shield_pickup_grant(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
                     id,item->quantity,definition->gives_weapon,&grant):
@@ -11946,6 +12196,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         campaign_pickup_sound(definition,item->position,item->uid);
         campaign_pickup_notice_grant(definition->pickup_messages,grant.acquired,
             grant.rounds?grant.rounds:(uint32_t)item->quantity);
+        (void)scene_unarmed_pickup_select(stream,acquired_weapon,definition->gives_weapon,&grant);
         campaign_ammo_publish();
     }
     return RF_OK;
@@ -12538,6 +12789,7 @@ static int scene_campaign_wall_cut(scene_stream *s,const float center[3],float r
 #include "scene_campaign_geomod.inc"
 #include "scene_campaign_wall.inc"
 #include "scene_player_room_cache.inc"
+#include "scene_player_water_audio.inc"
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -13167,6 +13419,7 @@ static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile
 static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *);
 static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
+static void scene_projectile_flight_audio_resume(scene_stream *);
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
 static void scene_turret_player_checkpoint_scope(uint32_t);
 static void scene_turret_player_checkpoint_reset(void);
@@ -13183,10 +13436,11 @@ static void scene_turret_generated_attack_record(const campaign_npc_body *,const
 #include "scene_npc_seat_checkpoint_decl.inc"
 #include "scene_jeep_gunner_checkpoint_decl.inc"
 #include "scene_corpse_unsettled_checkpoint.inc"
+#include "scene_npc_physics_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
-static int scene_ai_projectile_checkpoint_burning_admit(const scene_ai_projectile_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *);
+static int scene_ai_projectile_checkpoint_burning_admit(scene_ai_projectile_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *);
 #include "scene_mover_checkpoint.inc"
 #include "scene_event_checkpoint.inc"
 #include "scene_checkpoint_world.inc"
@@ -13223,6 +13477,9 @@ static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int
     uint32_t count=0,limit,i;int status;
     if(!identity||!output||!written||capacity<RF_NPC_CHECKPOINT_HEADER||
        capacity>RF_CHECKPOINT_FILE_MAX)return RF_RANGE;
+    /* Save/export only: RFNC action playback cannot encode pending damage.
+     * Do NOT move this into row capture, which load preflight also consumes. */
+    if(scene_ai_drone_smash_save_pending())return RF_NOT_FOUND;
     catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64)return RF_RANGE;
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -13245,6 +13502,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 
 #include "scene_world_checkpoint_identity.inc"
 #include "scene_event_history.inc"
+#include "scene_alarm_siren.inc"
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
 #include "scene_corpse_lifetime_checkpoint.inc"
@@ -13262,6 +13520,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_passive_support.inc"
 #include "scene_world_restore.inc"
 static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,uint32_t,const scene_world_restore_stage *);
+#include "scene_checkpoint_clutter_support.inc"
 #include "scene_world_player_restore.inc"
 #include "scene_turret_player_checkpoint.inc"
 #include "scene_turret_generated_checkpoint_adapter.inc"
@@ -13411,6 +13670,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
+    if(prefix && scene_ai_drone_smash_save_pending()){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_script_physics_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_vehicle_visibility_legacy_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_vehicle_invulnerability_legacy_save_allowed()){status=RF_NOT_FOUND;goto done;}
@@ -15141,7 +15401,9 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
         rf_weapon_flight_event event;rf_weapon_flight_liquid_event movement;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};
-        status=rf_weapon_flight_step_liquid(s->rockets+i,1.f/60,s->rocket_liquid+i,&policy,scene_rocket_sweep,s,&movement);if(status)return status;
+        status=rf_weapon_flight_step_liquid(s->rockets+i,1.f/60,s->rocket_liquid+i,&policy,scene_rocket_sweep,s,&movement);
+        if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i);return status;}
+        scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i,s->rockets[i].active,s->rockets[i].position);
         event=movement.terminal;
         if(movement.has_liquid) {
             float left=(float)s->rockets[i].remaining;
@@ -15300,15 +15562,18 @@ static int campaign_inventory_initialize(void)
 #include "scene_ai_hearing.inc"
 #include "scene_ai_projectile_collision.inc"
 #include "scene_grenade_gameplay.inc"
+#include "scene_grenade_empty_selection.inc"
 #include "scene_ai_grenade.inc"
 #include "scene_ai_rocket.inc"
 static int scene_remote_launch(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t *);
 static void scene_remote_reset(void);
 static int scene_remote_tick(scene_stream *,uint32_t);
 static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t);
+static int scene_remote_selection_after_world(scene_stream *,uint32_t,uint32_t,uint32_t *);
 static void scene_remote_hud_counts(uint32_t *ready,uint32_t *pending);
 #include "scene_clutter_precision.inc"
 #include "scene_precision_gameplay.inc"
+#include "scene_handheld_penetration.inc"
 #include "scene_flame_gameplay.inc"
 #include "scene_flame_input.inc"
 #include "scene_flame_visual.inc"
@@ -15325,6 +15590,7 @@ static int scene_undercover_after_advance(scene_stream *);
 #include "scene_ai_projectile_checkpoint.inc"
 #include "scene_conventional_fire_policy.inc"
 #include "scene_vehicle_equipment.inc"
+#include "scene_weapon_auto_reload.inc"
 static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const float position[3])
 {
     scene_machine_pistol_mode_event event;uint32_t was_pending=campaign_machine_mode.pending;
@@ -15338,6 +15604,7 @@ static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const fl
     rf_scene_machine_mode[7]=(uint32_t)status;if(status)return status;
     if(event.started){
         uint32_t source=campaign_machine_mode.special;
+        scene_machine_pistol_audio_close();
         status=scene_weapon_custom_actions_start(stream->machine_custom[source],stream->player_weapon[source?17:13],event.action==11);
         if(status)return status;
         combat_sound(source?"Machine Pistol Switch":"Machine Pistol Switch Back",position);
@@ -15362,8 +15629,8 @@ static int campaign_vehicle_attack_fixture(uint32_t frame);
 static void campaign_vehicle_attack_live_probe(void);
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
-    float delta[3],nearest=1,amount,mounted_eye[3];uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
-    scene_conventional_fire_policy conventional={0};
+    float delta[3],nearest=1,amount,mounted_eye[3];uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0,burst_before=0,hmg_policy_ready=0,grenade_released=0,auto_reload=0;int status;
+    scene_conventional_fire_policy conventional={0};scene_handheld_shot handheld={0};
     /* Possession gates player equipment, never the shared combat clock. */
     uint32_t on_foot=!scene_driller_active(stream)&&!scene_turret_player_active();
     if(scene_turret_player_body_eye(mounted_eye)){
@@ -15376,6 +15643,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;impact_sound_random.value=1;memset(rf_scene_impact_audio,0,sizeof(rf_scene_impact_audio));memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));campaign_enemy_sight_phase_offset=0;
         campaign_enemy_opposed_reset();
+        scene_ai_drone_smash_reset();memset(rf_scene_drone_smash,0,sizeof(rf_scene_drone_smash));
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
         memset(rf_scene_enemy_actor_hits,0,sizeof(rf_scene_enemy_actor_hits));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
@@ -15427,6 +15695,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(refill)player_input.reload=0; /* Do not start a normal reload with the chord. */
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
+    if(!frame)scene_grenade_empty_input_reset();
+    scene_grenade_empty_input_tick(on_foot);
     scene_vehicle_equipment_tick(stream,frame,on_foot);
     /* Update animated child positions before projectile or firearm contacts. */
     for(uint32_t i=0;i<scene_turret_generated_count;i++){
@@ -15477,21 +15747,52 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(on_foot){status=scene_player_shield_bash_input(stream,frame,position,orientation[2]);if(status)return status;}
     if(on_foot && campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return status;}
     status=campaign_vehicle_attack_fixture(frame);if(status)return status;
+    scene_npc_loop_audio_begin();
     status=(rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
-    rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    scene_npc_loop_audio_end();
+    rf_scene_enemy_combat[7]=(uint32_t)status;if(status){scene_npc_loop_audio_close();return status;}
     scene_npc_opposed_probe();
     status=scene_turret_scene_tick(stream,frame);if(status)return status;
     campaign_vehicle_attack_live_probe();
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
+    if(on_foot && campaign_equipped_slot==14 && !campaign_explicit_unarmed &&
+       campaign_extra_ids[1]>=0 && campaign_extra_ids[1]<64 &&
+       campaign_player_inventory.owned[campaign_extra_ids[1]]) {
+        status=scene_conventional_fire_select(1,&campaign_pistol,!!player_input.fire,
+            !!player_input.alt_fire,&conventional);
+        if(status)return status;hmg_policy_ready=1;
+    }
+    scene_hmg_audio_tick(hmg_policy_ready && conventional.held &&
+        campaign_player_inventory.loaded[campaign_extra_ids[1]]>0 &&
+        campaign_player_damage.state.effects.health>0 && !rf_scene_enemy_combat[6] &&
+        !rf_scene_combat[6] &&
+        !(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]),
+        conventional.alternate);
+    {int32_t machine_weapon=campaign_machine_mode.special?campaign_machine_special_id:campaign_extra_ids[0];
+     scene_machine_pistol_audio_tick(on_foot && campaign_equipped_slot==13 &&
+        !campaign_explicit_unarmed && campaign_extra_ids[0]>=0 && campaign_extra_ids[0]<64 &&
+        campaign_player_inventory.owned[campaign_extra_ids[0]] && machine_weapon>=0 && machine_weapon<64 &&
+        campaign_player_inventory.loaded[machine_weapon]>0 && !campaign_machine_mode.pending &&
+        campaign_player_damage.state.effects.health>0 && !rf_scene_enemy_combat[6] &&
+        !rf_scene_combat[6] && player_input.fire &&
+        !(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]),
+        campaign_machine_mode.special);}
+    scene_rifle_audio_tick(frame,on_foot && campaign_equipped_slot==1 &&
+        !campaign_explicit_unarmed && campaign_rifle_id>=0 &&
+        campaign_player_inventory.owned[campaign_rifle_id] &&
+        campaign_player_inventory.loaded[campaign_rifle_id]>0 &&
+        campaign_player_damage.state.effects.health>0 && !rf_scene_combat[6] &&
+        !(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]) &&
+        player_input.alt_fire && !player_input.fire,position);
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
     if(scene_fusion_resources){status=scene_fusion_gameplay_tick(stream,frame,position,orientation[2]);if(status)return status;}
     if(scene_grenade_resources){
         status=scene_grenades_tick(stream,frame,position,orientation[2],
             on_foot && campaign_equipped_slot==5 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_grenade_id] && campaign_player_damage.state.effects.health>0,
-            (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
+            (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u),&grenade_released);if(status)return status;
     }
     if(!frame)scene_remote_checkpoint_frame0();
     if(scene_remote_resources){
@@ -15514,27 +15815,32 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
          if(scene_flame_active){status=scene_rocket_sweep(stream,muzzle,delta,.01f,4u,&contact,&liquid,&matched);if(status){printf("FLAME_SWEEP_ERROR %u %d\n",frame,status);return status;}
              if(matched)length*=contact.hit.fraction;}
          status=scene_flame_visual_tick(stream,frame,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return status;}}
-        if(campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==11 || campaign_equipped_slot==12)return RF_OK;
     }
+    {uint32_t changed=0;status=scene_remote_selection_after_world(stream,frame,on_foot,&changed);
+     if(status)return status;if(changed)return RF_OK;}
+    {uint32_t changed=0;status=scene_grenade_empty_after_release(stream,frame,grenade_released,on_foot,&changed);
+     if(status)return status;if(changed)return RF_OK;}
     if(scene_driller_active(stream) || scene_turret_player_active() || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==12)return RF_OK;
     if(campaign_equipped_slot==13 && campaign_machine_mode.pending)return RF_OK;
     if(campaign_equipped_slot==16 && stream->undercover && !scene_undercover_mode_can_fire(&stream->undercover->mode))return RF_OK;
     if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])return RF_OK;
     alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3 || campaign_equipped_slot==14) && player_input.alt_fire && !player_input.fire;
-    if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15){status=scene_conventional_fire_select(campaign_equipped_slot-13,&campaign_pistol,!!player_input.fire,!!player_input.alt_fire,&conventional);if(status){printf("FIRE_POLICY_ERROR %u %u %d damage%g fire%g burst%u seconds%g\n",frame,campaign_equipped_slot,status,(double)campaign_pistol.damage,(double)campaign_pistol.fire_seconds,campaign_pistol.burst_count,(double)campaign_pistol.burst_seconds);return status;}}
+    if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15 && !hmg_policy_ready){status=scene_conventional_fire_select(campaign_equipped_slot-13,&campaign_pistol,!!player_input.fire,!!player_input.alt_fire,&conventional);if(status){printf("FIRE_POLICY_ERROR %u %u %d damage%g fire%g burst%u seconds%g\n",frame,campaign_equipped_slot,status,(double)campaign_pistol.damage,(double)campaign_pistol.fire_seconds,campaign_pistol.burst_count,(double)campaign_pistol.burst_seconds);return status;}}
     /* Rifle alternate is authored continuous fire, not the primary burst.
      * Switching to it cancels pending burst rounds but retains cooldown. */
     if(alt && campaign_equipped_slot==1) {
         if(combat_trigger.remaining)++rf_scene_rifle_alt[4];
         combat_trigger.remaining=combat_trigger.delay=0;
     }
+    auto_reload=scene_weapon_auto_reload_ready(stream,on_foot);
+    burst_before=combat_trigger.remaining;
     {rf_weapon_trigger_rules rules={alt?(uint32_t)ceilf(campaign_pistol.alt_fire_seconds*60):pistol_fire_ticks,alt && campaign_equipped_slot==1?1:campaign_pistol.burst_count,
         (uint32_t)ceilf(campaign_pistol.burst_seconds*60),alt && campaign_equipped_slot==1?0:campaign_pistol.semi_automatic};
      if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15)rules=conventional.trigger;
      uint32_t inhibit=rf_scene_enemy_combat[6] || rf_scene_combat[6] ||
-        (player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]);
+        ((player_input.reload || auto_reload) && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]);
      status=rf_weapon_trigger_step(&combat_trigger,&rules,campaign_equipped_slot>=13 && campaign_equipped_slot<=15?conventional.held:player_input.fire || alt,inhibit,campaign_equipped_slot==2 && !alt?1:rf_scene_combat[5],&fire);if(status)return status;}
-    if(rf_scene_enemy_combat[6])return RF_OK;
+    if(rf_scene_enemy_combat[6]){scene_weapon_empty_audio_forget();return RF_OK;}
     if(rf_scene_combat[6]) {
         if(campaign_equipped_slot==2 && campaign_pistol.reload_drain_seconds>0 &&
            pistol_reload_ticks-rf_scene_combat[6]+1==(uint32_t)ceilf(campaign_pistol.reload_drain_seconds*60)) {
@@ -15554,9 +15860,12 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         }
         return RF_OK;
     }
-    if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==13?(campaign_machine_mode.special?"Machine Pistol Reload Bottom":"Machine Pistol Reload Top"):campaign_equipped_slot==14?"HMG Reload":campaign_equipped_slot==15?"SAssault Reload":campaign_equipped_slot==16?"Glock Reload":campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;}
+    if((player_input.reload || auto_reload) && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==13?(campaign_machine_mode.special?"Machine Pistol Reload Bottom":"Machine Pistol Reload Top"):campaign_equipped_slot==14?"HMG Reload":campaign_equipped_slot==15?"SAssault Reload":campaign_equipped_slot==16?"Glock Reload":campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;}
     if((fire || alt) && (campaign_equipped_slot!=2 || alt) && !rf_scene_combat[5]) {
-        if(!rf_scene_player_ammo[1]){if(fire){++rf_scene_player_ammo[5];if(alt)++rf_scene_riot[5];}return RF_OK;}
+        if(!rf_scene_player_ammo[1]){if(fire){++rf_scene_player_ammo[5];if(alt)++rf_scene_riot[5];
+            if(fire==2)scene_weapon_empty_audio_play(campaign_selected_weapon(),
+                alt?campaign_pistol.alt_fire_seconds:campaign_pistol.fire_seconds,frame,position);
+        }return RF_OK;}
         rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==13?(campaign_machine_mode.special?"Machine Pistol Reload Bottom":"Machine Pistol Reload Top"):campaign_equipped_slot==14?"HMG Reload":campaign_equipped_slot==15?"SAssault Reload":campaign_equipped_slot==16?"Glock Reload":campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;
     }
     if(alt && campaign_equipped_slot==2 && rf_scene_combat[5]) {
@@ -15569,6 +15878,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(campaign_equipped_slot==4) {
         for(i=0;i<SCENE_ROCKETS && stream->rockets[i].active;i++);
         if(i==SCENE_ROCKETS){++rf_scene_rockets[6];return RF_OK;}
+        scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i);
         status=rf_weapon_flight_launch(stream->rockets+i,position,orientation[2],campaign_rocket.speed,
             campaign_rocket.lifetime,campaign_rocket.collision_radius);
         stream->rocket_liquid[i].query_flags=0x1004u|(campaign_rocket.collision_radius<.05f?0x100u:0);
@@ -15577,7 +15887,20 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     status=campaign_equipped_slot==2?RF_OK:rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_selected_weapon());
     rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;campaign_ammo_publish();
-    if(fire){++rf_scene_combat[0];campaign_last_alt=alt;combat_sound(campaign_equipped_slot==13?(campaign_machine_mode.special?"Machine Pistol Alt Launch":"Machine Pistol Launch"):campaign_equipped_slot==14?(alt?"HMG Launch 2":"HMG Launch 1"):campaign_equipped_slot==15?"Sniper 2 Launch":campaign_equipped_slot==16 && stream->undercover?scene_undercover_mode_launch(&stream->undercover->mode):campaign_equipped_slot==16?"Glock Launch":campaign_equipped_slot==7?"Rail Fire 1":campaign_equipped_slot==6?"Sniper Launch":campaign_equipped_slot==4?"Rocket Fire":campaign_equipped_slot==1?"Assault Loop":campaign_equipped_slot==3?(alt?"Shotgun Fire 2":"Shotgun Fire"):alt?"Riot Attack Taser":campaign_equipped_slot==2?"Riot Attack":campaign_equipped_slot?"Assault Loop":"Glock Launch",position);}
+    if(campaign_pistol.piercing_enabled && (campaign_equipped_slot==1 || campaign_equipped_slot==14 ||
+       campaign_equipped_slot==15 || (campaign_equipped_slot==13 && campaign_machine_mode.special))) {
+        /* Retain this accepted shot, including MP Special's actual definition.
+         * Both attack modes share descriptor power; base damage remains fresh. */
+        handheld=(scene_handheld_shot){campaign_selected_weapon(),campaign_pistol.damage_kind,
+            campaign_equipped_slot,alt,campaign_pistol.piercing_enabled,campaign_player_object.handle,
+            alt?campaign_pistol.alt_damage:campaign_pistol.damage,campaign_pistol.piercing_power};
+    }
+    if(campaign_equipped_slot==4)scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i,stream->rockets[i].position);
+    if(fire){++rf_scene_combat[0];campaign_last_alt=alt;
+        if(campaign_equipped_slot==1)scene_rifle_audio_shot(frame,alt,burst_before==0,position);
+        else if(campaign_equipped_slot==13)scene_machine_pistol_audio_shot(campaign_machine_mode.special,position);
+        else if(campaign_equipped_slot==14)scene_hmg_audio_shot(conventional.alternate,position);
+        else combat_sound(campaign_equipped_slot==15?"Sniper 2 Launch":campaign_equipped_slot==16 && stream->undercover?scene_undercover_mode_launch(&stream->undercover->mode):campaign_equipped_slot==16?"Glock Launch":campaign_equipped_slot==7?"Rail Fire 1":campaign_equipped_slot==6?"Sniper Launch":campaign_equipped_slot==4?"Rocket Fire":campaign_equipped_slot==1?"Assault Loop":campaign_equipped_slot==3?(alt?"Shotgun Fire 2":"Shotgun Fire"):alt?"Riot Attack Taser":campaign_equipped_slot==2?"Riot Attack":campaign_equipped_slot?"Assault Loop":"Glock Launch",position);}
     if(fire && campaign_equipped_slot==16 && stream->undercover && stream->undercover->mode.attached)++rf_scene_undercover[5];
     if(fire && campaign_equipped_slot!=2){
         scene_player_shot_hearing_policy hearing;uint32_t alerted;
@@ -15611,6 +15934,9 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         rf_scene_rifle_alt[6]=(uint32_t)status;if(status)return status;memcpy(delta,spread,12);
         rf_scene_rifle_alt[3]=campaign_rifle_alt_random.value;memcpy(rf_scene_rifle_alt+5,&campaign_pistol.alt_spread_degrees,4);
     }
+    /* Existing spread and single ammo debit precede continuation; no redraw.
+     * These admitted handheld weapons have one ordinary pellet per shot. */
+    if(handheld.enabled)return scene_handheld_penetration_fire(stream,frame,pellet,position,delta,&handheld);
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
@@ -15662,23 +15988,34 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
                 ++rf_scene_detached_hitscan[1];rf_scene_detached_hitscan[3]=hit.batch;rf_scene_detached_hitscan[4]=hit.piece.piece;
                 rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);combat_surface_frame=frame;
                 if(campaign_equipped_slot==2 && fire){combat_sound("Riot Impact Default",hit.piece.hit.point);++rf_scene_riot[4];}
-            }
+                else if(campaign_equipped_slot!=2)scene_weapon_impact_audio_contact(campaign_selected_weapon(),-1,hit.piece.hit.point);
+            }else if(campaign_equipped_slot!=2)scene_weapon_impact_audio_world(stream,campaign_selected_weapon(),position,delta,hit.piece.hit.fraction);
             continue; /* World or fragment blocks any farther NPC. */
         }
     }
     if(clutter_selected!=UINT32_MAX){
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
         if(!blocked){float damage=alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage;
-            status=campaign_clutter_firearm_damage(clutter_selected,damage,alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind);if(status)return status;}
+            status=campaign_clutter_firearm_damage(clutter_selected,damage,alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind);if(status)return status;
+            if(campaign_equipped_slot!=2){float point[3];for(i=0;i<3;i++)point[i]=position[i]+delta[i]*nearest;
+                scene_weapon_impact_audio_contact(campaign_selected_weapon(),-1,point);}
+        }else if(campaign_equipped_slot!=2)scene_weapon_impact_audio_world(stream,campaign_selected_weapon(),position,delta,nearest);
         continue;
     }
     if(vehicle_selected){uint32_t handled;float applied;
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
         if(!blocked){float damage=alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage;
+            int32_t impact_weapon=campaign_selected_weapon();
+            uint32_t audio_contact=campaign_equipped_slot!=2 && scene_weapon_impact_audio_ready(impact_weapon) &&
+                scene_driller_projectile_contact_live(&vehicle_contact,campaign_player_object.handle);
             status=scene_driller_projectile_damage(&vehicle_contact,campaign_player_object.handle,damage,
-                alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind,frame,&handled,&applied);if(status)return status;}
+                alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind,frame,&handled,&applied);if(status)return status;
+            if(handled && audio_contact)scene_weapon_impact_audio_contact(impact_weapon,-1,vehicle_contact.hit.point);
+        }else if(campaign_equipped_slot!=2)scene_weapon_impact_audio_world(stream,campaign_selected_weapon(),position,delta,nearest);
         continue;
     }
+    if(target==UINT32_MAX && campaign_equipped_slot!=2)
+        scene_weapon_impact_audio_world(stream,campaign_selected_weapon(),position,delta,nearest);
     if(campaign_equipped_slot==2 && fire) {
         rf_collision_solid_hit surface;float end[3];uint32_t matched=0;
         for(i=0;i<3;i++)end[i]=position[i]+delta[i]*nearest;
@@ -15687,7 +16024,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     if(target!=UINT32_MAX) {
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
-        if(blocked)continue;
+        if(blocked){if(campaign_equipped_slot!=2)scene_weapon_impact_audio_world(stream,campaign_selected_weapon(),position,delta,nearest);continue;}
         campaign_npc_body *owner=campaign_npc_bodies+target;uint32_t handle=owner->registration.handle,entered,clock_bits;
         /* First-pass held taser damage is authored damage per second, not a full
          * damage pulse every simulation tick. Electrical type is port policy. */
@@ -15704,6 +16041,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(campaign_equipped_slot!=2){uint32_t consumed;status=scene_nano_weapon_contact(owner,campaign_slot_weapon(campaign_equipped_slot),request.amount,&consumed);
          if(status)return status;if(consumed){combat_hit_frame=frame;continue;}}
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
+        if(campaign_equipped_slot!=2){float point[3];for(i=0;i<3;i++)point[i]=position[i]+delta[i]*nearest;
+            scene_weapon_impact_audio_contact(campaign_selected_weapon(),(int32_t)owner->collision_material,point);}
         if(amount>0){combat_hit_frame=frame;
             campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
             if(alt && campaign_equipped_slot==2)++rf_scene_riot[3];
@@ -16549,6 +16888,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_driller_runtime_tick(stream,frame);if(status)return status;
     status=scene_apc_aim_tick(stream,frame);if(status)return status;
     status=scene_jeep_gun_tick(stream);if(status)return status;
+    scene_vehicle_loop_audio_begin();
     scene_vehicle_ai_player_sync(stream,0);
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
@@ -16559,6 +16899,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     scene_vehicle_ai_player_sync(stream,1);
     status=scene_vehicle_attack_tick(stream,frame);if(status)return status;
     status=scene_vehicle_ai_tick(stream,frame);if(status)return status;
+    scene_vehicle_loop_audio_end();
     status=scene_turret_player_tick(stream,frame);if(status)return status;
     status=scene_turret_heap_tick(stream,frame);if(status)return status;
     status=scene_turret_player_active()?scene_turret_player_camera(position,orientation):
@@ -16587,6 +16928,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     world_profile_mark(0,&world_clock);
     if(campaign_spawn) {
         campaign_audio_listener(position,orientation[0]);
+        scene_player_water_audio_tick(stream,frame,position);
         campaign_message_audio_refresh();
         /* Original480ef7 follows listener refresh. Use the owned replay clock;
          * rendering the same frame again must not add a simulation tick. */
@@ -18110,6 +18452,8 @@ static rf_entity_pose_batch campaign_pose_batch;
 _Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache");
 #include "scene_npc_footsteps.inc"
 #include "scene_player_footsteps.inc"
+#include "scene_player_jump_audio.inc"
+#include "scene_player_landing_audio.inc"
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
@@ -19630,7 +19974,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             actor_ground_record post_ground;rf_geometry_body_hit post_contact;scene_piece_support post_support;
             const scene_piece_support *piece_support=scene_ground_piece_support+(frame%64);
             const rf_geometry_body_hit *contact=rf_scene_actor_ground_contacts+(frame%64);uint32_t route=RF_PLAYER_SUPPORT_QUERY;
-            int moved=0;uint32_t axis;
+            int moved=0;uint32_t axis,landed=0;float landing_velocity[3];
             campaign_passive_vehicle_motion_active=0;campaign_passive_vehicle_motion_frame=frame;
             /* The final puzzle is terminal on either outcome. Keep presenting
              * the level, but do not advance its physics, events, NPCs or
@@ -19695,8 +20039,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 campaign_player_passive_support_release(&next,frame);
             } else if(route==RF_PLAYER_SUPPORT_QUERY) {
                 if(rf_scene_actor_landing[1]==3 && walkable) {
+                    memcpy(landing_velocity,next.velocity,12);
                     status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return status;
-                    rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
+                    rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;landed=1;
                     ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
                 } else if(rf_scene_actor_landing[1]==1 && (campaign_spawn || moved)) {
                     if(walkable) {
@@ -19719,6 +20064,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
+            if(campaign_spawn && landed)scene_player_landing_audio_commit(frame,landing_velocity,
+                &scene_actor_body.state,(int32_t)contact->contact.material);
             if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return status;}
             if(campaign_spawn)scene_player_footsteps_tick(stream,frame,(uint32_t)walkable,
                 walkable?(int32_t)contact->contact.material:-1);
@@ -19819,6 +20166,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=scene_masako_runtime_tick(stream);if(status)return status;
                 npc_step_profile_mark(1,&npc_clock);
                 status=campaign_npc_rooms_pass(frame);if(status)return status;
+                status=scene_npc_liquid_damage_tick(stream,frame,particle_now);if(status)return status;
                 npc_step_profile_mark(2,&npc_clock);
                 status=campaign_glare_loss_inject(frame);if(status)return status;
                 status=scene_clutter_break_tick(stream,frame);if(status)return status;
@@ -19843,6 +20191,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
         step_profile_mark(6,&step_clock);profile_mark(7);
 modal_step_done:
+        scene_player_landing_audio_end();
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
             if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
@@ -20139,6 +20488,19 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(rf_scene_npc_support_lifecycle,0,sizeof(rf_scene_npc_support_lifecycle));
     scene_npc_footsteps_reset();
     scene_player_footsteps_reset();
+    scene_player_jump_audio_reset();
+    scene_projectile_flight_audio_reset();
+    scene_weapon_impact_audio_reset();
+    scene_weapon_empty_audio_reset();scene_grenade_empty_reset();
+    scene_weapon_loop_audio_reset();
+    scene_rifle_audio_reset();
+    scene_hmg_audio_reset();scene_machine_pistol_audio_reset();
+    scene_npc_liquid_damage_reset();
+    scene_npc_rifle_audio_reset();scene_npc_launch_audio_reset();scene_npc_action_foley_reset();scene_npc_loop_audio_reset();
+    scene_tankbot_burst_audio_reset();
+    scene_turret_audio_reset();scene_vehicle_loop_audio_reset();
+    scene_player_landing_audio_reset();
+    scene_player_water_audio_reset();
     memset(rf_scene_npc_carry_collision,0,sizeof(rf_scene_npc_carry_collision));
     scene_npc_rotating_fixture_reset();
     memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
@@ -20329,6 +20691,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_actor_slow=campaign_set_actor_slow;campaign_triggers.actor_slow_context=stream;
             memset(rf_scene_scripted_actor_speed,0,sizeof(rf_scene_scripted_actor_speed));
             campaign_triggers.drop_npc_weapon=campaign_drop_npc_weapon;campaign_triggers.drop_weapon_context=NULL;
+            campaign_triggers.holster_npc_weapon=campaign_holster_npc_weapon;campaign_triggers.holster_weapon_context=NULL;
+            memset(rf_scene_authored_holster,0,sizeof(rf_scene_authored_holster));
             campaign_triggers.ignite_npc=campaign_ignite_npc;campaign_triggers.ignite_context=NULL;
             campaign_triggers.query_vitals=campaign_query_vitals;campaign_triggers.query_vitals_context=NULL;
             campaign_triggers.query_hit_flags=campaign_query_hit_flags;campaign_triggers.hit_flags_context=NULL;
@@ -20336,6 +20700,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.switch_backend=&campaign_switch_backend;
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.alarm=campaign_alarm;
+            campaign_triggers.alarm_siren=scene_alarm_siren_audio;campaign_triggers.alarm_siren_context=NULL;
+            memset(rf_scene_alarm_siren,0,sizeof(rf_scene_alarm_siren));
             campaign_alarm_voice=campaign_alarm_deadline=-1;
             memset(rf_scene_alarm,0,sizeof(rf_scene_alarm));rf_scene_alarm[5]=UINT32_MAX;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
@@ -20996,6 +21362,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(i=0;i<RF_AMBIENT_SLOTS;i++)campaign_ambient_slots[i].sample=campaign_ambient_slots[i].voice=-1;
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
             memset(rf_scene_switch_runtime,0,sizeof(rf_scene_switch_runtime));memset(rf_scene_switch_detail,0,sizeof(rf_scene_switch_detail));
+            memset(rf_scene_switch_ambient,0,sizeof(rf_scene_switch_ambient));
             campaign_inventory_ready=campaign_item_pending_count=0;memset(rf_scene_script_grants,0,sizeof(rf_scene_script_grants));
             scene_late_load_mark(64,materials);
             status=campaign_actors_restore();if(status)goto done;
@@ -21041,7 +21408,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             scene_late_load_mark(72,materials);
             status=campaign_trigger_checkpoint(0,0);if(status)goto done;
             scene_late_load_mark(73,materials);
-            status=campaign_event_checkpoint(0,0,stream);if(status)goto done;
+            status=scene_alarm_siren_section_restore(0,stream);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
             stream->world_checkpoint_level=level;stream->world_checkpoint_tables=tables_path;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
@@ -21121,6 +21488,7 @@ done:
     if(stream->impact){rf_particle_animation_close(stream->impact->blood_images);rf_particle_animation_close(stream->impact->blood_images+1);rf_explosion_materials_close(&stream->impact->materials);free(stream->impact);}
     free(stream->glare_snapshot);stream->glare_snapshot=NULL;
     free(stream->particle_workspace);particle_draw_stream=NULL;
+    scene_alarm_siren_stop_voices();
     campaign_close_movers();
     rf_physics_forces_close(&campaign_forces);
     rf_group_registration_close(&campaign_group_registration);

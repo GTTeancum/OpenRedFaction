@@ -95,11 +95,15 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
         if(round->flight.active)++rf_scene_fighter_weapon[5];
     }
     /* The scripted owner advances its own scheduler after this flight pass. */
-    if(!runtime->entry.session.active&&scene_vehicle_attack_busy(runtime->entry.host.handle))return RF_OK;
+    if(!runtime->entry.session.active&&scene_vehicle_attack_busy(runtime->entry.host.handle)){
+        scene_vehicle_loop_audio_stop(runtime->entry.host.handle,SCENE_VEHICLE_LOOP_PLAYER);return RF_OK;
+    }
     allowed=scene_vehicle_physics_allows_control(s)&&runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0;
     status=scene_fighter_weapon_fire(state,&s->driller->tags,runtime->physics.state.position,runtime->physics.state.orientation,NULL,
         runtime->entry.host.handle,runtime->entry.host.driver,0,player_input.fire,allowed&&!!(scene_vehicle_loadout_selected_mask()&1u),dt,scene_fighter_live_launch,s,&fired);if(status)return status;
-    if(fired){++rf_scene_fighter_weapon[1];++rf_scene_fighter_weapon[5];combat_sound("Vauss1 Fire",runtime->physics.state.position);}
+    if(fired){++rf_scene_fighter_weapon[1];++rf_scene_fighter_weapon[5];}
+    scene_vehicle_loop_audio_tick(runtime->entry.host.handle,SCENE_VEHICLE_LOOP_PLAYER,5,
+        state->primary_fire.held&&(state->primary_reserve>0||fired),fired,runtime->physics.state.position);
     for(free_slot=0;free_slot<4&&state->rockets[free_slot].flight.active;free_slot++){}
     /* Fixed forward guns: preserve the rocket mount origin, but use the
      * actual primary muzzle forward, transformed with the flying chassis. */

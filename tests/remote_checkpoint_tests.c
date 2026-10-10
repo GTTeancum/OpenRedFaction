@@ -5,11 +5,13 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"remote checkpoint line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 static rf_remote_checkpoint source,decoded,before;
 static unsigned char bytes[RF_REMOTE_CHECKPOINT_MAX],saved[RF_REMOTE_CHECKPOINT_MAX];
+static void word(unsigned char *p,uint32_t n)
+{for(uint32_t i=0;i<4;i++)p[i]=(unsigned char)(n>>(8*i));}
 static int clear(void *c,const float p[3],const float d[3],float r,rf_weapon_flight_contact *h,uint32_t *yes)
 {(void)c;(void)p;(void)d;(void)r;(void)h;*yes=0;return RF_OK;}
 int main(void)
 {
-    float p[3]={1,2,3},d[3]={0,0,1},g[3]={0,-9.8f,0};uint32_t written=99,again,i;
+    float p[3]={1,2,3},d[3]={0,0,1},g[3]={0,-9.8f,0};uint32_t written=99,again,i,legacy_bytes;
     rf_remote_charge_event a,b;rf_remote_charge_host host={0};
     CHECK(!rf_remote_charge_launch(source.charges+2,7,0,p,d,10,.051f,20));source.owner_keys[2]=42;
     CHECK(!rf_remote_charge_launch(source.charges+31,7,0,p,d,10,.051f,20));source.owner_keys[31]=42;
@@ -28,7 +30,37 @@ int main(void)
     source.charges[2].flight.position[0]=NAN;memset(bytes,0xa5,sizeof(bytes));memcpy(saved,bytes,sizeof(bytes));again=77;
     CHECK(rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&again)==RF_FORMAT && again==77 && !memcmp(bytes,saved,sizeof(bytes)));
     memset(&source,0,sizeof(source));for(i=0;i<32;i++){CHECK(!rf_remote_charge_launch(source.charges+i,7,0,p,d,10,.051f,20));source.owner_keys[i]=42;}
-    CHECK(!rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&written) && written==RF_REMOTE_CHECKPOINT_MAX);
+    CHECK(!rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&written) && bytes[4]==1 &&
+        written==RF_REMOTE_CHECKPOINT_HEADER_V1+RF_REMOTE_CHARGE_CAPACITY*RF_REMOTE_CHECKPOINT_RECORD);
     CHECK(!rf_remote_checkpoint_decode(bytes,written,10,20,&decoded) && !memcmp(&source,&decoded,sizeof(source)));
-    puts("remote checkpoint active slots, attachment/scheduler roundtrip, flight continuation, capacity and atomic rejection passed");return 0;
+    legacy_bytes=written;memcpy(saved,bytes,written);
+    source.selected_mode=1;source.pending=1;source.delay=21;source.followup_target=2;source.followup_ticks=30;
+    CHECK(!rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&written) && bytes[4]==2 && written==RF_REMOTE_CHECKPOINT_MAX);
+    CHECK(bytes[44]==0 && bytes[48]==2 && bytes[52]==30 &&
+        !memcmp(bytes+RF_REMOTE_CHECKPOINT_HEADER,saved+RF_REMOTE_CHECKPOINT_HEADER_V1,
+            RF_REMOTE_CHARGE_CAPACITY*RF_REMOTE_CHECKPOINT_RECORD));
+    CHECK(!rf_remote_checkpoint_decode(bytes,written,10,20,&decoded) && !memcmp(&source,&decoded,sizeof(source)));
+    /* Legacy state must clear a previously decoded followup, never infer it
+     * from full charge pools, held buttons or cooldown. */
+    CHECK(!rf_remote_checkpoint_decode(saved,legacy_bytes,10,20,&decoded) && !decoded.followup_target && !decoded.followup_ticks);
+    before=decoded;word(bytes+52,21);
+    CHECK(rf_remote_checkpoint_decode(bytes,written,10,20,&decoded)==RF_FORMAT && !memcmp(&before,&decoded,sizeof(before)));
+    word(bytes+52,0);
+    CHECK(rf_remote_checkpoint_preflight(bytes,written,10,20)==RF_FORMAT);
+    word(bytes+52,RF_REMOTE_FOLLOWUP_MAX_TICKS+1);
+    CHECK(rf_remote_checkpoint_preflight(bytes,written,10,20)==RF_FORMAT);
+    word(bytes+52,30);word(bytes+48,1);
+    CHECK(rf_remote_checkpoint_preflight(bytes,written,10,20)==RF_FORMAT);
+    source.pending=source.delay=0;source.selected_mode=2;source.followup_target=1;source.followup_ticks=29;
+    CHECK(!rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&written));
+    CHECK(!rf_remote_checkpoint_decode(bytes,written,10,20,&decoded) && !memcmp(&source,&decoded,sizeof(source)));
+    memcpy(saved,bytes,sizeof(saved));again=77;source.followup_target=0;
+    CHECK(rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&again)==RF_FORMAT && again==77 && !memcmp(bytes,saved,sizeof(bytes)));
+    source.followup_target=1;source.followup_ticks=0;
+    CHECK(rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&again)==RF_FORMAT && again==77 && !memcmp(bytes,saved,sizeof(bytes)));
+    memset(&source,0,sizeof(source));source.selected_mode=1;source.followup_target=2;source.followup_ticks=1;
+    CHECK(!rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&written) && written==RF_REMOTE_CHECKPOINT_HEADER);
+    word(bytes+8,RF_REMOTE_CHECKPOINT_HEADER_V1);
+    CHECK(rf_remote_checkpoint_preflight(bytes,RF_REMOTE_CHECKPOINT_HEADER_V1,10,20)==RF_FORMAT);
+    puts("remote checkpoint v1/v2 active slots, attachment/selection scheduler roundtrip, flight continuation, capacity and atomic rejection passed");return 0;
 }

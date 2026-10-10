@@ -1,5 +1,12 @@
 # Flamethrower ordinary-level integration
 
+2026-10-09 source update: the original continuous firing voice now has a shared,
+generation-qualified player weapon owner. Ordinary flame stop closes that voice
+before its existing release cue, and restored ignition2 can reacquire it on the
+next admitted tick. Gameplay state and save formats are unchanged. Parent scene
+hooks and scheduled Xbox verification remain separate; see
+`docs/PLAYER-WEAPON-LOOP-AUDIO.md`.
+
 The installed flamethrower item requests sparse first-person, fuel-stream and thrown-canister resources in ordinary levels. Napalm supplies fuel without creating ownership or resource demand by itself. Imported ownership and scripted grants request the weapon. Resources include the existing shared Fire01 impact bitmap/recipe, authored flame particle settings, canister explosion materials and powerup_flamecan world model, all within existing resource caps.
 
 The full flame input/canister/visual update now runs whenever those resources are present, including off-weapon canister flight. Scene entry resets ignition, fuel remainder, flight and visual state. Flame and Fusion slots bypass ordinary magazine/hitscan handling outside DEV; their own adapters exclusively own firing and fuel/ammo changes. DEV-only blood assets remain separate.
@@ -96,13 +103,13 @@ on retained42f1dc/rf_burn_owner_tick evidence; this change does not retune it.
 
 Source kinds distinguish absent, local player, authored NPC, ordinary vehicle and
 passive vehicle. Registered dead NPC sources retain their authored identity instead of writing
-a registry handle into the save. Sources removed after ignition currently reject
-capture because unregistration clears their handle; stable attribution captured
-at ignition remains open. Unknown sources reject capture;
+a registry handle into the save. Sources removed after ignition originally
+rejected capture because unregistration clears their handle; the source-written
+2026-10-09 extension below retains that identity. Unknown sources reject capture;
 there is no fabricated fallback actor. Preflight resolves identities and checks
 that every target is a saved, live, registered NPC before assignment. Source NPCs
-must also have a saved NPC record and a recoverable live or registered-dead
-owner. Missing/unsupported actor states retain their
+must also have a saved NPC record and a qualified original owner, including the
+retired-source extension below. Missing/unsupported actor states retain their
 existing save restrictions.
 
 NPC export now has an explicit burning profile only for composed ordinary saves;
@@ -154,3 +161,29 @@ against the recorded checkpoint and source/load telemetry without another native
 run, writing `validation.json` with result `PASS_BURN_CONTINUITY`. This supports
 NPC burn save continuity only; it does not establish player survival or explain
 the separate player death. No images, audio output or campaign routes were used.
+
+## Retired ignition-source identity (2026-10-09, source-written)
+
+Each live burn now captures its authored NPC source UID at ignition, independently
+of the native damage-source handle. RFAP4 kind10, its112-byte layout and reserved
+bytes are unchanged. Registered dead sources retain their exact native handle;
+actual NPC removal normalizes the burn's native source to UINT32_MAX without
+losing kind2/UID on save or resave. Same-frame capture before that normalization
+qualifies the original retired owner and its retained damage handle, never a
+replacement object occupying the old registry slot.
+
+RFNC preflight determines whether the saved source will remain registered or be
+retired. Only the private burn candidate is normalized before world publication;
+load does not resurrect a source or rerun ignition, damage, audio, loot or death
+callbacks. Existing pulse arithmetic, pain state, target death and burn expiry
+remain unchanged. Whole-record retirement/reset and scene teardown clear the
+retained UID. Added storage is256 bytes for the live64-slot pool and256 bytes per
+private restore stage, with no new allocation during gameplay.
+
+Source evidence remains41a350 damage credit,42f1dc burn-owner damage and48684f
+registry invalidation, plus the port's ordinary Remove_Object and corpse-retirement
+paths. Other RFNC owner-state restrictions remain independent. The existing burn
+unit test's owner stubs were adapted for the new identity dependencies; no new
+test cases or fixtures were added. No build, test or native runtime was run for
+this extension; it awaits the parent-coordinated16:00 Xbox batch. Earlier player-
+source burn continuity evidence does not establish removed-source runtime.

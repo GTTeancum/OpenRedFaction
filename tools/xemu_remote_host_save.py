@@ -45,9 +45,13 @@ def main():
         payload=(folder/'save/xbox-world.rfwc').read_bytes()
         off,size=struct.unpack_from('<II',payload,128+9*12+4)
         remote=payload[off:off+size]
-        if remote[:4]!=b'RFRM' or struct.unpack_from('<I',remote,12)[0]!=1:raise RuntimeError('Expected one saved remote')
-        host=struct.unpack_from('<I',remote,48+12)[0]
-        position=struct.unpack_from('<3f',remote,48+16)
+        if len(remote)<48 or remote[:4]!=b'RFRM':raise RuntimeError('Expected saved remote chunk')
+        version,length,count=struct.unpack_from('<3I',remote,4)
+        remote_header={1:48,2:56}.get(version)
+        if remote_header is None or length!=len(remote) or count!=1 or length!=remote_header+228:
+            raise RuntimeError('Expected one saved remote in RFRM1/2')
+        host=struct.unpack_from('<I',remote,remote_header+12)[0]
+        position=struct.unpack_from('<3f',remote,remote_header+16)
         report['saved_host']=host;report['saved_position']=position
         if host!=8359:raise RuntimeError('Wrong saved remote host')
         (DISC/'campaign-nano-shield.bin').unlink()

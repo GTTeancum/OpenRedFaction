@@ -224,6 +224,10 @@ use_dsp = true
     command = [emulator_binary(emulator), '-config_path', str(config), '-m', '64',
                '-snapshot', '-display', 'xemu', '-audio', 'none',
                '-qmp', 'stdio' if pipe_qmp else f'tcp:127.0.0.1:{port},server=on,wait=off']
+    # Preserve the exact native image before the restoration repack changes
+    # CXBE's timestamp. Source identity alone cannot reproduce those bytes.
+    shutil.copyfile(DISC / 'default.xbe', folder / 'tested-default.xbe')
+    shutil.copyfile(ROOT / 'build/xbox/main.map', folder / 'tested-main.map')
     mapping = (ROOT / 'build/xbox/main.map').read_text()
     symbols = {name: address(mapping, name) for name in COUNTS}
     result = dict(command=command, samples=[], source_commit=subprocess.check_output(
@@ -358,9 +362,16 @@ def main():
     parser.add_argument('--input', type=Path, help='Existing ordinary replay; no host input is sent')
     parser.add_argument('--out', type=Path)
     parser.add_argument('--footstep-telemetry', action='store_true', help='Read actual player/NPC movement-audio counters; does not synthesize steps')
+    parser.add_argument('--movement-audio-telemetry', action='store_true', help='Read actual jump/landing callbacks and voice starts; does not synthesize events')
     args = parser.parse_args()
     if args.footstep_telemetry:
         COUNTS.update(rf_scene_npc_footsteps=13, rf_scene_player_footsteps=16, rf_scene_player_footstep_values=8, rf_scene_player_footstep_events=192)
+    if args.movement_audio_telemetry:
+        COUNTS.update(rf_scene_player_jump=4, rf_scene_player_jump_audio=12,
+                      rf_scene_player_jump_sound_events=128,
+                      rf_scene_player_landing_audio=16,
+                      rf_scene_player_landing_values=8,
+                      rf_scene_player_landing_events=192)
     payload = args.input.read_bytes() if args.input else b'RFI6' + struct.pack('<I', 48) + bytes(args.frames * 48)
     frames = replay_frames(payload)
     if not 120 <= frames <= 1800 or not 30 <= args.seconds <= 900:

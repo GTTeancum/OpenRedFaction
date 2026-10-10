@@ -63,25 +63,47 @@ static int scene_clutter_damage_bind(const rf_object_registry *registry,
 /* First-pass retirement hides/removes collision through bit2, but leaves the
  * registered allocation alive for hit events/deferred close. No fake explosion,
  * debris, corpse, respawn or source-attribution behavior is introduced here. */
-static int scene_clutter_damage_receive_live(const rf_object_registry *registry,
+static int scene_clutter_damage_receive_live_mode(const rf_object_registry *registry,
     rf_clutter_base_owner *owner,const scene_clutter_damage_profile *profile,
     scene_clutter_damage_binding *binding,float damage,int32_t type,
-    uint32_t override_protection,scene_clutter_damage_live_result *out)
+    uint32_t override_protection,uint32_t scripted_slay,scene_clutter_damage_live_result *out)
 {
     rf_clutter_gameplay_definition d={0};rf_clutter_damage_state s;rf_clutter_damage_result r;
     scene_clutter_damage_live_result value={0};int status;
     if(!out || !profile || !binding || !binding->initialized || !scene_clutter_damage_identity(registry,owner) ||
        binding->handle!=owner->state.handle || binding->class_index!=owner->state.class_index ||
-       !isfinite(damage) || type< -1 || type>10)return RF_RANGE;
+       !isfinite(damage) || type< -1 || type>10 || scripted_slay>1)return RF_RANGE;
     value.health_before=value.health_after=owner->state.health;value.killing_type=binding->killing_type;
-    if(!profile->ordinary || (owner->state.flags&(2u|0x4000u))){*out=value;return RF_OK;}
+    if(!profile->ordinary || (owner->state.flags&2u) ||
+       (!scripted_slay && (owner->state.flags&0x4000u))){*out=value;return RF_OK;}
     memcpy(d.damage_factors,profile->damage_factors,sizeof(d.damage_factors));
     s.health=owner->state.health;s.object_flags=owner->state.flags;s.killing_type=binding->killing_type;
+    /* Original Slay4baa76 clears protection before ordinary damage4baab0.
+     * Hidden linked objects are still explicit targets; retain their hidden
+     * bit rather than exposing them while applying the scripted hit. */
+    if(scripted_slay)s.object_flags&=~4u;
     status=rf_clutter_damage_receive(&d,&s,damage,type,override_protection,&r);if(status)return status;
     value.accepted=damage>=.001f;value.applied=r.admitted;
     value.retired=r.admitted && r.health_break_due;
     if(value.retired){r.state.object_flags|=2u;binding->break_pending=1;}
     owner->state.health=r.state.health;owner->state.flags=r.state.object_flags;binding->killing_type=r.state.killing_type;
     value.health_after=r.state.health;value.killing_type=r.state.killing_type;*out=value;return RF_OK;
+}
+static int scene_clutter_damage_receive_live(const rf_object_registry *registry,
+    rf_clutter_base_owner *owner,const scene_clutter_damage_profile *profile,
+    scene_clutter_damage_binding *binding,float damage,int32_t type,
+    uint32_t override_protection,scene_clutter_damage_live_result *out)
+{
+    return scene_clutter_damage_receive_live_mode(registry,owner,profile,binding,
+        damage,type,override_protection,0,out);
+}
+/* Original4baa9b..4baab7 sends100000 untyped damage to entity/item/clutter.
+ * Keep normal damage, one-shot break admission and retained registration. */
+static int scene_clutter_damage_slay_live(const rf_object_registry *registry,
+    rf_clutter_base_owner *owner,const scene_clutter_damage_profile *profile,
+    scene_clutter_damage_binding *binding,scene_clutter_damage_live_result *out)
+{
+    return scene_clutter_damage_receive_live_mode(registry,owner,profile,binding,
+        100000.0f,-1,0,1,out);
 }
 #endif

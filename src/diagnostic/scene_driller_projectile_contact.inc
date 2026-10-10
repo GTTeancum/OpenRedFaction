@@ -93,7 +93,33 @@ static int scene_passive_vehicle_destroy(void *context,uint32_t host,uint32_t re
     scene_passive_vehicle *owner=context;(void)responsible;
     if(!owner||owner->handle!=host||
        rf_object_registry_lookup(&campaign_registry,host)!=owner)return RF_NOT_FOUND;
+    scene_vehicle_loop_audio_remove(host);
     return scene_masako_vehicle_destroy(host); /* Other wrecks keep their When_Dead identity. */
+}
+/* Audio-only qualification of the retained vehicle/turret contact. Damage's
+ * handled=1 also consumes stale owners, so it alone cannot justify an impact.
+ * Snapshot this before damage: a real lethal hit may retire its owner. Keep
+ * selection/damage unchanged and do not require positive applied damage. */
+static uint32_t scene_driller_projectile_contact_live(const rf_weapon_flight_contact *contact,uint32_t source)
+{
+    scene_driller_damage_runtime *owner=scene_driller_damage_owner;uint32_t i;
+    if(!contact || source==contact->face)return 0;
+    if(contact->object==SCENE_TURRET_PROJECTILE_OWNER){
+        scene_turret_owner *turret=scene_turret_lookup(contact->face);
+        return turret && !turret->dead && !(turret->view.flags_7c&(2u|0x4000u)) &&
+            !scene_turret_generated_related(source,contact->face) && !scene_npc_seat_related(source,contact->face);
+    }
+    if(contact->object!=SCENE_DRILLER_PROJECTILE_OWNER)return 0;
+    if(scene_driller_damage_runtime_valid(owner) && contact->face==owner->entry->registration.handle)
+        return rf_object_registry_lookup(&campaign_registry,contact->face)==&owner->entry->registration &&
+            !(owner->damage.object_flags&0x4000u) && !scene_driller_projectile_source_excluded(owner,source);
+    for(i=0;i<campaign_passive_vehicle_count;i++){
+        scene_passive_vehicle *passive=campaign_passive_vehicles+i;
+        if(passive->handle==contact->face)
+            return rf_object_registry_lookup(&campaign_registry,contact->face)==passive &&
+                !(passive->damage.object_flags&0x4000u) && !scene_npc_seat_related(source,contact->face);
+    }
+    return 0;
 }
 /* Shared firearm and terminal projectile direct hit. Caller retains separate
  * radial blast behavior. Unknown tags remain unhandled; stale host generations

@@ -424,6 +424,7 @@ typedef struct startup_context {
     rf_runtime_triggers *triggers;rf_runtime_trigger *trigger;rf_runtime_event *event;
     rf_physics_gravity *gravity;rf_startup_events_report *report;int32_t now;int status;
     uint32_t depth;rf_level_particles *particles;rf_physics_force_collection *forces;
+    const rf_level_link_target *switch_link;
 } startup_context;
 static void startup_target(startup_context *c,const rf_level_link_target *target,
     uint32_t source,uint32_t actor,uint32_t on);
@@ -522,6 +523,10 @@ static int startup_switch_ready(const rf_runtime_triggers *triggers)
 static int startup_switch_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
 {
     startup_context *c=context;const rf_runtime_switch_backend *b=c->triggers->switch_backend;
+    /* Ambient lookup45afe0 uses the unresolved authored UID namespace.
+     * Object/key links retain generation-bearing handles, including stale ones. */
+    if(family==RF_SWITCH_SOUND && (!c->switch_link || c->switch_link->kind ||
+        c->switch_link->value!=link))return RF_NOT_FOUND;
     return b->lookup(b->context,family,link,target);
 }
 static int startup_switch_dispatch(void *context,const rf_switch_request *request)
@@ -559,8 +564,10 @@ static int startup_switch_links(startup_context *c,const rf_switch_state *state,
     if(!c->event->authored || (c->event->authored->record.link_count && !c->event->links))return RF_RANGE;
     for(i=0;i<c->event->authored->record.link_count && !c->status;++i) {
         uint32_t value=c->event->links[i].value;rf_event_links link={1,&value};
+        c->switch_link=c->event->links+i;
         c->status=rf_event_switch_links(state,&c->event->state,&link,initial,
             startup_switch_lookup,startup_switch_dispatch,c);
+        c->switch_link=NULL;
     }
     return c->status;
 }
@@ -625,6 +632,27 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             status=c->triggers->play_animation(c->triggers->animation_context,link->value,&c->event->authored->record);
             if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
             if(status){c->status=status;return;}
+        }
+        return;
+    }
+    if(state->type==45) {
+        rf_runtime_event *event=c->event;
+        if(!c->triggers->alarm_siren){++c->report->unsupported_actions;return;}
+        if(action==1) {
+            if(event->siren_active)return;
+            c->status=c->triggers->alarm_siren(c->triggers->alarm_siren_context,
+                &event->authored->record,&event->siren_voice,1);
+            if(c->status)return;
+            /*4ba830 has its own first-ON link pass, with sentinel refs,
+             * before the normal4b8b70/4b8ce0 propagation above. */
+            for(i=0;i<event->authored->record.link_count && !c->status && !event->retired;++i)
+                startup_target(c,event->links+i,UINT32_MAX,UINT32_MAX,1);
+            if(!event->retired)event->siren_active=1;
+        } else if(event->siren_voice>=0) {
+            /*4ba8c0 only clears the latch when a handle was acquired. */
+            c->status=c->triggers->alarm_siren(c->triggers->alarm_siren_context,
+                &event->authored->record,&event->siren_voice,0);
+            if(!c->status)event->siren_active=0;
         }
         return;
     }
@@ -814,6 +842,14 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             memcpy(&kind,object,4);
             if(kind==6) {
                 rf_runtime_event *removed=object;
+                if(removed->state.type==45) {
+                    if(removed->siren_voice>=0 && c->triggers->alarm_siren) {
+                        status=c->triggers->alarm_siren(c->triggers->alarm_siren_context,
+                            &removed->authored->record,&removed->siren_voice,0);
+                        if(status){c->status=status;return;}
+                    }
+                    removed->siren_active=0;
+                }
                 removed->state.deadline=-1;removed->state.flags|=1;
                 removed->retired=1;
                 removed->unhide.on=removed->unhide.off=0;removed->death_fired=1;
@@ -1044,6 +1080,21 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(!c->triggers->teleport_player){++c->report->unsupported_actions;return;}
         status=c->triggers->teleport_player(c->triggers->teleport_context,&c->event->authored->record);
         if(status==RF_NOT_FOUND)++c->report->other_targets;else if(status)c->status=status;
+        return;
+    }
+    if(state->type==64) {
+        /* Original4b9980 sets entity810 bit800 and7d0 bit200. OFF routes
+         * to4ba008; generic downstream link propagation stays unchanged. */
+        if(action!=1)return;
+        if(!c->triggers->holster_npc_weapon){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if((link->kind!=1 && link->kind!=2) ||
+               !rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->holster_npc_weapon(c->triggers->holster_weapon_context,link->value);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
         return;
     }
     if(state->type==56) {
@@ -1485,6 +1536,25 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
     for(i=0;i<events->count;++i) {
         rf_runtime_event *event=events->items+i;
         if(event->retired)continue;
+        if(event->state.type==45) {
+            if(!triggers->alarm_siren) {
+                if(event->state.deadline>=0 || event->siren_active)++*unsupported_pending;
+                continue;
+            }
+            context.event=event;
+            if(event->state.deadline>=0) {
+                status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            /*4ba880: retry only -1, never a successfully finished one-shot.
+             * Restored active latches use this same path without link replay. */
+            if(!event->retired && event->siren_active && event->siren_voice<0) {
+                status=triggers->alarm_siren(triggers->alarm_siren_context,
+                    &event->authored->record,&event->siren_voice,1);
+                if(status)return status;
+            }
+            continue;
+        }
         if(event->state.type==50) {
             if(!triggers->set_visible) {
                 if(event->state.deadline>=0 || event->unhide.on || event->unhide.off)++*unsupported_pending;
@@ -1635,6 +1705,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==4 && triggers->teleport_npc) &&
            !(event->state.type==63 && triggers->teleport_player) &&
            !(event->state.type==56 && triggers->strip_weapons) &&
+           !(event->state.type==64 && triggers->holster_npc_weapon) &&
            !(event->state.type==19 && triggers->give_item) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
@@ -1823,6 +1894,7 @@ int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
         }
         item->state.type=(uint32_t)rf_event_type_id(item->authored->record.type);
         item->state.delay=item->authored->record.delay;item->state.deadline=-1;
+        item->siren_voice=-1;
         if(item->state.type==32) {
             const rf_level_event *record=&item->authored->record;
             item->switch_state=switch_cursor++;

@@ -1,4 +1,5 @@
 #include "rf/clutter_checkpoint.h"
+/* Prepared rows contain live immunity, after decoding the disk bit4 override. */
 typedef struct scene_clutter_restore_entry {rf_clutter_checkpoint_record row;uint32_t slot,handle;int32_t deadline;} scene_clutter_restore_entry;
 typedef struct scene_clutter_restore_stage {uint32_t count;scene_clutter_restore_entry entries[];} scene_clutter_restore_stage;
 /* Unknown classes and known non-model classes have no ordinary static body.
@@ -68,8 +69,13 @@ static int scene_clutter_checkpoint_capture(const unsigned char source[32],int32
         if(!owner)continue; /* Identity proved intentionally unresolved class. */
         if(campaign_clutter_damage_bindings[i].break_pending){status=RF_RANGE;goto done;}
         if(owner->state.definition->timer>=0){status=rf_timer_remaining(owner->state.definition->timer,now,&left);if(status)goto done;if(left<0)left=0;}
+        /* Disk bit4 means immunity differs from the immutable class default.
+         * Legacy RFPC1 rows always have zero here, so restore their original
+         * class behavior rather than retaining newer resident-world immunity. */
         rows[used++]=(rf_clutter_checkpoint_record){owner->uid,(uint32_t)owner->state.class_index,owner->state.health,
-            owner->state.flags&0x204002u,campaign_clutter_damage_bindings[i].killing_type,left};
+            (owner->state.flags&0x204002u)|((owner->state.flags^
+                (campaign_clutter_damage_profiles[owner->state.class_index].life<0?4u:0u))&4u),
+            campaign_clutter_damage_bindings[i].killing_type,left};
     }
     if(used)qsort(rows,used,sizeof(*rows),scene_clutter_checkpoint_compare);
     status=rf_clutter_checkpoint_encode(identity,rows,used,out,capacity,written);
@@ -98,6 +104,9 @@ static int scene_clutter_checkpoint_prepare(const unsigned char source[32],const
         if(rows[i].class_id!=(uint32_t)owner->state.class_index||rows[i].health>initial||
            (fresh_only&&((owner->state.flags&2u)||owner->state.health!=initial||campaign_clutter_damage_bindings[j].break_pending))){status=RF_FORMAT;goto fail;}
         if(rows[i].cooldown_ms>=0){status=rf_timer_set(&deadline,now,rows[i].cooldown_ms);if(status)goto fail;}
+        /* Convert the disk override once. Candidate and final publication
+         * both borrow this normalized live flag row; neither replays events. */
+        rows[i].flags^=campaign_clutter_damage_profiles[owner->state.class_index].life<0?4u:0u;
         stage->entries[i]=(scene_clutter_restore_entry){rows[i],j,owner->state.handle,deadline};
     }
     free(rows);*out=stage;return RF_OK;
@@ -123,7 +132,7 @@ static void scene_clutter_checkpoint_assign(const scene_clutter_restore_stage *s
     uint32_t i;
     for(i=0;i<stage->count;i++){
         const scene_clutter_restore_entry *e=stage->entries+i;rf_clutter_base_owner *owner=campaign_clutter_bodies[e->slot];
-        owner->state.health=e->row.health;owner->state.flags=(owner->state.flags&~0x204002u)|e->row.flags;
+        owner->state.health=e->row.health;owner->state.flags=(owner->state.flags&~0x204006u)|e->row.flags;
         owner->state.definition->timer=e->deadline;campaign_clutter_damage_bindings[e->slot].killing_type=e->row.killing_type;
         campaign_clutter_damage_bindings[e->slot].break_pending=0;
         if(e->row.health!=campaign_clutter_damage_profiles[e->row.class_id].life || (e->row.flags&(2u|0x4000u)))

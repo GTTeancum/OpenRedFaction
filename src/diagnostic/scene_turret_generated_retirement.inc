@@ -112,6 +112,7 @@ static int scene_turret_generated_remove(uint32_t actor,int32_t now,uint32_t *ha
     r->base=b->base_handle;r->head=b->head_handle;
     if(!r->reason||reason==SCENE_TURRET_GENERATED_BASE_REMOVED)r->reason=reason;
     head->view.flags_7c|=2u|0x4000u;head->view.linked_handle=-1;
+    scene_turret_audio_stop(b->head_handle);
     head->target=UINT32_MAX;head->fire_due=0;
     if(scene_turret_combat_ready)scene_turret_combat_release(head,scene_turret_combat_states+slot);
     memset(scene_turret_death_pending_rows+slot,0,sizeof(scene_turret_death_pending_rows[slot]));

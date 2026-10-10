@@ -343,6 +343,7 @@ static int scene_secondary_vehicle_remove(uint32_t handle,uint32_t *handled)
     if(!handled)return RF_RANGE;*handled=0;
     if(!r)return RF_OK;*handled=1;
     owner=scene_secondary_vehicle_owner(r);if(!owner)return RF_NOT_FOUND;
+    scene_vehicle_loop_audio_remove(handle);
     if(!r->retired)++rf_scene_secondary_vehicle[9];
     scene_vehicle_attack_cancel(handle);scene_vehicle_ai_cancel(handle);
     r->retired=1;r->route.active=0;owner->damage.object_flags|=2u|0x4000u;

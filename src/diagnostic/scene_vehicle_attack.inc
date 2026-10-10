@@ -39,6 +39,7 @@ static uint32_t scene_vehicle_attack_busy(uint32_t handle)
 }
 static void scene_vehicle_attack_cancel(uint32_t handle)
 {
+    scene_vehicle_loop_audio_stop(handle,SCENE_VEHICLE_LOOP_ATTACK);
     scene_vehicle_attack_state *a=scene_vehicle_attack_find(handle);
     scene_secondary_vehicle_runtime *r=scene_secondary_vehicle_find(handle);
     if(a){a->active=0;a->target=UINT32_MAX;a->target_kind=a->target_uid=0;a->fire.held=0;a->fire.warmup=0;}
@@ -46,6 +47,8 @@ static void scene_vehicle_attack_cancel(uint32_t handle)
 }
 static void scene_vehicle_attack_states_close(scene_vehicle_attack_state **head)
 {
+    /* Staged checkpoint candidates do not own live audio. */
+    if(head==&campaign_vehicle_attacks)scene_vehicle_loop_audio_stop_controller(SCENE_VEHICLE_LOOP_ATTACK);
     while(*head){scene_vehicle_attack_state *next=(*head)->next;free(*head);*head=next;}
 }
 static void scene_vehicle_attack_close(void)
@@ -204,6 +207,7 @@ static int scene_vehicle_attack_order(scene_stream *s,const rf_level_event *even
     }else{campaign_vehicle_route.active=0;rf_scene_vehicle_route_state[0]=0;
         s->fighter_weapon.primary_fire.held=0;s->fighter_weapon.primary_fire.warmup=0;}
     scene_vehicle_ai_cancel(owner.handle);
+    scene_vehicle_loop_audio_stop(owner.handle,SCENE_VEHICLE_LOOP_ATTACK);
     a->event=event->uid;a->active=1;a->target=target;a->target_kind=kind;a->target_uid=uid;
     a->fire.held=0;a->fire.warmup=0; /* Retain spent ammo and the last accepted cooldown. */
     if(created){created->next=campaign_vehicle_attacks;campaign_vehicle_attacks=created;}
@@ -288,7 +292,9 @@ static int scene_vehicle_attack_tick(scene_stream *s,uint32_t frame)
         }
         status=scene_vehicle_attack_owner_read(s,a->uid,&owner);if(status||owner.handle!=a->handle){scene_vehicle_attack_cancel(a->handle);continue;}
         if(!owner.alive)scene_vehicle_attack_cancel(a->handle);
-        if(owner.selected&&s->driller_runtime->entry.session.active)continue; /* Player tick owns the shared supply. */
+        if(owner.selected&&s->driller_runtime->entry.session.active){
+            scene_vehicle_loop_audio_stop(a->handle,SCENE_VEHICLE_LOOP_ATTACK);continue; /* Player tick owns the shared supply. */
+        }
         status=rf_static_model_tags_find(&owner.resource->tags,(rf_model_name){"muzzle_1",8},&tag);if(status)return status;
         status=rf_static_model_tag_place(&owner.resource->tags,tag,owner.basis,owner.position,muzzle);if(status)return status;
         if(a->active&&!scene_vehicle_attack_target(a->target,target,&hull))scene_vehicle_attack_cancel(a->handle);
@@ -306,7 +312,8 @@ static int scene_vehicle_attack_tick(scene_stream *s,uint32_t frame)
             owner.position,owner.basis,NULL,a->handle,held,owner.allowed,scene_step_seconds,&a->reserve,scene_vehicle_attack_launch,a,&fired);
         if(status){rf_scene_vehicle_attack[11]=(uint32_t)status;return status;}
         if(owner.selected)s->fighter_weapon.primary_reserve=a->reserve;
-        if(fired)combat_sound("Vauss1 Fire",muzzle+9);
+        scene_vehicle_loop_audio_tick(a->handle,SCENE_VEHICLE_LOOP_ATTACK,5,
+            a->fire.held&&(a->reserve>0||fired),fired,muzzle+9);
         rf_scene_vehicle_attack[7]=a->uid;rf_scene_vehicle_attack[8]=a->handle;
         rf_scene_vehicle_attack[9]=a->target;rf_scene_vehicle_attack[10]=(uint32_t)a->reserve;
     }

@@ -965,6 +965,7 @@ fail:rf_scene_vehicle_state[5]=(uint32_t)status;fprintf(stderr,"DRILLER_RUNTIME_
 static int scene_driller_runtime_close(scene_stream *s)
 {
     int status=RF_OK;if(!s->driller_runtime)return RF_OK;
+    scene_vehicle_loop_audio_remove(s->driller_runtime->entry.host.handle);
     status=scene_driller_audio_close(&s->driller_runtime->audio);
     scene_driller_damage_runtime_close(&s->driller_runtime->damage);
     {int closed=scene_driller_entry_exit_close(&s->driller_runtime->entry,1);if(!status)status=closed;}

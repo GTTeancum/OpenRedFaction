@@ -4,16 +4,20 @@ The recovered Switch dispatcher was present but the gameplay scene supplied no
 backend, leaving switches unsupported. The scene now connects trigger and event
 lookup to its live registry and uses the existing event dispatcher for effects.
 Initial switch link state is applied before automatic startup events, without
-consuming an activation or playing sound. Activation follows authored delay,
-mode and limit. Named activation sounds and nonspatial rejection slot2 use the
+consuming an activation or playing the Switch activation sample. Activation
+follows authored delay, mode and limit. Named activation sounds and nonspatial rejection slot2 use the
 existing bounded audio bank/mixer; failed sound playback is counted without
 canceling gameplay.
 
-The inspected83 switches contain119 links:36 to triggers,70 to events and13 to
-other objects. The first two target families are now connected. This does not
-mean all linked event actions are implemented. Controller, sound-object, light
-and renderable-object switch effects remain unimplemented and unmatched links
-are counted. Ordinary event dispatch retains its own unsupported-action report.
+The inspected83 switches contain119 links:36 to triggers,70 to events,9 to
+controllers,3 to ambient energy sounds and1 to a camera entity. The controller
+start/stop and NPC/clutter visibility consumers were integrated after the first
+version of this document. The three original L7S1 ambient links now have a
+source-written, bounded slot-volume adapter awaiting the parent Xbox batch; see
+SWITCH-AMBIENT-TARGETS.md. No authored Switch links target lights. Camera/render
+coverage is not established by this inventory, and generic delayed or multiply
+controlled ambient targets remain unsupported. Ordinary event dispatch retains
+its own unsupported-action report.
 
 Authored L1S1 switch9836 begins disabled and blocks linked trigger9840. Its0.1s
 activation enables that trigger and consumes the single allowed activation.

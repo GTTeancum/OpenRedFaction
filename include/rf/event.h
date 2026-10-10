@@ -139,6 +139,9 @@ typedef struct rf_runtime_event {
     rf_event_threshold threshold; /* Types87/88 one-shot monitor; per scene. */
     uint32_t countdown_armed,countdown_fired; /* Type84: threshold crossing per scene. */
     uint32_t retired; /* Storage retained after Remove_Object until scene close. */
+    /* Alarm_Siren45: persistent active latch, transient nonnegative audio ID.
+     * A completed successful ID stays retained until OFF; it is not a loop. */
+    uint32_t siren_active;int32_t siren_voice;
 } rf_runtime_event;
 typedef struct rf_campaign_countdown {
     float remaining;
@@ -355,6 +358,10 @@ typedef struct rf_runtime_triggers {
     void *give_item_context;
     int (*strip_weapons)(void *);
     void *strip_weapons_context;
+    /* Holster_Weapon64 ON-only linked entity state; OFF has no inverse.
+     * NOT_FOUND skips unsupported owners; inventory remains unchanged. */
+    int (*holster_npc_weapon)(void *context,uint32_t handle);
+    void *holster_weapon_context;
     int (*load_level)(void *context,const rf_level_event *,uint32_t source,uint32_t actor);
     void *load_level_context;
     rf_campaign_goals *goals; /* Borrowed campaign owner; survives scene teardown. */
@@ -505,6 +512,10 @@ typedef struct rf_runtime_triggers {
      * the existing slow/standing transition. ON only; no flight is implied. */
     int (*set_actor_slow)(void *context,uint32_t handle);
     void *actor_slow_context;
+    /* Alarm_Siren45: start/stop sample28 at this event, without NPC effects.
+     * The service updates the transient voice ID; audio failure leaves -1. */
+    int (*alarm_siren)(void *,const rf_level_event *,int32_t *voice,uint32_t on);
+    void *alarm_siren_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

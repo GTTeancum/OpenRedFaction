@@ -17,7 +17,7 @@ static int scene_clutter_precision_select(const float start[3],const float delta
 /* handled=1 consumes sniper's selected surface, even if blocked/stale, so a
  * stale prop never redirects the shot into an actor behind its old surface. */
 static int scene_clutter_precision_commit(scene_stream *stream,const float start[3],const float delta[3],
-    const scene_clutter_precision_contact *contact,float damage,int32_t kind,uint32_t *handled)
+    const scene_clutter_precision_contact *contact,float damage,int32_t kind,int32_t weapon,uint32_t *handled)
 {
     rf_clutter_base_owner *owner;uint32_t blocked;int status;
     if(!stream||!contact||!handled)return RF_RANGE;
@@ -27,10 +27,14 @@ static int scene_clutter_precision_commit(scene_stream *stream,const float start
        rf_object_registry_lookup(&campaign_registry,contact->handle)!=&owner->state||
        (owner->state.flags&(2u|0x4000u))){*handled=1;return RF_OK;}
     status=combat_shot_obstructed(stream,start,delta,contact->fraction,&blocked);if(status)return status;
-    if(!blocked){status=campaign_clutter_firearm_damage(contact->slot,damage,kind);if(status)return status;}
+    if(!blocked){float point[3];uint32_t i;
+        status=campaign_clutter_firearm_damage(contact->slot,damage,kind);if(status)return status;
+        for(i=0;i<3;i++)point[i]=start[i]+delta[i]*contact->fraction;
+        scene_weapon_impact_audio_contact(weapon,-1,point);
+    }else scene_weapon_impact_audio_world(stream,weapon,start,delta,contact->fraction);
     *handled=1;return RF_OK;
 }
-static int scene_clutter_precision_rail(const float start[3],const float delta[3],float damage,int32_t kind,uint32_t *hits)
+static int scene_clutter_precision_rail(const float start[3],const float delta[3],float damage,int32_t kind,int32_t weapon,uint32_t *hits)
 {
     uint32_t i,count=0;int status;
     if(!start||!delta||!hits||!isfinite(damage)||damage<0||kind<0||kind>8)return RF_RANGE;
@@ -48,6 +52,9 @@ static int scene_clutter_precision_rail(const float start[3],const float delta[3
         status=rf_scene_clutter_collision_query(owner->state.handle,&query,&hit,1,&accepted);if(status)return status;
         if(!accepted||!isfinite(hit.time)||hit.time<0||hit.time>=1)continue;
         status=campaign_clutter_firearm_damage(i,damage,kind);if(status)return status;++count;
+        {float point[3];uint32_t j;
+         for(j=0;j<3;j++)point[j]=start[j]+delta[j]*hit.time;
+         scene_weapon_impact_audio_contact(weapon,-1,point);}
     }
     *hits=count;return RF_OK;
 }

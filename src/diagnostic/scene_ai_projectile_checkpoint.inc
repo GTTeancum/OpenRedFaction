@@ -43,7 +43,7 @@ static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile
 static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_checkpoint_stage *stage,
     const rf_campaign_player_state *player)
 {return scene_flame_checkpoint_admit(stage?&stage->flame:NULL,player);}
-static int scene_ai_projectile_checkpoint_burning_admit(const scene_ai_projectile_checkpoint_stage *stage,
+static int scene_ai_projectile_checkpoint_burning_admit(scene_ai_projectile_checkpoint_stage *stage,
     const scene_npc_checkpoint_restore_stage *npcs)
 {return scene_burning_checkpoint_admit(stage?&stage->burning:NULL,npcs);}
 static uint32_t scene_player_rocket_pending(const scene_stream *stream)
@@ -405,6 +405,7 @@ uint32_t rf_scene_fusion_restored[6];
 static void scene_ai_projectile_checkpoint_assign(scene_stream *stream,const scene_ai_projectile_checkpoint_stage *stage)
 {
     if(!stream)return;
+    scene_projectile_flight_audio_forget();
     scene_burning_checkpoint_assign(stage?&stage->burning:NULL);
     if(!stage)return;
     scene_flame_checkpoint_assign(&stage->flame);
@@ -430,6 +431,20 @@ static void scene_ai_projectile_checkpoint_assign(scene_stream *stream,const sce
     for(uint32_t i=0;i<SCENE_FUSION_CAPACITY;i++)if(stage->fusion[i].flight.active){
         memcpy(rf_scene_fusion_restored+3,stage->fusion[i].flight.position,12);break;
     }
+}
+static void scene_projectile_flight_audio_resume(scene_stream *stream)
+{
+    if(!stream)return;
+    /* Rebuild transient flight sounds only from the published validated pools.
+     * No native IDs/cursors are serialized, and admission cannot fail restore. */
+    for(uint32_t i=0;i<SCENE_ROCKETS;i++)if(stream->rockets[i].active)
+        scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i,stream->rockets[i].position);
+    for(uint32_t i=0;i<SCENE_GRENADE_CAPACITY;i++)if(scene_grenades[i].flight.lifecycle.active)
+        scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_PLAYER_GRENADE,i,scene_grenades[i].flight.position);
+    for(uint32_t i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active && scene_ai_rockets[i].definition==&campaign_rocket)
+        scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,scene_ai_rockets[i].flight.position);
+    for(uint32_t i=0;i<SCENE_AI_GRENADE_CAPACITY;i++)if(scene_ai_grenades[i].projectile.flight.lifecycle.active)
+        scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_GRENADE,i,scene_ai_grenades[i].projectile.flight.position);
 }
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **stage)
 {if(stage&&*stage){free(*stage);*stage=NULL;}}

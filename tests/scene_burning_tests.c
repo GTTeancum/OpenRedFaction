@@ -1,4 +1,6 @@
 #include "rf/entity.h"
+#include "rf/entity_assets.h"
+#include "rf/campaign.h"
 #include "rf/collision.h"
 #include "rf/liquid_damage.h"
 #include <math.h>
@@ -6,14 +8,18 @@
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"line%d %s\n",__LINE__,#x);return 1;}}while(0)
 typedef struct campaign_npc_body {
-    struct {void *view;uint32_t handle;} registration;
+    rf_registered_entity_view registration;
     rf_entity_damage_state damage;uint32_t object_flags;
-    struct {uint32_t flags_810;} view;
+    rf_entity_view view;uint32_t persistence_registered,persistence_slot;
     struct {struct {float position[3];} state;} body;
 } campaign_npc_body;
 typedef struct scene_stream {void *collision;rf_liquid_room *liquid_rooms;uint32_t swim_room_count;} scene_stream;
 static campaign_npc_body actors[2],*campaign_npc_bodies=actors;
 static uint32_t campaign_npc_body_count=2,campaign_registry,retired,deaths;
+static rf_entity_registry campaign_entities;
+static rf_level_owned_entity seed_records[2];
+static rf_entity_seeds campaign_seeds;
+static rf_campaign_actors rf_scene_defeated_actors;
 typedef struct combat_feedback {int32_t now;int status;} combat_feedback;
 static void *test_lookup(void *r,uint32_t handle)
 {uint32_t i;(void)r;if(retired)return NULL;for(i=0;i<2;i++)if(actors[i].registration.handle==handle)return &actors[i].registration;return NULL;}
@@ -37,7 +43,13 @@ static int test_locate(void *w,const float *p,rf_collision_room_location *l){(vo
 static void prepare(void)
 {
     uint32_t i;scene_burning_reset();memset(actors,0,sizeof(actors));retired=deaths=0;
+    memset(&campaign_entities,0,sizeof(campaign_entities));
+    memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));rf_scene_defeated_actors.count=2;
+    campaign_seeds.records.items=seed_records;campaign_seeds.records.count=2;
     for(i=0;i<2;i++){actors[i].registration.view=&actors[i].view;actors[i].registration.handle=i+1;
+        actors[i].view.handle=(int32_t)i+1;campaign_entities.slots[i+1]=&actors[i].view;
+        actors[i].persistence_registered=1;actors[i].persistence_slot=i;
+        seed_records[i].record.uid=(int32_t)i+101;rf_scene_defeated_actors.items[i].uid=i+101;
         actors[i].damage.effects.handle=i+1;actors[i].damage.effects.class_health=actors[i].damage.effects.health=100;}
 }
 static int ignite(uint32_t index)

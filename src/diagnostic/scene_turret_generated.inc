@@ -224,6 +224,7 @@ static int scene_turret_generated_death(uint32_t actor,
         if(b->death_dispatched)return RF_OK;
         o=scene_turret_lookup(b->head_handle);if(!o)return RF_NOT_FOUND;
         reason=actor==b->head_handle?SCENE_TURRET_GENERATED_HEAD_DIED:SCENE_TURRET_GENERATED_BASE_DIED;
+        scene_turret_audio_stop(b->head_handle);
         b->death_dispatched=reason;o->view.linked_handle=-1;o->target=UINT32_MAX;o->fire_due=0;
         ++rf_scene_turret_generated_stats[reason==SCENE_TURRET_GENERATED_BASE_DIED?5:6];
         status=dispatch(context,b->base_handle,b->head_handle,reason);

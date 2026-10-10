@@ -36,6 +36,7 @@ static uint32_t scene_vehicle_ai_primary_supply(uint32_t handle,int32_t *reserve
 static uint32_t scene_vehicle_ai_has_state(void){return campaign_vehicle_ai!=NULL;}
 static void scene_vehicle_ai_cancel(uint32_t handle)
 {
+    scene_vehicle_loop_audio_stop(handle,SCENE_VEHICLE_LOOP_AI);
     scene_vehicle_ai_state *a=scene_vehicle_ai_find(handle);if(!a)return;
     a->engaged=0;a->target=UINT32_MAX;a->target_kind=a->target_uid=0;a->unseen_seconds=0;
     a->primary_fire.held=0;a->primary_fire.warmup=0;
@@ -50,7 +51,11 @@ static uint32_t scene_vehicle_ai_busy(uint32_t handle)
     return 0;
 }
 static void scene_vehicle_ai_states_close(scene_vehicle_ai_state **head)
-{while(*head){scene_vehicle_ai_state *next=(*head)->next;free(*head);*head=next;}}
+{
+    /* Staged checkpoint candidates do not own live audio. */
+    if(head==&campaign_vehicle_ai)scene_vehicle_loop_audio_stop_controller(SCENE_VEHICLE_LOOP_AI);
+    while(*head){scene_vehicle_ai_state *next=(*head)->next;free(*head);*head=next;}
+}
 static void scene_vehicle_ai_close(void)
 {scene_vehicle_ai_states_close(&campaign_vehicle_ai);scene_driller_resources_close(&scene_vehicle_ai_torpedo);scene_vehicle_ai_ready=0;scene_vehicle_ai_stream=NULL;}
 static int scene_vehicle_ai_owner_read(scene_stream *s,uint32_t uid,scene_vehicle_ai_owner *out)
@@ -293,17 +298,20 @@ static int scene_vehicle_ai_fire(scene_stream *s,scene_vehicle_ai_state *a,const
     float point[3],distance=0,muzzle[12],delta[3],dot=0,length=0;uint32_t visible=0,fired=0;int32_t tag=-1;int status;
     a->missile_cooldown=fmaxf(0,a->missile_cooldown-scene_step_seconds);
     if(a->engaged){status=scene_vehicle_ai_visible(s,owner,a->target,0,point,&distance,&visible);if(status)return status;}
-    if(!visible||!owner->allowed){a->primary_fire.cooldown=fmaxf(-scene_step_seconds,a->primary_fire.cooldown-scene_step_seconds);a->primary_fire.held=0;a->primary_fire.warmup=0;return RF_OK;}
+    if(!visible||!owner->allowed){a->primary_fire.cooldown=fmaxf(-scene_step_seconds,a->primary_fire.cooldown-scene_step_seconds);a->primary_fire.held=0;a->primary_fire.warmup=0;
+        scene_vehicle_loop_audio_stop(a->handle,SCENE_VEHICLE_LOOP_AI);return RF_OK;}
     status=rf_static_model_tags_find(&owner->resource->tags,a->profile==4?(rf_model_name){"primary_1",9}:(rf_model_name){"muzzle_1",8},&tag);if(status)return status;
     status=rf_static_model_tag_place(&owner->resource->tags,tag,owner->basis,owner->position,muzzle);if(status)return status;
     for(uint32_t i=0;i<3;i++){delta[i]=point[i]-muzzle[9+i];length+=delta[i]*delta[i];dot+=delta[i]*muzzle[6+i];}
-    length=sqrtf(length);if(!isfinite(length)||length<.001f)return RF_OK;
+    length=sqrtf(length);if(!isfinite(length)||length<.001f){scene_vehicle_loop_audio_stop(a->handle,SCENE_VEHICLE_LOOP_AI);return RF_OK;}
     uint32_t primary=distance<=scene_vehicle_ai_range[scene_vehicle_ai_kind(a->profile)]&&dot/length>=.9f;
     if(a->profile!=4){
         status=scene_vehicle_primary_tick(&a->primary_fire,scene_vehicle_ai_gun(a->profile),&owner->resource->tags,tag,
             owner->position,owner->basis,a->profile==2?delta:NULL,a->handle,primary,!!(owner->mask&1u),scene_step_seconds,
             &a->primary_reserve,scene_vehicle_ai_launch_bullet,a,&fired);if(status)return status;
-        if(fired){++rf_scene_vehicle_ai[2];combat_sound("Vauss1 Fire",muzzle+9);}
+        if(fired)++rf_scene_vehicle_ai[2];
+        scene_vehicle_loop_audio_tick(a->handle,SCENE_VEHICLE_LOOP_AI,owner->profile,
+            a->primary_fire.held&&(a->primary_reserve>0||fired),fired,muzzle+9);
     }
     if(a->profile==2)return RF_OK; /* Actual AI APC26/9627 secondary is none. */
     uint32_t missile=a->profile==4?primary&&!!(owner->mask&1u):0;
@@ -380,6 +388,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
         uint32_t route=owner.selected?campaign_vehicle_route.active:motion&&motion->route.active;
         uint32_t chase=route&&(owner.selected?campaign_vehicle_route.pursuit==2:motion->route.kind==SCENE_SECONDARY_ORDER_PLAYER);
         if(!owner.allowed||scene_vehicle_attack_active(owner.handle)||(route&&!chase)){
+            scene_vehicle_loop_audio_stop(owner.handle,SCENE_VEHICLE_LOOP_AI);
             a->engaged=0;a->primary_fire.held=0;a->primary_fire.warmup=0;
             scene_vehicle_attack_state *attack=scene_vehicle_attack_find(owner.handle);if(attack)a->primary_reserve=attack->reserve;
             continue;
@@ -392,7 +401,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
                 if(clear){if(owner.selected)campaign_vehicle_route.active=0;else motion->route.active=0;
                     chase=0;a->scan_ticks=0;++rf_scene_vehicle_ai[1];}
             }
-            if(chase)continue;
+            if(chase){scene_vehicle_loop_audio_stop(owner.handle,SCENE_VEHICLE_LOOP_AI);continue;}
         }
         if(a->engaged){float point[3],distance=0;uint32_t hull,affiliation,visible=0,expired=0;
             if(!scene_vehicle_attack_target(a->target,point,&hull)||!scene_vehicle_ai_target_affiliation(a->target,&affiliation)||
@@ -451,6 +460,7 @@ static void scene_vehicle_ai_player_sync(scene_stream *s,uint32_t after)
 {
     if(!s||!s->driller_runtime||!s->driller_runtime->entry.session.active)return;
     scene_vehicle_ai_state *a=scene_vehicle_ai_find(s->driller_runtime->entry.host.handle);if(!a)return;
+    scene_vehicle_loop_audio_stop(a->handle,SCENE_VEHICLE_LOOP_AI);
     a->engaged=0;
     if(a->profile==2){
         if(after){a->primary_reserve=s->apc_primary.reserve;a->primary_fire=s->apc_primary.scheduler;}

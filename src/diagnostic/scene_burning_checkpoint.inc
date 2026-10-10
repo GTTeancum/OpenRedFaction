@@ -35,12 +35,15 @@ static int scene_burning_checkpoint_npc_handle(uint32_t uid,uint32_t *handle)
     return RF_NOT_FOUND;
 }
 /* Source kinds:0 absent,1 local player,2 authored NPC,3 occupied/boardable
- * vehicle owner,4 passive vehicle owner. Registered-dead NPCs keep authored
- * attribution; removed-after-ignition sources currently reject capture because
- * unregister clears their handles. Never fabricate a process-local handle. */
-static int scene_burning_checkpoint_source(uint32_t handle,uint32_t *kind,uint32_t *uid)
+ * vehicle owner,4 passive vehicle owner. Kind2 also carries historical identity
+ * after source removal; RFNC owns retirement and no source is resurrected. */
+static int scene_burning_checkpoint_source(const scene_burning_record *burn,uint32_t *kind,uint32_t *uid)
 {
-    uint32_t i;*kind=*uid=0;
+    uint32_t i,handle=burn->source;*kind=*uid=0;
+    if(burn->source_uid){
+        int status=scene_burning_source_checkpoint(burn,uid);if(status)return status;
+        *kind=2;return RF_OK;
+    }
     if(handle==UINT32_MAX)return RF_OK;
     if(handle==campaign_player_object.handle){*kind=1;return RF_OK;}
     if(!scene_burning_checkpoint_npc_uid(handle,uid)){*kind=2;return RF_OK;}
@@ -57,7 +60,15 @@ static int scene_burning_checkpoint_source_handle(uint32_t kind,uint32_t uid,uin
     if(!kind){*handle=UINT32_MAX;return RF_OK;}
     if(kind==1){*handle=campaign_player_object.handle;return RF_OK;}
     if(!uid||uid==UINT32_MAX)return RF_FORMAT;
-    if(kind==2)return scene_burning_checkpoint_npc_handle(uid,handle);
+    if(kind==2){
+        const campaign_npc_body *owner=scene_burning_source_npc(uid);
+        if(!owner)return RF_FORMAT;
+        if(scene_burning_source_registered(owner,owner->registration.handle)){
+            *handle=owner->registration.handle;return RF_OK;
+        }
+        if(!scene_burning_source_retired(owner))return RF_FORMAT;
+        *handle=UINT32_MAX;return RF_OK;
+    }
     if(kind==3){
         if(uid!=(uint32_t)campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle)return RF_FORMAT;
         *handle=campaign_authored_vehicle_handle;return RF_OK;
@@ -89,7 +100,7 @@ static int scene_burning_checkpoint_owner_admit(uint32_t index)
        !isfinite(owner->damage.effects.class_health)||owner->damage.effects.class_health<=0||
        (owner->object_flags&(2u|0x4000u))||(owner->view.flags_810&1u))return RF_FORMAT;
     status=scene_burning_checkpoint_pain(owner,pain);if(status)return status;
-    return scene_burning_checkpoint_source(r->source,&kind,&uid);
+    return scene_burning_checkpoint_source(r,&kind,&uid);
 }
 static uint32_t scene_burning_checkpoint_count(void)
 {uint32_t i,n=0;for(i=0;i<SCENE_BURNING_CAPACITY;i++)n+=scene_burning_records[i].left!=0;return n;}
@@ -102,7 +113,7 @@ static int scene_burning_checkpoint_capture(unsigned char *output,uint32_t *rows
         if(!scene_burning_owner(burn->target,&index))return RF_FORMAT;
         status=scene_burning_checkpoint_owner_admit(index);if(status)return status;
         status=scene_burning_checkpoint_npc_uid(burn->target,&target);if(status)return status;
-        status=scene_burning_checkpoint_source(burn->source,&kind,&source);if(status)return status;
+        status=scene_burning_checkpoint_source(burn,&kind,&source);if(status)return status;
         r=output+112*n++;checkpoint_put(r,10);checkpoint_put(r+4,i);checkpoint_put(r+8,target);
         checkpoint_put(r+12,kind);checkpoint_put(r+16,source);checkpoint_put(r+20,burn->left);checkpoint_put(r+24,burn->phase);
         status=scene_burning_checkpoint_pain(campaign_npc_bodies+index,pain);if(status)return status;
@@ -128,15 +139,23 @@ static int scene_burning_checkpoint_read(scene_burning_checkpoint_stage *stage,c
     if(!burn->left||burn->left>300||burn->phase>=15||
        scene_burning_checkpoint_npc_handle(target,&burn->target)||
        scene_burning_checkpoint_source_handle(kind,source,&burn->source))return RF_FORMAT;
+    burn->source_uid=kind==2?source:0;
     stage->target_uid[slot]=target;stage->source_kind[slot]=kind;stage->source_uid[slot]=source;
     stage->seen|=1ull<<slot;++stage->count;return RF_OK;
 }
-static int scene_burning_checkpoint_admit(const scene_burning_checkpoint_stage *burning,
+static int scene_burning_checkpoint_admit(scene_burning_checkpoint_stage *burning,
     const scene_npc_checkpoint_restore_stage *npcs)
 {
     uint32_t i,j;
     if(!burning||!burning->count)return RF_OK;
     if(!npcs)return RF_FORMAT;
+    /* RFNC15 ordinary pain and RFAP4 burns share the live pain RNG but must
+     * never both claim one reaction owner. Publication order cannot decide it. */
+    for(j=0;j<npcs->count;j++)if(npcs->entries[j].saved.pain.present){
+        if(npcs->entries[j].saved.pain.random!=burning->pain_rng)return RF_FORMAT;
+        for(i=0;i<SCENE_BURNING_CAPACITY;i++)if(burning->records[i].left&&
+            burning->target_uid[i]==npcs->entries[j].saved.uid)return RF_FORMAT;
+    }
     for(i=0;i<SCENE_BURNING_CAPACITY;i++)if(burning->records[i].left){
         const scene_npc_checkpoint_restore_entry *entry=NULL;
         for(j=0;j<npcs->count;j++)if(npcs->entries[j].saved.uid==burning->target_uid[i]){entry=npcs->entries+j;break;}
@@ -151,6 +170,14 @@ static int scene_burning_checkpoint_admit(const scene_burning_checkpoint_stage *
         if(burning->source_kind[i]==2){
             for(j=0;j<npcs->count;j++)if(npcs->entries[j].saved.uid==burning->source_uid[i])break;
             if(j==npcs->count)return RF_FORMAT;
+            /* The pristine startup source may still be registered, but RFNC
+             * assignment will remove a saved-retired actor before burn
+             * publication. Resolve candidate state now, never mutate live
+             * owners or retain that soon-invalid startup handle. */
+            entry=npcs->entries+j;
+            if(entry->saved.retired)burning->records[i].source=UINT32_MAX;
+            else if(!entry->registered||!entry->handle||entry->handle==UINT32_MAX||
+                burning->records[i].source!=entry->handle)return RF_FORMAT;
         }
     }
     return RF_OK;

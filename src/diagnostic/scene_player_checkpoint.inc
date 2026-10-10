@@ -279,6 +279,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;
     rf_scene_player_checkpoint_state[1]=1;rf_scene_player_checkpoint_state[5]=candidate.rfds_bytes;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;
+    scene_ai_drone_smash_reset();
     printf("PLAYER_CHECKPOINT_LOAD %u %u %u\n",bytes,candidate.rfds_bytes,scene_actor_body.spheres.count);return RF_OK;
 }
 /* RFCP profile 1 admits only settled standing on static world support.

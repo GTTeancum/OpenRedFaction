@@ -62,10 +62,10 @@ def address(mapping, name):
 def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
               allow_guest_error=False, allow_player_dead=False, capture_world=False,
               probe=None, probe_frame=None, final_probe=None, final_probe_frame=None,
-              measure_fps=False):
+              measure_fps=False, live_sample=None):
     # Observe existing diagnostic reads only; pausing callbacks would make the
     # elapsed wall-clock window unsuitable for presented FPS.
-    if measure_fps and (probe is not None or final_probe is not None):
+    if measure_fps and (probe is not None or final_probe is not None or live_sample is not None):
         raise ValueError('FPS measurement cannot include pausing probe callbacks')
     fps_first = fps_last = None
     fps_samples = 0
@@ -118,6 +118,7 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
     monitor = process = None
     interim_probe = None
     final_sample = None
+    last_live_sample_frame = None
     session_lock = SessionLock(ROOT)
     try:
         session_lock.acquire()
@@ -170,6 +171,18 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                         fps_first = sample
                     fps_last = sample
                     fps_samples += 1
+                # Optional read-only owner snapshots. Existing contact-response
+                # rings omit the object handle; the last body-hit owner can be
+                # overwritten before either fixed probe. Never measure FPS with
+                # this pausing observer, and never call it outside a live scene.
+                if live_sample is not None and diagnostic[2] == 2 and \
+                   diagnostic[37] > 0 and diagnostic[37] != last_live_sample_frame:
+                    monitor.command('stop')
+                    try:
+                        live_sample(monitor, mapping)
+                    finally:
+                        monitor.command('cont')
+                    last_live_sample_frame = diagnostic[37]
                 if probe and probe_frame is not None and interim_probe is None and \
                    diagnostic[37] >= probe_frame and diagnostic[2] == 2:
                     monitor.command('stop')

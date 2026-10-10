@@ -16,6 +16,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
        !definition->projectiles || definition->projectiles>32 ||
        definition->damage_kind<0 || definition->damage_kind>8 ||
        !isfinite(range) || range<=0)return RF_RANGE;
+    const int32_t impact_weapon=owner->view.weapons[0];
     /* Preserve the existing API: clock_bits is the caller's frame/60 float. */
     memcpy(&clock_seconds,&clock_bits,4);
     if(!isfinite(clock_seconds)||clock_seconds<0||(double)clock_seconds*60+.5>UINT32_MAX)return RF_RANGE;
@@ -26,7 +27,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
     if(!isfinite(damage) || damage<0)return RF_RANGE;
     for(j=0;j<3;j++)ray[j]=delta[j]*(range/sqrtf(distance));
     for(pellet=0;pellet<definition->projectiles;pellet++) {
-        float spread[3],fraction=1,applied=0,body_fraction,end[3];uint32_t blocked,hit;
+        float spread[3],impact_start[3],impact_point[3],fraction=1,applied=0,body_fraction,end[3];uint32_t blocked,hit;
         campaign_npc_body *pellet_victim=victim;uint32_t pellet_slot=victim_slot;
         scene_ai_shield_ray_selection npc_shield={0};
         rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
@@ -38,6 +39,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
         if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
         rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
+        memcpy(impact_start,owner->eye_position,12);
         scene_ai_actor_ray_selection actor;
         status=scene_ai_actor_ray_select(stream,owner,owner->eye_position,spread,player_eye,&actor);if(status)return status;
         pellet_victim=actor.victim;pellet_slot=actor.victim_slot;
@@ -47,19 +49,25 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread,
             fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
         if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
-        {uint32_t consumed;
-            status=campaign_clutter_enemy_fire(stream,owner->eye_position,spread,fraction,
-                damage,definition->damage_kind,0,&consumed);if(status)return status;
+        {uint32_t consumed;float contact_fraction;
+            status=campaign_clutter_enemy_fire_contact(stream,owner->eye_position,spread,fraction,
+                damage,definition->damage_kind,0,&consumed,&contact_fraction);if(status)return status;
+            if(contact_fraction>=0)scene_npc_bullet_impact_ray(impact_weapon,-1,impact_start,spread,contact_fraction);
             if(consumed)continue;
         }
-        status=combat_enemy_fragment_shot(stream,owner->eye_position,spread,fraction,damage,&blocked);if(status)return status;
+        {scene_npc_bullet_contact contact;
+            status=combat_enemy_fragment_shot_contact(stream,owner->eye_position,spread,fraction,damage,&blocked,&contact);if(status)return status;
+            scene_npc_bullet_impact_stop(stream,impact_weapon,impact_start,spread,&contact);}
         if(blocked){++rf_scene_enemy_spread[4];continue;}
-        if(vehicle_hit){uint32_t handled;float vehicle_amount;
+        if(vehicle_hit){uint32_t handled,impact_live;float vehicle_amount;
             /* Existing world/fragment cover and an earlier shield/body retain priority. */
             status=combat_shot_obstructed(stream,owner->eye_position,spread,fraction,&blocked);if(status)return status;
             if(blocked){++rf_scene_enemy_spread[4];continue;}
+            impact_live=scene_npc_bullet_impact_ready(impact_weapon) &&
+                scene_driller_projectile_contact_live(&vehicle_contact,owner->registration.handle);
             status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,damage,
                 definition->damage_kind,shot_frame,&handled,&vehicle_amount);if(status)return status;
+            if(handled && impact_live)scene_npc_bullet_impact_contact(impact_weapon,-1,vehicle_contact.hit.point);
             /* amount remains damage to the intended actor; host damage has its own owner. */
             continue;
         }
@@ -76,6 +84,8 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         }
         if(!hit){++rf_scene_enemy_spread[3];continue;}
         ++rf_scene_enemy_spread[2];++rf_scene_enemy_damage_kinds[definition->damage_kind];
+        int32_t impact_material=pellet_victim?(int32_t)pellet_victim->collision_material:(int32_t)campaign_player_material;
+        for(j=0;j<3;j++)impact_point[j]=impact_start[j]+spread[j]*body_fraction;
         rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
         if(pellet_victim) {
             uint32_t entered;
@@ -91,6 +101,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
             status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,effects,&applied);if(status)return status;
             player_total+=applied;
         }
+        scene_npc_bullet_impact_contact(impact_weapon,impact_material,impact_point);
         scene_ai_actor_hit_probe(owner,point_target?UINT32_MAX:victim?victim->registration.handle:
             vehicle_target?owner->combat_target:campaign_player_object.handle,
             pellet_victim?pellet_victim->registration.handle:campaign_player_object.handle,shot_frame,applied);

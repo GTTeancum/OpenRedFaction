@@ -44,10 +44,13 @@ static int scene_ai_grenade_launch(campaign_npc_body *owner,const float target[3
     status=rf_grenade_flight_launch(&pending.projectile.flight,owner->eye_position,direction,campaign_grenade.speed,
         campaign_grenade.collision_radius,campaign_grenade.lifetime,0,0);if(status)return status;
     pending.source=owner->registration.handle;pending.damage=combat_enemy_primary_damage(campaign_primary+5);
-    scene_ai_grenades[i]=pending;--owner->inventory.reserve[ammo];++rf_scene_ai_grenades[0];++rf_scene_ai_grenades[3];return RF_OK;
+    scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_GRENADE,i);
+    scene_ai_grenades[i]=pending;--owner->inventory.reserve[ammo];
+    scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_GRENADE,i,pending.projectile.flight.position);
+    ++rf_scene_ai_grenades[0];++rf_scene_ai_grenades[3];return RF_OK;
 }
 static void scene_ai_grenade_reset(void)
-{memset(scene_ai_grenades,0,sizeof(scene_ai_grenades));memset(rf_scene_ai_grenades,0,sizeof(rf_scene_ai_grenades));}
+{scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_NPC_GRENADE);memset(scene_ai_grenades,0,sizeof(scene_ai_grenades));memset(rf_scene_ai_grenades,0,sizeof(rf_scene_ai_grenades));}
 static int scene_ai_grenade_tick(scene_stream *stream,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_ai_grenades[3]=0;
@@ -55,7 +58,10 @@ static int scene_ai_grenade_tick(scene_stream *stream,uint32_t frame)
         scene_ai_grenade_projectile *shot=scene_ai_grenades+i;rf_grenade_flight_event event;
         scene_ai_projectile_query query={stream,shot->source};
         if(!shot->projectile.flight.lifecycle.active)continue;
-        status=rf_grenade_flight_step_objects(&shot->projectile.flight,1.f/60,scene_gravity.vector,.45f,scene_ai_projectile_solid_sweep,scene_grenade_object_contact,&query,&event);if(status)return status;
+        status=rf_grenade_flight_step_objects(&shot->projectile.flight,1.f/60,scene_gravity.vector,.45f,scene_ai_projectile_solid_sweep,scene_grenade_object_contact,&query,&event);
+        if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_GRENADE,i);return status;}
+        scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_NPC_GRENADE,i,
+            shot->projectile.flight.lifecycle.active,shot->projectile.flight.position);
         if(event.object_contact){uint32_t exploded;
             rf_scene_ai_grenades[1]+=event.contacts;
             status=scene_grenade_contact_damage(stream,frame,&event.contact,shot->projectile.flight.lifecycle.instance_flags,

@@ -16,12 +16,11 @@ static int campaign_enemy_reload_start(rf_motion_playback_state *playback,
 static int campaign_enemy_reload_presentation(uint32_t slot)
 {
     campaign_npc_body *owner;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;
-    int32_t motion;int status;const char *label;
+    int32_t motion;int status;
     if(slot>=campaign_npc_body_count || !campaign_npc_bodies)return RF_RANGE;
     owner=campaign_npc_bodies+slot;
-    label=owner->selection.action_sounds[39];
     /* Sound is an authored action property even when the clip is unavailable. */
-    if(label && label[0])combat_sound(label,owner->eye_position);
+    (void)scene_npc_action_foley_play(slot,39);
     if(slot>=campaign_poses.count || !campaign_poses.items)return RF_NOT_FOUND;
     status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     motion=owner->selection.mapping.actions[39];if(motion<0)return RF_NOT_FOUND;

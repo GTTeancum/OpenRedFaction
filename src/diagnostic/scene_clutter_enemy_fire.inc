@@ -6,10 +6,13 @@
  * consumed=1 ends this ray/pellet even when nearer world/rubble blocks it.
  * Caller preserves existing rail penetration policy through penetrates_world.
  * Damage ownership/presentation remains the existing live clutter service. */
-static int campaign_clutter_enemy_fire(scene_stream *stream,const float start[3],const float delta[3],
-    float limit,float damage,int32_t kind,uint32_t penetrates_world,uint32_t *consumed)
+static int campaign_clutter_enemy_fire_contact(scene_stream *stream,const float start[3],const float delta[3],
+    float limit,float damage,int32_t kind,uint32_t penetrates_world,uint32_t *consumed,float *contact_fraction)
 {
     uint32_t slot,blocked;float fraction;int status;
+    /* Optional observation only. Blocked/absent contacts stay-1; the caller
+     * must not invent a clutter hit from consumed, which also means cover. */
+    if(contact_fraction)*contact_fraction=-1;
     if(!stream||!start||!delta||!consumed||!isfinite(limit)||limit<0||limit>1||
        !isfinite(damage)||damage<0||kind<0||kind>8||penetrates_world>1)return RF_RANGE;
     status=campaign_clutter_firearm_select(start,delta,limit,&slot,&fraction);if(status)return status;
@@ -22,6 +25,13 @@ static int campaign_clutter_enemy_fire(scene_stream *stream,const float start[3]
         if(blocked){*consumed=1;return RF_OK;}
     }
     status=campaign_clutter_firearm_damage(slot,damage,kind);if(status)return status;
+    if(contact_fraction)*contact_fraction=fraction;
     *consumed=1;return RF_OK;
+}
+/* Legacy melee/turret/test callers keep their original API and behavior. */
+static int campaign_clutter_enemy_fire(scene_stream *stream,const float start[3],const float delta[3],
+    float limit,float damage,int32_t kind,uint32_t penetrates_world,uint32_t *consumed)
+{
+    return campaign_clutter_enemy_fire_contact(stream,start,delta,limit,damage,kind,penetrates_world,consumed,NULL);
 }
 #endif

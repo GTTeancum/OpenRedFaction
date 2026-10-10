@@ -151,6 +151,8 @@ static int scene_apc_primary_tick(scene_stream *stream,uint32_t frame)
             player_input.fire,allowed,dt,&state->reserve,scene_apc_primary_launch,&launch,&fired);
         if(status)return status;
         rf_scene_apc_primary[4]+=fired;
+        scene_vehicle_loop_audio_tick(runtime->entry.host.handle,SCENE_VEHICLE_LOOP_PLAYER,rf_scene_vehicle_enabled,
+            state->scheduler.held&&(state->reserve>0||fired),fired,position);
     }
     rf_scene_apc_primary[7]=(uint32_t)state->reserve;return RF_OK;
 }

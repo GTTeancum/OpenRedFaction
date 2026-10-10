@@ -18,11 +18,11 @@ int rf_event_checkpoint_type_supported(uint32_t type)
 uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
 {
     switch(type){
-    case 0:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO;
+    case 0:case 45:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO;
     case 41:case 42:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO;
     case 9:case 79:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
     case 76:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE;
-    case 4:case 7:case 8:case 26:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
+    case 4:case 7:case 8:case 26:case 64:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     /* A queued blast has not changed terrain/vitals or created emitters yet.
      * Scene setup binds its real callback/resources; the world composer owns
      * admission of already-mutated terrain and damage. Keep the deadline. */
@@ -31,7 +31,7 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
     case 1:case 13:case 14:case 17:return RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE;
     case 5:case 6:case 11:case 12:case 24:case 28:case 30:case 34:case 38:case 67:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 15:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
-    case 19:case 47:case 56:case 64:case 65:case 81:return RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
+    case 19:case 47:case 56:case 65:case 81:return RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
     case 22:return RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL;
     case 35:case 36:case 37:return RF_EVENT_CHECKPOINT_EXTERNAL_GOALS;
     case 73:case 74:case 75:case 84:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
@@ -59,6 +59,7 @@ static int owner_valid(const rf_runtime_event *e,int32_t now)
     if(e->retired&&(!(e->state.flags&1)||e->death_fired!=1||e->state.deadline>=0))return RF_FORMAT;
     if(e->state.type==50&&(e->unhide.on>1||e->unhide.off>1||(e->retired&&(e->unhide.on||e->unhide.off))))return RF_FORMAT;
     if(e->state.type==32&&!e->switch_state)return RF_FORMAT;
+    if(e->state.type==45&&(e->siren_active>1||(e->retired&&e->siren_active)))return RF_FORMAT;
     return RF_OK;
 }
 static int remaining(int32_t deadline,int32_t now,int32_t *out)
@@ -101,7 +102,7 @@ int rf_event_checkpoint_encode_mapped(const unsigned char identity[32],const rf_
     if(e->state.type==50){status=remaining(e->unhide.deadline,now,&unhide_remaining);if(status)return status;}
     status=encode_ref(e->state.source,refs,&source_kind,&source_uid);if(status)return status;
     status=encode_ref(e->state.actor,refs,&actor_kind,&actor_uid);if(status)return status;
-    memset(p,0,192);memcpy(p,"RFEC",4);put(p+4,3);put(p+8,192);put(p+16,e->authored->record.uid);put(p+20,e->state.type);memcpy(p+24,identity,32);
+    memset(p,0,192);memcpy(p,"RFEC",4);put(p+4,e->state.type==45?4:3);put(p+8,192);put(p+16,e->authored->record.uid);put(p+20,e->state.type);memcpy(p+24,identity,32);
     put(p+64,e->state.flags);put(p+68,e->state.mode);put(p+72,e->death_fired);put(p+76,e->death_time);
     if(e->state.type==20){put(p+80,(uint32_t)cycle_remaining);put(p+84,(uint32_t)e->cycle.period_ms);put(p+88,(uint32_t)e->cycle.limit);
         put(p+92,e->cycle.count);put(p+96,e->cycle.enabled);put(p+100,e->cycle.unlimited);}
@@ -111,6 +112,7 @@ int rf_event_checkpoint_encode_mapped(const unsigned char identity[32],const rf_
         put(p+136,s->disabled);put(p+140,(uint32_t)s->limit);put(p+144,s->unlimited);put(p+148,s->activations);put(p+152,(uint32_t)s->mode);}
     if(e->state.type==50){put(p+156,(uint32_t)unhide_remaining);put(p+164,e->unhide.on);put(p+168,e->unhide.off);}
     if(e->state.type==84){put(p+172,e->countdown_armed);put(p+176,e->countdown_fired);}
+    if(e->state.type==45)put(p+172,e->siren_active);
     put(p+160,(uint32_t)common_remaining);
     put(p+12,hash(p));return RF_OK;
 }
@@ -121,15 +123,17 @@ static int validate(const void *data,uint32_t bytes,const unsigned char identity
     const unsigned char *p=data;uint32_t type,i,version;int32_t left;int status;
     if(!data||!identity)return RF_RANGE;
     status=owner_valid(e,now);if(status)return status;
-    if(bytes!=192||memcmp(p,"RFEC",4)||(word(p+4)!=2&&word(p+4)!=3)||word(p+8)!=192||word(p+12)!=hash(p)||
+    if(bytes!=192||memcmp(p,"RFEC",4)||(word(p+4)!=2&&word(p+4)!=3&&word(p+4)!=4)||word(p+8)!=192||word(p+12)!=hash(p)||
        memcmp(p+24,identity,32)||word(p+16)!=e->authored->record.uid||word(p+20)!=e->state.type||word(p+56)||word(p+60)||word(p+132))return RF_FORMAT;
     version=word(p+4);type=word(p+20);
-    for(i=version==2?160:type==84?180:172;i<192;i+=4)if(word(p+i))return RF_FORMAT;
+    if(version==4&&type!=45)return RF_FORMAT;
+    for(i=version==2?160:type==84?180:version==4?176:172;i<192;i+=4)if(word(p+i))return RF_FORMAT;
     if(word(p+72)>1||word(p+76)>(uint32_t)RF_TIMER_PERIOD||word(p+112)>1||
        (word(p+112)&&(!(word(p+64)&1)||word(p+72)!=1)))return RF_FORMAT;
     resolved->cycle_deadline=resolved->unhide_deadline=resolved->common_deadline=-1;
     if(type==84&&(version<3||word(p+172)>1||word(p+176)>1))return RF_FORMAT;
-    if(version==3){
+    if(version==4&&(word(p+172)>1||(word(p+112)&&word(p+172))))return RF_FORMAT;
+    if(version>=3){
         left=signed_word(p+160);if(left<-1||left>RF_TIMER_PERIOD||(word(p+112)&&left>=0))return RF_FORMAT;
         if(left>=0){status=rf_timer_set(&resolved->common_deadline,now,left);if(status)return status;}
         if(type==50){if(word(p+164)>1||word(p+168)>1||(word(p+112)&&(word(p+164)||word(p+168))))return RF_FORMAT;}
@@ -166,6 +170,7 @@ int rf_event_checkpoint_restore_mapped(const void *data,uint32_t bytes,const uns
     if(e->state.type==20){e->cycle.deadline=resolved.cycle_deadline;e->cycle.count=word(p+92);e->cycle.enabled=word(p+96);}
     if(e->state.type==87||e->state.type==88)e->threshold.fired=word(p+108);
     if(e->state.type==84){e->countdown_armed=word(p+172);e->countdown_fired=word(p+176);}
+    if(e->state.type==45){e->siren_active=word(p+4)>=4?word(p+172):0;e->siren_voice=-1;}
     if(e->state.type==32){e->switch_state->disabled=word(p+136);e->switch_state->activations=word(p+148);}
     if(e->state.type==50){e->unhide.deadline=resolved.unhide_deadline;e->unhide.on=(uint8_t)word(p+164);e->unhide.off=(uint8_t)word(p+168);}
     return RF_OK;

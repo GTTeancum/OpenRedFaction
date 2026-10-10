@@ -9,6 +9,7 @@
 static rf_remote_charge scene_remote_charges[RF_REMOTE_CHARGE_CAPACITY];
 static uint32_t scene_remote_host_tags[RF_REMOTE_CHARGE_CAPACITY];
 static uint32_t scene_remote_held,scene_remote_pending,scene_remote_delay,scene_remote_cooldown;
+#include "scene_remote_selection.inc"
 /* starts, launches, attaches, detonations, live, poolfull, missing hosts, status */
 uint32_t rf_scene_remote[8];
 uint32_t rf_scene_remote_shield[4]; /* consumed, target UID, frame, source */
@@ -16,6 +17,7 @@ static void scene_remote_reset(void)
 {
     memset(scene_remote_charges,0,sizeof(scene_remote_charges));memset(scene_remote_host_tags,0xff,sizeof(scene_remote_host_tags));
     memset(rf_scene_remote,0,sizeof(rf_scene_remote));scene_remote_held=scene_remote_pending=scene_remote_delay=scene_remote_cooldown=0;
+    scene_remote_selection_cancel();
     memset(rf_scene_remote_shield,0,sizeof(rf_scene_remote_shield));
 }
 /* Tags are dispatch tokens, never pointers. Actor bindings retain registry
@@ -138,20 +140,27 @@ static int scene_remote_tick(scene_stream *s,uint32_t frame)
 }
 static int scene_remote_input(scene_stream *s,uint32_t frame,const float position[3],const float forward[3],uint32_t mode,uint32_t triggers)
 {
-    uint32_t edges=triggers&~scene_remote_held,spawned,any;int32_t ammo;int status;
+    uint32_t edges=triggers&~scene_remote_held,spawned,any,followup_ticks;int32_t ammo;int status;
     if(mode>2 || triggers>3)return RF_RANGE;scene_remote_held=triggers;
+    scene_remote_selection_input_tick(s,mode);
     if(scene_remote_cooldown)--scene_remote_cooldown;
     if(mode!=1)scene_remote_pending=scene_remote_delay=0;
-    if(mode==2 && edges){status=scene_remote_request(frame,campaign_player_object.handle,&any);if(status)return status;
-        if(any){++rf_scene_combat[0];campaign_last_alt=0;}return RF_OK;}
+    if(mode==2 && edges && !scene_remote_followup_target){
+        status=scene_remote_selection_prepare(s,1,0,&followup_ticks);if(status)return status;
+        status=scene_remote_request(frame,campaign_player_object.handle,&any);if(status)return status;
+        if(any){++rf_scene_combat[0];campaign_last_alt=0;
+            scene_remote_selection_arm(1,followup_ticks);}return RF_OK;}
     if(mode!=1 || campaign_remote_id<0)return RF_OK;
     ammo=campaign_weapon_supply.definitions[campaign_remote_id].ammo_type;if(ammo<0 || ammo>=32)return RF_RANGE;
     if(scene_remote_pending){
         if(scene_remote_delay)--scene_remote_delay;
         if(!scene_remote_delay){status=scene_remote_launch(s,frame,position,forward,scene_remote_pending==2,&spawned);if(status)return status;
-            scene_remote_pending=0;if(spawned)scene_remote_cooldown=45;}
-    }else if(edges && !scene_remote_cooldown && campaign_player_inventory.reserve[ammo]>0){
+            scene_remote_pending=0;if(spawned)scene_remote_cooldown=45;
+            else scene_remote_selection_cancel();}
+    }else if(edges && !scene_remote_cooldown && !scene_remote_followup_target && campaign_player_inventory.reserve[ammo]>0){
+        status=scene_remote_selection_prepare(s,2,!!(edges&2u),&followup_ticks);if(status)return status;
         scene_remote_pending=edges&2?2:1;scene_remote_delay=scene_remote_pending==2?15:21;
+        scene_remote_selection_arm(2,followup_ticks);
         ++rf_scene_remote[0];++rf_scene_combat[0];campaign_last_alt=scene_remote_pending==2;
         combat_sound(campaign_last_alt?"Remote Charge Alt Launch":"Remote Charge Launch",position);
     }

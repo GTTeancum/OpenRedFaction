@@ -11,7 +11,7 @@ static uint32_t hash(const unsigned char *p,uint32_t bytes)
 static int valid(const rf_clutter_checkpoint_record *r)
 {
     if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||!isfinite(r->health)||
-       (r->flags&~0x204002u)||r->killing_type< -1||r->killing_type>10||r->cooldown_ms< -1||r->cooldown_ms>50||
+       (r->flags&~0x204006u)||r->killing_type< -1||r->killing_type>10||r->cooldown_ms< -1||r->cooldown_ms>50||
        (r->health<=0&&!(r->flags&2u)))return RF_FORMAT;
     return RF_OK;
 }

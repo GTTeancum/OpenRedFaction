@@ -72,7 +72,11 @@ def checkpoint_sections(data):
         # not RFPL's weapon-supply hash. Compare the RFRM context when present.
         if header[7]:
             remote=data[576+header[6]:576+header[6]+header[7]]
-            assert len(remote)>=24 and struct.unpack_from('<4s2I',remote)==(b'RFRM',1,len(remote))
+            assert len(remote)>=48,'Truncated RFRM header'
+            magic,version,length,count=struct.unpack_from('<4s3I',remote)
+            remote_header={1:48,2:56}.get(version)
+            assert magic==b'RFRM' and remote_header is not None and length==len(remote) and count<=32
+            assert length==remote_header+count*228,'Invalid RFRM record span'
             assert mh[4]==struct.unpack_from('<I',remote,20)[0],'RFWM/RFRM catalog mismatch'
     return p,props
 

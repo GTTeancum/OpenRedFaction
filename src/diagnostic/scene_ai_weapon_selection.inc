@@ -6,7 +6,7 @@
 typedef struct campaign_enemy_weapon_selection {
     const rf_weapon_primary_definition *primary;
     const rf_weapon_acquire_definition *ammo;
-    uint32_t slot,melee,penetrates_world;
+    uint32_t slot,melee,penetrates_world,reserve_fed;
 } campaign_enemy_weapon_selection;
 static int campaign_enemy_weapon_select(int32_t weapon,const int32_t ids[8],
     const rf_weapon_primary_definition primary[8],
@@ -14,7 +14,7 @@ static int campaign_enemy_weapon_select(int32_t weapon,const int32_t ids[8],
     campaign_enemy_weapon_selection *result)
 {
     static const uint32_t supported[6]={0,1,2,3,6,7};uint32_t i,slot;
-    campaign_enemy_weapon_selection selected;
+    campaign_enemy_weapon_selection selected={0};
     if(!ids || !primary || !ammo || !result)return RF_RANGE;
     if(weapon<0)return RF_NOT_FOUND;
     for(i=0;i<6;i++)if(ids[supported[i]]>=0 && weapon==ids[supported[i]])break;

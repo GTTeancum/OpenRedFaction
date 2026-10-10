@@ -82,6 +82,7 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     const scene_passive_vehicle_checkpoint_stage *passive,scene_world_player_stage *out)
 {
     scene_world_player_stage s={0};rf_player_checkpoint_catalog catalog;scene_checkpoint_world_context context;
+    scene_checkpoint_clutter_support prop_support={world,scene_actor_body.state.flags};
     rf_collision_room_location location;const rf_world_checkpoint_slice *v;uint32_t passive_index=UINT32_MAX;int status;
     if(!stream||!world||!world->npcs||!out||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count)return RF_RANGE;
     if(support_point_velocity&&!support_uid)return RF_FORMAT;
@@ -105,6 +106,13 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         memcpy(s.basis,s.placement.basis,36);memcpy(s.eye,s.placement.basis,36);
     }else scene_checkpoint_placement(stream,&s.player,s.basis,&s.placement);
     context=world->world;context.allow_no_contact=0;context.authored_position=NULL;context.authored_basis=NULL;
+    /* Static prop support does not persist an owner handle. Candidate RFPC
+     * visibility/retirement controls the floor, while all clearance guards and
+     * the exact authored mover/vehicle support paths remain unchanged. */
+    context.static_support=NULL;context.static_support_context=NULL;
+    if(!support_uid&&!(vehicle&&vehicle->value.vehicle.player_occupied)){
+        context.static_support=scene_checkpoint_clutter_compose;context.static_support_context=&prop_support;
+    }
     context.player_route_contact=1;
     context.authored_props=NULL;context.authored_static_unchanged=0;
     context.spawn_shell_uid=0;context.spawn_shell_position=stream->world_checkpoint_level?

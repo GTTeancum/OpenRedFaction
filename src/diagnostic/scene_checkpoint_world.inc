@@ -45,6 +45,16 @@ typedef struct scene_checkpoint_world_context {
     const float *spawn_shell_position; /* Borrowed authored player start, not a saved position. */
     const float *spawn_basis; /* Borrowed authored player body basis for original prop overlap. */
     uint32_t support_uid; /* Authored mover UID for a saved player; zero requires static support. */
+    /* Optional candidate-owned static support, installed only by the ordinary
+     * on-foot player adapter. Compose strictly nearer contacts; no publication
+     * or dynamic support identity. Other placement callers leave this null. */
+    int (*static_support)(void *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
+    void *static_support_context;
+    /* Optional, owner-qualified original NPC/type4 pair policy. Only the
+     * ordinary NPC adapter installs this; absent/inconclusive proof retains
+     * conservative prop-sphere clearance. World/mover/pair fit is separate. */
+    uint32_t (*npc_prop_pair_rejected)(void *,uint32_t);
+    void *npc_prop_pair_context;
 } scene_checkpoint_world_context;
 uint32_t rf_scene_checkpoint_world_route_contact[2]; /* admitted NPC,player shallow prop contacts */
 uint32_t rf_scene_checkpoint_world_reject[9]; /* phase, reason/owner, sphere, detail, status, overlap depth bits, authored prop, static world, route */
@@ -212,16 +222,18 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
              if(status)return status;}
         }
         for(j=0;j<c->prop_count;j++){
-            const rf_clutter_base_owner *prop=c->props[j];
+            const rf_clutter_base_owner *prop=c->props[j];uint32_t pair_rejected=0;
             if(!prop)return RF_FORMAT;
             if(prop->state.flags&(2u|0x4000u))continue;
             if(!prop->state.definition)return RF_FORMAT;
             if(!(prop->state.definition->flags&6u))continue;
             if(!prop->body.spheres.items||!prop->body.spheres.count)return RF_RANGE;
+            if(c->npc_prop_pair_rejected)pair_rejected=c->npc_prop_pair_rejected(c->npc_prop_pair_context,j);
             for(k=0;k<prop->body.spheres.count;k++){
                 float other[3];double distance=0,radius;
                 status=scene_checkpoint_world_point(prop->body.spheres.items[k].center,prop->matrix,prop->state.position,other);if(status)return status;
                 if(!isfinite(prop->body.spheres.items[k].radius)||prop->body.spheres.items[k].radius<=0)return RF_FORMAT;
+                if(pair_rejected)continue; /* Keep malformed-geometry rejection even for noninteracting pairs. */
                 for(l=0;l<3;l++){double d=(double)center[l]-other[l];distance+=d*d;}
                 radius=(double)p->spheres[i].radius+prop->body.spheres.items[k].radius-.002;
                 if(distance<radius*radius){
@@ -255,9 +267,27 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
     }
     return RF_OK;
 }
+static int scene_checkpoint_world_static_support(void *context,const rf_physics_ground_probe *probe,
+    float limit,rf_checkpoint_support_hit *out,uint32_t *matched)
+{
+    const scene_checkpoint_world_context *c=context;rf_collision_body_query query={0};
+    rf_collision_body_sphere sphere;rf_geometry_body_hit hit={0};uint32_t found=0,i;int status;
+    if(!c||!c->static_support||!probe||!out||!matched)return RF_RANGE;
+    memcpy(sphere.center,probe->sphere.center,12);sphere.radius=probe->sphere.radius;
+    memcpy(query.start,probe->start,12);memcpy(query.end,probe->end,12);
+    for(i=0;i<3;i++)query.matrix[i][i]=1;
+    query.radius=probe->bounds.radius;query.flags=probe->query_flags;query.spheres=&sphere;query.count=1;query.limit=limit;
+    status=c->static_support(c->static_support_context,&query,&hit,&found);if(status)return status;
+    if(found){
+        if(hit.solid!=UINT32_MAX||hit.contact.velocity[0]!=0||hit.contact.velocity[1]!=0||hit.contact.velocity[2]!=0)return RF_FORMAT;
+        out->fraction=hit.contact.fraction;memcpy(out->normal,hit.contact.normal,12);out->stable=1;
+    }
+    *matched=found;return RF_OK;
+}
 /* Actual world fit, support, material and room. Outputs publish only after
- * every query succeeds. Props and nonmatching movers cannot support a load;
- * ordinary player saves can name one exact authored support mover. */
+ * every query succeeds. An optional candidate static-prop provider supplies
+ * floor only; all world/mover/prop volume guards still run unchanged. Ordinary
+ * player saves can separately name one exact authored dynamic support. */
 static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint_placement *input,
     rf_entity_room_state *room,rf_physics_support_contact *support)
 {
@@ -284,7 +314,8 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     }
     {rf_checkpoint_placement_result reason={UINT32_MAX,UINT32_MAX,0};
      status=(c->allow_no_contact||c->support_uid)?rf_checkpoint_world_placement_check(&p,&reason):
-        rf_checkpoint_world_standing_check(&p,c->dt,c->class_speed,NULL,NULL,&reason);
+        rf_checkpoint_world_standing_check(&p,c->dt,c->class_speed,
+            c->static_support?scene_checkpoint_world_static_support:NULL,(void *)c,&reason);
     /* Preserve a level author's stationary spawn even when its unchanged
       * class sphere intersects a static polygon. A turned, unmoved NPC may
       * shift sphere centers by at most 125 mm; all actual centers are checked
@@ -321,6 +352,8 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     rf_scene_checkpoint_world_reject[0]=4;
     status=rf_geometry_collision_body_sweep(c->world,c->movers,&query,c->scratch,c->scratch_count,
         c->metadata,c->metadata_context,&hit,&matched);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
+    if(c->static_support){status=c->static_support(c->static_support_context,&query,&hit,&matched);
+        if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}}
     if(matched&&(!isfinite(hit.contact.fraction)||!isfinite(hit.contact.normal[1])||hit.contact.material>INT32_MAX))return RF_FORMAT;
     if(!matched||(hit.solid!=UINT32_MAX&&!c->support_uid)||hit.contact.fraction>=1||hit.contact.normal[1]<.5f){
         /* Original stationary NPCs need not have run a support query. Absence
