@@ -406,6 +406,54 @@ int rf_level_entity_ai_read(const rf_level_owned_entity *entity,rf_level_entity_
     value.mode=raw[start];value.attack_style=raw[start+1];*result=value;return RF_OK;
 }
 
+int rf_level_entity_waypoint_read(const rf_level_owned_entity *entity,char result[2][RF_LEVEL_NAME_CAPACITY])
+{
+    rf_level_entity_spawn checked;char value[2][RF_LEVEL_NAME_CAPACITY]={{0}};
+    const uint8_t *raw;uint32_t at=4,size,start,length,i;int status;
+    if(!result)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,48);if(status)return status;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,13);if(status)return status;
+    for(i=0;i<2;i++){
+        start=at;status=entity_raw_string(raw,size,&at);if(status)return status;
+        length=raw[start]|(uint32_t)raw[start+1]<<8;
+        if(length>=RF_LEVEL_NAME_CAPACITY||memchr(raw+start+2,0,length))return RF_FORMAT;
+        memcpy(value[i],raw+start+2,length);value[i][length]=0;
+    }
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
+
+int rf_level_entity_held_clutter_read(const rf_level_owned_entity *entity,char result[2][RF_LEVEL_NAME_CAPACITY])
+{
+    rf_level_entity_spawn checked;char value[2][RF_LEVEL_NAME_CAPACITY];
+    const uint8_t *raw;uint32_t at=4,size,start,length,i;int status;
+    if(!result)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,48);if(status)return status;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,13);if(status)return status;
+    for(i=0;i<2;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,29);if(status)return status;
+    for(i=0;i<7;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,18);if(status)return status;
+    start=at;status=entity_raw_skip(size,&at,17);if(status)return status;
+    if(raw[start+16]){status=entity_raw_skip(size,&at,4);if(status)return status;}
+    memset(value,0,sizeof(value));
+    for(i=0;i<2;i++){
+        start=at;status=entity_raw_string(raw,size,&at);if(status)return status;length=at-start-2;
+        if(length>=RF_LEVEL_NAME_CAPACITY)return RF_RANGE;
+        if(memchr(raw+start+2,0,length))return RF_FORMAT;
+        memcpy(value[i],raw+start+2,length);
+    }
+    if(at!=size)return RF_FORMAT;
+    memcpy(result,value,sizeof(value));return RF_OK;
+}
+
 int rf_level_entity_vitals_read(const rf_level_owned_entity *entity,rf_level_entity_vitals *result)
 {
     rf_level_entity_spawn checked;rf_level_entity_vitals value;
@@ -426,6 +474,26 @@ int rf_level_entity_vitals_read(const rf_level_owned_entity *entity,rf_level_ent
     bits=le32(raw+start+21);memcpy(&value.armor,&bits,4);
     if(!isfinite(value.health) || !isfinite(value.armor))return RF_FORMAT;
     *result=value;return RF_OK;
+}
+
+int rf_level_entity_death_item_read(const rf_level_owned_entity *entity,char result[RF_LEVEL_NAME_CAPACITY])
+{
+    rf_level_entity_spawn checked;const uint8_t *raw;uint32_t at=4,size,start,length,i;int status;
+    if(!result)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,48);if(status)return status;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,13);if(status)return status;
+    for(i=0;i<2;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,29);if(status)return status;
+    for(i=0;i<2;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    start=at;status=entity_raw_string(raw,size,&at);if(status)return status;
+    length=at-start-2;
+    if(length>=RF_LEVEL_NAME_CAPACITY)return RF_RANGE;
+    if(memchr(raw+start+2,0,length))return RF_FORMAT;
+    memcpy(result,raw+start+2,length);result[length]=0;return RF_OK;
 }
 
 static int read_at(rf_level *level, uint32_t *cursor, void *data, uint32_t size)

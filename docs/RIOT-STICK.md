@@ -1,7 +1,7 @@
 # Riot Stick first pass
 
 The opening grant equips the baton after the authored weapon strip. RT (PC F)
-bashes; LT (PC G) holds electrical alternate fire. Primary wins if both are held.
+bashes; LT (PC G) holds charged alternate fire. Primary wins if both are held.
 Primary uses authored60 damage and1-second cadence without consuming charge.
 Held alternate fire drains a100-unit cell over150 active simulation ticks
 (2.5seconds), including firing into empty space. Release stops the held animation
@@ -17,14 +17,21 @@ other unsupported weapon pickups remain open. HUD displays charge and spare cell
 Fresh ammunition reset/respawn and reload clear fractional drain.
 
 This is practical shared gameplay, not a completed retail firing dispatcher.
-The held damage interpretation is120 damage per second, electrical type6;
-precise original damage cadence and stun behavior remain unverified. The2.6-unit
-reach borrows the authored AI range. Existing NPC bounds and world/mover rays
+The former120-per-second electrical-type6 interpretation is superseded by the
+source-written accepted alternate owner in `PLAYER-RIOT-ALTERNATE-PULSES.md`:
+shared500ms admission cadence, one10ms current-aim contact, and primary60/bash
+for ordinary and Nano contacts. Primary150/600ms contacts are owned separately
+as documented in `PLAYER-RIOT-PRIMARY-DELAYS.md`. These new contact paths still
+await action runtime verification; exact stun behavior remains deferred. The
+2.6-unit reach borrows the authored AI range. Existing NPC bounds and world/mover rays
 block attacks through surfaces. Contact plays impact sounds and flashes the
-reticle; world contact uses an amber flash, electrical NPC contact blue.
+reticle; world contact uses an amber flash, and the held-charge HUD retains
+its current blue-hit presentation.
 Material-specific sound selection, an owned continuous sound with release stop,
-electrical bolt/spark effects, exact delayed primary impact, retail hit volume,
-fitted weapon/camera placement and final visual parity remain open.
+electrical bolt/spark effects, retail hit volume, fitted weapon/camera placement
+and final visual parity remain open. The retained finite fractional battery
+accounting is approximate: original code also has a serviced-pulse debit and
+separate25ms drain, which this slice deliberately does not double-charge.
 
 The authored fp_riot_attack_taserB.rfa clip loops during held fire and returns to
 idle on release. Loop states now enter through rf_motion_set_weight, correcting
@@ -37,12 +44,15 @@ Evidence is the original tables.vpp weapons.tbl and items.tbl plus motions.vpp;
 no installed assets are modified. Authored values: clip100, reserve900, drain2.5,
 reload2.7, zero-drain1.3, primarywait1, damage60, altwait0.5 and altdamage120.
 
-Validation (September14): focused player_weapon_resources passes, including
+Historical validation (September14, before the delayed primary/alternate
+owners below): focused player_weapon_resources passes, including
 intermittent charge conservation, empty/invalid inputs, held/released animation
 and the1MiB resource ceiling. tools/replay_riot_alternate.py passes five PC cases:
 near held contact, release, exhaustion plus empty bash, battery replacement and
 simultaneous buttons. Primary near/far and repeated-grant checks pass separately.
-This is focused gameplay coverage, not a complete campaign acceptance run.
+This is historical focused gameplay coverage, not validation of the later
+delayed contacts or a complete campaign acceptance run. The old held-damage
+expectations are superseded; no replay or runtime check was rerun for this slice.
 
 Stock64MiB XEMU run artifacts/xemu/render-20260914-161001 passes180 ticks with
 exact selected PC body, combat, ammo, baton, animation and audio diagnostics.

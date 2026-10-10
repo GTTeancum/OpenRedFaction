@@ -51,7 +51,10 @@ weapon identity, source handle, slot/mode, fresh base damage, kind and authored
 power. The post-spread dispatch handles only the admitted single-pellet path.
 It does not change launch audio, hearing, spread, trigger stepping, burst timing,
 reload or ammo consumption. Existing applicable spread draws occur once; AR
-primary retains its existing absence of a spread draw.
+primary still had no spread draw in this historical penetration slice. The
+separate [PLAYER-PRIMARY-SPREAD.md](PLAYER-PRIMARY-SPREAD.md) correction now
+integrates one authored primary draw before this same continuation adapter, with
+no contact resampling and with compilation/runtime still pending.
 
 The helper keeps private copies of the original start and delta. Damage/death
 callbacks cannot retarget that segment or the accepted source/weapon. Every

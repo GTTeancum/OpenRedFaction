@@ -56,6 +56,11 @@ int rf_campaign_pickup_register(rf_campaign_pickups *state,const char *level,uin
 typedef struct rf_campaign_trigger_state {
     uint32_t flags,count,object_flags,activation_time_bits;
     int32_t limit,cooldown_remaining,contact_remaining;
+    /* Settled chamber state only: 0=legacy/unowned, 1=pressure0, 2=pressure1.
+     * Absent pressure requires chamber UID0; explicit pressure rejects only
+     * sentinel UID UINT32_MAX. Scene proves authored chamber/peer membership.
+     * This state survives disabled/removed triggers; it owns no pending timer. */
+    uint32_t airlock_chamber_uid,airlock_pressure;
 } rf_campaign_trigger_state;
 typedef struct rf_campaign_triggers {
     uint32_t level_count,count;
@@ -70,6 +75,37 @@ int rf_campaign_trigger_register(rf_campaign_triggers *,const char *level,uint32
 typedef struct rf_campaign_weapon_drop {
     uint32_t state;int32_t weapon,quantity;float position[3];
 } rf_campaign_weapon_drop;
+/* Separate configured death-item namespace, never a weapon/resource index.
+ * Zero is absent; available and collected retain the same payload. Fixed24B.
+ * Default quantities belong to the original item definitions, not NPC ammo. */
+enum {RF_CAMPAIGN_ITEM_MEDICAL_KIT=1,RF_CAMPAIGN_ITEM_12MM_AMMO=2,
+    RF_CAMPAIGN_ITEM_556MM_AMMO=3,RF_CAMPAIGN_ITEM_10GAUGE_AMMO=4};
+enum {RF_CAMPAIGN_ITEM_DROP_NONE=0,RF_CAMPAIGN_ITEM_DROP_AVAILABLE=1,
+    RF_CAMPAIGN_ITEM_DROP_COLLECTED=2};
+typedef struct rf_campaign_item_drop {
+    uint32_t state;int32_t stable_definition_id,quantity;float position[3];
+} rf_campaign_item_drop;
+/* RFNC22/RFCH8 finite medic state, keyed by the existing actor level/UID.
+ * Dedicated child lane is role hand1/syringe; no generated authored UID.
+ * Absent reserve is canonical zero on wire, reconstructed as200 only after
+ * scene qualification. reserve_seen=1 with reserve=0 never replenishes. Child0 is
+ * constructor/default,1 retains present health,2 retains deleted absence. */
+typedef struct rf_campaign_medic_state {
+    uint32_t reserve_seen;float reserve;
+    uint32_t child_state;float child_health;
+} rf_campaign_medic_state;
+int rf_campaign_medic_state_validate(const rf_campaign_medic_state *);
+/* RFNC23/RFCH9 route provenance and bounded section AI continuation.
+ * Existing actor level/UID owns the key. No event is synthesized for an actor
+ * default. flags: present1, path2, mode bits2..3, reverse16, active32.
+ * origin:0 none/pursuit,1 real event,2 immutable authored actor default.
+ * patrol: enabled1, independently retained default reverse2. A zero lane is
+ * legacy absence, not permission to initialize a newly discovered patrol. */
+typedef struct rf_campaign_actor_route {
+    uint32_t flags;int32_t action;
+    uint32_t offset,count,cursor,section_hash,origin,event,patrol;
+} rf_campaign_actor_route;
+int rf_campaign_actor_route_validate(const rf_campaign_actor_route *);
 /* Same owned key layout, separate namespace and capacity from pickups. */
 typedef struct rf_campaign_actors {
     uint32_t level_count,count;
@@ -82,10 +118,30 @@ typedef struct rf_campaign_actors {
      * Other object bits remain owned by normal actor construction. Fixed16KiB. */
     struct {uint32_t affiliation,flags;} mission[RF_CAMPAIGN_ACTOR_SLOTS];
     rf_campaign_weapon_drop drops[RF_CAMPAIGN_ACTOR_SLOTS];
+    /* Independent configured death item at the same level/UID slot. Fixed48KiB. */
+    rf_campaign_item_drop item_drops[RF_CAMPAIGN_ACTOR_SLOTS];
+    /* Exact owner Nano-break history; RFCH5, keyed by level/UID. Fixed2KiB. */
+    uint8_t capek_shield_broken[RF_CAMPAIGN_ACTOR_SLOTS];
+    /* Independent Goto AI40000000 latch; RFCH7, keyed by level/UID. Fixed2KiB. */
+    uint8_t ai_suppressed[RF_CAMPAIGN_ACTOR_SLOTS];
+    /* Independent finite reserve and generated syringe role. Fixed32KiB. */
+    rf_campaign_medic_state medic[RF_CAMPAIGN_ACTOR_SLOTS];
+    rf_campaign_actor_route routes[RF_CAMPAIGN_ACTOR_SLOTS]; /* 72KiB, replaces64KiB sidecar. */
 } rf_campaign_actors;
 int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
 /* Quantity is remaining ammunition: zero still emits an acquirable empty
  * weapon; negatives are invalid. Emission is idempotent even after collection.
  * Invalid input preserves state; an existing drop is never replenished. */
 int rf_campaign_actor_drop_emit(rf_campaign_actors *,uint32_t slot,int32_t weapon,int32_t quantity,const float position[3]);
+/* Structural validation only: absent is bitwise zero, present/collected has a
+ * supported stable ID, positive quantity and finite XYZ. Null returns RF_RANGE;
+ * malformed state returns RF_FORMAT. Scene proves the exact authored owner and
+ * original table quantity, and the persistence codecs prove terminal ownership. */
+int rf_campaign_item_drop_validate(const rf_campaign_item_drop *);
+/* Caller proves an actual qualifying fatal transition, never a load/revisit.
+ * No allocation or owner-state mutation. Invalid input preserves the lane;
+ * available/collected entries are never replenished or replaced. Collection
+ * changes only state to COLLECTED after the reward has actually been accepted. */
+int rf_campaign_actor_item_drop_emit(rf_campaign_actors *,uint32_t slot,
+    int32_t stable_definition_id,int32_t quantity,const float position[3]);
 #endif

@@ -56,7 +56,7 @@ This uses the unchanged original L3S1, archive hashes, owner-identity checks, se
 - Frames 0–239 reproduce the successful contact recipe unchanged.
 - Frames 240–299 apply only ordinary look: target body yaw -0.05 radians, eye pitch -0.35 radians. The yaw input is derived from the original spawn forward; the 60-frame turn uses the actual authored player rate of 2 radians/second at 1/60 seconds. See `PLAYER-AUTHORED-LOOK-RATE.md` and `actor_listener_pose`.
 - Frames 300–329 settle and provide a pre-shot pose/health/ammo observation window.
-- Frame 330 presses ordinary primary fire once. All other button fields stay zero. The current slot-0 pistol path uses eye-forward directly; its existing spread branches apply to shotgun, conventional slots 13–15 and assault alternate. No spread or damage code is changed. A miss remains a miss.
+- Frame 330 presses ordinary primary fire once. All other button fields stay zero. At this historical preparation, slot-0 Pistol used eye-forward directly; that premise is superseded by the source-written [PLAYER-PRIMARY-SPREAD.md](PLAYER-PRIMARY-SPREAD.md) correction. Its sampled ray can differ from the retained eye-forward ring, so the old straight-ray geometric expectation is not evidence for the corrected shot. This harness is preserved, not rerun or adjusted to force a hit. A miss remains a miss.
 - Frames 331–359 permit native death/break processing before renewed movement.
 - Frames 360–479 repeat the original quarter-stick world-space push, reprojected into the new body basis. Frames 480–539 release input; the check then ends. The five-unit original-spawn neighborhood guard remains active.
 

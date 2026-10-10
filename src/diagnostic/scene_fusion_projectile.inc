@@ -76,6 +76,11 @@ static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scen
                 if(tag!=SCENE_AI_PROJECTILE_PLAYER && campaign_npc_bodies[index].damage.effects.health<=0){
                     status=rf_scene_npc_death_entry(target,&entered);if(status)return status;if(entered){status=combat_death_start(index);if(status)return status;}}
             }
+            /* Original4c6132 direct damage precedes the independent4c62f5
+             * radial call. Shared tagged helpers retain owner generations. */
+            {uint32_t handled;float applied;
+             status=scene_driller_projectile_damage(contact,shot->source,shot->damage,3,frame,&handled,&applied);if(status)return status;
+             if(!handled){status=scene_clutter_projectile_damage(contact,shot->damage,3,&handled);if(status)return status;}}
             for(k=0;k<3;k++)blast[k]=contact->hit.point[k]+contact->hit.normal[k]*.01f;
             status=scene_explosion_blast_source(stream,frame,blast,shot->damage,shot->definition.damage_radius,shot->source,3);if(status)return status;
             status=scene_explosion_terrain(stream,frame,contact,shot->definition.crater_radius);if(status)return status;

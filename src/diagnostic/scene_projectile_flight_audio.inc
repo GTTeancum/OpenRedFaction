@@ -166,7 +166,11 @@ failed:
     memset(scene_projectile_flight_audio_samples,0,sizeof(scene_projectile_flight_audio_samples));
     rf_scene_projectile_flight_audio[12]=(uint32_t)status;++rf_scene_projectile_flight_audio[5];
 }
-static void scene_projectile_flight_audio_start(uint32_t family,uint32_t slot,const float position[3])
+/* Optional profile is copied into the generation-owned spatial voice before
+ * its initial native start. The shared sample declaration/PCM stay unchanged;
+ * ordinary callers retain first-declaration parameters through the wrapper. */
+static void scene_projectile_flight_audio_start_profile(uint32_t family,uint32_t slot,
+    const float position[3],const rf_audio_parameters *profile)
 {
     scene_projectile_flight_audio_owner *owner=scene_projectile_flight_audio_owner_at(family,slot);
     uint32_t source,sample;int status=RF_OK;
@@ -188,7 +192,8 @@ static void scene_projectile_flight_audio_start(uint32_t family,uint32_t slot,co
         status=RF_NOT_FOUND;goto done;
     }
     owner->sample=(int32_t)sample;
-    owner->voice=campaign_sound_play(NULL,(int32_t)sample,position,1,0);
+    owner->voice=profile?campaign_sound_start_profile((int32_t)sample,position,1,0,1,0,profile):
+        campaign_sound_play(NULL,(int32_t)sample,position,1,0);
     if(owner->voice<0){status=RF_IO;goto done;}
     status=rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,owner->voice,&source);
     if(status){owner->voice=-1;goto done;}
@@ -198,6 +203,8 @@ done:
     if(status)++rf_scene_projectile_flight_audio[5];
     rf_scene_projectile_flight_audio[12]=(uint32_t)status;scene_projectile_flight_audio_publish();
 }
+static void scene_projectile_flight_audio_start(uint32_t family,uint32_t slot,const float position[3])
+{scene_projectile_flight_audio_start_profile(family,slot,position,NULL);}
 static void scene_projectile_flight_audio_step(uint32_t family,uint32_t slot,uint32_t active,const float position[3])
 {
     scene_projectile_flight_audio_owner *owner=scene_projectile_flight_audio_owner_at(family,slot);

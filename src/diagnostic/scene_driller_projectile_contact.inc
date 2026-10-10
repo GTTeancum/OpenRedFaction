@@ -121,6 +121,34 @@ static uint32_t scene_driller_projectile_contact_live(const rf_weapon_flight_con
     }
     return 0;
 }
+/* Retained-contact audio material query lives beside the complete private
+ * vehicle runtime. Earlier projectile consumers use only this primitive
+ * declaration; no private runtime type/owner leaks across include order. */
+static uint32_t scene_driller_projectile_material(scene_stream *stream,
+    const rf_weapon_flight_contact *contact,uint32_t source,int32_t *material)
+{
+    scene_driller_damage_runtime *owner=scene_driller_damage_owner;uint32_t i;
+    if(!stream || !contact || !material)return 0;
+    *material=-1;
+    if(!scene_driller_projectile_contact_live(contact,source))return 0;
+    if(contact->object==SCENE_TURRET_PROJECTILE_OWNER) {
+        scene_turret_owner *turret=scene_turret_lookup(contact->face);
+        if(turret)*material=(int32_t)turret->material;
+    } else if(scene_driller_damage_runtime_valid(owner) &&
+              contact->face==owner->entry->registration.handle && owner->entry->resource) {
+        *material=(int32_t)owner->entry->resource->physics.material.index;
+    } else for(i=0;i<campaign_passive_vehicle_count;i++) {
+        const scene_passive_vehicle *vehicle=campaign_passive_vehicles+i;
+        if(vehicle->handle==contact->face) {
+            const scene_driller_resources *resource=vehicle->resource_kind<6?
+                stream->passive_vehicle_resources[vehicle->resource_kind]:NULL;
+            if(resource)*material=(int32_t)resource->physics.material.index;
+            break;
+        }
+    }
+    return 1;
+}
+
 /* Shared firearm and terminal projectile direct hit. Caller retains separate
  * radial blast behavior. Unknown tags remain unhandled; stale host generations
  * consume their hit without damaging a newly registered replacement vehicle. */

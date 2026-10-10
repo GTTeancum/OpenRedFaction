@@ -12,12 +12,17 @@ Each backend carries an error status; callback failures propagate to the scene
 caller. Player hits, enemy-to-NPC hits and scripted damage use this context.
 Live player pain is not routed through NPC owner functions.
 
-The first run exposed RF_NOT_FOUND on lethal-hit sound dispatch: the retained
-sound wrapper supports living NPCs and has no death-class override. The callback
-now skips pain when NPC health is nonpositive, leaving death entry and its
-presentation to handle fatal hits. Other errors emit COMBAT_PAIN_ERROR and
-propagate. This explicit lifecycle split is practical port behavior, not a claim
-that every original death-sound branch has been rebuilt.
+The original first run exposed RF_NOT_FOUND on lethal-hit sound dispatch:
+the retained living wrapper had no death-class override, so nonpositive-health
+feedback was skipped. The staged 2026-10-10 ordinary class-fatal adapter now
+consumes qualifying fatal sound notifications separately: optional DeathSnd
+metadata drives one attempted class sound, while an authored absent descriptor
+uses the original Low/Med fallback. Exact robot profiles keep their exclusive
+existing route. Selected-action Foley and the living wrapper are unchanged.
+See NPC-FATAL-FEEDBACK.md for source evidence, callback ownership and limits;
+this addition is uncompiled and runtime/audio-unverified. Historical checks
+below do not validate it. Living errors still emit COMBAT_PAIN_ERROR and
+propagate; optional fatal audio failures remain cosmetic.
 
 The live attack loop now honors the retained animation lock before firing or
 melee strikes. This is a practical integration of428740's existing lock, not

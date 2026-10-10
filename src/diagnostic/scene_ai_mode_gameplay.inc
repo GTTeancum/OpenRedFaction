@@ -3,8 +3,8 @@
 /* Runtime labels corroborated by reference/dashfaction/game_patch/rf/ai.h;
  * event34 translates authored0..5 to1,2,4,5,11,-1 in event.c. Port scheduler
  * policy below implements catatonic, waiting/default and motion awareness.
- * Waypoints4 resumes only a previously bound Follow_Waypoints path; no
- * implicit destination is invented. Collecting5 remains unsupported. Turret13 cleanup and
+ * Waypoints4 resumes only an existing event or qualified actor-default path;
+ * no implicit destination is invented. Collecting5 remains unsupported. Turret13 cleanup and
  * linked vehicle occupants remain deferred. Requires owner.ai_mode field. */
 /* applied, catatonic applied, last scheduler mode, last registered mode */
 uint32_t rf_scene_ai_mode_publication[4];
@@ -12,7 +12,9 @@ static uint32_t campaign_enemy_mode_admits(const campaign_npc_body *owner,
     uint32_t target_moving,uint32_t gunshot)
 {
     int32_t action=owner->ai_mode.action_280;
-    if(action==4 && owner->script_move.active && !owner->combat_scripted)return 0;
+    if(action==4 && owner->script_move.active && !owner->combat_scripted &&
+       owner->script_move.origin!=SCENE_MOVE_ORIGIN_ACTOR_DEFAULT)return 0;
+    if(action==14)return 0; /* Dedicated medic scheduler, including idle speech/clip ownership. */
     if(action==1)return 0; /* Catatonic remains inert even when shot/noise alerts it. */
     if(action==11 && !owner->combat_alert && !owner->combat_scripted)
         return !gunshot && target_moving; /* First pass motion-only acquisition. */
@@ -46,6 +48,7 @@ static int campaign_ai_mode_apply(campaign_npc_body *owner,int32_t action,int32_
         owner->script_move.route_index=1;owner->script_move.retry=0;owner->navigation.retained.count=0;
         memcpy(owner->script_move.target,campaign_navigation.nodes[node].candidate.position,12);
     }
+    if(owner->medic.pending){owner->medic.pending=0;}
     owner->ai_mode=next;
     /* Both fields represent original entity+520 (AI-relative+280). Keep
      * animation, pain and death consumers in sync with combat scheduling. */

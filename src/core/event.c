@@ -2175,7 +2175,7 @@ static int trigger_checkpoint_remaining(int32_t deadline,int32_t now,int32_t *re
 }
 int rf_runtime_trigger_save(const rf_runtime_trigger *trigger,int32_t now,rf_campaign_trigger_state *result)
 {
-    rf_campaign_trigger_state v;int status;
+    rf_campaign_trigger_state v={0};int status;
     if(!trigger || !result || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     v.flags=trigger->state.flags&~64u;v.count=trigger->state.count;
     v.object_flags=trigger->activation.object_flags;v.limit=trigger->activation.limit;

@@ -834,17 +834,18 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
     scene_apc_exit_sample apc_exit;
-    uint32_t changed=0,was,use_edge,stage=0,controls,forced_exit,can_use;int status;
+    uint32_t changed=0,was,use_edge,use_input,stage=0,controls,forced_exit,can_use;int status;
     if(!s->driller)return RF_OK;
     status=scene_driller_runtime_open(s);if(status)return status;r=s->driller_runtime;
     if(r->last_frame==frame)return RF_OK;
     {uint32_t switched=0;status=scene_vehicle_switch_use(s,&switched);if(status)return status;}
+    use_input=scene_use_owner_input(r->entry.host.handle);
     /* The campaign player class finishes loading after the vehicle host opens.
      * Refresh its seat eye offset until boarding, then keep it fixed for the
      * occupied session and any checkpoint derived from that session. */
     if(!r->entry.session.active)
         memcpy(r->entry.eye_offset,rf_scene_actor_initial_eye_offsets,12);
-    was=r->entry.session.active;use_edge=player_input.use&&!r->entry.held;
+    was=r->entry.session.active;use_edge=use_input&&!r->entry.held;
     controls=scene_vehicle_physics_allows_control(s);forced_exit=r->scripted_exit_pending;
     can_use=controls||(!forced_exit&&was);
     /* A scripted release owns this frame's exit transaction. In particular,
@@ -852,7 +853,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
      * without also running the voluntary Use or destruction exit paths. */
     memset(&apc_exit,0,sizeof(apc_exit));
     if(!forced_exit)scene_apc_exit_begin(&apc_exit,&r->entry,frame);
-    if(!can_use)r->entry.held=player_input.use;
+    if(!can_use)r->entry.held=use_input;
     if(!controls)r->jeep_seat.held=player_input.cycle_weapon;
     stage=1;
     if(!apc_exit.deferred&&!forced_exit){
@@ -860,9 +861,9 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         if(r->entry.host.alive&&can_use&&!changed){
             uint32_t handled=0,use_changed=0;
             status=scene_jeep_npc_gunner_use(&r->entry,s->driller,&r->jeep_seat.role,
-                player_input.use,campaign_player_damage.state.effects.health>0,&use_changed,&handled);
+                use_input,campaign_player_damage.state.effects.health>0,&use_changed,&handled);
             if(!status&&!handled)status=scene_driller_entry_exit_use(&r->entry,
-                player_input.use,campaign_player_damage.state.effects.health>0,&use_changed);
+                use_input,campaign_player_damage.state.effects.health>0,&use_changed);
             if(status)goto fail;
             changed|=use_changed;
         }
@@ -915,7 +916,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     if(apc_exit.deferred){
         /* End-pose clearance must follow the accepted chassis step. Keep
          * physical ownership until then; never publish an old-pose exit. */
-        status=scene_apc_exit_finish(&apc_exit,&r->damage,player_input.use,
+        status=scene_apc_exit_finish(&apc_exit,&r->damage,use_input,
             campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;
     }
     if(forced_exit){uint32_t exit_changed=0;
@@ -927,7 +928,8 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         if(can_use && was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
             campaign_triggers.vehicle_pulses|=0x800u;
     }
-    if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
+    if(changed){if(r->entry.session.active){scene_use_claim();++rf_scene_vehicle_state[1];}
+        else ++rf_scene_vehicle_state[2];}
     status=scene_driller_player_publish(&r->player,&r->entry,changed);if(status)goto fail;
     if(rf_scene_vehicle_enabled==3 && was && !r->entry.session.active){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     if(!controls)r->jeep_seat.held=player_input.cycle_weapon;

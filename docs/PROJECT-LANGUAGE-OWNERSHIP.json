@@ -1,0 +1,618 @@
+{
+  "status": "SOURCE_ONLY_CANDIDATE_NO_MAKE_COMPILER_TEST_OR_RUNTIME",
+  "base_commit": "d2c1c9d32117f425e154d84c93a502edea658612",
+  "base_sha256": "2ad7acbb063e9d68209df6c9c247fbf9439169692ca8d90030e45b0966bcc6bd",
+  "candidate_sha256": "89b0bb554a2f67fecaa332faa8da29942bcd2c8929f7eb716aad5cfeecb0bd9c",
+  "patch_sha256": "35e56b137d53d86817cb5332c125f84c223af6738037151f14e8c2e7536704ef",
+  "raw_failure": {
+    "path": "/workspace/shared/OpenRedFaction-attack/artifacts/hourly/20261010-1812-build.log",
+    "sha256": "f36e5137f26a393bfede8d7b3ac2c816ae464def0b39b2e347acc8f82591e3a9",
+    "errors": [
+      "/workspace/shared/recovery/toolchain/nxdk/lib/hal/video.c:322:2: error: use of undeclared identifier 'asm'",
+      "/workspace/shared/recovery/toolchain/nxdk/lib/hal/video.c:370:2: error: use of undeclared identifier 'asm'"
+    ]
+  },
+  "project_source_count": 109,
+  "project_object_count": 109,
+  "apu_source_count": 3,
+  "project_sources": [
+    "/workspace/shared/OpenRedFaction-attack/src/core/audio.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/music.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vpp.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/checksum.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/level.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/editor_brush.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geometry.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/preview.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/image.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/hud_assets.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/hud_scope.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/material.c",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/main.c",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/renderer.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_notify.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_solid_clip.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_campaign_wall.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_campaign_room.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_piece_bank.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_subdivide.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/debris_audio.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/collision_composition.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_publication.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_authored_post.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_publication_binding.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/checkpoint_file.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/player_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/apc_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/jeep_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/fighter_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/clutter_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_modes_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/checkpoint_placement.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_reset_placement.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/composed_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_authored_identity.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_identity_capture.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_checkpoint_layout.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_publication_digest.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_collision_digest.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_retained_material_digest.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_owner_extension.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/clutter_gameplay.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/clutter_damage.c",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/checkpoint_storage.c",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/checkpoint_fixture.c",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/input.c",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/audio.c",
+    "/workspace/shared/OpenRedFaction-attack/build/nxaudio/audio_core.c",
+    "/workspace/shared/OpenRedFaction-attack/build/nxaudio/audio_buffer.c",
+    "/workspace/shared/OpenRedFaction-attack/build/nxaudio/audio_voice.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_cycle.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_threshold.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/cutscene.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/frame_clock.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/object_registry.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/lightmap.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/eye.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/model.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/model_bounds.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/motion.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/timer.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/random.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/movement.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/swim.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/liquid_damage.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/collision.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/turn.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/burn.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/entity.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/player.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/physics.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_rigid.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_submersible.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/submarine_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_suspension.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/grenade_flight.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/grenade_throw.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/hitscan_select.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_precision.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_scope.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_scanner.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/effect.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/particle_pool.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/level_particles.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/visibility.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/debris_visibility.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/motion_file.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/model_file.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/entity_assets.c",
+    "/workspace/shared/OpenRedFaction-attack/src/diagnostic/animation.c",
+    "/workspace/shared/OpenRedFaction-attack/src/diagnostic/scene.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/player_weapon.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/remote_charge.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/remote_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_hit.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign_goals_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/npc_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/world_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/mover_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign_pickups_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign_triggers_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_checkpoint.c",
+    "/workspace/shared/OpenRedFaction-attack/src/core/flame_stream.c"
+  ],
+  "project_objects": [
+    "/workspace/shared/OpenRedFaction-attack/src/core/audio.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/music.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vpp.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/checksum.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/level.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/editor_brush.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geometry.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/preview.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/image.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/hud_assets.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/hud_scope.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/material.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/main.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/renderer.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_notify.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_solid_clip.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_campaign_wall.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_campaign_room.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_piece_bank.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_subdivide.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/debris_audio.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/collision_composition.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_publication.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_authored_post.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_publication_binding.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/checkpoint_file.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/player_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/apc_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/jeep_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/fighter_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/clutter_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_modes_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/checkpoint_placement.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_reset_placement.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/composed_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_authored_identity.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_identity_capture.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_checkpoint_layout.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_publication_digest.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_collision_digest.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/geomod_retained_material_digest.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/authored_owner_extension.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/clutter_gameplay.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/clutter_damage.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/checkpoint_storage.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/checkpoint_fixture.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/input.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/platform/xbox/audio.obj",
+    "/workspace/shared/OpenRedFaction-attack/build/nxaudio/audio_core.obj",
+    "/workspace/shared/OpenRedFaction-attack/build/nxaudio/audio_buffer.obj",
+    "/workspace/shared/OpenRedFaction-attack/build/nxaudio/audio_voice.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_cycle.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_threshold.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/cutscene.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/frame_clock.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/object_registry.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/lightmap.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/eye.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/model.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/model_bounds.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/motion.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/timer.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/random.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/movement.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/swim.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/liquid_damage.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/collision.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/turn.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/burn.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/entity.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/player.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/physics.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_rigid.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_submersible.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/submarine_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/vehicle_suspension.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/grenade_flight.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/grenade_throw.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/hitscan_select.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_precision.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_scope.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon_scanner.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/weapon.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/effect.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/particle_pool.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/level_particles.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/visibility.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/debris_visibility.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/motion_file.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/model_file.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/entity_assets.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/diagnostic/animation.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/diagnostic/scene.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/player_weapon.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/remote_charge.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/remote_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_hit.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign_goals_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/npc_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/world_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/mover_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign_pickups_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/campaign_triggers_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/event_checkpoint.obj",
+    "/workspace/shared/OpenRedFaction-attack/src/core/flame_stream.obj"
+  ],
+  "compile_policy_audit": {
+    "global_CFLAGS_retained": [
+      "-O2"
+    ],
+    "project_private_base": [
+      "-DRF_IMAGE_XBOX_NATIVE",
+      "-std=c11",
+      "-fstack-usage",
+      "-I$(PROJECT_ROOT)/include",
+      "-Wall",
+      "-Wextra",
+      "-Werror"
+    ],
+    "project_private_expanded_profile": [
+      "-DRF_GEOMOD_CUT_LIMIT=16",
+      "-DRF_GEOMOD_WORK_VERTICES=9216",
+      "-DRF_GEOMOD_WORK_FACES=2048",
+      "-DRF_GEOMOD_PUBLICATION_VERTICES=9216",
+      "-DRF_GEOMOD_PUBLICATION_FACES=2048",
+      "-DRF_CHECKPOINT_FILE_MAX=262144",
+      "-DRF_GEOMOD_LIGHTMAP_LIMIT=2048",
+      "-DSCENE_TERRAIN_SOURCE_VERTICES=9216",
+      "-DSCENE_TERRAIN_FACES=2048",
+      "-DSCENE_TERRAIN_DRAW_BUDGET=1048576",
+      "-DSCENE_TERRAIN_CORE_BUDGET=2359296",
+      "-DSCENE_TERRAIN_ATLAS_BUDGET=1572864",
+      "-DSCENE_AUTHORED_DIGEST_BUDGET=1048576",
+      "-DSCENE_AUTHORED_WRITER_BUDGET=2097152",
+      "-DSCENE_DESTRUCTION_BUDGET=16777216"
+    ],
+    "APU_private_append_unchanged": [
+      "-std=c23",
+      "-Wno-unused-function",
+      "-I$(APU_BACKEND)/include"
+    ],
+    "audio_private_append_unchanged": [
+      "-std=c23",
+      "-I$(APU_BACKEND)/include"
+    ],
+    "LDFLAGS_unchanged": [
+      "-map:main.map",
+      "-entry:rf_diagnostic_start",
+      "-stack:131072"
+    ],
+    "project_CPPFLAGS_CXXFLAGS_ASFLAGS_NXDK_FLAGS_assignments": [],
+    "NXDK_SDL_selection": "y, unchanged",
+    "stock_profile": "RF_GEOMOD_EXPANDED_PROFILE=0 in actual runner, unchanged",
+    "driver_ABI_codegen": "nxdk-cc and all upstream NXDK component flags unchanged; i386-pc-win32, pentium3, freestanding, nostdlib, fno-builtin unchanged",
+    "SDK_dialect": "No project -std flag; upstream driver/component selection and installed compiler default apply. No replacement dialect forced.",
+    "stack_reports": "Still emitted for every project/APU C object; SDK stack-report generation no longer requested. Existing tools/audit_xbox_stack.py reads only root/src/**/*.su.",
+    "external_override_boundary": "Actual environment.sh, build-xbox.sh and 1812 runner pass no CFLAGS/NXDK_CFLAGS override. Candidate does not filter caller-supplied flags."
+  },
+  "sdk_graph": [
+    {
+      "archive": "$(NXDK_DIR)/lib/libpdclib.lib",
+      "object_family": "$(PDCLIB_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/Makefile-pdclib"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libwinapi.lib",
+      "object_family": "$(WINAPI_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/winmm.lib",
+      "object_family": "$(WINMM_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/winmm/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libnxdk_hal.lib",
+      "object_family": "$(HAL_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/hal/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libnxdk.lib",
+      "object_family": "$(NXDK_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/nxdk/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libnxdk_automount_d.lib",
+      "object_family": "$(NXDK_AUTOMOUNT_D_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/nxdk/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libpbkit.lib",
+      "object_family": "$(PBKIT_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/pbkit/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/nxdk_usb.lib",
+      "object_family": "$(USBH_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/usb/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libxboxrt.lib",
+      "object_family": "$(XBOXRT_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/xboxrt/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libzlib.lib",
+      "object_family": "$(ZLIB_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/zlib/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libpng.lib",
+      "object_family": "$(LIBPNG_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/libpng/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libjpeg.lib",
+      "object_family": "$(LIBJPEG_TURBO_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/libjpeg/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/xboxkrnl/libxboxkrnl.lib",
+      "object_family": "$(NXDK_DIR)/lib/xboxkrnl/xboxkrnl.exe.def",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/xboxkrnl/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libnxdk_net.lib",
+      "object_family": "$(NET_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/net/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libSDL_ttf.lib",
+      "object_family": "$(SDL_TTF_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libfreetype.lib",
+      "object_family": "$(FREETYPE_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libSDL2_image.lib",
+      "object_family": "$(LIBSDLIMAGE_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/Makefile"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/libSDL2.lib",
+      "object_family": "$(SDL2_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/Makefile.xbox"
+    },
+    {
+      "archive": "$(NXDK_DIR)/lib/SDL2_test.lib",
+      "object_family": "$(SDL2TEST_OBJS)",
+      "definition": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/Makefile.xbox"
+    }
+  ],
+  "sdk_makefiles": [
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/Makefile",
+      "sha256": "3d1db29fe9f34b1cdc668400f03c8aa3a55e87970b8e6a330b1c9f303a2e9a2b",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 47,
+          "text": "NXDK_ASFLAGS += -g -gdwarf-4"
+        },
+        {
+          "line": 48,
+          "text": "NXDK_CFLAGS += -g -gdwarf-4"
+        },
+        {
+          "line": 49,
+          "text": "NXDK_CXXFLAGS += -g -gdwarf-4"
+        },
+        {
+          "line": 50,
+          "text": "NXDK_LDFLAGS += -debug"
+        },
+        {
+          "line": 54,
+          "text": "NXDK_ASFLAGS += -flto"
+        },
+        {
+          "line": 55,
+          "text": "NXDK_CFLAGS += -flto"
+        },
+        {
+          "line": 56,
+          "text": "NXDK_CXXFLAGS += -flto"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/Makefile",
+      "sha256": "e368ad705f2d830d94adfb12c3271ce99f6591695b8ce69f087adb1082e268c0",
+      "flag_and_source_policy_lines": []
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/Makefile-pdclib",
+      "sha256": "5880cbe53633abaf820b4122199b8bfa56ab5f99347284ce90a47ac61531aa9f",
+      "flag_and_source_policy_lines": []
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/Makefile",
+      "sha256": "4ea9691d1e9e28d17894d4b13f90221fab4522217259621266f46d1f9274bf43",
+      "flag_and_source_policy_lines": []
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/winmm/Makefile",
+      "sha256": "2807e79c403ba1cdc22d82d1d30adbe1dccb9bcfba0c2d371b777233deac8032",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 6,
+          "text": "NXDK_CFLAGS += -I$(NXDK_DIR)/lib/winapi/winmm"
+        },
+        {
+          "line": 7,
+          "text": "NXDK_CXXFLAGS += -I$(NXDK_DIR)/lib/winapi/winmm"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/hal/Makefile",
+      "sha256": "bd9c4b09ec5cf9dc9614b8db2ad675cf99cd7a41b8c68223f64ab22262963e0c",
+      "flag_and_source_policy_lines": []
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/nxdk/Makefile",
+      "sha256": "82f34b786e6cfd9349f40bb2f5ed0ce81e80fea2fc5c626eda8858ec123010a7",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 30,
+          "text": "NXDK_LDFLAGS += -include:_automount_d_drive"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/pbkit/Makefile",
+      "sha256": "96700219916f98897c7c1037efdbb7615c32d1f08609e1c6a0e9a66c1bb5281f",
+      "flag_and_source_policy_lines": []
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/usb/Makefile",
+      "sha256": "dd97371b0ad193cac9bf501d5052e2aa29028ae0aea0d0f8bba55608d430e1d0",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 69,
+          "text": "NXDK_CFLAGS   += -I$(USBH_DIR)/libusbohci/inc -I$(USBH_DIR)/libusbohci_xbox/ -DUSBH_USE_EXTERNAL_CONFIG=\\\"usbh_config_xbox.h\\\""
+        },
+        {
+          "line": 70,
+          "text": "NXDK_CXXFLAGS += -I$(USBH_DIR)/libusbohci/inc -I$(USBH_DIR)/libusbohci_xbox/ -DUSBH_USE_EXTERNAL_CONFIG=\\\"usbh_config_xbox.h\\\""
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/xboxrt/Makefile",
+      "sha256": "06096ac1de67211c3b2de7f2f5bbeb62b8867f8ea9a62405d9364832049f65a9",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 35,
+          "text": "$(NXDK_DIR)/lib/xboxrt/vcruntime/vcruntime_typeinfo.obj: NXDK_CXXFLAGS += -fno-rtti"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/zlib/Makefile",
+      "sha256": "6ef6f385855fe014e2cc82cee9e7f8c251253d57f734406add65e021295de299",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 14,
+          "text": "NXDK_CFLAGS += -I $(ZLIB_DIR) -DZ_SOLO"
+        },
+        {
+          "line": 15,
+          "text": "NXDK_CXXFLAGS += -I $(ZLIB_DIR) -DZ_SOLO"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/libpng/Makefile",
+      "sha256": "21cec9061f0ceb25f8318b30e06c3054fc3bf99cfbf49d2408a09acf493c1c56",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 21,
+          "text": "NXDK_CFLAGS += -I$(LIBPNG_DIR) -I$(NXDK_DIR)/lib/libpng"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/libjpeg/Makefile",
+      "sha256": "7f03bbe1836dd41a8120bec38e450ab4b70abc1abea4037952f996b232b1363e",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 60,
+          "text": "NXDK_CFLAGS += -isystem $(LIBJPEG_TURBO_DIR) -I$(NXDK_DIR)/lib/libjpeg"
+        },
+        {
+          "line": 61,
+          "text": "NXDK_CXXFLAGS += -isystem $(LIBJPEG_TURBO_DIR) -I$(NXDK_DIR)/lib/libjpeg"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/xboxkrnl/Makefile",
+      "sha256": "d8fd45c98fce516e1fe037ab5ac7805cbed08ce22526df99cce49e780845dae0",
+      "flag_and_source_policy_lines": []
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/net/Makefile",
+      "sha256": "fd5ac6565070aecda06c2266ce02cdcd57f21945d2c574b7a8ff4c70bf3a546e",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 22,
+          "text": "NXDK_CFLAGS += -I$(LWIPDIR)/include"
+        },
+        {
+          "line": 23,
+          "text": "NXDK_CFLAGS += -I$(NXDK_DIR)/lib/net/nforceif/include"
+        },
+        {
+          "line": 24,
+          "text": "NXDK_CFLAGS += -I$(NXDK_DIR)/lib/net/nvnetdrv"
+        },
+        {
+          "line": 25,
+          "text": "NXDK_CXXFLAGS += -I$(LWIPDIR)/include"
+        },
+        {
+          "line": 26,
+          "text": "NXDK_CXXFLAGS += -I$(NXDK_DIR)/lib/net/nforceif/include"
+        },
+        {
+          "line": 27,
+          "text": "NXDK_CXXFLAGS += -I$(NXDK_DIR)/lib/net/nvnetdrv"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/Makefile",
+      "sha256": "5ef61ad563e18d7c88f986b3fa414ff50d14bd626e8caa282884a714b742c547",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 23,
+          "text": "NXDK_CFLAGS += -I$(NXDK_DIR)/lib/sdl \\"
+        },
+        {
+          "line": 28,
+          "text": "NXDK_CXXFLAGS += -I$(NXDK_DIR)/lib/sdl \\"
+        },
+        {
+          "line": 65,
+          "text": "NXDK_CFLAGS += -I$(NXDK_DIR)/lib/sdl/SDL2_image -DLOAD_BMP -DLOAD_GIF -DLOAD_JPG -DLOAD_LBM -DLOAD_PCX -DLOAD_PNG -DLOAD_PNM -DLOAD_SVG -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM -DLOAD_XV -DLOAD_XXX"
+        },
+        {
+          "line": 66,
+          "text": "NXDK_CXXFLAGS += -I$(NXDK_DIR)/lib/sdl/SDL2_image -DLOAD_BMP -DLOAD_GIF -DLOAD_JPG -DLOAD_LBM -DLOAD_PCX -DLOAD_PNG -DLOAD_PNM -DLOAD_SVG -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM -DLOAD_XV -DLOAD_XXX"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/Makefile.xbox",
+      "sha256": "7bbe53e6c29f28fcb2e166ed7817a047c9ab9687b5375dd51b69607f0bb3882e",
+      "flag_and_source_policy_lines": [
+        {
+          "line": 40,
+          "text": "NXDK_CFLAGS += -I$(SDL2_DIR)/include \\"
+        },
+        {
+          "line": 43,
+          "text": "NXDK_CXXFLAGS += -I$(SDL2_DIR)/include \\"
+        }
+      ]
+    },
+    {
+      "path": "/workspace/shared/recovery/toolchain/nxdk/lib/net/lwip/src/Filelists.mk",
+      "sha256": "a750091212a64e856461256dc27fd749f7851780bf70ca3b67751afe36f2699e",
+      "flag_and_source_policy_lines": []
+    }
+  ],
+  "migration_requirement": "Parent must invalidate cached SDK C objects/archives at the next authorized build boundary because earlier objects were compiled with leaked C11; warning-only cache-reuse advice no longer applies. No cleanup or rebuild performed by this worker.",
+  "limitations": [
+    "No make, compiler, preprocessor, test, emulator or cleanup invocation.",
+    "Source-derived targets and flag reasoning are not an executed Make expansion or successful build.",
+    "SDK GNU/default dialect can affect semantics relative to leaked strict C11; this is intentional restoration of upstream policy, with optimization, target/ABI and link options held fixed."
+  ]
+}

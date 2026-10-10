@@ -28,6 +28,9 @@ static const char *scene_npc_launch_audio_name(const char *weapon)
         {"Undercover 12mm handgun","Glock Launch"},  /*556 */
         {"Shotgun","Shotgun Fire"},                /*652 */
         {"Sniper Rifle","Sniper Launch"},           /*737 */
+        {"Laser","Laser fire"},                    /* exact installed Laser Launch */
+        {"TriBeam Laser","Spike Attack"},          /* accepted windup only */
+        {"Capek Cane","Capek Cane Launch"},        /* accepted windup only */
         {"Rocket Launcher","Rocket Launcher"},      /*832; NOT Rocket Fire Foley */
         {"rail_gun","Rail Fire 1"},                 /*1405 */
         {"scope_assault_rifle","Sniper 2 Launch"},   /*1586 */

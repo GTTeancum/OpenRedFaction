@@ -42,10 +42,13 @@ not retarget. Tickets and repeated identity/geometry qualification prevent a
 callback from damaging a replacement or reviving a cancelled strike. Original
 AI scaling and shared damage/death own actual damage;1600 is not applied early.
 
-Linked/seated sources and targets are excluded. Existing ordinary pursuit
-remains horizontal, so elevated targets may fail the conservative3D cone.
-Point orders, vehicle/rider melee, physical-shield parity, swept limb volumes,
-altitude steering, Drone Missile and animation-marker fidelity are deferred.
+Linked/seated sources and targets are excluded. The later bounded exact Drone
+fly11 pursuit patch retains XYZ through the port's existing body-space policy
+and preserves full-target steering; see `DRONE-XYZ-PURSUIT.md` for its staged,
+runtime-unverified status. It does not change the conservative3D melee cone.
+Point orders, vehicle/rider melee, physical-shield parity, swept limb volumes
+and animation-marker fidelity are deferred here; Drone Missile has its own
+later owner in `DRONE-SECONDARY-FIRE.md`.
 
 ## Lifecycle and persistence
 

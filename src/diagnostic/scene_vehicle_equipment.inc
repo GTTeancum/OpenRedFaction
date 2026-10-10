@@ -6,23 +6,24 @@
  * Boarding stows the conventional handheld weapon like a weapon change:
  * cancel unspent burst/reload work, retain already committed ammunition and
  * live projectile owners. Cooldown ages normally while equipment is stowed.
- * Riot fractional charge debt remains intact; its existing save limitation
- * is intentionally not hidden by discarding charge accounting here. */
+ * Shared FP pair/f90 survive stowing; only the admitted continuous episode
+ * stops. Source host selection supplies the later shared state observation. */
 static struct {
     uint32_t occupied,release_mask,last_frame;
 } scene_vehicle_equipment={0,0,UINT32_MAX};
 /* boards,cancelled queued shots,cancelled reloads,cooldown ticks,
  * masked fire/alt frames,last frame,release mask,
- * boarding cooldown/remaining/delay/held/reload/Riot debt,
+ * boarding cooldown/remaining/delay/held/reload/shared charge deadline,
  * inventory hash before/after,post-cancel held/reload,current cooldown,occupied */
 uint32_t rf_scene_vehicle_equipment[20];
 static void scene_vehicle_equipment_board(scene_stream *s)
 {
     uint32_t *p=rf_scene_vehicle_equipment;
+    scene_player_riot_cancel();scene_continuous_charge_stop();
     ++p[0];p[1]+=combat_trigger.remaining;p[2]+=rf_scene_combat[6]!=0;
     p[8]=combat_trigger.cooldown;p[9]=combat_trigger.remaining;
     p[10]=combat_trigger.delay;p[11]=combat_trigger.held;
-    p[12]=rf_scene_combat[6];p[13]=riot_charge_remainder;
+    p[12]=rf_scene_combat[6];p[13]=(uint32_t)scene_continuous_charge.due_ms;
     p[14]=npc_hash_bytes(2166136261u,&campaign_player_inventory,sizeof(campaign_player_inventory));
     combat_trigger.remaining=combat_trigger.delay=combat_trigger.held=0;
     /* Reload transfer occurs at completion. If Riot's earlier drain already

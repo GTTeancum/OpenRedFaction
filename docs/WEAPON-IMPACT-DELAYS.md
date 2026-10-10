@@ -71,7 +71,8 @@ after either success or failure. Allocation failure is `RF_IO`, consistent
 with neighboring named weapon loaders.
 
 `rf_weapon_primary_definition`, `rf_weapon_descriptor`, existing catalogs, and
-all save layouts are unchanged. There are no callers in this slice. A later
-Drone consumer must independently own delayed attack identity, cancellation,
-three-dimensional contact checks, and save/load publication semantics; see
-`NPC-WEAPON-ADMISSION-OPEN.md` for the existing runtime boundary.
+all save layouts are unchanged. Post-02:00 source now consumes this reader
+for Drone Smash and the exact Reeper/Baby/Mutant primary delays. Those
+consumers own runtime-only delayed identity, cancellation and save-only guards;
+see `DRONE-DELAYED-STRIKE.md` and `CREATURE-DELAYED-IMPACTS.md`. They await
+the next hourly compilation; no timed-contact runtime result is implied.

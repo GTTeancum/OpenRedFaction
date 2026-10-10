@@ -104,7 +104,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
         campaign_shotgun_id,campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
     if(!stream||!player_eye||slot>=campaign_npc_body_count)return RF_RANGE;
     owner=campaign_npc_bodies+slot;
-    if(owner->combat_alert||owner->combat_scripted||owner->script_once.count||
+    if(campaign_npc_ai_suppressed(owner)||owner->combat_alert||owner->combat_scripted||owner->script_once.count||
        owner->script_shoot.active||!campaign_enemy_opposed_live(owner)||
        (owner->damage.effects.affiliation!=0&&owner->damage.effects.affiliation!=2)||
        owner->view.weapons[0]<0||
@@ -116,8 +116,14 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
         campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(owner->view.weapons[0],&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_tankbot_primary_select(owner->view.weapons[0],&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_vauss_primary_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_reeper_claw_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_drone_smash_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_laser_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_tribeam_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_cane_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_sonar_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_spit_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND&&((owner->view.weapons[0]==campaign_grenade_id&&scene_grenade_resources)||
        (owner->view.weapons[0]==campaign_rocket_id&&scene_rocket_resources)))status=RF_OK;
     if(status==RF_NOT_FOUND)return RF_OK;if(status)goto fail;
@@ -160,7 +166,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     if(!target)return RF_OK;
     if(frame>UINT32_MAX-30){status=RF_RANGE;goto fail;}
     status=campaign_animation_cancel(owner);if(status)goto fail;
-    if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;}
+    if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
     owner->combat_scripted=2;owner->combat_target=target->registration.handle;owner->combat_alert=1;
     owner->combat_navigation_due=owner->combat_burst_remaining=0;owner->combat_due=frame+30;
     ++rf_scene_enemy_opposed[2];++rf_scene_enemy_combat[1];

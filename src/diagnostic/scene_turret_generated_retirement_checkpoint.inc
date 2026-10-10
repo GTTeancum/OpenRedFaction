@@ -163,7 +163,8 @@ static int scene_turret_retirement_checkpoint_admit(const scene_turret_generated
         base.retired=UINT32_MAX;
         status=read_base(context,r->key.base_uid,&base);if(status)return status;
         if(base.retired!=r->base.retired||base.health!=r->base.health||
-           (base.flags_810&1u)!=(r->base.flags_810&1u))return RF_FORMAT;
+           (base.flags_810&1u)!=(r->base.flags_810&1u)||
+           ((base.flags_7d0^r->base.flags_7d0)&SCENE_NPC_GOTO_AI_SUPPRESSION))return RF_FORMAT;
     }
     return RF_OK;
 }
@@ -172,7 +173,7 @@ static int scene_turret_retirement_checkpoint_admit(const scene_turret_generated
  * restores the explicit terminal marker without damage or unregister calls.
  * Always use this dispatcher for RFTU2 too, to clear stale head-only markers
  * when an earlier active save passes the ordinary NPC admission policy. */
-static void scene_turret_retirement_checkpoint_assign(const scene_turret_generated_checkpoint_stage *stage)
+static inline void scene_turret_retirement_checkpoint_assign(const scene_turret_generated_checkpoint_stage *stage)
 {
     if(!stage)return;
     if(!scene_turret_retirement_checkpoint_version3(stage))scene_turret_generated_checkpoint_assign(stage);
@@ -180,6 +181,24 @@ static void scene_turret_retirement_checkpoint_assign(const scene_turret_generat
         const scene_turret_generated_saved *r=stage->rows+i;
         scene_turret_generated_checkpoint_assign_row(r,stage->frame,
             r->removal_reason||r->value.dead?-1:(int32_t)r->base_handle);
+    }
+    for(uint32_t i=0;i<stage->count;i++) {
+        const scene_turret_generated_saved *r=stage->rows+i;
+        scene_turret_generated_binding *b=scene_turret_generated_find(r->value.handle);
+        scene_turret_generated_retirement_assign((uint32_t)(b-scene_turret_generated),r->removal_reason);
+    }
+}
+/* Full-world owners publish before fallible final vehicle/storage work.
+ * Preserve the prior suppression bit on both active and retired bases; the
+ * separately admitted NPC finish publishes all three mirrors after success.
+ * The existing complete component assignment above remains available. */
+static void scene_turret_retirement_checkpoint_assign_deferred(const scene_turret_generated_checkpoint_stage *stage)
+{
+    if(!stage)return;
+    for(uint32_t i=0;i<stage->count;i++) {
+        const scene_turret_generated_saved *r=stage->rows+i;
+        scene_turret_generated_checkpoint_assign_row_mode(r,stage->frame,
+            r->removal_reason||r->value.dead?-1:(int32_t)r->base_handle,1);
     }
     for(uint32_t i=0;i<stage->count;i++) {
         const scene_turret_generated_saved *r=stage->rows+i;

@@ -1,4 +1,4 @@
-"""Parent-only original L1S1 startup admission after one hourly Xbox build.
+"""Parent-only original campaign startup admission after one hourly Xbox build.
 
 One 120-frame all-neutral stock 64 MiB snapshot run. Pack the manifest-pinned
 XBE without make; never create a gameplay fixture, alter original assets,
@@ -30,7 +30,7 @@ NATIVE_SYMBOLS = (
     'rf_scene_campaign_load_stage', 'rf_scene_follow_level_exits',
     'rf_scene_level_transition',
 )
-LIMITS = ('Original L1S1 startup and weapon-table admission only; no unarmed-pickup, '
+LIMITS = ('Original {level} startup and weapon-table admission only; no unarmed-pickup, '
           'grenade-selection, save/load, gameplay, audio-output, visual or FPS pass.')
 
 
@@ -39,19 +39,44 @@ def demand(condition, message):
         raise RuntimeError(message)
 
 
-def original_recipe(root, read_entry, inspect_level):
-    data = read_entry(root / 'Installed_Game/levels1.vpp', 'L1S1.rfl')
-    meta = inspect_level(io.BytesIO(data), dict(offset=0, size=len(data), name='L1S1.rfl'))
-    demand(meta['version'] == 180, 'Require original version 180 L1S1')
+def original_recipe(root, read_entry, inspect_level, level='L1S1.rfl'):
+    archive = {'L10S4.rfl': 'levels2.vpp', 'L17S1.rfl': 'levels3.vpp'}.get(level, 'levels1.vpp')
+    data = read_entry(root / 'Installed_Game' / archive, level)
+    rfl_sha256 = hashlib.sha256(data).hexdigest()
+    if level == 'L3S1.rfl':
+        demand(rfl_sha256 == 'c66e3d2de723903b7bad2220d08bbc62942b9f36227c66dddca97d30e8f9f5dc',
+               'Require hash-pinned original L3S1')
+    if level == 'L3S4.rfl':
+        demand(rfl_sha256 == '29d23e651514e6c7ad8fbc328218e72376d177e297aa5d73a2840a0e91e0241f',
+               'Require hash-pinned original L3S4')
+    if level == 'L10S4.rfl':
+        demand(rfl_sha256 == '91c25e73b62cc11ca610428954af8a10fb0d7ee63d2987865c74636cba07bf87',
+               'Require hash-pinned original L10S4')
+    if level == 'L17S1.rfl':
+        demand(rfl_sha256 == '362f53a6fdbadd5cb77cbffc823e829e839b30bde74cf0bc277997feae74790f',
+               'Require hash-pinned original L17S1')
+    meta = inspect_level(io.BytesIO(data), dict(offset=0, size=len(data), name=level))
+    demand(meta['version'] == 180, 'Require original version 180 ' + level[:-4])
     starts = [row for row in meta['sections'] if row['type'] == '0x70000']
     demand(len(starts) == 1 and starts[0]['size'] == 48, 'Missing/ambiguous original player start')
     start = list(struct.unpack_from('<12I', data, starts[0]['offset'] + 8))
     # level.c converts disk forward/right/up into runtime right/up/forward.
-    return dict(level='L1S1.rfl', archive='levels1.vpp',
-        rfl_sha256=hashlib.sha256(data).hexdigest(), rfl_bytes=len(data),
+    limits = LIMITS.format(level=level[:-4])
+    if level == 'L3S1.rfl':
+        limits += (' Configured Medical Kit, 12mm_ammo, 5.56mm_ammo and 10gauge_ammo '
+                   'metadata/resource admission only; '
+                   'no death-drop creation, collection, tombstone, save/load or revisit pass.')
+    if level == 'L3S4.rfl':
+        limits += ' Original spawn is about 70 units from Drone UID 844; no Drone-attack pass.'
+    if level == 'L10S4.rfl':
+        limits += ' Original Rock Snake catalog/startup only; optional particle admission, visuals and attacks are not proven.'
+    if level == 'L17S1.rfl':
+        limits += ' Original Meca Laser resource admission only; no attack or visual-parity pass.'
+    return dict(level=level, archive=archive,
+        rfl_sha256=rfl_sha256, rfl_bytes=len(data),
         spawn_words=[1] + start[:3] + start[6:12] + start[3:6], frames=FRAMES,
         input='RFI6: 120 records of 48 zero bytes; all movement/look/buttons neutral.',
-        limits=LIMITS)
+        limits=limits)
 
 
 def evaluate(guest, recipe):
@@ -84,6 +109,7 @@ def main():
     parser.add_argument('--consumer-build', type=Path, required=True,
                         help='PASS_XBOX_BUILD manifest with exact source_commit, xbe and map hashes')
     parser.add_argument('--seconds', type=int, default=600)
+    parser.add_argument('--level', choices=('L1S1.rfl', 'L3S1.rfl', 'L3S4.rfl', 'L10S4.rfl', 'L17S1.rfl'), default='L1S1.rfl')
     args = parser.parse_args()
     if not 120 <= args.seconds <= 900:
         parser.error('--seconds must be in 120..900')
@@ -128,8 +154,8 @@ def main():
     standalone(base)
     map_text = mapping.read_text()
     addresses = {name: exact_address(map_text, name) for name in NATIVE_SYMBOLS + tuple(SYMBOLS)}
-    recipe = original_recipe(root, read_entry, inspect_level)
-    report = dict(status='NOT_RUN', recipe=recipe, attempts=0, limits=LIMITS,
+    recipe = original_recipe(root, read_entry, inspect_level, args.level)
+    report = dict(status='NOT_RUN', recipe=recipe, attempts=0, limits=recipe['limits'],
         source_commit=head, consumer_build=consumer, consumer_build_path=str(consumer_path),
         consumer_build_sha256=hashlib.sha256(consumer_bytes).hexdigest(), symbol_addresses=addresses,
         hdd=str(base), hdd_mode='Owned standalone base, XEMU -snapshot; no save/load flags or HDD copy')
@@ -153,8 +179,11 @@ def main():
             demand(source.is_file(), 'Non-original disc archive: ' + path.name)
             archives[path.name] = sha256(source)
             demand(sha256(path) == archives[path.name], 'Disc archive differs from original: ' + path.name)
-        demand({'levels1.vpp', 'tables.vpp', 'meshes.vpp', 'motions.vpp', 'audio.vpp', 'bluebeard.bty'} <= archives.keys(),
+        demand({recipe['archive'], 'tables.vpp', 'meshes.vpp', 'motions.vpp', 'audio.vpp', 'bluebeard.bty'} <= archives.keys(),
                'Required original assets missing')
+        if recipe['level'] == 'L3S1.rfl':
+            demand(archives['levels1.vpp'] == '7462fc400a347232139c66c203c4a1c9379d7bfc400f93e1ab614ff67755aec1',
+                   'Require hash-pinned original levels1.vpp for L3S1')
         report['original_archive_sha256'] = archives
         immutable = {'geomod-template.bin', 'driller-single.bin', 'driller-double.bin'}
         report['fixed_data_sha256'] = {name: sha256(disc / name) for name in immutable if (disc / name).is_file()}
@@ -175,7 +204,8 @@ def main():
             (disc / name).unlink(missing_ok=True)
         for name in ('campaign-spawn.flag', 'scene-preview.flag', 'player-control.flag'):
             (disc / name).write_bytes(b'')
-        (disc / 'campaign-level.bin').write_bytes(b'levels1.vpp'.ljust(64, b'\0') + b'L1S1.rfl'.ljust(64, b'\0'))
+        (disc / 'campaign-level.bin').write_bytes(
+            recipe['archive'].encode('ascii').ljust(64, b'\0') + recipe['level'].encode('ascii').ljust(64, b'\0'))
         recording = b'RFI6' + struct.pack('<I', 48) + bytes(48 * FRAMES)
         (disc / 'player-replay.bin').write_bytes(recording)
         report['replay_sha256'] = hashlib.sha256(recording).hexdigest()

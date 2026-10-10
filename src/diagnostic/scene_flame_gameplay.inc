@@ -9,9 +9,8 @@
 static int scene_driller_flame_cover(scene_stream *,uint32_t,const float *,const float *,uint32_t *);
 static int scene_driller_flame_pulse(scene_stream *,uint32_t,const float *,const float *,const rf_damage_request *,uint32_t *,float *);
 static rf_flame_cadence scene_flame_cadence;
-static uint32_t scene_flame_gas_remainder;
 static void scene_flame_reset(void)
-{memset(&scene_flame_cadence,0,sizeof(scene_flame_cadence));scene_flame_gas_remainder=0;}
+{memset(&scene_flame_cadence,0,sizeof(scene_flame_cadence));}
 static int scene_flame_cover(void *context,const float *start,const float *end,uint32_t *blocked)
 {
     return scene_driller_flame_cover(context,campaign_player_object.handle,start,end,blocked);
@@ -34,24 +33,23 @@ static int scene_flame_body_contact(scene_stream *stream,const rf_physics_body *
     *hit=0;return RF_OK;
 }
 /* admitted means held primary, alive, not reloading/switching/underwater.
- * No generic consume_shot: gas drains100 units over authored2s, not one/pulse.
- * outputs pulse for view/sound acknowledgement; there is no visual owner here. */
+ * Shared player f90 owns finite fuel; damage cadence never spends fuel.
+ * outputs pulse for view/sound acknowledgement; there is no visual owner here.
+ * Optional call-local capture records actual primary fuel debit, never a pulse. */
 static int scene_flame_tick(scene_stream *stream,uint32_t frame,const float origin[3],
     const float forward[3],int32_t weapon,const rf_weapon_primary_definition *definition,
-    uint32_t admitted,uint32_t *pulse)
+    uint32_t admitted,uint32_t *pulse,scene_weapon_empty_request *empty_request)
 {
-    rf_damage_request request;uint32_t consumed,drain,i,contact,bits,entered;float seconds=(float)frame/60;
+    rf_damage_request request;uint32_t i,contact,bits,entered;float seconds=(float)frame/60;
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};int status;
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
         combat_random,combat_notify,combat_playing,combat_play,&feedback};
     if(!stream || !definition || !pulse || weapon<0 || weapon>=64 || admitted>1 ||
        !isfinite(definition->drain_seconds) || definition->drain_seconds<=0 || definition->drain_seconds>60)return RF_RANGE;
-    drain=(uint32_t)ceilf(definition->drain_seconds*60);
-    admitted=admitted && campaign_player_inventory.owned[weapon] && campaign_player_inventory.loaded[weapon]>0;
+    /* admitted was captured before the shared periodic service; do not undo
+     * the final admitted pulse merely because that service used the last cell. */
+    (void)empty_request;
     status=rf_flame_pulse(&scene_flame_cadence,definition,frame,admitted,campaign_player_object.handle,pulse,&request);if(status)return status;
-    status=rf_weapon_charge_step(&scene_flame_gas_remainder,definition->magazine,drain,admitted,
-        &campaign_player_inventory.loaded[weapon],&consumed);if(status)return status;
-    if(consumed)campaign_ammo_publish();
     if(!*pulse)return RF_OK;
     {uint32_t host_contact;float host_amount;
      status=scene_driller_flame_pulse(stream,frame,origin,forward,&request,&host_contact,&host_amount);if(status)return status;}
@@ -66,7 +64,7 @@ static int scene_flame_tick(scene_stream *stream,uint32_t frame,const float orig
         if(!status)status=feedback.status;if(status)return status;
         if(amount>0) {
             combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
-            if(!owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_due=frame+30;++rf_scene_enemy_awareness[1];}
+            if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_due=frame+30;++rf_scene_enemy_awareness[1];}
         }
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
         if(owner->damage.effects.health<=0) {

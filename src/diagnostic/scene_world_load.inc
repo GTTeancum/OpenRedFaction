@@ -27,6 +27,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
+    scene_continuous_charge_checkpoint_stage charge={0};
     uint32_t projectile_audio_resume=0,world_published=0;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_allegiance_stage *allegiance=NULL;
@@ -77,6 +78,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     if(status)goto done;
     status=rf_world_checkpoint_decode(buffer,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&envelope);if(status)goto done;
+    phase="continuous_charge_legacy";v=envelope.sections+RF_WORLD_PROJECTILES-1;
+    status=scene_continuous_charge_checkpoint_preflight(v->data,v->bytes);if(status)goto done;
     if(envelope.sections[RF_WORLD_SWITCHES-1].bytes){status=RF_NOT_FOUND;goto done;}
     phase="vehicle_switch";v=envelope.sections+RF_WORLD_VEHICLE-1;
     status=scene_vehicle_switch_checkpoint_prepare(stream,v->data,v->bytes,budget-cost,&vehicle_switch,&vehicle_data,&vehicle_bytes);if(status)goto done;
@@ -231,7 +234,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         !stream->player_weapon[16]||!player.player.player.inventory.owned[campaign_extra_ids[3]])){
         status=RF_NOT_FOUND;goto done;
     }
-    phase="mission";status=scene_world_mission_prepare(stream,&envelope,0,budget-cost,&mission);if(status)goto done;cost+=mission->bytes;
+    phase="mission";status=scene_world_mission_prepare_with_movers(stream,&envelope,0,budget-cost,world->movers.entries,world->movers.controller_count,world->world.world,&mission);if(status)goto done;cost+=mission->bytes;
     phase="history";v=envelope.sections+RF_WORLD_CAMPAIGN_HISTORY-1;
     status=scene_campaign_history_checkpoint_prepare(identity.bytes,v->data,v->bytes,budget-cost,&history);if(status)goto done;cost+=(uint32_t)sizeof(*history);
     status=scene_masako_checkpoint_legacy_history(&masako,history);if(status)goto done;
@@ -245,6 +248,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
     status=scene_ai_projectile_checkpoint_fusion_admit(projectiles,&player.player.player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_flame_admit(projectiles,&player.player.player);if(status)goto done;
+    phase="continuous_charge";
+    if(cost>budget||sizeof(charge)>budget-cost){status=RF_RANGE;goto done;}
+    status=scene_continuous_charge_checkpoint_prepare(stream,v->data,v->bytes,&player.player.player,&charge);if(status)goto done;
+    cost+=(uint32_t)sizeof(charge);
     status=scene_ai_projectile_checkpoint_burning_admit(projectiles,world->npcs);if(status)goto done;
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
@@ -275,7 +282,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
     status=scene_world_mission_validate(mission);if(status)goto done;
     status=scene_campaign_history_checkpoint_rebind_validate(bindings);if(status)goto done;
+    status=scene_campaign_history_checkpoint_capek_admit(history,bindings,world->npcs);if(status)goto done;
     status=scene_world_environment_validate(environment);if(status)goto done;
+    status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
+    scene_continuous_charge_restore_scope(1);charge.locked=1;
     /* Parked publication has no callbacks or mutation on rejection. Admit it
      * before the assignment-only world transaction below. */
     if(vehicle_present && !vehicle.value.vehicle.player_occupied){phase="vehicle_publish";stream->vehicle_record=vehicle;
@@ -292,14 +302,17 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
     scene_corpse_lifetime_checkpoint_assign(corpses);
     scene_turret_checkpoint_assign(turrets);
-    scene_turret_retirement_checkpoint_assign(generated);
+    scene_turret_retirement_checkpoint_assign_deferred(generated);
     scene_turret_generated_activation_reset();
     scene_npc_seat_checkpoint_assign(seats);
     scene_turret_death_effects_reset_pending();
-    scene_event_checkpoint_assign(&events->events);scene_world_mission_assign(mission);
+    scene_event_checkpoint_assign(&events->events);scene_world_mission_assign_owners(mission);
     campaign_group_control_children_assign(world->controls);
     if(vehicle_present){scene_world_vehicle_route_assign(&vehicle_route);campaign_vehicle_mode_publish(stream);}
-    scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_world_environment_assign(environment);
+    /* History keys and the new suppression lane remain coupled until final
+     * storage success. Intervening assignments use live/candidate owners,
+     * not campaign history or its persistence-slot rebinding. */
+    scene_world_environment_assign(environment);
     scene_remote_checkpoint_publish();
     scene_actor_body.state=player.body;rf_scene_actor_room_state=player.room;
     memcpy(actor_look.state.body_angles,player.player.body_angles,12);memcpy(actor_look.state.eye_angles,player.player.eye_angles,12);
@@ -362,9 +375,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
 #endif
-    /* Transient melee belongs to the replaced timeline only after the load
+    /* Transient gasp/scope/melee belongs to the replaced timeline only after the load
      * succeeds. Preparation, rejection and storage failure preserve it. */
-    if(!status && world_published)scene_ai_drone_smash_reset();
+    if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
+    if(!status&&world_published)scene_ai_projectile_checkpoint_flame_finish(projectiles);
+    scene_continuous_charge_checkpoint_finish(&charge,!status&&world_published);
     /* Voice reconstruction follows ALL fallible publication and storage
      * close work. Failed/absent staged loads never start a new flight loop. */
     if(!status && projectile_audio_resume)scene_projectile_flight_audio_resume(stream);

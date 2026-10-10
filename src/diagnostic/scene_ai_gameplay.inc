@@ -34,6 +34,37 @@ static int campaign_enemy_cadence(const rf_weapon_primary_definition *definition
     return RF_OK;
 }
 
+static int campaign_enemy_ammo_validate(const rf_weapon_inventory *inventory,
+    const rf_weapon_acquire_definition *ammo,const rf_weapon_primary_definition *definition,
+    int32_t weapon)
+{
+    if(!inventory || !ammo || !definition || weapon<0 || weapon>=64 || !inventory->owned[weapon] ||
+       ammo->ammo_type<0 || ammo->ammo_type>=32 || ammo->magazine<=0 ||
+       inventory->loaded[weapon]<0 || inventory->loaded[weapon]>ammo->magazine ||
+       inventory->reserve[ammo->ammo_type]<0 || !isfinite(definition->reload_seconds) ||
+       definition->reload_seconds<=0 || definition->reload_seconds>60)return RF_RANGE;
+    return RF_OK;
+}
+
+/* Complete only an already-started, due reload for this same weapon. The
+ * scene services this independently of target/order/awareness, as original
+ * entity update41e4b0 ->419bc0 does. Keep the existing finite transfer policy;
+ * no initiation, cancellation, selection, cadence or presentation here.
+ * A successful zero transfer still completes (event2 in the ammo gate). */
+static int campaign_enemy_reload_complete(rf_weapon_inventory *inventory,
+    const rf_weapon_acquire_definition *ammo,const rf_weapon_primary_definition *definition,
+    int32_t weapon,uint32_t frame,uint32_t *reload_due,const int32_t *reload_weapon,
+    uint32_t *completed)
+{
+    uint32_t transferred;int status;
+    if(!reload_due || !reload_weapon || !completed)return RF_RANGE;
+    *completed=0;
+    if(!*reload_due || *reload_weapon!=weapon || frame<*reload_due)return RF_OK;
+    status=campaign_enemy_ammo_validate(inventory,ammo,definition,weapon);if(status)return status;
+    status=rf_weapon_reload_transfer(inventory,ammo,weapon,&transferred);if(status)return status;
+    *reload_due=0;*completed=1;return RF_OK;
+}
+
 /* Magazine/reload gate for supported NPC firearms. Call every combat tick,
  * before the shot deadline/aim gate; consume one loaded round only once a
  * shot is emitted. Existing startup grants already fill magazine and reserve.
@@ -46,19 +77,14 @@ static int campaign_enemy_ammo_ready(rf_weapon_inventory *inventory,
     int32_t weapon,uint32_t frame,uint32_t *reload_due,int32_t *reload_weapon,
     uint32_t *ready,uint32_t *event)
 {
-    uint32_t deadline,ticks,transferred=0,kind=0,can_fire=0;int32_t reloading;int status;
-    if(!inventory || !ammo || !definition || !reload_due || !reload_weapon || !ready || !event ||
-       weapon<0 || weapon>=64 || !inventory->owned[weapon] ||
-       ammo->ammo_type<0 || ammo->ammo_type>=32 || ammo->magazine<=0 ||
-       inventory->loaded[weapon]<0 || inventory->loaded[weapon]>ammo->magazine ||
-       inventory->reserve[ammo->ammo_type]<0 || !isfinite(definition->reload_seconds) ||
-       definition->reload_seconds<=0 || definition->reload_seconds>60)return RF_RANGE;
+    uint32_t deadline,ticks,completed=0,kind=0,can_fire=0;int32_t reloading;int status;
+    if(!reload_due || !reload_weapon || !ready || !event)return RF_RANGE;
+    status=campaign_enemy_ammo_validate(inventory,ammo,definition,weapon);if(status)return status;
     deadline=*reload_due;reloading=*reload_weapon;
     if(deadline && reloading!=weapon)deadline=0;
-    if(deadline && frame>=deadline) {
-        status=rf_weapon_reload_transfer(inventory,ammo,weapon,&transferred);if(status)return status;
-        deadline=0;kind=2;
-    }
+    status=campaign_enemy_reload_complete(inventory,ammo,definition,weapon,frame,
+        &deadline,&reloading,&completed);if(status)return status;
+    if(completed)kind=2;
     if(!deadline) {
         if(inventory->loaded[weapon]>0)can_fire=1;
         else if(inventory->reserve[ammo->ammo_type]>0) {

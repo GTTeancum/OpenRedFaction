@@ -1,30 +1,33 @@
 #ifndef RF_SCENE_FLAME_INPUT_INC
 #define RF_SCENE_FLAME_INPUT_INC
 /* Include after scene_flame_gameplay.inc. Selected-slot caller must return
- * before generic trigger/reload/hitscan code: scene_flame_tick alone drains gas.
+ * before generic trigger/reload/hitscan code. Shared f90 alone drains fuel.
  * One-shot sounds use combat_sound; the shared original player weapon-loop
  * owner retains the continuous Launch voice. Alternate canister launch is
  * owned by the separate canister adapter. */
 static struct {uint32_t ignition,delay,reload_left,reload_elapsed,drained;} scene_flame_input;
 /* Standalone RFCP admission still declines active input. Ordinary RFWC3
- * stores ignition, reload and fractional fuel through RFAP3. Completed reload
+ * stores ignition and reload through RFAP; shared charge is separate. Completed reload
  * bookkeeping is historical, so it must not block saving. */
 static uint32_t scene_flame_input_pending(void)
 {
     return scene_flame_input.ignition!=0 || scene_flame_input.delay!=0 ||
-        scene_flame_input.reload_left!=0 || scene_flame_gas_remainder!=0;
+        scene_flame_input.reload_left!=0;
 }
 static void scene_flame_input_reset(void)
-{scene_weapon_loop_audio_stop(campaign_flame_id);memset(&scene_flame_input,0,sizeof(scene_flame_input));scene_flame_reset();}
+{if(scene_continuous_charge.episode_weapon==campaign_flame_id)scene_continuous_charge_stop();
+ scene_weapon_loop_audio_stop(campaign_flame_id);memset(&scene_flame_input,0,sizeof(scene_flame_input));scene_flame_reset();}
 static void scene_flame_input_stop(const float position[3])
 {
+    if(scene_continuous_charge.episode_weapon==campaign_flame_id)scene_continuous_charge_stop();
     scene_weapon_loop_audio_stop(campaign_flame_id);
     if(scene_flame_input.ignition)combat_sound("Flame Thrower Ignite 3",position);
     scene_flame_input.ignition=scene_flame_input.delay=0;
 }
 static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const float position[3],
     const float forward[3],int32_t weapon,const rf_weapon_primary_definition *definition,
-    float start_delay_seconds,uint32_t selected,uint32_t inhibited,uint32_t primary,uint32_t reload,uint32_t *active)
+    float start_delay_seconds,uint32_t selected,uint32_t inhibited,uint32_t primary,uint32_t reload,uint32_t *active,
+    scene_weapon_empty_request *empty_request)
 {
     const rf_weapon_acquire_definition *supply;uint32_t pulse=0,admitted=0,start_ticks,reload_ticks,drain_tick;int status;
     if(!stream || !position || !forward || !definition || !active || weapon<0 || weapon>=64 ||
@@ -41,16 +44,16 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
     if(!selected || inhibited || !campaign_player_inventory.owned[weapon]) {
         scene_flame_input_stop(position);scene_flame_input.reload_left=scene_flame_input.reload_elapsed=scene_flame_input.drained=0;
         if(selected)rf_scene_combat[6]=0;
-        return scene_flame_tick(stream,frame,position,forward,weapon,definition,0,&pulse);
+        return scene_flame_tick(stream,frame,position,forward,weapon,definition,0,&pulse,NULL);
     }
     if(scene_flame_input.reload_left) {
         scene_flame_input_stop(position);++scene_flame_input.reload_elapsed;
         if(!scene_flame_input.drained && scene_flame_input.reload_elapsed>=drain_tick) {
-            campaign_player_inventory.loaded[weapon]=0;scene_flame_gas_remainder=0;scene_flame_input.drained=1;campaign_ammo_publish();
+            campaign_player_inventory.loaded[weapon]=0;scene_flame_input.drained=1;campaign_ammo_publish();
         }
         if(!--scene_flame_input.reload_left) {
             uint32_t moved;status=rf_weapon_reload_transfer(&campaign_player_inventory,supply,weapon,&moved);
-            if(status)return status;scene_flame_gas_remainder=0;
+            if(status)return status;
             rf_scene_player_ammo[3]+=moved;++rf_scene_player_ammo[4];campaign_ammo_publish();
         }
         rf_scene_combat[6]=scene_flame_input.reload_left;
@@ -63,6 +66,7 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
     else {
         if(!scene_flame_input.ignition) {
             scene_flame_input.ignition=1;scene_flame_input.delay=start_ticks;
+            scene_continuous_charge_accept(weapon,0);
             combat_sound("Flame Thrower Ignite 1",position);
         } else if(scene_flame_input.delay)--scene_flame_input.delay;
         if(!scene_flame_input.delay) {
@@ -72,7 +76,10 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
             scene_flame_input.ignition=2;admitted=1;
         }
     }
-    status=scene_flame_tick(stream,frame,position,forward,weapon,definition,admitted,&pulse);if(status)return status;
+    if(selected) {
+        status=scene_continuous_charge_finish(stream,frame,empty_request);if(status)return status;
+    }
+    status=scene_flame_tick(stream,frame,position,forward,weapon,definition,admitted,&pulse,admitted?empty_request:NULL);if(status)return status;
     *active=admitted;
     if(pulse){uint32_t alerted;++rf_scene_combat[0];campaign_last_alt=0;
         status=campaign_enemy_hear_shot(position,16.0f,frame,&alerted);if(status)return status;}

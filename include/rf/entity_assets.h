@@ -42,6 +42,17 @@ typedef struct rf_weapon_impact_delays {
 } rf_weapon_impact_delays;
 int rf_weapon_impact_delays_read(const void *text,uint32_t bytes,const char *name,rf_weapon_impact_delays *result);
 int rf_weapon_impact_delays_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_impact_delays *result);
+/* Optional authored $Camera Shake: presence plus ordered +Distance:/+Time:.
+ * The first matching named declaration wins; absent block yields all zero.
+ * Duplicate blocks, missing subordinate fields and nonfinite/negative values
+ * reject without changing output. Read allocates nothing; load owns one
+ * budgeted weapons.tbl scratch block. Separate cosmetic metadata: primary,
+ * reset-descriptor, supply-catalog and checkpoint layouts remain unchanged. */
+typedef struct rf_weapon_camera_shake {
+    uint32_t enabled;float strength,seconds;
+} rf_weapon_camera_shake;
+int rf_weapon_camera_shake_read(const void *text,uint32_t bytes,const char *name,rf_weapon_camera_shake *result);
+int rf_weapon_camera_shake_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_camera_shake *result);
 typedef struct rf_weapon_explosive_definition {
     float speed,lifetime,collision_radius,damage_radius,crater_radius;
     uint32_t glow;float glow_inner,glow_outer,glow_color[3];
@@ -74,6 +85,20 @@ typedef struct rf_weapon_view_definition {
 } rf_weapon_view_definition;
 int rf_weapon_view_read(const void *,uint32_t,const char *,rf_weapon_view_definition *);
 int rf_weapon_view_load(rf_vpp *,const char *,uint32_t,rf_weapon_view_definition *);
+
+/* Separate gameplay state metadata, preserving authored state IDs: idle0,
+ * run1 and optional loop_fire2. Bounded to the18 existing handheld profiles,
+ * idle-only Jeep Gun, and the8 established no-FP host names. No action/visual
+ * clip remapping, weapon admission or playback. Names compile to.v3c/.rfa;
+ * non-FP profiles retain empty mesh/zero states. The first named declaration
+ * wins; missing/duplicate fields and unexpected state names/order/count fail.
+ * Read allocates nothing; load budgets/frees one weapons.tbl scratch block.
+ * Errors preserve output; continuous flags are independent of state IDs. */
+typedef struct rf_weapon_fp_state_definition {
+    char mesh[64],states[3][64];uint32_t state_count,primary_continuous,alternate_continuous;
+} rf_weapon_fp_state_definition;
+int rf_weapon_fp_state_read(const void *,uint32_t,const char *,rf_weapon_fp_state_definition *);
+int rf_weapon_fp_state_load(rf_vpp *,const char *,uint32_t,rf_weapon_fp_state_definition *);
 
 /* First-pass items.tbl binding; weapon is empty for non-ammunition benefits.
  * mesh_kind:1 static,3 animated; flags bit0 no_pickup. SP count overrides base. */

@@ -539,6 +539,7 @@ extern uint32_t rf_scene_weapon_reset_catalog[4];
 extern uint32_t rf_scene_npc_inventory_owners[4];
 extern uint32_t rf_scene_npc_startup_weapons[4];
 extern uint32_t rf_scene_drone_smash[12]; /* Delayed Drone Smash runtime diagnostics. */
+extern uint32_t rf_scene_drone_secondary[12]; /* Autonomous Drone missile diagnostics. */
 extern uint32_t rf_scene_weapon_models[8];
 extern uint32_t rf_scene_weapon_materials[8];
 /* Target handle supplied by the caller; retained NPC targets and absent handles.

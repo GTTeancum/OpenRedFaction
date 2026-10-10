@@ -43,8 +43,11 @@ isolated. The established 64-frame stock-64-MiB save/reload fixture passes
 with 55,616 snapshot bytes and 3,346 free pages after reload. That checks
 ordinary-save compatibility, not section-return trigger behavior.
 
-The owner reserves172,040 bytes:128 section names,4096 UID keys and4096 compact
-activation snapshots. Existing authored inventory reports2367 triggers across93
+The original activation-only owner reserved172,040 bytes:128 section names,4096
+UID keys and4096 compact activation snapshots. The source-written optional
+[airlock pressure extension](AIRLOCK-PRESSURE-CHECKPOINT.md) increases the owner
+to 204,808 bytes; its new persistence behavior is uncompiled and runtime-unverified.
+Existing authored inventory reports2367 triggers across93
 SP/MP level records, within that capacity. A new campaign clears the owner.
 Registration is during scene initialization; capture before a successful handoff
 updates the already registered slots without heap allocation. Full snapshots

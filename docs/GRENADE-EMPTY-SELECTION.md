@@ -21,22 +21,24 @@ Xbox batch.
 - `4c2e55` parses `$Pref Position` into descriptor `+534`; `4c2c37` populates
   the authored 32-entry list; `4a23a0` copies it into player `+1154`.
 
-### Explosive-defer preference is not an established retail default
+### Verified factory preference, profile override still separate
 
 The source consults player byte `+f41` when an eligible weapon has descriptor
 `+268` mask `0x100`. A nonzero value defers it behind eligible unflagged weapons,
 retaining the first flagged candidate only as a fallback.
 
-A bounded read-only inspection of allocation/initialization `4a3310`, its
-constructor `472ad0` and reset `4adba0` did not establish this byte's default.
-Profile reader `4a8aa0` restores it from profile offset `+78`, bit 13, at
-`4a8bbc..4a8bd0`; UI callback `452cf0` writes the inverse of its checkbox state.
-Neither observation proves the initial default or the user's profile value.
+The later bounded read-only inspection resolves the factory default: allocation
+`4a3459/4a3471/4a349a` passes player `+e4` into `4afe50`; `4afe6e/4afe70`
+prepare zero/one and `4afed2/4afed8` write subobject `+e5c=1`, `+e5d=0`.
+These are player `+f40` Autoswitch enabled and `+f41` explosive defer disabled.
+This supersedes the earlier inconclusive constructor/reset inspection.
 
-This first-pass port explicitly uses `defer_flag=0`: strict authored ranking
-among the admitted, usable candidates. This is a port policy, not a claim of
-retail-default parity. No general Autoswitch option or saved preference is
-invented.
+Profile reader `4a8aa0` can restore `+f41` from profile offset `+78`, bit 13,
+at `4a8bbc..4a8bd0`; UI callback `452cf0` writes the inverse checkbox state.
+Factory evidence does not establish a saved user's preference. The port's
+strict `defer_flag=0` matches this verified initialization, with profile/UI
+ownership still deferred. Grenade's unconditional exception remains separate
+from conventional depletion admission; see `WEAPON-EMPTY-SELECTION.md`.
 
 ## Live adapter
 

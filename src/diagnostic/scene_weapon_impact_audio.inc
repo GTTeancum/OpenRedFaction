@@ -2,7 +2,7 @@
 #define RF_SCENE_WEAPON_IMPACT_AUDIO_INCLUDED
 #include "rf/weapon_impact_audio.h"
 
-/* Optional dry conventional-hit audio. Include after combat_shot_obstructed,
+/* Optional dry conventional/Spit/Cane audio. Include after combat_shot_obstructed,
  * campaign_body_surface and the existing Foley/spatial audio services.
  * Original4c5912..4c5996: select material sample, fall back to Default ONLY
  * when that sample is-1, then one positional5056a0 request at the hit point.
@@ -18,13 +18,18 @@ typedef struct scene_weapon_impact_audio_sample {
 typedef struct scene_weapon_impact_audio_state {
     rf_weapon_impact_audio_groups catalog;
     scene_weapon_impact_audio_sample samples[SCENE_WEAPON_IMPACT_SAMPLE_LIMIT];
-    uint8_t supported[64];uint32_t sample_count,ready;
+    uint8_t supported[64]; /*1:conventional,2:Snake Spit,3:Capek Cane.*/
+    uint32_t sample_count,ready;
     rf_random_state random;
 } scene_weapon_impact_audio_state;
 static scene_weapon_impact_audio_state scene_weapon_impact_audio;
 /* contacts,starts,silent/errors,world queries/hits,admitted samples/PCM bytes,
  * latest status/weapon/material/group/sample/voice,RNG,ready */
 uint32_t rf_scene_weapon_impact_audio[16];
+/* Optional Spit append: ready,new sample rows,retained file bytes,status. */
+uint32_t rf_scene_spit_impact_audio[4];
+/* Optional Cane append: ready,new sample rows,file bytes,status,owned demand. */
+uint32_t rf_scene_cane_impact_audio[5];
 float rf_scene_weapon_impact_audio_position[3];
 static uint32_t scene_weapon_impact_audio_detail[9];
 
@@ -40,6 +45,8 @@ static void scene_weapon_impact_audio_close(void)
     }
     s->ready=0;s->sample_count=0;memset(s->supported,0,sizeof(s->supported));
     rf_scene_weapon_impact_audio[15]=0;
+    memset(rf_scene_spit_impact_audio,0,sizeof(rf_scene_spit_impact_audio));
+    memset(rf_scene_cane_impact_audio,0,sizeof(rf_scene_cane_impact_audio));
 }
 static void scene_weapon_impact_audio_reset(void)
 {
@@ -49,6 +56,8 @@ static void scene_weapon_impact_audio_reset(void)
     memset(scene_weapon_impact_audio.catalog.groups,0xff,sizeof(scene_weapon_impact_audio.catalog.groups));
     scene_weapon_impact_audio.random.value=1;
     memset(rf_scene_weapon_impact_audio,0,sizeof(rf_scene_weapon_impact_audio));
+    memset(rf_scene_spit_impact_audio,0,sizeof(rf_scene_spit_impact_audio));
+    memset(rf_scene_cane_impact_audio,0,sizeof(rf_scene_cane_impact_audio));
     memset(scene_weapon_impact_audio_detail,0,sizeof(scene_weapon_impact_audio_detail));
     memset(rf_scene_weapon_impact_audio_position,0,sizeof(rf_scene_weapon_impact_audio_position));
     for(uint32_t i=9;i<=13;i++)rf_scene_weapon_impact_audio[i]=UINT32_MAX;
@@ -57,7 +66,7 @@ static uint32_t scene_weapon_impact_audio_supported(int32_t weapon)
 {
     static const char *const names[]={"12mm handgun","Undercover 12mm handgun",
         "Assault Rifle","Shotgun","Sniper Rifle","rail_gun","Machine Pistol",
-        "Machine Pistol Special","heavy_machine_gun","scope_assault_rifle"};
+        "Machine Pistol Special","heavy_machine_gun","scope_assault_rifle","Vauss"};
     uint32_t i;
     for(i=0;i<sizeof(names)/sizeof(names[0]);i++)
         if(rf_weapon_name_find(&campaign_weapon_reset.names,names[i])==weapon)return 1;
@@ -69,6 +78,105 @@ static uint32_t scene_weapon_impact_audio_has_sample(uint32_t sample)
     for(i=0;i<scene_weapon_impact_audio.sample_count;i++)
         if(scene_weapon_impact_audio.samples[i].sample==sample)return 1;
     return 0;
+}
+
+/* Six original Spit/Flesh WAVs retain282690 file bytes, exceeding the
+ * conventional192KiB cap by themselves. Append transactionally AFTER that
+ * owner succeeds, with a separate288KiB/6-new-row limit and the same bank
+ * headroom. Failure never disables or unpins existing conventional impacts.
+ * No second catalog/allocation/lifetime: close restores every appended pin. */
+#define SCENE_SPIT_IMPACT_SAMPLE_LIMIT 6u
+#define SCENE_SPIT_IMPACT_PCM_LIMIT (288u*1024u)
+/* Seeds exist before audio startup; actual bodies/default loadouts do not.
+ * Require a placed exact class/explicit primary pair with drools slime.
+ * This is resource demand, not proof of live activation or a weapon grant. */
+static uint32_t scene_weapon_impact_audio_spit_needed(void)
+{
+    static const char *const classes[]={"Rock Snake","Big Snake"};
+    static const char *const weapons[]={"Rock Snake Spit","Big Rock Snake Spit"};
+    uint32_t i,w;
+    if(!campaign_seeds.records.items || !campaign_seeds.items || !campaign_seeds.classes)return 0;
+    for(i=0;i<campaign_seeds.records.count;i++) {
+        const rf_level_entity *record=&campaign_seeds.records.items[i].record;
+        uint32_t cls=campaign_seeds.items[i].class_index;
+        if(cls>=campaign_seeds.class_count || !(campaign_seeds.classes[cls].physics.flags2&0x20u))continue;
+        for(w=0;w<2;w++)if(scene_npc_loadout_equal(record->class_name,classes[w]) &&
+            scene_npc_loadout_equal(record->primary_weapon,weapons[w]))return 1;
+    }
+    return 0;
+}
+static void scene_weapon_impact_audio_spit_load(rf_vpp *audio)
+{
+    static const char *const names[]={"Rock Snake Spit","Big Rock Snake Spit"};
+    scene_weapon_impact_audio_state *s=&scene_weapon_impact_audio;
+    uint32_t first=s->sample_count,w,material,i,total=0,additional=0;int status=RF_OK;
+    int32_t weapons[2]={-1,-1};
+    memset(rf_scene_spit_impact_audio,0,sizeof(rf_scene_spit_impact_audio));
+    if(!scene_weapon_impact_audio_spit_needed()){rf_scene_spit_impact_audio[3]=RF_NOT_FOUND;return;}
+    if(!s->ready || !audio || !audio->stream || !campaign_audio_bank.samples ||
+       campaign_audio_bank.count>sizeof(campaign_audio_evictable)){status=RF_RANGE;goto failed;}
+    for(w=0;w<2;w++) {
+        weapons[w]=rf_weapon_name_find(&campaign_weapon_reset.names,names[w]);
+        if(weapons[w]<0 || (uint32_t)weapons[w]>=s->catalog.count ||
+           weapons[w]>=64 || s->supported[weapons[w]]){status=RF_FORMAT;goto failed;}
+        for(material=0;material<10;material++) {
+            int32_t group=s->catalog.groups[weapons[w]][0][material];const rf_foley_group *g;
+            /* Installed Spit has no underwater groups. Do not admit changed
+             * tables while this bounded consumer deliberately suppresses wet
+             * world/shield feedback rather than borrowing dry defaults. */
+            if(s->catalog.groups[weapons[w]][1][material]!=-1){status=RF_FORMAT;goto failed;}
+            if(group<0)continue;
+            if((uint32_t)group>=campaign_foley.group_count){status=RF_RANGE;goto failed;}
+            g=campaign_foley.groups+group;
+            if(!g->count || !campaign_foley.samples || g->first>=campaign_foley.sample_count ||
+               g->count>campaign_foley.sample_count-g->first){status=RF_FORMAT;goto failed;}
+            for(i=0;i<g->count;i++) {
+                int32_t sample=campaign_foley.samples[g->first+i];rf_vpp_entry entry;
+                const rf_sound_metadata *metadata;uint32_t bytes;
+                if(sample==-1)continue;
+                if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){status=RF_RANGE;goto failed;}
+                if(scene_weapon_impact_audio_has_sample((uint32_t)sample))continue;
+                if(s->sample_count-first==SCENE_SPIT_IMPACT_SAMPLE_LIMIT ||
+                   s->sample_count==SCENE_WEAPON_IMPACT_SAMPLE_LIMIT){status=RF_RANGE;goto failed;}
+                metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,
+                    campaign_audio_bank.samples[sample].name);
+                if(metadata && (metadata->loop_flags&0x40000000u)){status=RF_FORMAT;goto failed;}
+                if(rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample))bytes=campaign_audio_bank.samples[sample].bytes;
+                else {
+                    status=rf_vpp_find(audio,campaign_audio_bank.samples[sample].name,&entry);if(status)goto failed;
+                    bytes=entry.size;
+                    if(!bytes || bytes>SCENE_SPIT_IMPACT_PCM_LIMIT-additional){status=RF_RANGE;goto failed;}
+                    additional+=bytes;
+                }
+                if(!bytes || bytes>SCENE_SPIT_IMPACT_PCM_LIMIT-total){status=RF_RANGE;goto failed;}
+                total+=bytes;
+                s->samples[s->sample_count++]=(scene_weapon_impact_audio_sample){(uint32_t)sample,0,0};
+            }
+        }
+    }
+    if((uint64_t)campaign_audio_bank.bytes+additional+SCENE_WEAPON_IMPACT_HEADROOM>
+       campaign_audio_bank.budget){status=RF_RANGE;goto failed;}
+    for(i=first;i<s->sample_count;i++) {
+        uint32_t sample=s->samples[i].sample;
+        if(!rf_audio_bank_sample(&campaign_audio_bank,sample)) {
+            status=rf_audio_bank_reload(&campaign_audio_bank,audio,sample);if(status)goto failed;
+            s->samples[i].newly_loaded=1;
+        }
+    }
+    for(i=first;i<s->sample_count;i++) {
+        uint32_t sample=s->samples[i].sample;
+        s->samples[i].previous_evictable=campaign_audio_evictable[sample];campaign_audio_evictable[sample]=0;
+    }
+    for(w=0;w<2;w++)s->supported[weapons[w]]=2;
+    rf_scene_spit_impact_audio[0]=1;rf_scene_spit_impact_audio[1]=s->sample_count-first;
+    rf_scene_spit_impact_audio[2]=total;rf_scene_spit_impact_audio[3]=RF_OK;
+    rf_scene_weapon_impact_audio[6]=s->sample_count;rf_scene_weapon_impact_audio[7]+=total;return;
+failed:
+    for(i=first;i<s->sample_count;i++)if(s->samples[i].newly_loaded)
+        (void)rf_audio_bank_unload(&campaign_audio_bank,s->samples[i].sample);
+    memset(s->samples+first,0,(s->sample_count-first)*sizeof(*s->samples));s->sample_count=first;
+    rf_scene_spit_impact_audio[3]=(uint32_t)status;
+    ++rf_scene_weapon_impact_audio[3]; /* General ready/status/pins stay intact. */
 }
 
 /* Run after mandatory startup PCM admission and before final bank statistics.
@@ -136,7 +244,7 @@ static void scene_weapon_impact_audio_load(rf_vpp *tables,rf_vpp *audio)
     }
     s->ready=1;rf_scene_weapon_impact_audio[6]=s->sample_count;
     rf_scene_weapon_impact_audio[7]=total;rf_scene_weapon_impact_audio[8]=RF_OK;
-    rf_scene_weapon_impact_audio[15]=1;return;
+    rf_scene_weapon_impact_audio[15]=1;scene_weapon_impact_audio_spit_load(audio);return;
 failed:
     /* Only freshly loaded, not-yet-published PCM is rolled back. Previously
      * resident rows and all existing borrowers/eviction flags stay intact. */
@@ -145,19 +253,117 @@ failed:
     s->sample_count=0;s->ready=0;memset(s->supported,0,sizeof(s->supported));
     rf_scene_weapon_impact_audio[6]=rf_scene_weapon_impact_audio[7]=rf_scene_weapon_impact_audio[15]=0;
     rf_scene_weapon_impact_audio[8]=(uint32_t)status;++rf_scene_weapon_impact_audio[3];
+    rf_scene_spit_impact_audio[3]=(uint32_t)status;
+}
+
+/* Run only at the existing selected-owned Cane LOAD-STAGE demand site,
+ * after flight-audio admission and before gameplay. Reuse the already parsed
+ * impact/Foley catalog and shared pin owner; never touch the conventional or
+ * Spit transaction. Four original Riot_Jolt WAVs retain65180 file bytes.
+ * This separate64KiB append preserves256KiB headroom and can fail silently.
+ * The load site's local archive is meshes.vpp: only the retained AUDIO
+ * archive is accepted. No declaration, eviction or impact-time loading. */
+#define SCENE_CANE_IMPACT_SAMPLE_LIMIT 4u
+#define SCENE_CANE_IMPACT_PCM_LIMIT (64u*1024u)
+static void scene_weapon_impact_audio_cane_load(rf_vpp *audio,uint32_t needed)
+{
+    scene_weapon_impact_audio_state *s=&scene_weapon_impact_audio;
+    uint32_t first=s->sample_count,material,i,total=0,additional=0,loaded=0;
+    int32_t weapon,group=-1;const rf_foley_group *g;int status=RF_OK;
+    if(rf_scene_cane_impact_audio[0])return; /* Already admitted this bank. */
+    memset(rf_scene_cane_impact_audio,0,sizeof(rf_scene_cane_impact_audio));
+    rf_scene_cane_impact_audio[4]=needed!=0;
+    if(!needed){rf_scene_cane_impact_audio[3]=RF_NOT_FOUND;return;}
+    if(!s->ready || audio!=&campaign_audio_archive || !audio->stream ||
+       campaign_audio_bank.archive!=audio || !campaign_audio_bank.samples ||
+       campaign_audio_bank.count>sizeof(campaign_audio_evictable)) {status=RF_RANGE;goto failed;}
+    weapon=rf_weapon_name_find(&campaign_weapon_reset.names,"Capek Cane");
+    if(weapon<0 || weapon>=64 || (uint32_t)weapon>=s->catalog.count ||
+       s->supported[weapon]){status=RF_FORMAT;goto failed;}
+    status=rf_foley_find(&campaign_foley,"Riot Impact",&group);if(status)goto failed;
+    if(group<0 || (uint32_t)group>=campaign_foley.group_count ||
+       s->catalog.groups[weapon][0][0]!=group){status=RF_FORMAT;goto failed;}
+    for(material=0;material<10;material++)
+        if(s->catalog.groups[weapon][1][material]!=-1 ||
+           (material && s->catalog.groups[weapon][0][material]!=-1)){status=RF_FORMAT;goto failed;}
+    g=campaign_foley.groups+group;
+    if(g->count!=4 || !campaign_foley.samples || g->first>=campaign_foley.sample_count ||
+       g->count>campaign_foley.sample_count-g->first){status=RF_FORMAT;goto failed;}
+    for(i=0;i<g->count;i++) {
+        int32_t sample=campaign_foley.samples[g->first+i];rf_vpp_entry entry;
+        const rf_sound_metadata *metadata;uint32_t bytes;
+        if(sample==-1)continue; /* Preserve original absent-sample fallback. */
+        if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){status=RF_RANGE;goto failed;}
+        if(scene_weapon_impact_audio_has_sample((uint32_t)sample))continue;
+        if(s->sample_count-first==SCENE_CANE_IMPACT_SAMPLE_LIMIT ||
+           s->sample_count==SCENE_WEAPON_IMPACT_SAMPLE_LIMIT){status=RF_RANGE;goto failed;}
+        metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,
+            campaign_audio_bank.samples[sample].name);
+        if(metadata && (metadata->loop_flags&0x40000000u)){status=RF_FORMAT;goto failed;}
+        if(rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample))bytes=campaign_audio_bank.samples[sample].bytes;
+        else {
+            status=rf_vpp_find(audio,campaign_audio_bank.samples[sample].name,&entry);if(status)goto failed;
+            bytes=entry.size;
+            if(!bytes || bytes>SCENE_CANE_IMPACT_PCM_LIMIT-additional){status=RF_RANGE;goto failed;}
+            additional+=bytes;
+        }
+        if(!bytes || bytes>SCENE_CANE_IMPACT_PCM_LIMIT-total){status=RF_RANGE;goto failed;}
+        total+=bytes;
+        s->samples[s->sample_count++]=(scene_weapon_impact_audio_sample){(uint32_t)sample,0,0};
+    }
+    if((uint64_t)campaign_audio_bank.bytes+additional+SCENE_WEAPON_IMPACT_HEADROOM>
+       campaign_audio_bank.budget){status=RF_RANGE;goto failed;}
+    for(i=first;i<s->sample_count;i++) {
+        uint32_t sample=s->samples[i].sample;
+        if(!rf_audio_bank_sample(&campaign_audio_bank,sample)) {
+            status=rf_audio_bank_reload(&campaign_audio_bank,audio,sample);if(status)goto failed;
+            s->samples[i].newly_loaded=1;++loaded;
+        }
+    }
+    /* Publish pins/readiness only after every fallible load has succeeded. */
+    for(i=first;i<s->sample_count;i++) {
+        uint32_t sample=s->samples[i].sample;
+        s->samples[i].previous_evictable=campaign_audio_evictable[sample];campaign_audio_evictable[sample]=0;
+    }
+    s->supported[weapon]=3;
+    rf_scene_cane_impact_audio[0]=1;rf_scene_cane_impact_audio[1]=s->sample_count-first;
+    rf_scene_cane_impact_audio[2]=total;rf_scene_cane_impact_audio[3]=RF_OK;
+    rf_scene_weapon_impact_audio[6]=s->sample_count;rf_scene_weapon_impact_audio[7]+=total;
+    /* This later load stage follows campaign_audio_open's aggregate count. */
+    rf_scene_sound_bank[1]+=loaded;rf_scene_sound_bank[2]+=additional;
+    rf_scene_sound_bank[3]=campaign_audio_bank.bytes-rf_scene_sound_bank[2];
+    rf_scene_live_audio[0]=campaign_audio_bank.count;rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+    return;
+failed:
+    for(i=first;i<s->sample_count;i++)if(s->samples[i].newly_loaded)
+        (void)rf_audio_bank_unload(&campaign_audio_bank,s->samples[i].sample);
+    memset(s->samples+first,0,(s->sample_count-first)*sizeof(*s->samples));s->sample_count=first;
+    rf_scene_cane_impact_audio[3]=(uint32_t)status;
+    ++rf_scene_weapon_impact_audio[3]; /* Other families and all old pins survive. */
 }
 
 static uint32_t scene_weapon_impact_audio_ready(int32_t weapon)
 {
     const scene_weapon_impact_audio_state *s=&scene_weapon_impact_audio;
-    return s->ready && weapon>=0 && (uint32_t)weapon<s->catalog.count && s->supported[weapon];
+    return s->ready && weapon>=0 && (uint32_t)weapon<s->catalog.count && s->supported[weapon]==1;
+}
+static uint32_t scene_weapon_impact_audio_spit_ready(int32_t weapon)
+{
+    const scene_weapon_impact_audio_state *s=&scene_weapon_impact_audio;
+    return s->ready && weapon>=0 && (uint32_t)weapon<s->catalog.count && s->supported[weapon]==2;
+}
+static uint32_t scene_weapon_impact_audio_cane_ready(int32_t weapon)
+{
+    const scene_weapon_impact_audio_state *s=&scene_weapon_impact_audio;
+    return s->ready && weapon>=0 && (uint32_t)weapon<s->catalog.count && s->supported[weapon]==3;
 }
 static void scene_weapon_impact_audio_contact(int32_t weapon,int32_t material,const float position[3])
 {
     scene_weapon_impact_audio_state *s=&scene_weapon_impact_audio;
     campaign_pain_audio_context audio={&s->random,0,scene_weapon_impact_audio_detail,0};
     uint32_t slot,i;int status=RF_OK;int32_t group=-1,sample=-1,voice=-1;
-    if(!scene_weapon_impact_audio_ready(weapon))return;
+    if(!scene_weapon_impact_audio_ready(weapon) && !scene_weapon_impact_audio_spit_ready(weapon) &&
+       !scene_weapon_impact_audio_cane_ready(weapon))return;
     ++rf_scene_weapon_impact_audio[0];rf_scene_weapon_impact_audio[9]=(uint32_t)weapon;
     rf_scene_weapon_impact_audio[10]=(uint32_t)material;
     if(!position || material< -1 || material>=10){status=RF_RANGE;goto done;}

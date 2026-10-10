@@ -1,0 +1,108 @@
+{
+  "status": "SOURCE_ONLY_CONSOLIDATED_PROPOSAL_NO_BUILD_TEST",
+  "base_commit": "ee8ebf406eb019fdb8ab9e2a39e763feb9d2084b",
+  "base_sha256": "9cfddee9176e12c934b6975ae6dc4f88b14a93050477e19ab6431f844662e9b6",
+  "candidate_sha256": "190e0d37c64a0a9f7f6d99474a459c060d1c6f7597166f78abe5c74d91c2d690",
+  "additional_targets": 7,
+  "final_non_pdclib_leaf_count": 13,
+  "category": "-Wno-error=unused-parameter, private target-specific CFLAGS only",
+  "scope": "Retain existing PDCLIB_OBJS policy and prior six proven leaves; add only the seven admitted WINAPI leaves listed here. No full WINAPI/SDL/SDK set, project/APU relaxation or other warning category change.",
+  "bounded_pass": {
+    "source_inventory": [
+      "lib/winapi/badptr.c",
+      "lib/winapi/debug.c",
+      "lib/winapi/errhandlingapi.c",
+      "lib/winapi/error.c",
+      "lib/winapi/fiber.c",
+      "lib/winapi/fileio.c",
+      "lib/winapi/filemanip.c",
+      "lib/winapi/findfile.c",
+      "lib/winapi/handleapi.c",
+      "lib/winapi/ioapi.c",
+      "lib/winapi/memory.c",
+      "lib/winapi/libloaderapi.c",
+      "lib/winapi/profiling.c",
+      "lib/winapi/shlobj_core.c",
+      "lib/winapi/sync.c",
+      "lib/winapi/sysinfo.c",
+      "lib/winapi/thread.c",
+      "lib/winapi/timezoneapi.c",
+      "lib/winapi/tls.c",
+      "lib/winapi/winnt.c",
+      "lib/winapi/winmm/timeapi.c"
+    ],
+    "inventory_count": 21,
+    "method": "Read source definitions and function bodies; a lexical identifier scan guided manual review. No compiler, preprocessor, make or test invocation. Only always-unused parameters are reported; assertion-only uses are not reclassified."
+  },
+  "sites": [
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/fileio.c",
+      "line": 12,
+      "function": "CreateFileA",
+      "unused_parameters": "lpSecurityAttributes",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/fileio.obj",
+      "source_sha256": "c0f232522bd1dc74d83779bb89848c6723749a10ad7990794e1fb415563b8096",
+      "admission": "Explicit WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile"
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/filemanip.c",
+      "line": 274,
+      "function": "CreateDirectoryA",
+      "unused_parameters": "lpSecurityAttributes",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/filemanip.obj",
+      "source_sha256": "0c5232646cf61d89a010fba60f275aa365ae60525ef43297ec950d6fdd3931e2",
+      "admission": "Explicit WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile"
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/shlobj_core.c",
+      "line": 8,
+      "function": "SHGetSpecialFolderPathA",
+      "unused_parameters": "hwnd, pszPath, csidl, fCreate",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/shlobj_core.obj",
+      "source_sha256": "30fdd28460d75edb8bd7d79dcbbed5d088fc7e2b81034b1aa4c90c04991f5a06",
+      "admission": "Explicit WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile"
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/libloaderapi.c",
+      "line": 16,
+      "function": "LoadLibraryExA",
+      "unused_parameters": "lpLibFileName",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/libloaderapi.obj",
+      "source_sha256": "3959a6be8ba72d2d291c36a1fac29743cd9250766f05bf666c7eca1496b9b5bd",
+      "admission": "Explicit WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile"
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/memory.c",
+      "line": 45,
+      "function": "VirtualQuery",
+      "unused_parameters": "dwLength",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/memory.obj",
+      "source_sha256": "08f9978493f2240ee22925f8e5a3da3e413830203427eb140a51783064fda9fa",
+      "admission": "Explicit WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile"
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/sync.c",
+      "line": 20,
+      "function": "InitializeCriticalSectionAndSpinCount",
+      "unused_parameters": "dwSpinCount",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/sync.obj",
+      "source_sha256": "d8122611ce0b331a5d5ca97b5cbe1a887a9c1f57842aab5ec02f0008151cbdd5",
+      "admission": "Explicit WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile"
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/winmm/timeapi.c",
+      "line": 9,
+      "function": "timeBeginPeriod and timeEndPeriod",
+      "unused_parameters": "uPeriod",
+      "object": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/winmm/timeapi.obj",
+      "source_sha256": "85fe2bfe5e37e0db3ebf14977b0b1363189ee0b5736c6dec36297f0d2545a030",
+      "admission": "WINMM_SRCS -> WINMM_OBJS in winmm/Makefile, included by winapi/Makefile:1"
+    }
+  ],
+  "limitations": [
+    "Only this warning category was reviewed for the admitted WINAPI pass.",
+    "No claim that other third-party warning categories or unreviewed SDL paths are clean.",
+    "Actual17 failure remains unchanged; no actual18 result yet.",
+    "Parent alone integrates active source and owns hourly validation."
+  ]
+}

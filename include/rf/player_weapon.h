@@ -23,6 +23,16 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
 /* Compatibility pistol entry point; live scene uses the table definition. */
 int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     uint32_t budget,rf_player_weapon **result);
+/* Gameplay-only resource receipt. Validates actual model bones (at most50),
+ * then each authored state's motion header, skeleton-sized tracks and keys.
+ * Scratch owns one model/bone workspace, freed before sequential motion loads;
+ * every motion payload is freed before loading the next. Budget counts owned
+ * heap scratch, excluding fixed stack/archive/allocator overhead. No geometry,
+ * materials, playback or retained pose/resources. Empty no-FP metadata succeeds
+ * with mask0; otherwise success sets all authored-state bits. Errors preserve
+ * valid_mask. This does not change the renderer's four-slot action layout. */
+int rf_player_weapon_state_validate(rf_vpp *meshes,rf_vpp *motions,
+    const rf_weapon_fp_state_definition *definition,uint32_t budget,uint32_t *valid_mask);
 /* request=-1 continues,0 idle,1 fire,2 optional reload,3 optional alternate fire.
  * Missing actions return RF_RANGE without changing playback; slots keep their IDs.
  * Actions return to idle; caller ends an authored held-fire loop with request0.

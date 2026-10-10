@@ -14,7 +14,8 @@ static int scene_fusion_input_launch(void *context,uint32_t *spawned)
     return scene_fusion_launch(c->position,c->forward,campaign_player_object.handle,
         campaign_primary[12].damage,&campaign_fusion,spawned);
 }
-static int scene_fusion_gameplay_tick(scene_stream *s,uint32_t frame,const float position[3],const float forward[3])
+static int scene_fusion_gameplay_tick(scene_stream *s,uint32_t frame,const float position[3],const float forward[3],
+    scene_weapon_empty_request *empty_request)
 {
     scene_fusion_input_event event;scene_fusion_launch_context context={position,forward};int status;
     uint32_t selected=!scene_driller_active(s) && !scene_turret_player_active() && campaign_equipped_slot==12 && !campaign_explicit_unarmed;
@@ -23,8 +24,16 @@ static int scene_fusion_gameplay_tick(scene_stream *s,uint32_t frame,const float
     status=scene_fusion_input_tick(&scene_fusion_input,&campaign_player_inventory,
         campaign_weapon_supply.definitions+campaign_fusion_id,campaign_fusion_id,&campaign_primary[12],frame,
         selected,campaign_player_damage.state.effects.health<=0,!!player_input.fire,!!player_input.alt_fire,
-        !!player_input.reload,scene_fusion_input_launch,&context,&event);if(status)return status;
-    if(event.shot){++rf_scene_combat[0];campaign_last_alt=0;combat_sound("Shoulder Launch",position);}
+        !!player_input.reload || (selected && campaign_equipped_slot==12 &&
+            scene_weapon_auto_reload_ready(s,1)),
+        scene_fusion_input_launch,&context,&event);if(status)return status;
+    if(event.shot){
+        /* RF.exe426c14 precedes4a6f10 at426c32. This event follows an actual
+         * launch and ammo debit; defer selection until outer combat succeeds.
+         * DRY has no authored200-ms backoff here and is deliberately excluded. */
+        scene_weapon_empty_note(empty_request,SCENE_WEAPON_EMPTY_SHOT);
+        ++rf_scene_combat[0];campaign_last_alt=0;combat_sound("Shoulder Launch",position);
+    }
     if(event.reload_started)combat_sound("Shoulder Reload",position);
     if(selected){rf_scene_combat[6]=scene_fusion_input.reloading?scene_fusion_input.reload_due-frame:0;campaign_ammo_publish();}
     memset(rf_scene_fusion_motion,0,sizeof(rf_scene_fusion_motion));rf_scene_fusion_motion[0]=frame;

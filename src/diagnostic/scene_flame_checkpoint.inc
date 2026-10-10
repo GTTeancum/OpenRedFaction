@@ -14,7 +14,7 @@ static void scene_flame_checkpoint_values(uint32_t values[12])
     values[2]=scene_flame_input.reload_left;
     values[3]=values[2]?scene_flame_input.reload_elapsed:0;
     values[4]=values[2]?scene_flame_input.drained:0;
-    values[5]=scene_flame_gas_remainder;
+    values[5]=0; /* RFAP5: retired fractional debt, never repurposed. */
     values[7]=scene_flame_cadence.armed&&scene_flame_cadence.due>combat_frame?
         scene_flame_cadence.due-combat_frame:0;
     values[6]=values[7]!=0;values[8]=scene_flame_active;
@@ -105,13 +105,13 @@ static int scene_flame_checkpoint_admit(const scene_flame_checkpoint_stage *stag
 }
 static void scene_flame_checkpoint_assign(const scene_flame_checkpoint_stage *stage)
 {
-    const uint32_t *v=stage->values;
+    const uint32_t *v=stage?stage->values:NULL;
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=0;
     memset(rf_scene_flame_restored,0,sizeof(rf_scene_flame_restored));
-    if(!stage->present)return;
+    if(!stage||!stage->present)return;
     memcpy(scene_flame_canisters,stage->flights,sizeof(stage->flights));
     scene_flame_input.ignition=v[0];scene_flame_input.delay=v[1];scene_flame_input.reload_left=v[2];
-    scene_flame_input.reload_elapsed=v[3];scene_flame_input.drained=v[4];scene_flame_gas_remainder=v[5];
+    scene_flame_input.reload_elapsed=v[3];scene_flame_input.drained=v[4];
     scene_flame_cadence.armed=v[6];scene_flame_cadence.due=combat_frame+v[7];scene_flame_active=v[8];
     scene_flame_canister_held=v[9];scene_flame_canister_pending=v[10];scene_flame_canister_cooldown=v[11];
     rf_scene_flame_canister[3]=stage->live;

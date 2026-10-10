@@ -169,7 +169,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             if(amount>0) {
                 combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
                 if(shot->alternate && shot->slot==1)++rf_scene_rifle_alt[1];
-                if(!owner->combat_alert && owner->view.weapons[0]>=0) {
+                if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0) {
                     owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];
                 }
                 if(owner->damage.effects.health>0 && owner->combat_alert && campaign_player_form.active) {

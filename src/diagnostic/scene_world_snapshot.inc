@@ -68,7 +68,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     rf_weapon_modes_checkpoint modes;rf_campaign_triggers *triggers=NULL;rf_level_uid_object *objects=NULL;
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
     uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending()||
-        scene_player_rocket_pending(s)||scene_player_grenade_pending()||scene_fusion_save_pending()||scene_flame_checkpoint_count()||scene_burning_save_pending())?
+        scene_player_rocket_pending(s)||scene_player_grenade_pending()||scene_fusion_save_pending()||scene_flame_checkpoint_count()||scene_burning_save_pending()||!scene_continuous_charge_is_constructor())?
         RF_WORLD_CHECKPOINT_PREFIX_V3:RF_WORLD_CHECKPOINT_PREFIX;
     uint32_t bytes=0,total=0,i,slot,object_count=0,omissions=0,stage=0;
     int status=RF_OK;int32_t now;const char *part="identity";
@@ -77,11 +77,15 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
+    status=scene_airlock_checkpoint_admit(s?s->collision:NULL);if(status){part="airlock_pending_or_room";goto done;}
+    status=scene_medic_save_guard(&part);if(status)goto done;
+    part="continuous_charge";status=scene_continuous_charge_checkpoint_save_guard(s);if(status)goto done;part="identity";
     /* RFEC retains pending modal events, but the active modal owner has no
      * sidecar yet. Never silently resume before its already-applied effect. */
     if(campaign_endgame.phase||campaign_defuse.active){status=RF_NOT_FOUND;goto done;}
-    /* No runtime-only Drone damage may be silently omitted from a save. */
-    if(scene_ai_drone_smash_save_pending()){part="npc_drone_smash";status=RF_NOT_FOUND;goto done;}
+    /* Runtime-only NPC strikes/flights cannot be silently omitted from a save. */
+    if(scene_robot_death_save_pending()){part="robot_death_pending";status=RF_NOT_FOUND;goto done;}
+    if(scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()){part="npc_transient_attack";status=RF_NOT_FOUND;goto done;}
     status=scene_item_pickup_states_valid(s);if(status)goto done;
     /* RFNC14 admits the exact supported NPC freeze/wake owner below. */
     if(scene_turret_heap_pending()){status=RF_NOT_FOUND;goto done;}
@@ -112,7 +116,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         campaign_fusion_id>=0?campaign_player_inventory.owned[campaign_fusion_id]:0,
         campaign_support_handle,rf_scene_actor_landing[1],combat_trigger.cooldown,
         combat_trigger.remaining,combat_trigger.delay,combat_trigger.held,
-        riot_charge_remainder,(double)scene_actor_body.state.velocity[0],
+        !scene_continuous_charge_is_constructor(),(double)scene_actor_body.state.velocity[0],
         (double)scene_actor_body.state.velocity[1],(double)scene_actor_body.state.velocity[2]);
     if(!status&&RF_PLAYER_CHECKPOINT_BYTES>RF_CHECKPOINT_FILE_MAX-at)status=RF_RANGE;
     if(!status)status=rf_player_checkpoint_encode(&player,&catalog,buffer+at,RF_PLAYER_CHECKPOINT_BYTES);
@@ -157,6 +161,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
         const rf_runtime_trigger *trigger=campaign_triggers.items+i;
         status=rf_campaign_trigger_register(triggers,campaign_current_level,trigger->authored->record.uid,&slot);
         if(!status)status=rf_runtime_trigger_save(trigger,now,triggers->states+slot);
+        if(!status)status=scene_airlock_capture(trigger,triggers->states+slot);
         if(!status && !rf_object_registry_lookup(&campaign_registry,trigger->handle)){
             if(!(trigger->state.flags&16u)||!(trigger->activation.object_flags&2u))status=RF_FORMAT;
             /* Removal is distinct from a finite trigger that is merely spent

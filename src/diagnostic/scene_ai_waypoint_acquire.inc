@@ -51,7 +51,7 @@ static int campaign_set_ai_mode_acquiring(void *context,uint32_t handle,int32_t 
     if(now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *owner=campaign_npc_bodies+i;rf_level_waypoint_path path,old_path;
-        uint32_t mode,event,old_index,old_mode,old_reverse,old_event;int status;
+        uint32_t mode,event,old_index,old_mode,old_reverse,old_event,old_origin;int status;
         if(!owner->registration.view || owner->registration.handle!=handle ||
            rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration)continue;
         if(owner->damage.effects.health<=0 || (owner->view.flags_810&1) ||
@@ -60,13 +60,18 @@ static int campaign_set_ai_mode_acquiring(void *context,uint32_t handle,int32_t 
         if(owner->script_move.path.count || owner->script_move.path.indices)
             return campaign_ai_mode_apply(owner,action,now);
         status=campaign_ai_waypoint_binding(handle,&path,&mode,&event);if(status)return status;
+        if(owner->patrol.enabled&&!mode)return RF_NOT_FOUND;
         old_path=owner->script_move.path;old_index=owner->script_move.path_index;
         old_mode=owner->script_move.path_mode;old_reverse=owner->script_move.path_reverse;old_event=owner->script_move.event;
+        old_origin=owner->script_move.origin;
         owner->script_move.path=path;owner->script_move.path_index=0;
-        owner->script_move.path_mode=mode;owner->script_move.path_reverse=0;owner->script_move.event=event;
+        owner->script_move.path_mode=mode;owner->script_move.path_reverse=owner->patrol.enabled?owner->patrol.reverse:0;
+        owner->script_move.event=event;owner->script_move.origin=SCENE_MOVE_ORIGIN_EVENT;
         status=campaign_ai_mode_apply(owner,action,now);
         if(status){owner->script_move.path=old_path;owner->script_move.path_index=old_index;
-            owner->script_move.path_mode=old_mode;owner->script_move.path_reverse=old_reverse;owner->script_move.event=old_event;}
+            owner->script_move.path_mode=old_mode;owner->script_move.path_reverse=old_reverse;owner->script_move.event=old_event;
+            owner->script_move.origin=old_origin;}
+        else scene_patrol_direction(owner);
         return status;
     }
     return RF_NOT_FOUND;

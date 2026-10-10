@@ -16,24 +16,24 @@ int main(void)
     campaign_player_inventory.loaded[weapon]=100;campaign_player_inventory.reserve[ammo]=200;
     scene_flame_input_reset();CHECK(!scene_flame_input_pending());
     for(frame=0;frame<6;frame++) {
-        CHECK(scene_flame_input_tick(&stream,frame,position,forward,weapon,&definition,.1f,1,0,1,0,&active)==RF_OK);
+        CHECK(scene_flame_input_tick(&stream,frame,position,forward,weapon,&definition,.1f,1,0,1,0,&active,NULL)==RF_OK);
         CHECK(!active && campaign_player_inventory.loaded[weapon]==100 && scene_flame_input_pending());
     }
     for(;frame<126;frame++) {
-        CHECK(scene_flame_input_tick(&stream,frame,position,forward,weapon,&definition,.1f,1,0,1,0,&active)==RF_OK && active);
+        CHECK(scene_flame_input_tick(&stream,frame,position,forward,weapon,&definition,.1f,1,0,1,0,&active,NULL)==RF_OK && active);
     }
     CHECK(campaign_player_inventory.loaded[weapon]==0 && scene_flame_input_pending());
-    CHECK(scene_flame_input_tick(&stream,126,position,forward,weapon,&definition,.1f,1,0,1,0,&active)==RF_OK && !active);
+    CHECK(scene_flame_input_tick(&stream,126,position,forward,weapon,&definition,.1f,1,0,1,0,&active,NULL)==RF_OK && !active);
     CHECK(scene_flame_input_pending());
     CHECK(scene_flame_input.reload_left==(uint32_t)ceilf(definition.reload_seconds*60));
     for(frame=127;scene_flame_input.reload_left;frame++)
-        CHECK(scene_flame_input_tick(&stream,frame,position,forward,weapon,&definition,.1f,1,0,1,0,&active)==RF_OK && !active);
+        CHECK(scene_flame_input_tick(&stream,frame,position,forward,weapon,&definition,.1f,1,0,1,0,&active,NULL)==RF_OK && !active);
     CHECK(campaign_player_inventory.loaded[weapon]==100 && campaign_player_inventory.reserve[ammo]==100);
     CHECK(!scene_flame_input_pending()); /* elapsed/drained retained, operation complete */
-    CHECK(scene_flame_input_tick(&stream,frame++,position,forward,weapon,&definition,.1f,1,0,1,0,&active)==RF_OK && !active);
-    CHECK(scene_flame_input_tick(&stream,frame++,position,forward,weapon,&definition,.1f,0,0,1,0,&active)==RF_OK && !active);
+    CHECK(scene_flame_input_tick(&stream,frame++,position,forward,weapon,&definition,.1f,1,0,1,0,&active,NULL)==RF_OK && !active);
+    CHECK(scene_flame_input_tick(&stream,frame++,position,forward,weapon,&definition,.1f,0,0,1,0,&active,NULL)==RF_OK && !active);
     CHECK(!scene_flame_input.ignition && !scene_flame_input.reload_left && campaign_player_inventory.loaded[weapon]==100);
-    CHECK(scene_flame_input_tick(&stream,frame++,position,forward,weapon,&definition,.1f,1,1,1,0,&active)==RF_OK && !active);
+    CHECK(scene_flame_input_tick(&stream,frame++,position,forward,weapon,&definition,.1f,1,1,1,0,&active,NULL)==RF_OK && !active);
     CHECK(!scene_flame_input.ignition && !scene_flame_input_pending());
     scene_flame_gas_remainder=1;CHECK(scene_flame_input_pending());
     scene_flame_input_reset();CHECK(!scene_flame_input_pending());

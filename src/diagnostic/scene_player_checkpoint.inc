@@ -117,6 +117,9 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
     if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
+    {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
+        if(charge)return charge;}
+    if(scene_player_riot_save_pending() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_RANGE;
     if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
     rocket_trigger=modes&&campaign_equipped_slot==4&&scene_player_rocket_pending(s)&&
         !combat_trigger.remaining&&!combat_trigger.delay&&combat_trigger.cooldown<=1200&&combat_trigger.held<=1;
@@ -128,7 +131,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
            !(modes==2&&scene_turret_player_checkpoint_player_allowed()))||rf_scene_actor_landing[1]!=1||
        ((!rocket_trigger)&&(combat_trigger.cooldown||combat_trigger.held))||
        combat_trigger.remaining||combat_trigger.delay||(rf_scene_combat[6]&&!(modes==2&&(campaign_equipped_slot==10||campaign_equipped_slot==12)))||
-       riot_charge_remainder||(!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||(modes!=2&&scene_fusion_save_pending())||(modes!=2&&scene_burning_save_pending())||(modes!=2&&(scene_flame_input_pending()||scene_flame_canister_save_pending())))return RF_RANGE;
+       (!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||(modes!=2&&scene_fusion_save_pending())||(modes!=2&&scene_burning_save_pending())||(modes!=2&&(scene_flame_input_pending()||scene_flame_canister_save_pending())))return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.velocity[i])||fabsf(scene_actor_body.state.velocity[i])>32.f||
         actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
     if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;
@@ -228,6 +231,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
 {
     rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_physics_body_state body;rf_physics_sphere seat_scratch;float basis[9],eye[9];const unsigned char *props=NULL;uint32_t prop_bytes=0,modes_present=0;rf_weapon_modes_checkpoint modes={0};scene_clutter_restore_stage *prop_stage=NULL;int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_restore(s,data,bytes);
+    status=scene_continuous_charge_checkpoint_standalone();if(status)return status;
     status=scene_checkpoint_dispatch_validate(data,bytes,s);if(status)return status;
     status=scene_checkpoint_player_catalog_mode(&catalog,bytes>=8 && ((const unsigned char *)data)[4]==5);if(status)return status;
     status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes,&modes,&modes_present);if(status)return status;
@@ -279,7 +283,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;
     rf_scene_player_checkpoint_state[1]=1;rf_scene_player_checkpoint_state[5]=candidate.rfds_bytes;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;
-    scene_ai_drone_smash_reset();
+    scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();
     printf("PLAYER_CHECKPOINT_LOAD %u %u %u\n",bytes,candidate.rfds_bytes,scene_actor_body.spheres.count);return RF_OK;
 }
 /* RFCP profile 1 admits only settled standing on static world support.
@@ -319,7 +323,7 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
     status=scene_checkpoint_player_scope(s,1);if(status){
         printf("PLAYER_CHECKPOINT_REJECT scope %d dev%u water%u spawn%u movers%u npcs%u clutter%u body%u spheres%u health%g crouch%u stance%u climb%u link%d support%u landing%u cooldown%u remaining%u delay%u held%u reload%u charge%u rockets%u\n",status,
             rf_scene_dev_room_enabled,rf_scene_water_test_enabled,campaign_spawn,campaign_movers.count,campaign_npc_body_count,rf_scene_clutter_bodies[1],scene_actor_body.allocated_bytes,scene_actor_body.spheres.count,
-            (double)campaign_player_damage.state.effects.health,campaign_crouched,rf_scene_actor_stance_flags,campaign_climb.region!=NULL,campaign_player_view.linked_handle,campaign_support_handle,rf_scene_actor_landing[1],combat_trigger.cooldown,combat_trigger.remaining,combat_trigger.delay,combat_trigger.held,rf_scene_combat[6],riot_charge_remainder,rf_scene_rockets[3]);
+            (double)campaign_player_damage.state.effects.health,campaign_crouched,rf_scene_actor_stance_flags,campaign_climb.region!=NULL,campaign_player_view.linked_handle,campaign_support_handle,rf_scene_actor_landing[1],combat_trigger.cooldown,combat_trigger.remaining,combat_trigger.delay,combat_trigger.held,rf_scene_combat[6],!scene_continuous_charge_is_constructor(),rf_scene_rockets[3]);
         printf("PLAYER_CHECKPOINT_MOTION velocity %.9g %.9g %.9g command %.9g %.9g %.9g angular %.9g %.9g %.9g pending %.9g %.9g\n",
             (double)scene_actor_body.state.velocity[0],(double)scene_actor_body.state.velocity[1],(double)scene_actor_body.state.velocity[2],
             (double)actor_look.state.command[0],(double)actor_look.state.command[1],(double)actor_look.state.command[2],

@@ -7,8 +7,9 @@
  * Autoswitch preference.425312 reads real reserve before reload admission.
  * Include after scene_vehicle_equipment.inc, before campaign_combat_tick.
  * This read-only subset feeds the EXISTING conventional reload request and
- * trigger-inhibit branches; it never advances a pose, timer or inventory.
- * Riot charge, special projectile controllers and active forms are excluded.
+ * trigger-inhibit branches, and Fusion/Flamethrower existing reload inputs.
+ * It never advances a pose, timer or inventory. Riot charge, other special
+ * projectile controllers and active forms are excluded.
  * See docs/WEAPON-AUTO-RELOAD.md for exact scope and parent integration. */
 static uint32_t scene_weapon_auto_reload_ready(const scene_stream *s,uint32_t on_foot)
 {
@@ -23,10 +24,13 @@ static uint32_t scene_weapon_auto_reload_ready(const scene_stream *s,uint32_t on
        combat_trigger.remaining || combat_trigger.delay)return 0;
     switch(slot){
     case 0:case 1:case 3:case 4:case 6:case 7:
-    case 13:case 14:case 15:case 16:break;
+    case 10:case 12:case 13:case 14:case 15:case 16:break;
     default:return 0;
     }
-    if(!scene_weapon_available(slot) || (slot==4 && !scene_rocket_resources))return 0;
+    if(!scene_weapon_available(slot) || (slot==4 && !scene_rocket_resources) ||
+       (slot==10 && !scene_flame_resources) || (slot==12 && !scene_fusion_resources))return 0;
+    if(slot==10 && (rf_scene_player_swim[2] || scene_flame_canister_busy() ||
+       scene_flame_input.reload_left))return 0;
     if(slot==13 && (campaign_machine_mode.special>1 || campaign_machine_mode.pending))return 0;
     if(slot==16 && (!s->undercover || s->undercover->mode.pending))return 0;
     if(campaign_weapon_supply.names.count>64)return 0;

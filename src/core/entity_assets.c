@@ -597,6 +597,79 @@ int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapo
     free(text);return status;
 }
 
+static int weapon_fp_state_profile(const char *name,uint32_t *count)
+{
+    static const struct {const char *name;uint32_t count;} profiles[]={
+        {"12mm handgun",2},{"Assault Rifle",3},{"Riot Stick",3},{"Shotgun",2},
+        {"Rocket Launcher",2},{"Grenade",2},{"Sniper Rifle",2},{"rail_gun",2},
+        {"Remote Charge",2},{"Remote Charge Detonator",2},{"Flamethrower",3},
+        {"riot shield",2},{"shoulder_cannon",2},{"Machine Pistol",3},
+        {"heavy_machine_gun",3},{"scope_assault_rifle",2},
+        {"Undercover 12mm handgun",2},{"Machine Pistol Special",3},{"Jeep Gun",1},
+        {"Vauss",0},{"HEAP",0},{"Torpedo",0},{"APC Minigun",0},
+        {"Fighter Minigun",0},{"Drill",0},{"Fighter Rocket",0},{"APC Rocket",0}
+    };
+    uint32_t i;
+    for(i=0;i<sizeof(profiles)/sizeof(profiles[0]);++i)if(same(name,profiles[i].name)) {
+        *count=profiles[i].count;return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
+int rf_weapon_fp_state_read(const void *text,uint32_t bytes,const char *name,rf_weapon_fp_state_definition *result)
+{
+    static const char *const states[]={"idle","run","loop_fire"};
+    lexer l={text,bytes,0};rf_weapon_fp_state_definition value={0};char t[256],file[64];
+    uint32_t expected,seen=0,flags,consumed;int selected=0,found=0,q,status;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    status=weapon_fp_state_profile(name,&expected);if(status)return status;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=same(t,name);found=selected;continue;
+        }
+        if(!selected)continue;if(same(t,"#End"))break;
+        if(same(t,"$Flags:")) {
+            if(seen&1)return RF_FORMAT;
+            status=rf_weapon_flags_read(l.text+l.at,l.size-l.at,0,&flags,&consumed);if(status)return status;
+            l.at+=consumed;value.primary_continuous=(flags&2u)!=0;value.alternate_continuous=(flags&4u)!=0;seen|=1;
+        } else if(same(t,"$1st")) {
+            if(token(&l,t,&q) || q || !same(t,"Person"))return RF_FORMAT;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Mesh:"))continue;
+            if(seen&2)return RF_FORMAT;
+            if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
+            if((expected!=0)!=(*file!=0))return RF_FORMAT;
+            if(*file){status=rf_model_compiled_filename(file,value.mesh,".v3c");if(status)return status;}
+            seen|=2;
+        } else if(same(t,"+State:")) {
+            /*4c85b0 returns the authored ordinal. Never borrow action IDs or
+             * the independent four-slot renderer layout for this receipt. */
+            if(!(seen&2) || value.state_count>=expected || value.state_count>=3 ||
+               token(&l,t,&q) || !q || !same(t,states[value.state_count]))return RF_FORMAT;
+            if(metadata_string(&l,file,sizeof(file)) || !*file)return RF_FORMAT;
+            status=rf_motion_compiled_filename(file,value.states[value.state_count]);if(status)return status;
+            ++value.state_count;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    if(!(seen&1) || value.state_count!=expected || (expected && !(seen&2)))return RF_FORMAT;
+    *result=value;return RF_OK;
+}
+int rf_weapon_fp_state_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_fp_state_definition *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_fp_state_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
@@ -827,6 +900,48 @@ int rf_weapon_impact_delays_load(rf_vpp *tables,const char *name,uint32_t budget
     text=malloc(entry.size);if(!text)return RF_IO;
     status=rf_vpp_read(tables,&entry,0,text,entry.size);
     if(!status)status=rf_weapon_impact_delays_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
+int rf_weapon_camera_shake_read(const void *text,uint32_t bytes,const char *name,rf_weapon_camera_shake *result)
+{
+    lexer l={text,bytes,0};rf_weapon_camera_shake value={0};char t[256];
+    int selected=0,found=0,q,status;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=found=same(t,name);continue;
+        }
+        if(!selected)continue;
+        if(same(t,"#End"))break;
+        if(!same(t,"$Camera"))continue;
+        if(token(&l,t,&q) || q)return RF_FORMAT;
+        if(!same(t,"Shake:"))continue;
+        /* Original4c4503..4c4565: presence sets+264 bit0x20000000;
+         * +Distance/+Time store+4e0/+4e4, absent block zeroes both.
+         * There is no boolean token between the label and +Distance:. */
+        if(value.enabled)return RF_FORMAT;
+        if(!metadata_tag(&l,"+Distance:") || sphere_number(&l,&value.strength) ||
+           !metadata_tag(&l,"+Time:") || sphere_number(&l,&value.seconds))return RF_FORMAT;
+        if(value.strength<0 || value.seconds<0)return RF_RANGE;
+        value.enabled=1;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    *result=value;return RF_OK;
+}
+int rf_weapon_camera_shake_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_camera_shake *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_camera_shake_read(text,entry.size,name,result);
     free(text);return status;
 }
 

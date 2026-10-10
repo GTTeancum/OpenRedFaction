@@ -21,8 +21,8 @@ typedef struct scene_turret_generated_checkpoint_stage {
 } scene_turret_generated_checkpoint_stage;
 /* Return the base facts from the SAME pending NPC checkpoint transaction.
  * Capture may use the provided live callback. Restore supplies pending health
- * and flags_810 death bit; flags_7d0 is ignored during admission because this
- * companion retains base AI flags missing from the generic NPC codec. Restore
+ * and flags_810 death bit; flags_7d0 bit40000000 must agree with RFNC21.
+ * Other7d0 bits remain this companion's independent base snapshot. Restore
  * must not substitute pre-load live health. The callback must explicitly fill
  * retired from the pending NPC row; unregistered parents are unsupported.
  * No mutation/handle allocation here. */
@@ -289,7 +289,8 @@ static int scene_turret_generated_checkpoint_admit(const scene_turret_generated_
         base.retired=UINT32_MAX;
         status=read_base(context,r->key.base_uid,&base);if(status)return status;
         if(base.retired)return RF_NOT_FOUND;
-        if(base.health!=r->base.health || (base.flags_810&1u)!=(r->base.flags_810&1u))return RF_FORMAT;
+        if(base.health!=r->base.health || (base.flags_810&1u)!=(r->base.flags_810&1u)||
+           ((base.flags_7d0^r->base.flags_7d0)&SCENE_NPC_GOTO_AI_SUPPRESSION))return RF_FORMAT;
     }
     return RF_OK;
 }
@@ -297,13 +298,15 @@ static int scene_turret_generated_checkpoint_admit(const scene_turret_generated_
  * stage first and prohibit registry changes between admission and commit.
  * Assign NPC/base pose first; then heads; then republish live tag positions. */
 uint32_t rf_scene_turret_generated_restore_probe[32]; /* Last committed generated row, captured before simulation. */
-static void scene_turret_generated_checkpoint_assign_row(const scene_turret_generated_saved *r,
-    uint32_t frame,int32_t linked_handle)
+static void scene_turret_generated_checkpoint_assign_row_mode(const scene_turret_generated_saved *r,
+    uint32_t frame,int32_t linked_handle,uint32_t defer_ai_suppression)
 {
         const scene_turret_saved *v=&r->value;
         scene_turret_owner *o=scene_turrets+r->index;scene_turret_combat_state *s=scene_turret_combat_states+r->index;
         scene_turret_generated_binding *b=scene_turret_generated_find(v->handle);
         campaign_npc_body *base=campaign_npc_bodies+b->base_slot;
+        uint32_t suppression=defer_ai_suppression?campaign_npc_ai_suppressed(base):
+            !!(r->base.flags_7d0&SCENE_NPC_GOTO_AI_SUPPRESSION);
         o->dead=v->dead;o->model=v->dead?o->dead_model:o->live_model;
         o->damage.effects.health=v->health;o->damage.effects.armor=v->armor;
         o->view.flags_7c=v->flags;o->view.flags_810=o->damage.effects.flags_810=v->flags_810;
@@ -318,9 +321,13 @@ static void scene_turret_generated_checkpoint_assign_row(const scene_turret_gene
         s->last_frame=UINT32_MAX;s->action=v->combat_action;s->burst=v->burst;
         memcpy(s->angles,v->angles,12);memcpy(s->mount,v->mount,36);s->angular=v->angular;
         b->death_dispatched=r->death_dispatched;
-        /* NPC codec does not retain generic AI flags; this companion owns the
-         * generated base readiness/AI snapshot and its firing mirror. */
-        base->view.flags_7d0=r->base.flags_7d0;base->firing.flags_7d0=r->base.flags_7d0;
+        /* RFNC candidate equality was already proved. Full-world assignment
+         * retains the prior latch until its successful storage-close finish;
+         * standalone complete assignment can publish the saved bit now. */
+        base->view.flags_7d0=(r->base.flags_7d0&~SCENE_NPC_GOTO_AI_SUPPRESSION)|
+            (suppression?SCENE_NPC_GOTO_AI_SUPPRESSION:0);
+        base->firing.flags_7d0=base->view.flags_7d0;
+        campaign_npc_ai_suppression_assign(base,suppression);
         {uint32_t *p=rf_scene_turret_generated_restore_probe;
          ++p[0];p[1]=r->key.base_uid;p[2]=r->key.role;p[3]=v->handle;p[4]=b->base_handle;
          p[5]=o->dead;memcpy(p+6,&o->damage.effects.health,4);memcpy(p+7,&o->damage.effects.armor,4);
@@ -328,6 +335,9 @@ static void scene_turret_generated_checkpoint_assign_row(const scene_turret_gene
          p[13]=frame;p[14]=s->burst;p[15]=(uint32_t)s->action;
          memcpy(p+16,o->basis,36);memcpy(p+25,s->angles,12);memcpy(p+28,o->position,12);p[31]=b->death_dispatched;}
 }
+static void scene_turret_generated_checkpoint_assign_row(const scene_turret_generated_saved *r,
+    uint32_t frame,int32_t linked_handle)
+{scene_turret_generated_checkpoint_assign_row_mode(r,frame,linked_handle,0);}
 static void scene_turret_generated_checkpoint_assign(const scene_turret_generated_checkpoint_stage *stage)
 {
     uint32_t i;if(!stage)return;

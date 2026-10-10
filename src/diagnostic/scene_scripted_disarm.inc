@@ -60,8 +60,10 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
     if(weapon< -1 || weapon>=64 || o->view.weapons[1]< -1 || o->view.weapons[1]>=64){status=RF_FORMAT;goto fail;}
     if(weapon==-1 && o->view.weapons[1]==-1 && !owned && !o->combat_burst_remaining &&
        !o->combat_reload_due && !o->script_once.count && !o->script_shoot.active){
+        status=scene_medic_syringe_delete(o);if(status)goto fail;
         ++rf_scene_scripted_disarm[3];scene_scripted_disarm_sample();return RF_OK;
     }
+    status=scene_medic_syringe_delete_validate(o);if(status)goto fail;
     /* Stage only local state. The reset primitive's resources are read-only;
      * absent reached audio/effect callbacks reject, never silently leak owners. */
     reason=2;status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&selection);if(status)goto fail;
@@ -86,7 +88,9 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
         ++rf_scene_scripted_disarm[2];
     }
     /* All fallible work completed. Inventory/model publication cannot fail. */
+    status=scene_medic_syringe_delete(o);if(status)goto fail;
     scene_ai_drone_smash_cancel_source(handle);
+    scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle);
     before[0]=1;before[1]=rf_scene_scripted_disarm[5];before[2]=handle;before[3]=(uint32_t)campaign_blackout_now;
     before[4]=(uint32_t)weapon;before[5]=(uint32_t)o->view.weapons[1];before[8]=owned;
     memcpy(before+13,&o->damage.effects.health,4);before[15]=o->script_move.active;

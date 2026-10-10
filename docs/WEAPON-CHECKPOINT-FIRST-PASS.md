@@ -2,6 +2,16 @@
 
 Machine Pistol and Undercover now join Heavy Machine Gun and Precision Rifle in the live static DEV-room checkpoint profile. RFCP5 preserves their inventory, selection, completed alternate modes and conventional spread RNG. Pending firing, reloads and mode transitions remain excluded from saves; campaign-wide persistence is still open.
 
+## Later primary-spread correction, source only
+
+[PLAYER-PRIMARY-SPREAD.md](PLAYER-PRIMARY-SPREAD.md) integrates new Pistol, Assault
+Rifle primary and Undercover primary consumers of the already-saved conventional
+RNG. The historical Undercover RNG value 1 and dependent resave hashes below
+precede that consumer and are not expected after a newly spread Undercover shot.
+Earlier mode/ammo evidence is retained, but no uninterrupted-versus-restored
+sequence comparison or new native save pass is claimed. RFWM framing, byte +24,
+capture/assign and existing legacy defaults are unchanged.
+
 ## Live PC mode saves
 
 `tools/check_weapon_modes_checkpoint.py` exercises real acquisition, normal firing/mode inputs, a save, a fresh-process neutral reload, and another fresh-process reload followed by firing. All six PC runs pass in `artifacts/weapon-modes-checkpoint-live`; each save is13,308 bytes. Geometry and all506 authored CTF06 props remain intact.

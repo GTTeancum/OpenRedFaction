@@ -141,15 +141,19 @@ slice. Keep scripted grants unchanged until that same-path evidence is supplied.
 
 ### Unchanged boundaries
 
-- A currently armed player keeps their selected weapon on every pickup.
+- This helper remains unarmed-only. The separate armed first-acquisition
+  consumer now applies authored preference policy after successful pickups;
+  see ARMED-PICKUP-SELECTION.md. Accepted refills still do not switch an armed
+  player.
 - Ammo-only items, full/no-benefit duplicate guns and invalid/unowned IDs never
   clear explicit unarmed state.
 - Catalog resource demand does not grant ownership or imply selection.
 - Grant amounts, reserves, loaded magazines and shared-pool limits remain owned
   by existing grant helpers.
 - `campaign_ammo_publish` retains its explicit-unarmed early return.
-- No original profile defaults, general weapon ranking, armed autoswitch,
-  paired-mode switching or checkpoint semantics are invented.
+- This unarmed helper does not own profile defaults, general ranking, armed
+  autoswitch or paired-mode switching. The separately source-backed armed
+  consumer leaves this helper and checkpoint semantics unchanged.
 
 Source review is the only verification performed here. The parent's next
 scheduled Xbox batch must establish compilation and any naturally available

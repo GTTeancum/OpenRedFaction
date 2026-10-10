@@ -65,13 +65,13 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     while(s->placement_next<s->placement_count&&s->placement_rows[s->placement_next].retired)s->placement_next++;
     if(s->placement_next>=s->placement_count)return RF_FORMAT;
     saved=s->placement_rows+s->placement_next;
-    uid=saved->uid;support_uid=saved->support_uid;
+    uid=saved->uid;support_uid=saved->support_uid;world.npc_hover_no_support=world.npc_drone_no_support=0;
     rf_scene_world_restore_reject[6]=uid;rf_scene_world_restore_reject[7]=s->placement_next;
     if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
     world.npc_route_contact=s->placement_rows[s->placement_next].move.active&&
         s->placement_rows[s->placement_next].move.follow<=2;
     s->placement_next++;
-    status=scene_npc_seat_checkpoint_place(s->seats,uid,&world,placement,room,support,&seat_handled);
+    status=scene_npc_seat_checkpoint_place(s->seats,saved,&world,placement,room,support,&seat_handled);
     if(status||seat_handled)return status;
     if(support_uid){
         uint32_t actor=UINT32_MAX,host;
@@ -85,7 +85,8 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
             status=scene_secondary_vehicle_checkpoint_support(s->secondary,support_uid,campaign_passive_vehicles[host].handle);
             if(status)return status;
         }
-        world.class_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
+        world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+actor,
+            campaign_seeds.items[actor].class_index,saved->capek_shield_broken);
         return scene_world_passive_support_place(s->stream,&world,placement,s->passive,host,
             campaign_npc_bodies[actor].registration.handle,(uint32_t)campaign_npc_bodies[actor].view.linked_handle,room,support);
     }
@@ -107,18 +108,33 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
         /* RFNC14 uses saved candidate state rather than the live actor. A
          * script-suspended body needs volume clearance, not invented floor
          * support. Existing world, mover, prop and pair checks all remain. */
-        uint32_t body_flags=saved->physics.present?saved->physics.body_bits:campaign_npc_bodies[i].body.state.flags;
-        uint32_t support_handle=saved->physics.present?saved->support_uid:campaign_npc_bodies[i].support.handle;
+        uint32_t body_flags=saved->drone.kind==1?saved->drone.body_bits:
+            saved->physics.present?saved->physics.body_bits:campaign_npc_bodies[i].body.state.flags;
+        uint32_t support_handle=(saved->physics.present||saved->drone.kind==1)?saved->support_uid:campaign_npc_bodies[i].support.handle;
         uint32_t ordinary_no_contact=!(body_flags&(1u|0x400000u))&&!support_handle;
         uint32_t suspended=scene_npc_physics_checkpoint_suspended(saved);
         world.allow_no_contact=ordinary_no_contact||(suspended&&!support_uid);
+        /* A nonfalling hover owner does not acquire floor support (487f82..
+         * 487f98). Resolve the saved descriptor, including the existing
+         * pre13 constructor fallback; never infer it from the live mode.
+         * Other classes, broken/run/fall/death and supported rows stay strict. */
+        if(ordinary_no_contact&&!support_uid&&!saved->retired&&!saved->dead_pose&&
+           saved->health>0&&!saved->capek_shield_broken&&
+           scene_capek_shield_movement_owner(campaign_npc_bodies+i)){
+            uint32_t slot=saved->movement_present?saved->movement_slot:
+                ((campaign_modes[12].enabled&255u)?12u:0u);
+            world.npc_hover_no_support=slot<16&&campaign_modes[slot].index==12&&
+                !rf_entity_falling(12,campaign_seeds.classes[cls].physics.use_kind,-1);
+        }
+        if(ordinary_no_contact&&!suspended)
+            world.npc_drone_no_support=scene_npc_drone_checkpoint_no_support(i,saved);
         if(ordinary_no_contact&&!suspended){
             world.authored_position=campaign_seeds.records.items[i].record.position;
             world.authored_basis=campaign_seeds.records.items[i].record.orientation[0];
             world.authored_rotating_npc=!strcmp(campaign_seeds.records.items[i].record.class_name,"Auto Turret");
             world.authored_center_shift_npc=!world.authored_rotating_npc;
         }
-        world.class_speed=campaign_npc_movement_configs[cls].base_speed;break;
+        world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+i,cls,saved->capek_shield_broken);break;
     }
     status=rf_geometry_collision_world_locate(world.world,placement->position,&location);
     if(!status){

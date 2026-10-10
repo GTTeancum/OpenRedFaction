@@ -31,6 +31,8 @@ typedef struct scene_checkpoint_world_context {
     uint32_t reference_room;float dt,class_speed;
     uint32_t fresh_boot; /* Fresh owner state is replaced, not required to be independently saveable. */
     uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
+    uint32_t npc_hover_no_support; /* Exact candidate Capek hover: volume/room only, never floor acquisition. */
+    uint32_t npc_drone_no_support; /* RFNC19 exact ordinary fly11 candidate, with explicit absent support. */
     uint32_t npc_route_contact; /* Saved moving NPC may retain shallow contact with an unchanged prop. */
     uint32_t player_route_contact; /* Saved player may retain shallow broad-sphere contact with an unchanged prop. */
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
@@ -296,7 +298,9 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     rf_geometry_body_hit hit;rf_collision_room_location location;rf_entity_room_state next_room={0};
     rf_physics_support_contact next_support;uint32_t i,matched;int status;
     if(!c||!input||!room||!support||!c->world||!c->movers||!c->metadata||
-       c->allow_no_contact>1||c->authored_static_unchanged>1||(c->prop_count&&!c->props)||c->scratch_count<c->movers->count||
+       c->allow_no_contact>1||c->npc_hover_no_support>1||c->npc_drone_no_support>1||c->authored_static_unchanged>1||
+       ((c->npc_hover_no_support||c->npc_drone_no_support)&&(!c->allow_no_contact||c->support_uid||c->static_support))||
+       (c->prop_count&&!c->props)||c->scratch_count<c->movers->count||
        (c->movers->count&&(!c->scratch||!c->movers->poses||!c->movers->owned||!c->movers->views)))return RF_RANGE;
     p=*input;p.world=c->world;p.replaced_room=c->reference_room;
     if(!p.count){
@@ -343,6 +347,12 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
          rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}}
     rf_scene_checkpoint_world_reject[0]=2;
     status=scene_checkpoint_world_obstacles(c,&p);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
+    /* Original487f82..487f98 never queries support for nonfalling non-run
+     * descriptors. The NPC adapter proves exact unbroken Capek hover12 or
+     * RFNC19 ordinary Drone fly11 candidate ownership and absent
+     * support. Keep ALL volume/mover/prop checks above and room checks below;
+     * a speed-dependent sweep beneath this body cannot create a floor owner. */
+    if(c->npc_hover_no_support||c->npc_drone_no_support){next_support.handle=0;next_support.material=-1;goto locate;}
     rf_scene_checkpoint_world_reject[0]=3;
     status=rf_physics_ground_prepare(p.spheres,p.count,p.position,p.query_flags,0,c->dt,c->class_speed,0,&probe);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
     memcpy(sphere.center,probe.sphere.center,12);sphere.radius=probe.sphere.radius;

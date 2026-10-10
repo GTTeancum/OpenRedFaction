@@ -3,7 +3,7 @@
 /* Include after combat_sound and registered NPC/audio owners. Original
  *4269c1..4269fb enters41a870 for continuous fire;41a9bd guards actor81c and
  *41aa3d..41aa95 retains its positional Launch voice. This adapter observes
- * the port's accepted primary shots and actual cooldown branch only. It
+ * the port's accepted MP/HMG/Vauss primary shots and actual cooldown branch. It
  * neither creates a held trigger nor changes AI, cadence, ammo or saves.
  * Begin/end surround the entire enemy pass, including skips and errors. */
 typedef struct scene_npc_loop_audio_state {
@@ -18,7 +18,8 @@ static uint32_t scene_npc_loop_audio_weapon(int32_t weapon)
      * startup events. NPC gameplay currently supports PRIMARY fire only;
      * Machine Pistol Special and HMG alternate are not fabricated here. */
     if(weapon<0 || weapon>=64 || (uint32_t)weapon>=campaign_weapon_supply.names.count)return 0;
-    return weapon==campaign_extra_ids[0]?1u:weapon==campaign_extra_ids[1]?2u:0u;
+    return weapon==campaign_extra_ids[0]?1u:weapon==campaign_extra_ids[1]?2u:
+        campaign_enemy_vauss_primary_weapon(weapon)?3u:0u;
 }
 static campaign_npc_body *scene_npc_loop_audio_owner(uint32_t slot,uint32_t *uid)
 {
@@ -144,7 +145,8 @@ static uint32_t scene_npc_loop_audio_observe(uint32_t slot,uint32_t fired,uint32
     s=free_slot;s->owner=owner->registration.handle;s->slot=slot;s->uid=uid;
     s->weapon=weapon;s->voice=s->sample=-1;s->source=0;s->seen=1;
     scene_npc_loop_audio_publish();requested=1;++rf_scene_weapon_audio[0];
-    status=rf_foley_find(&campaign_foley,launch==1?"Machine Pistol Launch":"HMG Launch 1",&group);
+    status=rf_foley_find(&campaign_foley,launch==1?"Machine Pistol Launch":
+        launch==2?"HMG Launch 1":"Vauss5 Fire",&group);
     if(status)goto requested_done;
     sample=campaign_pain_audio_resolve(&audio,group);status=audio.status;if(status)goto requested_done;
     if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){status=RF_NOT_FOUND;goto requested_done;}

@@ -16,14 +16,14 @@ static int campaign_enemy_hear_shot(const float position[3],float radius,uint32_
     radius_squared=radius*radius;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float distance=0;
-        if(!owner->registration.view || owner->damage.effects.health<=0 ||
+        if(campaign_npc_ai_suppressed(owner) || !owner->registration.view || owner->damage.effects.health<=0 ||
            (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1) ||
            owner->view.weapons[0]<0 || owner->damage.effects.affiliation!=0 ||
            owner->combat_alert || owner->combat_scripted || !campaign_enemy_mode_admits(owner,0,1))continue;
         for(j=0;j<3;j++){float d=owner->eye_position[j]-position[j];distance+=d*d;}
         if(!isfinite(distance) || distance>radius_squared)continue;
         status=campaign_animation_cancel(owner);if(status)return status;
-        if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;owner->script_move.stop=1;}
+        if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;owner->script_move.stop=1;}
         owner->combat_target=campaign_player_object.handle;owner->combat_alert=1;
         owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=frame+30;
         ++count;

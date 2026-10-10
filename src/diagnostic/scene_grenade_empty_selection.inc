@@ -4,8 +4,8 @@
 /* Original4c6627 resolves Grenade into872118;4a6f41..4a6f57 admits that
  * weapon even with Autoswitch Weapons disabled.4a2974..4a2981 calls the empty
  * consumer after projectile firing. Keep this live adapter grenade-only.
- * The port has no player+f41 preference owner/default yet: defer_flag=0 is
- * an explicit first-pass policy, preserving strict authored preference order.
+ * Original4afe50 initializes player+f40=1 and+f41=0; strict authored ranks
+ * match that factory default. Saved profile/UI preference ownership is open.
  * Include after scene_grenade_gameplay.inc. See docs/GRENADE-EMPTY-SELECTION.md
  * for lifecycle and late-frame integration; no inventory/save ABI extension. */
 static struct {
@@ -49,8 +49,8 @@ static void scene_grenade_empty_input_tick(uint32_t on_foot)
     if(scene_grenade_empty_selection.release_mask&4u)player_input.reload=0;
 }
 
-/* Shared automatic-selection input boundary. Both exhausted grenades and
- * real weapon acquisition from an explicitly unarmed state use this gate;
+/* Shared automatic-selection input boundary. Exhausted weapons and real
+ * weapon acquisition from armed or explicitly unarmed state use this gate;
  * it never changes inventory or the independent grenade/projectile owner. */
 static void scene_player_auto_select_inputs(void)
 {

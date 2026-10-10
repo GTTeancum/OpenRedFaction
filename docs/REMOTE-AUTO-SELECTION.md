@@ -89,9 +89,14 @@ claiming the original allocation-failure branch has been reconstructed.
 An accepted detonation request with a real matching projectile arms the
 29-frame return. Repeated trigger edges during the pending handoff do not
 restart it. Empty detonator input retains its previous no-op behavior; this
-slice does not add its retail dry animation. At return time, exhausted reserve
-or a still-ready own charge leaves Detonator selected. Otherwise Charge is
-selected for the next throw.
+slice does not add its retail dry animation. At return time, positive reserve
+selects Charge unless a still-ready own charge remains. The source-written
+exhausted-Detonator extension instead uses the existing ranked empty-weapon
+consumer when reserve is exactly zero and all exact owned charges have retired;
+it preserves the full action deadline and adds no timer/save state. If no usable
+candidate qualifies, Detonator stays selected. See DETONATOR-EMPTY-SELECTION.md for its
+actual-descriptor, lifecycle and conservative full-retirement policy; compilation
+and this replacement behavior remain unverified pending the scheduled Xbox batch.
 
 Selection is applied only after all special projectile and world ticks for
 the frame. The old by-value remote mode and trigger arguments are never reused

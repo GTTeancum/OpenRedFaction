@@ -16,6 +16,7 @@ static int scene_world_checkpoint_probe(scene_stream *s,const rf_level *level,co
     return RF_OK; /* PC diagnostic only; underlying codecs remain shared. */
 #endif
     if(!s||!level||!tables_path||combat_frame==UINT32_MAX)return RF_RANGE;
+    status=scene_airlock_checkpoint_admit(s->collision);if(status)return status;
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity);
     scene_world_checkpoint_probe_result("identity",status,32);if(status)return status;
@@ -61,6 +62,7 @@ static int scene_world_checkpoint_probe(scene_stream *s,const rf_level *level,co
         const rf_runtime_trigger *t=campaign_triggers.items+i;
         status=rf_campaign_trigger_register(triggers,campaign_current_level,t->authored->record.uid,&slot);
         if(!status)status=rf_runtime_trigger_save(t,now,triggers->states+slot);
+        if(!status)status=scene_airlock_capture(t,triggers->states+slot);
         if(!status)triggers->items[slot].retired=1;
     }
     if(!status)status=rf_campaign_triggers_checkpoint_encode(identity,triggers,buffer,RF_CHECKPOINT_FILE_MAX,&bytes);

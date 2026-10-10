@@ -1095,8 +1095,9 @@ typedef struct rf_entity_death_drop_item {
     uint32_t flags_2bc,model;float position[3],base_position[3];const char *name;
 } rf_entity_death_drop_item;
 typedef struct rf_entity_death_drop_backend {
-    /*4df1c0 on world6460e8: identity local query, radius.15, flags2000,
-     * initial FLT_MAX and hierarchy1. Query runs even with empty ownership. */
+    /*4df1c0 on world6460e8: identity local query, radius.15, flags2000.
+     * Its reset-limit argument1 replaces initial FLT_MAX with1.0 (4df1ef);
+     * this is not a hierarchy flag. Query runs even with empty ownership. */
     int (*query)(void *,const float start[3],const float delta[3],rf_entity_death_drop_hit *);
     /*459100(index,empty,table[index].default_count,owner,point,identity,-1,1,0).
      * NULL is allocation failure. Returned owner remains alive through calls. */

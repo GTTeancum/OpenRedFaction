@@ -6,6 +6,8 @@ Pack the manifest-pinned XBE without make; never create a gameplay fixture, alte
 grant inventory, inject events, save/load, capture images/audio, measure FPS,
 send host input, adjust aim, search a route, or retry. This verifies functional
 autonomous reload, not exact animation timing or authored mission inventory.
+Optional --observe-primary-spread adds only exact-symbol owner reads to this
+same run. It observes the saved conventional stream, but performs no save.
 """
 import argparse
 import hashlib
@@ -32,6 +34,7 @@ SYMBOLS = {
     'rf_scene_section_autosave': 4, 'rf_scene_pickups': 8,
     'rf_scene_weapon_impact_audio': 16,  # Passive admission/owner telemetry only; no audio acceptance.
 }
+SPREAD_SYMBOLS = {'campaign_conventional_random': 1, 'rf_scene_player_form': 8}
 OWNER_SYMBOLS = ('campaign_pistol_id', 'campaign_player_inventory',
                  'campaign_equipped_slot', 'campaign_explicit_unarmed')
 NATIVE_SYMBOLS = (
@@ -45,6 +48,19 @@ NATIVE_SYMBOLS = (
 LIMITS = ('One original L3S1 stationary sixteen-shot magazine and autonomous refill '
           'using the unchanged port startup supply. No authored mission-inventory, '
           'animation-timing parity, aiming, route, save/load, audio-output, visual or FPS claim.')
+SPREAD_LIMITS = (' Optional Pistol-spread acceptance observes seed 1 and exactly '
+                 '32 conventional RNG advances from sixteen actual Pistol shots; '
+                 'it does not establish ray/contact values, retail distribution, '
+                 'AR/Undercover firing or saved-stream restore/continuation.')
+
+
+def pistol_spread_final_rng():
+    # src/core/random.c; positive rf_weapon_spread_ray ->
+    # rf_particle_cone_oriented -> rf_particle_cone_sample draws twice.
+    value = 1
+    for unused in range(2 * len(FIRE_FRAMES)):
+        value = (value * 214013 + 2531011) & 0xffffffff
+    return value
 
 
 def demand(condition, message):
@@ -76,7 +92,7 @@ def ordinary_recording():
         for frame in range(FRAMES))
 
 
-def early_reader(folder, recipe, words, exact_address, write_json):
+def early_reader(folder, recipe, words, exact_address, write_json, symbols=SYMBOLS):
     def read(monitor, mapping):
         get = lambda name, count: words(monitor, exact_address(mapping, name), count)
         diagnostic = get('rf_diagnostic', 58)
@@ -84,7 +100,7 @@ def early_reader(folder, recipe, words, exact_address, write_json):
         write_json(folder / 'initial-owner.json', row)
         demand(row['phase'] == 2 and EARLY_FRAME <= row['frame'] < FIRE_BEGIN,
                'Missed required live pre-fire inventory window; no alternate attempt')
-        for name, count in SYMBOLS.items():
+        for name, count in symbols.items():
             row['raw'][name] = get(name, count)
         # include/rf/weapon.h: Xbox32 owner is 64 owned bytes, 32 reserve
         # int32s, then 64 loaded int32s (448 bytes). Read it only while live;
@@ -107,7 +123,7 @@ def early_reader(folder, recipe, words, exact_address, write_json):
 def initial_checks(row, recipe):
     raw, player = row.get('raw', {}), row.get('player', {})
     ammo, combat = raw.get('rf_scene_player_ammo', []), raw.get('rf_scene_combat', [])
-    return dict(
+    checks = dict(
         live_before_fire=row.get('phase') == 2 and EARLY_FRAME <= row.get('frame', FRAMES) < FIRE_BEGIN,
         actual_selected_owned_pistol=player.get('pistol_id') == 3 and player.get('equipped_slot') == 0 and
             player.get('explicit_unarmed') == 0 and player.get('pistol_owned') is True and player.get('pistol_loaded') == 16,
@@ -117,6 +133,13 @@ def initial_checks(row, recipe):
         no_setup=raw.get('rf_scene_setup_result') == [0]*4,
         no_script_grant=raw.get('rf_scene_script_grants') == [0]*8,
     )
+    if recipe.get('primary_spread_observation'):
+        checks.update(
+            actual_prefire_conventional_seed=raw.get('campaign_conventional_random') == [1],
+            only_pistol_initially_owned=row.get('inventory_words', [])[:16] == [1 << 24] + [0]*15,
+            no_initial_player_form=raw.get('rf_scene_player_form') == [0]*8,
+        )
+    return checks
 
 
 def evaluate(guest, recipe):
@@ -153,9 +176,30 @@ def evaluate(guest, recipe):
     # Exact sixteen-shot consumption and one sixteen-round transfer after a
     # replay with no reload or seventeenth/empty trigger proves the functional
     # automatic reload. Do not demand a short intermediate animation sample.
+    observe_spread = bool(recipe.get('primary_spread_observation'))
+    if observe_spread:
+        # The stream is an independent static owner. Terminal cleanup never
+        # clears it. Initial ownership plus the unchanged selection, grant,
+        # pickup and life/load guards exclude other conventional consumers.
+        # Form entry selects Undercover outside the ordinary change counter;
+        # its retained entry/exit counters must also stay zero.
+        checks.update(
+            no_player_form=extra.get('rf_scene_player_form') == [0]*8,
+            actual_pistol_spread_rng=extra.get('campaign_conventional_random') == [pistol_spread_final_rng()],
+        )
     failed = [name for name, passed in checks.items() if not passed]
-    return dict(status='CHECK_FAILED' if failed else 'PASS_ORIGINAL_AUTOMATIC_RELOAD',
-                checks=checks, initial_checks=initial, failed_checks=failed)
+    result = dict(status='CHECK_FAILED' if failed else (
+        'PASS_ORIGINAL_PISTOL_SPREAD' if observe_spread else 'PASS_ORIGINAL_AUTOMATIC_RELOAD'),
+        checks=checks, initial_checks=initial, failed_checks=failed)
+    if observe_spread:
+        result['primary_spread_observation'] = dict(
+            symbol='campaign_conventional_random',
+            initial_frame=guest.get('probe', {}).get('frame'),
+            actual_initial=guest.get('probe', {}).get('raw', {}).get('campaign_conventional_random'),
+            actual_final=extra.get('campaign_conventional_random'),
+            expected_initial=1, expected_final=pistol_spread_final_rng(), expected_draws=2 * len(FIRE_FRAMES),
+            scope='Read-only source-owned stream; no save created or restored.')
+    return result
 
 
 def main():
@@ -165,6 +209,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--consumer-build', type=Path, required=True,
                         help='PASS_XBOX_BUILD manifest with exact source_commit, xbe and map hashes')
+    parser.add_argument('--observe-primary-spread', action='store_true',
+                        help='Add read-only Pistol RNG/form observation to the unchanged ordinary recipe')
     parser.add_argument('--seconds', type=int, default=600)
     args = parser.parse_args()
     if not 120 <= args.seconds <= 900:
@@ -210,9 +256,17 @@ def main():
            'Existing XBE/map do not match the successful parent build manifest')
     standalone(base)
     map_text = mapping.read_text()
-    addresses = {name: exact_address(map_text, name) for name in NATIVE_SYMBOLS + tuple(SYMBOLS) + OWNER_SYMBOLS}
+    symbols = dict(SYMBOLS)
+    if args.observe_primary_spread:
+        symbols.update(SPREAD_SYMBOLS)
+    addresses = {name: exact_address(map_text, name) for name in NATIVE_SYMBOLS + tuple(symbols) + OWNER_SYMBOLS}
     recipe = original_recipe(root, read_entry, inspect_level)
-    report = dict(status='NOT_RUN', recipe=recipe, attempts=0, limits=LIMITS,
+    if args.observe_primary_spread:
+        recipe['primary_spread_observation'] = dict(symbol='campaign_conventional_random',
+            initial_seed=1, expected_final=pistol_spread_final_rng(), draws_per_positive_spread=2,
+            shots=len(FIRE_FRAMES), observation='Existing early live probe and terminal exact-symbol reads only')
+        recipe['limits'] += SPREAD_LIMITS
+    report = dict(status='NOT_RUN', recipe=recipe, attempts=0, limits=recipe['limits'],
         source_commit=head, consumer_build=consumer, consumer_build_path=str(consumer_path),
         consumer_build_sha256=hashlib.sha256(consumer_bytes).hexdigest(), symbol_addresses=addresses,
         hdd=str(base), hdd_mode='Owned standalone base, XEMU -snapshot; no save/load flags or HDD copy')
@@ -282,8 +336,8 @@ def main():
         report['attempts'] = 1
         write_json(folder / 'verification.json', report)
         guest = native.run_guest(folder, 'native', base, FRAMES, args.seconds, snapshot=True,
-            extra_symbols=SYMBOLS, allow_guest_error=True, capture_world=False, measure_fps=False,
-            probe=early_reader(folder, recipe, words, exact_address, write_json), probe_frame=EARLY_FRAME)
+            extra_symbols=symbols, allow_guest_error=True, capture_world=False, measure_fps=False,
+            probe=early_reader(folder, recipe, words, exact_address, write_json, symbols), probe_frame=EARLY_FRAME)
         report['native'] = guest
         # Preserve the raw result before any acceptance predicate; the shared
         # runner also writes native/result.json before raising terminal errors.
@@ -361,7 +415,8 @@ def main():
             print(folder, report['status'], flush=True)
         finally:
             lock.close()
-    if report['status'] != 'PASS_ORIGINAL_AUTOMATIC_RELOAD':
+    expected_status = 'PASS_ORIGINAL_PISTOL_SPREAD' if args.observe_primary_spread else 'PASS_ORIGINAL_AUTOMATIC_RELOAD'
+    if report['status'] != expected_status:
         raise SystemExit(1)
 
 

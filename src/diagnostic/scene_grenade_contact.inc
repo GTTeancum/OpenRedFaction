@@ -6,6 +6,7 @@ static uint32_t scene_grenade_object_contact(void *context,const rf_weapon_fligh
 {
     uint32_t tag=contact->object;(void)context;
     return tag==SCENE_AI_PROJECTILE_PLAYER || tag==SCENE_DRILLER_PROJECTILE_OWNER ||
+        tag==SCENE_TURRET_PROJECTILE_OWNER ||
         (tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER ||
         (tag&0xffff0000u)==SCENE_CLUTTER_PROJECTILE_OWNER;
 }

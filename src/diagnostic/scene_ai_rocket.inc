@@ -7,7 +7,7 @@
 #define SCENE_AI_ROCKET_CAPACITY 8u
 typedef struct scene_ai_rocket_projectile {
     rf_weapon_flight flight;rf_weapon_flight_liquid_state liquid;
-    uint32_t source;float damage,basis[9];
+    uint32_t source;int32_t weapon;float damage,basis[9];
     const rf_weapon_explosive_definition *definition;
 } scene_ai_rocket_projectile;
 static scene_ai_rocket_projectile scene_ai_rockets[SCENE_AI_ROCKET_CAPACITY];
@@ -18,6 +18,32 @@ static void scene_ai_rocket_reset(void)
 {scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_NPC_ROCKET);memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));memset(rf_scene_ai_rocket_timing,0,sizeof(rf_scene_ai_rocket_timing));}
 static uint32_t scene_ai_rocket_pending(void)
 {uint32_t i;for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active)return 1;return 0;}
+/* RFAP1..4 have only Rocket/Tankbot variants. Save-only callers must refuse
+ * these flights, never relabel them; load preparation remains available. */
+static uint32_t scene_ai_drone_missile_save_blocked(void)
+{
+    uint32_t i;
+    for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++) {
+        if(scene_ai_rockets[i].flight.active &&
+           scene_ai_rockets[i].definition==&campaign_drone_missile)return 1;
+    }
+    return 0;
+}
+/* Successful timeline publication only: old Drone flights have no RFAP
+ * representation. Empty-section loads must not retain a frame-zero launch
+ * after the independent cooldown has been cleared. Other missiles remain. */
+static void scene_ai_drone_missile_reset(void)
+{
+    uint32_t i,live=0;
+    for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++) {
+        if(scene_ai_rockets[i].definition==&campaign_drone_missile) {
+            scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);
+            memset(scene_ai_rockets+i,0,sizeof(scene_ai_rockets[i]));
+        }
+        live+=scene_ai_rockets[i].flight.active!=0;
+    }
+    rf_scene_ai_rockets[3]=live;
+}
 static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3],
     int32_t weapon,const rf_weapon_explosive_definition *definition,float damage)
 {
@@ -39,13 +65,17 @@ static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3
     length=sqrt((double)shot.basis[0]*shot.basis[0]+(double)shot.basis[1]*shot.basis[1]+(double)shot.basis[2]*shot.basis[2]);
     for(k=0;k<3;k++){shot.basis[k]=(float)(shot.basis[k]/length);shot.basis[6+k]=direction[k];}
     shot.basis[3]=direction[1]*shot.basis[2]-direction[2]*shot.basis[1];shot.basis[4]=direction[2]*shot.basis[0]-direction[0]*shot.basis[2];shot.basis[5]=direction[0]*shot.basis[1]-direction[1]*shot.basis[0];
-    shot.source=owner->registration.handle;shot.damage=damage;shot.definition=definition;
+    shot.source=owner->registration.handle;shot.weapon=weapon;shot.damage=damage;shot.definition=definition;
     shot.liquid.query_flags=0x1004u|(definition->collision_radius<.05f?0x100u:0);
     status=rf_weapon_consume_shot(&owner->inventory,campaign_weapon_supply.definitions,
         campaign_weapon_supply.names.count,weapon);if(status)return status;
     scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);
     scene_ai_rockets[i]=shot;
+    /* Optional audio starts only after real reserve debit and publication.
+     * Drone copies its own authored spatial profiles without mutating the
+     * shared Rocket sample. Tankbot presentation remains outside this slice. */
     if(definition==&campaign_rocket)scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,shot.flight.position);
+    else if(definition==&campaign_drone_missile)scene_drone_missile_audio_accepted(i,shot.flight.position);
     ++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];rf_scene_ai_rocket_timing[0]=combat_frame;return RF_OK;
 }
 static int scene_ai_rocket_launch(campaign_npc_body *owner,const float target[3])
@@ -57,6 +87,23 @@ static int scene_ai_tankbot_missile_launch(campaign_npc_body *owner,const float 
     if(!scene_tankbot_missile_resources || !owner || owner->view.weapons[1]!=weapon)return RF_NOT_FOUND;
     return scene_ai_missile_launch(owner,target,weapon,&campaign_tankbot_missile,
         combat_enemy_primary_damage(&campaign_tankbot_missile_primary));
+}
+static int scene_ai_drone_missile_launch(campaign_npc_body *owner,const float target_eye[3])
+{
+    const rf_weapon_acquire_definition *ammo;int32_t weapon;
+    if(!scene_drone_missile_resources || !owner || !target_eye ||
+       campaign_weapon_supply.names.count>64)return RF_NOT_FOUND;
+    weapon=rf_weapon_name_find(&campaign_weapon_supply.names,"Drone Missile");
+    if(weapon<0 || weapon>=64 || (uint32_t)weapon>=campaign_weapon_supply.names.count ||
+       owner->view.weapons[1]!=weapon || !owner->inventory.owned[weapon])return RF_NOT_FOUND;
+    ammo=campaign_weapon_supply.definitions+weapon;
+    if(ammo->ammo_type<0 || ammo->ammo_type>=32 || ammo->magazine!=0 || ammo->capacity!=12 ||
+       owner->inventory.loaded[weapon]!=0 || owner->inventory.reserve[ammo->ammo_type]<=0)return RF_NOT_FOUND;
+    /* Existing shared eye-origin fallback: no invented muzzle tag, spread,
+     * homing or replacement inventory. Only accepted publication debits one
+     * real reserve round; the autonomous owner supplies its separate timer. */
+    return scene_ai_missile_launch(owner,target_eye,weapon,&campaign_drone_missile,
+        combat_enemy_primary_damage(&campaign_drone_missile_primary));
 }
 static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
 {
@@ -70,7 +117,7 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
         status=rf_weapon_flight_step_liquid(&shot->flight,1.f/60,&shot->liquid,&policy,scene_ai_projectile_sweep,&query,&move);
         if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);return status;}
         scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,
-            shot->flight.active && definition==&campaign_rocket,shot->flight.position);
+            shot->flight.active && (definition==&campaign_rocket || definition==&campaign_drone_missile),shot->flight.position);
         if(move.has_liquid){combat_sound("Medium Water Splash",move.liquid_contact.hit.point);scene_ripple_start(stream,move.liquid_contact.hit.point,frame,0);}
         if(move.terminal.kind==2){++rf_scene_ai_rockets[2];rf_scene_ai_rocket_timing[2]=frame;}
         if(move.terminal.kind==1){
@@ -78,10 +125,8 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
             ++rf_scene_ai_rockets[1];rf_scene_ai_rocket_timing[1]=frame;
             if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
                 uint32_t index=tag&0xffffu,consumed;
-                int32_t weapon=definition==&campaign_tankbot_missile?
-                    rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile"):campaign_rocket_id;
                 if(index>=campaign_npc_body_count)return RF_RANGE;
-                status=scene_nano_weapon_contact(campaign_npc_bodies+index,weapon,shot->damage,&consumed);
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,&consumed);
                 if(status)return status;if(consumed)continue;
             }
             status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);

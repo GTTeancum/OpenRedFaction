@@ -53,7 +53,7 @@ static int scene_driller_live_damage(void *context,const rf_weapon_flight_contac
     if(amount>0){
         combat_hit_frame=c->frame;
         campaign_combat_event(c->frame,0,npc->registration.handle,amount,npc->damage.effects.health);
-        if(!npc->combat_alert&&npc->view.weapons[0]>=0){
+        if(!campaign_npc_ai_suppressed(npc)&&!npc->combat_alert&&npc->view.weapons[0]>=0){
             npc->combat_alert=1;npc->combat_burst_remaining=0;npc->combat_due=c->frame+30;++rf_scene_enemy_combat[1];
         }
     }

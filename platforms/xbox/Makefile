@@ -81,10 +81,13 @@ SRCS += $(PROJECT_ROOT)/src/core/model_file.c
 SRCS += $(PROJECT_ROOT)/src/core/entity_assets.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/scene.c
-CFLAGS += -DRF_IMAGE_XBOX_NATIVE -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -I$(PROJECT_ROOT)/include
+# Preserve the existing shared optimization policy for project and SDK code.
+CFLAGS += -O2
+# Language, project macros/includes and stack reports belong to project objects.
+RF_PROJECT_CFLAGS := -DRF_IMAGE_XBOX_NATIVE -std=c11 -fstack-usage -I$(PROJECT_ROOT)/include
 RF_GEOMOD_EXPANDED_PROFILE ?= 0
 ifeq ($(RF_GEOMOD_EXPANDED_PROFILE),1)
-CFLAGS += -DRF_GEOMOD_CUT_LIMIT=16 -DRF_GEOMOD_WORK_VERTICES=9216 -DRF_GEOMOD_WORK_FACES=2048 -DRF_GEOMOD_PUBLICATION_VERTICES=9216 -DRF_GEOMOD_PUBLICATION_FACES=2048 -DRF_CHECKPOINT_FILE_MAX=262144 -DRF_GEOMOD_LIGHTMAP_LIMIT=2048 -DSCENE_TERRAIN_SOURCE_VERTICES=9216 -DSCENE_TERRAIN_FACES=2048 -DSCENE_TERRAIN_DRAW_BUDGET=1048576 -DSCENE_TERRAIN_CORE_BUDGET=2359296 -DSCENE_TERRAIN_ATLAS_BUDGET=1572864 -DSCENE_AUTHORED_DIGEST_BUDGET=1048576 -DSCENE_AUTHORED_WRITER_BUDGET=2097152 -DSCENE_DESTRUCTION_BUDGET=16777216
+RF_PROJECT_CFLAGS += -DRF_GEOMOD_CUT_LIMIT=16 -DRF_GEOMOD_WORK_VERTICES=9216 -DRF_GEOMOD_WORK_FACES=2048 -DRF_GEOMOD_PUBLICATION_VERTICES=9216 -DRF_GEOMOD_PUBLICATION_FACES=2048 -DRF_CHECKPOINT_FILE_MAX=262144 -DRF_GEOMOD_LIGHTMAP_LIMIT=2048 -DSCENE_TERRAIN_SOURCE_VERTICES=9216 -DSCENE_TERRAIN_FACES=2048 -DSCENE_TERRAIN_DRAW_BUDGET=1048576 -DSCENE_TERRAIN_CORE_BUDGET=2359296 -DSCENE_TERRAIN_ATLAS_BUDGET=1572864 -DSCENE_AUTHORED_DIGEST_BUDGET=1048576 -DSCENE_AUTHORED_WRITER_BUDGET=2097152 -DSCENE_DESTRUCTION_BUDGET=16777216
 endif
 # Connected destruction plus fragment extraction exceeds NXDK's default 64 KiB
 # main-thread stack (native reset/save/reload/rocket replay). Reserve 128 KiB;
@@ -97,9 +100,15 @@ SRCS += $(PROJECT_ROOT)/src/core/campaign_goals_checkpoint.c $(PROJECT_ROOT)/src
 SRCS += $(PROJECT_ROOT)/src/core/world_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/mover_checkpoint.c $(PROJECT_ROOT)/src/core/campaign_pickups_checkpoint.c $(PROJECT_ROOT)/src/core/campaign_triggers_checkpoint.c $(PROJECT_ROOT)/src/core/event_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/flame_stream.c
+# Snapshot only this project's sources, including its adapted APU backend,
+# before NXDK adds its separate library dependency graph.
+RF_PROJECT_OBJS := $(addsuffix .obj, $(basename $(SRCS)))
 include $(NXDK_DIR)/Makefile
-$(APU_SRCS:.c=.obj): CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include
-$(PROJECT_ROOT)/src/platform/xbox/audio.obj: CFLAGS += -std=c23 -I$(APU_BACKEND)/include
+# Project compile policy stays off SDK sources and shader/tool prerequisites.
+# NXDK keeps its upstream dialect; the APU C23 overrides remain last below.
+$(RF_PROJECT_OBJS): private CFLAGS += $(RF_PROJECT_CFLAGS) -Wall -Wextra -Werror
+$(APU_SRCS:.c=.obj): private CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include
+$(PROJECT_ROOT)/src/platform/xbox/audio.obj: private CFLAGS += -std=c23 -I$(APU_BACKEND)/include
 
 # Windows clang emits D:/ dependency targets while this make uses /d/ paths.
 # Explicit project-header prerequisites keep shared ABI edits from leaving stale

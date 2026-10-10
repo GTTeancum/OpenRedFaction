@@ -2,6 +2,42 @@
 #include <math.h>
 #include <string.h>
 #include <limits.h>
+_Static_assert(sizeof(rf_campaign_item_drop)==24,"configured death item lane is24B");
+_Static_assert(sizeof(rf_campaign_medic_state)==16,"medic state lane is16B");
+int rf_campaign_medic_state_validate(const rf_campaign_medic_state *m)
+{
+    uint32_t reserve_bits,child_bits;
+    if(!m)return RF_RANGE;
+    memcpy(&reserve_bits,&m->reserve,4);memcpy(&child_bits,&m->child_health,4);
+    if(m->reserve_seen>1||m->child_state>2||!isfinite(m->reserve)||
+       m->reserve<0||m->reserve>200.f||(!m->reserve_seen&&reserve_bits))return RF_FORMAT;
+    if(m->child_state==1)return isfinite(m->child_health)&&m->child_health>0&&
+        m->child_health<=50.f?RF_OK:RF_FORMAT;
+    return child_bits?RF_FORMAT:RF_OK;
+}
+_Static_assert(sizeof(rf_campaign_actor_route)==36,"actor route lane is36B");
+int rf_campaign_actor_route_validate(const rf_campaign_actor_route *r)
+{
+    rf_campaign_actor_route zero={0};uint32_t mode;
+    if(!r)return RF_RANGE;
+    if(!r->flags)return memcmp(r,&zero,sizeof(zero))?RF_FORMAT:RF_OK;
+    mode=(r->flags>>2)&3;
+    if(!(r->flags&1)||(r->flags&~63u)||mode>2||r->origin>2||r->patrol>3||
+       ((r->patrol&2)&&!(r->patrol&1))||r->event==UINT32_MAX)return RF_FORMAT;
+    if(r->action!=-1&&r->action!=1&&r->action!=2&&r->action!=3&&r->action!=4&&
+       r->action!=10&&r->action!=11&&r->action!=13)return RF_FORMAT;
+    if((r->action==3||r->action==10)&&!(r->patrol&1))return RF_FORMAT;
+    if(r->flags&2){
+        if((r->patrol&1)&&((r->flags>>4)&1)!=((r->patrol>>1)&1))return RF_FORMAT;
+        if(!r->count||r->cursor>=r->count||!r->origin||
+           ((r->flags&16)&&mode!=2&&!(mode==1&&(r->patrol&1))))return RF_FORMAT;
+    }else if(r->offset||r->count||r->cursor||r->section_hash||(r->flags&28))return RF_FORMAT;
+    if(r->origin==1){if(!r->event)return RF_FORMAT;}
+    else if(r->event)return RF_FORMAT;
+    if(r->origin==2&&(!(r->patrol&1)||!(r->flags&2)))return RF_FORMAT;
+    if(!r->origin&&(r->flags&32))return RF_FORMAT;
+    return RF_OK;
+}
 static int object_register(char (*levels)[64],uint32_t *level_count,rf_campaign_object_record *items,uint32_t *count,uint32_t capacity,const char *level,uint32_t uid,uint32_t *slot)
 {
     char canonical[64]={0};uint32_t i,n,l;
@@ -168,4 +204,30 @@ int rf_campaign_actor_drop_emit(rf_campaign_actors *store,uint32_t slot,int32_t 
     for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_RANGE;
     drop=store->drops+slot;if(drop->state>2)return RF_FORMAT;if(drop->state)return RF_OK;
     drop->weapon=weapon;drop->quantity=quantity;memcpy(drop->position,position,12);drop->state=1;return RF_OK;
+}
+
+int rf_campaign_item_drop_validate(const rf_campaign_item_drop *drop)
+{
+    rf_campaign_item_drop zero={0};uint32_t i;
+    if(!drop)return RF_RANGE;
+    if(drop->state>RF_CAMPAIGN_ITEM_DROP_COLLECTED)return RF_FORMAT;
+    if(!drop->state)return memcmp(drop,&zero,sizeof(zero))?RF_FORMAT:RF_OK;
+    if((drop->stable_definition_id!=RF_CAMPAIGN_ITEM_MEDICAL_KIT&&
+        drop->stable_definition_id!=RF_CAMPAIGN_ITEM_12MM_AMMO&&
+        drop->stable_definition_id!=RF_CAMPAIGN_ITEM_556MM_AMMO&&
+        drop->stable_definition_id!=RF_CAMPAIGN_ITEM_10GAUGE_AMMO)||drop->quantity<=0)return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(drop->position[i]))return RF_FORMAT;
+    return RF_OK;
+}
+int rf_campaign_actor_item_drop_emit(rf_campaign_actors *store,uint32_t slot,
+    int32_t stable_definition_id,int32_t quantity,const float position[3])
+{
+    rf_campaign_item_drop *drop,value={0};int status;
+    if(!store||store->count>RF_CAMPAIGN_ACTOR_SLOTS||slot>=store->count||!position)return RF_RANGE;
+    value.state=RF_CAMPAIGN_ITEM_DROP_AVAILABLE;value.stable_definition_id=stable_definition_id;
+    value.quantity=quantity;memcpy(value.position,position,sizeof(value.position));
+    if(rf_campaign_item_drop_validate(&value))return RF_RANGE;
+    drop=store->item_drops+slot;status=rf_campaign_item_drop_validate(drop);if(status)return status;
+    if(!drop->state)*drop=value;
+    return RF_OK;
 }

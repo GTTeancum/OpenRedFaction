@@ -1,0 +1,59 @@
+{
+  "status": "SOURCE_ONLY_CANDIDATE_NO_BUILD_OR_TEST",
+  "base_sha256": "60a8905faa459ee3424704442be791fb6e61e2e949368d7853f18e7787524b79",
+  "candidate_sha256": "9cfddee9176e12c934b6975ae6dc4f88b14a93050477e19ab6431f844662e9b6",
+  "new_target_count": 6,
+  "scope": "Existing PDCLIB_OBJS plus exactly six source-proven leaf object targets; no whole WINAPI_OBJS/SDL2_OBJS extension. Single unused-parameter demotion; warnings remain visible.",
+  "verified_variable_definitions": {
+    "PDCLIB_OBJS": "NXDK lib/Makefile-pdclib:7 add-suffix .obj to basename of three find source lists.",
+    "WINAPI_OBJS": "NXDK lib/winapi/Makefile:30 add-suffix .obj to basename of explicit WINAPI_SRCS.",
+    "SDL2_DIR": "NXDK lib/sdl/SDL2/Makefile.xbox:1 is $(NXDK_DIR)/lib/sdl/SDL2.",
+    "SDL2_OBJS": "NXDK lib/sdl/SDL2/Makefile.xbox:46 add-suffix .obj to basename of wildcard SDL2_SRCS."
+  },
+  "admission": "NXDK Makefile includes lib/Makefile -> winapi/Makefile unconditionally, and SDL2/Makefile.xbox when project NXDK_SDL=y. All definitions precede proposed project rule after NXDK include. -DXBOX -> SDL_platform.h __XBOX__ -> SDL_config.h selects SDL_config_xbox.h; all four dummy-file guards admit its defined configuration.",
+  "sites": [
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/badptr.c",
+      "source_sha256": "6d731ed32f001a27b9174c16427988d4eeab58186fa1de31de940145ccdbc934",
+      "target": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/badptr.obj",
+      "source_list": "WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile",
+      "evidence": "IsBadWritePtr lp/ucb unused; body returns TRUE."
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/thread.c",
+      "source_sha256": "cec54dbd9d0f4dc35bd650b5fb5eeecebd9e91811692fdd4f783dafc29b59aa7",
+      "target": "/workspace/shared/recovery/toolchain/nxdk/lib/winapi/thread.obj",
+      "source_list": "WINAPI_SRCS -> WINAPI_OBJS in lib/winapi/Makefile",
+      "evidence": "CreateThread lpThreadAttributes explicitly documented unsupported/ignored."
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/haptic/dummy/SDL_syshaptic.c",
+      "source_sha256": "88f2fe19dc88ae9cc3449ddb8daf5dc110c8f69b5ec2ed71796fbdbaf004a1ff",
+      "target": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/haptic/dummy/SDL_syshaptic.obj",
+      "source_list": "SDL2_SRCS -> SDL2_OBJS in SDL2/Makefile.xbox",
+      "evidence": "SDL_HAPTIC_DISABLED defined by SDL_config_xbox.h:119; APIs leave index/haptic/joystick/effect arguments unused."
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/loadso/dummy/SDL_sysloadso.c",
+      "source_sha256": "9f74f18f70c45a1d1f74ad5239699eb0e0d7f2248a77c68c48d71b6ba238d4e7",
+      "target": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/loadso/dummy/SDL_sysloadso.obj",
+      "source_list": "SDL2_SRCS -> SDL2_OBJS in SDL2/Makefile.xbox",
+      "evidence": "SDL_LOADSO_DISABLED defined at config_xbox:122; SDL_LoadFunction and SDL_UnloadObject ignore handle."
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/sensor/dummy/SDL_dummysensor.c",
+      "source_sha256": "cb50a0ed35b7b2987c93c4aa58c9999442f4f6669c409698eeb1e5b1b973fa50",
+      "target": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/sensor/dummy/SDL_dummysensor.obj",
+      "source_list": "SDL2_SRCS -> SDL2_OBJS in SDL2/Makefile.xbox",
+      "evidence": "SDL_SENSOR_DISABLED defined at config_xbox:125; callbacks ignore device_index/sensor."
+    },
+    {
+      "source": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/filesystem/dummy/SDL_sysfilesystem.c",
+      "source_sha256": "11eeed6c6921c4fe4e89806c44f1a180152077952b91a841c66b4d83c578c993",
+      "target": "/workspace/shared/recovery/toolchain/nxdk/lib/sdl/SDL2/src/filesystem/dummy/SDL_sysfilesystem.obj",
+      "source_list": "SDL2_SRCS -> SDL2_OBJS in SDL2/Makefile.xbox",
+      "evidence": "SDL_FILESYSTEM_DUMMY defined at config_xbox:137; SDL_GetPrefPath ignores org/app."
+    }
+  ],
+  "limits": "Read-only source assessment; additional compile diagnostics are possible. No active repository edit or make/compiler/test/emulator invocation."
+}

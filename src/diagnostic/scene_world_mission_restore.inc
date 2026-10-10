@@ -5,6 +5,7 @@
 typedef struct scene_world_mission_trigger {rf_runtime_trigger before,next;uint32_t removed;} scene_world_mission_trigger;
 typedef struct scene_world_mission_pickup {uint32_t before_slot,next_slot,uid;uint8_t before_taken,next_taken,before_state,next_state;} scene_world_mission_pickup;
 typedef struct scene_world_mission_stage {
+    scene_airlock_restore_state airlock;
     rf_campaign_goals goals;rf_campaign_local_goals local;
     rf_campaign_pickups pickups,startup;rf_campaign_triggers triggers;
     uint8_t pickup_states[RF_CAMPAIGN_PICKUP_SLOTS],pickup_states_before[RF_CAMPAIGN_PICKUP_SLOTS];
@@ -26,8 +27,9 @@ static int scene_world_mission_key(const char (*levels)[64],uint32_t nl,const rf
     }
     if(found==UINT32_MAX)return RF_NOT_FOUND;*slot=found;return RF_OK;
 }
-static inline int scene_world_mission_prepare(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
-    uint32_t budget,scene_world_mission_stage **out)
+static inline int scene_world_mission_prepare_with_movers(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
+    uint32_t budget,const rf_group_runtime_entry *airlock_entries,uint32_t airlock_entry_count,
+    const rf_geometry_collision_world *airlock_world,scene_world_mission_stage **out)
 {
     scene_world_mission_stage *s=NULL;const rf_world_checkpoint_slice *v;uint32_t i,j,slot;uint64_t cost;int status;
     if(!out||*out||!stream||!world||now<0||now>RF_TIMER_PERIOD||
@@ -55,6 +57,7 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
     }
     v=world->sections+RF_WORLD_STARTUP-1;status=rf_campaign_pickups_checkpoint_decode(v->data,v->bytes,world->identity,&s->startup);if(status)goto fail;
     v=world->sections+RF_WORLD_TRIGGER-1;status=rf_campaign_triggers_checkpoint_decode(v->data,v->bytes,world->identity,&s->triggers);if(status)goto fail;
+    status=scene_airlock_restore_prepare(&s->triggers,airlock_entries,airlock_entry_count,airlock_world,&s->airlock);if(status)goto fail;
     for(i=0;i<s->trigger_count;i++){
         scene_world_mission_trigger *r=s->live_triggers+i;rf_runtime_trigger *t=campaign_triggers.items+i;
         if(!t->authored||rf_object_registry_lookup(&campaign_registry,t->handle)!=t){status=RF_FORMAT;goto fail;}
@@ -89,10 +92,16 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
     *out=s;return RF_OK;
 fail:free(s);return status;
 }
+/* Preserve the existing paused-current-world API for read-only probes. Actual
+ * saved-world loads must use prepare_with_movers with staged controller poses. */
+static inline int scene_world_mission_prepare(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
+    uint32_t budget,scene_world_mission_stage **out)
+{return scene_world_mission_prepare_with_movers(stream,world,now,budget,campaign_group_runtime.items,campaign_group_runtime.count,stream?stream->collision:NULL,out);}
 static inline int scene_world_mission_validate(const scene_world_mission_stage *s)
 {
     uint32_t i;if(!s||!s->stream||s->trigger_owner!=campaign_triggers.items||s->trigger_count!=campaign_triggers.count||
         s->stream->pickups.count!=s->pickup_count||s->taken_owner!=s->stream->pickup_taken||s->state_owner!=s->stream->pickup_state||s->slot_owner!=s->stream->pickup_slots)return RF_FORMAT;
+    if(scene_airlock_restore_validate(&s->airlock))return RF_FORMAT;
     if(memcmp(campaign_pickup_states,s->pickup_states_before,sizeof(s->pickup_states_before)))return RF_FORMAT;
     for(i=0;i<s->trigger_count;i++)if(memcmp(s->trigger_owner+i,&s->live_triggers[i].before,sizeof(rf_runtime_trigger))||
         rf_object_registry_lookup(&campaign_registry,s->trigger_owner[i].handle)!=s->trigger_owner+i)return RF_FORMAT;
@@ -102,7 +111,7 @@ static inline int scene_world_mission_validate(const scene_world_mission_stage *
     return RF_OK;
 }
 /* No callbacks, dispatch or fallible operations. Must follow full-world validation. */
-static inline void scene_world_mission_assign(const scene_world_mission_stage *s)
+static inline void scene_world_mission_assign_owners(const scene_world_mission_stage *s)
 {
     uint32_t i;rf_scene_mission_goals=s->goals;campaign_local_goals=s->local;
     rf_scene_campaign_pickups=s->pickups;memcpy(campaign_pickup_states,s->pickup_states,sizeof(campaign_pickup_states));
@@ -123,6 +132,10 @@ static inline void scene_world_mission_assign(const scene_world_mission_stage *s
         if(s->state_owner)s->state_owner[i]=s->live_pickups[i].next_state;
     }
 }
+/* Complete standalone component commit. The full-world loader deliberately
+ * splits the ordinary assignments from final post-storage airlock publication. */
+static inline void scene_world_mission_assign(const scene_world_mission_stage *s)
+{scene_world_mission_assign_owners(s);scene_airlock_restore_assign(&s->airlock);}
 static inline int scene_world_mission_probe(scene_stream *stream,const rf_world_checkpoint *world,int32_t now)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE

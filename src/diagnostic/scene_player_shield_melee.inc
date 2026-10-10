@@ -46,7 +46,7 @@ static int scene_player_shield_bash_impact(scene_stream *stream,uint32_t frame,
         if(amount>0){
             combat_hit_frame=frame;
             campaign_combat_event(frame,0,owner->registration.handle,amount,owner->damage.effects.health);
-            if(!owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}
+            if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}
         }
         ++rf_scene_combat[1];rf_scene_combat[3]=owner->registration.handle;
         memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);

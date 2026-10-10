@@ -4,8 +4,11 @@ Live integration (2026-09-15). The assault rifle now supports its authored
 alternate trigger through shared PC/Xbox controls, damage and ammunition paths.
 Primary fire still emits three-round bursts. Alternate fire emits one round
 every0.1seconds while held, with the authored4-degree spread and60damage using
-the armor-piercing damage kind. Player primary-fire spread remains separate
-completion work; no broad weapon-fidelity claim is made here.
+the armor-piercing damage kind. Player primary-fire spread was absent from this
+historical integration; its separate source-written consumer is documented in
+[PLAYER-PRIMARY-SPREAD.md](PLAYER-PRIMARY-SPREAD.md), with compilation/runtime
+pending. The earlier primary-dependent hit and RNG outcomes below do not
+validate that correction; no broad weapon-fidelity claim is made here.
 
 Evidence: installed `tables.vpp/weapons.tbl`, Assault Rifle declaration:
 `alt_fire`, `alt_continuous_fire`, `$Alt Fire Wait:0.1`, `$Alt Spread Degrees:4.0`,

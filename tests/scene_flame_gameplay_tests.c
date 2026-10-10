@@ -17,8 +17,8 @@ int main(void)
     CHECK(!rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&definition));rf_vpp_close(&tables);
     campaign_pistol_id=0;campaign_equipped_slot=0;campaign_weapon_supply.definitions[0].ammo_type=0;
     scene_flame_reset();campaign_player_inventory.owned[0]=1;campaign_player_inventory.loaded[0]=100;
-    for(i=0;i<120;i++){CHECK(!scene_flame_tick(&stream,i,origin,forward,0,&definition,1,&pulse));pulses+=pulse;}
+    for(i=0;i<120;i++){CHECK(!scene_flame_tick(&stream,i,origin,forward,0,&definition,1,&pulse,NULL));pulses+=pulse;}
     CHECK(campaign_player_inventory.loaded[0]==0 && pulses==20);
-    CHECK(!scene_flame_tick(&stream,120,origin,forward,0,&definition,1,&pulse) && !pulse);
+    CHECK(!scene_flame_tick(&stream,120,origin,forward,0,&definition,1,&pulse,NULL) && !pulse);
     puts("Scene flame sphere union and authored two-second gas depletion");return 0;
 }

@@ -2,6 +2,56 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+int rf_player_weapon_state_validate(rf_vpp *meshes,rf_vpp *motions,
+    const rf_weapon_fp_state_definition *definition,uint32_t budget,uint32_t *valid_mask)
+{
+    struct state_scratch {
+        rf_model_file model;rf_model_bone bones[50];unsigned char raw[4+50*56];
+    } *scratch=NULL;
+    rf_motion_file motion;rf_motion_track track;rf_motion_rotation_key rotation;rf_motion_position_key position;
+    void *payload=NULL;uint32_t i,j,k,bone_count=0,bone_sections=0,mask=0;int status;
+    if(!meshes || !motions || !definition || !valid_mask || definition->state_count>3 ||
+       definition->primary_continuous>1 || definition->alternate_continuous>1 ||
+       !memchr(definition->mesh,0,64) || (definition->state_count!=0)!=(definition->mesh[0]!=0))return RF_RANGE;
+    for(i=0;i<3;++i)if(!memchr(definition->states[i],0,64) ||
+       (i<definition->state_count)!=(definition->states[i][0]!=0))return RF_RANGE;
+    if(!definition->state_count){*valid_mask=0;return RF_OK;}
+    if(sizeof(*scratch)>budget)return RF_RANGE;
+    scratch=malloc(sizeof(*scratch));if(!scratch)return RF_IO;
+    status=rf_model_file_open(&scratch->model,meshes,definition->mesh);if(status)goto done;
+    for(i=0;i<scratch->model.section_count;++i)if(scratch->model.sections[i].type==0x424f4e45) {
+        const rf_model_section *section=scratch->model.sections+i;
+        if(++bone_sections!=1){status=RF_FORMAT;goto done;}
+        if(section->size>sizeof(scratch->raw)){status=RF_RANGE;goto done;}
+        status=rf_vpp_read(meshes,&scratch->model.entry,section->offset,scratch->raw,section->size);if(status)goto done;
+        status=rf_model_decode_bones(scratch->raw,section->size,scratch->bones,50,&bone_count);if(status)goto done;
+    }
+    if(!bone_count){status=RF_FORMAT;goto done;}
+    /* Only the validated skeleton count crosses into motion admission. No
+     * transforms, geometry, materials or character playback are constructed. */
+    free(scratch);scratch=NULL;
+    for(i=0;i<definition->state_count;++i) {
+        status=rf_motion_file_open(&motion,motions,definition->states[i]);if(status)goto done;
+        if(motion.header[6]!=bone_count){status=RF_FORMAT;goto done;}
+        if(motion.entry.size>budget){status=RF_RANGE;goto done;}
+        payload=malloc(motion.entry.size);if(!payload){status=RF_IO;goto done;}
+        status=rf_vpp_read(motions,&motion.entry,0,payload,motion.entry.size);if(status)goto done;
+        status=rf_motion_file_bind_memory(&motion,payload,motion.entry.size);if(status)goto done;
+        for(j=0;j<bone_count;++j) {
+            status=rf_motion_file_track(&motion,j,&track);if(status)goto done;
+            for(k=0;k<track.rotation_count;++k) {
+                status=rf_motion_file_rotation(&motion,j,k,&rotation);if(status)goto done;
+            }
+            for(k=0;k<track.position_count;++k) {
+                status=rf_motion_file_position(&motion,j,k,&position);if(status)goto done;
+            }
+        }
+        free(payload);payload=NULL;mask|=1u<<i;
+    }
+    *valid_mask=mask;status=RF_OK;
+done:
+    free(payload);free(scratch);return status;
+}
 void rf_player_weapon_close(rf_player_weapon **weapon)
 {
     uint32_t i;rf_player_weapon *w;if(!weapon || !(w=*weapon))return;

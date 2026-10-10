@@ -14,9 +14,17 @@ shield-breaking missile from immediately spilling blast damage into health.
 This uses the existing immunity predicate: positive armor, the entity-class
 nano-shield bit and the actor shield-disable bit clear. Event76 still only
 changes the disable bit; it does not refill armor. Generic damage immunity stays
-read-only, so blast/script damage does not accidentally drain shield armor.
-Melee and the Riot Stick retain their existing immunity handling; their contact
-rules have not been inferred from the firearm branch.
+read-only. A separate [shared radial Nano consumer](RADIAL-NANO-SHIELD.md) now
+has independently source-reviewed, parent-integrated positive-falloff shield
+debit before generic damage, awaiting 10:00 compilation and runtime.
+Scripted direct damage that only calls the generic path still cannot debit Nano
+armor; scripted explosions using the shared radial service use its explicit
+consumer after integration.
+Qualified player Riot primary and ordinary/delayed NPC primary melee now have
+independently source-reviewed, parent-integrated direct debit consumers, grounded
+in the original melee collision chain. Compilation and runtime remain unverified;
+see [Primary melee Nano shield damage](MELEE-NANO-SHIELD.md). Held Riot alternate
+retains its provisional immunity path pending contact/cadence reconstruction.
 
 ## Binary evidence and port choices
 
@@ -110,6 +118,11 @@ ordinary throw animation timing, shield effects or audio output.
 - Normal/alternate grenade contacts now pass the isolated Xbox check documented
   in [Grenade object contacts](GRENADE-OBJECT-CONTACT-FIRST-PASS.md); other victim/source/save combinations remain.
 - Shield constant/hit/break presentation and associated sound.
-- Capek's hover/run and class-speed reconciliation when his shield breaks.
+- Capek's exact break-owned fall and persistent run normalization are now
+  source-written with explicit owner/history save continuation, owner-local
+  shielded8.0 initialization and authored0.3 base restoration in
+  [Capek shield movement](CAPEK-SHIELD-MOVEMENT.md), pending Xbox compilation
+  and runtime. Original delayed live-speed refresh is retained; the brief
+  unresolved break-speed transient remains unsupported for saving.
 - Live NPC-fire, Fusion and invulnerable-contact coverage, shield toggles and ordinary
   save/load of the partially depleted shield in an authored encounter.

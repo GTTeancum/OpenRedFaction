@@ -1,0 +1,17 @@
+{
+  "status": "SOURCE_ONLY_PROPOSAL_NO_BUILD_OR_TEST",
+  "base_path": "/workspace/shared/OpenRedFaction-attack/platforms/xbox/Makefile",
+  "base_sha256": "215474e42e55316a3c0700a9ccc945d211ed77305223f47ba72c51d6ddb13321",
+  "candidate_sha256": "60a8905faa459ee3424704442be791fb6e61e2e949368d7853f18e7787524b79",
+  "scope": "Only CFLAGS for SDK PDCLIB_OBJS gain -Wno-error=unused-parameter; project/APU flags, SDK sources, compile/link flags and all other warning errors unchanged.",
+  "evidence": [
+    "17:00 raw log: ignore_handler_s.c unused msg/ptr/errno fatal under inherited global project -Werror.",
+    "Pinned abort_handler_s.c:14 also leaves ptr/errno unreferenced, so one-object exception leaves the next equivalent source failure.",
+    "Pinned PDCLib CMakeLists.txt:337 explicitly supplies -Wno-unused-parameter across PDCLib source set; proposed override is narrower because warnings remain visible."
+  ],
+  "limitations": [
+    "No prior durable recovery note establishes the original local dependency-warning policy.",
+    "Other SDK warning classes may still fail; no cold-build success inferred.",
+    "No make, compiler, test, emulator or fixture run."
+  ]
+}

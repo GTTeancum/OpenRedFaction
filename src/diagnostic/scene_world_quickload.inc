@@ -44,7 +44,9 @@ static int scene_world_quickload_request(scene_stream *stream,uint32_t death_rec
     if(status)goto done;
     status=scene_world_checkpoint_source_identity(&target,stream->world_checkpoint_tables,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     memset(identity.level,0,sizeof(identity.level));strcpy(identity.level,target.entry.name);
-    status=scene_world_snapshot_validate(data,bytes,&identity);
+    status=scene_world_snapshot_validate(data,bytes,&identity);if(status)goto done;
+    {const rf_world_checkpoint_slice *charges=world.sections+RF_WORLD_PROJECTILES-1;
+        status=scene_continuous_charge_checkpoint_preflight(charges->data,charges->bytes);}
  done:
     rf_vpp_close(&target_archive);
 #ifdef RF_IMAGE_XBOX_NATIVE

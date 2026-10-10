@@ -22,15 +22,16 @@ static int campaign_set_nano_shield(void *context,uint32_t handle,uint32_t enabl
     return RF_OK;
 }
 /* 4c5a90..4c5b5e: contact-owned shield debit precedes generic damage.
- * Firearm/missile, grenade and remote owners call this prepass; grenade/remote
- * owners supply their adjusted amount. Radial-only damage stays separate.
+ * Qualified primary melee, firearm/missile, grenade and remote owners call
+ * this prepass; grenade/remote owners supply their adjusted amount.
+ * Radial-only damage stays separate.
  * Rail consumes100 armor regardless of its ordinary health damage. The contact
  * that breaks the shield is still consumed, with no health spill-through.
  * Exhausted armor is clamped to0 for the port's nonnegative save/vitals contract. */
 uint32_t rf_scene_nano_contact[8]; /* contacts,breaks,invulnerable,last UID,amount,armor,health,last weapon */
 static int scene_nano_weapon_contact(campaign_npc_body *owner,int32_t weapon,float amount,uint32_t *consumed)
 {
-    uint32_t cls;float adjusted;
+    uint32_t cls;float adjusted,next_armor;int status;
     if(!owner||!consumed||!isfinite(amount)||amount<0)return RF_RANGE;
     *consumed=0;cls=campaign_seeds.items[owner-campaign_npc_bodies].class_index;
     if(cls>=campaign_seeds.class_count)return RF_FORMAT;
@@ -41,8 +42,12 @@ static int scene_nano_weapon_contact(campaign_npc_body *owner,int32_t weapon,flo
     *consumed=1;++rf_scene_nano_contact[0];
     if(owner->object_flags&4u)++rf_scene_nano_contact[2];
     else {
-        owner->damage.effects.armor=fmaxf(0,owner->damage.effects.armor-adjusted);
-        if(owner->damage.effects.armor==0)++rf_scene_nano_contact[1];
+        next_armor=fmaxf(0,owner->damage.effects.armor-adjusted);
+        if(next_armor==0) {
+            status=scene_capek_shield_break(owner);if(status)return status;
+            ++rf_scene_nano_contact[1];
+        }
+        owner->damage.effects.armor=next_armor;
     }
     rf_scene_nano_contact[3]=(uint32_t)campaign_seeds.records.items[owner-campaign_npc_bodies].record.uid;
     memcpy(rf_scene_nano_contact+4,&adjusted,4);memcpy(rf_scene_nano_contact+5,&owner->damage.effects.armor,4);

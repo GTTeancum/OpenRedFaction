@@ -108,7 +108,7 @@ static void scene_turret_player_reset(void)
     memset(rf_scene_turret_player,0,sizeof(rf_scene_turret_player));
     memset(rf_scene_turret_player_probe,0,sizeof(rf_scene_turret_player_probe));
 }
-static int scene_turret_player_select(scene_stream *stream,uint32_t *handle)
+static int scene_turret_player_legacy_select(scene_stream *stream,uint32_t *handle)
 {
     float best=FLT_MAX;uint32_t selected=UINT32_MAX;int status;
     if(!stream||!handle)return RF_RANGE;
@@ -134,6 +134,20 @@ static int scene_turret_player_select(scene_stream *stream,uint32_t *handle)
     }
     *handle=selected;return RF_OK;
 }
+static int scene_turret_player_select(scene_stream *stream,uint32_t *handle)
+{
+    scene_turret_owner *o;
+    if(!scene_use_edge.prepared)return scene_turret_player_legacy_select(stream,handle);
+    if(!stream||!handle)return RF_RANGE;*handle=UINT32_MAX;
+    if(scene_use_edge.kind!=4||!scene_use_owner_input(scene_use_edge.selected))return RF_OK;
+    o=scene_turret_lookup(scene_use_edge.selected);
+    /* Selection already happened with source tag/radius/dot/LOS. These are
+     * handler admission checks; refusal never selects a second owner. */
+    if(!o||o->dead||o->damage.effects.health<=0||!scene_turret_primary_for(o->view.weapons[0])||
+       o->view.weapon_owner||o->view.occupant_count||o->view.linked_handle!=-1||
+       scene_turret_operator_find(o->registration.handle)||scene_turret_generated_find(o->registration.handle))return RF_OK;
+    *handle=o->registration.handle;return RF_OK;
+}
 static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
 {
     scene_turret_player_state *p=&scene_turret_player;scene_turret_owner *o=NULL;
@@ -142,7 +156,9 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
     if(p->last_frame==frame)return RF_OK;
     if(p->last_frame!=UINT32_MAX&&frame<p->last_frame)scene_turret_audio_stop(p->host);
     p->last_frame=frame;
-    edge=p->input.use&&!p->use_held;p->use_held=!!p->input.use;
+    edge=scene_use_edge.prepared?(scene_use_edge.kind==4&&scene_use_owner_input(p->active?p->host:scene_use_edge.selected)):
+        (p->input.use&&!p->use_held);
+    p->use_held=!!p->input.use;
     alive=scene_turret_scene_player_live();
     if(p->active){
         o=scene_turret_lookup(p->host);
@@ -165,6 +181,7 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
         if(handle!=UINT32_MAX){
             o=scene_turret_lookup(handle);if(!o){status=RF_NOT_FOUND;goto fail;}
             p->active=1;p->host=handle;p->player=campaign_player_object.handle;
+            scene_use_claim();
             p->saved_link=campaign_player_view.linked_handle;
             memcpy(p->anchor,scene_actor_body.state.position,12);p->occupant=(int32_t)p->player;
             for(uint32_t k=0;k<3;k++)p->eye_offset[k]=campaign_listener_position[k]-p->anchor[k];
@@ -210,7 +227,9 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
             memcpy(context.player_eye,eye,12);
             for(uint32_t k=0;k<3;k++)ray[k]=o->basis[6+k]*primary->ai_attack_range;
             status=campaign_enemy_cadence(primary,frame,&remaining,&due);if(status)goto fail;
-            status=scene_turret_scene_shot(&context,p->host,UINT32_MAX,o->view.weapons[0],eye,pose+9,ray,primary);
+            /* Keep the actual outgoing identities across shot/hearing callbacks. */
+            uint32_t shot_player=p->player,shot_host=p->host;int32_t shot_weapon=o->view.weapons[0];
+            status=scene_turret_scene_shot(&context,shot_host,UINT32_MAX,shot_weapon,eye,pose+9,ray,primary);
             if(status==RF_NOT_FOUND){scene_turret_audio_stop(p->host);goto mounted_fire_done;}if(status)goto fail;
             p->burst=remaining;p->due=due;++rf_scene_turret_player[5];
             {scene_player_shot_hearing_policy hearing;uint32_t alerted;
@@ -222,6 +241,7 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
                  status=campaign_enemy_hear_shot(eye,hearing.radius,frame,&alerted);if(status)goto fail;
                  if(alerted&&campaign_player_form.active){campaign_player_form.compromised=1;rf_scene_player_form[2]=1;}
              }}
+            scene_weapon_camera_after_mounted_shot(stream,frame,shot_player,shot_host,shot_weapon);
         }
 mounted_fire_done:
         p->fire_held=!!p->input.fire;

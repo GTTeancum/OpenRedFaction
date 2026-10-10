@@ -2,8 +2,9 @@
 #define RF_SCENE_FLAME_CANISTER_INC
 /* Installed weapons.tbl Flamethrower: speed10, radius.051, lifetime10,
  * alternate release1.8s, cooldown4s, damage100, blast7, visual radius8.
- * 42c362..42c386 replaces the thrown tank with a full reserve tank. First-pass
- * policy for insufficient reserve: partial refill, with no negative inventory.
+ * 4a519a..4a51af admits alternate only with a full reserve tank;
+ * 42c362..42c386 installs that full magazine and subtracts it from reserve.
+ * Recheck at delayed release as port safety for changed/restored inventory.
  * Only successful spawn commits ammo (bounded-pool refusal costs no gas).
  * First-pass policies:
  * explode on contact (shared grenade next-tick contact gate), inherit velocity.
@@ -65,20 +66,23 @@ static int scene_flame_canister_tick(scene_stream *s,uint32_t frame,const float 
     if(!selected || blocked || !campaign_player_inventory.owned[weapon]){scene_flame_canister_pending=0;return RF_OK;}
     if(scene_flame_canister_pending){
         if(--scene_flame_canister_pending)return RF_OK;
-        if(campaign_player_inventory.loaded[weapon]<=0)return RF_OK;
+        /* Original delayed debit assumes admission. This extra port guard
+         * declines a changed/legacy underfunded throw without losing gas. */
+        if(campaign_player_inventory.loaded[weapon]<=0 ||
+           campaign_player_inventory.reserve[ammo]<supply->magazine)return RF_OK;
         for(i=0;i<SCENE_FLAME_CANISTER_CAPACITY && scene_flame_canisters[i].flight.lifecycle.active;i++){}
         if(i==SCENE_FLAME_CANISTER_CAPACITY){++rf_scene_flame_canister[4];return RF_OK;}
         {scene_grenade_projectile pending={0};
          status=rf_grenade_flight_launch(&pending.flight,position,forward,10.f,.051f,10.f,0,0x10u);if(status)return status;
          for(k=0;k<3;k++)pending.flight.velocity[k]+=scene_actor_body.state.velocity[k];
          scene_flame_canisters[i]=pending;}
-        {int32_t refill=campaign_player_inventory.reserve[ammo];
-         if(refill>supply->magazine)refill=supply->magazine;
-         campaign_player_inventory.loaded[weapon]=refill;campaign_player_inventory.reserve[ammo]-=refill;}
-        scene_flame_gas_remainder=0;campaign_ammo_publish();
+        campaign_player_inventory.loaded[weapon]=supply->magazine;
+        campaign_player_inventory.reserve[ammo]-=supply->magazine;
+        campaign_ammo_publish();
         ++rf_scene_flame_canister[1];++rf_scene_flame_canister[3];
         if(rf_scene_combat_trace)printf("FLAME_CANISTER_RELEASE %u %u\n",frame,i);
-    }else if(edge && !scene_flame_canister_cooldown && campaign_player_inventory.loaded[weapon]>0){
+    }else if(edge && !scene_flame_canister_cooldown && campaign_player_inventory.loaded[weapon]>0 &&
+        campaign_player_inventory.reserve[ammo]>=supply->magazine){
         scene_flame_canister_pending=108;scene_flame_canister_cooldown=(uint32_t)ceilf(definition->alt_fire_seconds*60);
         ++rf_scene_flame_canister[0];++rf_scene_combat[0];campaign_last_alt=1;
         combat_sound("Flame Alt Fire",position);

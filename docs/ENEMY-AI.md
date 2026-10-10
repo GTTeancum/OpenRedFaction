@@ -450,6 +450,12 @@ No emulator session was launched for this resource-only change.
 
 ## Playable shotgun first pass (2026-09-14)
 
+Historical evidence only: the player primary behavior and corresponding replay
+expectations below are superseded by [Player Shotgun shell dispatch](PLAYER-SHOTGUN-DISPATCH.md).
+Accepted primary now spends two shells for eight rays, with one-shell fallback
+to effective alternate; this source change is not yet compiled/runtime-verified.
+The old one-shell/four-ray primary results do not validate the corrected path.
+
 The shared campaign now exposes Shotgun as slot3 after pistol/rifle/baton.
 Shotgun and10gauge_ammo pickups use the existing inventory grant path; cycle,
 selected-weapon import and respawn supply recognize its weapon ID5. The scene
@@ -491,6 +497,11 @@ the three weapon-selection cases. No new GitHub screenshot was uploaded.
 
 
 ## Shotgun reload and transition checks (2026-09-14)
+
+Historical results below predate the corrected player Shotgun dispatch.
+Primary-shot ammo, transfer and transition expectations must be reconciled
+with [the two-shell dispatch](PLAYER-SHOTGUN-DISPATCH.md) before reuse; unchanged
+alternate-only results remain evidence for the old revision only.
 
 `tools/replay_shotgun_state.py` adds four PC cases. For reloads, it stages
 near authored L7S4 shotgun11087 and walks into normal pickup contact with

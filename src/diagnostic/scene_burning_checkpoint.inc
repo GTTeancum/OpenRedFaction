@@ -144,10 +144,13 @@ static int scene_burning_checkpoint_read(scene_burning_checkpoint_stage *stage,c
     stage->seen|=1ull<<slot;++stage->count;return RF_OK;
 }
 static int scene_burning_checkpoint_admit(scene_burning_checkpoint_stage *burning,
-    const scene_npc_checkpoint_restore_stage *npcs)
+    scene_npc_checkpoint_restore_stage *npcs)
 {
     uint32_t i,j;
-    if(!burning||!burning->count)return RF_OK;
+    if(!burning||!burning->count){
+        if(npcs)for(i=0;i<npcs->count;i++)if(npcs->entries[i].unowned_motion_mask)return RF_FORMAT;
+        return RF_OK;
+    }
     if(!npcs)return RF_FORMAT;
     /* RFNC15 ordinary pain and RFAP4 burns share the live pain RNG but must
      * never both claim one reaction owner. Publication order cannot decide it. */
@@ -180,6 +183,21 @@ static int scene_burning_checkpoint_admit(scene_burning_checkpoint_stage *burnin
                 burning->records[i].source!=entry->handle)return RF_FORMAT;
         }
     }
+    /* Candidate RFAP action, never the destination actor's current burn.
+     * Verify every unresolved slot before clearing any staged obligations.
+     * No new ownership is granted to other one-shots in the same playback. */
+    for(j=0;j<npcs->count;j++){
+        const scene_npc_checkpoint_restore_entry *entry=npcs->entries+j;int32_t motion=-1;
+        if(!entry->unowned_motion_mask)continue;
+        for(i=0;i<SCENE_BURNING_CAPACITY;i++)if(burning->records[i].left&&
+            burning->target_uid[i]==entry->saved.uid&&burning->pain[i][3]>=0){
+            motion=entry->selection.mapping.actions[burning->pain[i][3]];break;
+        }
+        if(motion<0)return RF_FORMAT;
+        for(i=0;i<entry->saved.playback.completion.active.count;i++)if((entry->unowned_motion_mask&(1u<<i))&&
+            entry->saved.playback.completion.active.slots[i].motion!=motion)return RF_FORMAT;
+    }
+    for(j=0;j<npcs->count;j++)npcs->entries[j].unowned_motion_mask=0;
     return RF_OK;
 }
 static void scene_burning_checkpoint_assign(const scene_burning_checkpoint_stage *stage)

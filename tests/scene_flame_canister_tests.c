@@ -54,13 +54,13 @@ int main(void)
     CHECK(!scene_flame_canister_tick(&s,1,p,f,2,&d,0,0,1));
     for(frame=2;frame<300;frame++)CHECK(!scene_flame_canister_tick(&s,frame,p,f,2,&d,1,0,1));
     CHECK(campaign_player_inventory.loaded[2]==100 && !rf_scene_flame_canister[1]);
-    /* Low and zero reserve use the explicit partial-refill port policy. */
+    /* Original alternate admission rejects less than a full reserve tank. */
     {uint32_t run;for(run=0;run<2;run++){
         scene_flame_canister_reset();campaign_player_inventory.loaded[2]=37;campaign_player_inventory.reserve[3]=run?0:29;
         CHECK(!scene_flame_canister_tick(&s,0,p,f,2,&d,1,0,1));
         for(frame=1;frame<=108;frame++)CHECK(!scene_flame_canister_tick(&s,frame,p,f,2,&d,1,0,1));
-        CHECK(campaign_player_inventory.loaded[2]==(run?0:29) && !campaign_player_inventory.reserve[3]);
-        CHECK(rf_scene_flame_canister[1]==1);
+        CHECK(campaign_player_inventory.loaded[2]==37 && campaign_player_inventory.reserve[3]==(run?0:29));
+        CHECK(!rf_scene_flame_canister[0] && !rf_scene_flame_canister[1] && !scene_flame_canister_busy());
     }}
     /* A bounded pool refusal preserves both loaded and reserve ammunition. */
     scene_flame_canister_reset();campaign_player_inventory.loaded[2]=37;campaign_player_inventory.reserve[3]=250;

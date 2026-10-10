@@ -1,6 +1,6 @@
 /* Shared finite-radius projectile contacts with actual retained prop meshes.
  * The contact face carries owner generation; the object tag carries its slot. */
-#define SCENE_CLUTTER_PROJECTILE_OWNER 0x04000000u
+#define SCENE_CLUTTER_PROJECTILE_OWNER 0x02000000u
 static int scene_clutter_projectile_compose(uint32_t source,const float start[3],const float delta[3],float radius,
     rf_weapon_flight_contact *out,uint32_t *liquid,uint32_t *matched)
 {

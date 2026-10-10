@@ -3,14 +3,19 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-/* RFCH4 is session history, not the current-level NPC/event payload. Include
+/* RFCH9 is session history, not the current-level NPC/event payload. Include
  * after all campaign stores/carry declarations. Caller identity must bind the
  * installed campaign/catalogs, not merely the current level. Current owners
- * merge into private copies; no session capture side effects. Max disk207720B.
+ * merge into private copies; no session capture side effects. Existing budgets
+ * remain binding; RFCH5 adds at most8192B for exact Capek break history and
+ * RFCH6 adds at most49152B for independent configured death-item history;
+ * RFCH7 adds at most8192B for residual Goto AI suppression;
+ * RFCH8 adds at most32768B for finite medic reserve and syringe role;
+ * RFCH9 adds at most73728B for explicit bounded AI/route provenance.
  * Separate goals/pickups/triggers/startup/current-player and omitted sidecars must be
  * composed independently. Restore replaces store indices: dependent NPC/shield/
  * AI slots require composition-level UID rebinding before gameplay resumes. */
-enum { SCENE_CAMPAIGN_HISTORY_MAX_BYTES=207720+RF_CAMPAIGN_PICKUP_SLOTS*24,
+enum { SCENE_CAMPAIGN_HISTORY_MAX_BYTES=207720+RF_CAMPAIGN_PICKUP_SLOTS*24+RF_CAMPAIGN_ACTOR_SLOTS*84,
     SCENE_CAMPAIGN_HISTORY_OMIT_PLAYER=1,SCENE_CAMPAIGN_HISTORY_OMIT_WEAPON_MODES=2,
     SCENE_CAMPAIGN_HISTORY_OMIT_NPC_SHIELDS=4,SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES=8 };
 typedef struct scene_campaign_history_checkpoint_stage {
@@ -25,7 +30,10 @@ static uint32_t scene_campaign_history_checkpoint_omissions(void)
 {
     uint32_t flags=0,i;
     if(scene_shield_history_count)flags|=SCENE_CAMPAIGN_HISTORY_OMIT_NPC_SHIELDS;
-    for(i=0;i<RF_CAMPAIGN_ACTOR_SLOTS;i++)if(campaign_ai_saved_modes[i].flags&1){flags|=SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES;break;}
+    /* AI sidecar is now represented. Malformed/unrepresentable stored lanes
+     * still fail instead of silently removing the old omission guard. */
+    for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_campaign_actor_route_validate(rf_scene_defeated_actors.routes+i)){
+        flags|=SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES;break;}
     return flags;
 }
 static uint32_t scene_history_word(const unsigned char *p)
@@ -38,6 +46,30 @@ static float scene_history_float(const unsigned char *p)
 {float f;uint32_t bits=scene_history_word(p);memcpy(&f,&bits,4);return f;}
 static void scene_history_put_float(unsigned char *p,float f)
 {uint32_t bits;memcpy(&bits,&f,4);scene_history_put(p,bits);}
+static void scene_history_item_drop_read(const unsigned char *p,rf_campaign_item_drop *d)
+{
+    uint32_t i;d->state=scene_history_word(p);d->stable_definition_id=scene_history_signed(p+4);d->quantity=scene_history_signed(p+8);
+    for(i=0;i<3;i++)d->position[i]=scene_history_float(p+12+4*i);
+}
+static void scene_history_item_drop_write(unsigned char *p,const rf_campaign_item_drop *d)
+{
+    uint32_t i;scene_history_put(p,d->state);scene_history_put(p+4,(uint32_t)d->stable_definition_id);scene_history_put(p+8,(uint32_t)d->quantity);
+    for(i=0;i<3;i++)scene_history_put_float(p+12+4*i,d->position[i]);
+}
+static void scene_history_medic_read(const unsigned char *p,rf_campaign_medic_state *m)
+{m->reserve_seen=scene_history_word(p);m->reserve=scene_history_float(p+4);
+ m->child_state=scene_history_word(p+8);m->child_health=scene_history_float(p+12);}
+static void scene_history_medic_write(unsigned char *p,const rf_campaign_medic_state *m)
+{scene_history_put(p,m->reserve_seen);scene_history_put_float(p+4,m->reserve);
+ scene_history_put(p+8,m->child_state);scene_history_put_float(p+12,m->child_health);}
+static void scene_history_route_read(const unsigned char *p,rf_campaign_actor_route *a)
+{a->flags=scene_history_word(p);a->action=scene_history_signed(p+4);a->offset=scene_history_word(p+8);
+ a->count=scene_history_word(p+12);a->cursor=scene_history_word(p+16);a->section_hash=scene_history_word(p+20);
+ a->origin=scene_history_word(p+24);a->event=scene_history_word(p+28);a->patrol=scene_history_word(p+32);}
+static void scene_history_route_write(unsigned char *p,const rf_campaign_actor_route *a)
+{scene_history_put(p,a->flags);scene_history_put(p+4,(uint32_t)a->action);scene_history_put(p+8,a->offset);
+ scene_history_put(p+12,a->count);scene_history_put(p+16,a->cursor);scene_history_put(p+20,a->section_hash);
+ scene_history_put(p+24,a->origin);scene_history_put(p+28,a->event);scene_history_put(p+32,a->patrol);}
 static uint32_t scene_history_hash(const unsigned char *p,uint32_t bytes)
 {uint32_t i,h=2166136261u;for(i=0;i<bytes;i++){h^=i>=12&&i<16?0:p[i];h*=16777619u;}return h;}
 static int scene_history_same(const unsigned char *a,const unsigned char *b)
@@ -124,12 +156,45 @@ static void scene_history_carry_write(unsigned char *p,const scene_campaign_hist
  * disabled/limit/unlimited/activations/mode. RFCH4 event rows56 add common
  * remaining/mode and source/actor UID tags to RFCH1..3's 32-byte event row.
  * Actor rows56=key12+valid/health/armor/affiliation/
- * flags/dropstate/weapon/quantity/position3. All integers/float bits LE. */
+ * flags/dropstate/weapon/quantity/position3. RFCH5 appends a4-byte exact
+ * Capek shield-break latch0/1 to each actor row (60B); only nonzero retained
+ * history selects5. Earlier formats supply0. RFCH6 appends the independent
+ * configured death-item state/ID/quantity/XYZ24B (84B actor rows); only retained
+ * item history selects6. Earlier formats supply canonical zero, never loot.
+ * A nonretired item owner needs valid fatal vitals; retired history is independent
+ * of stale revisit vitals. RFCH7 adds compact Goto AI-suppression0/1 at84
+ * (88B actor rows), selected only for a retained latch; legacy supplies0.
+ * This is independent of AI-mode/route history. RFCH8 adds16 bytes
+ * at88 (104B actor rows): reserve_seen, exact reserve bits, child state and
+ * exact child health bits. Nonzero seen/state alone promotes8. Constructor
+ * defaults remain canonical absent; explicit exhausted0 and deleted2 never
+ * reconstruct a fresh reserve/child. Dedicated child role is hand1/syringe,
+ * keyed by parent level/UID, not a generated handle. No lane replays events.
+ * All integers/float bits LE. */
+/* RFCH9 adds36 bytes at actor offset104. Absent older rows remain all-zero.
+ * Current rows join RFNC23 exactly. Remote rows preserve section-start policy:
+ * source/path/hash admission is deferred until the actual owning level loads;
+ * no remote living combat3/seat13 is representable by this bounded sidecar. */
+static int scene_history_route_sections(const rf_campaign_actors *actors)
+{
+    uint32_t i;for(i=0;i<actors->count;i++){
+        const rf_campaign_actor_route *a=actors->routes+i;
+        if(rf_campaign_actor_route_validate(a)||actors->items[i].level>=actors->level_count)return RF_FORMAT;
+        if(a->flags&&!actors->items[i].retired&&
+           (!actors->vitals[i].valid||actors->vitals[i].health>0)&&
+           (a->action==3||a->action==13)&&
+           !scene_history_same((const unsigned char *)actors->levels[actors->items[i].level],
+               (const unsigned char *)campaign_current_level))return RF_FORMAT;
+    }
+    return RF_OK;
+}
+static uint32_t scene_history_row_bytes(uint32_t version,uint32_t section)
+{return section==2?(version>=9?140u:version>=8?104u:version>=7?88u:version>=6?84u:version>=5?60u:56u):section==1&&version>=4?56u:32u;}
 static int scene_campaign_history_checkpoint_preflight(const unsigned char identity[32],const void *data,uint32_t bytes)
 {
     const unsigned char *p=data,*r,*levels;uint32_t counts[6],i,j,k,v,at=96;uint64_t expected=96;int status;
     if(!identity||!data)return RF_RANGE;
-    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)<1||scene_history_word(p+4)>4)||
+    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)<1||scene_history_word(p+4)>9)||
        scene_history_word(p+8)!=bytes||memcmp(p+16,identity,32)||scene_history_word(p+12)!=scene_history_hash(p,bytes))return RF_FORMAT;
     v=scene_history_word(p+4);
     for(i=v==1?72:v==2?80:92;i<96;i+=4)if(scene_history_word(p+i))return RF_FORMAT;
@@ -142,11 +207,11 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
     for(i=0;i<6;i++)counts[i]=scene_history_word(p+48+i*4);
     for(i=0;i<3;i++){
         if(counts[i*2]>RF_CAMPAIGN_PICKUP_LEVELS||counts[i*2+1]>(i==2?RF_CAMPAIGN_ACTOR_SLOTS:RF_CAMPAIGN_PICKUP_SLOTS))return RF_FORMAT;
-        expected+=(uint64_t)counts[i*2]*64+(uint64_t)counts[i*2+1]*(i==2||(i==1&&v>=4)?56:32);
+        expected+=(uint64_t)counts[i*2]*64+(uint64_t)counts[i*2+1]*scene_history_row_bytes(v,i);
     }
     if(expected!=bytes)return RF_FORMAT;
     for(k=0;k<3;k++){
-        uint32_t stride=k==2||(k==1&&v>=4)?56:32,n=counts[k*2+1];levels=p+at;at+=counts[k*2]*64;r=p+at;
+        uint32_t stride=scene_history_row_bytes(v,k),n=counts[k*2+1];levels=p+at;at+=counts[k*2]*64;r=p+at;
         status=scene_history_keys(levels,counts[k*2],r,n,stride);if(status)return status;
         for(i=0;i<n;i++,r+=stride){
             if(k==0){if(scene_history_word(r+20)>255)return RF_FORMAT;}
@@ -172,6 +237,17 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
                    (scene_history_word(r+28)&~0x4004u)||scene_history_word(r+32)>2)return RF_FORMAT;
                 if(scene_history_word(r+32)&&(scene_history_signed(r+36)<0||scene_history_signed(r+36)>=64||scene_history_signed(r+40)<0))return RF_FORMAT;
                 for(j=44;j<56;j+=4)if(!isfinite(scene_history_float(r+j)))return RF_FORMAT;
+                if(v>=5&&scene_history_word(r+56)>1)return RF_FORMAT;
+                if(v>=7&&scene_history_word(r+84)>1)return RF_FORMAT;
+                if(v>=9){rf_campaign_actor_route a={0};scene_history_route_read(r+104,&a);
+                    if(rf_campaign_actor_route_validate(&a))return RF_FORMAT;
+                    if((scene_history_word(r+8)|| (scene_history_word(r+12)&&scene_history_float(r+16)<=0))&&
+                       (a.origin||(a.flags&62)))return RF_FORMAT;}
+                if(v>=8){rf_campaign_medic_state m={0};scene_history_medic_read(r+88,&m);
+                    if(rf_campaign_medic_state_validate(&m))return RF_FORMAT;}
+                if(v>=6){rf_campaign_item_drop d={0};scene_history_item_drop_read(r+60,&d);
+                    if(rf_campaign_item_drop_validate(&d)||(d.state&&!scene_history_word(r+8)&&
+                       (!scene_history_word(r+12)||scene_history_float(r+16)>0)))return RF_FORMAT;}
             }
         }
         at+=n*stride;
@@ -230,6 +306,12 @@ event_done:free(objects);if(status)return status;
         key=s->actors.items+slot;if(key->level>=s->actors.level_count||key->uid!=(uint32_t)campaign_seeds.records.items[i].record.uid||
             !memchr(s->actors.levels[key->level],0,64)||!memchr(campaign_current_level,0,64)||
             !scene_history_same((const unsigned char *)s->actors.levels[key->level],(const unsigned char *)campaign_current_level))return RF_FORMAT;
+        if(o->capek_shield_broken>1 || (o->capek_shield_broken&&!scene_capek_shield_movement_owner(o)))return RF_FORMAT;
+        s->actors.capek_shield_broken[slot]=(uint8_t)o->capek_shield_broken;
+        if(!campaign_npc_ai_suppression_consistent(o))return RF_FORMAT;
+        s->actors.ai_suppressed[slot]=(uint8_t)campaign_npc_ai_suppressed(o);
+        status=scene_medic_state_capture(o,s->actors.medic+slot);if(status)return status;
+        status=scene_actor_route_capture(o,0,s->actors.routes+slot);if(status)return status;
         if(o->registration.view){
             if(o->registration.view!=&o->view||rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration)return RF_FORMAT;
             s->actors.vitals[slot].valid=1;s->actors.vitals[slot].health=o->damage.effects.health;s->actors.vitals[slot].armor=o->damage.effects.armor;
@@ -246,14 +328,28 @@ static void scene_history_write_keys(unsigned char *r,const rf_campaign_object_r
 static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,const unsigned char identity[32],int32_t now,
     void *out,uint32_t capacity,uint32_t *written)
 {
-    scene_campaign_history_checkpoint_stage *s;unsigned char *p=NULL,*r;uint32_t bytes,i,k,at=96;int status;
+    scene_campaign_history_checkpoint_stage *s;unsigned char *p=NULL,*r;uint32_t bytes,i,k,at=96,version=4;int status;
     if(!identity||!out||!written)return RF_RANGE;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;status=scene_history_snapshot(s,stream,now);if(status)goto done;
+    for(i=0;i<s->actors.count;i++) {
+        if(s->actors.capek_shield_broken[i]>1){status=RF_FORMAT;goto done;}
+        if(s->actors.capek_shield_broken[i]&&version<5)version=5;
+        status=rf_campaign_item_drop_validate(s->actors.item_drops+i);if(status)goto done;
+        if(s->actors.item_drops[i].state&&version<6)version=6;
+        if(s->actors.ai_suppressed[i]>1){status=RF_FORMAT;goto done;}
+        if(s->actors.ai_suppressed[i]&&version<7)version=7;
+        status=rf_campaign_actor_route_validate(s->actors.routes+i);if(status)goto done;
+        if(s->actors.routes[i].flags&&version<9)version=9;
+        status=rf_campaign_medic_state_validate(s->actors.medic+i);if(status)goto done;
+        if((s->actors.medic[i].reserve_seen||s->actors.medic[i].child_state)&&version<8)version=8;
+    }
+    status=scene_history_route_sections(&s->actors);if(status)goto done;
     bytes=96+(s->switches.level_count+s->events.level_count+s->actors.level_count)*64+
-        s->switches.count*32+(s->events.count+s->actors.count)*56+scene_history_carry_bytes(s->carry_mask);
+        s->switches.count*32+s->events.count*56+s->actors.count*scene_history_row_bytes(version,2)+
+        scene_history_carry_bytes(s->carry_mask);
     if(bytes>capacity||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES){status=RF_RANGE;goto done;}
     p=calloc(1,bytes);if(!p){status=RF_IO;goto done;}
-    memcpy(p,"RFCH",4);scene_history_put(p+4,4);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
+    memcpy(p,"RFCH",4);scene_history_put(p+4,version);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
     scene_history_put(p+48,s->switches.level_count);scene_history_put(p+52,s->switches.count);
     scene_history_put(p+56,s->events.level_count);scene_history_put(p+60,s->events.count);
     scene_history_put(p+64,s->actors.level_count);scene_history_put(p+68,s->actors.count);
@@ -277,8 +373,13 @@ static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,c
             else {const rf_campaign_weapon_drop *d=s->actors.drops+i;uint32_t j;
                 scene_history_put(r+12,s->actors.vitals[i].valid);scene_history_put_float(r+16,s->actors.vitals[i].health);scene_history_put_float(r+20,s->actors.vitals[i].armor);
                 scene_history_put(r+24,s->actors.mission[i].affiliation);scene_history_put(r+28,s->actors.mission[i].flags);scene_history_put(r+32,d->state);
-                scene_history_put(r+36,(uint32_t)d->weapon);scene_history_put(r+40,(uint32_t)d->quantity);for(j=0;j<3;j++)scene_history_put_float(r+44+j*4,d->position[j]);}
-            at+=k==0?32:56;
+                scene_history_put(r+36,(uint32_t)d->weapon);scene_history_put(r+40,(uint32_t)d->quantity);for(j=0;j<3;j++)scene_history_put_float(r+44+j*4,d->position[j]);
+                if(version>=5)scene_history_put(r+56,s->actors.capek_shield_broken[i]);
+                if(version>=6)scene_history_item_drop_write(r+60,s->actors.item_drops+i);
+                if(version>=7)scene_history_put(r+84,s->actors.ai_suppressed[i]);
+                if(version>=8)scene_history_medic_write(r+88,s->actors.medic+i);
+                if(version>=9)scene_history_route_write(r+104,s->actors.routes+i);}
+            at+=scene_history_row_bytes(version,k);
         }
     }
     scene_history_carry_write(p+at,s);
@@ -311,12 +412,18 @@ static inline int scene_campaign_history_checkpoint_prepare(const unsigned char 
                 if(scene_history_word(p+4)>=4){v->common_remaining=scene_history_signed(r+32);v->mode=scene_history_word(r+36);
                     v->source_kind=scene_history_word(r+40);v->source_uid=scene_history_word(r+44);
                     v->actor_kind=scene_history_word(r+48);v->actor_uid=scene_history_word(r+52);}}
-            else {rf_campaign_weapon_drop *d=s->actors.drops+i;s->actors.vitals[i].valid=scene_history_word(r+12);s->actors.vitals[i].health=scene_history_float(r+16);s->actors.vitals[i].armor=scene_history_float(r+20);
-                s->actors.mission[i].affiliation=scene_history_word(r+24);s->actors.mission[i].flags=scene_history_word(r+28);d->state=scene_history_word(r+32);d->weapon=scene_history_signed(r+36);d->quantity=scene_history_signed(r+40);for(j=0;j<3;j++)d->position[j]=scene_history_float(r+44+j*4);}
-            at+=k==2||(k==1&&scene_history_word(p+4)>=4)?56:32;
+            else if(k==2) {rf_campaign_weapon_drop *d=s->actors.drops+i;s->actors.vitals[i].valid=scene_history_word(r+12);s->actors.vitals[i].health=scene_history_float(r+16);s->actors.vitals[i].armor=scene_history_float(r+20);
+                s->actors.mission[i].affiliation=scene_history_word(r+24);s->actors.mission[i].flags=scene_history_word(r+28);d->state=scene_history_word(r+32);d->weapon=scene_history_signed(r+36);d->quantity=scene_history_signed(r+40);for(j=0;j<3;j++)d->position[j]=scene_history_float(r+44+j*4);
+                if(scene_history_word(p+4)>=5)s->actors.capek_shield_broken[i]=(uint8_t)scene_history_word(r+56);
+                if(scene_history_word(p+4)>=6)scene_history_item_drop_read(r+60,s->actors.item_drops+i);
+                if(scene_history_word(p+4)>=7)s->actors.ai_suppressed[i]=(uint8_t)scene_history_word(r+84);
+                if(scene_history_word(p+4)>=8)scene_history_medic_read(r+88,s->actors.medic+i);
+                if(scene_history_word(p+4)>=9)scene_history_route_read(r+104,s->actors.routes+i);}
+            at+=scene_history_row_bytes(scene_history_word(p+4),k);
         }
     }
     if(scene_history_word(p+4)>=2){status=scene_history_carry_read(p+at,scene_history_word(p+72),s);if(status){free(s);return status;}}
+    status=scene_history_route_sections(&s->actors);if(status){free(s);return status;}
     *out=s;return RF_OK;
 }
 /* Assignment-only publication after ALL composed components have preflighted.
@@ -402,6 +509,9 @@ static inline int scene_campaign_history_checkpoint_rebind_prepare(const scene_c
         if(old_slot!=r->old_slot||(r->view&&(r->view!=&o->view||rf_object_registry_lookup(&campaign_registry,r->handle)!=&o->registration))){status=RF_FORMAT;goto fail;}
         status=scene_history_find(history->actors.levels,history->actors.level_count,history->actors.items,
             history->actors.count,campaign_current_level,r->uid,&slot);if(status)goto fail;r->new_slot=slot;
+        if(history->actors.capek_shield_broken[slot]&&!scene_capek_shield_movement_owner(o)){status=RF_FORMAT;goto fail;}
+        status=scene_medic_state_admit(o,history->actors.medic+slot);if(status)goto fail;
+        {rf_level_waypoint_path path;status=scene_actor_route_admit(o,history->actors.routes+slot,&path);if(status)goto fail;}
     }
     *out=s;return RF_OK;
  fail:free(s);return status;
@@ -426,6 +536,43 @@ static inline int scene_campaign_history_checkpoint_rebind_validate(const scene_
             s->history->actors.count,campaign_current_level,r->uid,&slot);if(status)return status;if(slot!=r->new_slot)return RF_FORMAT;
     }
     return RF_OK;
+}
+/* Same current-level owner appears in RFNC and all-level RFCH. Join the
+ * independent shield/AI latches and complete configured item lane before publication so neither
+ * component can silently overwrite the other's history. Final history/latch
+ * publication follows successful storage close, before transient retirement. */
+static int scene_campaign_history_checkpoint_capek_admit(
+    const scene_campaign_history_checkpoint_stage *history,
+    const scene_campaign_history_rebind_stage *bindings,const scene_npc_checkpoint_restore_stage *npcs)
+{
+    uint32_t i,current_only=0,joined=0;
+    if(!history||!bindings||bindings->history!=history||!npcs)return RF_RANGE;
+    for(i=0;i<npcs->count;i++) {
+        const scene_npc_checkpoint_restore_entry *e=npcs->entries+i;
+        const scene_history_npc_rebind *b;
+        if(e->slot>=bindings->body_count)return RF_FORMAT;b=bindings->entries+e->slot;
+        if(!b->registered||b->uid!=e->saved.uid||b->new_slot>=history->actors.count||
+           history->actors.capek_shield_broken[b->new_slot]!=e->saved.capek_shield_broken||
+           history->actors.ai_suppressed[b->new_slot]!=e->saved.ai_suppressed)return RF_FORMAT;
+        if(rf_campaign_item_drop_validate(&e->saved.item_drop)||
+           rf_campaign_item_drop_validate(history->actors.item_drops+b->new_slot)||
+           memcmp(history->actors.item_drops+b->new_slot,&e->saved.item_drop,sizeof(e->saved.item_drop)))return RF_FORMAT;
+        if(memcmp(history->actors.routes+b->new_slot,&e->saved.route,sizeof(e->saved.route)))return RF_FORMAT;
+        if(e->saved.route.flags&&!e->saved.retired&&!e->saved.dead_pose&&e->saved.health>0&&
+           (e->saved.route.action==3||e->saved.route.action==13))joined++;
+        if(rf_campaign_medic_state_validate(&e->saved.medic)||
+           rf_campaign_medic_state_validate(history->actors.medic+b->new_slot)||
+           memcmp(history->actors.medic+b->new_slot,&e->saved.medic,sizeof(e->saved.medic)))return RF_FORMAT;
+    }
+    for(i=0;i<history->actors.count;i++){
+        const rf_campaign_actor_route *a=history->actors.routes+i;
+        if(a->flags&&!history->actors.items[i].retired&&
+           (!history->actors.vitals[i].valid||history->actors.vitals[i].health>0)&&
+           (a->action==3||a->action==13)&&scene_history_same(
+               (const unsigned char *)history->actors.levels[history->actors.items[i].level],
+               (const unsigned char *)campaign_current_level))current_only++;
+    }
+    return current_only==joined?RF_OK:RF_FORMAT;
 }
 /* Composer-only assignment phase after rebind_validate and ALL other stages
  * pass while ownership is frozen. Apply after any NPC state assignment that

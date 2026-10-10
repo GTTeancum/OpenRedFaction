@@ -2,6 +2,8 @@
 #define RF_SCENE_NPC_CHECKPOINT_CAPTURE_INCLUDED
 #include "rf/npc_checkpoint.h"
 #include "scene_npc_pain_checkpoint.inc"
+#include "scene_npc_reload_checkpoint.inc"
+#include "scene_npc_drone_checkpoint.inc"
 /* Include after campaign NPC/seed/pose/persistence declarations. Caller owns
  * stable scene state throughout both passes. Global projectile, shield, burn,
  * mover, event and pickup admission remains the composed caller's duty. */
@@ -70,38 +72,6 @@ static int scene_npc_checkpoint_controller_handle(uint32_t uid,uint32_t *handle)
         }
     }
     return found?RF_OK:RF_NOT_FOUND;
-}
-/* Resolve borrowed waypoint storage from a unique authored movement event.
- * Pursuit (follow 2) is ordinary combat state and has no authored event. */
-static int scene_npc_checkpoint_move_binding(uint32_t uid,uint32_t handle,uint32_t follow,
-    rf_level_waypoint_path *path,uint32_t *mode)
-{
-    uint32_t i,j,found=0,linked;int status;
-    if(!path||!mode||follow>2)return RF_RANGE;
-    memset(path,0,sizeof(*path));*mode=0;
-    if(follow==2)return uid?RF_FORMAT:RF_OK;
-    if(!uid)return RF_FORMAT;
-    for(i=0;i<campaign_events.count;i++){
-        const rf_runtime_event *runtime=campaign_events.items+i;const rf_level_event *record;
-        if(!runtime->authored||runtime->authored->record.uid!=uid)continue;
-        if(++found!=1)return RF_FORMAT;record=&runtime->authored->record;
-        if((follow==1&&strcmp(record->type,"Goto_Player"))||
-           (follow==0&&strcmp(record->type,"Goto")&&strcmp(record->type,"Follow_Waypoints")))return RF_FORMAT;
-        if(record->link_count&&!runtime->links)return RF_FORMAT;
-        linked=0;for(j=0;j<record->link_count;j++)if((runtime->links[j].kind==1||runtime->links[j].kind==2)&&
-            runtime->links[j].value==handle)linked++;
-        if(linked!=1)return RF_FORMAT;
-        if(!strcmp(record->type,"Follow_Waypoints")){
-            if(!campaign_waypoints)return RF_NOT_FOUND;
-            if(!strcmp(record->texts[1],"Loop"))*mode=1;
-            else if(!strcmp(record->texts[1],"Ping Pong"))*mode=2;
-            else if(strcmp(record->texts[1],"One way"))return RF_FORMAT;
-            status=rf_level_waypoint_find(campaign_waypoints,campaign_waypoint_bytes,
-                campaign_navigation.count,record->texts[0],path);if(status)return status;
-            if(!path->count)return RF_FORMAT;
-        }
-    }
-    return found==1?RF_OK:RF_NOT_FOUND;
 }
 static int scene_npc_checkpoint_route_ordinal(const campaign_npc_body *o,
     const rf_entity_navigation_candidate *node,uint32_t *ordinal)
@@ -193,22 +163,27 @@ static int scene_npc_checkpoint_attack_target_uid(uint32_t handle,uint32_t *uid)
     status=scene_npc_checkpoint_living_npc_uid(handle,uid);if(status!=RF_NOT_FOUND)return status;
     return scene_turret_attack_checkpoint_uid(handle,uid);
 }
-static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing,uint32_t burning_profile)
+static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing,uint32_t burning_profile,uint32_t restoring)
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
-    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};
+    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};rf_campaign_actor_route route={0};
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
     if(slot>=rf_scene_defeated_actors.count||slot>=RF_CAMPAIGN_ACTOR_SLOTS)return RF_FORMAT;
     key=rf_scene_defeated_actors.items+slot;
+    if(o->death_item_fault&&!restoring)return scene_npc_checkpoint_reject(index,"configured_item_fault",0,o->death_item_fault,RF_FORMAT);
+    status=scene_death_item_owner_admit(o,rf_scene_defeated_actors.item_drops+slot);
+    if(status)return scene_npc_checkpoint_reject(index,"configured_item",0,slot,status);
     if(key->level>=rf_scene_defeated_actors.level_count||key->level>=RF_CAMPAIGN_PICKUP_LEVELS||
        !scene_npc_checkpoint_level_equal(rf_scene_defeated_actors.levels[key->level],campaign_current_level)||
        key->uid!=(uint32_t)campaign_seeds.records.items[index].record.uid||
        campaign_seeds.items[index].class_index>=campaign_seeds.class_count)return RF_FORMAT;
     if(!o->registration.view&&!key->retired)return RF_FORMAT;
+    if(!campaign_npc_ai_suppression_consistent(o))
+        return scene_npc_checkpoint_reject(index,"ai_suppression_mirrors",0,o->ai_mode.flags_530,RF_FORMAT);
     if(o->registration.view&&(o->registration.view!=&o->view||
        rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration||
        rf_entity_lookup(&campaign_entities,(int32_t)o->registration.handle)!=&o->view))return RF_FORMAT;
@@ -222,13 +197,17 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         if(status)return scene_npc_checkpoint_reject(index,"death_unsettled",0,o->death.action_824,status);
         terminal_dead=1;
     }
+    status=scene_actor_route_capture(o,restoring?2:0,&route);
+    if(status)return scene_npc_checkpoint_reject(index,"actor_route",0,o->script_move.origin,status);
     /* Live routes require a separate continuation record. Terminal corpses
      * cannot travel, so their leftover route and steering state is discardable. */
 #define NPC_CAPTURE_ZERO(field) do{if(o->field)return scene_npc_checkpoint_reject(index,#field,0,(double)o->field,RF_RANGE);}while(0)
     if(!terminal_dead){
         if(o->script_once.count>16)return scene_npc_checkpoint_reject(index,"single_count",0,o->script_once.count,RF_RANGE);
         if(o->script_move.active){
-            status=scene_npc_checkpoint_move_binding(o->script_move.event,o->registration.handle,
+            if(o->script_move.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT)
+                status=scene_patrol_binding(index,&authored_path,&authored_mode);
+            else status=scene_npc_checkpoint_move_binding(o->script_move.event,o->registration.handle,
                 o->script_move.follow,&authored_path,&authored_mode);
             if(status)return scene_npc_checkpoint_reject(index,"move_binding",0,o->script_move.event,status);
             if(o->script_move.path.count!=authored_path.count||o->script_move.path_mode!=authored_mode||
@@ -236,7 +215,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                 memcmp(o->script_move.path.indices,authored_path.indices,authored_path.count*4))))
                 return scene_npc_checkpoint_reject(index,"move_path",0,o->script_move.path.count,RF_FORMAT);
             NPC_CAPTURE_ZERO(script_move.stop);
-        }else{NPC_CAPTURE_ZERO(script_move.path.count);NPC_CAPTURE_ZERO(navigation.retained.count);}
+        }else{if(!(route.flags&2)){NPC_CAPTURE_ZERO(script_move.path.count);}NPC_CAPTURE_ZERO(navigation.retained.count);}
     }
     if(!terminal_dead&&!o->script_animation.active&&o->script_animation.freeze&&
        !(o->script_move.active&&index<campaign_poses.count&&campaign_poses.items&&
@@ -312,7 +291,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
 
         /* A resident looping clip can be restored from its serialized playback
          * even when it is not one of this NPC's controller state mappings.
-         * Non-script one-shot actions still need their gameplay owner saved. */
+         * One-shots still need their saved gameplay owner, except the exact
+         * independently restorable residual fire/reload presentation below. */
         for(i=0;i<pose->playback.completion.active.count;i++){
             int32_t motion=pose->playback.completion.active.slots[i].motion;
             if(key->retired||motion<0||
@@ -320,13 +300,19 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                (uint32_t)motion>=campaign_playback_resources.models[pose->skeleton].count||
                !campaign_playback_resources.models[pose->skeleton].resources||
                (!initializing&&!o->script_animation.active&&!terminal_dead&&
+                !(restoring&&scene_medic_capture_transient(o,motion))&&
                 !campaign_playback_resources.models[pose->skeleton].resources[motion].looping&&
                 !scene_npc_pain_checkpoint_clip(&pain,&o->selection,motion)&&
                 !(burning_profile&&o->damage.effects.burn&&o->pain.selected_action>=0&&o->pain.selected_action<45&&
                   motion==o->selection.mapping.actions[o->pain.selected_action])&&
                 !((o->combat_alert==1||o->combat_scripted==3||o->combat_scripted==1||o->combat_scripted==2)&&
                   (motion==o->selection.mapping.actions[2]||
-                   motion==o->selection.mapping.actions[39])))||
+                   motion==o->selection.mapping.actions[39]))&&
+                !(o->combat_alert==0&&o->combat_scripted==0&&o->combat_reload_due==0&&
+                  !key->retired&&isfinite(o->damage.effects.health)&&o->damage.effects.health>0&&
+                  !(o->view.flags_810&1u)&&!(o->object_flags&2u)&&
+                  scene_npc_checkpoint_residual_weapon_clip(index,campaign_seeds.items[index].class_index,
+                    o->view.weapons[0],&o->inventory,&o->selection,&pose->playback,motion,1)))||
                (terminal_dead&&campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
         }
@@ -368,9 +354,13 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         }
     }
     /* RFNS reconstructs the full admitted host/tag basis, not yaw alone. */
-    for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated)return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
-    memset(row,0,sizeof(*row));row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
-    row->pain=pain;
+    for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated&&
+        !(i==0&&!terminal_dead&&scene_npc_drone_checkpoint_ordinary(index,o)))
+        return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
+    memset(row,0,sizeof(*row));row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
+    row->pain=pain;row->ai_suppressed=campaign_npc_ai_suppressed(o);
+    status=scene_medic_state_capture(o,&row->medic);
+    if(status)return scene_npc_checkpoint_reject(index,"medic_state",0,slot,status);
     if(!terminal_dead&&!key->retired)
         row->holster=((o->view.flags_810&0x800u)?1u:0u)|((o->view.flags_7d0&0x200u)?2u:0u);
     row->support_uid=support_uid;if(support_uid)memcpy(row->support_velocity,o->support_velocity,12);
@@ -379,6 +369,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     memcpy(row->position,o->registration.view?o->body.state.position:o->published,12);
     row->yaw=o->look.body_angles[1];memcpy(row->eye_angles,o->look.angles.angles_87c,12);
     row->primary=o->view.weapons[0];row->secondary=o->view.weapons[1];
+    row->item_drop=rf_scene_defeated_actors.item_drops[slot];
     row->drop=rf_scene_defeated_actors.drops[slot];row->inventory=o->inventory;row->ai_mode=o->ai_mode.action_280;
     if(!terminal_dead&&!key->retired){
         uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
@@ -393,6 +384,11 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         }
         if(row->shot_count)row->shot_rng=campaign_enemy_spread_random.value;
     }
+    if(o->capek_shield_broken>1 || (o->capek_shield_broken &&
+       (!scene_capek_shield_movement_owner(o) || (!terminal_dead&&!key->retired&&
+        (o->damage.effects.armor!=0 || !scene_capek_broken_movement_slot(o->movement_slot))))))
+        return scene_npc_checkpoint_reject(index,"capek_shield_broken",0,o->capek_shield_broken,RF_FORMAT);
+    row->capek_shield_broken=o->capek_shield_broken;
     row->shield_disabled=!!(o->damage.effects.flags_814&0x20u);
     row->controller_uid=controller_uid;
     row->combat_alert=terminal_dead?0:o->combat_alert;
@@ -401,6 +397,16 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         if(o->movement_slot>=16||o->movement.mode<0||o->movement.mode>2||
            o->movement_orientation!=campaign_identity[0]||(o->view.flags_810&0x400u))
             return scene_npc_checkpoint_reject(index,"movement_state",o->movement_slot,o->movement.mode,RF_NOT_FOUND);
+        if(o->capek_shield_broken){
+            rf_movement_settings resolved=o->movement;
+            /* 427df0 leaves live speed unchanged until a later setter. RFNC
+             * retains mode, not that transient speed. Never omit this owner
+             * or silently restore .3 while the saved live actor still has8. */
+            status=scene_npc_resolve_speed(o,row->class_id,1,o->movement.mode,-1,&resolved);
+            if(status||memcmp(&resolved.speed,&o->movement.speed,sizeof(resolved.speed)))
+                return scene_npc_checkpoint_reject(index,"capek_speed_transient",o->movement.mode,
+                    o->movement.speed,status?status:RF_RANGE);
+        }
         row->movement_present=1;row->movement_slot=o->movement_slot;row->speed_mode=(uint32_t)o->movement.mode;
     }
     if(terminal_dead){row->death_flags_810=o->view.flags_810;row->death_action=o->death.action_824;}
@@ -453,10 +459,14 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     }
     status=scene_npc_physics_checkpoint_capture(o,row);
     if(status)return scene_npc_checkpoint_reject(index,"script_physics",0,o->scripted_physics,status);
+    /* A fresh authored seed need not be canonical/saveable before a saved
+     * candidate replaces it; keep every preexisting initialization guard. */
+    status=initializing?RF_OK:scene_npc_drone_checkpoint_capture(index,o,row);
+    if(status)return scene_npc_checkpoint_reject(index,"drone_pose",0,o->look.body_angles[0],status);
     return RF_OK;
 }
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
-{return scene_npc_checkpoint_row_profile(index,now,row,initializing,0);}
+{return scene_npc_checkpoint_row_profile(index,now,row,initializing,0,0);}
 static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint_record *row)
 {return scene_npc_checkpoint_row_mode(index,now,row,0);}
 static int scene_npc_checkpoint_row_compare(const void *a,const void *b)
@@ -471,7 +481,7 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
     status=rf_npc_checkpoint_encode(identity,catalog,NULL,0,encoded,sizeof(encoded),&written);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
-        status=scene_npc_checkpoint_row_profile(i,now,&row,0,burning_profile);if(status==RF_NOT_FOUND)continue;if(status)return status;
+        status=scene_npc_checkpoint_row_profile(i,now,&row,0,burning_profile,0);if(status==RF_NOT_FOUND)continue;if(status)return status;
         status=rf_npc_checkpoint_encode(identity,catalog,&row,1,encoded,sizeof(encoded),&written);
         if(status){
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -496,7 +506,7 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
     if(n>capacity||(n&&!rows))return RF_RANGE;
     n=0;for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].persistence_registered){
         /* No callbacks/mutations occurred since preflight; this pass cannot fail. */
-        (void)scene_npc_checkpoint_row_profile(i,now,rows+n,0,burning_profile);n++;
+        (void)scene_npc_checkpoint_row_profile(i,now,rows+n,0,burning_profile,0);n++;
     }
     if(n)qsort(rows,n,sizeof(*rows),scene_npc_checkpoint_row_compare);*count=n;return RF_OK;
 }

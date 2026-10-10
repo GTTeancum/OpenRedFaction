@@ -200,19 +200,21 @@ static int scene_npc_seat_checkpoint_basis(const scene_npc_seat_checkpoint_stage
 }
 /* Seat transform is proved above. Still run ordinary candidate-world solid,
  * mover/prop and room admission; only the requirement for floor contact lifts. */
-static int scene_npc_seat_checkpoint_place(const scene_npc_seat_checkpoint_stage *s,uint32_t uid,
+static int scene_npc_seat_checkpoint_place(const scene_npc_seat_checkpoint_stage *s,const rf_npc_checkpoint_record *row,
     const scene_checkpoint_world_context *world,const rf_checkpoint_placement *placement,
     rf_entity_room_state *room,rf_physics_support_contact *support,uint32_t *handled)
 {
-    const scene_npc_seat_saved *v=scene_npc_seat_checkpoint_find(s,uid);scene_checkpoint_world_context c;
-    uint32_t i;int status;if(!world||!placement||!room||!support||!handled)return RF_RANGE;*handled=0;
+    const scene_npc_seat_saved *v;scene_checkpoint_world_context c;
+    uint32_t i;int status;if(!row||!world||!placement||!room||!support||!handled)return RF_RANGE;*handled=0;
+    v=scene_npc_seat_checkpoint_find(s,row->uid);
     if(!v||!v->active)return RF_OK;*handled=1;if(!v->pose_ready)return RF_FORMAT;
     for(i=0;i<3;i++)if(fabsf(placement->position[i]-v->pose[9+i])>.001f)return RF_FORMAT;
     for(i=0;i<9;i++)if(fabsf(placement->basis[i]-v->pose[i])>.0001f)return RF_FORMAT;
     c=*world;c.allow_no_contact=1;c.authored_position=NULL;c.authored_basis=NULL;
     c.authored_rotating_npc=c.authored_center_shift_npc=c.support_uid=0;
     if(!campaign_npc_movement_configs||campaign_seeds.items[v->binding.slot].class_index>=campaign_seeds.class_count)return RF_FORMAT;
-    c.class_speed=campaign_npc_movement_configs[campaign_seeds.items[v->binding.slot].class_index].base_speed;
+    c.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+v->binding.slot,
+        campaign_seeds.items[v->binding.slot].class_index,row->capek_shield_broken);
     status=scene_checkpoint_world_place(&c,placement,room,support);if(status)return status;
     memset(support,0,sizeof(*support));support->material=-1;++rf_scene_npc_seat_checkpoint[4];return RF_OK;
 }

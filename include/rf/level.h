@@ -214,6 +214,12 @@ typedef struct rf_level_entity_ai {
  * Validates the complete v180 record, without changing spawn ABI or inferring
  * combat from affiliation. Values are authored inputs, not a live AI state. */
 int rf_level_entity_ai_read(const rf_level_owned_entity *,rf_level_entity_ai *);
+/*464212/464225 ->46483c..464874: authored default waypoint name and mode.
+ * Full retained-record validation, no ABI/hash change; preserves output on error. */
+int rf_level_entity_waypoint_read(const rf_level_owned_entity *,char result[2][RF_LEVEL_NAME_CAPACITY]);
+/*464db1/464df2: final left/right held-clutter strings, separate from weapon
+ * names. Validates the full raw record; outputs unchanged on errors. */
+int rf_level_entity_held_clutter_read(const rf_level_owned_entity *,char result[2][RF_LEVEL_NAME_CAPACITY]);
 
 typedef struct rf_level_entity_vitals {float health,armor;} rf_level_entity_vitals;
 /* Retained v180 instance values, before class clamping. Exactly -1 inherits;
@@ -221,6 +227,11 @@ typedef struct rf_level_entity_vitals {float health,armor;} rf_level_entity_vita
  * Full raw-span validation; cached UID may differ after DEV identity remapping.
  * No allocation or output change on failure. */
 int rf_level_entity_vitals_read(const rf_level_owned_entity *entity,rf_level_entity_vitals *result);
+/*464353: third instance loadout string, later resolved to actor82c at464c60.
+ * Independently reads the retained span; does not expand/hash rf_level_entity.
+ * Empty/unknown names are caller policy. Complete span validation and no output
+ * change on failure; cached UID may have been remapped by DEV construction. */
+int rf_level_entity_death_item_read(const rf_level_owned_entity *,char result[RF_LEVEL_NAME_CAPACITY]);
 typedef struct rf_level_group {
     char name[256],sounds[4][256];
     uint32_t offset,bytes,key_offset,key_count,legacy_offset,legacy_count;

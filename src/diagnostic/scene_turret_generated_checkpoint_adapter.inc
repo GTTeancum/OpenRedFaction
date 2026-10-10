@@ -24,7 +24,8 @@ static int scene_turret_generated_world_base(void *context,uint32_t uid,
         if(!scene_turret_generated_is_base(e->slot))return RF_NOT_FOUND;
         if(!isfinite(r->health))return RF_FORMAT;
         out->health=r->health;out->flags_810=r->health<=0?1u:0;
-        out->flags_7d0=0;out->retired=r->retired;return RF_OK;
+        out->flags_7d0=r->ai_suppressed?SCENE_NPC_GOTO_AI_SUPPRESSION:0;
+        out->retired=r->retired;return RF_OK;
     }
     return RF_NOT_FOUND;
 }
@@ -120,7 +121,8 @@ static int scene_turret_generated_world_capture(unsigned char *p,uint32_t capaci
         if(j==count){status=RF_NOT_FOUND;goto done;}
         status=scene_turret_retirement_checkpoint_capture_base(NULL,b->key.base_uid,&live);if(status)goto done;
         if(live.health!=rows[j].health||live.retired!=rows[j].retired||
-           !!(live.flags_810&1u)!=(rows[j].health<=0)){
+           !!(live.flags_810&1u)!=(rows[j].health<=0)||
+           !!(live.flags_7d0&SCENE_NPC_GOTO_AI_SUPPRESSION)!=rows[j].ai_suppressed){
             status=RF_FORMAT;goto done;
         }
     }

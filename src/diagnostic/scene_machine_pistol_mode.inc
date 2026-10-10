@@ -17,6 +17,27 @@ typedef struct scene_machine_pistol_mode_event {
 static void scene_machine_pistol_mode_reset(scene_machine_pistol_mode_state *state)
 {scene_machine_pistol_mode_state empty={0};if(state)*state=empty;}
 
+/* Explicit admitted custom-action request, shared by the real alternate edge
+ * and accepted empty-fire counterpart action. Never synthesize player input,
+ * consume an edge, commit the target, grant ownership or move ammunition.
+ * Call on a candidate state when presentation admission can still fail. */
+static int scene_machine_pistol_mode_begin(scene_machine_pistol_mode_state *state,
+    const rf_weapon_inventory *inventory,int32_t base_weapon,int32_t special_weapon,
+    const uint32_t transition_ticks[2],uint32_t frame,scene_machine_pistol_mode_event *out)
+{
+    scene_machine_pistol_mode_event event={0};
+    if(!state || !inventory || !transition_ticks || !out || base_weapon<0 || base_weapon>=64 ||
+       special_weapon<0 || special_weapon>=64 || base_weapon==special_weapon ||
+       state->special>1 || state->pending || !inventory->owned[base_weapon] ||
+       !transition_ticks[0] || !transition_ticks[1] || transition_ticks[0]>3600 || transition_ticks[1]>3600)
+        return RF_RANGE;
+    state->target=!state->special;state->pending=1;
+    state->due=frame+transition_ticks[state->special?1:0];
+    event.started=1;event.action=state->special?11:10;
+    event.special=state->special;event.weapon=state->special?special_weapon:base_weapon;
+    event.blocked=1;*out=event;return RF_OK;
+}
+
 /* Compiled motion units4800Hz -> simulation60Hz. No resident payload or heap. */
 static int scene_machine_pistol_mode_timing(rf_vpp *motions,uint32_t ticks[2])
 {
@@ -37,7 +58,7 @@ static int scene_machine_pistol_mode_tick(scene_machine_pistol_mode_state *state
     const uint32_t transition_ticks[2],uint32_t frame,uint32_t selected,
     uint32_t inhibited,uint32_t alternate,scene_machine_pistol_mode_event *out)
 {
-    scene_machine_pistol_mode_event event={0};uint32_t pressed;
+    scene_machine_pistol_mode_event event={0};uint32_t pressed;int status;
     if(!state || !inventory || !transition_ticks || !out || base_weapon<0 || base_weapon>=64 ||
        special_weapon<0 || special_weapon>=64 || base_weapon==special_weapon ||
        !transition_ticks[0] || !transition_ticks[1] || transition_ticks[0]>3600 || transition_ticks[1]>3600)
@@ -47,9 +68,8 @@ static int scene_machine_pistol_mode_tick(scene_machine_pistol_mode_state *state
     else if(state->pending){
         if((int32_t)(frame-state->due)>=0){state->special=state->target;state->pending=0;event.changed=1;}
     }else if(pressed){
-        state->target=!state->special;state->pending=1;
-        state->due=frame+transition_ticks[state->special?1:0];
-        event.started=1;event.action=state->special?11:10;
+        status=scene_machine_pistol_mode_begin(state,inventory,base_weapon,special_weapon,
+            transition_ticks,frame,&event);if(status)return status;
     }
     event.special=state->special;event.weapon=state->special?special_weapon:base_weapon;
     event.blocked=state->pending || !selected || inhibited || !inventory->owned[base_weapon];

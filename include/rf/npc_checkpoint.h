@@ -4,7 +4,7 @@
 #include "rf/motion.h"
 enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW_V9=588,RF_NPC_CHECKPOINT_ROW=600,
     RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,
-    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_ROW_MAX=1608,
+    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_ROW_MAX=1768,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 /* Event sleep/wake, the angular prepare gate, and falling/support bits. Class,
  * sphere and unrelated descriptor flags remain reconstructed from the owner. */
@@ -14,6 +14,12 @@ typedef struct rf_npc_checkpoint_physics {
     uint32_t present,scripted,body_bits,object_bits;
     float velocity[3],angular[3],momentum[3],force[3],torque[3];
 } rf_npc_checkpoint_physics;
+typedef struct rf_npc_checkpoint_drone {
+    uint32_t kind; /* 0 absent,1 living ordinary body,2 retired pose only. */
+    float pitch;
+    uint32_t body_bits,object_bits;
+    float velocity[3],angular[3],momentum[3],force[3],torque[3];
+} rf_npc_checkpoint_drone;
 typedef struct rf_npc_checkpoint_pain {
     uint32_t present;int32_t remaining[3],action;uint32_t random;
 } rf_npc_checkpoint_pain;
@@ -53,9 +59,15 @@ typedef struct rf_npc_checkpoint_record {
     uint32_t shot_count,shot_rng,shield_disabled;rf_npc_checkpoint_shot shots[16];
     float look_command[3],look_delta[3],look_offset[3],look_vector[3];
     uint32_t movement_present,movement_slot,speed_mode; /* RFNC13 class-derived speed/descriptor continuation. */
-    rf_npc_checkpoint_physics physics; /* RFNC14 live / RFNC17 terminal-source freeze/wake continuation. */
+    rf_npc_checkpoint_physics physics; /* RFNC14 live / RFNC17 terminal-source scripted freeze/wake history. */
     rf_npc_checkpoint_pain pain; /* RFNC15 live non-burning damage reaction. */
     uint32_t holster; /* RFNC16: bit0 entity810/800, bit1 entity7d0/200; living only. */
+    uint32_t capek_shield_broken; /* RFNC18: actual Nano contact break, independent of armor/Slow. */
+    rf_npc_checkpoint_drone drone; /* RFNC19: canonical ordinary Drone pitch/dynamics, separate from script history. */
+    rf_campaign_item_drop item_drop; /* RFNC20: independent configured death item, including collected tombstone. */
+    uint32_t ai_suppressed; /* RFNC21: original Goto AI40000000 latch, independent of active route. */
+    rf_campaign_medic_state medic; /* RFNC22: independent exact finite reserve and syringe role. */
+    rf_campaign_actor_route route; /* RFNC23: explicit current/default route provenance. */
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     rf_motion_playback_state playback;
@@ -66,7 +78,13 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC17 component (RFNC1-16 remain readable; writer emits17 only for retained
+/* RFNC23 component (RFNC1-22 remain readable; writer emits23 only for retained
+ * actor route/default history, otherwise22 only for retained
+ * medic reserve/syringe history, otherwise21 only for retained
+ * Goto AI suppression, otherwise20 only for retained
+ * configured death-item history, otherwise19 only for retained
+ * ordinary Drone continuation, otherwise18 only for a retained
+ * Capek shield-break latch, otherwise17 only for retained
  * terminal-source physics, otherwise16 for retained
  * living holster bits, otherwise15 only for retained
  * pain state, otherwise14 for retained
@@ -139,8 +157,63 @@ typedef struct rf_npc_checkpoint_catalog {
  * Pre17 rejects present physics combined with dead_pose, including RFNC14-16.
  * Scene placement retains full candidate clearance and existing suspension
  * semantics. Restoring saved bits/vectors is assignment-only, without callbacks.
+ * RFNC18 appends4 bytes after the holster tail on EVERY row: exact Capek
+ * shield-break latch0/1. The writer selects18 only when a row has latch1;
+ * older versions decode0 without inferring break history from armor or mode.
+ * Living latch1 owners require armor0 and movement continuation.
+ * Terminal records retain history without reconstructing locomotion. Scene
+ * validates exact authored Capek identity before assignment-only publication.
+ * RFNC19 appends76 bytes after the Capek tail on EVERY row: owner kind0/1/2,
+ * body pitch, masked body/object bits and velocity/angular/momentum/force/torque
+ * XYZ. Kind0 is entirely zero; pre19 supplies zero. Kind1 retains a living
+ * ordinary canonical Drone body, using the existing masks and quiet linear
+ * velocity limit. Kind2 retains a retired Drone pitch only, with zero dynamics
+ * flags/vectors. Pitch and all vectors must be finite. Active tails cannot
+ * coexist with RFNC14 physics presence, which remains scripted history even
+ * when its scripted marker is zero. The existing eye/per-frame look fields
+ * retain their meaning and are not replaced by body pitch. Scene proves exact
+ * authored/current Drone identity, no roll, canonical body/eye/look/model bases,
+ * supported owner state and candidate placement before assignment-only restore.
+ * No class inference, dynamic handles or callbacks are encoded by this tail.
+ * RFNC20 appends24 bytes after the Drone tail on EVERY row: state, independent
+ * stable item-definition ID, positive quantity and position XYZ. State0 is
+ * entirely zero; states1/2 are available/collected with the same retained
+ * payload, supported IDs1 Medical Kit,2 12mm_ammo,3 5.56mm_ammo or4
+ * 10gauge_ammo, and finite XYZ. Nonzero
+ * item history requires health<=0 and a retired or terminal dead_pose owner.
+ * Scene proves the exact authored configured item and original default count
+ * and joins the full lane against the all-level RFCH6 history by level/UID
+ * before publishing either component. No weapon ID, reserve debit, transient
+ * resource handle or generated item UID is encoded. Pre20 supplies zero; load
+ * never creates missing loot, and collection never erases its tombstone.
+ * RFNC21 appends4 bytes after the configured-item tail on EVERY row: compact
+ * Goto AI-suppression latch0/1. Pre21 supplies0. It is not derived from a live
+ * movement event: Goto_Player, explicit mode changes and Shoot_At can retain it
+ * after the original Goto has been replaced. Terminal rows retain history too.
+ * Scene joins it against RFCH7 by level/UID and assigns only the40000000 bit
+ * in the AI/view/firing representations after all candidate admission succeeds.
+ * No callback, mode change, route cancellation, timer or ammo reset occurs.
+ * RFNC22 appends16 bytes after the AI-suppression tail on EVERY row:
+ * reserve_seen0/1, exact remaining binary32 reserve, syringe state0/1/2 and
+ * exact present-child binary32 health. Absent reserve requires zero bits;
+ * seen reserve is finite0..200, including explicit exhausted0. Child0 is the
+ * constructor default,1 is present with health in (0,50],2 deleted. States0/2
+ * require zero health bits. Reserve and child are independent, including
+ * retired rows. Only a nonzero seen/state promotes22; legacy supplies zeros.
+ * Scene qualifies medic1 and real syringe role, joins exact RFCH8 bytes by
+ * level/actor UID and stages a real candidate child before success-only
+ * publication. Active healing and residual43 remain export-only guards.
+ * RFNC23 appends36 bytes after the medic tail on EVERY row: the canonical
+ * rf_campaign_actor_route lane. It preserves actor-default provenance without
+ * inventing an event UID; path offset/count/cursor/mode/reverse/hash agree with
+ * active move168. Current action agrees with raw ai_mode (unset0 maps to -1
+ * only in this section-policy lane). Independent patrol reverse survives combat.
+ * Only a present lane promotes23. Scene requalifies authored actor/event links,
+ * exact path bytes and current combat/seat ownership; legacy absence disables
+ * constructor patrol during success-only publication. RFCH9 must join exactly.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
- * Supported basic modes -1/0/1/2/11 and seated mode13. The composed scene must
+ * Supported basic modes -1/0/1/2/11, seated mode13, and source-qualified
+ * patrol modes3/4/10 carried by RFNC23. The composed scene must
  * admit mode13 against explicit saved seat ownership; the codec alone does not
  * establish a valid linked actor. Scene must reject other scripted combat,
  * unsupported movement, reload/death transitions, projectiles, linked/carried objects

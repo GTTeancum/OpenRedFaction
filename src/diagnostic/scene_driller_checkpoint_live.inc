@@ -178,10 +178,10 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
 }
 /* Last seated capture admission: stage,status,profile,room,sphere,reason,retries,guard mask.
  * Stages6/7 precede scope/live guards; stages1..5 retain their previous meanings.
- * Guard bits0..21: missing runtime, inactive session, unsaved exit look, dead host,
+ * Guard bits0..22: missing runtime, inactive session, unsaved exit look, dead host,
  * dead player, crouched, climbing, handheld cooldown/remaining/delay/held/reload,
- * riot charge, grenade throw, RFCP rocket, primary/secondary vehicle flight,
- * RFCP AI projectile, Fusion flight, burn, flame input, flame canister. */
+ * unrepresented/busy shared charge owner, grenade throw, RFCP rocket, primary/secondary vehicle flight,
+ * RFCP AI projectile, Fusion flight, burn, flame input, flame canister, Riot primary. */
 uint32_t rf_scene_vehicle_player_capture[8];
 static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_player_checkpoint *player,
     rf_player_checkpoint_catalog *catalog,uint32_t ordinary)
@@ -206,7 +206,7 @@ static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_playe
     VEHICLE_CAPTURE_GUARD(9,combat_trigger.delay);
     VEHICLE_CAPTURE_GUARD(10,combat_trigger.held);
     VEHICLE_CAPTURE_GUARD(11,rf_scene_combat[6]);
-    VEHICLE_CAPTURE_GUARD(12,riot_charge_remainder);
+    VEHICLE_CAPTURE_GUARD(12,ordinary?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone());
     VEHICLE_CAPTURE_GUARD(13,scene_player_grenade_save_blocked());
     VEHICLE_CAPTURE_GUARD(14,!ordinary&&rf_scene_rockets[3]);
     VEHICLE_CAPTURE_GUARD(15,scene_apc_primary_pending(s));
@@ -216,6 +216,8 @@ static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_playe
     VEHICLE_CAPTURE_GUARD(19,scene_burning_save_pending());
     VEHICLE_CAPTURE_GUARD(20,scene_flame_input_pending());
     VEHICLE_CAPTURE_GUARD(21,scene_flame_canister_save_pending());
+    VEHICLE_CAPTURE_GUARD(22,scene_player_riot_save_pending());
+    VEHICLE_CAPTURE_GUARD(23,scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending());
 #undef VEHICLE_CAPTURE_GUARD
     rf_scene_vehicle_player_capture[7]=guard;
     if(guard){rf_scene_vehicle_player_capture[1]=(uint32_t)RF_RANGE;return RF_RANGE;}
