@@ -21,7 +21,18 @@ os.environ.setdefault('RF_XEMU_ROOT', '/workspace/shared/xemu-inputs')
 os.environ.setdefault('RF_XEMU_BINARY', '/workspace/shared/xemu/squashfs-root/usr/bin/xemu')
 
 FRAMES = 120
-SYMBOLS = {'rf_scene_player_spawn_diagnostic': 19, 'rf_scene_weapon_supply': 4}
+# Existing exported uint32_t arrays, sampled read-only after the shared runner
+# stops on terminal success/error. These observations do not change admission.
+SYMBOLS = {
+    'rf_scene_player_spawn_diagnostic': 19,
+    'rf_scene_weapon_supply': 4,
+    'rf_scene_late_load': 8,       # scene_late_load_diagnostic.inc
+    'rf_scene_profile_stage': 2,  # scene.c: frame, last profile/failure stage
+    'rf_scene_script_movement': 8,
+    'rf_scene_script_routes': 8,
+    'rf_scene_npc_idle_ground': 6,
+    'rf_scene_medic_syringe': 12,  # scene_medic_syringe_owner.inc
+}
 NATIVE_SYMBOLS = (
     'rf_diagnostic', 'rf_scene_world_checkpoint_state',
     'rf_xbox_checkpoint_storage_state', 'rf_scene_player_life',

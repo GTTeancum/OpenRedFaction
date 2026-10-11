@@ -1,6 +1,7 @@
 #ifndef RF_SCENE_NPC_CHECKPOINT_CAPTURE_INCLUDED
 #define RF_SCENE_NPC_CHECKPOINT_CAPTURE_INCLUDED
 #include "rf/npc_checkpoint.h"
+#include "scene_medic_flight_checkpoint.inc"
 #include "scene_npc_pain_checkpoint.inc"
 #include "scene_npc_reload_checkpoint.inc"
 #include "scene_npc_drone_checkpoint.inc"
@@ -168,7 +169,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
-    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};rf_campaign_actor_route route={0};
+    rf_npc_checkpoint_flight flight={0};
+    rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};rf_campaign_actor_route route={0};uint32_t pain_residual_profile=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
@@ -197,6 +199,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         if(status)return scene_npc_checkpoint_reject(index,"death_unsettled",0,o->death.action_824,status);
         terminal_dead=1;
     }
+    status=scene_medic_flight_checkpoint_capture(o,now,&flight);
+    if(status)return scene_npc_checkpoint_reject(index,"medic_flight",0,slot,status);
     status=scene_actor_route_capture(o,restoring?2:0,&route);
     if(status)return scene_npc_checkpoint_reject(index,"actor_route",0,o->script_move.origin,status);
     /* Live routes require a separate continuation record. Terminal corpses
@@ -256,7 +260,14 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
            o->combat_burst_remaining>256||o->combat_reload_weapon< -1||o->combat_reload_weapon>=64)
             return scene_npc_checkpoint_reject(index,"reactive_state",0,o->combat_target,status?status:RF_FORMAT);
         attack_target_mode=4;
-    }else{NPC_CAPTURE_ZERO(combat_scripted);NPC_CAPTURE_ZERO(script_shoot.active);}
+    }else{
+        /* A fully admitted terminal corpse may retain the inert mode2
+         * reactive marker. Its death continuation below already emits no
+         * combat payload; restore clears target/burst/deadlines. Keep other
+         * markers and every live reactive-owner check strict. */
+        if(!(terminal_dead&&o->combat_scripted==2))NPC_CAPTURE_ZERO(combat_scripted);
+        NPC_CAPTURE_ZERO(script_shoot.active);
+    }
     if(!terminal_dead){
         if(o->script_look.active){
             status=scene_npc_checkpoint_look_binding(o->script_look.event,o->registration.handle,
@@ -278,8 +289,9 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         pose=(index<campaign_model_owner_count && campaign_model_owners &&
               campaign_model_owners[index].owned)?campaign_model_owners[index].pose:campaign_poses.items+index;
         if(!pose)return RF_FORMAT;
-        status=scene_npc_pain_checkpoint_capture(o,pose,now,&pain);
+        status=scene_npc_pain_checkpoint_capture(index,o,pose,now,&pain);
         if(status)return scene_npc_checkpoint_reject(index,"pain_owner",0,o->pain.selected_action,status);
+        if(pain.present&&pain.action>=24)pain_residual_profile=1;
         for(i=0;i<5;i++){status=rf_timer_pending(deadlines[i],now,&pending);
             if(status||(pending&&!(i<3&&(pain.present||(burning_profile&&o->damage.effects.burn)))))
                 return scene_npc_checkpoint_reject(index,"deadline",i,deadlines[i],status?status:RF_RANGE);}
@@ -312,7 +324,10 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                   !key->retired&&isfinite(o->damage.effects.health)&&o->damage.effects.health>0&&
                   !(o->view.flags_810&1u)&&!(o->object_flags&2u)&&
                   scene_npc_checkpoint_residual_weapon_clip(index,campaign_seeds.items[index].class_index,
-                    o->view.weapons[0],&o->inventory,&o->selection,&pose->playback,motion,1)))||
+                    o->view.weapons[0],&o->inventory,&o->selection,&pose->playback,motion,1))&&
+                !((pain.present||(burning_profile&&o->damage.effects.burn))&&
+                  scene_npc_pain_checkpoint_capture_residual(index,campaign_seeds.items[index].class_index,
+                    o->view.weapons[0],&o->selection,&pose->playback,motion,&pain_residual_profile)))||
                (terminal_dead&&campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
         }
@@ -339,7 +354,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
             if(!isfinite(o->body.state.velocity[i])||fabsf(o->body.state.velocity[i])>.001f)
                 return scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
 #define NPC_CAPTURE_AXIS(field) do{if(o->field[i]!=0)return scene_npc_checkpoint_reject(index,#field,i,o->field[i],RF_RANGE);}while(0)
-            NPC_CAPTURE_AXIS(command_714);
+            if(!flight.present)NPC_CAPTURE_AXIS(command_714);
             if(!isfinite(o->support_velocity[i])||fabsf(o->support_velocity[i])>10000.f||
                (!support_uid&&o->support_velocity[i]!=0))
                 return scene_npc_checkpoint_reject(index,"support_velocity",i,o->support_velocity[i],RF_RANGE);
@@ -357,8 +372,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated&&
         !(i==0&&!terminal_dead&&scene_npc_drone_checkpoint_ordinary(index,o)))
         return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
-    memset(row,0,sizeof(*row));row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
-    row->pain=pain;row->ai_suppressed=campaign_npc_ai_suppressed(o);
+    memset(row,0,sizeof(*row));row->flight=flight;row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
+    row->pain=pain;row->pain_residual_profile=pain_residual_profile;row->ai_suppressed=campaign_npc_ai_suppressed(o);
     status=scene_medic_state_capture(o,&row->medic);
     if(status)return scene_npc_checkpoint_reject(index,"medic_state",0,slot,status);
     if(!terminal_dead&&!key->retired)
@@ -482,7 +497,7 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
     status=rf_npc_checkpoint_encode(identity,catalog,NULL,0,encoded,sizeof(encoded),&written);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
         status=scene_npc_checkpoint_row_profile(i,now,&row,0,burning_profile,0);if(status==RF_NOT_FOUND)continue;if(status)return status;
-        status=rf_npc_checkpoint_encode(identity,catalog,&row,1,encoded,sizeof(encoded),&written);
+        status=rf_npc_checkpoint_record_validate(&row,catalog);
         if(status){
 #ifndef RF_IMAGE_XBOX_NATIVE
             if(getenv("RF_REPLAY_WORLD_CHECKPOINT_PROBE"))printf("WORLD_CHECKPOINT_NPC_CODEC uid%u health%.9g dead%u flags%u action%d frozen%u count%u controller%d/%d script%u phase%.9g\n",

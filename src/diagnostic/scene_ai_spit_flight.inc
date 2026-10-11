@@ -43,8 +43,8 @@ static int scene_ai_spit_contact(scene_stream *stream,uint32_t frame,const scene
      * the rocket adapter's unproven normal*.01 epicenter adjustment. The
      * direct victim is not excluded from the independent radial population. */
     if(shot->blast_radius>.1f) {
-        status=scene_explosion_blast_source_guarded(stream,frame,contact->hit.point,
-            shot->damage,shot->blast_radius,shot->source,shot->blast_kind,pool_epoch);
+        status=scene_explosion_blast_source_policy(stream,frame,contact->hit.point,
+            shot->damage,shot->blast_radius,shot->source,shot->blast_kind,pool_epoch,1);
         if(status || epoch!=*pool_epoch)return status;
     }
     /*4c53f2 world and4c6463 entity playback follow direct/radial effects.

@@ -32,6 +32,33 @@ static int scene_medic_syringe_child_valid(const rf_clutter_base_owner *child)
         child->attachment.model==(uint32_t)(uintptr_t)&scene_medic_syringe_resource.shared&&
         rf_object_registry_lookup(&campaign_registry,child->state.handle)==&child->state;
 }
+/*420f90 copies the raw composed skeletal hand matrix into the held child.
+ * Packed motion quaternions are intentionally not normalized; their composed
+ * basis need not pass the rigid teleport validator's orthogonality tolerance.
+ * This service is restricted to the real noncolliding syringe, including a
+ * registered private restore candidate. Ordinary clutter keeps its validator. */
+static int scene_medic_syringe_pose_publish(rf_clutter_base_owner *child,
+    const float position[3],const float basis[9],uint32_t room)
+{
+    rf_physics_body_state body;float published[3];uint32_t flags,i;int status;
+    if(!child||!position||!basis)return RF_RANGE;
+    if(!scene_medic_syringe_child_valid(child)||
+       (campaign_clutter_classes.items[scene_medic_syringe_resource.class_index].flags&6u))return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_FORMAT;
+    for(i=0;i<9;i++)if(!isfinite(basis[i]))return RF_FORMAT;
+    body=child->body.state;
+    if(!isfinite(body.bounds.radius)||body.bounds.radius<0)return RF_RANGE;
+    memcpy(body.position,position,12);memcpy(body.orientation,basis,36);memcpy(body.next_orientation,basis,36);
+    status=rf_physics_tensor_world(body.local_tensor,body.orientation,body.world_tensor);if(status)return status;
+    flags=child->state.flags;
+    status=rf_physics_publish_position(&body,published,&flags);if(status)return status;
+    /* Hand publication does not schedule free-body physics or change flags. */
+    body.flags=child->body.state.flags;
+    child->body.state=body;
+    memcpy(child->state.position,published,12);memcpy(child->query_position,published,12);
+    memcpy(child->matrix,body.orientation,36);child->state.first_word=room;
+    return RF_OK;
+}
 static int scene_medic_syringe_present(const campaign_npc_body *owner)
 {
     const scene_medic_syringe *s;
@@ -275,7 +302,7 @@ static int scene_medic_syringe_tick(void)
             status=scene_medic_syringe_unavailable(owner);if(status)return status;continue;
         }
         if(status)return status;
-        status=scene_clutter_pose_publish(s->child,transform+9,transform,room);if(status)return status;
+        status=scene_medic_syringe_pose_publish(s->child,transform+9,transform,room);if(status)return status;
         s->child->state.flags=(s->child->state.flags&~0x4000u)|(flags&0x4000u);
         ++rf_scene_medic_syringe[1];
     }

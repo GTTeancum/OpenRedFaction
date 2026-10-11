@@ -30,6 +30,20 @@ typedef struct rf_weapon_primary_definition {
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
+/* Independent named projectile geometry receipt for the bounded ordinary
+ * player contact consumer. Requires authored $Velocity: >0 and $Collision
+ * Radius: >=0, both finite; no hardcoded defaults or explosive-only policy.
+ * First full ASCII-insensitive named declaration wins. Duplicate/missing or
+ * malformed fields preserve output. Read allocates nothing; load owns one
+ * budgeted weapons.tbl scratch block. Existing definition/save ABIs do not
+ * change; callers independently qualify weapon/actor eligibility. */
+typedef struct rf_weapon_projectile_geometry {
+    float speed,collision_radius;
+} rf_weapon_projectile_geometry;
+int rf_weapon_projectile_geometry_read(const void *text,uint32_t bytes,const char *name,
+    rf_weapon_projectile_geometry *result);
+int rf_weapon_projectile_geometry_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,
+    rf_weapon_projectile_geometry *result);
 /* Original4c3d98..4c3e24 independent primary/alternate impact-delay slots.
  * First matching named declaration; repeated $Impact Delay: and $Alt Impact
  * Delay: fields retain authored order, at most two each. Missing slots/counts
@@ -361,6 +375,15 @@ typedef struct rf_entity_physics_config {
  * Does not resolve model spheres/poses or construct a gameplay body. */
 int rf_entity_physics_config_load(rf_vpp *tables,const char *class_name,
     uint32_t scratch_budget,rf_entity_physics_config *result);
+/* Additive SP class receipt from the existing class-initialization path.
+ * Retains actual ordered CSPH model_index, radius and selected_scalar (1 by
+ * default), using unchanged name-prefix overrides and physical X/Z centering.
+ * Output contains eight initialized rows plus the admitted count; both remain
+ * unchanged on failure. No allocation or actor/class qualification is added.
+ * Later hit-location centers must be reposed from the raw model CSPH records,
+ * not taken from these physical initialization centers. */
+int rf_entity_class_spheres_resolve(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
+    const rf_entity_physics_config *config,rf_entity_class_sphere spheres[8],uint32_t *sphere_count);
 /* Existing actor class geometry path shared with NPC setup: pose up to eight
  * named CSPH records, apply class X/Z centering and authored overrides.
  * Caller supplies the first class-initialization pose, not each actor's later

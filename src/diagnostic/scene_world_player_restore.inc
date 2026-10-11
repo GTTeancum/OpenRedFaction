@@ -186,4 +186,5 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         out->placement.spheres=&out->seat_scratch;
     return RF_OK;
 }
+#include "scene_medic_flight_player_checkpoint.inc"
 #endif

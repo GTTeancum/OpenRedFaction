@@ -68,8 +68,8 @@ int rf_entity_state_motion_open(const char *tables_path,const char *class_name,
     status=rf_motion_file_open(&value,motions,compiled);if(status)return status;
     *file=value;return RF_OK;
 }
-int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
-    const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count)
+int rf_entity_class_spheres_resolve(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
+    const rf_entity_physics_config *config,rf_entity_class_sphere spheres[8],uint32_t *sphere_count)
 {
     rf_entity_class_sphere resolved[8]={0};uint32_t n=0,j;int status;
     if(!model || !config || !spheres || !sphere_count || (bone_count && !matrices))return RF_RANGE;
@@ -84,6 +84,16 @@ int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matri
         resolved[j].radius=posed[3];resolved[j].selected_scalar=1;resolved[j].parameter_10=-1;resolved[j].model_index=j;++n;
     }
     status=rf_entity_sphere_overrides(resolved,n,config->spheres.items,config->spheres.count,0);if(status)return status;
+    memcpy(spheres,resolved,sizeof(resolved));*sphere_count=n;return RF_OK;
+}
+int rf_entity_class_spheres_build(const rf_model_file *model,const float (*matrices)[12],uint32_t bone_count,
+    const rf_entity_physics_config *config,rf_physics_sphere spheres[8],uint32_t *sphere_count)
+{
+    rf_entity_class_sphere resolved[8];uint32_t n,j;int status;
+    if(!spheres || !sphere_count)return RF_RANGE;
+    status=rf_entity_class_spheres_resolve(model,matrices,bone_count,config,resolved,&n);if(status)return status;
+    /* Preserve the original physical projection, including unused output rows.
+     * Damage metadata never changes the movement/stance sphere ABI. */
     for(j=0;j<n;++j) {
         memcpy(spheres[j].center,resolved[j].center,12);spheres[j].radius=resolved[j].radius;
         spheres[j].parameter_10=resolved[j].parameter_10;spheres[j].opaque_14=resolved[j].opaque_14;
@@ -851,6 +861,50 @@ int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_we
     text=malloc(entry.size);if(!text)return RF_IO;
     status=rf_vpp_read(tables,&entry,0,text,entry.size);
     if(!status)status=rf_weapon_primary_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
+int rf_weapon_projectile_geometry_read(const void *text,uint32_t bytes,const char *name,
+    rf_weapon_projectile_geometry *result)
+{
+    lexer l={text,bytes,0};rf_weapon_projectile_geometry value={0};char t[256];
+    uint32_t mask=0;int selected=0,found=0,q,status;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        uint32_t bit;float *field;
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=found=same(t,name);continue;
+        }
+        if(!selected)continue;
+        if(same(t,"#End"))break;
+        if(same(t,"$Velocity:")){bit=1;field=&value.speed;}
+        else if(same(t,"$Collision")) {
+            if(token(&l,t,&q) || q || !same(t,"Radius:"))return RF_FORMAT;
+            bit=2;field=&value.collision_radius;
+        } else continue;
+        if(mask&bit)return RF_FORMAT;
+        if(sphere_number(&l,field))return RF_FORMAT;
+        if(*field<0 || (bit==1 && *field==0))return RF_RANGE;
+        mask|=bit;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    if(mask!=3)return RF_FORMAT;
+    *result=value;return RF_OK;
+}
+int rf_weapon_projectile_geometry_load(rf_vpp *tables,const char *name,uint32_t budget,
+    rf_weapon_projectile_geometry *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_projectile_geometry_read(text,entry.size,name,result);
     free(text);return status;
 }
 

@@ -18,7 +18,7 @@ static int scene_player_outside_damage_tick(scene_stream *stream,uint32_t frame,
 {
     const rf_geometry *geometry;rf_collision_room_location room;
     uint32_t handle=campaign_player_object.handle,offset,clock_bits;int status;
-    float amount=0,seconds=(float)((double)(frame+1)*scene_step_seconds);
+    float amount=0,difficulty,seconds=(float)((double)(frame+1)*scene_step_seconds);
     combat_feedback feedback={now,0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
         combat_random,combat_notify,combat_playing,combat_play,&feedback};
@@ -62,11 +62,15 @@ static int scene_player_outside_damage_tick(scene_stream *stream,uint32_t frame,
        (campaign_player_damage.state.effects.class_flags_728&8u)){
         ++rf_scene_player_outside_damage[3];return RF_OK;
     }
+    /* Original4211f9 is force0/kind10, so4894a0 applies the current SP row.
+     * Keep raw request amount intact; the shared service multiplies it once. */
+    status=scene_player_difficulty_multiplier(rf_scene_campaign_countdown.difficulty,&difficulty);
+    if(status)goto fail;
     memcpy(&clock_bits,&seconds,4);++rf_scene_player_outside_damage[6];
     rf_scene_player_outside_damage[8]=handle;rf_scene_player_outside_damage[9]=room.room;
     memcpy(rf_scene_player_outside_damage+10,&request.amount,4);
     rf_scene_player_outside_damage[13]=frame;
-    status=rf_scene_player_damage_audio(handle,&request,1,clock_bits,now,
+    status=rf_scene_player_damage_audio(handle,&request,difficulty,clock_bits,now,
         &combat_pain_random,&effects,&amount);
     if(!status)status=feedback.status;
     memcpy(rf_scene_player_outside_damage+11,&amount,4);

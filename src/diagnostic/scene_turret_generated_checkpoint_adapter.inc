@@ -95,7 +95,7 @@ static int scene_turret_generated_world_capture(unsigned char *p,uint32_t capaci
     uint32_t frame,uint32_t budget,const unsigned char identity[32],const void *npc_data,uint32_t npc_bytes,
     uint32_t *written)
 {
-    rf_npc_checkpoint_catalog *catalog=NULL;rf_npc_checkpoint_record *rows=NULL;
+    rf_npc_checkpoint_catalog *catalog=NULL;rf_npc_checkpoint_record *rows=NULL;rf_npc_checkpoint_rng inspected_rng={0};
     uint32_t count=0,i,j;uint64_t allocated;int status;
     if(!scene_turret_generated_count)
         return scene_turret_retirement_checkpoint_capture(p,capacity,inner_bytes,frame,budget,written);
@@ -113,7 +113,8 @@ static int scene_turret_generated_world_capture(unsigned char *p,uint32_t capaci
     allocated=sizeof(*catalog)+(uint64_t)count*sizeof(*rows);
     if(allocated>budget){status=RF_RANGE;goto done;}
     if(count){rows=malloc(count*sizeof(*rows));if(!rows){status=RF_IO;goto done;}}
-    status=rf_npc_checkpoint_decode(npc_data,npc_bytes,identity,catalog,rows,count,&count);if(status)goto done;
+    /* Read-only vitals inspection intentionally does not restore shared RNG. */
+    status=rf_npc_checkpoint_decode_with_rng(npc_data,npc_bytes,identity,catalog,rows,count,&count,&inspected_rng);if(status)goto done;
     for(i=0;i<scene_turret_generated_count;i++) {
         const scene_turret_generated_binding *b=scene_turret_generated+i;
         scene_turret_generated_base_saved live={0};

@@ -182,7 +182,7 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
 {
     const uint32_t mask=RF_WORLD_CHECKPOINT_MASK(RF_WORLD_NPC)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_MOVER)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_CLUTTER);
     rf_world_checkpoint envelope;scene_world_restore_stage *s=NULL;
-    rf_mover_checkpoint_record *mover_rows=NULL;rf_npc_checkpoint_record *npc_rows=NULL;
+    rf_mover_checkpoint_record *mover_rows=NULL;rf_npc_checkpoint_record *npc_rows=NULL;rf_npc_checkpoint_rng flight_rng={0};
     const rf_world_checkpoint_slice *npc,*mover,*clutter;
     unsigned char clutter_identity[32];uint32_t npc_count,mover_count,prop_count,i,slot;
     uint64_t fixed,temp,resident;const char *phase="allocation";int status;
@@ -251,11 +251,11 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     temp=(uint64_t)npc_count*sizeof(*npc_rows);
     if((uint64_t)s->allocated_bytes+temp>budget){status=RF_RANGE;goto fail;}
     if(npc_count){npc_rows=malloc((size_t)temp);if(!npc_rows){status=RF_IO;goto fail;}}
-    phase="npc_decode";status=rf_npc_checkpoint_decode(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count);if(status)goto fail;
+    phase="npc_decode";status=rf_npc_checkpoint_decode_with_rng(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng);if(status)goto fail;
     s->placement_rows=npc_rows;s->placement_count=npc_count;
     phase="npc_stage";
     status=scene_npc_checkpoint_restore_prepare_mode(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,
-        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs,seats);if(status)goto fail;
+        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs,seats,&flight_rng,checkpoint_u32((const unsigned char*)npc->data+4)>=25);if(status)goto fail;
     s->allocated_bytes+=s->npcs->bytes;s->placement_rows=NULL;s->placement_count=s->placement_next=0;free(npc_rows);npc_rows=NULL;
     s->semantic_mask=mask;*out=s;return RF_OK;
 fail:

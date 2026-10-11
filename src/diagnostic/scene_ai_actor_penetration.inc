@@ -4,6 +4,8 @@
  * actor continuation, extracted from the admitted Tankbot consumer. Exact
  * weapon wrappers qualify the accepted descriptor; the caller checks source
  * identity once before presentation and retains one shot/debit/cadence/spread.
+ * Caller policy selects the final player difficulty join only; raw shot,
+ * shield/Nano and non-player amounts retain their existing owners.
  * Only the shared4c9b20 body policy lives here: no world-metal traversal,
  * ricochet, precision target policy or persistent projectile scheduler. */
 #include "rf/weapon_precision.h"
@@ -93,12 +95,14 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
     const campaign_npc_body *accepted_owner,uint32_t accepted_slot,
     const scene_ai_actor_penetration_shot *shot,const float eye[3],const float ray[3],
     const float player_eye[3],uint32_t clock_bits,const rf_damage_effect_backend *effects,
-    combat_feedback *feedback,scene_ai_actor_penetration_result *out)
+    combat_feedback *feedback,uint32_t current_player_difficulty,
+    scene_ai_actor_penetration_result *out)
 {
     scene_ai_actor_penetration_shot accepted;
     scene_sniper_penetration penetration;float start[3],delta[3],end[3],physical_eye[3];uint32_t i;int status;
     if(!stream || !shot || !eye || !ray || !player_eye || !effects || !feedback || !out ||
-       shot->enabled!=1 || shot->weapon<0 || shot->weapon>=64 || shot->kind!=1 ||
+       current_player_difficulty>1 || shot->enabled!=1 ||
+       shot->weapon<0 || shot->weapon>=64 || shot->kind!=1 ||
        !isfinite(shot->base) || shot->base<0)return RF_RANGE;
     /* Identity and damage inputs belong to the accepted shot, not to live
      * inventory/selection after presentation or any contact/death callback. */
@@ -212,7 +216,16 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
                     }
                 }
             } else {
-                status=rf_scene_player_damage(handle,&request,1,clock_bits,effects,&applied);
+                float difficulty=1;
+                /* Original4c600f attenuates before4892c0 selects the current
+                 * player row. Keep raw shields/Nano and body-power spending
+                 * above unchanged; the dispatcher alone multiplies damage.
+                 * Use this selected fullhandle, never a replacement target. */
+                if(current_player_difficulty) {
+                    status=combat_enemy_player_difficulty(stream,handle,&request,&difficulty);
+                    if(status)return status;
+                }
+                status=rf_scene_player_damage(handle,&request,difficulty,clock_bits,effects,&applied);
                 if(!status)status=feedback->status;if(status)return status;
                 out->player_applied+=applied;
             }

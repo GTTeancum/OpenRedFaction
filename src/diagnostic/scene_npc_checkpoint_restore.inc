@@ -11,6 +11,7 @@ typedef struct scene_npc_checkpoint_restore_entry {
     uint32_t unowned_motion_mask; /* Staged only; RFAP may own exact burn pain. */
     uint32_t item_attempted_before;int32_t item_fault_before;rf_campaign_item_drop item_drop_before;
     rf_npc_checkpoint_record saved,before;
+    scene_medic_flight_snapshot flight;
     scene_medic_syringe_candidate medic_child;
     rf_campaign_actor_route route_before;uint32_t route_owner_snapshot;
     uint32_t medic_owner_snapshot; /* Exact old pending target/deadline/clip owner. */
@@ -26,6 +27,8 @@ typedef struct scene_npc_checkpoint_restore_entry {
 } scene_npc_checkpoint_restore_entry;
 typedef struct scene_npc_checkpoint_restore_stage {
     uint32_t count,bytes,fresh_boot;int32_t now;
+    scene_medic_flight_rng flight_rng,flight_rng_before;
+    uint32_t flight_profile,flight_joined,flight_player;
     scene_npc_checkpoint_restore_entry entries[];
 } scene_npc_checkpoint_restore_stage;
 /* Read-only native failure detail: phase FNV1a, row index, UID, status,
@@ -199,7 +202,7 @@ static int scene_npc_checkpoint_restore_clip(uint32_t skeleton,int32_t id,uint32
 static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpoint_record *rows,uint32_t count,
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
     uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out,
-    const scene_npc_seat_checkpoint_stage *seats)
+    const scene_npc_seat_checkpoint_stage *seats,const rf_npc_checkpoint_rng *rng,uint32_t flight_profile)
 {
     scene_npc_checkpoint_restore_stage *stage=NULL;rf_npc_checkpoint_record current;
     unsigned char identity[32]={0},wire[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX];
@@ -208,7 +211,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     memset(rf_scene_npc_restore_reject,0,sizeof(rf_scene_npc_restore_reject));
     rf_scene_npc_restore_reject[1]=rf_scene_npc_restore_reject[2]=UINT32_MAX;
     rf_scene_npc_restore_reject[5]=count;
-    if(fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)
+    if(flight_profile>1||(flight_profile&&!rng)||(rng&&(rng->present>1||(!rng->present&&rng->value)||(!flight_profile&&rng->present)))||fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)
         return scene_npc_checkpoint_restore_failure("arguments",UINT32_MAX,UINT32_MAX,RF_RANGE);
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
@@ -245,19 +248,28 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     }
     if(bytes>budget||bytes>UINT32_MAX)return scene_npc_checkpoint_restore_failure("budget",UINT32_MAX,UINT32_MAX,RF_RANGE);
     stage=calloc(1,(size_t)bytes);if(!stage)return scene_npc_checkpoint_restore_failure("allocation",UINT32_MAX,UINT32_MAX,RF_IO);stage->count=count;stage->bytes=(uint32_t)bytes;stage->now=now;stage->fresh_boot=fresh_boot;
+    stage->flight_profile=flight_profile;stage->flight_joined=!flight_profile;
+    if(rng){stage->flight_rng.present=rng->present;stage->flight_rng.value=rng->value;}
+    scene_medic_flight_rng_capture(&stage->flight_rng_before);
     bone_storage=(unsigned char*)(stage->entries+count);
     for(i=0;i<count;i++){
         detail="row";
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o;
         const rf_entity_creation_vitals_class *vitals;rf_checkpoint_placement placement={0};
         rf_motion_playback_resource clip;rf_entity_playback_model *model;float angles[3]={0};int32_t id;uint32_t cls,seated=0;
-        status=rf_npc_checkpoint_encode(identity,catalog,rows+i,1,wire,sizeof(wire),&written);if(status)goto fail;
+        status=rf_npc_checkpoint_record_validate(rows+i,catalog);if(status)goto fail;
         detail="row_identity";
         if(i&&rows[i-1].uid>=rows[i].uid){status=RF_FORMAT;goto fail;}
         for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].persistence_registered&&
             (uint32_t)campaign_seeds.records.items[j].record.uid==rows[i].uid)break;
         if(j==campaign_npc_body_count){status=RF_FORMAT;goto fail;}o=campaign_npc_bodies+j;cls=campaign_seeds.items[j].class_index;
         if(cls!=rows[i].class_id||cls>=campaign_seeds.class_count||!campaign_seeds.classes){status=RF_FORMAT;goto fail;}
+        detail="medic_flight";
+        if((rows[i].flight.entered&&(!rng||!rng->present))||(rows[i].flight.present&&!flight_profile)||
+           (flight_profile&&o->flight.qualified&&!rows[i].retired&&!rows[i].flight.present)||
+           (rows[i].retired&&rows[i].flight.present)){status=RF_FORMAT;goto fail;}
+        status=scene_medic_flight_checkpoint_prepare(&rows[i].flight,now,&e->flight);if(status)goto fail;
+        if(rng&&rng->present&&rows[i].pain.present&&rng->value!=rows[i].pain.random){status=RF_FORMAT;goto fail;}
         detail="actor_route";
         status=scene_actor_route_admit(o,&rows[i].route,&e->move_path);if(status)goto fail;
         e->route_before=rf_scene_defeated_actors.routes[o->persistence_slot];
@@ -451,7 +463,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
         if(e->selection.mapping.skeleton!=campaign_poses.items[j].skeleton){status=RF_FORMAT;goto fail;}
         detail="pain_owner";
-        status=scene_npc_pain_checkpoint_prepare(rows+i,&e->selection,now,e->pain_deadlines);if(status)goto fail;
+        status=scene_npc_pain_checkpoint_prepare(j,rows+i,&e->selection,now,e->pain_deadlines);if(status)goto fail;
         id=e->selection.mapping.states[0];
         detail="animation_restore";
         if(rows[i].animation_present){
@@ -488,6 +500,10 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                    !(rows[i].combat_alert==0&&rows[i].combat.active==0&&
                      !rows[i].retired&&rows[i].health>0&&!(e->flags&2u)&&
                      scene_npc_checkpoint_residual_weapon_clip(j,cls,rows[i].primary,&rows[i].inventory,
+                         &e->selection,&rows[i].playback,motion,0))&&
+                   !(rows[i].pain_residual_profile&&rows[i].pain.present&&
+                     !rows[i].retired&&!rows[i].dead_pose&&rows[i].health>0&&!(e->flags&2u)&&
+                     scene_npc_pain_checkpoint_residual(j,cls,rows[i].primary,
                          &e->selection,&rows[i].playback,motion,0)))
                     e->unowned_motion_mask|=1u<<k;
             }
@@ -551,7 +567,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                     status=rf_model_compose_transform(local,e->matrices[attachment.parent],tag);if(status)goto fail;
                 }
                 status=rf_model_place_tag(tag,e->basis,e->published,transform);if(status)goto fail;
-                status=scene_clutter_pose_publish(e->medic_child.child,transform+9,transform,e->room.room);if(status)goto fail;
+                status=scene_medic_syringe_pose_publish(e->medic_child.child,transform+9,transform,e->room.room);if(status)goto fail;
             }
         }
         detail="eye";status=scene_npc_checkpoint_restore_eye(j,e,e->eye);if(status)goto fail;
@@ -573,7 +589,19 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
     uint32_t budget,scene_npc_checkpoint_restore_stage **out)
 {
-    uint32_t i;int status=scene_npc_checkpoint_restore_prepare_mode(rows,count,catalog,now,place,context,budget,0,out,NULL);
+    uint32_t i;int status;scene_medic_flight_rng live_rng;
+    /* NPC-only replacement has no shared receipt/player composition. Refuse
+     * old live nonconstructor ownership before staging, not during capture or
+     * ordinary QuickLoad. Untouched qualification remains legacy eligible. */
+    if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
+       (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||
+        campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
+    scene_medic_flight_rng_capture(&live_rng);
+    if(live_rng.present)return scene_npc_checkpoint_restore_failure("standalone_flight_rng",UINT32_MAX,UINT32_MAX,RF_NOT_FOUND);
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].flight.entered)
+        return scene_npc_checkpoint_restore_failure("standalone_flight_owner",i,
+            (uint32_t)campaign_seeds.records.items[i].record.uid,RF_NOT_FOUND);
+    status=scene_npc_checkpoint_restore_prepare_mode(rows,count,catalog,now,place,context,budget,0,out,NULL,NULL,0);
     if(status)return status;
     /* Component-only restoration has no RFAP owner to discharge a slot. */
     for(i=0;i<(*out)->count;i++)if((*out)->entries[i].unowned_motion_mask){
@@ -588,6 +616,12 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
 {
     uint32_t i;int status;rf_npc_checkpoint_record current;
     if(!stage)return RF_RANGE;
+    {scene_medic_flight_rng current_rng;scene_medic_flight_rng_capture(&current_rng);
+     if(!stage->flight_joined||memcmp(&current_rng,&stage->flight_rng_before,sizeof(current_rng)))return RF_FORMAT;}
+    if(stage->flight_profile&&(stage->flight_player!=campaign_player_object.handle||
+       campaign_player_object.view!=&campaign_player_view||
+       rf_object_registry_lookup(&campaign_registry,stage->flight_player)!=&campaign_player_object||
+       rf_entity_lookup(&campaign_entities,(int32_t)stage->flight_player)!=&campaign_player_view))return RF_FORMAT;
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
         if(e->unowned_motion_mask||e->slot>=campaign_npc_body_count||
@@ -676,7 +710,10 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         o->damage.effects.health=e->saved.health;o->damage.effects.armor=e->saved.armor;o->damage.effects.affiliation=e->saved.affiliation;
         o->capek_shield_broken=e->saved.capek_shield_broken; /* Includes legacy/unbroken zero on rollback. */
         o->view.base_speed=e->base_speed; /* Candidate latch, including terminal rows; no setter/replay. */
-        memset(&o->script_move,0,sizeof(o->script_move));memset(&o->navigation,0,sizeof(o->navigation));
+        memset(&o->script_move,0,sizeof(o->script_move));
+        {rf_entity_navigation_candidate start=o->navigation.start;
+         memset(&o->navigation,0,sizeof(o->navigation));
+         if(e->owner_before.flight.qualified)o->navigation.start=start;}
         while(o->script_once.count)campaign_script_single_pop(o,0);
         for(uint32_t k=0;k<e->saved.shot_count;k++){
             const rf_npc_checkpoint_shot *shot=e->saved.shots+k;
@@ -707,7 +744,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             o->script_move.path_mode=m->path_mode;o->script_move.path_reverse=m->path_reverse;
             o->script_move.route_index=m->route_index;o->script_move.retry=m->retry;
             o->script_move.fall_speed=m->fall_speed;memcpy(o->script_move.target,m->target,sizeof(m->target));
-            memcpy(o->navigation.start.position,m->route_start,sizeof(m->route_start));
+            if(!e->owner_before.flight.qualified)memcpy(o->navigation.start.position,m->route_start,sizeof(m->route_start));
             memcpy(o->navigation.goal.position,m->route_goal,sizeof(m->route_goal));
             o->navigation.retained.count=m->retained_count;
             for(j=0;j<m->retained_count;j++)o->navigation.retained.nodes[j]=
@@ -800,14 +837,48 @@ static inline void scene_npc_checkpoint_restore_finish(scene_npc_checkpoint_rest
          * are rebound. Standalone commit also reaches this complete boundary. */
         campaign_npc_ai_suppression_assign(o,e->saved.ai_suppressed);
         rf_scene_defeated_actors.ai_suppressed[o->persistence_slot]=(uint8_t)e->saved.ai_suppressed;
+        /* Restore the ordinary start projection before optional typed flight
+         * publication. A constructor flight has start_valid0 and deliberately
+         * leaves a simultaneously admitted ordinary route's actual start alone. */
+        if(e->owner_before.flight.qualified){
+            memset(&o->navigation.start,0,sizeof(o->navigation.start));
+            /* Source constructor geometry is real even while the portable
+             * start coordinates remain unwritten/start_valid0. */
+            o->navigation.start.radius=o->navigation_radius;
+            o->navigation.start.height=o->death_item_extent_7c4;
+            if(e->saved.move.active)memcpy(o->navigation.start.position,e->saved.move.route_start,12);
+        }
+        if(e->saved.flight.present)scene_medic_flight_restore_publish(o,&e->flight,stage->flight_player);
+        else {
+            memset(o->command_714,0,sizeof(o->command_714));
+            if(e->saved.retired)memset(&o->flight,0,sizeof(o->flight));
+            else scene_medic_flight_legacy_restore(o,stage->now);
+        }
         o->death_item_attempted=e->saved.retired||e->saved.dead_pose;o->death_item_fault=0;
     }
+    scene_medic_flight_rng_publish(&stage->flight_rng);
+}
+/* Narrow aliases of the newly retained flight owner. Other early world/body
+ * fields keep the established fresh-scene failure policy. No callbacks/draws. */
+static inline void scene_npc_checkpoint_flight_abort(const scene_npc_checkpoint_restore_stage *stage)
+{
+    uint32_t i;if(!stage)return;
+    for(i=0;i<stage->count;i++){
+        const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
+        if(e->owner_before.flight.qualified&&e->owner_before.flight.entered&&e->slot<campaign_npc_body_count){
+            campaign_npc_body *o=campaign_npc_bodies+e->slot;
+            memcpy(o->body.state.vector_c8,e->owner_before.body.state.vector_c8,12);
+            memcpy(o->body.state.vector_ec,e->owner_before.body.state.vector_ec,12);
+        }
+    }
+    if(stage->flight_rng_before.present)scene_medic_flight_rng_publish(&stage->flight_rng_before);
 }
 static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_restore_stage *stage)
 {
     int status=scene_npc_checkpoint_restore_validate(stage);if(status)return status;
+    scene_medic_flight_restore_scope(1);
     scene_npc_checkpoint_restore_assign(stage);
-    scene_npc_checkpoint_restore_finish(stage);scene_robot_death_reset();
+    scene_npc_checkpoint_restore_finish(stage);scene_medic_flight_restore_scope(0);scene_robot_death_reset();
     scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();return RF_OK;
 }
 #endif

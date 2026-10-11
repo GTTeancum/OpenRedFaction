@@ -150,8 +150,11 @@ static int scene_robot_death_tick(scene_stream *stream,uint32_t frame)
         scene_robot_death_foley(receipt.foley_group,receipt.position);
         if(epoch!=scene_robot_death_epoch){status=RF_OK;break;}
         ++rf_scene_robot_death[4];
-        status=scene_explosion_blast_source_guarded(stream,frame,receipt.position,
-            receipt.damage,receipt.radius,UINT32_MAX,3,&scene_robot_death_epoch);
+        /* Original48929a: this source-1/kind3 request also uses force0.
+         * Read difficulty only at the final player consumer; keep the paid
+         * receipt raw and retain its removal-first timeline guard. */
+        status=scene_explosion_blast_source_policy(stream,frame,receipt.position,
+            receipt.damage,receipt.radius,UINT32_MAX,3,&scene_robot_death_epoch,1);
         if(epoch!=scene_robot_death_epoch){status=RF_OK;break;}if(status)break;
     }
     scene_robot_death_draining=0;

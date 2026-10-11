@@ -6,7 +6,8 @@
  * snapshots accepted identity/mode/base after one ammo debit, and supplies the
  * existing post-spread ray. No trigger, ammo, random draw or persistent state.
  * This deliberately duplicates only the ordinary contact/damage adapter;
- * Riot Stick, shotgun and nonpiercing consumers remain untouched. */
+ * Riot Stick remains separate; ordinary posed-body receipts are shared with
+ * the nonpiercing consumer without changing precision selection. */
 typedef struct scene_handheld_shot {
     int32_t weapon,kind;
     uint32_t slot,alternate,enabled,source;
@@ -14,10 +15,12 @@ typedef struct scene_handheld_shot {
 } scene_handheld_shot;
 
 static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
-    uint32_t pellet,const float position[3],const float delta[3],const scene_handheld_shot *shot)
+    uint32_t pellet,const float position[3],const float delta[3],const scene_handheld_shot *shot,
+    const scene_player_body_shot *body_ray)
 {
     scene_sniper_penetration penetration;float end[3],original_position[3],original_delta[3];uint32_t i;int status;
-    if(!shot || !shot->enabled || !position || !delta)return RF_RANGE;
+    if(!shot || !body_ray || !shot->enabled || !position || !delta)return RF_RANGE;
+    if(!scene_player_body_source_live(body_ray))return RF_OK;
     /* Damage/death callbacks cannot retarget the retained original segment. */
     memcpy(original_position,position,12);memcpy(original_delta,delta,12);
     position=original_position;delta=original_delta;
@@ -25,27 +28,31 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
     if(status)return status;
     for(i=0;i<3;i++)end[i]=position[i]+delta[i];
     for(;;) {
-        scene_npc_shield_candidate shield_candidate={0};
+        scene_npc_shield_candidate shield_candidate={0};scene_npc_body_contact body_contact={0};
         scene_clutter_precision_contact prop={UINT32_MAX,UINT32_MAX,1};
         rf_weapon_flight_contact vehicle_contact;
         uint32_t target=UINT32_MAX,handle=UINT32_MAX,shield_selected=0,vehicle_selected=0;
         uint32_t body_selected=0,blocked=0,more=0;
         float nearest=1,query_fraction,body_fraction=1,damage=shot->base;
         const float *actor_position=penetration.start,*actor_delta=penetration.delta;
+        if(!scene_player_body_source_live(body_ray))return RF_OK;
         status=scene_sniper_penetration_damage(&penetration,shot->base,&damage);if(status)return status;
         /* Keep the ordinary body-before-shield enumeration and strict-nearer
          * ties. Only actor queries advance; generation-bearing visited handles
          * prevent a surviving owner from receiving this same shot twice. */
         for(i=0;i<campaign_npc_body_count;i++) {
             campaign_npc_body *owner=campaign_npc_bodies+i;
-            float fraction=1,actor_limit=nearest;uint32_t body_hit=0;
+            float fraction=1,actor_limit=nearest;uint32_t body_hit=0;scene_npc_body_contact candidate_body;
             if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
                !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
             if(rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration ||
                scene_sniper_penetration_visited(&penetration,owner->registration.handle))continue;
-            if(combat_body(actor_position,actor_delta,&owner->body,nearest,&fraction) && fraction<nearest) {
+            status=scene_npc_body_contact_query(i,body_ray,actor_position,actor_delta,nearest,&candidate_body);
+            if(status)return status;
+            fraction=candidate_body.fraction;
+            if(candidate_body.matched && fraction<nearest) {
                 body_hit=1;nearest=fraction;target=i;handle=owner->registration.handle;shield_selected=0;
-                body_selected=1;body_fraction=fraction;
+                body_selected=1;body_fraction=fraction;body_contact=candidate_body;
             }
             if(scene_npc_shields.owners) {
                 uint32_t hit;scene_npc_shield_candidate candidate;
@@ -58,6 +65,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
                 if(hit && (target==i || candidate.hit.time<nearest)) {
                     nearest=candidate.hit.time;target=i;handle=owner->registration.handle;
                     shield_candidate=candidate;shield_selected=1;body_selected=body_hit;body_fraction=fraction;
+                    body_contact=candidate_body;
                 }
             }
         }
@@ -129,15 +137,14 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
         if(blocked){scene_weapon_impact_audio_world(stream,shot->weapon,position,delta,nearest);return RF_OK;}
         {
-            campaign_npc_body *owner=campaign_npc_bodies+target;uint32_t entered,clock_bits,material;
+            campaign_npc_body *owner;uint32_t entered,clock_bits,material;
             float amount,point[3],seconds=(float)frame/60;
             rf_damage_request request={shot->base,shot->source,shot->kind,0,UINT32_MAX,0};
             combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
             rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,
                 combat_random,combat_notify,combat_playing,combat_play,&feedback};
-            if(rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration ||
-               !owner->registration.view || !owner->body.allocated_bytes || owner->damage.effects.health<=0 ||
-               (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1))return RF_OK;
+            if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
+            owner=campaign_npc_bodies+target;
             if(scene_npc_shields.owners) {
                 uint32_t accepted,broken;
                 status=shield_selected?scene_npc_shield_commit(&shield_candidate,actor_position,end,
@@ -152,19 +159,29 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             if(!body_selected || body_fraction>query_fraction)return RF_OK;
             query_fraction=body_fraction;
             nearest=penetration.cursor+(1-penetration.cursor)*query_fraction;
+            if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
             {uint32_t consumed;status=scene_nano_weapon_contact(owner,shot->weapon,request.amount,&consumed);
                 if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
-            for(i=0;i<3;i++)point[i]=actor_position[i]+actor_delta[i]*query_fraction;
+            if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
+            memcpy(point,body_contact.point,12);
             material=owner->collision_material;
             /* Shields/nano keep fresh unattenuated base. Snapshot actual body
              * radius and prepare continuation BEFORE damage/death callbacks.
              * Even zero applied damage spends this contact's original power. */
-            request.amount=damage;
+            status=scene_npc_body_contact_amount(&body_contact,shot->base,&request.amount);if(status)return status;
+            status=scene_sniper_penetration_damage(&penetration,request.amount,&request.amount);if(status)return status;
             status=scene_sniper_penetration_body(&penetration,handle,owner->body.state.bounds.radius,
                 nearest,point,end,&more);if(status)return status;
             memcpy(&clock_bits,&seconds,4);
+            if(!scene_npc_body_contact_reaction_publish(body_ray,&body_contact))return RF_OK;
             status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);
             if(!status)status=feedback.status;if(status)return status;
+            if(!scene_player_body_source_live(body_ray) || !campaign_npc_bodies ||
+               target>=campaign_npc_body_count || campaign_npc_bodies[target].registration.handle!=handle ||
+               rf_object_registry_lookup(&campaign_registry,handle)!=&campaign_npc_bodies[target].registration ||
+               campaign_npc_bodies[target].registration.view!=&campaign_npc_bodies[target].view ||
+               rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_npc_bodies[target].view)return RF_OK;
+            owner=campaign_npc_bodies+target;
             scene_weapon_impact_audio_contact(shot->weapon,(int32_t)material,point);
             if(amount>0) {
                 combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);

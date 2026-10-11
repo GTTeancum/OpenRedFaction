@@ -111,6 +111,12 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++){
         scene_ai_rocket_projectile *shot=scene_ai_rockets+i;rf_weapon_flight_liquid_event move;
         const rf_weapon_explosive_definition *definition=shot->definition;
+        /* Accepted family receipt survives contact callbacks; never require a
+         * still-living source, held pair or authored UID at impact. Tankbot's
+         * RFAP variant2 restores this identity and raw damage; Drone remains
+         * excluded from saves while its unsupported flight is active. */
+        const uint32_t current_player_difficulty=definition==&campaign_tankbot_missile ||
+            definition==&campaign_drone_missile;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};scene_ai_projectile_query query={stream,shot->source};
         if(!shot->flight.active)continue;
         if(!definition)return RF_RANGE;
@@ -140,11 +146,17 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
             }
             {uint32_t handled;status=scene_clutter_projectile_damage(contact,shot->damage,3,&handled);if(status)return status;}
             if(tag==SCENE_AI_PROJECTILE_PLAYER || (tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
-                uint32_t target,index=tag&0xffffu,entered,bits;float amount=0,seconds=(float)frame/60;
+                uint32_t target,index=tag&0xffffu,entered,bits;float amount=0,difficulty=1,seconds=(float)frame/60;
                 combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
                 rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
                 rf_damage_request request={shot->damage,shot->source,3,0,UINT32_MAX,0};memcpy(&bits,&seconds,4);
-                if(tag==SCENE_AI_PROJECTILE_PLAYER){target=campaign_player_object.handle;status=rf_scene_player_damage(target,&request,1,bits,&effects,&amount);}
+                if(tag==SCENE_AI_PROJECTILE_PLAYER){
+                    target=campaign_player_object.handle;
+                    if(current_player_difficulty){
+                        status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return status;
+                    }
+                    status=rf_scene_player_damage(target,&request,difficulty,bits,&effects,&amount);
+                }
                 else{if(index>=campaign_npc_body_count)return RF_RANGE;target=campaign_npc_bodies[index].registration.handle;
                     status=rf_scene_npc_damage(target,&request,1,bits,&effects,&amount);}
                 if(status)return status;if(feedback.status)return feedback.status;
@@ -155,7 +167,12 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
              /* Match player rockets: move the radial origin off the contacted
               * surface so it does not occlude its own cover rays. */
              for(k=0;k<3;k++)origin[k]=contact->hit.point[k]+contact->hit.normal[k]*.01f;
-             status=scene_explosion_blast_source(stream,frame,origin,shot->damage,definition->damage_radius,shot->source,3);if(status)return status;}
+             /* Original4c62b5 obtains fresh base damage after direct damage.
+              * Scale each final player request once, never this raw blast. */
+             status=current_player_difficulty?
+                 scene_explosion_blast_source_current_player(stream,frame,origin,shot->damage,definition->damage_radius,shot->source,3):
+                 scene_explosion_blast_source(stream,frame,origin,shot->damage,definition->damage_radius,shot->source,3);
+             if(status)return status;}
 
             status=scene_explosion_terrain(stream,frame,contact,definition->crater_radius);if(status)return status;
         }

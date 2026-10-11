@@ -12,6 +12,6 @@ static int scene_ai_tankbot_penetration_fire(scene_stream *stream,uint32_t frame
 {
     if(!shot || !campaign_enemy_tankbot_primary_weapon(shot->weapon))return RF_RANGE;
     return scene_ai_actor_penetration_fire(stream,frame,accepted_owner,accepted_slot,
-        shot,eye,ray,player_eye,clock_bits,effects,feedback,out);
+        shot,eye,ray,player_eye,clock_bits,effects,feedback,1,out);
 }
 #endif

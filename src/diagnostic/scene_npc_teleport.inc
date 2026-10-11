@@ -42,6 +42,7 @@ static int campaign_teleport_npc(void *context,uint32_t handle,const rf_level_ev
     ++rf_scene_npc_teleport[0];rf_scene_npc_teleport[4]=event?event->uid:0;rf_scene_npc_teleport[6]=handle;
     if(!event||!event->has_orientation||now<0||now>RF_TIMER_PERIOD){status=RF_RANGE;goto fail;}
     status=campaign_npc_motion_owner(handle,&o,&cls,&pose);if(status)goto fail;
+    if(scene_medic_flight_command_overlap(o)){status=RF_NOT_FOUND;goto fail;}
     slot=(uint32_t)(o-campaign_npc_bodies);
     if(slot>=campaign_model_owner_count||o->movement_slot>=16||!o->body.allocated_bytes||!campaign_npc_eyes||
        rf_object_registry_lookup(&campaign_registry,handle)!=&o->registration||
@@ -86,6 +87,11 @@ static int campaign_teleport_npc(void *context,uint32_t handle,const rf_level_ev
     scene_npc_loop_audio_remove(handle);
     memset(&o->script_move,0,sizeof(o->script_move));o->script_move.stop=1;
     memset(&o->navigation,0,sizeof(o->navigation));
+    if(o->flight.qualified){
+        /* Successful pre-flight teleport retains actual constructor dimensions. */
+        o->navigation.start.radius=o->navigation_radius;
+        o->navigation.start.height=o->death_item_extent_7c4;
+    }
     memcpy(o->navigation.start.position,event->position,12);
     memcpy(o->navigation.goal.position,event->position,12);
     o->script_look.active=o->script_shoot.active=0;

@@ -356,7 +356,16 @@ static int scene_ai_drone_smash_impact(scene_stream *stream,uint32_t frame,
             }
         }
     } else {
-        status=rf_scene_player_damage(strike->target,&request,1,clock_bits,&effects,&amount);
+        float difficulty=1;
+        /* Only copied, admitted Drone Smash or exact creature primaries join
+         * current player difficulty here. Keep contact damage raw and leave
+         * multiplication to the dispatcher. */
+        if(campaign_enemy_drone_smash_weapon(strike->weapon) ||
+           campaign_enemy_reeper_claw_impacts(strike->weapon)!=NULL) {
+            status=combat_enemy_player_difficulty(stream,strike->target,&request,&difficulty);
+            if(status)return status;
+        }
+        status=rf_scene_player_damage(strike->target,&request,difficulty,clock_bits,&effects,&amount);
         if(!status)status=feedback.status;if(status)return status;
         if(amount>0 && campaign_player_object.handle==strike->target)
             campaign_combat_event(frame,1,strike->source,amount,campaign_player_damage.state.effects.health);

@@ -59,10 +59,58 @@ def address(mapping, name):
     return int(match.group(1), 16)
 
 
+def strict_guest_shutdown(monitor, process, receipt_path, timeout=15):
+    """Opt-in producer gate. Failed graceful shutdown is never promoted.
+
+    Cleanup may terminate/kill the owned subprocess after this gate fails, but
+    that fallback is recorded and cannot turn the receipt into success.
+    """
+    receipt = dict(required=True, qmp_quit_acknowledged=False,
+                   normal_wait_completed=False, returncode=None,
+                   forced_cleanup_used=False, errors=[], clean=False)
+    try:
+        if process is None:
+            receipt['errors'].append('No owned XEMU process was started')
+        elif monitor is None:
+            receipt['errors'].append('No negotiated QMP monitor is available')
+        else:
+            try:
+                monitor.command('quit')
+                receipt['qmp_quit_acknowledged'] = True
+            except (OSError, RuntimeError) as error:
+                receipt['errors'].append('QMP quit: ' + repr(error))
+        if process is not None:
+            try:
+                receipt['returncode'] = process.wait(timeout=timeout)
+                receipt['normal_wait_completed'] = True
+            except subprocess.TimeoutExpired as error:
+                receipt['errors'].append('Normal exit wait: ' + repr(error))
+            receipt['clean'] = (receipt['qmp_quit_acknowledged'] and
+                                receipt['normal_wait_completed'] and
+                                receipt['returncode'] == 0)
+        if receipt['returncode'] not in (None, 0):
+            receipt['errors'].append('Nonzero normal return code')
+    finally:
+        # Even unexpected exceptions must preserve cleanup-on-failure. Any
+        # still-live child here missed normal exit and cannot pass the gate.
+        try:
+            if process is not None and process.poll() is None:
+                receipt['clean'] = False
+                receipt['forced_cleanup_used'] = True
+                try:
+                    stop_owned_process(process)
+                except (OSError, subprocess.SubprocessError) as error:
+                    receipt['errors'].append('Owned-process cleanup: ' + repr(error))
+                receipt['returncode_after_cleanup'] = process.poll()
+        finally:
+            receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
+    return receipt
+
+
 def run_guest(run, name, hdd, frames, seconds, snapshot=False, extra_symbols=None,
               allow_guest_error=False, allow_player_dead=False, capture_world=False,
               probe=None, probe_frame=None, final_probe=None, final_probe_frame=None,
-              measure_fps=False, live_sample=None):
+              measure_fps=False, live_sample=None, require_clean_shutdown=False):
     # Observe existing diagnostic reads only; pausing callbacks would make the
     # elapsed wall-clock window unsuitable for presented FPS.
     if measure_fps and (probe is not None or final_probe is not None or live_sample is not None):
@@ -282,21 +330,35 @@ dvd_path = '{(ROOT / 'build/xbox/redfaction-diagnostic.iso').as_posix()}'
                 raise RuntimeError(f'{name}: memory exhausted or player dead')
             return result
     finally:
-        try:
-            if monitor:
-                try:
-                    monitor.command('quit')
-                except (OSError, RuntimeError):
-                    pass
-        finally:
+        if require_clean_shutdown:
+            shutdown = None
             try:
-                stop_owned_process(process)
+                shutdown = strict_guest_shutdown(monitor, process, phase_dir / 'shutdown.json')
             finally:
                 try:
                     if monitor:
                         monitor.close()
                 finally:
                     session_lock.close()
+            if not shutdown or not shutdown['clean']:
+                raise RuntimeError(name + ': strict clean shutdown failed; HDD must not be promoted')
+        else:
+            # Preserve all existing consumers' default teardown behavior.
+            try:
+                if monitor:
+                    try:
+                        monitor.command('quit')
+                    except (OSError, RuntimeError):
+                        pass
+            finally:
+                try:
+                    stop_owned_process(process)
+                finally:
+                    try:
+                        if monitor:
+                            monitor.close()
+                    finally:
+                        session_lock.close()
 
 
 def main():

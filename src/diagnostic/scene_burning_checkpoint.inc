@@ -152,6 +152,7 @@ static int scene_burning_checkpoint_admit(scene_burning_checkpoint_stage *burnin
         return RF_OK;
     }
     if(!npcs)return RF_FORMAT;
+    if(npcs->flight_rng.present&&npcs->flight_rng.value!=burning->pain_rng)return RF_FORMAT;
     /* RFNC15 ordinary pain and RFAP4 burns share the live pain RNG but must
      * never both claim one reaction owner. Publication order cannot decide it. */
     for(j=0;j<npcs->count;j++)if(npcs->entries[j].saved.pain.present){
@@ -164,8 +165,8 @@ static int scene_burning_checkpoint_admit(scene_burning_checkpoint_stage *burnin
         for(j=0;j<npcs->count;j++)if(npcs->entries[j].saved.uid==burning->target_uid[i]){entry=npcs->entries+j;break;}
         if(!entry||!entry->registered||entry->saved.retired||entry->saved.dead_pose||entry->saved.health<=0||
            (entry->flags&(2u|0x4000u)))return RF_FORMAT;
-        /* RFNC carries the exact clip playback; only its saved pain action
-         * supplies ownership for this additional non-looping action. */
+        /* The retained RFAP hint uses the exact candidate mapping. RFNC
+         * carries playback; qualified residual ownership is joined below. */
         if(burning->pain[i][3]>=0){
             int32_t action=burning->pain[i][3],motion=entry->selection.mapping.actions[action];
             if(motion<0)return RF_FORMAT;
@@ -183,19 +184,26 @@ static int scene_burning_checkpoint_admit(scene_burning_checkpoint_stage *burnin
                 burning->records[i].source!=entry->handle)return RF_FORMAT;
         }
     }
-    /* Candidate RFAP action, never the destination actor's current burn.
+    /* Candidate RFAP owner, never the destination actor's current burn.
      * Verify every unresolved slot before clearing any staged obligations.
      * No new ownership is granted to other one-shots in the same playback. */
     for(j=0;j<npcs->count;j++){
         const scene_npc_checkpoint_restore_entry *entry=npcs->entries+j;int32_t motion=-1;
         if(!entry->unowned_motion_mask)continue;
         for(i=0;i<SCENE_BURNING_CAPACITY;i++)if(burning->records[i].left&&
-            burning->target_uid[i]==entry->saved.uid&&burning->pain[i][3]>=0){
-            motion=entry->selection.mapping.actions[burning->pain[i][3]];break;
+            burning->target_uid[i]==entry->saved.uid){
+            if(burning->pain[i][3]>=0)motion=entry->selection.mapping.actions[burning->pain[i][3]];
+            break;
         }
-        if(motion<0)return RF_FORMAT;
-        for(i=0;i<entry->saved.playback.completion.active.count;i++)if((entry->unowned_motion_mask&(1u<<i))&&
-            entry->saved.playback.completion.active.slots[i].motion!=motion)return RF_FORMAT;
+        /* Only a genuine, already validated RFAP owner can discharge these
+         * residual obligations. RFNC1..23 retain latest-action-only grammar. */
+        if(i==SCENE_BURNING_CAPACITY)return RF_FORMAT;
+        for(i=0;i<entry->saved.playback.completion.active.count;i++)if(entry->unowned_motion_mask&(1u<<i)){
+            int32_t unresolved=entry->saved.playback.completion.active.slots[i].motion;
+            if(unresolved!=motion&&!(entry->saved.pain_residual_profile&&
+               scene_npc_pain_checkpoint_residual(entry->slot,entry->saved.class_id,entry->saved.primary,
+                   &entry->selection,&entry->saved.playback,unresolved,0)))return RF_FORMAT;
+        }
     }
     for(j=0;j<npcs->count;j++)npcs->entries[j].unowned_motion_mask=0;
     return RF_OK;

@@ -1,0 +1,48 @@
+{
+  "baseline_commit": "2ad2ee843d2730574721fa5ebc2866742ea9fadc",
+  "patch_sha256": "87804eaa15512d4564f23900961f3ae1ad97b357c682016a306d21977e5ce7bb",
+  "files": [
+    {
+      "path": "src/diagnostic/scene.c",
+      "baseline_sha256": "0f2ac841fbd754f870bcb460f11a1cd2893f5141be6fd612ffc00dc62ade91cb",
+      "stage_sha256": "0c8ef4272c60d9f39351c58826b27428ff42907f4e20bd606dc2bab3560af661"
+    },
+    {
+      "path": "src/diagnostic/scene_ai_actor_penetration.inc",
+      "baseline_sha256": "73926e9458d19d90a840b0df7d04cf4ec5c276a771aa3c70eb2a06b87f4d3ca4",
+      "stage_sha256": "bb528b412f4fe9268860cf9711b2bb861cf2c8bee5ba38f03b8839d4741f928a"
+    },
+    {
+      "path": "src/diagnostic/scene_ai_drone_smash.inc",
+      "baseline_sha256": "944608d28605c700bd8e6910fe10234dc812387cef07e97f345afb2c890a5f5d",
+      "stage_sha256": "70fc611fdb56f79271a08ecb234dd6381619195f598497f95a71771bfce5ea33"
+    },
+    {
+      "path": "src/diagnostic/scene_ai_laser.inc",
+      "baseline_sha256": "64e4d8395267ebe53305ebad1c5fd16af41dd02a339650f0a80c4e698b72fd50",
+      "stage_sha256": "efebe3552c0d943e4827ffbc58af660d66a4a74365e494d8ca4189278a03a417"
+    },
+    {
+      "path": "src/diagnostic/scene_ai_rocket.inc",
+      "baseline_sha256": "c5bf7e60c81788c69f37476684341d9c8e947108b9462dec12527b7cac8f3c28",
+      "stage_sha256": "59c2f845d9897ff3cc2d1573ab39748a7f6f13fccafff0953c42c4379c818eb4"
+    },
+    {
+      "path": "src/diagnostic/scene_ai_tankbot_penetration.inc",
+      "baseline_sha256": "48ff0b7b134ee58cec338a329374285575ffb7b60c53a669b6e7c8c1d3344620",
+      "stage_sha256": "3ebd5b344dd0c934a1e2805c13578afd322bdf808789aac41884e6f2f141c611"
+    },
+    {
+      "path": "src/diagnostic/scene_ai_vauss_penetration.inc",
+      "baseline_sha256": "5cc39d685e6e7d52d6bf21cbeef76fb9e11a0264a5cf89c3a63d31d9a592f88e",
+      "stage_sha256": "5feab38a95b54ff2720ead424708994fa534777cb666e591d8dfdcf4156f8b0f"
+    },
+    {
+      "path": "src/diagnostic/scene_robot_death_runtime.inc",
+      "baseline_sha256": "6534cc4467da7a688c12a9e0bfb42591da69717bcab51a3ec7ed901db37a7c5d",
+      "stage_sha256": "3a291a2553b4be0b35c9e58cc5f39387b0485b85a361b2622d93859cfc20cea6"
+    }
+  ],
+  "predecessor": "131815b0f1005cce4699c610788d3697b4465f1bd832523fe66095b4cbe0d540",
+  "extension": "90afd8f2e5bb2964bf593d083e9c46e42da379fd282595cb1aee4277de39d0e2"
+}

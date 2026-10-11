@@ -16,11 +16,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
 #endif
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
-    unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,added=0,flags=0,selected=0,cost=0;int status=RF_OK,found=0;
+    unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,rows_bytes=0,added=0,flags=0,selected=0,cost=0;int status=RF_OK,found=0;
     const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
     if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
-    rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
+    rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;rf_npc_checkpoint_rng inspected_rng={0};
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_authored_checkpoint_stage *terrain_stage=NULL;
     scene_authored_collection_stage *collection_stage=NULL;
@@ -28,7 +28,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
     scene_continuous_charge_checkpoint_stage charge={0};
-    uint32_t projectile_audio_resume=0,world_published=0;
+    uint32_t projectile_audio_resume=0,world_published=0,flight_locked=0;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_allegiance_stage *allegiance=NULL;
     scene_vehicle_attack_stage *vehicle_attack=NULL;scene_vehicle_ai_stage *vehicle_ai=NULL;
@@ -100,10 +100,13 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     for(i=0;i<catalog.count;i++){const rf_weapon_acquire_definition *d=catalog.weapons+i;
         catalog.supported[i]=(uint8_t)(d->ammo_type>=-1&&d->ammo_type<32&&d->capacity>=0&&d->magazine>=0&&(d->ammo_type!=-1||d->magazine==0));}
     v=envelope.sections+RF_WORLD_NPC-1;status=rf_npc_checkpoint_preflight(v->data,v->bytes,identity.bytes,&catalog,&rows_count);if(status)goto done;
-    if(rows_count){rows=malloc(rows_count*sizeof(*rows));if(!rows){status=RF_IO;goto done;}}
-    status=rf_npc_checkpoint_decode(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count);if(status)goto done;
+    if((uint64_t)rows_count*sizeof(*rows)>budget-cost){status=RF_RANGE;goto done;}
+    rows_bytes=rows_count*(uint32_t)sizeof(*rows);
+    if(rows_count){rows=malloc(rows_bytes);if(!rows){status=RF_IO;goto done;}}
+    /* Resource inspection validates but does not restore the singleton. */
+    status=rf_npc_checkpoint_decode_with_rng(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng);if(status)goto done;
     status=scene_corpse_lifetime_checkpoint_admit(corpses,rows,rows_count);if(status)goto done;
-    status=scene_npc_checkpoint_resources_require(rows,rows_count,budget-cost,&added);if(status)goto done;free(rows);rows=NULL;
+    status=scene_npc_checkpoint_resources_require(rows,rows_count,budget-cost-rows_bytes,&added);if(status)goto done;free(rows);rows=NULL;
     v=envelope.sections+RF_WORLD_DESTRUCTION-1;
     if(v->bytes>=4 && !memcmp(v->data,"RFDS",4)){
         rf_geomod_terrain_view edited;
@@ -257,6 +260,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
     phase="validate";
     status=scene_masako_checkpoint_admit(&masako,world->npcs,passive);if(status)goto done;
+    status=scene_medic_flight_player_checkpoint_admit(world->npcs,&player);if(status)goto done;
     status=scene_npc_checkpoint_restore_validate(world->npcs);if(status)goto done;
     status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;
     status=scene_passive_vehicle_checkpoint_validate(passive);if(status)goto done;
@@ -285,6 +289,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_campaign_history_checkpoint_capek_admit(history,bindings,world->npcs);if(status)goto done;
     status=scene_world_environment_validate(environment);if(status)goto done;
     status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
+    scene_medic_flight_restore_scope(1);flight_locked=1;
     scene_continuous_charge_restore_scope(1);charge.locked=1;
     /* Parked publication has no callbacks or mutation on rejection. Admit it
      * before the assignment-only world transaction below. */
@@ -380,6 +385,13 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
     if(!status&&world_published)scene_ai_projectile_checkpoint_flame_finish(projectiles);
     scene_continuous_charge_checkpoint_finish(&charge,!status&&world_published);
+    if(flight_locked){
+        /* Ordinary pain/burn assignment may write this shared RNG before close.
+         * Preserve the new old-flight alias on failure, without changing the
+         * established fresh-world failure policy for those other controllers. */
+        if(status&&world)scene_npc_checkpoint_flight_abort(world->npcs);
+        scene_medic_flight_restore_scope(0);
+    }
     /* Voice reconstruction follows ALL fallible publication and storage
      * close work. Failed/absent staged loads never start a new flight loop. */
     if(!status && projectile_audio_resume)scene_projectile_flight_audio_resume(stream);

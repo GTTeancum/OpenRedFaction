@@ -56,6 +56,7 @@ static int campaign_set_ai_mode_acquiring(void *context,uint32_t handle,int32_t 
            rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration)continue;
         if(owner->damage.effects.health<=0 || (owner->view.flags_810&1) ||
            owner->ai_mode.action_280==13 || owner->view.linked_handle!=-1)return RF_NOT_FOUND;
+        if(scene_medic_flight_command_overlap(owner))return RF_NOT_FOUND;
         /* A retained but invalid cursor is not permission to replace its route. */
         if(owner->script_move.path.count || owner->script_move.path.indices)
             return campaign_ai_mode_apply(owner,action,now);

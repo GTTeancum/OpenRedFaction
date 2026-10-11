@@ -202,7 +202,15 @@ static int scene_ai_laser_contact_result(scene_stream *stream,uint32_t frame,con
             if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
             stats[6]+=accepted;return RF_OK; /* Selected stale/broken shield consumes. */
         }
-        ++stats[5];status=rf_scene_player_damage(q->target,&request,1,clock,&effects,&amount);
+        /* Accepted exact Laser, TriBeam, Sonar, Spit and Cane join the current player row.
+         * Other shared families and raw physical/Nano contacts stay unchanged. */
+        {float difficulty=1;
+         if(campaign_enemy_laser_weapon(shot->weapon) ||
+            campaign_enemy_tribeam_weapon(shot->weapon) || campaign_enemy_sonar_weapon(shot->weapon) ||
+            campaign_enemy_spit_weapon(shot->weapon) || campaign_enemy_cane_weapon(shot->weapon)){
+             status=combat_enemy_player_difficulty(stream,q->target,&request,&difficulty);if(status)return status;
+         }
+         ++stats[5];status=rf_scene_player_damage(q->target,&request,difficulty,clock,&effects,&amount);}
         return status?status:feedback.status;
     }
     {campaign_npc_body *npc=scene_ai_melee_npc_live(q->target_slot,q->target);

@@ -1,14 +1,50 @@
-- Ordinary force-zero manual cycling and armed pickup selection now refuse an already-started selected ordinary reload while retaining accepted grants and input-edge consumption; independently reviewed, integrated after the user-requested 18:12 failed build, and uncompiled (docs/ORDINARY-RELOAD-SELECTION.md).
+- Independently reviewed same-pistol location-directed pain hints 24–27 now join the existing controller before damage, using the published victim frame and existing RFNC24 ownership; compilation, reactions and save continuation remain unverified (docs/NPC-PISTOL-REACTION.md).
 
-- Shared Riot/Flame gameplay charge ownership and RFAP5 persistence are independently source-reviewed and integrated after the completed 18:00 SDK build failure; both fractional lanes are replaced together, with explicit compatibility/transaction policies; awaiting 19:00 Xbox compilation and original resource admission, with action/save behavior unverified.
+- Independently reviewed ordinary NPC pistol physical-sphere contact and posed hit-location scalar are integrated with accepted-shot callback ownership; awaiting 05:00 Xbox compilation and genuine save/load/controls, with hit damage and stack fit unverified (docs/NPC-PISTOL-HIT-LOCATION.md).
+
+- Independently reviewed terminal-corpse reactive marker2 capture correction is integrated after the actual04 save refusal, preserving the existing no-combat corpse representation and all live checks; awaiting next hourly compilation and genuine save/load validation (docs/TERMINAL-REACTIVE-CORPSE-SAVE.md).
+
+- Actual04:00 Xbox build passed, but the genuine normal save at frame120 was rejected by NPC UID910; preserve the refusal and correct its qualified corpse-state admission before a new hourly save/load attempt (docs/HOURLY-20261011-0400.md).
+
+- New normal L3S1 save, durable HDD backup, fresh native load and bounded movement/fire harness is independently reviewed and integrated; strict clean exit and exact source/disk guards apply; actual04 producer rejected capture, so fresh load and controls remain unrun (docs/NATURAL-SAVE-GAMEPLAY-RUNBOOK.md).
+
+- Exact accepted Spit and Cane player-body requests and independent Big Spit radial requests now use current difficulty after raw shield handling; independently reviewed and compiled at04:00; damage actions remain unverified (docs/SPIT-CANE-DIFFICULTY-JOINT-REVIEW.md).
+
+- Exact accepted TriBeam and Sonar final player-body requests now share current difficulty after raw shield handling, with original paid-flight and save owners preserved; source-reviewed and compiled at04:00; action validation remains pending (docs/TRIBEAM-SONAR-DIFFICULTY-REVIEW.md).
+
+- Ten source-qualified player-difficulty consumers are independently reviewed and integrated after the successful03:00 batch, preserving raw shields/Nano and existing action/save ownership; compiled at04:00; actual damage validation remains pending (docs/PLAYER-DAMAGE-DIFFICULTY-CONSUMERS.md).
+
+- Reviewed outside kind10 now receives the existing current SP difficulty row after unchanged exposure admission, sharing the pure lookup with NPC body hits and preserving liquid/outside/gasp order. Compiled in the03:00 Xbox build; no exposure/audio runtime proof (docs/PLAYER-OUTSIDE-DIFFICULTY.md, docs/HOURLY-20261011-0200.md).
+
+- Reviewed ordinary on-foot player damage now receives the existing current difficulty row at the shared final synchronous NPC body-hit consumer, preserving raw shield priority, explicit APIs and outside-scope behavior. No new save state; compiled at02:00, damage behavior unverified (docs/NPC-PLAYER-DIFFICULTY-DAMAGE.md).
+
+- Actual October11 01:00 stock-profile0 Xbox build passed at2c7d33a6; no new runtime was needed after midnight startup PASS. Known armed guard short-flight remains deferred pending a complete combat/navigation/save owner; reviewed decision helpers stay staged (docs/HOURLY-20261011-0100.md).
+
+- Actual known medic damage-flight/action7 is source-reviewed and integrated with original alternate navigation, threat/timers and conditional RFNC25 continuation. Explicit scheduling/RNG/section/capability policies remain documented; compiled and passed October11 00:00 original L3S1 neutral120 stock64 constructor/resource admission, with flight/save actions unverified (docs/MEDIC-FLIGHT-RUNTIME.md).
+
+- Actual23:00 Xbox build and original L3S1 neutral120 stock64 admission passed at ef0612a6, including hit-location metadata and all original-input/restoration guards. Hit reactions/RFNC24 compile; action and new save behavior remain unverified (docs/HOURLY-20261010-2300.md).
+
+- Actual22:00 build failed before runtime on hit-location flags-owner/header errors; reviewed correction cd2e71b3 is integrated. Ordinary location pain actions24–27 and exact residual RFNC24 admission are now source-reviewed and integrated, compiled successfully at23:00; no new action/save proof (docs/HOURLY-20261010-2200.md, docs/PLAYER-NPC-HIT-REACTION.md).
+
+- Ordinary player body hits now use reviewed posed geometry and original named CSPH damage scalars for guard1/guard2/medic1, preserving shield/Nano priority and existing scheduling; compiled and passed mandatory metadata admission at23:00, with shot behavior unverified (docs/PLAYER-NPC-HIT-LOCATION.md).
+
+- Generated medic syringe raw-hand pose correction compiled and passed the21:00 unchanged original L3S1 neutral120 stock64 startup, with119 successful pose publications and fault0; healing, rendering and save behavior remain unverified, and the exact uncaptured19:00 failing callee remains unproven (docs/MEDIC-RAW-HAND-POSE.md, docs/HOURLY-20261010-2100.md).
+
+- Current validation: October11 00:00 Xbox build and unchanged original L3S1 neutral120 stock64 startup passed at6416aa52 with all original-input/restoration guards; retain the separate19:00 RF_FORMAT failure and the missing exact old saved-HDD regression blocker (docs/HOURLY-20261010-2100.md).
+
+- Successful accepted player form entry/exit retires the outgoing ordinary reload countdown before selection, matching original fresh-actor reload initialization; source-reviewed and compiled in21:00, with action runtime unverified (docs/FORM-RELOAD-OWNER.md).
+
+- Ordinary force-zero manual cycling and armed pickup selection refuse an already-started selected ordinary reload while retaining accepted grants and input-edge consumption; independently reviewed and compiled, including the21:00 passing startup, with selection-action runtime unverified (docs/ORDINARY-RELOAD-SELECTION.md).
+
+- Shared Riot/Flame gameplay charge ownership and RFAP5 persistence are independently source-reviewed and compiled with original resource admission in the21:00 passing startup; both fractional lanes are replaced together, with explicit compatibility/transaction policies and action/save behavior unverified.
 
 - Project/APU warning policy is now privately owned by the 109 project objects; SDK dependencies retain upstream defaults after the 18:00 allocator warning failure (docs/HOURLY-20261010-1800.md).
 
-- Actual authored guard patrols: reviewed named Loop/Ping Pong paths, ordinary combat interruption, retained shared direction and conditional RFNC23/RFCH9 route history are integrated; awaiting 17:00 compilation, all new action/save behavior unverified, unsupported section combat/seat and qualified One way guarded (docs/AUTHORED-WAYPOINT-RUNTIME.md, docs/AUTHORED-WAYPOINT-CODEC.md).
+- Actual authored guard patrols are compiled and observed during the21:00 original neutral startup:590 movement commits and10 successful routes; combat interruption, broader route behavior and RFNC23/RFCH9 save/history remain unverified, with unsupported section combat/seat and qualified One way guarded (docs/AUTHORED-WAYPOINT-RUNTIME.md, docs/AUTHORED-WAYPOINT-CODEC.md).
 
-- USER: Compile the reviewed medic and authored guard-patrol slices in the parent 17:00 Xbox batch; original saved-HDD regression remains blocked by missing exact saved bytes after workspace reset.
+- USER: Original saved-HDD regression remains blocked by missing exact saved bytes after workspace reset; historical startup evidence cannot replace it. The October11 03:10 user approval allows a separately labeled genuine L3S1 save through ordinary gameplay, never a fabricated or impersonated historical save.
 
-- Actual L3S1 medic Use: independently source-reviewed delayed finite healing now composes real generated syringe ownership, source-tag input arbitration and conditional RFNC22/RFCH8 reserve/child history with success-only restore publication; parent integration awaits the 16:00 Xbox batch, with all new healing, syringe, presentation and save/revisit behavior runtime-unverified, clip-only success timing and bounded owned-only presentation progress explicitly documented (docs/MEDIC-USE-ACTION.md, docs/MEDIC-SYRINGE-OWNER.md, docs/MEDIC-FINITE-PERSISTENCE.md).
+- Actual L3S1 medic Use: independently source-reviewed delayed finite healing, generated syringe ownership, input arbitration and RFNC22/RFCH8 reserve/child history are compiled; the21:00 startup observed syringe pose publication only, while healing, presentation and save/revisit behavior remain unverified (docs/MEDIC-USE-ACTION.md, docs/MEDIC-SYRINGE-OWNER.md, docs/MEDIC-FINITE-PERSISTENCE.md).
 # Red Faction Xbox / PC - open work
 
 - The 15:00 Xbox build and actual immutable October9 saved-HDD L11S3 fresh load passed at ff529164: genuine RFNC14 assignments for both frozen owners, 32 neutral frames on stock64 MiB and all original-input/restoration checks; post-14 code compiled, with new Goto/contact/radial action and new-format save behavior still unverified (docs/HOURLY-20261010-1500.md).
@@ -221,9 +257,9 @@
 
 - Removed NPC lifecycle: ordinary Remove_Object now shares corpse-expiry order cancellation, retires only the removed target's burn/backlink and clears freeze markers after physical owner closure; strict checkpoint guards remain, 16:00 Xbox compilation passed, removal runtime unverified (docs/EVENT-REMOVAL.md).
 
-Current milestone (2026-10-10 01:03 UTC): the01:00 Xbox build at7cdfd7a4 and120-frame original L1S1 neutral stock64MiB startup passed, including mandatory authored piercing-metadata table admission. New pause and sniper/handheld penetration behavior is compiled but action runtime remains unverified (docs/HOURLY-20261010-0100.md).
+Current milestone (2026-10-10 21:03 UTC): the21:00 Xbox build at6e7476a1 and unchanged original L3S1 neutral120 stock64MiB startup passed all acceptance and restoration guards;119 syringe pose publications/fault0 and590 patrol movement commits/10 successful routes were observed, without healing/combat/render/save proof (docs/HOURLY-20261010-2100.md).
 
-Current first-playable estimate remains roughly90% overall. Prior bounded audio, Fighter exit, props contact/destruction and startup protection passed; prop-top checkpoint support compiled only. No comprehensive save-state coverage, visual parity or unmeasured FPS claim. Steve explicitly requires active coding between hourly tests; Git publication is secondary and cannot block independent development. The last create-tree call was cancelled; latest confirmed remote remains29478036. Continue local commits and durable checkpoints.
+Current first-playable estimates remain roughly90% overall and95% weapon handling, distinct from runtime coverage. Preserve prior bounded results and the19:00 failure; exact old saved-HDD regression remains blocked by missing saved bytes. Continue active coding with30-minute check-ins and parent-coordinated hourly tests. Git publication is secondary: last confirmed published masterd87a contains the earlier65490a23 tree; newer tested local source is not yet published. Continue durable checkpoints.
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88% (provisional85-90% range, recalibrated2026-09-30); GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 

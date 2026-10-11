@@ -255,6 +255,12 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     SNAP_START("projectiles");
     status=scene_ai_projectile_checkpoint_capture(s,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);
     SNAP_END(RF_WORLD_PROJECTILES);
+    /* Capture owners share the paused endpoint. Refuse an intervening flight
+     * draw instead of letting component order select a different RNG value. */
+    {scene_medic_flight_rng rng;const rf_world_checkpoint_slice *npc=bundle.sections+RF_WORLD_NPC-1;
+     const unsigned char *p=npc->data;scene_medic_flight_rng_capture(&rng);
+     if(npc->bytes<64||checkpoint_u32(p+20)!=rng.present||checkpoint_u32(p+60)!=rng.value){
+         part="medic_flight_rng";status=RF_FORMAT;goto done;}}
     part="envelope";status=rf_world_checkpoint_encode(&bundle,0,buffer,RF_CHECKPOINT_FILE_MAX,&total);if(status)goto done;
     (void)scene_world_restore_probe(s,buffer,total,identity.bytes,now);
     (void)scene_world_mission_probe(s,&bundle,now);

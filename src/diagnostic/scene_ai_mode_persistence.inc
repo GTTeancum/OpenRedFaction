@@ -92,6 +92,19 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
            rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration))return RF_FORMAT;
     }
     terminal=o->damage.effects.health<=0||rf_scene_defeated_actors.items[slot].retired;
+    if(o->ai_mode.action_280==7){
+        rf_campaign_actor_route canonical={0},zero={0};
+        const rf_campaign_actor_route *before=rf_scene_defeated_actors.routes+slot;
+        status=scene_medic_flight_history_admit(o);if(status)return status;
+        canonical.flags=1;canonical.action=2;
+        if(o->patrol.enabled||o->script_move.active||o->script_move.origin||o->script_move.path.count||
+           (memcmp(before,&zero,sizeof(zero))&&memcmp(before,&canonical,sizeof(canonical))))return RF_FORMAT;
+        /* Section revisit is a fresh owner policy. Same-level RFNC25 retains7;
+         * its ordinary history lane is absent. Restore still fingerprints the
+         * actual before lane, including the omitted canonical default2. */
+        if(section==1)a=canonical;
+        *out=a;return RF_OK;
+    }
     if(section!=1&&!o->patrol.enabled&&!rf_scene_defeated_actors.routes[slot].flags&&
        !(o->script_move.origin&& !o->script_move.active)&&!o->script_move.path.count){*out=a;return RF_OK;}
     if(o->patrol.enabled>1||o->patrol.reverse>1)return RF_FORMAT;
@@ -193,6 +206,12 @@ static int campaign_ai_mode_restore(campaign_npc_body *o,int32_t now)
     if(a->action==3||a->action==13||o->view.linked_handle!=-1)return RF_FORMAT;
     next=o->ai_mode;status=rf_entity_ai_set_action(&next,a->action,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
     memset(&o->script_move,0,sizeof(o->script_move));memset(&o->navigation,0,sizeof(o->navigation));
+    if(o->flight.qualified){
+        /* Fresh-section default policy keeps the real constructor geometry;
+         * absent flight coordinates still have no historical route meaning. */
+        o->navigation.start.radius=o->navigation_radius;
+        o->navigation.start.height=o->death_item_extent_7c4;
+    }
     scene_actor_route_publish(o,a,&path);o->script_move.active=(a->flags>>5)&1;
     o->script_move.stop=!o->script_move.active;o->script_move.route_index=1;
     if(path.count)memcpy(o->script_move.target,campaign_navigation.nodes[rf_level_waypoint_node(&path,a->cursor)].candidate.position,12);

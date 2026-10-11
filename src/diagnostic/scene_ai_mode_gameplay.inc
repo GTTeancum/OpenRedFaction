@@ -25,6 +25,7 @@ static int campaign_ai_mode_apply(campaign_npc_body *owner,int32_t action,int32_
     rf_entity_ai_transition_state next;uint32_t node=0,j;int status;
     if(!owner || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     if(action!=1 && action!=2 && action!=4 && action!=11 && action!=-1)return RF_NOT_FOUND;
+    if(scene_medic_flight_command_overlap(owner)&&action!=1&&action!=2)return RF_NOT_FOUND;
     if(owner->ai_mode.action_280==13 || owner->view.linked_handle!=-1) {
         if(!scene_npc_seat_attached(owner->registration.handle)||action==4)return RF_NOT_FOUND;
     }

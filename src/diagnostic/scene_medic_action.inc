@@ -189,6 +189,7 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     owner->medic.pending=owner->medic.clip_owned=1;owner->medic.motion=motion;owner->medic.deadline=deadline;
     owner->medic.source=owner->registration.handle;owner->medic.source_view=&owner->view;
     owner->medic.target=campaign_player_object.handle;owner->medic.target_view=&campaign_player_view;
+    scene_medic_flight_use_target(owner,owner->medic.target,scene_medic_now(frame));
     ++rf_scene_medic_action[0];rf_scene_medic_action[8]=(uint32_t)campaign_seeds.records.items[index].record.uid;
     rf_scene_medic_action[9]=owner->medic.target;
     if(owner->selection.action_sounds[43][0])combat_sound(owner->selection.action_sounds[43],owner->eye_position);
