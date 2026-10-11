@@ -4,7 +4,7 @@
 #include "rf/motion.h"
 enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW_V9=588,RF_NPC_CHECKPOINT_ROW=600,
     RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,
-    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_FLIGHT_BYTES=232,RF_NPC_CHECKPOINT_AIRBORNE_BYTES=84,RF_NPC_CHECKPOINT_RELOAD_BYTES=12,RF_NPC_CHECKPOINT_ROW_MAX=2016,
+    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_FLIGHT_BYTES=232,RF_NPC_CHECKPOINT_AIRBORNE_BYTES=84,RF_NPC_CHECKPOINT_RELOAD_BYTES=12,RF_NPC_CHECKPOINT_GUARD_RETREAT_BYTES=224,RF_NPC_CHECKPOINT_ROW_MAX=2240,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 /* Event sleep/wake, the angular prepare gate, and falling/support bits. Class,
  * sphere and unrelated descriptor flags remain reconstructed from the owner. */
@@ -55,6 +55,22 @@ typedef struct rf_npc_checkpoint_flight {
     uint32_t start_word;
     float command[3],angular[3],torque[3];
 } rf_npc_checkpoint_flight;
+/* RFNC28 active finite-route guard retreat. The 56 logical words below have
+ * explicit LE wire offsets; this declaration is not target ABI evidence. */
+typedef struct rf_npc_checkpoint_guard_retreat {
+    uint32_t present;
+    int32_t resume_action;
+    int32_t remaining[2]; /*250,1370: both set;0 due. */
+    rf_npc_checkpoint_flight_node pair[2],prefix[4];
+    uint32_t count;
+    int32_t previous,current,wait_remaining;
+    float turn[3],eye[3],bias,steering[3];
+    uint32_t approach,activity,start_valid,eye_valid;
+    float start_position[3],start_query[3],start_radius,start_height;
+    uint32_t start_word;
+    float command[3],angular[3],torque[3];
+    uint32_t combat_burst,fire_remaining,navigation_remaining,spread_rng;
+} rf_npc_checkpoint_guard_retreat;
 /* RFNC26 ordinary committed airborne continuation. The prepared-acceleration bit
  * 01000000 is not owned here and must be clear in every admitted source. */
 #define RF_NPC_CHECKPOINT_AIRBORNE_BODY_MASK 0x80000001u
@@ -73,7 +89,7 @@ typedef struct rf_npc_checkpoint_record {
     int32_t ai_mode;
     float eye_angles[3]; /* Exact look.angles.angles_87c; no smoothing reset. */
     uint32_t controller_uid; /* Zero is no backlink; source key UID, never a live handle. */
-    uint32_t combat_alert; /* Ordinary alert only; next attack is rescheduled after reload. */
+    uint32_t combat_alert; /* Ordinary awareness; active RFNC28 additionally retains its current timing. */
     uint32_t dead_pose,death_flags_810;int32_t death_action;
     rf_npc_checkpoint_move move; /* Authored movement or ordinary pursuit; borrowed navigation rebinds by index. */
     rf_npc_checkpoint_look look; /* Active authored Look_At order; event UID is checked against the loaded scene. */
@@ -96,6 +112,7 @@ typedef struct rf_npc_checkpoint_record {
     rf_npc_checkpoint_flight flight; /* RFNC25; absent is entirely zero. */
     rf_npc_checkpoint_airborne airborne; /* RFNC26; absent is entirely zero. */
     uint32_t reload_present,reload_weapon,reload_remaining; /* RFNC27: accepted owner, weapon and frames; present due0 is not absence. */
+    rf_npc_checkpoint_guard_retreat guard_retreat; /* RFNC28; absent is entirely zero. */
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     rf_motion_playback_state playback;
@@ -106,7 +123,8 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC27 component (RFNC1-26 remain readable; writer emits27 only for an
+/* RFNC28 component (RFNC1-27 remain readable; writer emits28 only for an
+ * admitted active guard retreat, otherwise27 only for an
  * admitted ordinary reload receipt, otherwise26 only for an
  * admitted ordinary airborne continuation, otherwise25 only for a
  * qualified flight continuation or shared flight RNG receipt, otherwise24 only for retained
@@ -130,7 +148,7 @@ typedef struct rf_npc_checkpoint_catalog {
  * residency and class bindings before continuing saved playback. Controller UID
  * at offset544 rebinds the actor's mover-controller backlink; zero means none.
  * Ordinary combat alert at offset548 survives as awareness only: scene restores
- * it with a fresh attack delay, not the original burst/reload deadline.
+ * it with a fresh attack delay, except while RFNC28 owns active retreat timing.
  * Terminal single-clip dead poses, settled or in progress, use offsets552/556/560 for presence, death flags
  * and action. They require one retained frozen clip and no pending death timer.
  * Offset564 gives extension length (0 or168). The extension retains active movement,
@@ -294,10 +312,36 @@ typedef struct rf_npc_checkpoint_catalog {
  * Capture/restore must charge expanded records, owners and all stage/resource
  * storage to the existing budgets. No ammunition transfer, restart, sound or
  * advancement occurs on decode or assignment-only restore.
+ * RFNC28 appends a4-byte guard presence after the actual-length RFNC27 reload
+ * tail; present rows encode224 total bytes in the declared logical field order.
+ * The entire absent logical struct is zero; RFNC1-27 decode absence. Presence
+ * requires living action7/combat_alert1, resume action0/2, a supported owned
+ * finite-magazine primary and no RFNC25 flight, authored move/look/combat,
+ * queued shot, scripted animation/physics or controller ownership. Accepted
+ * RFNC27 reload may coexist and remains its sole ammunition/timing owner.
+ * Both millisecond deadlines and nav wait are set, with remaining0..half-period.
+ * The admitted finite prefix has2..4 nonempty typed nodes, adjacent cursors,
+ * its current pair, genuine owner-start/request-eye backing and bias-.5/0/.5.
+ * All vectors are finite, command components are bounded by1, start dimensions
+ * are nonnegative and start_word is zero. Angular/torque must equality-join any
+ * existing physics or airborne tail; airborne's own admission is unchanged.
+ * Paused ordinary burst<=256 and fire/navigation remainder<=3600 preserve the
+ * existing live owners while their common frame clock continues. Remaining0
+ * means due. Every RFNC28 spread owner (guard, combat, queued shot) must agree
+ * across rows; shared CRT pain/flight RNG remains a distinct header receipt,
+ * mandatory for every guard. Both receipt-unaware wrappers reject guard state.
+ * Scene proves exact dynamic guard/player identities, candidate placement,
+ * resources, reset masks, pain/playback/physical aliases and complete coupled
+ * publication before assignment. No draw, route query, reset, reload transfer
+ * or callback is replayed. Completed retreat resumes the prior ordinary save
+ * rules; RFNC28 does not relax their zero-burst/transient admission globally.
+ * The conservative row bound2240 does not authorize mutually exclusive lanes
+ * or raise constructor, world-stage, cache or complete-file budgets. This
+ * source-only layout accounting does not establish a compiled target ABI.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
  * Supported basic modes -1/0/1/2/11, seated mode13, and source-qualified
  * patrol modes3/4/10 carried by RFNC23 and qualified flight7 carried by
- * RFNC25. The composed scene must
+ * RFNC25 or active guard retreat in RFNC28. The composed scene must
  * admit mode13 against explicit saved seat ownership; the codec alone does not
  * establish a valid linked actor. Scene must reject other scripted combat,
  * unsupported movement/reload/death transitions, projectiles, linked/carried objects
@@ -312,7 +356,7 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     const rf_npc_checkpoint_record *,uint32_t count,void *,uint32_t capacity,uint32_t *written);
 int rf_npc_checkpoint_decode(const void *,uint32_t bytes,const unsigned char identity[32],
     const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count);
-/* Receipt-aware ownership APIs. Old wrappers reject flight ownership rather
+/* Receipt-aware ownership APIs. Old wrappers reject flight/guard ownership rather
  * than silently discarding its RNG receipt; ordinary airborne and reload
  * receipts are pointer-free and supported by both codec API families. Scene
  * restore entrypoints still require their complete composed publication

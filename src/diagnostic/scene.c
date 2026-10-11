@@ -441,12 +441,13 @@ static void scene_turret_player_filter(rf_scene_input *input);
 static int scene_turret_player_exit(uint32_t reason);
 static void scene_turret_player_reset(void);
 static uint32_t scene_airlock_handoff_wait(void);
+static uint32_t scene_guard_retreat_section_wait(void);
 #include "scene_use_edge.inc"
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
     if(frame && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
-        !scene_airlock_handoff_wait() && !scene_medic_handoff_wait())return RF_NOT_FOUND;
+        !scene_airlock_handoff_wait() && !scene_medic_handoff_wait() && !scene_guard_retreat_section_wait())return RF_NOT_FOUND;
     if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
         memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
@@ -5050,6 +5051,7 @@ typedef struct campaign_single_fire_request {
 
 #include "scene_medic_types.inc"
 #include "scene_medic_flight_types.inc"
+#include "scene_guard_retreat_types.inc"
 #include "scene_robot_death_types.inc"
 #include "scene_medic_syringe_types.inc"
 enum {SCENE_MOVE_ORIGIN_NONE=0,SCENE_MOVE_ORIGIN_EVENT=1,SCENE_MOVE_ORIGIN_ACTOR_DEFAULT=2};
@@ -5063,6 +5065,7 @@ typedef struct campaign_npc_body {
     rf_entity_ai_transition_state ai_mode;
     struct {uint32_t enabled,reverse;} patrol;
     scene_medic_flight_state flight;
+    int32_t guard_resume_action;uint32_t guard_retreat_fault;
     scene_medic_action medic;uint32_t medic_reserve_seen;float medic_reserve;
     uint32_t persistence_slot,persistence_registered,controller_handle;
     struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;
@@ -5119,6 +5122,23 @@ static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+static uint32_t scene_medic_flight_rng_seen,scene_medic_flight_restoring;
+static uint64_t scene_medic_flight_lifetime;
+static uint32_t scene_guard_retreat_active(const campaign_npc_body *);
+static uint32_t scene_guard_retreat_canonical(const campaign_npc_body *);
+static int scene_guard_retreat_player_onfoot(scene_stream *);
+static int scene_guard_retreat_damage(campaign_npc_body *,uint32_t,int32_t,uint32_t *);
+static int scene_guard_retreat_cancel(campaign_npc_body *,int32_t,uint32_t);
+static int scene_guard_retreat_cancel_player(int32_t);
+static int scene_guard_retreat_binding(uint32_t,int32_t,int32_t,const rf_weapon_inventory *,const rf_entity_motion_selection *,uint32_t);
+static int scene_guard_retreat_resources(uint32_t,const rf_entity_motion_selection *,uint32_t);
+static int scene_guard_retreat_live(uint32_t,uint32_t);
+static int scene_guard_retreat_live_present(uint32_t,uint32_t *);
+static uint32_t scene_flight_owner_live(const campaign_npc_body *);
+static int scene_medic_flight_nav_admit(const campaign_npc_body *,const scene_medic_flight_nav *,const scene_medic_flight_start *);
+static int scene_medic_flight_nav_capture(const campaign_npc_body *,scene_medic_flight_nav *,scene_medic_flight_start *);
+static void scene_medic_flight_nav_publish(campaign_npc_body *,const scene_medic_flight_nav *,const scene_medic_flight_start *);
+static void campaign_enemy_reaction(campaign_npc_body *,uint32_t);
 static int scene_medic_flight_initialize(campaign_npc_body *,uint32_t,int32_t,uint32_t);
 static void scene_medic_flight_world_construct(void);
 static void scene_medic_flight_retire(campaign_npc_body *);
@@ -5658,17 +5678,19 @@ static int campaign_play_animation(void *context,uint32_t handle,const rf_level_
         campaign_npc_body *owner=campaign_npc_bodies+i;rf_entity_pose *pose;rf_entity_playback_model *model;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(owner->damage.effects.health<=0 || !event->texts[1][0])break;
+        if(owner->guard_retreat_fault)return RF_FORMAT;
         status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)break;
         status=rf_entity_motion_catalog_find(&campaign_motion_catalog,pose->skeleton,event->texts[1],loop,&motion);
         if(status==RF_NOT_FOUND)break;if(status)return status;
         status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
         status=campaign_animation_cancel(owner);if(status)return status;
         model=campaign_playback_resources.models+pose->skeleton;
-        if(loop || event->flags[0]==1){status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;}
-        if(!loop && event->flags[0]==1){status=rf_motion_stop_nonlooping(&pose->playback,model->resources,model->count);if(status)return status;}
+        if(loop || event->flags[0]==1){status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status){if(scene_guard_retreat_active(owner))owner->guard_retreat_fault=1;return status;}}
+        if(!loop && event->flags[0]==1){status=rf_motion_stop_nonlooping(&pose->playback,model->resources,model->count);if(status){if(scene_guard_retreat_active(owner))owner->guard_retreat_fault=1;return status;}}
         status=loop?rf_motion_set_weight(&pose->playback,model->resources,model->count,motion,1):
             rf_motion_start(&pose->playback,model->resources,model->count,motion,1,event->flags[0]);
-        if(status)return status;
+        if(status){if(scene_guard_retreat_active(owner))owner->guard_retreat_fault=1;return status;}
+        status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
         scene_ai_drone_smash_cancel_source(handle);
         /* Visual-only Play_Animation does not change source AI14. If it
          * restarts that exact motion, its script owner now owns the clip. */
@@ -5804,10 +5826,12 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         if(on&&owner->patrol.enabled&&path.count&&!mode)return RF_NOT_FOUND;
         for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
         if(on){int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;
+            cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;
             scene_medic_supersede(owner);
             owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
             owner->combat_navigation_due=owner->combat_due=owner->combat_burst_remaining=owner->combat_reload_due=0;
             owner->combat_reload_pending=0;owner->combat_reload_weapon=-1;}
+        else {int cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;}
         scene_ai_drone_smash_cancel_source(handle);
         scene_patrol_direction(owner);
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
@@ -5870,6 +5894,8 @@ static int campaign_script_look_at(void *context,const rf_level_event *event,
                 scene_medic_supersede(owner);
             }
             if(on && owner->damage.effects.health>0){
+                int guard_status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
+                if(guard_status)return guard_status;
                 /* Existing Look owner supersedes only the idle default patrol;
                  * never cancel a distinct combat/explicit movement owner here.
                  * No new8 serialization is claimed for this absent overlap. */
@@ -5913,7 +5939,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
          * this target. Retire its live slot, then clear the retained backlink. */
         scene_burning_extinguish(handle);
         owner->damage.effects.burn=0;owner->damage.burn_source=UINT32_MAX;
-        scene_npc_retirement_cancel_orders(owner);
+        status=scene_npc_retirement_cancel_orders(owner);if(status)return status;
         owner->damage.effects.health=0;owner->view.flags_810|=1;
         owner->damage.effects.flags_810=owner->view.flags_810;
         owner->object_flags|=2|0x4000;owner->view.flags_7c=owner->room.flags=owner->object_flags;
@@ -6106,6 +6132,7 @@ static int scene_turret_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
     scene_turret_owner *o=scene_turret_lookup(scene_turret_uid_handle(uid));
     if(!o)return RF_NOT_FOUND;*present=1;*alive=!o->dead&&o->damage.effects.health>0;return RF_OK;
 }
+#include "scene_guard_retreat_metadata.inc"
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
     const uint32_t budget=640*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
@@ -6113,13 +6140,15 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     if(campaign_npc_bodies || campaign_npc_body_count || campaign_npc_movement_configs || campaign_npc_stances || campaign_npc_eyes || scene_npc_hit_location_classes ||
        now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     scene_medic_flight_world_construct();
+    memset(&scene_guard_retreat_class,0,sizeof(scene_guard_retreat_class));
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     status=rf_vpp_find(&tables,"entity.tbl",&entity_table);if(status)goto done;
     status=rf_vpp_find(&tables,"materials.tbl",&materials);if(status)goto done;
     scratch=entity_table.size>materials.size?entity_table.size:materials.size;
-    bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies)+
+    bytes=sizeof(scene_guard_retreat_class)+(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies)+
         (uint64_t)campaign_seeds.class_count*(sizeof(*campaign_npc_movement_configs)+sizeof(*campaign_npc_stances)+sizeof(*campaign_npc_eyes)+sizeof(*scene_npc_hit_location_classes));
     if(bytes+scratch>budget){status=RF_RANGE;goto done;}
+    status=scene_guard_retreat_class_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status)goto done;
     campaign_npc_bodies=calloc(campaign_poses.count,sizeof(*campaign_npc_bodies));
     if(campaign_poses.count && !campaign_npc_bodies){status=RF_RANGE;goto done;}
     campaign_npc_movement_configs=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_movement_configs));
@@ -6415,7 +6444,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[actor].eye_position,12);
     }
 done:
-    rf_vpp_close(&tables);if(status)campaign_npc_bodies_close();return status;
+    rf_vpp_close(&tables);if(status){memset(&scene_guard_retreat_class,0,sizeof(scene_guard_retreat_class));campaign_npc_bodies_close();}return status;
 }
 static void campaign_close_movers(void)
 {
@@ -7020,7 +7049,7 @@ int rf_scene_npc_route_request(uint32_t handle,const rf_entity_navigation_candid
     if(!campaign_navigation_workspace.storage)return RF_NOT_FOUND;
     request=*parameters;n=campaign_navigation_workspace.count;
     owner->navigation.start=*start;owner->navigation.goal=*goal;
-    if(owner->flight.qualified&&!owner->flight.entered){
+    if(owner->flight.qualified==1&&!owner->flight.entered){
         /* Preserve the original embedded-start constructor dimensions across
          * the existing ordinary adapter's wholesale endpoint copy. */
         owner->navigation.start.radius=owner->navigation_radius;
@@ -7354,6 +7383,11 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
     memcpy(owner->command_714,state.vector_714,12);
     memcpy(owner->body.state.velocity,state.vector_144,12);memcpy(owner->body.state.vector_c8,state.vector_150,12);
+    if(*entered){
+        status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),
+            owner->ai_mode.action_280==7?SCENE_GUARD_CANCEL_RESTORE_ORDINARY:SCENE_GUARD_CANCEL_PRESERVE_INCOMING);
+        if(status)return status;
+    }
     if(*entered){if(owner->combat_reload_pending){owner->combat_reload_pending=owner->combat_reload_due=0;owner->combat_reload_weapon=-1;}scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle);scene_npc_loop_audio_remove(handle);status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
     return RF_OK;
 }
@@ -10995,7 +11029,8 @@ static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
         if(!owner->registration.view || owner->registration.handle!=handle || registered!=&owner->registration)continue;
         /* Practical SP visibility transition; never resurrect dead owners. */
         if(owner->damage.effects.health<=0 || (owner->object_flags&2))return RF_OK;
-        if(!visible)scene_ai_drone_smash_cancel_handle(handle);
+        if(!visible){int guard_status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
+            if(guard_status)return guard_status;scene_ai_drone_smash_cancel_handle(handle);}
         if(visible)owner->object_flags&=~0x4000u;else owner->object_flags|=0x4000u;
         owner->view.flags_7c=owner->room.flags=owner->object_flags;
         scene_medic_syringe_visibility(owner);
@@ -11054,6 +11089,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
             ++rf_scene_alarm[6];
             if(owner->damage.effects.affiliation==0 && owner->view.weapons[0]>=0) {
                 status=campaign_animation_cancel(owner);if(status)return status;
+                status=scene_guard_retreat_cancel(owner,now,SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
                 scene_ai_drone_smash_cancel_source(owner->registration.handle);
                 if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
                 owner->combat_scripted=0;owner->combat_target=campaign_player_object.handle;
@@ -11091,6 +11127,8 @@ static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t valu
     if(view==&campaign_player_view){campaign_player_damage.state.effects.affiliation=value;return RF_OK;}
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view==view) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
+        {int guard_status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
+         if(guard_status)return guard_status;}
         scene_ai_drone_smash_cancel_source(handle);
         owner->damage.effects.affiliation=value;
         /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
@@ -11153,6 +11191,7 @@ static int campaign_set_player_form(void *context,uint32_t variant,uint32_t enab
         /*4b018d replaces the actor;40e441..45d resets its reload timers.
          * Retire only the admitted outgoing ordinary reload after success. */
         if(campaign_reload_blocks_ordinary_selection())rf_scene_combat[6]=0;
+        status=scene_guard_retreat_cancel_player(now);if(status)return status;
         scene_medic_flight_player_replaced();
         scene_player_riot_cancel();
         campaign_player_form=(campaign_player_form_state){1,variant,0,campaign_equipped_slot,
@@ -11168,6 +11207,7 @@ static int campaign_set_player_form(void *context,uint32_t variant,uint32_t enab
         if(!campaign_player_form.active)return RF_OK;
         /*4b0402 creates a new actor even if the restored weapon is the same. */
         if(campaign_reload_blocks_ordinary_selection())rf_scene_combat[6]=0;
+        status=scene_guard_retreat_cancel_player(now);if(status)return status;
         scene_medic_flight_player_replaced();
         scene_player_riot_cancel();
         slot=campaign_player_form.return_slot;
@@ -11263,6 +11303,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
         return RF_NOT_FOUND;
     }
     if(scene_actor_body.spheres.count!=life_start.count)return RF_RANGE;
+    status=scene_guard_retreat_cancel_player(scene_medic_now(frame));if(status)return status;
     scene_player_outside_audio_forget();
     scene_player_impact_relocated();
     scene_actor_body.state=life_start.body;rf_scene_actor_pose=life_start.pose;actor_look=life_start.look;
@@ -11318,6 +11359,20 @@ static rf_random_state combat_pain_random={1};
 uint32_t rf_scene_combat_pain[8]; /* animation/sound notifications, starts/plays, target, clock, RNG, status */
 uint32_t rf_scene_pain_attack_gate[6]; /* due checks, blocked, actor UID, lock, clock, status */
 #include "scene_robot_death_audio.inc"
+static void campaign_enemy_reaction(campaign_npc_body *owner,uint32_t s)
+{
+    if(!owner || campaign_npc_ai_suppressed(owner) || owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)) ||
+       (owner->view.flags_810&1) || owner->view.weapons[0]<0)return;
+    /* Authored Attack orders retain priority. Mode2 is reactive targeting. */
+    if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
+    if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
+       (!owner->combat_scripted && s==campaign_player_object.handle && owner->combat_target==s)))return;
+    if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
+    scene_ai_drone_smash_cancel_source(owner->registration.handle);
+    owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
+    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
+    ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=owner->registration.handle;rf_scene_enemy_retaliation[2]=s;
+}
 static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
 {
     uint32_t i,affiliation;campaign_npc_body *owner=NULL;combat_feedback *feedback=c;
@@ -11355,18 +11410,13 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
         uint32_t handled=0;
         feedback->status=scene_medic_flight_damage(owner,s,feedback->now,&handled);
         if(feedback->status||handled)return;
+        feedback->status=scene_guard_retreat_damage(owner,s,feedback->now,&handled);
+        if(feedback->status||handled)return;
     }
-    if(!owner || campaign_npc_ai_suppressed(owner) || owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)) ||
-       (owner->view.flags_810&1) || owner->view.weapons[0]<0)return;
-    /* Authored Attack orders retain priority. Mode2 is reactive targeting. */
-    if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
-    if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
-       (!owner->combat_scripted && s==campaign_player_object.handle)))return;
-    if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
-    scene_ai_drone_smash_cancel_source(owner->registration.handle);
-    owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
-    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
-    ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=t;rf_scene_enemy_retaliation[2]=s;
+    /* An accepted failed guard transition is terminal for this service.
+     * Its internal onset reaction is deliberately separate from this fallback. */
+    if((feedback&&feedback->status)||(owner&&owner->guard_retreat_fault))return;
+    campaign_enemy_reaction(owner,s);
 }
 static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
 static uint32_t combat_play(void *c,uint32_t t){(void)c;(void)t;return UINT32_MAX;}
@@ -11896,7 +11946,8 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
      * representable here. Benign unsupported callback (event.c type38) keeps
      * the existing route/order intact and still permits ordinary event links. */
     if(on&&campaign_npc_ai_suppressed(owner))return RF_NOT_FOUND;
-    if(!on){scene_medic_supersede(owner);scene_ai_drone_smash_cancel_source(owner->registration.handle);if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return scene_patrol_return(owner,scene_patrol_now(rf_scene_profile_stage[0]));}
+    if(!on){status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
+        scene_medic_supersede(owner);scene_ai_drone_smash_cancel_source(owner->registration.handle);if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return scene_patrol_return(owner,scene_patrol_now(rf_scene_profile_stage[0]));}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
         else {float aim[3],health;
@@ -11917,7 +11968,8 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
         return target==owner->medic.target?RF_OK:RF_NOT_FOUND;
     }
     memset(rf_scene_attack_recovery,0,sizeof(rf_scene_attack_recovery));memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
-    {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;}
+    {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;
+     cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;}
     scene_medic_supersede(owner);
     scene_ai_drone_smash_cancel_source(owner->registration.handle);
     owner->script_shoot.active=0;
@@ -11977,6 +12029,8 @@ static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mo
         for(j=0;j<3;j++)length+=owner->look.orientation[6+j]*owner->look.orientation[6+j];
         if(!isfinite(length)||length<.25f||length>4.f)return RF_RANGE;
         if(owner->script_once.count>=16)return RF_RANGE;
+        {int guard_status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
+         if(guard_status)return guard_status;}
         scene_ai_drone_smash_cancel_source(handle);
         campaign_single_fire_request *request=owner->script_once.requests+owner->script_once.count;
         for(j=0;j<3;j++)request->point[j]=owner->eye_position[j]+
@@ -12050,6 +12104,7 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
                 }
             } else {
                 status=campaign_animation_cancel(owner);if(status)return status;
+                status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
                 scene_medic_supersede(owner);
                 scene_ai_drone_smash_cancel_source(owner->registration.handle);
                 if(owner->patrol.enabled)scene_patrol_clear_move(owner);
@@ -12299,7 +12354,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         float actor_eye[3]={0};
         campaign_single_fire_request *single=owner->script_once.requests;
         int32_t reload_completed_weapon;uint32_t reload_qualified;
-        status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon,&reload_qualified);if(status)return status;
+        const uint32_t retreat_owned_iteration=scene_guard_retreat_active(owner);
+        if(owner->guard_retreat_fault)return RF_FORMAT;
+        status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon,&reload_qualified,!retreat_owned_iteration);if(status)return status;
+        /* Receipt survives completion/callback return. Suppress before even
+         * forced-shot queue handling, then resume at the NEXT owner service. */
+        if(retreat_owned_iteration||scene_guard_retreat_active(owner))continue;
         if(owner->medic.pending&&owner->ai_mode.action_280==14)continue;
         if(scene_turret_generated_activation_suppresses(owner->registration.handle)||scene_turret_operator_suppresses(owner->registration.handle)||scene_npc_seat_attached(owner->registration.handle))continue;
         while(owner->script_once.count && frame>single->expires)campaign_script_single_pop(owner,0);
@@ -17822,6 +17882,7 @@ static int scene_continuous_charge_host_weapon(const scene_stream *s,int32_t *we
 #include "scene_medic_flight_navigation.inc"
 #include "scene_medic_flight_visibility.inc"
 #include "scene_medic_flight.inc"
+#include "scene_guard_retreat.inc"
 #include "scene_vehicle_profile_pack_state.inc"
 static int scene_vehicle_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
 {
@@ -19380,6 +19441,7 @@ failed:
 #include "scene_group_control_fixture.inc"
 #include "scene_occupied_mover_fixture.inc"
 #include "scene_medic_flight_tick.inc"
+#include "scene_guard_retreat_tick.inc"
 static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t frame)
 {
     uint32_t i,j,landing_epoch=scene_npc_landing_epoch;
@@ -19394,7 +19456,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         if(!campaign_npc_bodies)return RF_OK;
         campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn,vehicle_aim[3];int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked,sub_pursuit,xyz_pursuit;
-        if(o->flight.qualified&&o->flight.entered&&o->registration.view&&o->damage.effects.health>0&&
+        if(o->flight.qualified==1&&o->flight.entered&&o->registration.view&&o->damage.effects.health>0&&
            !(o->view.flags_810&1u)&&!(o->object_flags&(2u|0x4000u))&&o->ai_mode.action_280!=7){
             /* Next actual AI service resets714/708 even after default2.
              * The outgoing interval remains represented in RFNC25. */
@@ -19408,8 +19470,13 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             status=scene_medic_tick(o,i,frame,elapsed,steer);if(status)return status;
             continue;
         }
+        if(o->guard_retreat_fault)return RF_FORMAT;
+        if(scene_guard_retreat_active(o)){
+            status=scene_guard_retreat_tick(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+            continue;
+        }
         if(scene_npc_seat_attached(o->registration.handle) || campaign_npc_physics_suspended(o))continue;
-        if(o->flight.qualified&&o->flight.entered&&o->ai_mode.action_280==7){
+        if(o->flight.qualified==1&&o->flight.entered&&o->ai_mode.action_280==7){
             status=scene_medic_flight_tick(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
             continue;
         }

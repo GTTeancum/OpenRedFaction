@@ -28,14 +28,15 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
     uint32_t scratch_budget,uint32_t *added_bytes)
 {
     scene_npc_checkpoint_resource_request *plan=NULL;uint32_t capacity,requests=0,i,j,k,slot,before;
-    uint64_t scratch,missing=0;uint32_t live_present,new_present;int status=RF_OK;
+    uint64_t scratch,missing=0;uint32_t live_present,new_present,guard_present;int status=RF_OK;
     if(!added_bytes||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||
        campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS)return RF_RANGE;
     status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&live_present);if(status)return status;
-    new_present=live_present;
+    status=scene_guard_retreat_live_present(combat_frame==UINT32_MAX?0:combat_frame,&guard_present);if(status)return status;
+    new_present=live_present|guard_present;live_present|=guard_present;
     for(i=0;i<count;i++){
         if(rows[i].reload_present>1||(!rows[i].reload_present&&(rows[i].reload_weapon||rows[i].reload_remaining)))return RF_FORMAT;
-        new_present|=rows[i].reload_present;
+        new_present|=rows[i].reload_present|rows[i].guard_retreat.present;
     }
     if(!count&&!live_present){*added_bytes=0;return RF_OK;}
     if(!campaign_npc_bodies||!campaign_seeds.items||!campaign_seeds.records.items||!campaign_seeds.classes||
@@ -43,13 +44,22 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
     /*21 incoming requests:16 slots,3 controller states,script and mapped
      * logical reload, plus one possible outgoing mapped request per body.
      * Authenticate old pending before any demand can evict zero-ref payloads. */
-    capacity=count*20u+(new_present?count+campaign_npc_body_count:0u);scratch=(uint64_t)capacity*sizeof(*plan);
+    capacity=count*20u+(new_present?8u*(count+campaign_npc_body_count):0u);scratch=(uint64_t)capacity*sizeof(*plan);
     if(scratch>scratch_budget||scratch>SIZE_MAX)return RF_RANGE;
     plan=malloc((size_t)scratch);if(!plan)return RF_IO;
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].combat_reload_pending){
         const campaign_npc_body *o=campaign_npc_bodies+i;
         status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,
             o->selection.mapping.skeleton,o->selection.mapping.actions[39]);if(status)goto done;
+    }
+    for(i=0;i<campaign_npc_body_count;i++)if(scene_guard_retreat_active(campaign_npc_bodies+i)){
+        const rf_entity_motion_selection *sel=&campaign_npc_bodies[i].selection;
+        const int32_t ids[7]={sel->mapping.states[0],sel->mapping.states[2],sel->mapping.states[4],
+            sel->mapping.states[6],sel->mapping.states[13],sel->mapping.actions[2],sel->mapping.actions[39]};
+        for(k=0;k<7;k++){
+            if(ids[k]<0){status=RF_FORMAT;goto done;}
+            status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,ids[k]);if(status)goto done;
+        }
     }
     for(i=0;i<count;i++){
         const rf_npc_checkpoint_record *r=rows+i;rf_entity_motion_selection selection;uint32_t found=0,skeleton;
@@ -66,6 +76,12 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
         skeleton=selection.mapping.skeleton;
         if(skeleton!=campaign_poses.items[slot].skeleton){status=RF_FORMAT;goto done;}
 #define NPC_RESOURCE_ADD(id) do{status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,skeleton,(id));if(status)goto done;}while(0)
+        if(r->guard_retreat.present){
+            status=scene_guard_retreat_binding(slot,r->primary,r->secondary,&r->inventory,&selection,0);if(status)goto done;
+            const int32_t ids[7]={selection.mapping.states[0],selection.mapping.states[2],selection.mapping.states[4],
+                selection.mapping.states[6],selection.mapping.states[13],selection.mapping.actions[2],selection.mapping.actions[39]};
+            for(k=0;k<7;k++){if(ids[k]<0){status=RF_FORMAT;goto done;}NPC_RESOURCE_ADD(ids[k]);}
+        }
         if(r->reload_present){
             status=scene_npc_reload_saved(slot,r,&selection,0,NULL);if(status)goto done;
             NPC_RESOURCE_ADD(selection.mapping.actions[39]);

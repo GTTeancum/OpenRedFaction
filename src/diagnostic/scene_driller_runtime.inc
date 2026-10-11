@@ -865,6 +865,9 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
             if(!status&&!handled)status=scene_driller_entry_exit_use(&r->entry,
                 use_input,campaign_player_damage.state.effects.health>0,&use_changed);
             if(status)goto fail;
+            if(use_changed&&!was&&r->entry.session.active){
+                status=scene_guard_retreat_cancel_player(scene_medic_now(frame));if(status)goto fail;
+            }
             changed|=use_changed;
         }
     }

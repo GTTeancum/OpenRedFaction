@@ -12,6 +12,11 @@ static int scene_medic_flight_player_checkpoint_admit(scene_npc_checkpoint_resto
        rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view)return RF_FORMAT;
     for(i=0;i<stage->count;i++){
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body candidate;
+        if(e->saved.guard_retreat.present){
+            if(!isfinite(player->player.player.health)||player->player.player.health<=0)return RF_FORMAT;
+            status=scene_guard_retreat_checkpoint_validate(&e->guard_retreat);if(status)return status;
+            status=scene_guard_retreat_player_onfoot(scene_actor_collision_owner);if(status)return status;
+        }
         if(!e->saved.flight.present)continue;
         if(e->slot>=campaign_npc_body_count)return RF_FORMAT;
         candidate=campaign_npc_bodies[e->slot];

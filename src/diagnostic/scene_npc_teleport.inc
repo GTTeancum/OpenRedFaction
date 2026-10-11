@@ -87,7 +87,7 @@ static int campaign_teleport_npc(void *context,uint32_t handle,const rf_level_ev
     scene_npc_loop_audio_remove(handle);
     memset(&o->script_move,0,sizeof(o->script_move));o->script_move.stop=1;
     memset(&o->navigation,0,sizeof(o->navigation));
-    if(o->flight.qualified){
+    if(o->flight.qualified==1){
         /* Successful pre-flight teleport retains actual constructor dimensions. */
         o->navigation.start.radius=o->navigation_radius;
         o->navigation.start.height=o->death_item_extent_7c4;

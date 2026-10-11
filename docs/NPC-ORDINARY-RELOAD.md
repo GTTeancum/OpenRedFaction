@@ -1,6 +1,6 @@
 # Ordinary guard1 / 12mm NPC reload
 
-Status: the complete 22-file source candidate has independent source acceptance. It is uncompiled and runtime-unverified. Source acceptance does not establish protected-save compatibility or authorize activation. Exact source and review identities are recorded in [the joint review](NPC-ORDINARY-RELOAD-JOINT-REVIEW.md).
+Status: the complete 22-file reload/RFNC27 source was independently accepted and compiled in the October 11 noon stock-profile0 Xbox batch. Runtime and protected-save compatibility remain unverified. The later guard-retreat composition changes its initiation gate and remains uncompiled until its own batch. Exact source and review identities are recorded in [the joint review](NPC-ORDINARY-RELOAD-JOINT-REVIEW.md).
 
 ## Scope and original behavior
 
@@ -13,6 +13,7 @@ The implementation derives this interval from the actual authenticated mapping: 
 ## Runtime ownership and finite ammunition
 
 - `combat_reload_pending` is the explicit owner, separate from the accepted weapon and deadline. Early service runs before medic, seat/operator, AI mode, target and awareness firing gates.
+- Bounded guard retreat retains accepted completion while suppressing new initiation; see [guard retreat](NPC-GUARD-RETREAT.md).
 - New initiation requires a living standalone qualified actor, an empty valid magazine, positive finite reserve and no positive legacy reload deadline. Mapping, duration, start capacity, freeze/script ownership, reference headroom and required resource demand must succeed before acceptance.
 - Acceptance publishes pending, weapon and deadline once, before its single presentation attempt. Optional Foley failure is nonfatal. A mandatory error after acceptance retains ownership and cannot replay the start on the next service.
 - Completion uses current finite inventory exactly once, including a successful zero-ammunition transfer with the existing completion event 2. A per-iteration completed-weapon receipt prevents a second transfer or immediate new start. Completion does not require a target, a surviving animation clip, resident animation payload or newly imposed standalone state.
@@ -27,7 +28,7 @@ Capture authenticates every claimed pending owner and saturates overdue remainin
 
 Restore stages an overflow-checked `frame + remaining` deadline after exact scene qualification. Core bounds remaining time at 3600 frames; scene qualification additionally limits it to the actual mapped interval. Publication restores ownership without ammunition transfer, presentation restart, sound or time advancement. Incoming absence, changed weapon, death or retirement can replace an outgoing episode without inventing a living incoming reload resource.
 
-RFNC27 is selected only when at least one row contains new reload presence. Its tail follows the actual flight and airborne tails and occupies 4 bytes when absent or 12 bytes when present. Once the component is promoted to 27, every row uses that conditional tail. No new presence leaves the previous version-selection policy unchanged. RFNC1-26 decode to canonical new-state absence. The structural row maximum is 2016 bytes; it is not a fixed wire stride or a guarantee that every structural combination is scene-admissible.
+RFNC27 is selected only when at least one row contains new reload presence. Its tail follows the actual flight and airborne tails and occupies 4 bytes when absent or 12 bytes when present. Once the component is promoted to 27, every row uses that conditional tail. No new presence leaves the previous version-selection policy unchanged. RFNC1-26 decode to canonical new-state absence. RFNC27 introduced a structural row maximum of2016 bytes; the later RFNC28 guard-retreat composition raises the conservative allocation bound to2240. Neither value is a fixed wire stride or a guarantee that every structural combination is scene-admissible.
 
 An older binary limited to RFNC26 cannot read a newly written RFNC27 component. Preserved old-format parsing is a source finding, not a protected-save or saved-consumer compatibility result. Component-only export/restore rejects new reload ownership because it lacks the composed world transaction owner; ordinary composed world save/load is the supported continuity path.
 

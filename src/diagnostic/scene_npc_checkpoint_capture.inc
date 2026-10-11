@@ -6,6 +6,7 @@
 #include "scene_npc_reload_checkpoint.inc"
 #include "scene_npc_drone_checkpoint.inc"
 #include "scene_npc_airborne_checkpoint.inc"
+#include "scene_guard_retreat_checkpoint.inc"
 /* Include after campaign NPC/seed/pose/persistence declarations. Caller owns
  * stable scene state throughout both passes. Global projectile, shield, burn,
  * mover, event and pickup admission remains the composed caller's duty. */
@@ -174,11 +175,15 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
     rf_npc_checkpoint_flight flight={0};rf_npc_checkpoint_airborne airborne={0};
+    rf_npc_checkpoint_guard_retreat guard={0};
     scene_npc_airborne_failure airborne_failure={0};
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};rf_campaign_actor_route route={0};uint32_t pain_residual_profile=0;
     uint32_t reload_span=0,reload_frame=combat_frame==UINT32_MAX?0:combat_frame;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
+    if(o->guard_retreat_fault)return scene_npc_checkpoint_reject(index,"guard_transition_fault",0,1,RF_FORMAT);
+    status=scene_guard_retreat_checkpoint_capture(index,o,now,reload_frame,&guard);
+    if(status)return scene_npc_checkpoint_reject(index,"guard_retreat",0,o->flight.qualified,status);
     status=scene_npc_reload_live(index,reload_frame,&reload_span);
     if(status)return scene_npc_checkpoint_reject(index,"reload_owner",0,o->combat_reload_pending,status);
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
@@ -286,7 +291,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     if(o->combat_target&&!(terminal_dead||(o->combat_alert&&
         (o->combat_target==campaign_player_object.handle||o->combat_scripted==1||o->combat_scripted==2))))
         return scene_npc_checkpoint_reject(index,"combat_target",0,o->combat_target,RF_RANGE);
-    if(o->combat_scripted!=3&&o->combat_scripted!=1&&o->combat_scripted!=2){NPC_CAPTURE_ZERO(combat_burst_remaining);if(!o->combat_reload_pending){NPC_CAPTURE_ZERO(combat_reload_due);}}
+    if(!guard.present&&o->combat_scripted!=3&&o->combat_scripted!=1&&o->combat_scripted!=2){NPC_CAPTURE_ZERO(combat_burst_remaining);if(!o->combat_reload_pending){NPC_CAPTURE_ZERO(combat_reload_due);}}
     if(o->damage.effects.burn && (!burning_profile || scene_burning_checkpoint_owner_admit(index)))
         return scene_npc_checkpoint_reject(index,"damage.effects.burn",0,o->damage.effects.burn,RF_RANGE);
 #undef NPC_CAPTURE_ZERO
@@ -374,7 +379,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                 scene_npc_checkpoint_velocity_observe(index,terminal_dead);return rejected;
             }
 #define NPC_CAPTURE_AXIS(field) do{if(o->field[i]!=0)return scene_npc_checkpoint_reject(index,#field,i,o->field[i],RF_RANGE);}while(0)
-            if(!flight.present)NPC_CAPTURE_AXIS(command_714);
+            if(!flight.present&&!guard.present)NPC_CAPTURE_AXIS(command_714);
             if(!isfinite(o->support_velocity[i])||fabsf(o->support_velocity[i])>10000.f||
                (!support_uid&&!airborne.present&&o->support_velocity[i]!=0))
                 return scene_npc_checkpoint_reject(index,"support_velocity",i,o->support_velocity[i],RF_RANGE);
@@ -392,7 +397,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated&&
         !(i==0&&!terminal_dead&&scene_npc_drone_checkpoint_ordinary(index,o)))
         return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
-    memset(row,0,sizeof(*row));row->airborne=airborne;row->flight=flight;row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
+    memset(row,0,sizeof(*row));row->guard_retreat=guard;row->airborne=airborne;row->flight=flight;row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
     if(o->combat_reload_pending){
         row->reload_present=1;row->reload_weapon=(uint32_t)o->combat_reload_weapon;
         row->reload_remaining=o->combat_reload_due>reload_frame?o->combat_reload_due-reload_frame:0;
@@ -519,7 +524,9 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
     if(burning_profile>1||!catalog||!count||now<0||now>RF_TIMER_PERIOD||campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.items||!campaign_seeds.records.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
-    if(!burning_profile){uint32_t reload_present;
+    if(!burning_profile){uint32_t guard_present,reload_present;
+        status=scene_guard_retreat_live_present(combat_frame==UINT32_MAX?0:combat_frame,&guard_present);
+        if(status)return status;if(guard_present)return RF_NOT_FOUND;
         status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_present);
         if(status)return status;if(reload_present)return RF_NOT_FOUND;
     }

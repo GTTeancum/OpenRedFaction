@@ -7,6 +7,8 @@ static int scene_medic_flight_locomotion(scene_stream *s,campaign_npc_body *o,ui
 {
     rf_entity_pose *pose;rf_motion_priority priority={0};rf_motion_stance_decision stance;
     rf_motion_movement move={0};int status,handled=0;
+    uint32_t guard=scene_guard_retreat_active(o),handle=o->registration.handle;
+    uint64_t epoch=scene_continuous_charge_runtime.epoch,lifetime=scene_medic_flight_lifetime;
     rf_scene_npc_stance_services services={NULL,campaign_scripted_speed_ground,s};
     status=campaign_actor_pose(index,&pose);if(status)return status;
     if(!pose)return RF_NOT_FOUND;
@@ -24,6 +26,12 @@ static int scene_medic_flight_locomotion(scene_stream *s,campaign_npc_body *o,ui
     if(status)return status;
     if(stance.effect==RF_MOTION_STANCE_STAND){
         status=rf_scene_npc_normal(s->collision,o->registration.handle,&services);if(status)return status;
+        if(guard){
+            if(!scene_guard_retreat_same_owner(o,index,handle,epoch,lifetime))return RF_NOT_FOUND;
+            if(!scene_guard_retreat_active(o)||o->damage.effects.health<=0||(o->view.flags_810&1u))return RF_OK;
+            if(o->ai_mode.action_280!=7||o->view.action_520!=7)return RF_FORMAT;
+            status=campaign_actor_pose(index,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+        }
     }
     memcpy(move.vector,o->command_714,12);move.mode=(int32_t)campaign_modes[o->movement_slot].index;
     move.direction=o->movement.mode;

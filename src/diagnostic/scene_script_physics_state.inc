@@ -36,7 +36,10 @@ static int campaign_set_physics_enabled(void *context,uint32_t handle,uint32_t e
         if(registered!=&o->registration||!o->registration.view||o->registration.handle!=handle)continue;
         if(!o->body.allocated_bytes){status=RF_NOT_FOUND;goto done;}
         rf_scene_physics_state[4]=(uint32_t)campaign_seeds.records.items[i].record.uid;
-        status=rf_physics_set_enabled(&o->body.state,&o->object_flags,enabled);
+        {rf_physics_body_state next=o->body.state;uint32_t flags=o->object_flags;
+         status=rf_physics_set_enabled(&next,&flags,enabled);
+         if(!status)status=scene_guard_retreat_cancel(o,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
+         if(!status){o->body.state=next;o->object_flags=flags;}}
         if(!status){
             o->scripted_physics_seen=1; /* RFNC14 owns accepted ON and OFF state. */
             if(enabled)o->scripted_physics=0;else if(!(o->object_flags&0x08000000u))o->scripted_physics=1;

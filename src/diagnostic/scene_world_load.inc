@@ -109,13 +109,17 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(rows_count){rows=malloc(rows_bytes);if(!rows){status=RF_IO;goto done;}}
     /* Resource inspection validates but does not restore the singleton. */
     status=rf_npc_checkpoint_decode_with_rng(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng);if(status)goto done;
-    /* Select the union before residency can reclaim a zero-reference mapped
-     * old reload payload. Invalid claims never fall through to legacy load. */
+    /* Select outgoing/incoming reload OR active guard before residency can
+     * reclaim a zero-reference mapped payload. Incoming absence still closes
+     * the outgoing guard only after this complete transaction succeeds. Invalid claims never fall through to legacy load. */
     phase="reload_selector";
     status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_transaction);if(status)goto done;
+    {uint32_t guard_present;
+     status=scene_guard_retreat_live_present(combat_frame==UINT32_MAX?0:combat_frame,&guard_present);if(status)goto done;
+     reload_transaction|=guard_present;}
     for(i=0;i<rows_count;i++){
         if(rows[i].reload_present>1||(!rows[i].reload_present&&(rows[i].reload_weapon||rows[i].reload_remaining))){status=RF_FORMAT;goto done;}
-        reload_transaction|=rows[i].reload_present;
+        reload_transaction|=rows[i].reload_present|rows[i].guard_retreat.present;
     }
     if(reload_transaction){
         uint32_t extra=(uint32_t)(sizeof(reload_player)+sizeof(reload_receipt)+2*sizeof(uint32_t));

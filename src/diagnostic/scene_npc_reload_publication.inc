@@ -10,10 +10,14 @@
  * No callback, demand, publication, rollback, or vehicle admission lives here.
  * Fixed adapters and the paused synchronous world-load contract are required.
  */
-enum { SCENE_RELOAD_SEAL_REQUESTS=42 };
+enum { SCENE_RELOAD_SEAL_REQUESTS=56 };
 typedef struct scene_npc_reload_publication_row {
     uint32_t slot,uid,class_id,handle,registered,bone_count,medic;
     uint32_t retired,dead_pose,animation_present,reload_present,reload_weapon,reload_remaining,reload_deadline;
+    scene_guard_retreat_checkpoint_stage guard_retreat;
+    rf_npc_checkpoint_guard_retreat guard_saved;
+    float guard_look_command[3];rf_physics_body_state guard_body;
+    uint32_t guard_combat_alert;int32_t guard_action;
     campaign_model_owner model;
     rf_entity_collision_cache collision;
     rf_entity_playback_model resources;
@@ -46,6 +50,7 @@ typedef struct scene_npc_reload_publication_link {
 } scene_npc_reload_publication_link;
 typedef struct scene_npc_reload_publication_receipt {
     uint64_t epoch;uint32_t bytes,count,resource_count,child_count,link_count,medic_count;
+    uint32_t spread_before;
     const scene_npc_checkpoint_restore_stage *stage;
     unsigned char stage_header[offsetof(scene_npc_checkpoint_restore_stage,entries)];
     campaign_npc_body *owners;uint32_t owner_count,model_count,persistence_count;
@@ -222,7 +227,8 @@ static int scene_npc_reload_publication_request(const scene_npc_checkpoint_resto
     const rf_entity_pose *p=&e->pose_before;int32_t state;
     *skeleton=p->skeleton;*id=-1;
     if(!e->registered)return RF_NOT_FOUND;
-    if(p->skeleton==UINT32_MAX)return e->owner_before.combat_reload_pending||e->saved.reload_present?RF_FORMAT:RF_NOT_FOUND;
+    if(p->skeleton==UINT32_MAX)return e->owner_before.combat_reload_pending||e->saved.reload_present||
+        e->owner_before.flight.qualified==2||e->saved.guard_retreat.present?RF_FORMAT:RF_NOT_FOUND;
     if(request<16){if(request<p->playback.completion.active.count)*id=p->playback.completion.active.slots[request].motion;}
     else if(request<32){if(request-16<e->playback.completion.active.count)*id=e->playback.completion.active.slots[request-16].motion;}
     else if(request<38){
@@ -237,7 +243,14 @@ static int scene_npc_reload_publication_request(const scene_npc_checkpoint_resto
     else if(request==39){if(e->saved.animation_present&&e->saved.script_animation.active)*id=e->saved.script_animation.motion;}
     else if(request==40){if(e->owner_before.combat_reload_pending)*id=e->owner_before.selection.mapping.actions[39];}
     else if(request==41){if(e->saved.reload_present)*id=e->selection.mapping.actions[39];}
-    else return RF_RANGE;
+    else if(request<56){
+        uint32_t old=request<49,k=(request-42)%7;
+        const rf_entity_motion_selection *selection=old?&e->owner_before.selection:&e->selection;
+        if(old?e->owner_before.flight.qualified!=2:!e->saved.guard_retreat.present)return RF_NOT_FOUND;
+        const int32_t ids[7]={selection->mapping.states[0],selection->mapping.states[2],selection->mapping.states[4],
+            selection->mapping.states[6],selection->mapping.states[13],selection->mapping.actions[2],selection->mapping.actions[39]};
+        *id=ids[k];if(*id<0)return RF_FORMAT;
+    }else return RF_RANGE;
     if(*id< -1)return RF_FORMAT;
     if((request==40&&e->owner_before.combat_reload_pending)||(request==41&&e->saved.reload_present))
         return *id<0?RF_FORMAT:RF_OK;
@@ -468,6 +481,7 @@ static int scene_npc_reload_publication_seal(const scene_npc_checkpoint_restore_
 {
     uint32_t i,j;int status=scene_npc_reload_publication_lifetime(stage,receipt);if(status)return status;
     status=scene_npc_reload_publication_registry();if(status)return status;
+    if(receipt->spread_before!=campaign_enemy_spread_random.value)return RF_FORMAT;
     /* First authenticate row IDs and all borrowed per-skeleton array headers.
      * A later resource lookup must not read through a replaced model pointer. */
     for(i=0;i<receipt->count;i++){
@@ -482,6 +496,13 @@ static int scene_npc_reload_publication_seal(const scene_npc_checkpoint_restore_
            e->original_generations!=r->original_generations||memcmp(&e->selection,&r->selection,sizeof(r->selection))||
            memcmp(&e->playback,&r->playback,sizeof(r->playback))||memcmp(&e->move_path,&r->move_path,sizeof(r->move_path))||
            memcmp(e->move_nodes,r->move_nodes,sizeof(r->move_nodes))||memcmp(&e->medic_child,&r->medic_child,sizeof(r->medic_child)))return RF_FORMAT;
+        if(memcmp(&e->guard_retreat,&r->guard_retreat,sizeof(r->guard_retreat))||
+           memcmp(&e->saved.guard_retreat,&r->guard_saved,sizeof(r->guard_saved)))return RF_FORMAT;
+        if(e->guard_retreat.participates){
+            if(e->saved.combat_alert!=r->guard_combat_alert||e->saved.ai_mode!=r->guard_action||
+               memcmp(e->saved.look_command,r->guard_look_command,12)||memcmp(&e->body,&r->guard_body,sizeof(e->body)))return RF_FORMAT;
+            status=scene_guard_retreat_checkpoint_validate(&e->guard_retreat);if(status)return status;
+        }
         status=scene_npc_reload_publication_owner(e);if(status)return status;p=campaign_poses.items+e->slot;
         if(e->slot<campaign_model_owner_count&&
            (memcmp(campaign_model_owners+e->slot,&r->model,sizeof(r->model))||
@@ -612,6 +633,7 @@ static int scene_npc_reload_publication_begin(const scene_npc_checkpoint_restore
     SCENE_RELOAD_SEAL_HEADER(navigation,campaign_navigation);SCENE_RELOAD_SEAL_HEADER(clutter_list,campaign_clutter_objects);
     SCENE_RELOAD_SEAL_HEADER(candidate_list,scene_medic_syringe_candidates);
 #undef SCENE_RELOAD_SEAL_HEADER
+    r->spread_before=campaign_enemy_spread_random.value;
     r->events=campaign_events.items;r->event_count=campaign_events.count;r->triggers=campaign_triggers.items;r->trigger_count=campaign_triggers.count;
     r->motion_data=campaign_npc_motion_data;r->motion_sizes=campaign_npc_motion_sizes;r->motion_count=campaign_npc_motion_count;r->motion_bytes=campaign_npc_motion_bytes;
     r->clutter_bodies=campaign_clutter_bodies;r->clutter_count=campaign_clutter_records.count;r->glares=campaign_glare_instances;r->glare_count=campaign_glare_instance_count;
@@ -628,6 +650,9 @@ static int scene_npc_reload_publication_begin(const scene_npc_checkpoint_restore
         row->retired=e->saved.retired;row->dead_pose=e->saved.dead_pose;row->animation_present=e->saved.animation_present;
         row->reload_present=e->saved.reload_present;row->reload_weapon=e->saved.reload_weapon;
         row->reload_remaining=e->saved.reload_remaining;row->reload_deadline=e->reload_deadline;
+        row->guard_retreat=e->guard_retreat;row->guard_saved=e->saved.guard_retreat;
+        row->guard_combat_alert=e->saved.combat_alert;row->guard_action=e->saved.ai_mode;
+        memcpy(row->guard_look_command,e->saved.look_command,12);row->guard_body=e->body;
         row->matrices=e->matrices;row->generations=e->generations;row->original_matrices=e->original_matrices;row->original_generations=e->original_generations;
         memcpy(&row->selection,&e->selection,sizeof(row->selection));memcpy(&row->playback,&e->playback,sizeof(row->playback));
         memcpy(&row->move_path,&e->move_path,sizeof(row->move_path));memcpy(row->move_nodes,e->move_nodes,sizeof(row->move_nodes));

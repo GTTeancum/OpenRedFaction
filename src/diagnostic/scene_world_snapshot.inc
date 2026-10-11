@@ -77,10 +77,12 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
-    {uint32_t reload_present;scene_npc_reload_player_receipt on_foot;
+    {uint32_t reload_present,guard_present;scene_npc_reload_player_receipt on_foot;
      part="reload_owner";status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_present);
      if(status)goto done;
-     if(reload_present){part="reload_player_on_foot";status=scene_npc_reload_player_admit(s,&on_foot);if(status)goto done;}}
+     part="guard_owner";status=scene_guard_retreat_live_present(combat_frame==UINT32_MAX?0:combat_frame,&guard_present);
+     if(status)goto done;
+     if(reload_present||guard_present){part="reload_guard_player_on_foot";status=scene_npc_reload_player_admit(s,&on_foot);if(status)goto done;}}
     part="identity";
     status=scene_airlock_checkpoint_admit(s?s->collision:NULL);if(status){part="airlock_pending_or_room";goto done;}
     status=scene_medic_save_guard(&part);if(status)goto done;

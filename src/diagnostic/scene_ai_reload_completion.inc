@@ -46,7 +46,7 @@ static int campaign_enemy_reload_legacy_service(campaign_npc_body *owner,uint32_
  * positive timers are serviced first and never retimed or adopted. Due0 is
  * represented by pending1; temporarily suppressed completion retains it. */
 static int campaign_enemy_reload_service(campaign_npc_body *owner,uint32_t frame,
-    int32_t *completed_weapon,uint32_t *qualified)
+    int32_t *completed_weapon,uint32_t *qualified,uint32_t initiate)
 {
     uint32_t slot,completed=0,deadline,ready;int32_t weapon;int status;
     const rf_weapon_acquire_definition *ammo;
@@ -81,6 +81,9 @@ static int campaign_enemy_reload_service(campaign_npc_body *owner,uint32_t frame
         if(completed){owner->combat_reload_pending=0;*completed_weapon=weapon;}
         return RF_OK;
     }
+    /* An admitted guard cannot own legacy pending0/due>0. Keep every other
+     * actor's legacy service, and preserve the completion receipt above. */
+    if(!initiate)return owner->combat_reload_due?RF_FORMAT:RF_OK;
     status=campaign_enemy_reload_legacy_service(owner,frame,completed_weapon);if(status)return status;
     if(*completed_weapon>=0||owner->combat_reload_due||!*qualified)return RF_OK;
     /* Persistent retired rows keep class/loadout scalars but no registration.

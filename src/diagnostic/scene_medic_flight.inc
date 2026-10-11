@@ -2,8 +2,7 @@
 #define RF_SCENE_MEDIC_FLIGHT_INCLUDED
 /* Known L3S1 medic783 only. Original407fb0/4085f0/404f70; reviewed private
  * navigation is separate. No global AI dispatch or optional persona service. */
-static uint32_t scene_medic_flight_rng_seen,scene_medic_flight_restoring;
-static uint64_t scene_medic_flight_lifetime; /* Runtime-only replacement fence. */
+/* Shared CRT receipt and runtime-only lifetime fence are declared by scene. */
 /* qualified, requests, entries, extensions, defaults, ticks, pain pauses,
  * no-route, sight refresh, unsupported, last source, status */
 uint32_t rf_scene_medic_flight[12];
@@ -128,14 +127,14 @@ static int scene_medic_flight_event_default(campaign_npc_body *o,int32_t now)
 }
 static void scene_medic_flight_target_clear(campaign_npc_body *o,int32_t now)
 {
-    if(scene_medic_flight_restoring||!o->flight.qualified||!o->flight.entered)return;
+    if(scene_medic_flight_restoring||o->flight.qualified!=1||!o->flight.entered)return;
     if(o->flight.target_kind==SCENE_FLIGHT_TARGET_NONE)return;
     o->flight.target_kind=SCENE_FLIGHT_TARGET_NONE;o->flight.target_handle=0;
     o->flight.sight_deadline_294=now;
 }
 static void scene_medic_flight_use_target(campaign_npc_body *o,uint32_t target,int32_t now)
 {
-    if(scene_medic_flight_restoring||!o->flight.qualified||!o->flight.entered)return;
+    if(scene_medic_flight_restoring||o->flight.qualified!=1||!o->flight.entered)return;
     if(o->flight.target_kind==SCENE_FLIGHT_TARGET_PLAYER&&o->flight.target_handle==target)return;
     /*40a73c installs14, then40a746 binds the actual accepted player through
      *409050. Caller has committed that real target without an intervening callback. */
@@ -148,7 +147,7 @@ static void scene_medic_flight_player_replaced(void)
     scene_medic_flight_player_motion(NULL);++scene_medic_flight_lifetime;
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *o=campaign_npc_bodies+i;
-        if(o->flight.qualified&&o->flight.target_kind==SCENE_FLIGHT_TARGET_PLAYER&&
+        if(o->flight.qualified==1&&o->flight.target_kind==SCENE_FLIGHT_TARGET_PLAYER&&
            o->flight.target_handle==campaign_player_object.handle){
             o->flight.target_kind=SCENE_FLIGHT_TARGET_UNRESOLVED;o->flight.target_handle=0;
         }
@@ -271,7 +270,7 @@ static int scene_medic_flight_capture(const campaign_npc_body *o,int32_t now,sce
 {
     scene_medic_flight_snapshot p={0};int status;
     if(!o||!out||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
-    if(!o->flight.qualified){*out=p;return RF_OK;}
+    if(o->flight.qualified!=1){*out=p;return RF_OK;}
     p.state=o->flight;p.state.target_handle=0;
     if(p.state.target_kind==SCENE_FLIGHT_TARGET_PLAYER&&
        (o->flight.target_handle!=campaign_player_object.handle||
@@ -293,7 +292,7 @@ static void scene_medic_flight_restore_publish(campaign_npc_body *o,const scene_
     ++scene_medic_flight_lifetime;
     o->flight=p->state;
     if(o->flight.target_kind==SCENE_FLIGHT_TARGET_PLAYER)o->flight.target_handle=player;
-    if(o->flight.qualified)scene_medic_flight_nav_publish(o,&p->state.nav,&p->start);
+    if(o->flight.qualified==1)scene_medic_flight_nav_publish(o,&p->state.nav,&p->start);
     memcpy(o->command_714,p->command_714,12);
     if(p->state.entered){
         memcpy(o->body.state.vector_c8,p->angular_150,12);
@@ -303,7 +302,7 @@ static void scene_medic_flight_restore_publish(campaign_npc_body *o,const scene_
 }
 static void scene_medic_flight_legacy_restore(campaign_npc_body *o,int32_t now)
 {
-    if(o->flight.qualified)scene_medic_flight_construct(o,now,o->flight.nav.bias_158);
+    if(o->flight.qualified==1)scene_medic_flight_construct(o,now,o->flight.nav.bias_158);
 }
 static void scene_medic_flight_rng_capture(scene_medic_flight_rng *out)
 {out->present=scene_medic_flight_rng_seen;out->value=out->present?combat_pain_random.value:0;}
@@ -317,14 +316,14 @@ static void scene_medic_flight_restore_scope(uint32_t active)
 static int scene_medic_flight_history_admit(const campaign_npc_body *o)
 {
     scene_medic_flight_snapshot p;int status;
-    if(!o||!o->flight.qualified||!o->flight.entered||o->ai_mode.action_280!=7)return RF_NOT_FOUND;
+    if(!o||o->flight.qualified!=1||!o->flight.entered||o->ai_mode.action_280!=7)return RF_NOT_FOUND;
     if(o->view.action_520!=7)return RF_FORMAT;
     status=scene_medic_flight_capture(o,scene_medic_now(rf_scene_profile_stage[0]),&p);
     return status;
 }
 static void scene_medic_flight_retire(campaign_npc_body *o)
 {
-    if(scene_medic_flight_restoring)return;
+    if(scene_medic_flight_restoring||o->flight.qualified!=1)return;
     memset(&o->flight,0,sizeof(o->flight));memset(o->command_714,0,12);
 }
 static void scene_medic_flight_world_construct(void)
@@ -334,5 +333,5 @@ static void scene_medic_flight_world_construct(void)
     scene_medic_flight_player_motion(NULL);
 }
 static uint32_t scene_medic_flight_command_overlap(const campaign_npc_body *o)
-{return !scene_medic_flight_restoring&&o->flight.qualified&&o->flight.entered;}
+{return !scene_medic_flight_restoring&&o->flight.qualified==1&&o->flight.entered;}
 #endif

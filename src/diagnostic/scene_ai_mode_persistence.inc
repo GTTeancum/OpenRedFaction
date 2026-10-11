@@ -92,6 +92,16 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
            rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration))return RF_FORMAT;
     }
     terminal=o->damage.effects.health<=0||rf_scene_defeated_actors.items[slot].retired;
+    if(o->guard_retreat_fault)return RF_FORMAT;
+    if(scene_guard_retreat_active(o)){
+        /* This finite owner never becomes campaign history. The same-level
+         * RFNC28 lane owns7 and its ordinary route lane stays wholly absent. */
+        if(section==1)return RF_NOT_FOUND;
+        if(o->ai_mode.action_280!=7||o->view.action_520!=7||!o->flight.entered||
+           o->patrol.enabled||o->script_move.active||o->script_move.origin||
+           o->script_move.path.count||o->script_move.path.indices||o->navigation.retained.count)return RF_FORMAT;
+        *out=a;return RF_OK;
+    }
     if(o->ai_mode.action_280==7){
         rf_campaign_actor_route canonical={0},zero={0};
         const rf_campaign_actor_route *before=rf_scene_defeated_actors.routes+slot;
@@ -187,6 +197,10 @@ static void campaign_ai_modes_reset(void)
 static int campaign_ai_modes_handoff_admit(void)
 {
     uint32_t i;int status;rf_campaign_actor_route a;
+    for(i=0;i<campaign_npc_body_count;i++){
+        if(campaign_npc_bodies[i].guard_retreat_fault)return RF_FORMAT;
+        if(scene_guard_retreat_active(campaign_npc_bodies+i))return RF_NOT_FOUND;
+    }
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].persistence_registered){
         status=scene_actor_route_capture(campaign_npc_bodies+i,1,&a);if(status)return status;}
     return RF_OK;
@@ -206,7 +220,7 @@ static int campaign_ai_mode_restore(campaign_npc_body *o,int32_t now)
     if(a->action==3||a->action==13||o->view.linked_handle!=-1)return RF_FORMAT;
     next=o->ai_mode;status=rf_entity_ai_set_action(&next,a->action,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
     memset(&o->script_move,0,sizeof(o->script_move));memset(&o->navigation,0,sizeof(o->navigation));
-    if(o->flight.qualified){
+    if(o->flight.qualified==1){
         /* Fresh-section default policy keeps the real constructor geometry;
          * absent flight coordinates still have no historical route meaning. */
         o->navigation.start.radius=o->navigation_radius;

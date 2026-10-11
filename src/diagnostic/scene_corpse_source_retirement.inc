@@ -47,7 +47,7 @@ static int scene_corpse_source_retire(uint32_t model,uint32_t uid)
     }
     /* Also covers an already-retired source; ordinary removal now cancels
      * these same borrowed banks before returning. Repeating is inert. */
-    scene_npc_retirement_cancel_orders(actor);
+    status=scene_npc_retirement_cancel_orders(actor);if(status)goto fail;
     key->retired=1;rf_scene_defeated_actors.vitals[persistent].valid=0;
     rf_scene_defeated_actors.vitals[persistent].health=health;
     rf_scene_defeated_actors.vitals[persistent].armor=actor->damage.effects.armor;

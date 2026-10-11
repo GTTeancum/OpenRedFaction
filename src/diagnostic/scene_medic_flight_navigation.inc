@@ -220,6 +220,14 @@ static int scene_medic_flight_nav_request(scene_stream *stream,campaign_npc_body
         memcpy(o->flight.nav.prefix,prefix,sizeof(prefix));o->flight.nav.count=route.count;
         o->flight.nav.previous=0;o->flight.nav.current=1;o->flight.nav.wait_134=now;
         memcpy(o->flight.nav.request_eye_14c,o->eye_position,12);o->flight.nav.eye_valid=1;
+        if(o->flight.qualified==2){
+            /* Finite armed bridge starts from the REAL resolved node1. The
+             * follower consumes this point before its first arrival test. */
+            o->flight.nav.pair[0]=prefix[0];o->flight.nav.pair[1]=prefix[1];
+            status=scene_flight_node_resolve(o,prefix[1],&node);if(status||!node){if(!status)status=RF_FORMAT;goto done;}
+            memcpy(o->flight.nav.steering_174,node->position,12);
+            if(mode)o->flight.nav.steering_174[1]=o->eye_position[1];
+        }
     }else value=0;
 done:
     w->references[n]=saved_goal;w->references[n+1]=saved_start;scene_flight_search_busy=0;
@@ -250,11 +258,24 @@ static int scene_flight_follower(scene_stream *stream,campaign_npc_body *o,
                 grounded,current,&classification);if(status)return status;
         }
         if(!classification){
-            n->approach_15c=0;n->pair[0]=n->prefix[n->current];n->pair[1]=(scene_medic_flight_node){0,0};
-            if(scene_flight_threat_live(threat)){
-                status=scene_medic_flight_nav_request(stream,o,threat,now,&found);if(status)return status;
-                if(n->count<=2){scene_flight_nav_clear(n,now);*no_route=1;return RF_OK;}
-                n->approach_15c=0;n->previous=1;n->current=2;
+            n->approach_15c=0;
+            if(o->flight.qualified==2){
+                /* Approved finite-prefix substitution: advance this admitted
+                 * route once. Never issue the medic approach-boundary query. */
+                rf_entity_navigation_route cursor={0};
+                cursor.word_000=n->count;cursor.word_014=n->previous;cursor.word_018=n->current;
+                status=rf_entity_navigation_advance(&cursor);
+                if(status==-1){scene_flight_nav_clear(n,now);*no_route=1;return RF_OK;}
+                if(status)return status;
+                n->previous=cursor.word_014;n->current=cursor.word_018;
+                n->pair[0]=n->prefix[n->previous];n->pair[1]=n->prefix[n->current];
+            }else{
+                n->pair[0]=n->prefix[n->current];n->pair[1]=(scene_medic_flight_node){0,0};
+                if(scene_flight_threat_live(threat)){
+                    status=scene_medic_flight_nav_request(stream,o,threat,now,&found);if(status)return status;
+                    if(n->count<=2){scene_flight_nav_clear(n,now);*no_route=1;return RF_OK;}
+                    n->approach_15c=0;n->previous=1;n->current=2;
+                }
             }
         }
     }
@@ -355,8 +376,13 @@ static int scene_medic_flight_nav_step(scene_stream *stream,campaign_npc_body *o
     n->activity_170=active;
     if(!active){*out=value;return RF_OK;}
     memcpy(value.turn_point,(o->ai_mode.flags_530&8u)?threat->position:n->steering_174,12);value.turn_valid=1;
-    status=scene_flight_actor_blocked(o,&blocked);if(status)return status;
-    if(blocked){value.source_result=-2;*out=value;return RF_OK;}
+    /* Guard profile retains the ordinary physical sweep below. The original
+     * armed anticipatory scan and reciprocal living-actor blocking are deferred;
+     * the medic-only cowering actor predicate is not an armed predicate. */
+    if(o->flight.qualified!=2){
+        status=scene_flight_actor_blocked(o,&blocked);if(status)return status;
+        if(blocked){value.source_result=-2;*out=value;return RF_OK;}
+    }
     for(uint32_t i=0;i<3;i++)direction[i]=(float)((double)n->steering_174[i]-o->eye_position[i]);
     length=scene_flight_length(direction);
     /*4faaf0 has no zero guard. Do not synthesize nonfinite command storage. */

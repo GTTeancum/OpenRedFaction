@@ -180,6 +180,7 @@ static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
         status=scene_turret_player_select(stream,&handle);if(status)goto fail;
         if(handle!=UINT32_MAX){
             o=scene_turret_lookup(handle);if(!o){status=RF_NOT_FOUND;goto fail;}
+            status=scene_guard_retreat_cancel_player(scene_medic_now(frame));if(status)goto fail;
             p->active=1;p->host=handle;p->player=campaign_player_object.handle;
             scene_use_claim();
             p->saved_link=campaign_player_view.linked_handle;

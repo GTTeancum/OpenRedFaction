@@ -1,3 +1,5 @@
+- Compile and validate the independently reviewed complete bounded guard retreat/ordinary-combat return and RFNC28 continuation; integrated after actual17, all new compilation/gameplay/save/target-memory results pending. USER: compressed whole-disk backup permission remains pending; fresh capacity and changed-game admission are also required before protected saved loading (docs/NPC-GUARD-RETREAT.md).
+
 - Complete guard1 / ordinary 12mm reload and RFNC27 compiled in actual12 stock-profile0 Xbox build. Runtime, protected-save compatibility, whole-stack and peak stock-64-MiB validation remain unverified. Selected before/after compiler evidence is preserved; see docs/HOURLY-20261011-1200.md and docs/NPC-ORDINARY-RELOAD.md.
 
 - Actual11 stock-profile0 Xbox build passed, retaining exact09 artifacts; no runtime. Native saved continuation remains gated on alternate backup approval and verified durability (docs/HOURLY-20261011-1100.md).
