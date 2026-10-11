@@ -4,7 +4,7 @@
 #include "rf/motion.h"
 enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW_V9=588,RF_NPC_CHECKPOINT_ROW=600,
     RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,
-    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_FLIGHT_BYTES=232,RF_NPC_CHECKPOINT_ROW_MAX=2000,
+    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_FLIGHT_BYTES=232,RF_NPC_CHECKPOINT_AIRBORNE_BYTES=84,RF_NPC_CHECKPOINT_ROW_MAX=2004,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 /* Event sleep/wake, the angular prepare gate, and falling/support bits. Class,
  * sphere and unrelated descriptor flags remain reconstructed from the owner. */
@@ -55,6 +55,14 @@ typedef struct rf_npc_checkpoint_flight {
     uint32_t start_word;
     float command[3],angular[3],torque[3];
 } rf_npc_checkpoint_flight;
+/* RFNC26 ordinary committed airborne continuation. The prepared-acceleration bit
+ * 01000000 is not owned here and must be clear in every admitted source. */
+#define RF_NPC_CHECKPOINT_AIRBORNE_BODY_MASK 0x80000001u
+#define RF_NPC_CHECKPOINT_AIRBORNE_OBJECT_MASK 0x06000000u
+typedef struct rf_npc_checkpoint_airborne {
+    uint32_t present,body_bits,object_bits;
+    float velocity[3],angular[3],momentum[3],force[3],torque[3],inherited_velocity[3];
+} rf_npc_checkpoint_airborne;
 typedef struct rf_npc_checkpoint_rng {uint32_t present,value;} rf_npc_checkpoint_rng;
 typedef struct rf_npc_checkpoint_record {
     uint32_t uid,class_id,retired,flags,affiliation;
@@ -86,6 +94,7 @@ typedef struct rf_npc_checkpoint_record {
     rf_campaign_medic_state medic; /* RFNC22: independent exact finite reserve and syringe role. */
     rf_campaign_actor_route route; /* RFNC23: explicit current/default route provenance. */
     rf_npc_checkpoint_flight flight; /* RFNC25; absent is entirely zero. */
+    rf_npc_checkpoint_airborne airborne; /* RFNC26; absent is entirely zero. */
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     rf_motion_playback_state playback;
@@ -96,7 +105,8 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC25 component (RFNC1-24 remain readable; writer emits25 only for a
+/* RFNC26 component (RFNC1-25 remain readable; writer emits26 only for an
+ * admitted ordinary airborne continuation, otherwise25 only for a
  * qualified flight continuation or shared flight RNG receipt, otherwise24 only for retained
  * location-pain24..27 or newly admitted residual pain playback, otherwise23 only for retained
  * actor route/default history, otherwise22 only for retained
@@ -245,6 +255,20 @@ typedef struct rf_npc_checkpoint_catalog {
  * dead-pose continuation. The scene proves actual source identity, graph/start
  * references and candidate player identity. Header RNG joins every genuine
  * RFNC/RFAP pain owner; it survives an empty actor set. No artificial pain row.
+ * RFNC26 appends a4-byte airborne presence after the variable flight tail;
+ * present rows append80 more bytes (84 total): exact body bits80000001,
+ * object bits under06000000, five finite dynamics XYZ vectors and separately
+ * bounded inherited velocity XYZ (absolute component <=10000). Absent is
+ * entirely zero in memory; RFNC1-25 decode absent. Presence requires living
+ * positive health, row.flags0, movement descriptor3 and no retired/dead,
+ * physics, Drone, flight or base support ownership. Base support velocity is
+ * canonical zero; inherited carry belongs exclusively to the new lane.
+ * Scene independently proves the immutable class, geometry, descriptor,
+ * committed basis and no-support candidate, then restores without callbacks.
+ * Flight and airborne are mutually exclusive; the complete row bound is2004.
+ * Version promotion is monotonic across rows and the shared flight receipt.
+ * No new timer, route, RNG or RFCH ownership is implied. Existing save and
+ * scene staging capacity limits remain authoritative and unchanged.
  * Rows contain no pointers/handles. Identity covers level, authored actors/classes.
  * Supported basic modes -1/0/1/2/11, seated mode13, and source-qualified
  * patrol modes3/4/10 carried by RFNC23 and qualified flight7 carried by
@@ -263,8 +287,10 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     const rf_npc_checkpoint_record *,uint32_t count,void *,uint32_t capacity,uint32_t *written);
 int rf_npc_checkpoint_decode(const void *,uint32_t bytes,const unsigned char identity[32],
     const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count);
-/* Receipt-aware ownership APIs. Old wrappers reject new ownership rather than
- * silently discarding it. Preflight deliberately validates metadata only. */
+/* Receipt-aware ownership APIs. Old wrappers reject flight ownership rather
+ * than silently discarding its RNG receipt; ordinary airborne is pointer-free
+ * and supported by both codec API families. Scene restore entrypoints still
+ * require the composed fresh-load airborne contract. Preflight validates only. */
 int rf_npc_checkpoint_encode_with_rng(const unsigned char identity[32],const rf_npc_checkpoint_catalog *,
     const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,void *,uint32_t capacity,uint32_t *written);
 int rf_npc_checkpoint_decode_with_rng(const void *,uint32_t bytes,const unsigned char identity[32],

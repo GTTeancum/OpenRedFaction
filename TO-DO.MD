@@ -1,8 +1,20 @@
-- Independently reviewed same-pistol location-directed pain hints 24–27 now join the existing controller before damage, using the published victim frame and existing RFNC24 ownership; compilation, reactions and save continuation remain unverified (docs/NPC-PISTOL-REACTION.md).
+- Actual07 Xbox build compiled complete airborne/RFNC26 ownership, but genuine save120 now fails the new ordinary-airborne qualifier for UID929 before the old velocity guard; diagnose the nested predicate without relaxing admission (docs/HOURLY-20261011-0700.md).
 
-- Independently reviewed ordinary NPC pistol physical-sphere contact and posed hit-location scalar are integrated with accepted-shot callback ownership; awaiting 05:00 Xbox compilation and genuine save/load/controls, with hit damage and stack fit unverified (docs/NPC-PISTOL-HIT-LOCATION.md).
+- Actual06 Xbox build and original fresh movement/one-shot check passed; normal save still rejects living guard929 vertical motion, with retained contact face token413 now observed and under exact ownership review (docs/HOURLY-20261011-0600.md).
 
-- Independently reviewed terminal-corpse reactive marker2 capture correction is integrated after the actual04 save refusal, preserving the existing no-combat corpse representation and all live checks; awaiting next hourly compilation and genuine save/load validation (docs/TERMINAL-REACTIVE-CORPSE-SAVE.md).
+- Existing bounded NPC hit records will be retained as read-only terminal evidence in the next hourly checks; no new damage or acceptance behavior is introduced, and captured amounts must not be reported as health loss (docs/NPC-HIT-TERMINAL-OBSERVATION.md).
+
+- Independently reviewed original L3S1 fresh-start movement and one-shot check is integrated for the next hourly batch, separately from the blocked genuine-save flow; no fresh gameplay result is claimed before execution (docs/ORIGINAL-FRESH-CONTROLS.md).
+
+- Exact-rejection read-only NPC body observer is independently reviewed and integrated for the next hourly run; it records actual living/dead and motion ownership without changing admission, while ordinary moving-body continuation remains conditional (docs/NPC-VELOCITY-SAVE-OBSERVATION.md).
+
+- Actual05 Xbox build passed; genuine save120 now rejects ordinary vertical velocity on authored guard UID929, requiring faithful moving-body checkpoint and candidate-placement ownership before another hourly attempt (docs/HOURLY-20261011-0500.md).
+
+- Independently reviewed same-pistol location-directed pain hints 24–27 now join the existing controller before damage, using the published victim frame and existing RFNC24 ownership; compiled at05:00; reactions and save continuation remain unverified (docs/NPC-PISTOL-REACTION.md).
+
+- Independently reviewed ordinary NPC pistol physical-sphere contact and posed hit-location scalar are integrated with accepted-shot callback ownership; compiled at05:00 and completed neutral180 startup; genuine save rejected, with hit damage and branch stack fit unverified (docs/NPC-PISTOL-HIT-LOCATION.md).
+
+- Independently reviewed terminal-corpse reactive marker2 capture correction is integrated after the actual04 save refusal, preserving the existing no-combat corpse representation and all live checks; compiled at05:00 and passed its formerly rejecting corpse row; later moving-body admission still blocks genuine save/load (docs/TERMINAL-REACTIVE-CORPSE-SAVE.md).
 
 - Actual04:00 Xbox build passed, but the genuine normal save at frame120 was rejected by NPC UID910; preserve the refusal and correct its qualified corpse-state admission before a new hourly save/load attempt (docs/HOURLY-20261011-0400.md).
 

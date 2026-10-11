@@ -145,7 +145,7 @@ static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t 
      if(!a->retired&&!b->retired&&!a->dead_pose&&!b->dead_pose&&a->health>0&&b->health>0&&
         ((a->move.active&&a->move.follow==2)||(b->move.active&&b->move.follow==2))&&
         radius-sqrt(candidate_distance2)<=.75)return 1;}
-    if(!stage->fresh_boot)return 0;
+    if(!stage->fresh_boot||stage->entries[i].saved.airborne.present||stage->entries[j].saved.airborne.present)return 0;
     first=campaign_npc_bodies+stage->entries[i].slot;second=campaign_npc_bodies+stage->entries[j].slot;
     if(a>=first->body.spheres.count||b>=second->body.spheres.count)return 0;
     one=first->body.spheres.items+a;two=second->body.spheres.items+b;
@@ -216,6 +216,13 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return scene_npc_checkpoint_restore_failure("owners",UINT32_MAX,UINT32_MAX,RF_RANGE);
+    if(!fresh_boot){
+        for(i=0;i<count;i++)if(rows[i].airborne.present)
+            return scene_npc_checkpoint_restore_failure("standalone_airborne",i,rows[i].uid,RF_NOT_FOUND);
+        for(i=0;i<campaign_npc_body_count;i++)if(scene_npc_airborne_potential(i,campaign_npc_bodies+i))
+            return scene_npc_checkpoint_restore_failure("standalone_airborne_owner",i,
+                (uint32_t)campaign_seeds.records.items[i].record.uid,RF_NOT_FOUND);
+    }
     /* Ordinary quickload reconstructs a fresh scene. The component-only
      * in-session API cannot overwrite slots whose poses belong to corpses. */
     if(campaign_live_corpse_count)return scene_npc_checkpoint_restore_failure("live_corpses",UINT32_MAX,UINT32_MAX,RF_NOT_FOUND);
@@ -402,10 +409,12 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         if(!rows[i].retired&&!e->registered){status=RF_RANGE;goto fail;} /* Fresh actors, never resurrect freed bodies. */
         e->flags=(o->object_flags&~0x4004u)|rows[i].flags;
         detail="drone_pose";status=scene_npc_drone_checkpoint_admit(j,o,rows+i);if(status)goto fail;
+        detail="ordinary_airborne";status=scene_npc_airborne_checkpoint_admit(j,o,rows+i,fresh_boot);if(status)goto fail;
         memcpy(e->published,rows[i].position,12);angles[1]=rows[i].yaw;
         if(rows[i].drone.kind)angles[0]=rows[i].drone.pitch;
         status=rf_look_orientation(angles,e->basis);if(status)goto fail;
         detail="seat_basis";status=scene_npc_seat_checkpoint_basis(seats,rows+i,e->basis,&seated);if(status)goto fail;
+        if(seated&&rows[i].airborne.present){status=RF_FORMAT;goto fail;}
         if(rows[i].drone.kind)memcpy(e->look_basis,e->basis,36); /* Canonical ordinary eye, including retired look-only state. */
         else {rf_eye_angle_state eye_angles={0};
          memcpy(eye_angles.angles_87c,rows[i].eye_angles,12);
@@ -446,15 +455,17 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         detail="script_physics";
         status=scene_npc_physics_checkpoint_prepare(o,rows+i,&e->body,&e->flags);if(status)goto fail;
         scene_npc_drone_checkpoint_prepare(j,o,rows+i,&e->body,&e->flags);
+        scene_npc_airborne_checkpoint_prepare(rows+i,&e->body,&e->flags);
         placement.spheres=o->body.spheres.items;placement.count=o->body.spheres.count;
-        placement.query_flags=((rows[i].drone.kind==1?e->body.state_124:o->body.state.state_124)&~0x1000u)|4u;
+        placement.query_flags=(((rows[i].airborne.present||rows[i].drone.kind==1)?e->body.state_124:o->body.state.state_124)&~0x1000u)|4u;
         memcpy(placement.position,e->published,12);memcpy(placement.basis,e->basis,36);
         detail="placement";status=place(context,&placement,&e->room,&e->support);if(status)goto fail;
         detail="support_admission";
+        if(rows[i].airborne.present&&(e->support.handle||e->support.material!=-1||e->body.flags!=0x80000079u)){status=RF_FORMAT;goto fail;}
         if(memcmp(e->room.query_position,e->published,12)||
            (!!e->support.handle!=!!rows[i].support_uid)||!e->room.room||
            e->support.material< -1||(!placement.count&&e->support.material!=-1)||
-           (!seated&&!scene_npc_physics_checkpoint_suspended(rows+i)&&placement.count&&e->support.material==-1&&
+           (!seated&&!rows[i].airborne.present&&!scene_npc_physics_checkpoint_suspended(rows+i)&&placement.count&&e->support.material==-1&&
             (((rows[i].physics.present||rows[i].drone.kind==1)?(e->body.flags&(1u|0x400000u)):(o->body.state.flags&(1u|0x400000u)))||
              ((rows[i].physics.present||rows[i].drone.kind==1)?rows[i].support_uid:o->support.handle)))){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
         if(rows[i].support_uid){e->body.flags&=~1u;e->body.flags|=0x400000u;}
@@ -657,6 +668,75 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
     }
     return RF_OK;
 }
+/* Nonpersistent full-load receipt. Marked only after NPC assignment; both
+ * later vehicle publication and storage close can still fail. */
+typedef struct scene_npc_airborne_restore_receipt {
+    uint64_t epoch;campaign_npc_body *owners;uint32_t count,assigned,active;
+} scene_npc_airborne_restore_receipt;
+static int scene_npc_airborne_restore_identity(const scene_npc_checkpoint_restore_stage *stage,
+    const scene_npc_airborne_restore_receipt *receipt,uint32_t before)
+{
+    uint32_t i;int status;
+    if(!receipt)return RF_RANGE;if(!receipt->active)return RF_OK;
+    /* Check lifetime before reading an owner, pose or stage row. */
+    if(receipt->epoch!=scene_robot_death_epoch||receipt->owners!=campaign_npc_bodies||
+       receipt->count!=campaign_npc_body_count||!stage||!stage->fresh_boot)return RF_FORMAT;
+    for(i=0;i<stage->count;i++){
+        const scene_npc_checkpoint_restore_entry *e=stage->entries+i;const campaign_npc_body *o;const rf_entity_pose *p;
+        if(!e->saved.airborne.present)continue;
+        if(e->slot>=receipt->count||!campaign_npc_bodies||!campaign_poses.items||e->slot>=campaign_poses.count||
+           !campaign_seeds.records.items||e->slot>=campaign_seeds.records.count||!campaign_seeds.items||
+           e->saved.uid!=(uint32_t)campaign_seeds.records.items[e->slot].record.uid||
+           e->saved.class_id!=campaign_seeds.items[e->slot].class_index)return RF_FORMAT;
+        o=campaign_npc_bodies+e->slot;p=campaign_poses.items+e->slot;
+        status=scene_npc_airborne_identity(e->slot,o);if(status)return status;
+        if(o->registration.handle!=e->handle||e->handle!=e->owner_before.registration.handle||
+           o->body.allocated_bytes!=e->owner_before.body.allocated_bytes||
+           o->body.spheres.items!=e->owner_before.body.spheres.items||
+           o->body.spheres.count!=e->owner_before.body.spheres.count||
+           o->body.spheres.allocated_bytes!=e->owner_before.body.spheres.allocated_bytes||
+           p->skeleton!=e->pose_before.skeleton||p->bone_count!=e->pose_before.bone_count||
+           p->matrices!=e->pose_before.matrices||p->generations!=e->pose_before.generations||p->overrides!=e->pose_before.overrides||
+           o->support.handle||o->piece_support.tag)return RF_FORMAT;
+        if(before&&(memcmp(o,&e->owner_before,sizeof(*o))||memcmp(p,&e->pose_before,sizeof(*p))))return RF_FORMAT;
+    }
+    return RF_OK;
+}
+static int scene_npc_airborne_restore_begin(const scene_npc_checkpoint_restore_stage *stage,
+    scene_npc_airborne_restore_receipt *receipt)
+{
+    uint32_t i;if(!receipt||!stage)return RF_RANGE;memset(receipt,0,sizeof(*receipt));
+    for(i=0;i<stage->count;i++)if(stage->entries[i].saved.airborne.present){receipt->active=1;break;}
+    if(!receipt->active)return RF_OK;
+    receipt->epoch=scene_robot_death_epoch;receipt->owners=campaign_npc_bodies;receipt->count=campaign_npc_body_count;
+    return scene_npc_airborne_restore_identity(stage,receipt,1);
+}
+static int scene_npc_airborne_restore_abort(const scene_npc_checkpoint_restore_stage *stage,
+    scene_npc_airborne_restore_receipt *receipt)
+{
+    uint32_t i;int status;
+    if(!receipt||!receipt->assigned)return RF_OK;
+    /* All rows must pass before any rollback store. No full owner/pose copy,
+     * resource setter or restoration of the discarded old level is claimed. */
+    status=scene_npc_airborne_restore_identity(stage,receipt,0);
+    if(status)return scene_npc_checkpoint_restore_failure("airborne_abort_identity",UINT32_MAX,UINT32_MAX,status);
+    for(i=0;i<stage->count;i++){
+        const scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o;
+        const campaign_npc_body *old=&e->owner_before;rf_physics_body_state *b;const rf_physics_body_state *saved=&old->body.state;
+        if(!e->saved.airborne.present)continue;o=campaign_npc_bodies+e->slot;b=&o->body.state;
+        b->flags=saved->flags;b->state_124=saved->state_124;
+        memcpy(b->velocity,saved->velocity,12);memcpy(b->vector_c8,saved->vector_c8,12);
+        memcpy(b->mass_vector_d4,saved->mass_vector_d4,12);memcpy(b->vector_e0,saved->vector_e0,12);memcpy(b->vector_ec,saved->vector_ec,12);
+        memcpy(b->vector_138,saved->vector_138,12);b->scalar_144=saved->scalar_144;b->reference_15c=saved->reference_15c;
+        b->word_164=saved->word_164;b->word_168=saved->word_168;o->collision_contact=old->collision_contact;
+        o->support=old->support;memcpy(o->support_velocity,old->support_velocity,12);
+        o->piece_support=old->piece_support;o->piece_reacquire=old->piece_reacquire;
+        o->object_flags=(o->object_flags&~RF_NPC_CHECKPOINT_AIRBORNE_OBJECT_MASK)|(old->object_flags&RF_NPC_CHECKPOINT_AIRBORNE_OBJECT_MASK);
+        o->view.flags_7c=(o->view.flags_7c&~RF_NPC_CHECKPOINT_AIRBORNE_OBJECT_MASK)|(old->view.flags_7c&RF_NPC_CHECKPOINT_AIRBORNE_OBJECT_MASK);
+    }
+    receipt->assigned=0;return RF_OK;
+}
+
 /* Full composition validates all owners first, then calls assignment-only
  * publications while simulation and resource ownership remain paused. */
 /* restored actors, catatonic actors, scheduler/view mismatches, saved mode mismatches */
@@ -807,6 +887,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             if(e->movement_resolved){o->movement=e->movement;o->movement_slot=e->movement_slot;o->movement_orientation=campaign_identity[0];}
 
             memcpy(o->support_velocity,e->saved.support_velocity,12);
+            scene_npc_airborne_checkpoint_assign(o,&e->saved);
             memcpy(campaign_model_owners[e->slot].position,e->published,12);memcpy(campaign_model_owners[e->slot].basis,e->basis,36);
             campaign_model_owners[e->slot].room=e->room.room?e->room.room-1:UINT32_MAX;
         }

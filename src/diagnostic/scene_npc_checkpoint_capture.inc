@@ -5,6 +5,7 @@
 #include "scene_npc_pain_checkpoint.inc"
 #include "scene_npc_reload_checkpoint.inc"
 #include "scene_npc_drone_checkpoint.inc"
+#include "scene_npc_airborne_checkpoint.inc"
 /* Include after campaign NPC/seed/pose/persistence declarations. Caller owns
  * stable scene state throughout both passes. Global projectile, shield, burn,
  * mover, event and pickup admission remains the composed caller's duty. */
@@ -23,9 +24,11 @@ static int scene_npc_checkpoint_level_equal(const char *a,const char *b)
     return 0;
 }
 uint32_t rf_scene_npc_checkpoint_reject_state[6]; /* UID, reason hash, part, value bits, status, frame */
+#include "scene_npc_checkpoint_velocity_observe.inc"
 static int scene_npc_checkpoint_reject(uint32_t index,const char *reason,uint32_t part,double value,int status)
 {
     uint32_t hash=2166136261u,bits;float reduced=(float)value;
+    memset(rf_scene_npc_checkpoint_velocity_observation,0,sizeof(rf_scene_npc_checkpoint_velocity_observation));
     const unsigned char *text=(const unsigned char *)reason;
     while(*text){hash=(hash^*text++)*16777619u;}
     memcpy(&bits,&reduced,4);
@@ -169,7 +172,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
-    rf_npc_checkpoint_flight flight={0};
+    rf_npc_checkpoint_flight flight={0};rf_npc_checkpoint_airborne airborne={0};
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};rf_campaign_actor_route route={0};uint32_t pain_residual_profile=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
@@ -350,13 +353,17 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
             }
             if(!support_uid)return scene_npc_checkpoint_reject(index,"support_owner",0,o->support.handle,RF_NOT_FOUND);
         }
+        status=scene_npc_airborne_checkpoint_capture(index,o,&airborne);
+        if(status)return scene_npc_checkpoint_reject(index,"ordinary_airborne",0,o->body.state.flags,status);
         for(i=0;i<3;i++){
-            if(!isfinite(o->body.state.velocity[i])||fabsf(o->body.state.velocity[i])>.001f)
-                return scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
+            if(!airborne.present&&(!isfinite(o->body.state.velocity[i])||fabsf(o->body.state.velocity[i])>.001f)){
+                int rejected=scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
+                scene_npc_checkpoint_velocity_observe(index,terminal_dead);return rejected;
+            }
 #define NPC_CAPTURE_AXIS(field) do{if(o->field[i]!=0)return scene_npc_checkpoint_reject(index,#field,i,o->field[i],RF_RANGE);}while(0)
             if(!flight.present)NPC_CAPTURE_AXIS(command_714);
             if(!isfinite(o->support_velocity[i])||fabsf(o->support_velocity[i])>10000.f||
-               (!support_uid&&o->support_velocity[i]!=0))
+               (!support_uid&&!airborne.present&&o->support_velocity[i]!=0))
                 return scene_npc_checkpoint_reject(index,"support_velocity",i,o->support_velocity[i],RF_RANGE);
 #undef NPC_CAPTURE_AXIS
         }
@@ -372,7 +379,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0&&!seated&&
         !(i==0&&!terminal_dead&&scene_npc_drone_checkpoint_ordinary(index,o)))
         return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
-    memset(row,0,sizeof(*row));row->flight=flight;row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
+    memset(row,0,sizeof(*row));row->airborne=airborne;row->flight=flight;row->route=route;row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
     row->pain=pain;row->pain_residual_profile=pain_residual_profile;row->ai_suppressed=campaign_npc_ai_suppressed(o);
     status=scene_medic_state_capture(o,&row->medic);
     if(status)return scene_npc_checkpoint_reject(index,"medic_state",0,slot,status);

@@ -65,7 +65,7 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     while(s->placement_next<s->placement_count&&s->placement_rows[s->placement_next].retired)s->placement_next++;
     if(s->placement_next>=s->placement_count)return RF_FORMAT;
     saved=s->placement_rows+s->placement_next;
-    uid=saved->uid;support_uid=saved->support_uid;world.npc_hover_no_support=world.npc_drone_no_support=0;
+    uid=saved->uid;support_uid=saved->support_uid;world.npc_hover_no_support=world.npc_drone_no_support=world.npc_airborne_no_support=0;
     rf_scene_world_restore_reject[6]=uid;rf_scene_world_restore_reject[7]=s->placement_next;
     if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
     world.npc_route_contact=s->placement_rows[s->placement_next].move.active&&
@@ -108,12 +108,16 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
         /* RFNC14 uses saved candidate state rather than the live actor. A
          * script-suspended body needs volume clearance, not invented floor
          * support. Existing world, mover, prop and pair checks all remain. */
-        uint32_t body_flags=saved->drone.kind==1?saved->drone.body_bits:
+        if(saved->airborne.present){
+            status=scene_npc_airborne_checkpoint_admit(i,campaign_npc_bodies+i,saved,world.fresh_boot);
+            if(status)return status;world.npc_airborne_no_support=1;
+        }
+        uint32_t body_flags=saved->airborne.present?saved->airborne.body_bits:saved->drone.kind==1?saved->drone.body_bits:
             saved->physics.present?saved->physics.body_bits:campaign_npc_bodies[i].body.state.flags;
-        uint32_t support_handle=(saved->physics.present||saved->drone.kind==1)?saved->support_uid:campaign_npc_bodies[i].support.handle;
+        uint32_t support_handle=(saved->airborne.present||saved->physics.present||saved->drone.kind==1)?saved->support_uid:campaign_npc_bodies[i].support.handle;
         uint32_t ordinary_no_contact=!(body_flags&(1u|0x400000u))&&!support_handle;
         uint32_t suspended=scene_npc_physics_checkpoint_suspended(saved);
-        world.allow_no_contact=ordinary_no_contact||(suspended&&!support_uid);
+        world.allow_no_contact=world.npc_airborne_no_support||ordinary_no_contact||(suspended&&!support_uid);
         /* A nonfalling hover owner does not acquire floor support (487f82..
          * 487f98). Resolve the saved descriptor, including the existing
          * pre13 constructor fallback; never infer it from the live mode.
@@ -136,6 +140,7 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
         }
         world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+i,cls,saved->capek_shield_broken);break;
     }
+    if(saved->airborne.present&&!world.npc_airborne_no_support)return RF_FORMAT;
     status=rf_geometry_collision_world_locate(world.world,placement->position,&location);
     if(!status){
         if(location.room==UINT32_MAX||location.room>=world.world->room_count)status=RF_NOT_FOUND;

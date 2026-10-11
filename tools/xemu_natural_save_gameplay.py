@@ -32,9 +32,11 @@ SYMBOLS = {
     'rf_scene_setup_result': 4, 'rf_scene_script_grants': 8,
     'rf_scene_section_autosave': 4, 'rf_scene_player_ammo': 8,
     'rf_scene_combat': 8, 'rf_scene_pickups': 8,
+    'rf_scene_enemy_actor_hits': 113,
     'rf_scene_weapon_selection': 8, 'rf_scene_world_load_reject': 3,
     'rf_scene_world_restore_reject': 8, 'rf_scene_npc_restore_reject': 6,
     'rf_scene_npc_checkpoint_reject_state': 6,
+    'rf_scene_npc_checkpoint_velocity_observation': 128,
     'rf_scene_world_snapshot_event_probe': 6,
 }
 LIVE_SYMBOLS = {

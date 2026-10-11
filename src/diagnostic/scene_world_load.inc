@@ -29,6 +29,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_ai_projectile_checkpoint_stage *projectiles=NULL;
     scene_continuous_charge_checkpoint_stage charge={0};
     uint32_t projectile_audio_resume=0,world_published=0,flight_locked=0;
+    scene_npc_airborne_restore_receipt airborne_receipt={0};
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_allegiance_stage *allegiance=NULL;
     scene_vehicle_attack_stage *vehicle_attack=NULL;scene_vehicle_ai_stage *vehicle_ai=NULL;
@@ -289,6 +290,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_campaign_history_checkpoint_capek_admit(history,bindings,world->npcs);if(status)goto done;
     status=scene_world_environment_validate(environment);if(status)goto done;
     status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
+    status=scene_npc_airborne_restore_begin(world->npcs,&airborne_receipt);if(status)goto done;
     scene_medic_flight_restore_scope(1);flight_locked=1;
     scene_continuous_charge_restore_scope(1);charge.locked=1;
     /* Parked publication has no callbacks or mutation on rejection. Admit it
@@ -304,7 +306,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_jeep_gunner_checkpoint_host_assign(stream,gunner);
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_passive_vehicle_checkpoint_assign(passive);
-    scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);
+    scene_clutter_checkpoint_assign(world->clutter);
+    if(airborne_receipt.active)phase="airborne_assignment_identity";
+    status=scene_npc_airborne_restore_identity(world->npcs,&airborne_receipt,1);if(status)goto done;
+    scene_npc_checkpoint_restore_assign(world->npcs);airborne_receipt.assigned=airborne_receipt.active;
     scene_corpse_lifetime_checkpoint_assign(corpses);
     scene_turret_checkpoint_assign(turrets);
     scene_turret_retirement_checkpoint_assign_deferred(generated);
@@ -380,6 +385,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
 #endif
+    if(status&&airborne_receipt.assigned&&world)
+        (void)scene_npc_airborne_restore_abort(world->npcs,&airborne_receipt);
     /* Transient gasp/scope/melee belongs to the replaced timeline only after the load
      * succeeds. Preparation, rejection and storage failure preserve it. */
     if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
