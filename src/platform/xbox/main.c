@@ -43,6 +43,10 @@ static rf_preview_mesh door_mesh;
 static uint32_t door_capacity;
 rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,campaign_scene_start,campaign_frame_limit;
+/* Opt-in tester package: the ordinary authored campaign and live controller
+ * path, with no injected input, level override, event or inventory changes.
+ * The packager admits only stock assets and this marker in its separate disc. */
+static uint32_t tester_profile;
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 uint32_t rf_xbox_event_handoff_probe[2]; /* live refs and pending state after return / after dispatch */
@@ -742,8 +746,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     }
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     if(rf_scene_vehicle_enabled){status=rf_scene_vehicle_test_place(level);if(status){if(stream_flag)fclose(stream_flag);return status;}}
-    rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;
-    if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
+    rf_scene_follow_level_exits=(tester_profile || stream_flag!=NULL) && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;
+    if(tester_profile || stream_flag){if(stream_flag)fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
     else if(rf_scene_swim_test_enabled)status=rf_scene_set_campaign_spawn(level);
     else status=rf_scene_preview_camera(level,9858);
     if(status)return status;
@@ -768,11 +772,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     stream_flag=fopen("D:\\actor-turn.flag","rb");rf_scene_actor_turn_enabled=stream_flag!=NULL;
     if(stream_flag){fclose(stream_flag);rf_scene_actor_look_enabled=1;rf_scene_actor_eye_enabled=1;actor_follow_preview=1;rf_scene_actor_live_enabled=1;rf_scene_actor_drive(1);actor_body_preview=1;}
     stream_flag=fopen("D:\\player-control.flag","rb");
-    if(stream_flag) {
-        uint32_t limit=0;FILE *frames;fclose(stream_flag);
-        frames=fopen("D:\\player-control-frames.txt","rb");
+    if(tester_profile || stream_flag) {
+        uint32_t limit=0;FILE *frames;if(stream_flag)fclose(stream_flag);
+        frames=tester_profile?NULL:fopen("D:\\player-control-frames.txt","rb");
         if(frames){int scanned=fscanf(frames,"%u",&limit);fclose(frames);if(scanned!=1 || limit>60000)return RF_FORMAT;}
-        player_replay=fopen("D:\\player-replay.bin","rb");
+        player_replay=tester_profile?NULL:fopen("D:\\player-replay.bin","rb");
         memset(rf_player_replay_diagnostic,0,sizeof(rf_player_replay_diagnostic));
         if(player_replay) {
             if(rf_scene_replay_header(player_replay,&limit,&player_replay_size)){player_input_close();return RF_FORMAT;}
@@ -797,7 +801,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     printf("SCENE_DIAGNOSTIC_CHECKSUMS %u\n",rf_scene_diagnostic_checksums_enabled);
     if(rf_scene_actor_live_enabled) {
         stream_flag=fopen("D:\\campaign-spawn.flag","rb");
-        if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
+        if(tester_profile || stream_flag){if(stream_flag)fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
         else {rf_scene_set_campaign_spawn(NULL);status=rf_scene_preview_route_camera(level,9858);}
         if(status){if(player_controls){rf_scene_set_input(NULL,NULL,0);player_input_close();}return status;}
     }
@@ -1079,6 +1083,12 @@ int main(void)
     record_fp_control(1);
     rf_diagnostic[2] = 1;
     XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+    {FILE *profile=fopen("D:\\tester-profile.flag","rb");
+     if(profile){char value[8];int valid=fread(value,1,8,profile)==8 &&
+         !memcmp(value,"RFTEST1\n",8) && fgetc(profile)==EOF;fclose(profile);
+         if(!valid){rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_FORMAT);
+             debugPrint("Invalid tester launch profile.\n");for(;;)Sleep(1000);}
+         tester_profile=1;}}
     {FILE *test=fopen("D:\\model-skin-test.bin","rb");if(test){fclose(test);rf_model_skin_fixture("D:\\model-skin-test.bin","D:\\",rf_model_skin_test);for(;;)Sleep(1000);}}
     {FILE *test=fopen("D:\\model-collision-test.bin","rb");if(test){fclose(test);rf_model_collision_fixture("D:\\model-collision-test.bin","D:\\",rf_model_collision_test);for(;;)Sleep(1000);}}
     {FILE *test=fopen("D:\\particle-view.flag","rb");if(test){fclose(test);rf_scene_particle_view_enabled=1;}}
@@ -1087,16 +1097,28 @@ int main(void)
       if(test){fclose(test);rf_xbox_particle_pixel_test();for(;;)Sleep(1000);} }
 
     memory.Length = sizeof(memory);
-    debugPrint("Red Faction reconstruction - archive diagnostic\n");
-    debugPrint("Not a playable game. Stock 64 MiB target.\n");
+    if(tester_profile){
+        debugPrint("Red Faction reconstruction - tester campaign\n");
+        debugPrint("Stock 64 MiB. Starting Live Mines with live controls.\n");
+    }else{
+        debugPrint("Red Faction reconstruction - archive diagnostic\n");
+        debugPrint("Not a playable game. Stock 64 MiB target.\n");
+    }
     if (NT_SUCCESS(MmQueryStatistics(&memory))) {
         rf_diagnostic[3] = memory.TotalPhysicalPages;
         rf_diagnostic[4] = memory.AvailablePages;
         debugPrint("Physical pages: %lu; available: %lu\n", memory.TotalPhysicalPages, memory.AvailablePages);
+        if(tester_profile && memory.TotalPhysicalPages!=16384){
+            rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_RANGE);
+            debugPrint("Tester profile requires stock 64 MiB RAM.\n");for(;;)Sleep(1000);
+        }
+    }else if(tester_profile){
+        rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_IO);
+        debugPrint("Unable to verify tester memory configuration.\n");for(;;)Sleep(1000);
     }
     OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
     record_fp_control(2);
-    particle_resource_check();
+    if(!tester_profile)particle_resource_check();
     record_fp_control(3);
     result = rf_vpp_open(&archive, "D:\\tables.vpp");
     if (result == RF_OK) {
@@ -1112,7 +1134,7 @@ int main(void)
         OutputDebugStringA("RF_VPP_FAILED\n");
         rf_diagnostic[2] = 0x80000000u | (uint32_t)(-result);
     }
-    if (result == RF_OK) {
+    if (result == RF_OK && !tester_profile) {
         uint32_t animation[8], i;
         result=rf_animation_check("D:\\meshes.vpp","D:\\motions.vpp",animation);
         for (i=0;i<8;++i) rf_diagnostic[48+i]=animation[i];
@@ -1120,7 +1142,7 @@ int main(void)
     }
     if (result == RF_OK) {
         char selection[128]={0},archive_path[80];int selected=0;
-        FILE *selection_file=fopen("D:\\campaign-level.bin","rb");
+        FILE *selection_file=tester_profile?NULL:fopen("D:\\campaign-level.bin","rb");
         if(selection_file) {
             selected=1;
             if(fread(selection,1,sizeof(selection),selection_file)!=sizeof(selection) ||
@@ -1159,7 +1181,7 @@ int main(void)
             int staged_door=door_flag!=NULL;if(door_flag)fclose(door_flag);
             FILE *lift_flag=fopen("D:\\campaign-lift.flag","rb");
             int staged_lift=lift_flag!=NULL;if(lift_flag)fclose(lift_flag);
-            live_mines_door_fixture=!staged_climb && !selected;
+            live_mines_door_fixture=!tester_profile && !staged_climb && !selected;
             int climb_mode=climb_flag && fgetc(climb_flag)=='2'?2:1;
             if(climb_flag)fclose(climb_flag);
             result = selected && staged_climb?RF_FORMAT:
@@ -1250,7 +1272,7 @@ campaign_load_section:
                     rf_diagnostic[30] = resident_geometry.bytes - resident_geometry.tail_offset - 4;
                     if(!campaign_total_frames)debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
                     {
-                        rf_preview_mesh mesh={0};uint32_t scene_mode=0;FILE *scene_flag;
+                        rf_preview_mesh mesh={0};uint32_t scene_mode=tester_profile;FILE *scene_flag;
                         rf_xbox_load_stage=3;result = collision_check(&level);
                         rf_xbox_load_stage=4;
                         if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, RF_CAMPAIGN_LIGHTMAP_BUDGET);
@@ -1327,7 +1349,7 @@ campaign_load_section:
             }
             rf_vpp_close(&archive);
         }
-        if(result==RF_OK)result=group_storage_check(); /* Level archive is closed; owned data remains resident. */
+        if(result==RF_OK && !tester_profile)result=group_storage_check(); /* Level archive is closed; owned data remains resident. */
         if(result==RF_OK && live_mines_door_fixture)result=door_motion_check(); /* Two-key L1S1 fixture, not campaign simulation. */
         record_fp_control(4);
         rf_diagnostic[2] = result == RF_OK ? 5u : 0x80000100u | (uint32_t)(-result);

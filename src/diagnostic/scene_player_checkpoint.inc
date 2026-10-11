@@ -117,6 +117,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
     if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
+    if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
     {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
         if(charge)return charge;}
     if(scene_player_riot_save_pending() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_RANGE;
@@ -231,6 +232,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
 {
     rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_physics_body_state body;rf_physics_sphere seat_scratch;float basis[9],eye[9];const unsigned char *props=NULL;uint32_t prop_bytes=0,modes_present=0;rf_weapon_modes_checkpoint modes={0};scene_clutter_restore_stage *prop_stage=NULL;int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_restore(s,data,bytes);
+    if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
     status=scene_continuous_charge_checkpoint_standalone();if(status)return status;
     status=scene_checkpoint_dispatch_validate(data,bytes,s);if(status)return status;
     status=scene_checkpoint_player_catalog_mode(&catalog,bytes>=8 && ((const unsigned char *)data)[4]==5);if(status)return status;
@@ -284,6 +286,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     rf_scene_player_checkpoint_state[1]=1;rf_scene_player_checkpoint_state[5]=candidate.rfds_bytes;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;
     scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();
+    scene_player_rocket_lock_reset(s,!!player_input.alt_fire);
     printf("PLAYER_CHECKPOINT_LOAD %u %u %u\n",bytes,candidate.rfds_bytes,scene_actor_body.spheres.count);return RF_OK;
 }
 /* RFCP profile 1 admits only settled standing on static world support.

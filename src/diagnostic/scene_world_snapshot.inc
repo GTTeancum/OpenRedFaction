@@ -90,6 +90,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     /* RFEC retains pending modal events, but the active modal owner has no
      * sidecar yet. Never silently resume before its already-applied effect. */
     if(campaign_endgame.phase||campaign_defuse.active){status=RF_NOT_FOUND;goto done;}
+    if(scene_player_rocket_lock_save_pending(s)){part="player_rocket_lock";status=RF_NOT_FOUND;goto done;}
     /* Runtime-only NPC strikes/flights cannot be silently omitted from a save. */
     if(scene_robot_death_save_pending()){part="robot_death_pending";status=RF_NOT_FOUND;goto done;}
     if(scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()){part="npc_transient_attack";status=RF_NOT_FOUND;goto done;}

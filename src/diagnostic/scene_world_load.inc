@@ -65,6 +65,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
        (stream->terrain&&!scene_world_l1s2_authored_terrain(stream))||
        (!stream->terrain&&(stream->terrain_authored||stream->terrain_publication))||
        stream->terrain_history_count||stream->terrain_publication_serial){status=RF_RANGE;goto done;}
+    /* RFAP has no lock target. Refuse replacing a live guided timeline before
+     * any staged publication; otherwise a later load failure could pair new
+     * ordinary flights with an outgoing slot's guidance target. */
+    if(scene_player_rocket_lock_save_pending(stream)){phase="player_rocket_lock";status=RF_NOT_FOUND;goto done;}
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=64){status=RF_FORMAT;goto done;}
     memset(identity.level,0,64);strcpy(identity.level,campaign_current_level);
@@ -435,7 +439,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         (void)scene_npc_airborne_restore_abort(world->npcs,&airborne_receipt);
     /* Transient gasp/scope/melee belongs to the replaced timeline only after the load
      * succeeds. Preparation, rejection and storage failure preserve it. */
-    if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
+    if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_rocket_lock_reset(stream,!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
     if(!status&&world_published)scene_ai_projectile_checkpoint_flame_finish(projectiles);
     scene_continuous_charge_checkpoint_finish(&charge,!status&&world_published);
     if(flight_locked){

@@ -688,6 +688,7 @@ typedef struct scene_particle_workspace {
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
+#include "scene_player_rocket_lock_types.inc"
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
 static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
 uint32_t rf_scene_vehicle_enabled;
@@ -897,6 +898,7 @@ typedef struct scene_stream {
     scene_pickup_draw_entry *pickup_draw_cache;uint32_t pickup_draw_count,pickup_draw_generation,pickup_draw_campaign_bits;
     const rf_geometry_collision_world *pickup_draw_world;const void *pickup_draw_views;
     rf_weapon_flight rockets[SCENE_ROCKETS];rf_weapon_flight_liquid_state rocket_liquid[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
+    scene_player_rocket_lock_state rocket_lock;uint32_t rocket_targets[SCENE_ROCKETS];
     scene_rocket_visual *rocket_visual,*ripple_visual,*fusion_visual,*fighter_rocket_visual,*laser_visual,*tribeam_visual;rf_level rocket_camera;
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
@@ -931,6 +933,9 @@ typedef struct scene_stream {
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+static void scene_player_rocket_lock_cancel(scene_stream *,uint32_t);
+static void scene_player_rocket_lock_reset(scene_stream *,uint32_t);
+static uint32_t scene_player_rocket_lock_save_pending(const scene_stream *);
 static int scene_player_room_locate(scene_stream *,uint32_t,const float *,rf_collision_room_location *);
 static int scene_driller_damage_source(uint32_t,uint32_t *);
 #define SCENE_DRILLER_PROJECTILE_OWNER 0x08000000u
@@ -11323,6 +11328,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     memset(&combat_trigger,0,sizeof(combat_trigger));combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=(uint32_t)campaign_player_inventory.loaded[campaign_selected_weapon()];rf_scene_combat[6]=0;
     for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
     scene_medic_flight_player_replaced();
+    scene_player_rocket_lock_cancel(scene_actor_collision_owner,!!player_input.alt_fire);
     scene_continuous_charge_reset_player();
     scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
@@ -16340,9 +16346,10 @@ static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapo
             }
     return RF_OK;
 }
+#include "scene_player_rocket_lock.inc"
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
-    uint32_t i;int status;rf_scene_rockets[3]=0;
+    uint32_t i;int status;rf_scene_rockets[3]=0;rf_scene_rocket_lock[9]=0;
     /* Replay frame0 publishes restored state; player simulation also starts at1. */
     status=scene_detached_tick(s,frame?scene_step_seconds:0);if(status){printf("ROCKET_TICK_FAILURE detached %u %d\n",frame,status);return status;}
     status=scene_debris_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE debris %u %d\n",frame,status);return status;}
@@ -16352,10 +16359,13 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
         rf_weapon_flight_event event;rf_weapon_flight_liquid_event movement;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};
+        status=scene_player_rocket_lock_guide(s,i);rf_scene_rocket_lock[11]=(uint32_t)status;if(status)return status;
         status=rf_weapon_flight_step_liquid(s->rockets+i,1.f/60,s->rocket_liquid+i,&policy,scene_rocket_sweep,s,&movement);
         if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i);return status;}
         scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i,s->rockets[i].active,s->rockets[i].position);
         event=movement.terminal;
+        if(!s->rockets[i].active)s->rocket_targets[i]=0;
+        else rf_scene_rocket_lock[9]+=s->rocket_targets[i]!=0;
         if(movement.has_liquid) {
             float left=(float)s->rockets[i].remaining;
             ++rf_scene_rocket_liquid[0];rf_scene_rocket_liquid[1]=s->rocket_liquid[i].query_flags;
@@ -16578,7 +16588,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     scene_conventional_fire_policy conventional={0};scene_handheld_shot handheld={0};
     scene_player_body_shot body_shot={0};
     uint32_t accepted_slot,accepted_profile;int32_t accepted_weapon;
-    uint32_t shotgun_shells=1;
+    uint32_t shotgun_shells=1,rocket_release=0,rocket_target=0;
     if(!empty_request)return RF_RANGE;
     *empty_request=(scene_weapon_empty_request){0,UINT32_MAX,-1,0};
     /* Possession gates player equipment, never the shared combat clock. */
@@ -16587,7 +16597,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         position=mounted_eye;orientation=(const float (*)[3])actor_look.eye_orientation;
     }
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
-    if(!frame){memset(rf_scene_rocket_contacts,0,sizeof(rf_scene_rocket_contacts));dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
+    if(!frame){scene_player_rocket_lock_reset(stream,0);memset(rf_scene_rocket_lock,0,sizeof(rf_scene_rocket_lock));memset(rf_scene_rocket_contacts,0,sizeof(rf_scene_rocket_contacts));dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;impact_sound_random.value=1;memset(rf_scene_impact_audio,0,sizeof(rf_scene_impact_audio));memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
@@ -16801,6 +16811,8 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
             position,orientation[2],&scene_player_riot_alternate_backend,stream);
         if(status)return status;
     }
+    status=scene_player_rocket_lock_input(stream,frame,position,orientation[2],&rocket_release,&rocket_target);
+    rf_scene_rocket_lock[11]=(uint32_t)status;if(status)return status;
     if(scene_driller_active(stream) || scene_turret_player_active() || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==12)return RF_OK;
     if(campaign_equipped_slot==13 && campaign_machine_mode.pending)return RF_OK;
     if(campaign_equipped_slot==16 && stream->undercover && !scene_undercover_mode_can_fire(&stream->undercover->mode))return RF_OK;
@@ -16820,7 +16832,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
      if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15)rules=conventional.trigger;
      uint32_t inhibit=rf_scene_enemy_combat[6] || rf_scene_combat[6] ||
         ((player_input.reload || auto_reload) && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]);
-     status=rf_weapon_trigger_step(&combat_trigger,&rules,campaign_equipped_slot>=13 && campaign_equipped_slot<=15?conventional.held:player_input.fire || alt,inhibit,campaign_equipped_slot==2 && !alt?1:rf_scene_combat[5],&fire);if(status)return status;}
+     status=rf_weapon_trigger_step(&combat_trigger,&rules,campaign_equipped_slot>=13 && campaign_equipped_slot<=15?conventional.held:player_input.fire || alt || rocket_release,inhibit,campaign_equipped_slot==2 && !alt?1:rf_scene_combat[5],&fire);if(status)return status;}
     if(rf_scene_enemy_combat[6]){scene_weapon_empty_audio_forget();return RF_OK;}
     if(rf_scene_combat[6]) {
         if(campaign_equipped_slot==2 && campaign_pistol.reload_drain_seconds>0 &&
@@ -16893,7 +16905,9 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
             campaign_rocket.lifetime,campaign_rocket.collision_radius);
         stream->rocket_liquid[i].query_flags=0x1004u|(campaign_rocket.collision_radius<.05f?0x100u:0);
         memcpy(stream->rocket_basis[i],orientation,36);
-        rf_scene_rockets[7]=(uint32_t)status;if(status)return status;++rf_scene_rockets[0];++rf_scene_rockets[3];
+        rf_scene_rockets[7]=(uint32_t)status;if(status)return status;
+        scene_player_rocket_lock_launch(stream,i,rocket_release?rocket_target:0);
+        ++rf_scene_rockets[0];++rf_scene_rockets[3];
     }
     /* RF.exe425c0c..38 resolves one-shell Shotgun fallback only after fire
      * admission; requested trigger/cooldown above stays unchanged. Effective
@@ -17733,6 +17747,20 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
         status=combat_hud_text(sink,context,170,452,vital,0xff80bfff);if(status)return status;
     }
     } /* Optional original-art owner; procedural fallback above stays live. */
+    if(!vehicle && !mounted && scene_player_rocket_lock_owner(particle_draw_stream) && particle_draw_stream->rocket_lock.active){
+        const scene_player_rocket_lock_state *lock=&particle_draw_stream->rocket_lock;char label[40];
+        if(lock->locked) {
+#ifdef RF_IMAGE_XBOX_NATIVE
+            strcpy(label,"LOCKED - RELEASE LT");
+#else
+            strcpy(label,"LOCKED - RELEASE ALT");
+#endif
+        }else if(lock->target){
+            uint32_t left=lock->lock_due-combat_frame;if(left>SCENE_ROCKET_LOCK_TICKS)left=SCENE_ROCKET_LOCK_TICKS;
+            snprintf(label,sizeof(label),"LOCKING %u%%",100u*(SCENE_ROCKET_LOCK_TICKS-left)/SCENE_ROCKET_LOCK_TICKS);
+        }else strcpy(label,"AIM AT TARGET");
+        status=combat_hud_centered(sink,context,278,label,lock->locked?0xff60ff80:0xffffc060);if(status)return status;
+    }
     if(rf_scene_player_life[2] || rf_scene_enemy_combat[6]) {
         const char *prompt;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -18102,6 +18130,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         /* Depletion/Remote follow-up can select after the scope input tick.
          * Retire the outgoing owner before drawing, without another input edge. */
         scene_scope_owner_reconcile(stream);
+        if(!scene_player_rocket_lock_owner(stream))scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);
         /* Captured outgoing identity survives either successful selection.
          * Start once after combat, with no second camera apply/RNG step here;
          * the next camera pass (normally next tick) first samples this. */
@@ -21084,7 +21113,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             /* The first physics tick must consume initialized cached room/wet
              * state, just as later ticks consume the preceding refresh. */
         }
-        if(campaign_teleport_pending){scene_player_riot_cancel();scene_player_outside_audio_forget();scene_player_impact_relocated();}
+        if(campaign_teleport_pending){scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);scene_player_riot_cancel();scene_player_outside_audio_forget();scene_player_impact_relocated();}
         status=campaign_teleport_begin();if(status)return status;
         /* Save initialized locomotion and pose, not the earlier camera-preparation state. */
         if(campaign_spawn){status=campaign_life_capture();if(status)return status;}
@@ -21456,7 +21485,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         /* All combat, event, impact and liquid callers have returned. A death
          * chain may enqueue more receipts, but never recursively drains. */
         if(campaign_spawn){status=scene_robot_death_tick(stream,frame);if(status)return status;}
-        if(campaign_teleport_pending){scene_player_riot_cancel();scene_player_outside_audio_forget();scene_player_impact_relocated();}
+        if(campaign_teleport_pending){scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);scene_player_riot_cancel();scene_player_outside_audio_forget();scene_player_impact_relocated();}
         status=campaign_teleport_begin();if(status)return status;
         step_profile_mark(5,&step_clock);
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;

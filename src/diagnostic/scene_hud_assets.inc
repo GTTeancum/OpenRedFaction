@@ -123,7 +123,9 @@ static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uin
        (mounted||vehicle_reticle||(!vehicle&&campaign_equipped_slot!=2&&
         campaign_equipped_slot!=5&&campaign_equipped_slot!=9&&campaign_equipped_slot!=11))){
         /* Installed APC Minigun/APC Rocket/Jeep Gun all name reticle.tga. */
-        uint32_t id=!vehicle&&!mounted&&campaign_equipped_slot==6&&!scene_scope.active?RF_HUD_RETICLE_SCOPE:
+        uint32_t id=!vehicle&&!mounted&&campaign_equipped_slot==4&&
+            particle_draw_stream->rocket_lock.active&&particle_draw_stream->rocket_lock.locked?RF_HUD_RETICLE_LOCK:
+            !vehicle&&!mounted&&campaign_equipped_slot==6&&!scene_scope.active?RF_HUD_RETICLE_SCOPE:
             !vehicle&&!mounted&&(campaign_equipped_slot==4||campaign_equipped_slot==12)?RF_HUD_RETICLE_ROCKET:RF_HUD_RETICLE;
         rf_hud_sprite sprite;status=rf_hud_assets_sprite(a,id,&sprite);if(status)return status;
         if(vehicle)rf_hud_vehicle_diagnostic[6]=id;

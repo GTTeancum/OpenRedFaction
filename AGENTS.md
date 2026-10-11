@@ -56,3 +56,5 @@
 - User update (2026-10-08): Prioritize decompilation/source reconstruction and code writing; consolidate testing into one parent-coordinated batch per hour rather than testing each implementation slice. Helpers must not independently compile, test, launch XEMU, or create new per-slice gameplay fixtures. Report newly written code as unverified until the scheduled batch.
 
 - User update (2026-10-08,13:45 UTC): Vehicles are complete for the current first-playable scope; promotion, rider and APC AI refinements do not justify delaying objectives/level progression. Freeze already-written vehicle changes for the hourly compile and prioritize playable completion over perfection.
+
+- User update (2026-10-11,19:09 UTC): Broad first-playable system functionality and tester readiness take priority over tiny checks, exhaustive source/provenance reviews and retail polish. Sweep and integrate substantial gameplay gaps; defer minor defects for testers. The weapons-in-two-hours remark was an example of desired pace, not a deadline or weapons-only priority. Keep essential save/data protection, stock64 limits and honest results; parent retains one hourly Xbox batch.

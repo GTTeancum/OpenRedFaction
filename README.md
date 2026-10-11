@@ -1,5 +1,17 @@
 # Red Faction reconstruction for Original Xbox and PC
 
+## Current first-playable work (October 11, 2026)
+
+The opt-in stock-64-MiB Xbox tester package (`bash tools/build-xbox.sh --tester`)
+starts the authored campaign with live controls, audio and level transitions.
+Its first combined build/boot validation is pending. The ordinary build remains
+a diagnostic package. The broad source sweep covers all 17 player equipment
+slots, the player interaction loop and mission event/progression owners; the
+new Rocket hold-lock/release alternate is integrated but not yet runtime-tested.
+See [tester readiness and actual blockers](docs/TESTER-READINESS.md) and
+[launch/controls](docs/XBOX-TESTER-LAUNCH.md). Older progress below is historical.
+
+
 Work in progress: shared C/C++ reconstruction targeting a stock 64 MiB Xbox
 through NXDK, with a maintained 32-bit PC build. Single-player comes first and
 visual quality must meet the PS2 version. **Full campaign play remains unfinished.**

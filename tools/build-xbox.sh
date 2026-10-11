@@ -3,6 +3,11 @@ set -euo pipefail
 export NXDK_DIR="${NXDK_DIR:-/c/nxdk}"
 export PATH="$NXDK_DIR/bin:/clang64/bin:/mingw64/bin:/usr/bin:$PATH"
 root="$(cd "$(dirname "$0")/.." && pwd)"
+# Explicit tester packaging is separate from every existing diagnostic recipe.
+if [[ "${1:-}" == "--tester" ]]; then
+    shift
+    exec bash "$root/tools/build-xbox-tester.sh" "$@"
+fi
 mkdir -p "$root/build/xbox"
 profile="${RF_GEOMOD_EXPANDED_PROFILE:-0}"
 case "$profile" in 0|1) ;; *) echo "RF_GEOMOD_EXPANDED_PROFILE must be 0 or 1" >&2; exit 1 ;; esac

@@ -147,6 +147,7 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
 {
     unsigned char *p=output;uint32_t i,j,count=0,uid,fusion_count=0,charge_count=0;int status;
     if(!stream||!output||!written)return RF_RANGE;
+    if(scene_player_rocket_lock_save_pending(stream))return RF_NOT_FOUND;
     status=scene_continuous_charge_checkpoint_capture(stream,NULL,&charge_count);if(status)return status;
     /* Save-only rejection, before touching the output. RFAP1..5 cannot name
      * Drone Missile or Laser, and prepare/restore must not inherit this live guard. */

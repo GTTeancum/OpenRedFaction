@@ -385,7 +385,9 @@ Glass House now exposes the Rocket Launcher after Shotgun in the ordinary
 weapon cycle. Supply/refill includes its authored6loaded/18reserve rounds.
 First-person idle/fire/reload uses the verified resource owner, with existing
 shared camera framing provisionally reused. Normal primary timing, ammo
-consumption and reload operate; alternate lock/homing is not implemented.
+consumption and reload operate. The later staged source-guided alternate
+implementation is documented in `PLAYER-ROCKET-LOCK-FIRST-PASS.md`; its Xbox
+compilation and action runtime are pending.
 Outside explicit DEV mode, the four prior slots/resources remain selected.
 
 A fixed50-entry scene-local flight array launches from the gameplay eye along

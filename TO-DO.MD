@@ -1,4 +1,8 @@
-- Compile and validate the independently reviewed complete bounded guard retreat/ordinary-combat return and RFNC28 continuation; integrated after actual17, all new compilation/gameplay/save/target-memory results pending. USER: compressed whole-disk backup permission remains pending; fresh capacity and changed-game admission are also required before protected saved loading (docs/NPC-GUARD-RETREAT.md).
+- Build and boot the interactive stock64 tester package with authored L1S1/live controls/audio/level following; fresh baseline snapshot boot is user-approved. Rocket lock-on alternate and broad system inventory are integrated, with runtime pending; prioritize actual playable entry over minor defects (docs/TESTER-READINESS.md).
+
+- Compile the integrated tester combat sweep and source-guided Rocket Launcher hold/lock/release alternate; active acquisition/guided-shot save/load refusal is explicit, shared-ammo auto-reload surplus is deferred, and action runtime remains unverified (docs/TESTER-COMBAT-SWEEP.md, docs/PLAYER-ROCKET-LOCK-FIRST-PASS.md).
+
+- Guard retreat/ordinary-combat return and RFNC28 compiled in actual18; bounded changed-read/resource review passed, while gameplay/save behavior remains unverified. USER: compressed whole-disk backup permission remains pending; fresh capacity and changed-game admission are also required before protected saved loading (docs/NPC-GUARD-RETREAT.md).
 
 - Complete guard1 / ordinary 12mm reload and RFNC27 compiled in actual12 stock-profile0 Xbox build. Runtime, protected-save compatibility, whole-stack and peak stock-64-MiB validation remain unverified. Selected before/after compiler evidence is preserved; see docs/HOURLY-20261011-1200.md and docs/NPC-ORDINARY-RELOAD.md.
 
