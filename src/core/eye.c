@@ -528,6 +528,16 @@ int rf_look_orientation(const float angles[3],float orientation[9])
     if(fabsf(angles[0])>1.5707963705062866f || fabsf(angles[1])>6.2831854820251465f)return RF_RANGE;
     return look_orientation_calculate(angles,orientation);
 }
+int rf_ordinary_eye_orientation(const float body_angles[3],const float eye_angles[3],float output[9])
+{
+    float combined[3];uint32_t i;
+    if(!body_angles || !eye_angles || !output)return RF_RANGE;
+    for(i=0;i<3;++i){
+        if(!isfinite(body_angles[i]) || !isfinite(eye_angles[i]))return RF_FORMAT;
+        combined[i]=(float)((double)body_angles[i]+eye_angles[i]);
+    }
+    return look_orientation_calculate(combined,output);
+}
 int rf_ordinary_motion_commit(rf_ordinary_motion_state *state,uint32_t class_flags,float dt)
 {
     rf_ordinary_motion_state v;float combined[3];uint32_t i;int status;

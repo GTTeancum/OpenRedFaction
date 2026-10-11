@@ -87,6 +87,13 @@ int rf_eye_angles_step(rf_eye_angle_state *state,uint32_t class_flags,float dt);
  * Angles include offset894+87c and offset89c+884; yaw is not applied here.
  * Finite nondegenerate axes required. Errors preserve output; alias allowed. */
 int rf_eye_physics_orientation(const float body[9],const rf_eye_angle_state *state,float output[9]);
+/*49d0a0 ordinary committed eye matrix: add body angles and eye87c with
+ * one binary32 store per component, then use original4a0d70. Includes eye
+ * yaw; finite roll is accepted but ignored by4a0d70. No eye step, offset894,
+ * clamp, wrap, contact or publication. The combined-angle domain matches
+ * ordinary commit, not rf_look_orientation's narrower body-angle domain.
+ * Errors preserve output; output may alias either input. */
+int rf_ordinary_eye_orientation(const float body_angles[3],const float eye_angles[3],float output[9]);
 typedef struct rf_angular_prediction {
     float body_delta[3],next_angles[3],orientation[9],next_orientation[9],eye_delta[3];
 } rf_angular_prediction;

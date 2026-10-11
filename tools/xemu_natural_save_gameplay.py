@@ -37,6 +37,7 @@ SYMBOLS = {
     'rf_scene_world_restore_reject': 8, 'rf_scene_npc_restore_reject': 6,
     'rf_scene_npc_checkpoint_reject_state': 6,
     'rf_scene_npc_checkpoint_velocity_observation': 128,
+    'rf_scene_npc_checkpoint_airborne_observation': 16,
     'rf_scene_world_snapshot_event_probe': 6,
 }
 LIVE_SYMBOLS = {
@@ -196,12 +197,8 @@ def consumer_checks(guest, recipe, saved, producer, shutdown):
                         tagged_movement_input=tagged_move, actual_shots=end_combat[0], actual_hits=end_combat[1], actual_kills=end_combat[2])
 
 
-def admit_producer(folder, receipt_path, head, build, sha256):
-    """Validate exact producer evidence; receipt is parent-verified remote metadata.
-
-    This function cannot authenticate remote Library objects. The parent must
-    supply returned upload/readback evidence; a local duplicate is insufficient.
-    """
+def read_producer_evidence(folder, head, build, sha256):
+    """Read exact producer provenance for an already admitted source identity."""
     folder = folder.resolve()
     verification_path = folder / 'verification.json'
     manifest_path = folder / 'producer-immutable.json'
@@ -236,6 +233,17 @@ def admit_producer(folder, receipt_path, head, build, sha256):
     demand(saved == verification.get('saved_payload') and saved['sha256'] == manifest.get('payload_sha256') and
            producer['checkpoint_state'][4:7] == [saved['bytes'], manifest.get('generation'), manifest.get('slot')],
            'Producer payload/slot evidence changed')
+    return dict(folder=folder, disk=disk, backup=backup, verification=verification,
+                manifest=manifest, saved=saved, producer=producer,
+                verification_sha256=sha256(verification_path), manifest_sha256=sha256(manifest_path))
+
+
+def admit_producer(folder, receipt_path, head, build, sha256):
+    """Original V1 admission. Current source equality and raw receipt stay required."""
+    admitted = read_producer_evidence(folder, head, build, sha256)
+    folder, manifest = admitted['folder'], admitted['manifest']
+    digest, size = manifest['sha256'], manifest['bytes']
+    manifest_path = folder / 'producer-immutable.json'
     receipt_bytes = receipt_path.read_bytes()
     receipt = json.loads(receipt_bytes)
     demand(receipt.get('kind') == 'RF_NATURAL_SAVE_DURABLE_BACKUP_V1' and
@@ -252,10 +260,8 @@ def admit_producer(folder, receipt_path, head, build, sha256):
                isinstance(artifact.get('sha256'), str) and len(artifact['sha256']) == 64 and
                all(c in '0123456789abcdef' for c in artifact['sha256']), 'Invalid durable artifact receipt')
     demand(not (folder / 'consumer-attempt.json').exists(), 'Consumer attempt already reserved; no automatic retry')
-    return dict(folder=folder, disk=disk, backup=backup, verification=verification,
-                manifest=manifest, saved=saved, producer=producer, receipt=receipt,
-                receipt_sha256=hashlib.sha256(receipt_bytes).hexdigest(),
-                verification_sha256=sha256(verification_path), manifest_sha256=sha256(manifest_path))
+    admitted.update(receipt=receipt, receipt_sha256=hashlib.sha256(receipt_bytes).hexdigest())
+    return admitted
 
 
 def main():
@@ -269,7 +275,19 @@ def main():
     parser.add_argument('--consumer-build', type=Path, required=True,
                         help='PASS_XBOX_BUILD manifest with exact source_commit, xbe and map hashes')
     parser.add_argument('--seconds', type=int, default=600)
+    parser.add_argument('--continuation-contract', type=Path,
+                        help='Explicit reviewed consumer-only compatibility contract')
+    parser.add_argument('--continuation-contract-sha256')
+    parser.add_argument('--archive-approval', type=Path)
+    parser.add_argument('--archive-approval-sha256')
+    parser.add_argument('--continuation-receipt-sha256')
     args = parser.parse_args()
+    continuation_values = (args.continuation_contract, args.continuation_contract_sha256,
+                           args.archive_approval, args.archive_approval_sha256,
+                           args.continuation_receipt_sha256)
+    continuation_requested = any(value is not None for value in continuation_values)
+    if continuation_requested and (args.phase != 'consumer' or not all(continuation_values)):
+        parser.error('Continuation requires consumer phase and all five exact continuation arguments')
     if args.phase == 'consumer' and (not args.producer_dir or not args.durable_backup_receipt):
         parser.error('Consumer requires --producer-dir and --durable-backup-receipt')
     if args.phase == 'producer' and (args.producer_dir or args.durable_backup_receipt):
@@ -296,6 +314,13 @@ def main():
         demand(isinstance(value, str) and len(value) == 64 and all(c in '0123456789abcdef' for c in value),
                'Invalid consumer manifest hash: ' + key)
     sys.path.insert(0, str(root / 'tools'))
+    continuation = continuation_module = preadmitted = None
+    if continuation_requested:
+        import xemu_natural_save_continuation as continuation_module
+        continuation = continuation_module.load_context(root,
+            args.continuation_contract, args.continuation_contract_sha256,
+            args.archive_approval, args.archive_approval_sha256,
+            args.durable_backup_receipt, args.continuation_receipt_sha256)
     import xemu_native_world_save as native
     from xemu_fighter_grounded_exit import BorrowedSessionLock, sha256, write_json
     from xemu_original_startup_admission import original_recipe, NATIVE_SYMBOLS, SYMBOLS as STARTUP_SYMBOLS
@@ -372,6 +397,23 @@ def main():
         shutil.copyfile(xbe, folder / 'tested-default.xbe')
         shutil.copyfile(mapping, folder / 'tested-main.map')
         write_json(folder / 'recipe.json', recipe)
+        if continuation is not None:
+            # Explicit continuation admission precedes the first media mutation.
+            # The original caller still uses admit_producer() with current HEAD.
+            original_producer_build = continuation_module.precheck_producer(continuation, args.producer_dir)
+            preadmitted = read_producer_evidence(args.producer_dir,
+                continuation['contract']['producer_source_commit'], original_producer_build, sha256)
+            original_checks = producer_checks(preadmitted['producer'],
+                preadmitted['verification']['recipe'], preadmitted['saved'],
+                preadmitted['manifest']['shutdown'])
+            demand(original_checks == preadmitted['verification']['producer_checks'] and
+                   all(type(value) is bool and value for value in original_checks.values()),
+                   'Original producer checks no longer recompute exactly')
+            preadmitted = continuation_module.admit(continuation, preadmitted, report,
+                                                    consumer_path, folder)
+            report['continuation'] = continuation_module.report_identity(continuation)
+            report['hdd_mode'] = 'Verified remote reconstruction; independent snapshot consumer copy'
+            (folder / 'continuation-contract.json').write_bytes(continuation['contract_bytes'])
         if iso.exists():
             iso.rename(folder / 'original-disc.iso')
             iso_moved = True
@@ -383,6 +425,9 @@ def main():
         (disc / 'campaign-level.bin').write_bytes(
             recipe['archive'].encode('ascii').ljust(64, b'\0') + recipe['level'].encode('ascii').ljust(64, b'\0'))
         def pack_phase(name, consumer_phase):
+            if continuation is not None:
+                demand(continuation_module.protected_unchanged(continuation),
+                       'Qualified raw build/admission evidence changed before pack')
             expected = recording(consumer_phase)
             (disc / 'player-replay.bin').write_bytes(expected)
             for control in ('campaign-quick-actions.bin', 'world-hdd-load.flag', 'world-hdd-save.flag'):
@@ -485,7 +530,8 @@ def main():
             report['consumer_blocker'] = 'PARENT_VERIFIED_DURABLE_BACKUP_REQUIRED'
             write_json(folder / 'verification.json', report)
         else:
-            admitted = admit_producer(args.producer_dir, args.durable_backup_receipt, head, consumer, sha256)
+            admitted = preadmitted if continuation is not None else admit_producer(
+                args.producer_dir, args.durable_backup_receipt, head, consumer, sha256)
             demand(admitted['verification'].get('original_archive_sha256') == report['original_archive_sha256'],
                    'Consumer original assets differ from exact producer assets')
             producer_disk, backup_disk = admitted['disk'], admitted['backup']
@@ -498,23 +544,40 @@ def main():
                 producer_hdd_sha256=digest, producer_hdd_bytes=admitted['manifest']['bytes'])
             report['durable_backup_receipt'] = admitted['receipt']
             report['durable_backup_receipt_sha256'] = admitted['receipt_sha256']
-            (folder / 'parent-durable-backup-receipt.json').write_bytes(args.durable_backup_receipt.read_bytes())
-            (folder / 'producer-verification.json').write_bytes((admitted['folder'] / 'verification.json').read_bytes())
-            (folder / 'producer-immutable.json').write_bytes((admitted['folder'] / 'producer-immutable.json').read_bytes())
+            if continuation is not None:
+                (folder / 'parent-durable-backup-receipt.json').write_bytes(admitted['receipt_bytes'])
+                (folder / 'producer-verification.json').write_bytes(admitted['verification_bytes'])
+                (folder / 'producer-immutable.json').write_bytes(admitted['manifest_bytes'])
+            else:
+                (folder / 'parent-durable-backup-receipt.json').write_bytes(args.durable_backup_receipt.read_bytes())
+                (folder / 'producer-verification.json').write_bytes((admitted['folder'] / 'verification.json').read_bytes())
+                (folder / 'producer-immutable.json').write_bytes((admitted['folder'] / 'producer-immutable.json').read_bytes())
             consumer_disk = folder / 'new-l3s1-consumer.qcow2'
             demand(shutil.disk_usage(folder).free >= producer_disk.stat().st_size + 2*1024**3,
                    'Need isolated consumer copy and 2GiB reserve')
-            shutil.copyfile(producer_disk, consumer_disk)
+            consumer_seed = admitted['consumer_seed'] if continuation is not None else producer_disk
+            shutil.copyfile(consumer_seed, consumer_disk)
             standalone(consumer_disk)
             demand(sha256(consumer_disk) == digest, 'Consumer copy differs from exact new producer')
             snapshot_disks.append((consumer_disk, digest))
             pack_phase('consumer', True)
             require_no_project_xemu(root)
+            attempt = (continuation_module.before_launch(continuation, consumer_disk)
+                if continuation is not None else dict(out=str(folder), source_commit=head,
+                    producer_sha256=digest, backup_receipt_sha256=admitted['receipt_sha256']))
             # Atomically reserve this producer's sole consumer attempt, even
             # across distinct consumer output folders. Never remove on failure.
             with (admitted['folder'] / 'consumer-attempt.json').open('x') as marker:
-                marker.write(json.dumps(dict(out=str(folder), source_commit=head,
-                    producer_sha256=digest, backup_receipt_sha256=admitted['receipt_sha256'])))
+                marker.write(json.dumps(attempt))
+                if continuation is not None:
+                    marker.flush()
+                    os.fsync(marker.fileno())
+            if continuation is not None:
+                directory = os.open(admitted['folder'], os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
             report['attempts'] = report['consumer_attempts'] = 1
             write_json(folder / 'verification.json', report)
             loaded = native.run_guest(folder, 'consumer', consumer_disk, LOAD_FRAMES, args.seconds,
@@ -596,6 +659,9 @@ def main():
             if 'base_hdd_sha256' in report:
                 verify('base_hdd_unchanged', lambda: sha256(base) == report['base_hdd_sha256'])
             verify('manifest_source_remains_clean', clean_source)
+            if continuation is not None:
+                verify('continuation_protected_inputs_unchanged',
+                       lambda: continuation_module.protected_unchanged(continuation))
             for path, digest in protected_disks:
                 verify('protected_unchanged_' + path.name, lambda path=path, digest=digest:
                        sha256(path) == digest and not path.stat().st_mode & 0o222)

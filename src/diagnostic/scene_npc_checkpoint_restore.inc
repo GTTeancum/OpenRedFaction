@@ -416,6 +416,9 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         detail="seat_basis";status=scene_npc_seat_checkpoint_basis(seats,rows+i,e->basis,&seated);if(status)goto fail;
         if(seated&&rows[i].airborne.present){status=RF_FORMAT;goto fail;}
         if(rows[i].drone.kind)memcpy(e->look_basis,e->basis,36); /* Canonical ordinary eye, including retired look-only state. */
+        else if(rows[i].airborne.present){
+            status=rf_ordinary_eye_orientation(angles,rows[i].eye_angles,e->look_basis);if(status)goto fail;
+        }
         else {rf_eye_angle_state eye_angles={0};
          memcpy(eye_angles.angles_87c,rows[i].eye_angles,12);
          status=rf_eye_physics_orientation(e->basis,&eye_angles,e->look_basis);if(status)goto fail;}
@@ -689,7 +692,7 @@ static int scene_npc_airborne_restore_identity(const scene_npc_checkpoint_restor
            e->saved.uid!=(uint32_t)campaign_seeds.records.items[e->slot].record.uid||
            e->saved.class_id!=campaign_seeds.items[e->slot].class_index)return RF_FORMAT;
         o=campaign_npc_bodies+e->slot;p=campaign_poses.items+e->slot;
-        status=scene_npc_airborne_identity(e->slot,o);if(status)return status;
+        status=scene_npc_airborne_identity(e->slot,o,NULL);if(status)return status;
         if(o->registration.handle!=e->handle||e->handle!=e->owner_before.registration.handle||
            o->body.allocated_bytes!=e->owner_before.body.allocated_bytes||
            o->body.spheres.items!=e->owner_before.body.spheres.items||

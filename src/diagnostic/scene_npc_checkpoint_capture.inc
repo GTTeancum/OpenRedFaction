@@ -29,6 +29,7 @@ static int scene_npc_checkpoint_reject(uint32_t index,const char *reason,uint32_
 {
     uint32_t hash=2166136261u,bits;float reduced=(float)value;
     memset(rf_scene_npc_checkpoint_velocity_observation,0,sizeof(rf_scene_npc_checkpoint_velocity_observation));
+    memset(rf_scene_npc_checkpoint_airborne_observation,0,sizeof(rf_scene_npc_checkpoint_airborne_observation));
     const unsigned char *text=(const unsigned char *)reason;
     while(*text){hash=(hash^*text++)*16777619u;}
     memcpy(&bits,&reduced,4);
@@ -173,6 +174,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     const rf_campaign_object_record *key;const rf_entity_pose *pose=NULL;
     uint32_t i,slot=o->persistence_slot,controller_uid=0,terminal_dead=0,attack_target_uid=0,attack_target_mode=2,support_uid=0,seated=0;int pending,status;
     rf_npc_checkpoint_flight flight={0};rf_npc_checkpoint_airborne airborne={0};
+    scene_npc_airborne_failure airborne_failure={0};
     rf_level_waypoint_path authored_path={0};uint32_t authored_mode=0;rf_npc_checkpoint_pain pain={0};rf_campaign_actor_route route={0};uint32_t pain_residual_profile=0;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
@@ -353,8 +355,16 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
             }
             if(!support_uid)return scene_npc_checkpoint_reject(index,"support_owner",0,o->support.handle,RF_NOT_FOUND);
         }
-        status=scene_npc_airborne_checkpoint_capture(index,o,&airborne);
-        if(status)return scene_npc_checkpoint_reject(index,"ordinary_airborne",0,o->body.state.flags,status);
+        status=scene_npc_airborne_checkpoint_capture(index,o,&airborne,&airborne_failure);
+        if(status){
+            int rejected=scene_npc_checkpoint_reject(index,"ordinary_airborne",0,o->body.state.flags,status);
+            uint32_t *w=rf_scene_npc_checkpoint_airborne_observation;
+            w[1]=16;w[2]=1;memcpy(w+3,rf_scene_npc_checkpoint_reject_state,24);w[9]=index;
+            w[10]=airborne_failure.site;w[11]=airborne_failure.part;w[12]=airborne_failure.kind;
+            w[13]=airborne_failure.actual;w[14]=airborne_failure.expected;w[15]=o->body.state.flags;
+            w[0]=1; /* Publish format last after the exact current rejection join. */
+            return rejected;
+        }
         for(i=0;i<3;i++){
             if(!airborne.present&&(!isfinite(o->body.state.velocity[i])||fabsf(o->body.state.velocity[i])>.001f)){
                 int rejected=scene_npc_checkpoint_reject(index,"velocity",i,o->body.state.velocity[i],RF_RANGE);
@@ -498,6 +508,7 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
 {
     rf_npc_checkpoint_record row;unsigned char encoded[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX],identity[32]={0};
     uint32_t i,j,n=0,written;int status;
+    memset(rf_scene_npc_checkpoint_airborne_observation,0,sizeof(rf_scene_npc_checkpoint_airborne_observation));
     if(burning_profile>1||!catalog||!count||now<0||now>RF_TIMER_PERIOD||campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.items||!campaign_seeds.records.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;

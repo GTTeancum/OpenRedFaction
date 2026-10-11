@@ -1,3 +1,13 @@
+- Independently reviewed saved-consumer host continuation is integrated without activation; USER: compressed whole-disk backup permission, actual durable reconstruction and final source/hour bindings remain required before native load (docs/SAVED-CONSUMER-CONTINUATION.md).
+
+- Actual10 stock64 Xbox build passed with exact09 artifacts retained by the normal incremental build; no runtime. USER: alternate compressed whole-disk backup approval remains pending before saved continuation (docs/HOURLY-20261011-1000.md).
+
+- Actual09 stock64 Xbox build passed; no runtime while durable-backup authorization remains pending. Qualify exact XBE build metadata difference before future saved-consumer admission (docs/HOURLY-20261011-0900.md).
+
+- Actual08 Xbox build and genuine L3S1 save capture passed; whole saved HDD is preserved locally, but durable raw upload failed and fresh-load consumer did not run. Resolve supported backup before saved continuation (docs/HOURLY-20261011-0800.md).
+
+- Independently reviewed ordinary body-plus-eye orientation reconstruction now joins airborne capture and restore, with a compact failure-only discriminator for any remaining qualifier refusal; source integrated after07, compilation/save outcome pending08 (docs/NPC-AIRBORNE-EYE-CORRECTION.md).
+
 - Actual07 Xbox build compiled complete airborne/RFNC26 ownership, but genuine save120 now fails the new ordinary-airborne qualifier for UID929 before the old velocity guard; diagnose the nested predicate without relaxing admission (docs/HOURLY-20261011-0700.md).
 
 - Actual06 Xbox build and original fresh movement/one-shot check passed; normal save still rejects living guard929 vertical motion, with retained contact face token413 now observed and under exact ownership review (docs/HOURLY-20261011-0600.md).
