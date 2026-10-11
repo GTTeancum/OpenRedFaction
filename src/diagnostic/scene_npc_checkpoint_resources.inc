@@ -28,31 +28,48 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
     uint32_t scratch_budget,uint32_t *added_bytes)
 {
     scene_npc_checkpoint_resource_request *plan=NULL;uint32_t capacity,requests=0,i,j,k,slot,before;
-    uint64_t scratch,missing=0;int status=RF_OK;
+    uint64_t scratch,missing=0;uint32_t live_present,new_present;int status=RF_OK;
     if(!added_bytes||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||
        campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS)return RF_RANGE;
-    if(!count){*added_bytes=0;return RF_OK;}
+    status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&live_present);if(status)return status;
+    new_present=live_present;
+    for(i=0;i<count;i++){
+        if(rows[i].reload_present>1||(!rows[i].reload_present&&(rows[i].reload_weapon||rows[i].reload_remaining)))return RF_FORMAT;
+        new_present|=rows[i].reload_present;
+    }
+    if(!count&&!live_present){*added_bytes=0;return RF_OK;}
     if(!campaign_npc_bodies||!campaign_seeds.items||!campaign_seeds.records.items||!campaign_seeds.classes||
        campaign_seeds.records.count<campaign_npc_body_count||!campaign_npc_motion_data||!campaign_npc_motion_sizes)return RF_RANGE;
-    /* 16 active clips + current/next/override + independent scripted clip.
-     * Unique requests share entries, but allocation stays bounded before use. */
-    capacity=count*20u;scratch=(uint64_t)capacity*sizeof(*plan);
+    /*21 incoming requests:16 slots,3 controller states,script and mapped
+     * logical reload, plus one possible outgoing mapped request per body.
+     * Authenticate old pending before any demand can evict zero-ref payloads. */
+    capacity=count*20u+(new_present?count+campaign_npc_body_count:0u);scratch=(uint64_t)capacity*sizeof(*plan);
     if(scratch>scratch_budget||scratch>SIZE_MAX)return RF_RANGE;
     plan=malloc((size_t)scratch);if(!plan)return RF_IO;
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].combat_reload_pending){
+        const campaign_npc_body *o=campaign_npc_bodies+i;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,
+            o->selection.mapping.skeleton,o->selection.mapping.actions[39]);if(status)goto done;
+    }
     for(i=0;i<count;i++){
         const rf_npc_checkpoint_record *r=rows+i;rf_entity_motion_selection selection;uint32_t found=0,skeleton;
-        if(r->uid==UINT32_MAX||r->retired>1||r->animation_present>1||(i&&rows[i-1].uid>=r->uid)){status=RF_FORMAT;goto done;}
+        if(r->uid==UINT32_MAX||r->retired>1||r->animation_present>1||r->reload_present>1||
+           (!r->reload_present&&(r->reload_weapon||r->reload_remaining))||(i&&rows[i-1].uid>=r->uid)){status=RF_FORMAT;goto done;}
         slot=0;
         for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==r->uid){slot=j;++found;}
         if(found!=1||!campaign_npc_bodies[slot].persistence_registered||
            r->class_id!=campaign_seeds.items[slot].class_index||r->class_id>=campaign_seeds.class_count){status=RF_FORMAT;goto done;}
-        if(r->retired)continue;
+        if(r->retired){if(r->reload_present){status=RF_FORMAT;goto done;}continue;}
         if(!campaign_npc_bodies[slot].registration.view||!campaign_poses.items||slot>=campaign_poses.count){status=RF_RANGE;goto done;}
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,r->class_id,&selection);if(status)goto done;
         if(r->primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,r->class_id,r->primary,&selection);if(status)goto done;}
         skeleton=selection.mapping.skeleton;
         if(skeleton!=campaign_poses.items[slot].skeleton){status=RF_FORMAT;goto done;}
 #define NPC_RESOURCE_ADD(id) do{status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,skeleton,(id));if(status)goto done;}while(0)
+        if(r->reload_present){
+            status=scene_npc_reload_saved(slot,r,&selection,0,NULL);if(status)goto done;
+            NPC_RESOURCE_ADD(selection.mapping.actions[39]);
+        }
         if(!r->animation_present){NPC_RESOURCE_ADD(selection.mapping.states[0]);}
         else{
             if(r->playback.completion.active.count>16||r->script_animation.active>1||r->controller.override_enabled>1){status=RF_FORMAT;goto done;}

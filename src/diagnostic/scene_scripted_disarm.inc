@@ -59,7 +59,7 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
     weapon=o->view.weapons[0];owned=scene_scripted_disarm_owned(o);rf_scene_scripted_disarm[9]=(uint32_t)weapon;
     if(weapon< -1 || weapon>=64 || o->view.weapons[1]< -1 || o->view.weapons[1]>=64){status=RF_FORMAT;goto fail;}
     if(weapon==-1 && o->view.weapons[1]==-1 && !owned && !o->combat_burst_remaining &&
-       !o->combat_reload_due && !o->script_once.count && !o->script_shoot.active){
+       !o->combat_reload_due && !o->combat_reload_pending && !o->script_once.count && !o->script_shoot.active){
         status=scene_medic_syringe_delete(o);if(status)goto fail;
         ++rf_scene_scripted_disarm[3];scene_scripted_disarm_sample();return RF_OK;
     }
@@ -101,7 +101,7 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
     /* Ordinary weapon draw/muzzle owners derive their model from these IDs;
      * shared class resources and reusable hand tags must not be destroyed. */
     o->view.weapons[0]=o->view.weapons[1]=-1;
-    o->combat_burst_remaining=o->combat_due=o->combat_reload_due=0;o->combat_reload_weapon=-1;
+    o->combat_burst_remaining=o->combat_due=o->combat_reload_due=0;o->combat_reload_weapon=-1;o->combat_reload_pending=0;
     memset(&o->script_once,0,sizeof(o->script_once));memset(&o->script_shoot,0,sizeof(o->script_shoot));
     if(o->combat_scripted==3)o->combat_scripted=o->combat_target=0;
     ++rf_scene_scripted_disarm[1];rf_scene_scripted_disarm[10]=(uint32_t)quantity;

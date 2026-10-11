@@ -17,7 +17,7 @@ static void scene_npc_retirement_cancel_orders(campaign_npc_body *owner)
     memset(&owner->script_animation,0,sizeof(owner->script_animation));
     owner->navigation.retained.count=0;owner->controller_handle=0;
     owner->combat_alert=owner->combat_due=owner->combat_burst_remaining=0;
-    owner->combat_reload_due=0;owner->combat_reload_weapon=-1;
+    owner->combat_reload_due=0;owner->combat_reload_weapon=-1;owner->combat_reload_pending=0;
     owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;
     owner->ai_mode.action_280=owner->view.action_520=1;
     scene_medic_flight_retire(owner);

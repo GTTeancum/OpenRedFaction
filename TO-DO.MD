@@ -1,3 +1,7 @@
+- Complete guard1 / ordinary 12mm reload and RFNC27 compiled in actual12 stock-profile0 Xbox build. Runtime, protected-save compatibility, whole-stack and peak stock-64-MiB validation remain unverified. Selected before/after compiler evidence is preserved; see docs/HOURLY-20261011-1200.md and docs/NPC-ORDINARY-RELOAD.md.
+
+- Actual11 stock-profile0 Xbox build passed, retaining exact09 artifacts; no runtime. Native saved continuation remains gated on alternate backup approval and verified durability (docs/HOURLY-20261011-1100.md).
+
 - Independently reviewed saved-consumer host continuation is integrated without activation; USER: compressed whole-disk backup permission, actual durable reconstruction and final source/hour bindings remain required before native load (docs/SAVED-CONSUMER-CONTINUATION.md).
 
 - Actual10 stock64 Xbox build passed with exact09 artifacts retained by the normal incremental build; no runtime. USER: alternate compressed whole-disk backup approval remains pending before saved continuation (docs/HOURLY-20261011-1000.md).

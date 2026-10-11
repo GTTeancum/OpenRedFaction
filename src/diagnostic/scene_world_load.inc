@@ -30,6 +30,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_continuous_charge_checkpoint_stage charge={0};
     uint32_t projectile_audio_resume=0,world_published=0,flight_locked=0;
     scene_npc_airborne_restore_receipt airborne_receipt={0};
+    uint32_t reload_transaction=0,storage_close_attempted=0;
+    scene_npc_reload_player_receipt reload_player={0};
+    scene_npc_reload_publication_receipt *reload_receipt=NULL;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_allegiance_stage *allegiance=NULL;
     scene_vehicle_attack_stage *vehicle_attack=NULL;scene_vehicle_ai_stage *vehicle_ai=NULL;
@@ -106,6 +109,21 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(rows_count){rows=malloc(rows_bytes);if(!rows){status=RF_IO;goto done;}}
     /* Resource inspection validates but does not restore the singleton. */
     status=rf_npc_checkpoint_decode_with_rng(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng);if(status)goto done;
+    /* Select the union before residency can reclaim a zero-reference mapped
+     * old reload payload. Invalid claims never fall through to legacy load. */
+    phase="reload_selector";
+    status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_transaction);if(status)goto done;
+    for(i=0;i<rows_count;i++){
+        if(rows[i].reload_present>1||(!rows[i].reload_present&&(rows[i].reload_weapon||rows[i].reload_remaining))){status=RF_FORMAT;goto done;}
+        reload_transaction|=rows[i].reload_present;
+    }
+    if(reload_transaction){
+        uint32_t extra=(uint32_t)(sizeof(reload_player)+sizeof(reload_receipt)+2*sizeof(uint32_t));
+        if(cost>budget||extra>budget-cost||rows_bytes>budget-cost-extra){status=RF_RANGE;goto done;}
+        cost+=extra;phase="reload_current_on_foot";
+        status=scene_npc_reload_player_admit(stream,&reload_player);if(status)goto done;
+    }
+    phase="npc_resources";
     status=scene_corpse_lifetime_checkpoint_admit(corpses,rows,rows_count);if(status)goto done;
     status=scene_npc_checkpoint_resources_require(rows,rows_count,budget-cost-rows_bytes,&added);if(status)goto done;free(rows);rows=NULL;
     v=envelope.sections+RF_WORLD_DESTRUCTION-1;
@@ -291,6 +309,15 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_world_environment_validate(environment);if(status)goto done;
     status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
     status=scene_npc_airborne_restore_begin(world->npcs,&airborne_receipt);if(status)goto done;
+    if(reload_transaction){
+        phase="reload_two_sided_on_foot";
+        status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
+        status=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,gunner!=NULL,turret_player!=NULL);if(status)goto done;
+        phase="reload_publication_begin";
+        if(cost>budget){status=RF_RANGE;goto done;}
+        status=scene_npc_reload_publication_begin(world->npcs,budget-cost,&reload_receipt);if(status)goto done;
+        cost+=scene_npc_reload_publication_bytes(reload_receipt);
+    }
     scene_medic_flight_restore_scope(1);flight_locked=1;
     scene_continuous_charge_restore_scope(1);charge.locked=1;
     /* Parked publication has no callbacks or mutation on rejection. Admit it
@@ -309,6 +336,19 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_clutter_checkpoint_assign(world->clutter);
     if(airborne_receipt.active)phase="airborne_assignment_identity";
     status=scene_npc_airborne_restore_identity(world->npcs,&airborne_receipt,1);if(status)goto done;
+    if(reload_transaction){
+        phase="reload_publication_seal";
+        status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
+        status=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,gunner!=NULL,turret_player!=NULL);if(status)goto done;
+        status=scene_npc_reload_publication_seal(world->npcs,reload_receipt);if(status)goto done;
+        /* Actual native unmount can fail while leaving mounted set. Record
+         * the attempt before calling; neither success nor failure retries it.
+         * Fixture/portable paths cross the same logical publication barrier. */
+        phase="reload_storage_close";storage_close_attempted=1;
+#ifdef RF_IMAGE_XBOX_NATIVE
+        status=scene_world_storage_close(&storage);if(status)goto done;
+#endif
+    }
     scene_npc_checkpoint_restore_assign(world->npcs);airborne_receipt.assigned=airborne_receipt.active;
     scene_corpse_lifetime_checkpoint_assign(corpses);
     scene_turret_checkpoint_assign(turrets);
@@ -383,8 +423,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     rf_scene_world_checkpoint_state[0]=(uint32_t)status;rf_scene_world_checkpoint_state[1]=status?0:bytes;
     rf_scene_world_checkpoint_state[2]=status?0:cost;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    {int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
+    if(!storage_close_attempted){int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
 #endif
+    if(reload_transaction&&status){rf_scene_world_checkpoint_state[0]=(uint32_t)status;
+        rf_scene_world_checkpoint_state[1]=rf_scene_world_checkpoint_state[2]=0;}
     if(status&&airborne_receipt.assigned&&world)
         (void)scene_npc_airborne_restore_abort(world->npcs,&airborne_receipt);
     /* Transient gasp/scope/melee belongs to the replaced timeline only after the load
@@ -417,6 +459,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_vehicle_physics_checkpoint_close(&vehicle_physics);
     scene_vehicle_switch_checkpoint_close(&vehicle_switch);
     scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_turret_generated_checkpoint_close(&generated);scene_npc_seat_checkpoint_close(&seats);
+    scene_npc_reload_publication_close(&reload_receipt);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
 }
 #endif

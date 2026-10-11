@@ -96,4 +96,22 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
     }
     return found==1;
 }
+/* Logical receipt qualification is independent of an action39 slot. The
+ * per-slot decision above supplies positive unfinished ordinary ownership;
+ * script/pain/RFAP slots keep their own established joins. */
+static int scene_npc_reload_saved(uint32_t index,const rf_npc_checkpoint_record *row,
+    const rf_entity_motion_selection *selection,uint32_t resident,uint32_t *deadline)
+{
+    uint32_t span,frame=combat_frame==UINT32_MAX?0:combat_frame;int status;
+    if(!row||row->reload_present>1)return RF_FORMAT;
+    if(!row->reload_present)return row->reload_weapon||row->reload_remaining?RF_FORMAT:RF_OK;
+    if(row->retired||row->dead_pose||!isfinite(row->health)||row->health<=0||
+       (row->flags&(2u|0x4000u))||row->primary<0||row->reload_weapon!=(uint32_t)row->primary||
+       row->combat.reload_remaining||row->combat.reload_weapon||row->ai_mode==13)return RF_FORMAT;
+    status=scene_npc_reload_binding(index,row->class_id,row->primary,&row->inventory,selection,resident,&span);
+    if(status)return status;
+    if(row->reload_remaining>span||frame>UINT32_MAX-row->reload_remaining)return RF_RANGE;
+    if(deadline)*deadline=frame+row->reload_remaining;
+    return RF_OK;
+}
 #endif

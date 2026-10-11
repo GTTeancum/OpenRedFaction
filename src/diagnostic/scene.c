@@ -5077,7 +5077,7 @@ typedef struct campaign_npc_body {
     /* Runtime-only independent Missile wait; full handle prevents slot reuse. */
     uint32_t tankbot_secondary_source;int32_t tankbot_secondary_deadline;
     uint32_t scripted_physics,scripted_physics_seen;
-    uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
+    uint32_t combat_reload_pending,combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
@@ -5807,7 +5807,7 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
             scene_medic_supersede(owner);
             owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
             owner->combat_navigation_due=owner->combat_due=owner->combat_burst_remaining=owner->combat_reload_due=0;
-            owner->combat_reload_weapon=-1;}
+            owner->combat_reload_pending=0;owner->combat_reload_weapon=-1;}
         scene_ai_drone_smash_cancel_source(handle);
         scene_patrol_direction(owner);
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
@@ -7354,7 +7354,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
     memcpy(owner->command_714,state.vector_714,12);
     memcpy(owner->body.state.velocity,state.vector_144,12);memcpy(owner->body.state.vector_c8,state.vector_150,12);
-    if(*entered){scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle);scene_npc_loop_audio_remove(handle);status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
+    if(*entered){if(owner->combat_reload_pending){owner->combat_reload_pending=owner->combat_reload_due=0;owner->combat_reload_weapon=-1;}scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle);scene_npc_loop_audio_remove(handle);status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
     return RF_OK;
 }
 
@@ -12196,6 +12196,7 @@ done:
 #include "scene_ai_tankbot_primary.inc"
 #include "scene_ai_vauss_primary.inc"
 #include "scene_ai_reeper_claw.inc"
+#include "scene_npc_reload_profile.inc"
 #include "scene_ai_reload.inc"
 #include "scene_clutter_enemy_fire.inc"
 #include "scene_ai_actor_ray.inc"
@@ -12297,8 +12298,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         scene_ai_actor_penetration_result actor_result={0};
         float actor_eye[3]={0};
         campaign_single_fire_request *single=owner->script_once.requests;
-        int32_t reload_completed_weapon;
-        status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon);if(status)return status;
+        int32_t reload_completed_weapon;uint32_t reload_qualified;
+        status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon,&reload_qualified);if(status)return status;
         if(owner->medic.pending&&owner->ai_mode.action_280==14)continue;
         if(scene_turret_generated_activation_suppresses(owner->registration.handle)||scene_turret_operator_suppresses(owner->registration.handle)||scene_npc_seat_attached(owner->registration.handle))continue;
         while(owner->script_once.count && frame>single->expires)campaign_script_single_pop(owner,0);
@@ -12458,6 +12459,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 /* Keep completion event2 even when reserve vanished and the
                  * successful transfer was zero. Exhaustion is a later tick. */
                 ready=owner->inventory.loaded[weapon]>0;event=2;status=RF_OK;
+            } else if(owner->combat_reload_pending) {
+                /* Includes due0, future and due-but-suppressed ownership. */
+                ready=event=0;status=RF_OK;
             } else if(owner->combat_reload_due && owner->combat_reload_weapon==weapon &&
                 frame>=owner->combat_reload_due) {
                 /* A due same-weapon reload not admitted by the owner service
@@ -12465,6 +12469,16 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                  * Preserve the ordinary gate's reached ammo error contract. */
                 status=campaign_enemy_ammo_validate(&owner->inventory,selected.ammo,definition,weapon);
                 ready=event=0;
+            }
+            else if(reload_qualified) {
+                /* The exact profile starts only in its target-independent owner.
+                 * Preserve the legacy gate's accepted same-tick mismatch
+                 * cancellation; a new episode can start on the next early
+                 * service, never through descriptor-timed legacy initiation. */
+                status=campaign_enemy_ammo_validate(&owner->inventory,selected.ammo,definition,weapon);
+                if(!status&&owner->combat_reload_due&&owner->combat_reload_weapon!=weapon)owner->combat_reload_due=0;
+                ready=!status&&!owner->combat_reload_due&&owner->inventory.loaded[weapon]>0;
+                event=!status&&!owner->combat_reload_due&&!ready&&owner->inventory.reserve[selected.ammo->ammo_type]==0?3u:0u;
             }
             else status=campaign_enemy_ammo_ready(&owner->inventory,selected.ammo,
                 definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);
@@ -14252,6 +14266,7 @@ static void scene_turret_generated_attack_record(const campaign_npc_body *,const
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
+#include "scene_npc_reload_publication.inc"
 static int scene_ai_projectile_checkpoint_burning_admit(scene_ai_projectile_checkpoint_stage *,scene_npc_checkpoint_restore_stage *);
 #include "scene_mover_checkpoint.inc"
 #include "scene_event_checkpoint.inc"
@@ -14356,6 +14371,7 @@ static int scene_secondary_vehicle_restore_admit(scene_stream *,const scene_worl
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_masako_checkpoint.inc"
+#include "scene_npc_reload_player_decl.inc"
 #include "scene_world_storage.inc"
 #include "scene_world_snapshot.inc"
 #include "scene_world_load.inc"
@@ -17884,6 +17900,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_fighter_checkpoint_live.inc"
 #include "scene_driller_checkpoint_live.inc"
 #include "scene_jeep_gunner_checkpoint.inc"
+#include "scene_npc_reload_player.inc"
 static uint32_t scene_npc_jeep_seat_save_dead_contact(
     const scene_npc_seat_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *,
     const scene_vehicle_checkpoint_record *,uint32_t,uint32_t);

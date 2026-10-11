@@ -44,7 +44,7 @@ static int campaign_enemy_ammo_fallback(uint32_t slot,uint32_t *changed)
     scene_ai_tribeam_cancel_source(owner->registration.handle);scene_ai_cane_cancel_source(owner->registration.handle);scene_ai_spit_cancel_source(owner->registration.handle);
     owner->selection=selection;owner->view.weapons[0]=replacement;
     owner->combat_burst_remaining=owner->combat_due=owner->combat_reload_due=0;
-    owner->combat_reload_weapon=-1;owner->combat_navigation_due=0;
+    owner->combat_reload_weapon=-1;owner->combat_reload_pending=0;owner->combat_navigation_due=0;
     *changed=1;return RF_OK;
 }
 #endif

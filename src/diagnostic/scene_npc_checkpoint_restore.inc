@@ -8,6 +8,7 @@
 typedef int (*scene_npc_checkpoint_place)(void *,const rf_checkpoint_placement *,rf_entity_room_state *,rf_physics_support_contact *);
 typedef struct scene_npc_checkpoint_restore_entry {
     uint32_t slot,handle,registered,flags,controller_handle,attack_target_handle;
+    uint32_t reload_deadline;
     uint32_t unowned_motion_mask; /* Staged only; RFAP may own exact burn pain. */
     uint32_t item_attempted_before;int32_t item_fault_before;rf_campaign_item_drop item_drop_before;
     rf_npc_checkpoint_record saved,before;
@@ -217,6 +218,11 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return scene_npc_checkpoint_restore_failure("owners",UINT32_MAX,UINT32_MAX,RF_RANGE);
     if(!fresh_boot){
+        uint32_t reload_present;
+        status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_present);
+        if(status||reload_present)return scene_npc_checkpoint_restore_failure("standalone_reload_owner",UINT32_MAX,UINT32_MAX,status?status:RF_NOT_FOUND);
+        for(i=0;i<count;i++)if(rows[i].reload_present)
+            return scene_npc_checkpoint_restore_failure("standalone_reload",i,rows[i].uid,RF_NOT_FOUND);
         for(i=0;i<count;i++)if(rows[i].airborne.present)
             return scene_npc_checkpoint_restore_failure("standalone_airborne",i,rows[i].uid,RF_NOT_FOUND);
         for(i=0;i<campaign_npc_body_count;i++)if(scene_npc_airborne_potential(i,campaign_npc_bodies+i))
@@ -476,6 +482,9 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&e->selection);if(status)goto fail;
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
         if(e->selection.mapping.skeleton!=campaign_poses.items[j].skeleton){status=RF_FORMAT;goto fail;}
+        detail="reload_owner";
+        status=scene_npc_reload_saved(j,rows+i,&e->selection,1,&e->reload_deadline);if(status)goto fail;
+        if(rows[i].reload_present&&seated){status=RF_FORMAT;goto fail;}
         detail="pain_owner";
         status=scene_npc_pain_checkpoint_prepare(j,rows+i,&e->selection,now,e->pain_deadlines);if(status)goto fail;
         id=e->selection.mapping.states[0];
@@ -509,9 +518,9 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                 detail="clip";status=scene_npc_checkpoint_restore_clip(skeleton,motion,count);if(status)goto fail;
                 if(!model->resources[motion].looping&&!rows[i].script_animation.active&&!rows[i].dead_pose&&
                    !scene_npc_pain_checkpoint_clip(&rows[i].pain,&e->selection,motion)&&
-                   !((rows[i].combat_alert||rows[i].combat.active)&&
+                   !(!rows[i].reload_present&&(rows[i].combat_alert||rows[i].combat.active)&&
                      (motion==e->selection.mapping.actions[2]||motion==e->selection.mapping.actions[39]))&&
-                   !(rows[i].combat_alert==0&&rows[i].combat.active==0&&
+                   !((rows[i].reload_present||(rows[i].combat_alert==0&&rows[i].combat.active==0))&&
                      !rows[i].retired&&rows[i].health>0&&!(e->flags&2u)&&
                      scene_npc_checkpoint_residual_weapon_clip(j,cls,rows[i].primary,&rows[i].inventory,
                          &e->selection,&rows[i].playback,motion,0))&&
@@ -847,7 +856,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         o->combat_due=o->combat_alert?(combat_frame==UINT32_MAX?30u:combat_frame+30u):0u;
         o->combat_navigation_due=0;o->combat_burst_remaining=0;
         o->combat_scripted=0;o->combat_target=o->combat_alert?campaign_player_object.handle:0;
-        o->combat_reload_due=0;o->combat_reload_weapon=0;
+        o->combat_reload_pending=0;o->combat_reload_due=0;o->combat_reload_weapon=0;
         if(e->saved.combat.active){
             uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame;
             if(e->saved.combat.active==1){
@@ -862,6 +871,10 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             o->combat_reload_weapon=e->saved.combat.reload_weapon;
             campaign_enemy_spread_random.value=e->saved.combat.spread_rng;
             scene_turret_generated_attack_record(o,&e->saved,frame);
+        }
+        if(e->saved.reload_present){
+            o->combat_reload_pending=1;o->combat_reload_due=e->reload_deadline;
+            o->combat_reload_weapon=(int32_t)e->saved.reload_weapon;
         }
         o->controller_handle=e->controller_handle;
         memset(&o->piece_support,0,sizeof(o->piece_support));

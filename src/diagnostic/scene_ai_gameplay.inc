@@ -51,19 +51,25 @@ static int campaign_enemy_ammo_validate(const rf_weapon_inventory *inventory,
  * entity update41e4b0 ->419bc0 does. Keep the existing finite transfer policy;
  * no initiation, cancellation, selection, cadence or presentation here.
  * A successful zero transfer still completes (event2 in the ammo gate). */
-static int campaign_enemy_reload_complete(rf_weapon_inventory *inventory,
+static int campaign_enemy_reload_complete_present(rf_weapon_inventory *inventory,
     const rf_weapon_acquire_definition *ammo,const rf_weapon_primary_definition *definition,
-    int32_t weapon,uint32_t frame,uint32_t *reload_due,const int32_t *reload_weapon,
+    int32_t weapon,uint32_t frame,uint32_t present,uint32_t *reload_due,const int32_t *reload_weapon,
     uint32_t *completed)
 {
     uint32_t transferred;int status;
-    if(!reload_due || !reload_weapon || !completed)return RF_RANGE;
+    if(present>1 || !reload_due || !reload_weapon || !completed)return RF_RANGE;
     *completed=0;
-    if(!*reload_due || *reload_weapon!=weapon || frame<*reload_due)return RF_OK;
+    if((!present && !*reload_due) || *reload_weapon!=weapon || frame<*reload_due)return RF_OK;
     status=campaign_enemy_ammo_validate(inventory,ammo,definition,weapon);if(status)return status;
     status=rf_weapon_reload_transfer(inventory,ammo,weapon,&transferred);if(status)return status;
     *reload_due=0;*completed=1;return RF_OK;
 }
+
+/* Legacy callers intentionally retain positive-deadline ownership only. */
+static int campaign_enemy_reload_complete(rf_weapon_inventory *inventory,
+    const rf_weapon_acquire_definition *ammo,const rf_weapon_primary_definition *definition,
+    int32_t weapon,uint32_t frame,uint32_t *reload_due,const int32_t *reload_weapon,uint32_t *completed)
+{return campaign_enemy_reload_complete_present(inventory,ammo,definition,weapon,frame,0,reload_due,reload_weapon,completed);}
 
 /* Magazine/reload gate for supported NPC firearms. Call every combat tick,
  * before the shot deadline/aim gate; consume one loaded round only once a

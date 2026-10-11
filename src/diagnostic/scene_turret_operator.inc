@@ -59,7 +59,7 @@ static int scene_turret_operator_bind(uint32_t host,uint32_t actor,int32_t tag,i
     if(slot==UINT32_MAX)return RF_RANGE;
     /* No installed Attack/Shoot_At/Once order addresses these operators.
      * Reject an unsupported handoff rather than dropping pending shots. */
-    if(npc->combat_scripted||npc->combat_reload_due||npc->script_shoot.active||npc->script_once.count||
+    if(npc->combat_scripted||npc->combat_reload_due||npc->combat_reload_pending||npc->script_shoot.active||npc->script_once.count||
        npc->script_animation.active||npc->script_move.active)return RF_NOT_FOUND;
     next=npc->ai_mode;
     if(!restoring){status=rf_entity_ai_set_action(&next,13,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;}

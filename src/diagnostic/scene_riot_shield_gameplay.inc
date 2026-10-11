@@ -77,7 +77,7 @@ static int scene_npc_shield_receive(uint32_t slot,const float start[3],const flo
         if(!changed){
             status=campaign_pain_reset_retained(NULL,npc->registration.handle,scene_npc_shields.weapon);if(status)return status;
             npc->view.weapons[0]=-1;npc->combat_burst_remaining=npc->combat_due=npc->combat_reload_due=0;
-            npc->combat_reload_weapon=-1;npc->combat_navigation_due=0;
+            npc->combat_reload_weapon=-1;npc->combat_reload_pending=0;npc->combat_navigation_due=0;
         }
     }
     return RF_OK;

@@ -65,7 +65,7 @@ static int scene_npc_shield_history_restore(void)
             if(!changed && npc->view.weapons[0]==weapon){
                 status=campaign_pain_reset_retained(NULL,npc->registration.handle,weapon);if(status)return status;
                 npc->view.weapons[0]=-1;npc->combat_burst_remaining=npc->combat_due=npc->combat_reload_due=0;
-                npc->combat_reload_weapon=-1;npc->combat_navigation_due=0;
+                npc->combat_reload_weapon=-1;npc->combat_reload_pending=0;npc->combat_navigation_due=0;
             }
         }
     }
