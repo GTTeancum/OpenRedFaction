@@ -1,3 +1,5 @@
+- Water-loop native stop failures now retain full-handle retirement ownership and block replacement/reset/bank teardown with 12 added owner bytes; await parent integration and the sole hourly stock64 compile (docs/WATER-LOOP-RETIREMENT.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

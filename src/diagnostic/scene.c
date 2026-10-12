@@ -2750,8 +2750,9 @@ static int32_t (*campaign_footstep_groups)[10];
 static int scene_player_footsteps_load(rf_vpp *,const void *,uint32_t,const char *);
 static int scene_player_jump_audio_load(const void *,uint32_t,const char *);
 static void scene_player_jump_audio_reset(void);
-static void scene_player_water_audio_reset(void);
-static void scene_player_water_audio_close(void);
+static int scene_player_water_audio_reset(void);
+static int scene_player_water_audio_close(void);
+static int scene_player_water_audio_idle_status(void);
 static void scene_player_outside_audio_forget(void);
 static void scene_player_outside_audio_close(void);
 static void scene_player_outside_audio_reset(void);
@@ -3078,6 +3079,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0,foley_groups,foley_samples,foley_bank_bytes,global_hash=2166136261u;
     rf_vpp_entry foley_entry,entity_entry;void *foley_text=NULL,*entity_text=NULL;
     campaign_foley_registration foley_registration={0};int status;
+    status=scene_player_water_audio_close();if(status)return status;
     memset(rf_scene_foley,0,sizeof(rf_scene_foley));
     memset(rf_scene_npc_pain_groups,0,sizeof(rf_scene_npc_pain_groups));
     scene_npc_landing_audio_reset();
@@ -6470,6 +6472,8 @@ done:
 static void campaign_close_movers(void)
 {
     int closed;
+    closed=scene_player_water_audio_close();
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
     campaign_alpha_close();
     closed=campaign_glare_instances_close();
     if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
@@ -6507,7 +6511,6 @@ static void campaign_close_movers(void)
     rf_entity_motion_catalog_close(&campaign_motion_catalog);
     rf_entity_base_motions_close(&campaign_base_motions);
     rf_entity_skeletons_close(&campaign_skeletons);
-    scene_player_water_audio_close();
     scene_player_outside_audio_close();
     scene_npc_loop_audio_close();scene_turret_audio_close();scene_vehicle_loop_audio_close();
     scene_drone_missile_audio_close();
@@ -21868,6 +21871,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i,saved_direct_resources=0;int status;scene_stream *stream;
+    status=scene_player_water_audio_reset();if(status)return status;
     memset(rf_scene_late_load,0,sizeof(rf_scene_late_load));
     campaign_dry_sweep_invalidate();
     memset(campaign_trigger_contact_cache,0,sizeof(campaign_trigger_contact_cache));
@@ -21909,7 +21913,6 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_tankbot_burst_audio_reset();
     scene_turret_audio_reset();scene_vehicle_loop_audio_reset();
     scene_player_landing_audio_reset();
-    scene_player_water_audio_reset();
     scene_player_outside_audio_reset();
     memset(rf_scene_npc_carry_collision,0,sizeof(rf_scene_npc_carry_collision));
     scene_npc_rotating_fixture_reset();
@@ -23072,6 +23075,7 @@ void rf_scene_session_end(void)
 static int scene_session_idle_status(void)
 {
     if(scene_session_retire_status)return scene_session_retire_status;
+    if(scene_player_water_audio_idle_status())return RF_RANGE;
     if(player_poll || particle_draw_stream || scene_actor_collision_owner ||
        actor_follow_world || campaign_player_object.view || campaign_model_owners ||
        campaign_npc_bodies || campaign_glare_instances || campaign_clutter_bodies ||
