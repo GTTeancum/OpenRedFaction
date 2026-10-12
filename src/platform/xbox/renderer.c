@@ -469,7 +469,7 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
     stream_start_valid=0;
     return RF_OK;
 }
-int rf_xbox_frontend_draw(uint32_t flags,int session_status)
+int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty)
 {
     int status;
     /* World borrowers must have retired before this cold screen. pbkit's
@@ -479,8 +479,23 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status)
     while(pb_busy()) {}
     pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
     pb_fill(0,0,640,480,0xff101018);
-    hud_batch_begin();status=rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status);hud_batch_end();
+    hud_batch_begin();status=rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status,page,selection,difficulty);hud_batch_end();
     if(status)return status;
+    pb_show_front_screen();while(pb_finished()) {}
+    stream_start_valid=0;return RF_OK;
+}
+int rf_xbox_options_menu_draw(uint32_t selection,uint32_t flags,
+    uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent)
+{
+    int status;
+    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
+    pb_fill(0,0,640,480,0xff101018);
+    hud_batch_begin();
+    status=rf_scene_draw_options(scene_hud_present,NULL,selection,flags,
+        sensitivity_percent,invert_y,deadzone_percent);
+    hud_batch_end();if(status)return status;
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }

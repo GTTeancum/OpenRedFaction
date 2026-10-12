@@ -5,6 +5,10 @@
 #include <string.h>
 static SDL_GameController *controller;
 static int initialized;
+/* This owner deliberately outlives controller/session open and close. */
+static rf_xbox_input_options input_options={
+    RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT
+};
 static uint32_t pause_mode,pause_edge,start_held,release_actions,menu_held,menu_edge;
 static uint32_t disconnect_edge,exit_rearm;
 enum {
@@ -14,6 +18,24 @@ enum {
 };
 volatile uint32_t rf_player_input_diagnostic[6]={0x5246494eu};
 volatile uint32_t rf_xbox_input_menu_observation;
+void rf_xbox_input_get_options(rf_xbox_input_options *options)
+{
+    if(options)*options=input_options;
+}
+void rf_xbox_input_set_options(const rf_xbox_input_options *options)
+{
+    rf_xbox_input_options next;
+    if(!options)return;
+    next=*options;
+    if(next.look_sensitivity_percent<RF_XBOX_LOOK_SENSITIVITY_MIN)
+        next.look_sensitivity_percent=RF_XBOX_LOOK_SENSITIVITY_MIN;
+    if(next.look_sensitivity_percent>RF_XBOX_LOOK_SENSITIVITY_MAX)
+        next.look_sensitivity_percent=RF_XBOX_LOOK_SENSITIVITY_MAX;
+    if(next.deadzone_percent>RF_XBOX_STICK_DEADZONE_MAX)
+        next.deadzone_percent=RF_XBOX_STICK_DEADZONE_MAX;
+    next.invert_y=next.invert_y!=0;
+    input_options=next;
+}
 uint32_t rf_xbox_input_pause_pressed(void){return pause_edge;}
 uint32_t rf_xbox_input_connected(void){return controller!=NULL;}
 uint32_t rf_xbox_input_connection_lost(void){return disconnect_edge;}
@@ -22,9 +44,9 @@ void rf_xbox_input_set_paused(uint32_t paused){pause_mode=paused!=0;}
 static void stick(Sint16 raw_x,Sint16 raw_y,float *x,float *y)
 {
     float a=raw_x/(raw_x<0?32768.0f:32767.0f),b=raw_y/(raw_y<0?32768.0f:32767.0f);
-    float length=sqrtf(a*a+b*b),scale;
-    if(length<=.18f){*x=*y=0;return;}
-    scale=(fminf(length,1)-.18f)/(.82f*length);*x=a*scale;*y=b*scale;
+    float length=sqrtf(a*a+b*b),scale,deadzone=input_options.deadzone_percent/100.0f;
+    if(length<=deadzone){*x=*y=0;return;}
+    scale=(fminf(length,1)-deadzone)/((1-deadzone)*length);*x=a*scale;*y=b*scale;
 }
 int rf_xbox_input_open(void)
 {
@@ -101,6 +123,10 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(actions&INPUT_DOWN)menu|=RF_XBOX_MENU_DOWN;
     if(actions&INPUT_JUMP)menu|=RF_XBOX_MENU_ACCEPT;
     if(actions&INPUT_CROUCH)menu|=RF_XBOX_MENU_CANCEL;
+    /* Only D-pad directions edit menu values; shoulders retain their
+     * existing weapon-cycle role without becoming menu controls. */
+    if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_LEFT))menu|=RF_XBOX_MENU_LEFT;
+    if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_RIGHT))menu|=RF_XBOX_MENU_RIGHT;
     /* Hotplug is not a press. Also keep held fire/use/save/menu buttons from
      * becoming fresh actions when a section reload opens its controller. */
     if(attached){menu_held=menu;release_actions=actions;}
@@ -122,7 +148,11 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     input->move[0]=horizontal;input->move[2]=-vertical;
     stick(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_RIGHTX),
           SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_RIGHTY),&horizontal,&vertical);
-    input->look[0]=-vertical;input->look[1]=horizontal;
+    {float sensitivity=input_options.look_sensitivity_percent/100.0f;
+     float pitch=input_options.invert_y?vertical:-vertical;
+     /* Gameplay consumers, including the turret, require normalized axes. */
+     input->look[0]=fmaxf(-1,fminf(1,pitch*sensitivity));
+     input->look[1]=fmaxf(-1,fminf(1,horizontal*sensitivity));}
     input->fire=!!(actions&INPUT_FIRE);input->alt_fire=!!(actions&INPUT_ALT);
     {uint32_t forward=!!(actions&INPUT_NEXT),backward=!!(actions&INPUT_PREVIOUS);
      input->cycle_weapon=forward==backward?0:forward?1:2;}

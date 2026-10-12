@@ -73,20 +73,83 @@ volatile uint32_t rf_xbox_frontend_diagnostic[5];
 /* Per frontend entry: returned polls, neutral/rearmed polls AFTER the latest
  * successful draw, last returned input observation/status, draw calls/returns,
  * last draw status, current boundary (1open,2poll,3draw,4sleep,5loading draw,
- * 6close,7returned). Draw returns include errors. No timing/control policy. */
+ * 6close,7returned,8options). Draw returns include errors. No timing/control policy. */
 volatile uint32_t rf_xbox_frontend_trace[8];
-static int player_frontend_present(uint32_t flags,int session_status)
+/* Page/selection/last accepted New Game difficulty, for bounded native receipt.
+ * Page2 identifies Options; no scene state or input ownership is inferred. */
+volatile uint32_t rf_xbox_frontend_menu[3];
+static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
+{
+    rf_scene_input input;rf_xbox_input_options options,drawn_options={0};
+    uint32_t selection=0,drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
+    int status;
+    *resume=0;
+    for(;;){
+        uint32_t flags=(paused?RF_SCENE_OPTIONS_PAUSED:0)|
+            (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right;
+        int direction;
+        rf_xbox_input_get_options(&options);
+        if(selection!=drawn_selection || flags!=drawn_flags ||
+           options.look_sensitivity_percent!=drawn_options.look_sensitivity_percent ||
+           options.invert_y!=drawn_options.invert_y || options.deadzone_percent!=drawn_options.deadzone_percent){
+            status=rf_xbox_options_menu_draw(selection,flags,options.look_sensitivity_percent,
+                options.invert_y,options.deadzone_percent);if(status)return status;
+            drawn_selection=selection;drawn_flags=flags;drawn_options=options;
+        }
+        Sleep(10);status=rf_xbox_input_poll(context,frame,&input);
+        if(status){if(status==RF_NOT_FOUND&&!paused)continue;return status;}
+        if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
+        if(rf_xbox_input_pause_pressed()){*resume=paused;return RF_OK;}
+        pressed=rf_xbox_input_menu_pressed();
+        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
+            uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
+            if(up!=down)selection=(selection+(down?1:RF_SCENE_OPTIONS_COUNT-1))%RF_SCENE_OPTIONS_COUNT;
+            continue;
+        }
+        left=!!(pressed&RF_XBOX_MENU_LEFT);right=!!(pressed&RF_XBOX_MENU_RIGHT);
+        if(left&&right)continue;
+        direction=right?1:left?-1:0;
+        if(selection==RF_SCENE_OPTIONS_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_OPTIONS_DEFAULTS){
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                options=(rf_xbox_input_options){RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT};
+                rf_xbox_input_set_options(&options);
+            }
+            continue;
+        }
+        if(!direction && !(pressed&RF_XBOX_MENU_ACCEPT))continue;
+        if(!direction)direction=1;
+        if(selection==RF_SCENE_OPTIONS_INVERT)options.invert_y=!options.invert_y;
+        else if(selection==RF_SCENE_OPTIONS_SENSITIVITY){
+            if(direction>0){
+                if(options.look_sensitivity_percent<RF_XBOX_LOOK_SENSITIVITY_MAX)
+                    options.look_sensitivity_percent+=RF_XBOX_LOOK_SENSITIVITY_STEP;
+            }else if(options.look_sensitivity_percent>RF_XBOX_LOOK_SENSITIVITY_MIN)
+                options.look_sensitivity_percent-=RF_XBOX_LOOK_SENSITIVITY_STEP;
+        }else {
+            if(direction>0){if(options.deadzone_percent<RF_XBOX_STICK_DEADZONE_MAX)
+                options.deadzone_percent+=RF_XBOX_STICK_DEADZONE_STEP;}
+            else if(options.deadzone_percent>RF_XBOX_STICK_DEADZONE_MIN)
+                options.deadzone_percent-=RF_XBOX_STICK_DEADZONE_STEP;
+        }
+        rf_xbox_input_set_options(&options);
+    }
+}
+static int player_frontend_present(uint32_t flags,int session_status,
+    uint32_t page,uint32_t selection,uint32_t difficulty)
 {
     int status;
     rf_xbox_frontend_trace[7]=(flags&RF_SCENE_FRONTEND_LOADING)?5:3;
     ++rf_xbox_frontend_trace[4];rf_xbox_frontend_trace[1]=0;
-    status=rf_xbox_frontend_draw(flags,session_status);
+    status=rf_xbox_frontend_draw(flags,session_status,page,selection,difficulty);
     rf_xbox_frontend_trace[6]=(uint32_t)status;++rf_xbox_frontend_trace[5];
     return status;
 }
 static int player_frontend(uint32_t ended,int session_status)
 {
-    rf_scene_input input;uint32_t drawn=UINT32_MAX,i;int status;
+    rf_scene_input input;uint32_t drawn=UINT32_MAX,i,page=RF_SCENE_FRONTEND_MAIN,selection=0;
+    uint32_t difficulty=rf_scene_session_get_difficulty();int status;
     for(i=0;i<8;i++)rf_xbox_frontend_trace[i]=0;
     rf_xbox_frontend_trace[7]=1;
     rf_xbox_frontend_diagnostic[0]=session_status?4:1;
@@ -94,7 +157,8 @@ static int player_frontend(uint32_t ended,int session_status)
     status=rf_xbox_input_open();if(status)return status;
     rf_xbox_input_set_paused(1);
     for(;;){
-        uint32_t flags=ended?RF_SCENE_FRONTEND_ENDED:0;
+        uint32_t flags=ended?RF_SCENE_FRONTEND_ENDED:0,pressed,start;
+        rf_xbox_frontend_menu[0]=page;rf_xbox_frontend_menu[1]=selection;rf_xbox_frontend_menu[2]=difficulty;
         rf_xbox_frontend_trace[7]=2;
         status=rf_xbox_input_poll(NULL,0,&input);
         rf_xbox_frontend_trace[2]=rf_xbox_input_menu_observation;
@@ -103,20 +167,40 @@ static int player_frontend(uint32_t ended,int session_status)
         if(!status && (rf_xbox_frontend_trace[2]&RF_XBOX_MENU_OBS_NEUTRAL) &&
            rf_xbox_frontend_trace[4] && rf_xbox_frontend_trace[4]==rf_xbox_frontend_trace[5] &&
            !rf_xbox_frontend_trace[6])++rf_xbox_frontend_trace[1];
-        /* Back+Start has no session to end here. Retain exit-chord priority,
-         * but never reinterpret a held chord as New Game. */
+        /* Back+Start has no session to end here. Never reinterpret a held
+         * chord as New Game, navigation or an options change. */
         if(status && status!=RF_NOT_FOUND)break;
         if(!rf_xbox_input_connected())flags|=RF_SCENE_FRONTEND_DISCONNECTED;
         if(flags!=drawn){
-            int shown=player_frontend_present(flags,session_status);
+            int shown=player_frontend_present(flags,session_status,page,selection,difficulty);
             if(shown){status=shown;break;}drawn=flags;
         }
-        if(!status && !session_status && rf_xbox_input_connected() &&
-           !rf_xbox_input_connection_lost() && (rf_xbox_input_pause_pressed() ||
-           (rf_xbox_input_menu_pressed()&RF_XBOX_MENU_ACCEPT))){
-            status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK);
-            if(!status){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;}
-            break;
+        if(!status && !session_status && rf_xbox_input_connected() && !rf_xbox_input_connection_lost()){
+            pressed=rf_xbox_input_menu_pressed();start=rf_xbox_input_pause_pressed();
+            if(page==RF_SCENE_FRONTEND_DIFFICULTY && (start || (pressed&RF_XBOX_MENU_CANCEL))){
+                page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;
+            }else if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
+                uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
+                uint32_t count=page==RF_SCENE_FRONTEND_MAIN?2:5;
+                if(up!=down){selection=(selection+(down?1:count-1))%count;drawn=UINT32_MAX;}
+            }else if((pressed&RF_XBOX_MENU_ACCEPT) || (start&&page==RF_SCENE_FRONTEND_MAIN)){
+                if(page==RF_SCENE_FRONTEND_MAIN){
+                    if(!selection){page=RF_SCENE_FRONTEND_DIFFICULTY;selection=difficulty;drawn=UINT32_MAX;}
+                    else {
+                        uint32_t resume=0;
+                        rf_xbox_frontend_menu[0]=2;rf_xbox_frontend_trace[7]=8;
+                        status=player_options_menu(NULL,0,0,&resume);if(status)break;
+                        drawn=UINT32_MAX;
+                    }
+                }else if(selection==4){page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;}
+                else {
+                    status=rf_scene_session_set_difficulty(selection);if(status)break;
+                    difficulty=selection;rf_xbox_frontend_menu[2]=difficulty;
+                    status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,page,selection,difficulty);
+                    if(!status){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;}
+                    break;
+                }
+            }
         }
         rf_xbox_frontend_trace[7]=4;Sleep(10);
     }
@@ -180,6 +264,17 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
         }
         if(!(pressed&RF_XBOX_MENU_ACCEPT))continue;
         if(selection==RF_SCENE_SESSION_RESUME)break;
+        if(selection==RF_SCENE_SESSION_OPTIONS){
+            uint32_t resume=0;
+            status=player_options_menu(context,frame,1,&resume);
+            rf_xbox_pause_diagnostic[3]=(uint32_t)status;
+            if(status){
+                if(status==RF_NOT_FOUND){int shown=player_session_ended_draw();if(shown)return shown;}
+                return status;
+            }
+            if(resume)break;
+            drawn_selection=drawn_flags=UINT32_MAX;continue;
+        }
         if(selection==RF_SCENE_SESSION_SAVE){
             rf_scene_save_button(1);rf_scene_save_button(0);break;
         }

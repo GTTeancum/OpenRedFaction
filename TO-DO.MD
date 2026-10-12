@@ -1,6 +1,8 @@
-- Actual06 second New Game remains unresolved after successful first startup and End Session retirement/reset; narrow frontend readiness diagnostics await the scheduled parent-owned stock64 validation batch (docs/XBOX-FRONTEND-DIAGNOSTICS.md).
+- Controller Options and New Game difficulty are source-integrated: process-retained sensitivity, invert Y, radial deadzone, startup/pause UI and idle-only difficulty selection; await the next hourly stock64 compilation and bounded functional check (docs/XBOX-FRONTEND-OPTIONS.md).
 
-- Xbox tester startup/New Game and End Session re-entry compiled in actual05; actual06 confirmed first startup and End Session retirement/reset, but second New Game timed out and remains unresolved, with no campaign-route testing (docs/XBOX-STARTUP-AND-NEW-GAME.md).
+- Actual08 stationary session re-entry passed through the ordinary End Session menu; actual06/07 failures remain preserved and were consistent with the XEMU Back+Start shortcut collision (docs/XBOX-FRONTEND-DIAGNOSTICS.md).
+
+- Xbox tester startup/New Game and End Session re-entry passed a bounded stationary check in actual08; broader stability and campaign coverage remain with testers (docs/XBOX-STARTUP-AND-NEW-GAME.md).
 
 - NPC shoulder-cannon consumer compiled in actual04: 16 authored heavy mercenary owners, finite shared Fusion flights/reload and original SP AI damage scaling, with explicit live-NPC-flight save refusal; runtime remains unverified (docs/NPC-SHOULDER-CANNON-FIRST-PASS.md).
 

@@ -17559,7 +17559,7 @@ static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,flo
         {39,{4,4,8,0,0,0,0}},{'"',{10,10,0,0,0,0,0}},
         {':',{0,4,4,0,4,4,0}},{'-',{0,0,0,31,0,0,0}},
         {'(',{2,4,8,8,8,4,2}},{')',{8,4,2,2,2,4,8}},
-        {'/',{1,2,2,4,8,8,16}}};
+        {'/',{1,2,2,4,8,8,16}},{'%',{24,25,2,4,8,19,3}}};
     uint32_t n,i,row,col;
     if(particle_draw_stream && particle_draw_stream->hud_assets)
         return scene_hud_text_box(particle_draw_stream->hud_assets,sink,context,RF_HUD_FONT_TEXT,
@@ -21811,6 +21811,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
 #include "scene_late_load_diagnostic.inc"
 /* The cold-session history policy also serves the existing no-transition
  * campaign constructor. Ordinary next-section and save-load paths retain it. */
+static uint32_t scene_session_difficulty=1;
 static void campaign_session_history_reset(void)
 {
     scene_machine_carry_reset();scene_undercover_carry_reset_all();
@@ -21824,7 +21825,7 @@ static void campaign_session_history_reset(void)
     memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));
     memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));
     memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));
-    rf_scene_campaign_countdown.difficulty=1;
+    rf_scene_campaign_countdown.difficulty=scene_session_difficulty;
     memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));
     memset(campaign_pickup_states,0,sizeof(campaign_pickup_states));
     memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
@@ -23036,17 +23037,22 @@ void rf_scene_session_end(void)
     scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=0;
     scene_section_autosave_pending=0;
 }
-int rf_scene_session_reset(void)
+static int scene_session_idle_status(void)
 {
-    /* The caller first ends the stream, detaches input/audio and releases the
-     * renderer. Never discard identity while a callback or failed close may
-     * still reference an owner. This function does not close a live scene. */
     if(scene_session_retire_status)return scene_session_retire_status;
     if(player_poll || particle_draw_stream || scene_actor_collision_owner ||
        actor_follow_world || campaign_player_object.view || campaign_model_owners ||
        campaign_npc_bodies || campaign_glare_instances || campaign_clutter_bodies ||
        campaign_clutter_models || campaign_mover_objects || campaign_passive_vehicles)
         return RF_RANGE;
+    return RF_OK;
+}
+int rf_scene_session_reset(void)
+{
+    /* The caller first ends the stream, detaches input/audio and releases the
+     * renderer. Never discard identity while a callback or failed close may
+     * still reference an owner. This function does not close a live scene. */
+    int status=scene_session_idle_status();if(status)return status;
     /* These small owners intentionally survived ordinary section return for
      * diagnostic/export callers. They have no borrower at a full-session end. */
     rf_physics_body_close(&scene_actor_body);
@@ -23081,6 +23087,16 @@ int rf_scene_session_reset(void)
     memset(rf_scene_section_autosave,0,sizeof(rf_scene_section_autosave));
     rf_scene_follow_level_exits=0;
     return rf_scene_set_campaign_spawn(NULL);
+}
+uint32_t rf_scene_session_get_difficulty(void){return scene_session_difficulty;}
+int rf_scene_session_set_difficulty(uint32_t difficulty)
+{
+    int status;
+    if(difficulty>3)return RF_RANGE;
+    status=scene_session_idle_status();if(status)return status;
+    scene_session_difficulty=difficulty;
+    rf_scene_campaign_countdown.difficulty=difficulty;
+    return RF_OK;
 }
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,

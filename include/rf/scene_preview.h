@@ -667,7 +667,7 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context);
  * it never advances the scene, touches storage or borrows world textures. */
 enum {
     RF_SCENE_SESSION_RESUME,RF_SCENE_SESSION_SAVE,RF_SCENE_SESSION_LOAD,
-    RF_SCENE_SESSION_RESTART,RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_COUNT
+    RF_SCENE_SESSION_RESTART,RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_OPTIONS,RF_SCENE_SESSION_COUNT
 };
 enum {
     RF_SCENE_SESSION_CONFIRM=1u,RF_SCENE_SESSION_DISCONNECTED=2u,
@@ -680,10 +680,19 @@ enum {
     RF_SCENE_FRONTEND_DISCONNECTED=1u,RF_SCENE_FRONTEND_LOADING=2u,
     RF_SCENE_FRONTEND_ENDED=4u
 };
-/* Cold tester front end: one New Game action, no world/image/storage owner.
+enum {RF_SCENE_FRONTEND_MAIN,RF_SCENE_FRONTEND_DIFFICULTY};
+enum {RF_SCENE_OPTIONS_SENSITIVITY,RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,
+    RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_COUNT};
+enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u};
+/* Cold tester frontend has no world/image/storage owner. Selection is local
+ * to the page; difficulty is the last accepted New Game index, 0..3.
  * A nonzero previous status is terminal and must not advertise a retry. */
 int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
-    uint32_t flags,int session_status);
+    uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty);
+/* Draw-only Options page for either cold frontend or suspended pause menu.
+ * All values are owned by the platform input settings, never this renderer. */
+int rf_scene_draw_options(rf_scene_particle_sink sink,void *context,uint32_t selection,
+    uint32_t flags,uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
@@ -874,6 +883,11 @@ int rf_scene_session_restart(void);
  * Clears campaign carry and requests without touching any stored save. Refuses
  * live or incompletely retired owners; section reloads must not call this. */
 int rf_scene_session_reset(void);
+/* Idle-only process-local New Game seed. Cold constructors reuse it, while
+ * section transitions and saved restores keep their existing difficulty owner.
+ * Neither function reads or writes storage. Valid indices are 0..3. */
+int rf_scene_session_set_difficulty(uint32_t difficulty);
+uint32_t rf_scene_session_get_difficulty(void);
 /* Confirmed whole-session exit at the suspended input boundary. Cancels a
  * queued section handoff; normal scene retirement still owns every resource. */
 void rf_scene_session_end(void);
