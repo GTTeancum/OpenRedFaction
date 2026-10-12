@@ -897,6 +897,8 @@ typedef struct scene_stream {
     scene_world_projection_cache world_projection;
     float player_look_rates[3]; /* Actual class+64 for miner/suit/scientist forms. */
     uint32_t clutter_base,clutter_textures;
+    struct scene_monitor_images *monitors;
+    const rf_scene_world_geometry *monitor_world;
     uint32_t syringe_base,syringe_textures;
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken,*pickup_state;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
@@ -2778,67 +2780,7 @@ uint32_t rf_scene_npc_impact_groups[3]; /* classes,owned bytes,binding hash */
 uint32_t rf_scene_npc_pain_groups[3]; /* classes, resident bytes, binding hash */
 uint32_t rf_scene_foley[10]; /* groups,samples,missing,resident,peak,bank count,global hash,ID hash,classes,class hash */
 static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes);
-enum {SCENE_MONITOR_BINDING_LIMIT=64};
-typedef struct scene_monitor_binding {
-    uint32_t screen_uid,camera_uid,raw_value1,authored_header_byte;
-    float refresh_seconds;
-} scene_monitor_binding;
-static scene_monitor_binding campaign_monitor_bindings[SCENE_MONITOR_BINDING_LIMIT];
-static uint32_t campaign_monitor_count;
-uint32_t rf_scene_monitor_bindings[5]; /* screens,with camera,last event,hash,updates */
-static void campaign_monitor_reset(void)
-{
-    memset(campaign_monitor_bindings,0,sizeof(campaign_monitor_bindings));
-    campaign_monitor_count=0;memset(rf_scene_monitor_bindings,0,sizeof(rf_scene_monitor_bindings));
-    rf_scene_monitor_bindings[3]=2166136261u;
-}
-static int campaign_monitor_class(const char *name)
-{return !strcmp(name,"smallscreen") || !strcmp(name,"Mirror01") || !strcmp(name,"Screen03");}
-static int campaign_monitor_binding_valid(const scene_monitor_binding *binding)
-{
-    uint32_t i,screen=0,camera=!binding->camera_uid;
-    if(!isfinite(binding->refresh_seconds)||binding->refresh_seconds<=0)return 0;
-    for(i=0;i<campaign_clutter_records.count;i++)
-        if(campaign_clutter_records.items[i].uid==binding->screen_uid&&
-           campaign_monitor_class(campaign_clutter_records.items[i].class_name)){screen=1;break;}
-    for(i=0;i<campaign_seeds.records.count&&!camera;i++)
-        if(campaign_seeds.records.items[i].record.uid==(int32_t)binding->camera_uid&&
-           !strcmp(campaign_seeds.records.items[i].record.class_name,"camera2"))camera=1;
-    return screen&&camera;
-}
-/* Original 4ba980 visits linked monitor props, then linked camera actors.
- * 412600 updates mode/refresh and 4126a0 retains the first camera. The
- * rendered-image cache and monitor texture remain separate, open work. */
-static int campaign_monitor_state(void *context,const rf_level_event *event,const uint32_t *uids,uint32_t count)
-{
-    uint32_t i,j,k,camera=0,raw_value1,hash=2166136261u;(void)context;
-    if(!event || (count && !uids) || !isfinite(event->values[0]) || count>256)return RF_RANGE;
-    memcpy(&raw_value1,event->values+1,4);
-    for(i=0;i<count && !camera;i++)for(j=0;j<campaign_seeds.records.count;j++)
-        if(campaign_seeds.records.items[j].record.uid==(int32_t)uids[i] &&
-           !strcmp(campaign_seeds.records.items[j].record.class_name,"camera2")){camera=uids[i];break;}
-    for(i=0;i<count;i++)for(j=0;j<campaign_clutter_records.count;j++) {
-        const rf_level_clutter *prop=campaign_clutter_records.items+j;
-        scene_monitor_binding *binding;
-        if(prop->uid!=uids[i] || !campaign_monitor_class(prop->class_name))continue;
-        for(k=0;k<campaign_monitor_count;k++)if(campaign_monitor_bindings[k].screen_uid==prop->uid)break;
-        if(k==campaign_monitor_count){if(k==SCENE_MONITOR_BINDING_LIMIT)return RF_RANGE;
-            memset(campaign_monitor_bindings+k,0,sizeof(*campaign_monitor_bindings));
-            campaign_monitor_bindings[k].screen_uid=prop->uid;++campaign_monitor_count;}
-        binding=campaign_monitor_bindings+k;
-        binding->raw_value1=raw_value1;binding->authored_header_byte=event->header_byte;
-        binding->refresh_seconds=event->values[0]>0?event->values[0]:8.0f;
-        if(!binding->camera_uid)binding->camera_uid=camera;
-        break;
-    }
-    rf_scene_monitor_bindings[0]=campaign_monitor_count;rf_scene_monitor_bindings[1]=0;
-    for(i=0;i<campaign_monitor_count;i++){
-        rf_scene_monitor_bindings[1]+=campaign_monitor_bindings[i].camera_uid!=0;
-        hash=npc_hash_bytes(hash,campaign_monitor_bindings+i,sizeof(*campaign_monitor_bindings));
-    }
-    rf_scene_monitor_bindings[2]=event->uid;rf_scene_monitor_bindings[3]=hash;
-    ++rf_scene_monitor_bindings[4];return RF_OK;
-}
+#include "scene_monitor_state.inc"
 static rf_vpp campaign_audio_archive;
 /* Only reload-capable users are eligible: lazy effects/speech and controller
  * samples. Active software/native borrowers still prevent eviction. */
@@ -18143,6 +18085,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     }else if((stream->campaign_geomod && stream->campaign_geomod->active) ||
              (stream->campaign_wall && stream->campaign_wall->active))terrain_cuts=1;
     render_world=terrain_cuts?&stream->terrain_render:actor_follow_world;
+    stream->monitor_world=render_world;
     /* Original41b0f8..41b183 takes the actor pose;40d88c..40d8bf copies it
      * to the separate camera before40db70 changes camera orientation. Keep
      * this pre-effect pose local, after all existing camera/cutscene choices.
@@ -19944,6 +19887,7 @@ static int scene_model_retain(scene_stream *stream,const rf_model_geometry *geom
     if(!model_backend || material>=stream->materials->count || !stream->materials->items[material].image.rgba)return RF_NOT_FOUND;
     return model_backend(geometry,batch,matrices,bones,view,material,stream->mesh->count);
 }
+#include "scene_monitor_render.inc"
 #include "scene_turret_draw.inc"
 uint32_t rf_scene_turret_draw[4]; /* live/dead submissions,errors,last UID */
 static int scene_turrets_draw(scene_stream *stream,uint32_t frame)
@@ -20112,18 +20056,19 @@ static int scene_clutter_render_family(void *context,uint32_t kind)
         if(lod_index>=resource->lod_count)return RF_FORMAT;lod=resource->lods+lod_index;geometry=&lod->geometry;
         for(batch=0;batch<geometry->batch_count;++batch) {
             const rf_model_draw_batch *draw=geometry->batches+batch;
-            uint32_t start=stream->mesh->count,emitted,slot;
+            uint32_t start=stream->mesh->count,emitted,slot,material;
             if(draw->material==UINT32_MAX)continue;if(draw->material>=last-first)return RF_FORMAT;
             memcpy(&slot,campaign_clutter_materials.items[first+draw->material].record.bytes+0x10,4);
             if(slot>=stream->clutter_textures)return RF_FORMAT;
-            status=scene_model_retain(stream,geometry,batch,NULL,0,&view,stream->clutter_base+slot);
+            material=scene_monitor_material(stream,i,campaign_clutter_materials.items[first+draw->material].record.bytes,stream->clutter_base+slot);
+            status=scene_model_retain(stream,geometry,batch,NULL,0,&view,material);
             if(status==RF_OK){retained=1;++rf_scene_clutter_draw[5];continue;}
             if(status!=RF_NOT_FOUND)return status;
             status=scene_model_scratch_prepare(c->buffers,geometry->batches[batch].vertices);if(status)return status;
             status=rf_model_geometry_render_static_batch(geometry,batch,&view,c->lights,c->attributes,NULL,c->buffers);if(status)return status;
             status=rf_preview_static_model_emit(geometry,batch,c->buffers,stream->npc_indices,stream->npc_pool,&view,c->planes,c->projection,
                 c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+draw->first_triangle,NULL);if(status)return status;
-            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->clutter_base+slot;
+            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=material;
             if(emitted)++rf_scene_clutter_draw[5];
         }
     }
@@ -21255,6 +21200,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5);
         if(profile_clock && profile_active)presentation_clock=profile_clock();
         status=scene_npc_seats_tick(frame,(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD));if(status)return status;
+        scene_monitor_begin(stream,frame);
         status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status){rf_scene_profile_stage[1]=201;return status;}
         status=scene_turrets_draw(stream,frame);if(status)return status;
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
@@ -21328,6 +21274,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
          * across frames, repeated presentations, restore, or an error return. */
         if(stream->glare_snapshot)stream->glare_snapshot->valid=0;
         particle_draw_stream=stream;
+#ifndef RF_IMAGE_XBOX_NATIVE
+        rf_scene_update_monitor_images(NULL);
+#endif
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;
         if(stream->glare_snapshot)stream->glare_snapshot->valid=0;presentation_mark(5,&presentation_clock);if(status){rf_scene_profile_stage[1]=206;return status;}
@@ -22132,6 +22081,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.bolt_state=campaign_bolt_state;
             campaign_triggers.monitor_state=campaign_monitor_state;
+            campaign_triggers.monitor_force=campaign_monitor_force;
             campaign_triggers.shake_player=campaign_shake_player;campaign_triggers.shake_context=NULL;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
@@ -22874,6 +22824,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         scene_turret_operator_reset();
         scene_late_load_mark(74,materials);
         status=scene_npc_seats_open(stream,0);if(status)goto done;
+        scene_monitor_open(stream,materials);
         scene_late_load_mark(80,materials);
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,stream);
@@ -22940,6 +22891,7 @@ done:
     if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}
     rf_level_owned_items_close(&stream->pickups);free(stream->pickup_taken);free(stream->pickup_state);free(stream->pickup_slots);free(stream->pickup_draw_cache);
+    scene_monitor_close(stream);
     free(stream->npc_memory);free(stream->npc_indices);free(stream->npc_pool);
     rf_level_visibility_close(&stream->visibility);
     free(stream->light_scratch_memory);

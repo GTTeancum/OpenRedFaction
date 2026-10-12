@@ -753,9 +753,10 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     if(state->type==60) {
-        /* Original4b9af0 invalidates cached monitor render images. This port
-         * has no retained monitor image cache to invalidate; configuration
-         * remains Monitor_State49. Common phase2 still forwards authored links. */
+        /* Original4b9af0 visits linked monitors; 412990 clears validity. */
+        if(action!=1)return;
+        if(c->triggers->monitor_force)c->status=c->triggers->monitor_force(c->triggers->monitor_context,
+            c->event->authored->links,c->event->authored->record.link_count);
         return;
     }
     if(state->type==61) {

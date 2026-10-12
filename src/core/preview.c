@@ -137,7 +137,8 @@ static void generated_corner(const rf_geometry *g,const rf_geomod_mesh_view *gen
 }
 static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility,
-    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3],const float (*vertex_colors)[3],const rf_geometry *authored,const rf_preview_surface_lightmap *bindings)
+    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3],const float (*vertex_colors)[3],const rf_geometry *authored,const rf_preview_surface_lightmap *bindings,
+    rf_preview_triangle_sink sink,void *context)
 {
     uint32_t f, used = 0;
     camera_cache_entry cache[CAMERA_CACHE_COUNT];
@@ -227,14 +228,15 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
             }
             for (i = 1; i + 1 < count; ++i) {
                 unsigned indices[3] = {0, i, i+1};
+                rf_preview_vertex triangle[3];
                 if (used > capacity || capacity-used < 3) {
                     uint32_t failure[8]={1,f,corner,used,capacity,g->faces,mesh->vertices!=NULL,3};
                     memcpy(rf_preview_failure,failure,sizeof(failure));return RF_RANGE;
                 }
                 for (j = 0; j < 3; ++j) {
                     point p = buffers[current][indices[j]];
-                    if (mesh->vertices) {
-                        rf_preview_vertex *out = &mesh->vertices[used];
+                    if (mesh->vertices || sink) {
+                        rf_preview_vertex *out = sink?triangle+j:&mesh->vertices[used];
                         out->position[0] = 320 + p.x / p.z * 320;
                         out->position[1] = 240 - p.y / p.z * 320;
                         /* Shared raster precision: both backends receive the same
@@ -253,6 +255,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
                     }
                     ++used;
                 }
+                if(sink){status=sink(context,triangle);if(status)return status;}
             }
         }
     }
@@ -262,7 +265,29 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
 static int generate(rf_preview_mesh *mesh,const rf_geometry *g,const rf_level *level,uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
 {
-    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL,NULL,NULL,NULL);
+    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+}
+/* Streaming projection borrows already validated scene geometry. No retained
+ * mesh, dispatch flags, visibility state, or main camera is changed. */
+int rf_preview_visit_geometry(const rf_geometry *g,const rf_level *camera,
+    const float *origin,const float matrix[3][3],rf_preview_triangle_sink sink,void *context)
+{
+    rf_preview_mesh mesh={0};
+    if(!g || !camera || !sink || ((origin==NULL)!=(matrix==NULL)))return RF_RANGE;
+    return generate_source(&mesh,g,camera,UINT32_MAX,origin,matrix,0,NULL,
+        NULL,NULL,NULL,NULL,NULL,NULL,sink,context);
+}
+int rf_preview_visit_geomod(const rf_geomod_mesh_view *source,const rf_collision_face *bound,
+    uint32_t materials,const rf_level *camera,const float (*colors)[3],const rf_geometry *authored,
+    const rf_preview_surface_lightmap *bindings,const float *origin,const float matrix[3][3],
+    rf_preview_triangle_sink sink,void *context)
+{
+    rf_geometry metadata={0};rf_preview_mesh mesh={0};
+    if(!source || !camera || !sink || (source->face_count && !bound) ||
+       ((origin==NULL)!=(matrix==NULL)))return RF_RANGE;
+    metadata.faces=source->face_count;metadata.textures=materials;
+    return generate_source(&mesh,&metadata,camera,UINT32_MAX,origin,matrix,0,NULL,
+        source,bound,NULL,colors,authored,bindings,sink,context);
 }
 static int geomod_pose_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
@@ -298,10 +323,10 @@ static int geomod_pose_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
         for(j=0;j<4;j++)if(!isfinite(bound[i].plane[j]))return RF_FORMAT;
     }
     metadata.faces=source->face_count;metadata.textures=material_count;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),origin,matrix,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),origin,matrix,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings,NULL,NULL);
     if(status)return status;
     next.vertices=mesh->vertices;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),origin,matrix,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),origin,matrix,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings,NULL,NULL);
     if(status)return status;
     next.bytes=next.count*sizeof(rf_preview_vertex);*mesh=next;return RF_OK;
 }
@@ -552,7 +577,7 @@ static int preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
     const rf_model_projection *view,const rf_model_clip_planes *planes,
     const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
     rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted,
-    const float (*face_planes)[4],const uint8_t (*colors)[3])
+    const float (*face_planes)[4],const uint8_t (*colors)[3],rf_preview_triangle_sink sink,void *context)
 {
     const rf_model_draw_batch *draw;rf_model_triangle_output output;uint32_t n,start;int status;
     if(!geometry || !geometry->batches || batch>=geometry->batch_count || !buffers ||
@@ -573,12 +598,13 @@ static int preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
     if(status)return status;
     if(output.index_count%3)return RF_FORMAT;
     for(n=0;n<output.index_count;++n)if(indices[n]>=output.vertex_count)return RF_FORMAT;
-    if(mesh) {
-        if(output.index_count>capacity_bytes/sizeof(rf_preview_vertex)-mesh->count)return RF_RANGE;
-        start=mesh->count;
+    if(mesh || sink) {
+        rf_preview_vertex triangle[3];
+        if(mesh && output.index_count>capacity_bytes/sizeof(rf_preview_vertex)-mesh->count)return RF_RANGE;
+        start=mesh?mesh->count:0;
         for(n=0;n<output.index_count;++n) {
             const uint8_t *v=buffers->vertices[indices[n]];float xy[2],q,uv[2];
-            rf_preview_vertex *p=mesh->vertices+start+n;
+            rf_preview_vertex *p=sink?triangle+n%3:mesh->vertices+start+n;
             memcpy(xy,v,8);memcpy(&q,v+12,4);memcpy(uv,v+24,8);
             if(!isfinite(xy[0]) || !isfinite(xy[1]) || !isfinite(q) || q<=0)return RF_FORMAT;
             p->position[0]=floorf(xy[0]*16)/16;p->position[1]=floorf(xy[1]*16)/16;
@@ -586,8 +612,9 @@ static int preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
             p->color[0]=p->color[1]=p->color[2]=1;
             p->texture[0]=uv[0]*q;p->texture[1]=uv[1]*q;p->texture[2]=q;p->material=draw->material;
             p->lightmap_texture[0]=p->lightmap_texture[1]=0;p->lightmap_texture[2]=q;p->lightmap=UINT32_MAX;
+            if(sink && n%3==2){status=sink(context,triangle);if(status)return status;}
         }
-        mesh->count+=output.index_count;mesh->bytes=mesh->count*sizeof(rf_preview_vertex);
+        if(mesh){mesh->count+=output.index_count;mesh->bytes=mesh->count*sizeof(rf_preview_vertex);}
     }
     *emitted=output.index_count;return RF_OK;
 }
@@ -599,7 +626,7 @@ int rf_preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
     rf_preview_mesh *mesh,uint32_t capacity_bytes,uint32_t *emitted)
 {
     return preview_model_emit(geometry,batch,buffers,indices,pool,view,planes,projection,
-        attributes,mesh,capacity_bytes,emitted,NULL,NULL);
+        attributes,mesh,capacity_bytes,emitted,NULL,NULL,NULL,NULL);
 }
 
 int rf_preview_static_model_emit(const rf_model_geometry *geometry,uint32_t batch,
@@ -611,7 +638,7 @@ int rf_preview_static_model_emit(const rf_model_geometry *geometry,uint32_t batc
 {
     if(!face_planes)return RF_RANGE;
     return preview_model_emit(geometry,batch,buffers,indices,pool,view,planes,projection,
-        attributes,mesh,capacity_bytes,emitted,face_planes,colors);
+        attributes,mesh,capacity_bytes,emitted,face_planes,colors,NULL,NULL);
 }
 
 int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_bytes,
@@ -636,4 +663,16 @@ int rf_preview_update_world_visible(rf_preview_mesh *mesh,uint32_t capacity_byte
             (source<destination+capacity_bytes && destination<source+scratch_bytes))return RF_RANGE;
     }
     return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch,poses,disabled,visibility);
+}
+
+int rf_preview_visit_model(const rf_model_geometry *geometry,uint32_t batch,
+    rf_model_render_buffers *buffers,uint16_t *indices,rf_model_clip_pool *pool,
+    const rf_model_projection *view,const rf_model_clip_planes *planes,
+    const rf_model_clip_projection *projection,const rf_model_render_output *attributes,
+    const float (*face_planes)[4],rf_preview_triangle_sink sink,void *context)
+{
+    uint32_t emitted;
+    if(!sink)return RF_RANGE;
+    return preview_model_emit(geometry,batch,buffers,indices,pool,view,planes,projection,
+        attributes,NULL,0,&emitted,face_planes,NULL,sink,context);
 }

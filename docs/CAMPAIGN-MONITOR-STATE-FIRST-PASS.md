@@ -51,3 +51,10 @@ This is event and association state, not live monitor imagery. Camera actor
 side effects, texture render/cache and monitor material submission remain
 open. A queued type-49 event's post-load firing still needs a live campaign
 fixture beyond the event-codec and binding-restore checks.
+
+2026-10-12 source implementation update: live camera, black/noise modes, linked
+camera cycling, per-placement screen.tga routing and bounded cache ownership
+are now implemented; see [Live monitor imagery](CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+The interval is a camera-cycle timer and type60 invalidates linked screens.
+This update has no independent build/runtime validation; the parent owns the
+next Xbox build/smoke. Existing RFEN rows remain unchanged.

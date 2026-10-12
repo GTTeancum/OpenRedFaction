@@ -600,6 +600,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(model==4) {
         int status;while(pb_busy()) {}
         status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;
+        rf_scene_update_monitor_images(lightmaps);
         __asm__ volatile("sfence" ::: "memory");
     }
     renderer_mark(1,&profile_previous,profiling);

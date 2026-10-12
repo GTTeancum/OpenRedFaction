@@ -1,3 +1,5 @@
+- USER Security monitors: Integrate the live camera/material/cache implementation in the parent's next stock64 Xbox build and short smoke; tester feedback, exact camera-cycle save continuity and secondary effects remain (approximately90%; docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
 
 NPC shoulder-cannon paid flights are now source-integrated with RFAP6 authored-source/candidate ownership joins and shared player/NPC pool continuity. Legacy RFAP1–5 remain supported. Compilation and saved continuation remain unverified; see docs/NPC-FUSION-FLIGHT-SAVE.md.
@@ -480,7 +482,7 @@ Current platform priority (user direction,2026-09-30): Xbox is the sole runtime 
 
 - Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L11S3/L14S3 active saves work on PC/Xbox; L6S3 active save/load now works on PC/Xbox and PC neutral replay reaches full cutscene completion, while bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
 
-- Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
+- Scripted monitor events: Live camera/black/noise imagery, authored camera cycling, per-placement screen materials and a bounded native image cache are implemented; parent Xbox integration, exact cycle save continuity, camera AI side effects and secondary effects remain (docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
 
 - Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; normal Driller play commits both recorded room-8/room-121 cuts, then RFDS3 saves/reloads and drives onward on PC/Xbox, while broader repeated cuts, startup reliability and visual content remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 

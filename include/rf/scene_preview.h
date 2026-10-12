@@ -108,6 +108,10 @@ int rf_scene_campaign_player_set(const rf_campaign_player_state *);
  * Moving-solid/GeoMod routing and ray shadows remain open. No frame allocation. */
 int rf_scene_prepare_lightmaps(rf_lightmaps *);
 int rf_scene_update_lightmaps(rf_lightmaps *);
+/* Synchronous secondary camera render/publication after the native GPU fence.
+ * Uses only the current presentation owner; never advances simulation. */
+void rf_scene_update_monitor_images(const rf_lightmaps *);
+extern uint32_t rf_scene_monitor_images[12];
 extern uint32_t rf_scene_lightmap_regeneration[8];
 /* Initial dirty2 fixture:1 follows visibility,2 forces the entire level. */
 extern uint32_t rf_scene_lightmap_regeneration_test;

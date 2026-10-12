@@ -289,6 +289,7 @@ static inline void scene_world_environment_assign(const scene_world_environment_
     campaign_monitor_count=s->monitor_count;
     memcpy(campaign_monitor_bindings,s->monitor_next,sizeof(campaign_monitor_bindings));
     memcpy(rf_scene_monitor_bindings,s->monitor_next_words,sizeof(rf_scene_monitor_bindings));
+    campaign_monitor_restored();
     campaign_blackout_deadline=s->blackout_next;
     /* A quick-load can occur mid-session; the replay frame does not restart. */
     campaign_enemy_sight_phase_offset=(s->sight_next+30-

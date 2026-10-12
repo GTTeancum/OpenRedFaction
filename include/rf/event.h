@@ -435,9 +435,11 @@ typedef struct rf_runtime_triggers {
     /* Bolt_State43 uses authored bolt-emitter UIDs, not registry handles. */
     int (*bolt_state)(void *,const uint32_t *uids,uint32_t count,uint32_t on);
     void *bolt_context;
-    /* Monitor_State49 configures linked screens and their first linked camera on ON. */
+    /* Monitor_State49 configures linked screens and adds linked cameras on ON. */
     int (*monitor_state)(void *,const rf_level_event *,const uint32_t *uids,uint32_t count);
     void *monitor_context;
+    /* Force_Monitor_Update60 invalidates the linked screens on ON. */
+    int (*monitor_force)(void *,const uint32_t *uids,uint32_t count);
     /* Shake_Player18: local camera, authored percent strength and duration. */
     int (*shake_player)(void *,const rf_level_event *,int32_t);
     void *shake_context;

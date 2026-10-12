@@ -20,6 +20,22 @@ typedef struct rf_preview_vertex {
     uint32_t lightmap;
 } rf_preview_vertex;
 typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, bytes; } rf_preview_mesh;
+/* Allocation-free triangle visits for secondary views. Inputs are already
+ * validated, retained scene geometry; callbacks borrow one triangle only for
+ * the call and may abort with an error. No gameplay/visibility dispatch or
+ * global camera changes. Output uses the same 640x480 projected format.
+ * A caller may scale camera X/Y rows to select secondary FOV/aspect. */
+struct rf_preview_surface_lightmap;
+typedef int (*rf_preview_triangle_sink)(void *,const rf_preview_vertex [3]);
+int rf_preview_visit_geometry(const rf_geometry *,const rf_level *,const float *,
+    const float [3][3],rf_preview_triangle_sink,void *);
+int rf_preview_visit_geomod(const rf_geomod_mesh_view *,const rf_collision_face *,uint32_t,
+    const rf_level *,const float (*)[3],const rf_geometry *,const struct rf_preview_surface_lightmap *,
+    const float *,const float [3][3],rf_preview_triangle_sink,void *);
+int rf_preview_visit_model(const rf_model_geometry *,uint32_t,rf_model_render_buffers *,uint16_t *,
+    rf_model_clip_pool *,const rf_model_projection *,const rf_model_clip_planes *,
+    const rf_model_clip_projection *,const rf_model_render_output *,const float (*)[4],
+    rf_preview_triangle_sink,void *);
 /* Project generated terrain through the same world clipping/raster format.
  * bound must be the successful rf_geomod_collision_faces output for this mesh,
  * in unchanged source order. Materials are final shared table slots. Replaces
