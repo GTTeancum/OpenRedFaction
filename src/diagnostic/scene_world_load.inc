@@ -440,6 +440,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     /* Transient gasp/scope/melee belongs to the replaced timeline only after the load
      * succeeds. Preparation, rejection and storage failure preserve it. */
     if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_rocket_lock_reset(stream,!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
+    if(!status&&world_published)scene_npc_use_dialogue_stop();
     if(!status&&world_published)scene_ai_projectile_checkpoint_flame_finish(projectiles);
     scene_continuous_charge_checkpoint_finish(&charge,!status&&world_published);
     if(flight_locked){

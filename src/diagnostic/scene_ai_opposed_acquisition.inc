@@ -124,6 +124,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     if(status==RF_NOT_FOUND)status=campaign_enemy_cane_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_sonar_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND)status=campaign_enemy_spit_select(owner,&campaign_weapon_supply,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_flame_select(owner,&campaign_weapon_supply,&weapon);
     if(status==RF_NOT_FOUND&&((owner->view.weapons[0]==campaign_grenade_id&&scene_grenade_resources)||
        (owner->view.weapons[0]==campaign_rocket_id&&scene_rocket_resources)))status=RF_OK;
     if(status==RF_NOT_FOUND)return RF_OK;if(status)goto fail;

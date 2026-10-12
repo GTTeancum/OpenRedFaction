@@ -27,6 +27,7 @@ static int campaign_enemy_reload_legacy_service(campaign_npc_body *owner,uint32_
     status=campaign_enemy_weapon_select(weapon,ids,campaign_primary,campaign_weapon_supply.definitions,
         campaign_weapon_supply.names.count,&selected);
     if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(weapon,&campaign_weapon_supply,&selected);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_flame_select(owner,&campaign_weapon_supply,&selected);
     /* Rocket uses the same finite magazine gate, but has separate projectile
      * admission in the ordinary scheduler. Preserve that existing boundary. */
     if(status==RF_NOT_FOUND && weapon==campaign_rocket_id && scene_rocket_resources) {

@@ -58,3 +58,5 @@
 - User update (2026-10-08,13:45 UTC): Vehicles are complete for the current first-playable scope; promotion, rider and APC AI refinements do not justify delaying objectives/level progression. Freeze already-written vehicle changes for the hourly compile and prioritize playable completion over perfection.
 
 - User update (2026-10-11,19:09 UTC): Broad first-playable system functionality and tester readiness take priority over tiny checks, exhaustive source/provenance reviews and retail polish. Sweep and integrate substantial gameplay gaps; defer minor defects for testers. The weapons-in-two-hours remark was an example of desired pace, not a deadline or weapons-only priority. Keep essential save/data protection, stock64 limits and honest results; parent retains one hourly Xbox batch.
+
+- User update (2026-10-12, 01:50 UTC): Stop campaign playthrough and encounter-by-encounter route testing. Prioritize substantial operational system implementation; testers own progression and route coverage. Use the single parent-owned hourly stock64 batch for integrated system changes, with only proportional bounded functional checks.

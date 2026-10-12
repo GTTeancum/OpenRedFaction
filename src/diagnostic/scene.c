@@ -690,7 +690,7 @@ typedef struct scene_particle_workspace {
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 #include "scene_player_rocket_lock_types.inc"
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
-static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
+static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_ai_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
@@ -2760,6 +2760,9 @@ static void scene_npc_landing_audio_reset(void);
 static void scene_npc_fatal_audio_load(const void *,uint32_t);
 static void scene_npc_fatal_audio_close(void);
 static void scene_npc_fatal_audio_reset(void);
+static void scene_npc_use_dialogue_load(rf_vpp *,const void *,uint32_t);
+static void scene_npc_use_dialogue_close(void);
+static void scene_npc_use_dialogue_reset(void);
 static int32_t (*campaign_pain_groups)[2];
 static int32_t *campaign_impact_groups,*campaign_squash_groups;
 static int32_t campaign_contact_sound_group=-1;
@@ -3069,6 +3072,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     memset(rf_scene_npc_pain_groups,0,sizeof(rf_scene_npc_pain_groups));
     scene_npc_landing_audio_reset();
     scene_npc_fatal_audio_reset();
+    scene_npc_use_dialogue_reset();
     scene_player_outside_audio_close();
     scene_npc_loop_audio_close();scene_turret_audio_close();scene_vehicle_loop_audio_close();
     scene_drone_missile_audio_close();
@@ -3196,6 +3200,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         }
         scene_npc_landing_audio_load(entity_text,entity_entry.size);
         scene_npc_fatal_audio_load(entity_text,entity_entry.size);
+        scene_npc_use_dialogue_load(&tables,entity_text,entity_entry.size);
         free(entity_text);entity_text=NULL;
         rf_scene_foley[8]=campaign_seeds.class_count;
         rf_scene_foley[9]=npc_hash_bytes(2166136261u,campaign_footstep_groups,campaign_seeds.class_count*sizeof(*campaign_footstep_groups));
@@ -6507,6 +6512,7 @@ static void campaign_close_movers(void)
     free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);campaign_debris_sound_group=-1;
     free(campaign_pain_groups);campaign_pain_groups=NULL;
     scene_npc_fatal_audio_close();
+    scene_npc_use_dialogue_close();
     free(campaign_impact_groups);campaign_impact_groups=NULL;
     free(campaign_squash_groups);campaign_squash_groups=NULL;
     scene_npc_landing_audio_close();
@@ -10655,6 +10661,7 @@ static int32_t campaign_message_voice=-1;
 #include "scene_message_audio.inc"
 #include "scene_medic_action.inc"
 #include "scene_medic_speech.inc"
+#include "scene_npc_use_dialogue.inc"
 #include "scene_script_sound.inc"
 static int scene_script_music(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
@@ -11276,14 +11283,27 @@ static int campaign_ammo_reset(void)
     campaign_ammo_publish();return RF_OK;
 }
 static void scene_death_quickload_request(void);
-static void campaign_life_request_restart(uint32_t frame)
+static void campaign_section_request_restart(void)
 {
     memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
     strcpy(rf_scene_level_transition.level,campaign_current_level);
     rf_scene_level_transition.uid=UINT32_MAX-3u;
     rf_scene_level_transition.pending=1;
     campaign_endgame.restart_requested=1;
+}
+static void campaign_life_request_restart(uint32_t frame)
+{
+    campaign_section_request_restart();
     printf("PLAYER_DEATH_RESTART %s %u\n",campaign_current_level,frame);
+}
+int rf_scene_session_restart(void)
+{
+    if(!campaign_spawn || !rf_scene_follow_level_exits || rf_scene_dev_room_enabled ||
+       !campaign_current_level[0] || rf_scene_level_transition.pending ||
+       rf_scene_quickload_pending())return RF_NOT_FOUND;
+    campaign_section_request_restart();
+    printf("SESSION_RESTART %s %u\n",campaign_current_level,combat_frame);
+    return RF_OK;
 }
 static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 {
@@ -12254,6 +12274,7 @@ done:
 #include "scene_ai_spit_profile.inc"
 #include "scene_ai_sonar_profile.inc"
 #include "scene_ai_extra_weapons.inc"
+#include "scene_ai_flame_profile.inc"
 #include "scene_ai_tankbot_primary.inc"
 #include "scene_ai_vauss_primary.inc"
 #include "scene_ai_reeper_claw.inc"
@@ -12277,6 +12298,8 @@ static void scene_cane_visual_accept(uint32_t,const scene_ai_laser_projectile *,
 #include "scene_cane_flight_audio.inc"
 static void scene_spit_visual_accept(uint32_t,const scene_ai_laser_projectile *,uint32_t);
 #include "scene_ai_spit.inc"
+extern uint32_t rf_scene_ai_flame[8];
+static int scene_ai_flame_fire(scene_stream *,uint32_t,uint32_t,const float *,uint32_t,uint32_t);
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
 static int scene_ai_rocket_launch(campaign_npc_body *,const float *);
 static int scene_ai_laser_launch(campaign_npc_body *,const float *);
@@ -12405,6 +12428,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(status==RF_NOT_FOUND)status=campaign_enemy_cane_select(owner,&campaign_weapon_supply,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_sonar_select(owner,&campaign_weapon_supply,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_spit_select(owner,&campaign_weapon_supply,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_flame_select(owner,&campaign_weapon_supply,&selected);
         if(status && status!=RF_NOT_FOUND)return status;
         if(weapon==campaign_grenade_id){
             if(!scene_grenade_resources)continue;
@@ -12579,6 +12603,11 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if((!point_target && distance>attack_range*attack_range) || distance<.0001f){if(melee)++rf_scene_enemy_melee[1];continue;}
         if(!point_target){status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
             if(blocked && !selected.penetrates_world){++rf_scene_enemy_combat[4];continue;}}
+        if(weapon==campaign_flame_id&&selected.slot==10){
+            status=scene_ai_flame_fire(stream,i,frame,target_eye,once,once?single->mode:0);
+            rf_scene_ai_flame[7]=(uint32_t)status;if(status)return status;
+            continue; /* Dedicated volume and fuel owner; never generic ray/debit. */
+        }
         if(campaign_enemy_spit_weapon(weapon)){
             uint32_t started;
             if(point_target || vehicle_victim)continue;
@@ -16559,6 +16588,7 @@ static void scene_weapon_empty_note(scene_weapon_empty_request *,uint32_t);
 #include "scene_flame_gameplay.inc"
 #include "scene_flame_input.inc"
 #include "scene_flame_visual.inc"
+#include "scene_ai_flame.inc"
 #include "scene_burning_visual.inc"
 #include "scene_flame_canister.inc"
 static int scene_player_weapon_advance(scene_stream *,uint32_t);
@@ -17534,6 +17564,7 @@ static int combat_hud_centered(rf_scene_particle_sink sink,void *context,float y
             text,24,y,592,0,color);
     return combat_hud_text(sink,context,(640.f-(float)strlen(text)*12)*.5f,y,text,color);
 }
+#include "scene_session_menu.inc"
 #include "scene_hud_control_text.inc"
 static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
 {
@@ -21840,7 +21871,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
     campaign_export_valid=0;memset(&campaign_player_form,0,sizeof(campaign_player_form));memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));memset(rf_scene_player_model,0,sizeof(rf_scene_player_model));
     if(campaign_spawn && campaign_player_form_carry.active){rf_scene_player_form[0]=1;rf_scene_player_form[1]=campaign_player_form_carry.variant;}
-    rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=scene_tankbot_missile_resources=scene_drone_missile_resources=0;
+    rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=scene_ai_flame_resources=scene_tankbot_missile_resources=scene_drone_missile_resources=0;
+    memset(rf_scene_ai_flame,0,sizeof(rf_scene_ai_flame));
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=scene_flame_visual_ready=0;memset(rf_scene_flame_visual,0,sizeof(rf_scene_flame_visual));
     scene_remote_reset();
     memset(scene_grenades,0,sizeof(scene_grenades));memset(&scene_grenade_throw,0,sizeof(scene_grenade_throw));memset(rf_scene_grenades,0,sizeof(rf_scene_grenades));
@@ -22229,8 +22261,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   if(!status && (npc_projectiles&(1u<<5)) && !(demand.mask&(1u<<5)))status=rf_weapon_primary_load(&tables,"Grenade",128*1024,&campaign_primary[5]);
                   scene_remote_resources=!!(demand.mask&((1u<<8)|(1u<<9)));
                   scene_flame_resources=!!(demand.mask&(1u<<10));
-                  if(!status && (scene_flame_resources || scene_script_ignite_required()))status=scene_flame_visual_open(&tables);
-                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()))status=scene_rocket_definitions_open(&tables);
+                  scene_ai_flame_resources=!!(npc_projectiles&(1u<<10));
+                  if(!status && scene_ai_flame_resources && !scene_flame_resources)status=rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&campaign_primary[10]);
+                  if(!status && (scene_flame_resources || scene_ai_flame_resources || scene_script_ignite_required()))status=scene_flame_visual_open(&tables);
+                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_ai_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()))status=scene_rocket_definitions_open(&tables);
                   if(!status && scene_tankbot_missile_resources)status=rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile);
                   if(!status && scene_tankbot_missile_resources)status=rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary);
                   if(!status && scene_drone_missile_resources)status=scene_ai_drone_missile_resources_open(&tables);
@@ -22602,7 +22636,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                     status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
-            if(rf_scene_dev_room_enabled || scene_vehicle_ai_ready || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()) {
+            if(rf_scene_dev_room_enabled || scene_vehicle_ai_ready || scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_ai_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()) {
                 scene_late_load_mark(50,materials);
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;

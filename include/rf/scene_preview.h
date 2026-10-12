@@ -662,6 +662,19 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context);
 int rf_scene_draw_player_flash(rf_scene_particle_sink sink,void *context);
 int rf_scene_draw_player_blackout(rf_scene_particle_sink sink,void *context);
 int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context);
+/* Platform session controls are a first-playable policy, not recovered retail
+ * menu code. Draw-only, allocation-free and valid outside the scene sink:
+ * it never advances the scene, touches storage or borrows world textures. */
+enum {
+    RF_SCENE_SESSION_RESUME,RF_SCENE_SESSION_SAVE,RF_SCENE_SESSION_LOAD,
+    RF_SCENE_SESSION_RESTART,RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_COUNT
+};
+enum {
+    RF_SCENE_SESSION_CONFIRM=1u,RF_SCENE_SESSION_DISCONNECTED=2u,
+    RF_SCENE_SESSION_ENDED=4u,RF_SCENE_SESSION_UNAVAILABLE=8u
+};
+int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
+    uint32_t selection,uint32_t flags);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
@@ -844,6 +857,10 @@ void rf_scene_load_button(uint32_t held);
 uint32_t rf_scene_quickload_pending(void);
 /* A terminal failure can request a fresh load of its current section. */
 uint32_t rf_scene_restart_pending(void);
+/* Explicit frontend request; caller confirms loss of unsaved progress first.
+ * Requests the ordinary fresh current-section reload, without reading/writing
+ * a save or changing its validation. Unavailable requests leave state intact. */
+int rf_scene_session_restart(void);
 /* cycle_weapon: 0 neutral, 1 next owned weapon, 2 previous owned weapon. */
 typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];

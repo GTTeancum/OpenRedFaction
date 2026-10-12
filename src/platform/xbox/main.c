@@ -59,7 +59,7 @@ static uint32_t campaign_npc_drop_uid,campaign_npc_drop_frame;
 static float campaign_npc_drop_speed;
 static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
-/* enters,resumes,held polls,status,entry frame,pacing rebases,active,reserved */
+/* enters,resumes,held polls,status,entry frame,pacing rebases,active,disconnect entries */
 volatile uint32_t rf_xbox_pause_diagnostic[8];
 static void player_input_close(void)
 {
@@ -67,6 +67,80 @@ static void player_input_close(void)
     rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();rf_xbox_pause_diagnostic[6]=0;
 }
 static uint32_t profile_milliseconds(void){return GetTickCount();}
+/* Session actions reuse the ordinary save/load and fresh-section owners. No
+ * gameplay tick occurs while this menu owns the input-provider call. */
+static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
+{
+    uint32_t selection=RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0;
+    uint32_t drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
+    int status;
+    ++rf_xbox_pause_diagnostic[0];rf_xbox_pause_diagnostic[4]=frame;
+    if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())++rf_xbox_pause_diagnostic[7];
+    rf_xbox_pause_diagnostic[6]=1;rf_xbox_input_set_paused(1);
+    status=rf_xbox_audio_set_paused(1);
+    rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
+    for(;;){
+        uint32_t flags=(confirm?RF_SCENE_SESSION_CONFIRM:0)|
+            (unavailable?RF_SCENE_SESSION_UNAVAILABLE:0)|
+            (!rf_xbox_input_connected()?RF_SCENE_SESSION_DISCONNECTED:0);
+        uint32_t pressed;
+        /* Redraw only changed menu state. USB hotplug keeps pumping at10ms;
+         * the ordinary world, deadlines and sound remain suspended. */
+        if(selection!=drawn_selection || flags!=drawn_flags){
+            status=rf_xbox_session_menu_draw(selection,flags);
+            rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
+            drawn_selection=selection;drawn_flags=flags;
+        }
+        Sleep(10);status=rf_xbox_input_poll(context,frame,input);
+        ++rf_xbox_pause_diagnostic[2];rf_xbox_pause_diagnostic[3]=(uint32_t)status;
+        if(status){
+            if(status==RF_NOT_FOUND){
+                int shown=rf_xbox_session_menu_draw(RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_ENDED);
+                if(shown)return shown;
+            }
+            return status; /* Ordinary close releases paused voices. */
+        }
+        if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost()){
+            /* Reconnection must not retain an armed destructive confirmation. */
+            confirm=unavailable=0;selection=RF_SCENE_SESSION_RESUME;continue;
+        }
+        if(rf_xbox_input_pause_pressed())break;
+        pressed=rf_xbox_input_menu_pressed();
+        if(pressed&RF_XBOX_MENU_CANCEL){if(confirm){confirm=0;continue;}break;}
+        if(!confirm && (pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN))){
+            uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
+            if(up!=down)selection=(selection+(down?1:RF_SCENE_SESSION_COUNT-1))%RF_SCENE_SESSION_COUNT;
+            unavailable=0;continue;
+        }
+        if(!(pressed&RF_XBOX_MENU_ACCEPT))continue;
+        if(selection==RF_SCENE_SESSION_RESUME)break;
+        if(selection==RF_SCENE_SESSION_SAVE){
+            rf_scene_save_button(1);rf_scene_save_button(0);break;
+        }
+        if(!confirm){confirm=1;continue;}
+        if(selection==RF_SCENE_SESSION_LOAD){
+            rf_scene_load_button(1);rf_scene_load_button(0);break;
+        }
+        if(selection==RF_SCENE_SESSION_RESTART){
+            status=rf_scene_session_restart();
+            if(!status)return RF_NOT_FOUND; /* Existing fresh-section teardown. */
+            rf_xbox_pause_diagnostic[3]=(uint32_t)status;
+            confirm=0;unavailable=1;continue;
+        }
+        status=rf_xbox_session_menu_draw(selection,RF_SCENE_SESSION_ENDED);
+        return status?status:RF_NOT_FOUND;
+    }
+    rf_xbox_input_set_paused(0);
+    status=rf_xbox_audio_set_paused(0);
+    rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
+    ++rf_xbox_pause_diagnostic[1];rf_xbox_pause_diagnostic[6]=0;
+    /* Paused wall time must not create catch-up simulation debt. All held
+     * action buttons still need a release, including after reconnect/reload. */
+    rf_player_frame_clock.last_ms=rf_player_frame_clock.last_present_ms=GetTickCount();
+    rf_player_frame_clock.credit=rf_player_frame_clock.skipped=0;
+    ++rf_xbox_pause_diagnostic[5];
+    memset(input,0,sizeof(*input));return RF_OK;
+}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
     if(campaign_single_fire_uid && campaign_total_frames==30){
@@ -125,31 +199,19 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
     }
     {
         int status=rf_xbox_input_poll(context,frame,input);
-        if(status || !rf_xbox_input_pause_pressed())return status;
-        ++rf_xbox_pause_diagnostic[0];rf_xbox_pause_diagnostic[4]=frame;
-        rf_xbox_pause_diagnostic[6]=1;rf_xbox_input_set_paused(1);
-        status=rf_xbox_audio_set_paused(1);
-        rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
-        /* Hold this provider call, so no scene tick, event deadline or replay
-         * record advances. The last presented frame stays visible; SDL alone
-         * is pumped for resume/exit and controller reconnect. */
-        for(;;) {
-            Sleep(10);
-            status=rf_xbox_input_poll(context,frame,input);
-            ++rf_xbox_pause_diagnostic[2];
-            rf_xbox_pause_diagnostic[3]=(uint32_t)status;
-            if(status)return status; /* Ordinary close releases paused voices. */
-            if(!rf_xbox_input_pause_pressed())continue;
-            rf_xbox_input_set_paused(0);
-            status=rf_xbox_audio_set_paused(0);
-            rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
-            ++rf_xbox_pause_diagnostic[1];rf_xbox_pause_diagnostic[6]=0;
-            /* Paused wall time must not create catch-up simulation debt. */
-            rf_player_frame_clock.last_ms=rf_player_frame_clock.last_present_ms=GetTickCount();
-            rf_player_frame_clock.credit=rf_player_frame_clock.skipped=0;
-            ++rf_xbox_pause_diagnostic[5];
-            memset(input,0,sizeof(*input));return RF_OK;
+        if(status){
+            if(status==RF_NOT_FOUND){
+                int shown=rf_xbox_session_menu_draw(RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_ENDED);
+                if(shown)return shown;
+            }
+            return status;
         }
+        /* Only open-ended live play waits for a controller. Bounded native
+         * input diagnostics retain their existing headless/no-pad behavior. */
+        if(rf_xbox_input_pause_pressed() || (player_pacing &&
+           (!rf_xbox_input_connected() || rf_xbox_input_connection_lost())))
+            return player_pause_menu(context,frame,input);
+        return RF_OK;
     }
 }
 volatile uint32_t rf_door_render_diagnostic[10]={0x52464452u};

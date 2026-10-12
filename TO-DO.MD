@@ -1,4 +1,12 @@
-- Build and boot the interactive stock64 tester package with authored L1S1/live controls/audio/level following; fresh baseline snapshot boot is user-approved. Rocket lock-on alternate and broad system inventory are integrated, with runtime pending; prioritize actual playable entry over minor defects (docs/TESTER-READINESS.md).
+- Friendly NPC Use now resolves authored class/persona/Foley speech through existing actor voice ownership; compiled in the October12 02:00 systems batch; audibility and repeated interaction remain unverified, with gestures/facing deferred (docs/NPC-USE-DIALOGUE.md).
+
+- Operational tester controls, NPC Flamethrower primary and friendly NPC Use speech compiled together on stock64 Xbox; continue substantial missing NPC weapon support and leave campaign playthrough and route coverage to testers.
+
+- Xbox pause/session menu is source-integrated: Resume, guarded Save/Load, confirmed fresh-section Restart/End Session and controller-loss pause; compiled in the October12 02:00 systems batch; runtime remains pending (docs/XBOX-SESSION-MENU.md).
+
+- Authored NPC Flamethrower users now have source-integrated finite primary attacks, acquisition, reload, volume damage, burn/death and presentation; compiled in the October12 02:00 systems batch; tester behavior remains pending, with batched fuel timing explicitly approximate (docs/NPC-FLAMETHROWER-FIRST-PASS.md).
+
+- Interactive stock64 tester startup and bounded opening, handgun pickup/fire/reload, one firearm encounter and one automatic door were exercised before the October12 direction correction; preserve those historical results and stop route progression. Broader tester readiness and Rocket alternate behavior remain unverified (docs/TESTER-READINESS.md).
 
 - Compile the integrated tester combat sweep and source-guided Rocket Launcher hold/lock/release alternate; active acquisition/guided-shot save/load refusal is explicit, shared-ammo auto-reload surplus is deferred, and action runtime remains unverified (docs/TESTER-COMBAT-SWEEP.md, docs/PLAYER-ROCKET-LOCK-FIRST-PASS.md).
 

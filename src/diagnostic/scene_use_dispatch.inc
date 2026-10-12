@@ -140,6 +140,7 @@ static int scene_use_prepare(scene_stream *stream,uint32_t frame,const rf_motion
          * Vehicle1/turret4 admission failure and switch2/command3 instead
          * retain4a1970 trigger fallback; selection alone is not consumption. */
         if(scene_use_edge.kind==6||scene_use_edge.kind==9)scene_use_claim();
+        if(scene_use_edge.kind==9)scene_npc_use_dialogue(scene_use_edge.selected);
         if(scene_use_edge.kind==6)for(uint32_t i=0;i<campaign_npc_body_count;i++){
             campaign_npc_body *o=campaign_npc_bodies+i;
             if(o->registration.handle==scene_use_edge.selected&&scene_medic_live(o))return scene_medic_accept(o,frame);

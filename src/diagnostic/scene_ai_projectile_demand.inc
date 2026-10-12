@@ -2,11 +2,11 @@
 #define RF_SCENE_AI_PROJECTILE_DEMAND_INC
 /* Include after scene_precision_drop_demand.inc and the campaign scene globals.
  * Borrow the current constructed NPC loadout before campaign_actors_restore
- * binds persistent slots. Bits4/5 mean shared rocket/grenade resources, NOT
+ * binds persistent slots. Bits4/5/10 mean shared rocket/grenade/flame resources, NOT
  * player ownership or first-person-view demand. No allocation or mutation. */
 static uint32_t scene_ai_projectile_resource_mask(uint32_t *tankbot_missile,uint32_t *drone_missile)
 {
-    int32_t rocket,grenade,tankbot,drone;uint32_t i,mask=0;
+    int32_t rocket,grenade,flame,tankbot,drone;uint32_t i,mask=0;
     if(!tankbot_missile || !drone_missile)return 0;
     *tankbot_missile=*drone_missile=0;
     if(!campaign_npc_bodies || campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS ||
@@ -15,6 +15,7 @@ static uint32_t scene_ai_projectile_resource_mask(uint32_t *tankbot_missile,uint
        rf_scene_defeated_actors.level_count>RF_CAMPAIGN_PICKUP_LEVELS)return 0;
     rocket=rf_weapon_name_find(&campaign_weapon_supply.names,"Rocket Launcher");
     grenade=rf_weapon_name_find(&campaign_weapon_supply.names,"Grenade");
+    flame=rf_weapon_name_find(&campaign_weapon_supply.names,"Flamethrower");
     tankbot=rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile");
     drone=rf_weapon_name_find(&campaign_weapon_supply.names,"Drone Missile");
     for(i=0;i<campaign_npc_body_count;i++){
@@ -29,6 +30,7 @@ static uint32_t scene_ai_projectile_resource_mask(uint32_t *tankbot_missile,uint
         if(held>=0 && (uint32_t)held<campaign_weapon_supply.names.count && owner->inventory.owned[held]){
             if(rocket>=0 && held==rocket)mask|=1u<<4;
             if(grenade>=0 && held==grenade)mask|=1u<<5;
+            if(flame>=0 && held==flame)mask|=1u<<10;
         }
         if(tankbot>=0 && owner->view.weapons[1]==tankbot && owner->inventory.owned[tankbot]){
             mask|=1u<<4;*tankbot_missile=1;

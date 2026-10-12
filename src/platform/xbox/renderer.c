@@ -450,6 +450,25 @@ void rf_xbox_scene_stream_close(void)
     stream_gpu=NULL;stream_textures=NULL;stream_materials=NULL;stream_lightmaps=NULL;
     stream_mode=0;stream_capacity=stream_fallback=0;
 }
+int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
+{
+    int status;
+    /* Input may discover a missing controller before the first world frame.
+     * The normal preview reuses this same pbkit device when play starts. */
+    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
+    pb_fill(0,0,640,480,0xff101018);
+    hud_batch_begin();
+    status=rf_scene_draw_session_menu(scene_hud_present,NULL,selection,flags);
+    hud_batch_end();
+    if(status)return status;
+    pb_show_front_screen();while(pb_finished()) {}
+    /* A paused wall-clock interval creates neither a simulation frame nor a
+     * scene capture count. Rebase the present cadence when the world resumes. */
+    stream_start_valid=0;
+    return RF_OK;
+}
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
     uint32_t *p, i, frame;

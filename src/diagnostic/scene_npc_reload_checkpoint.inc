@@ -40,8 +40,10 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
     status=campaign_enemy_weapon_select(weapon,ids,campaign_primary,campaign_weapon_supply.definitions,
         campaign_weapon_supply.names.count,&selected);
     if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(weapon,&campaign_weapon_supply,&selected);
-    /* These two selectors admit only the nine synchronous ordinary firearms
-     * once melee/reserve-fed profiles are rejected below. Rocket keeps the
+    if(status==RF_NOT_FOUND)status=campaign_enemy_flame_definition(weapon,&campaign_weapon_supply,&selected);
+    /* The synchronous finite-pulse Flame owner uses the same mapped
+     * fire/reload presentation as ordinary firearms. Candidate inventory is
+     * checked below, independently of the live selected weapon. Rocket keeps the
      * existing action39-only exception; it never gains residual fire admission. */
     ordinary=status==RF_OK;
     if(status==RF_NOT_FOUND&&weapon==campaign_rocket_id&&scene_rocket_resources){

@@ -7,6 +7,7 @@
 enum {SCENE_MESSAGE_FLAT=1,SCENE_MESSAGE_RADIO=2,SCENE_MESSAGE_ACTOR=3};
 typedef struct scene_message_voice {
     uint32_t uid,key,route,handle,sample,duration;
+    uint32_t actor_handle,origin; /* Full speaker generation; origin1 is Use speech, not an event. */
     int32_t voice;
     campaign_spatial_voice spatial;
 } scene_message_voice;
@@ -44,7 +45,8 @@ static void campaign_message_release(scene_message_voice *slot)
 static void campaign_message_stop(uint32_t uid)
 {
     uint32_t i;
-    for(i=0;i<RF_AUDIO_ORDINARY_SLOTS;i++)if(campaign_message_voices[i].handle && campaign_message_voices[i].uid==uid)
+    for(i=0;i<RF_AUDIO_ORDINARY_SLOTS;i++)if(campaign_message_voices[i].handle &&
+        !campaign_message_voices[i].origin && campaign_message_voices[i].uid==uid)
         campaign_message_release(campaign_message_voices+i);
 }
 static uint32_t campaign_message_audio_pending(void)
@@ -57,8 +59,12 @@ static campaign_npc_body *campaign_message_speaker(uint32_t uid)
     uint32_t i;
     for(i=0;campaign_npc_bodies && i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
-        if((uint32_t)campaign_seeds.records.items[i].record.uid==uid && owner->registration.view &&
-            owner->damage.effects.health>0 && !(owner->view.flags_810&1u))return owner;
+        if((uint32_t)campaign_seeds.records.items[i].record.uid==uid &&
+            owner->registration.view==&owner->view && owner->registration.object_kind==0 &&
+            (uint32_t)owner->view.handle==owner->registration.handle &&
+            rf_object_registry_lookup(&campaign_registry,owner->registration.handle)==&owner->registration &&
+            rf_entity_lookup(&campaign_entities,(int32_t)owner->registration.handle)==&owner->view &&
+            owner->damage.effects.health>0 && !(owner->view.flags_810&1u) && !(owner->object_flags&2u))return owner;
     }
     return NULL;
 }
@@ -67,7 +73,15 @@ static void campaign_message_audio_refresh(void)
     uint32_t i;rf_scene_message_playback[5]=0;
     for(i=0;i<RF_AUDIO_ORDINARY_SLOTS;i++) {
         scene_message_voice *slot=campaign_message_voices+i;
+        campaign_npc_body *owner=NULL;
         if(!slot->handle)continue;
+        if(slot->route==SCENE_MESSAGE_ACTOR) {
+            owner=campaign_message_speaker(slot->key);
+            if(!owner || owner->registration.handle!=slot->actor_handle ||
+               (slot->origin && (owner->object_flags&0x4000u))) {
+                campaign_message_release(slot);continue;
+            }
+        }
         if(!campaign_message_active(slot)) {
             if(campaign_message_voice==slot->voice)campaign_message_voice=-1;
             /* Natural native completion does not alter the deterministic
@@ -76,8 +90,6 @@ static void campaign_message_audio_refresh(void)
         }
         ++rf_scene_message_playback[5];++rf_scene_message_playback[campaign_audio_events.playing?11:12];
         if(slot->route==SCENE_MESSAGE_ACTOR) {
-            campaign_npc_body *owner=campaign_message_speaker(slot->key);
-            if(!owner){campaign_message_release(slot);--rf_scene_message_playback[5];continue;}
             memcpy(slot->spatial.position,owner->eye_position,12);
             /* Retain the speech handle separately even if the software slot
              * has advanced/reused before this physical voice completes. */
@@ -91,7 +103,7 @@ static uint32_t campaign_message_play(const rf_level_event *event,const char *na
 {
     scene_message_voice *slot=NULL,*available=NULL;
     campaign_npc_body *speaker=NULL;const rf_wave_pcm *pcm;
-    uint32_t i,index=UINT32_MAX,route,key,handle,duration=0;int status=RF_OK;int32_t voice,persona;
+    uint32_t i,index=UINT32_MAX,route,key,handle,duration=0,speaker_handle=0;int status=RF_OK;int32_t voice,persona;
     const float centered[3]={0,0,0};
     campaign_message_voice=-1;
     if(!name[0]){campaign_message_stop(event->uid);return 0;}
@@ -107,6 +119,7 @@ static uint32_t campaign_message_play(const rf_level_event *event,const char *na
         /* Original4bb287/4bb29b does not turn an absent/dead speaker into a
          * centered disembodied voice. Keep its subtitle available. */
         if(!speaker){++rf_scene_message_playback[14];goto done;}
+        speaker_handle=speaker->registration.handle;
     }
     ++rf_scene_message_playback[route-1];rf_scene_message_playback[7]=route;
     for(i=0;i<RF_AUDIO_ORDINARY_SLOTS;i++) {
@@ -146,7 +159,14 @@ static uint32_t campaign_message_play(const rf_level_event *event,const char *na
     status=rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&handle);
     if(status)goto done;
     slot->uid=event->uid;slot->key=key;slot->route=route;slot->handle=handle;slot->sample=index;
+    slot->actor_handle=speaker_handle;slot->origin=0;
     slot->duration=duration;slot->voice=voice;slot->spatial=campaign_spatial_voices[handle&0xffffu];
+    if(route==SCENE_MESSAGE_ACTOR) {
+        campaign_npc_body *current=campaign_message_speaker(key);
+        if(!current || current->registration.handle!=speaker_handle) {
+            campaign_message_release(slot);status=RF_NOT_FOUND;goto done;
+        }
+    }
     campaign_message_voice=voice;++rf_scene_message_audio[1];
     printf("MESSAGE_VOICE uid%u route%u owner%u sample%u handle%u frames%u rate%u duration%u\n",
         event->uid,route,key,index,handle,pcm->frames,pcm->rate,duration);

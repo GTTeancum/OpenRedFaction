@@ -212,6 +212,13 @@ int rf_entity_impact_sound_group_read(const void *text,uint32_t bytes,const char
 /* Same rules as pain groups, with DeathSnd (class124) as the third result. */
 int rf_entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[3]);
+/* Ordinary NPC Use speech: entity.tbl $Persona -> personas.tbl $Use Key ->
+ * Foley group (original409950/4305a0). Missing/empty/unknown optional names
+ * yield -1; malformed/duplicate fields preserve output. No PCM, RNG or AI
+ * mutation. The caller owns both bounded text buffers and the Foley table. */
+int rf_entity_use_sound_group_read(const void *entity_text,uint32_t entity_bytes,
+    const char *class_name,const void *persona_text,uint32_t persona_bytes,
+    const rf_foley_owner *owner,int32_t *group);
 
 /* Original41c781..41c7e8 footstep class binding and434cb0 lookup: initialize
  * ten slots to -1, resolve each nonempty name to the first case-insensitive
