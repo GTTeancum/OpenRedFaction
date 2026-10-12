@@ -81,6 +81,12 @@ static int scene_remote_checkpoint_capture(void *output,uint32_t capacity,uint32
     }
     return rf_remote_checkpoint_encode(state,scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),output,capacity,written);
 }
+static int scene_remote_checkpoint_holster_admit(uint32_t holstered)
+{
+    if(!scene_remote_restore_ready)return RF_RANGE;
+    return holstered && (scene_remote_restore_state.pending || scene_remote_restore_state.delay ||
+        scene_remote_restore_state.followup_target)?RF_FORMAT:RF_OK;
+}
 static void scene_remote_checkpoint_discard(void)
 {scene_remote_restore_ready=0;}
 /* Resolve attachment transport against the same candidate poses that the world

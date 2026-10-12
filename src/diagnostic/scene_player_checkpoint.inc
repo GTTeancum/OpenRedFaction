@@ -117,6 +117,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
     if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
+    if(!modes && scene_player_weapon_holstered())return RF_RANGE; /* Legacy RFCP has no posture field. */
     if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
     {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
         if(charge)return charge;}
@@ -210,6 +211,7 @@ static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t byt
         scene_authored_checkpoint_stage_discard(&stage);
     } else status=scene_checkpoint_validate_player(candidate.rfds,candidate.rfds_bytes,s,&placement);
     if(!status)status=scene_remote_checkpoint_preflight(s,composed.base.remote,composed.base.remote_bytes);
+    if(!status)status=scene_remote_checkpoint_holster_admit(!!(modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));
     scene_remote_checkpoint_discard();
     return scene_checkpoint_player_semantic_status(status);
 }
@@ -247,6 +249,8 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,body.position,&body.bounds);if(status)return status;
     status=rf_physics_tensor_world(body.local_tensor,basis,body.world_tensor);if(status)return status;
     status=scene_remote_checkpoint_preflight(s,composed.base.remote,composed.base.remote_bytes);if(status)return status;
+    status=scene_remote_checkpoint_holster_admit(!!(modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));
+    if(status){scene_remote_checkpoint_discard();return status;}
     if(prop_bytes){
         /* Boot-time restore preserves fresh attachment/glare ownership. */
         status=scene_clutter_checkpoint_prepare(scene_checkpoint_prop_source(s),props,prop_bytes,0,1,&prop_stage);
@@ -281,7 +285,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
     scene_machine_carry_reset();
-    scene_undercover_carry_reset_all();
+    scene_undercover_carry_reset_all();scene_player_holster_carry_reset();
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;
     rf_scene_player_checkpoint_state[1]=1;rf_scene_player_checkpoint_state[5]=candidate.rfds_bytes;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;

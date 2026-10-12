@@ -4,7 +4,8 @@
 enum { RF_WEAPON_MODES_CHECKPOINT_BYTES=32,
     RF_WEAPON_MODES_MACHINE_PISTOL_SPECIAL=1u,
     RF_WEAPON_MODES_UNDERCOVER_SUPPRESSOR_ATTACHED=2u,
-    RF_WEAPON_MODES_PLAYER_SHIELD=4u };
+    RF_WEAPON_MODES_PLAYER_SHIELD=4u,
+    RF_WEAPON_MODES_PLAYER_HOLSTERED=8u };
 typedef struct rf_weapon_modes_checkpoint {
     uint32_t flags,conventional_rng;float shield_life;
 } rf_weapon_modes_checkpoint;
@@ -12,7 +13,10 @@ typedef struct rf_weapon_modes_checkpoint {
  * treated as zero), catalog hash, flags, RNG, reserved zero. All RNG values
  * are valid. RFWM2 uses the final word for positive finite shield durability
  * when PLAYER_SHIELD is set; otherwise it must be zero. RFWM1 remains readable
- * and is written when no shield is owned. Caller must enforce inventory ownership, resource availability
+ * and is written when no shield is owned. RFWM3 admits PLAYER_HOLSTERED
+ * in the same flags word; it is emitted only for a holstered player. RFWM1/2
+ * cannot carry this flag and restore ready. All versions remain32bytes.
+ * Caller must enforce inventory ownership, resource availability
  * and settled weapon transitions; this codec contains no runtime handles.
  * No allocation. Errors preserve outputs. Input/output/written must be
  * disjoint; successful encoding writes exactly32bytes. */

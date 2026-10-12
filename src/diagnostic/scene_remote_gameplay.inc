@@ -10,6 +10,8 @@ static rf_remote_charge scene_remote_charges[RF_REMOTE_CHARGE_CAPACITY];
 static uint32_t scene_remote_host_tags[RF_REMOTE_CHARGE_CAPACITY];
 static uint32_t scene_remote_held,scene_remote_pending,scene_remote_delay,scene_remote_cooldown;
 #include "scene_remote_selection.inc"
+static uint32_t scene_remote_holster_pending(void)
+{return scene_remote_pending || scene_remote_delay || scene_remote_followup_target;}
 /* starts, launches, attaches, detonations, live, poolfull, missing hosts, status */
 uint32_t rf_scene_remote[8];
 uint32_t rf_scene_remote_shield[4]; /* consumed, target UID, frame, source */

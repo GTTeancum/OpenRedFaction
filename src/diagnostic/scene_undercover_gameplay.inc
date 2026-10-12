@@ -79,7 +79,7 @@ static int scene_undercover_draw(scene_stream *s)
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
     float pose[12];uint32_t part,batch,k,initial=s->mesh->count;int status;
     rf_scene_undercover[6]=0;
-    if(!o || campaign_equipped_slot!=16 || campaign_explicit_unarmed ||
+    if(!o || scene_player_weapon_holstered() || campaign_equipped_slot!=16 || campaign_explicit_unarmed ||
        !campaign_player_inventory.owned[campaign_slot_weapon(16)] || campaign_player_damage.state.effects.health<=0 ||
        !scene_undercover_mode_visible(&o->mode))return RF_OK;
     status=scene_undercover_mode_pose(&o->mode,s->player_weapon[16],pose);if(status)return status;

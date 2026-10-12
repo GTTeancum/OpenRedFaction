@@ -11,6 +11,7 @@ static int scene_hud_control_text(const char *source,uint32_t source_capacity,
         SCENE_CONTROL_LABEL("$USE$","X",1),SCENE_CONTROL_LABEL("$FIRE$","RT",1),SCENE_CONTROL_LABEL("$ALT_FIRE$","LT",1),
         SCENE_CONTROL_LABEL("$JUMP$","A",1),SCENE_CONTROL_LABEL("$CROUCH$","B",1),SCENE_CONTROL_LABEL("$RELOAD$","Y",1),
         SCENE_CONTROL_LABEL("$NEXT_WEAPON$","D-PAD RIGHT",1),SCENE_CONTROL_LABEL("$PREV_WEAPON$","D-PAD LEFT",1),
+        SCENE_CONTROL_LABEL("$HOLSTER$","LEFT-STICK CLICK",1),
         SCENE_CONTROL_LABEL("$FINE_AIM$","HOLD RIGHT-STICK CLICK",1),
         SCENE_CONTROL_LABEL("$MESSAGE_LOG$","START / MESSAGE HISTORY",1),
 #else
@@ -18,12 +19,10 @@ static int scene_hud_control_text(const char *source,uint32_t source_capacity,
         SCENE_CONTROL_LABEL("$USE$","E",1),SCENE_CONTROL_LABEL("$FIRE$","MOUSE1 / F",1),SCENE_CONTROL_LABEL("$ALT_FIRE$","MOUSE2 / G",1),
         SCENE_CONTROL_LABEL("$JUMP$","SPACE",1),SCENE_CONTROL_LABEL("$CROUCH$","CTRL",1),SCENE_CONTROL_LABEL("$RELOAD$","R",1),
         SCENE_CONTROL_LABEL("$NEXT_WEAPON$","TAB",1),SCENE_CONTROL_LABEL("$PREV_WEAPON$","Q",1),
+        SCENE_CONTROL_LABEL("$HOLSTER$","UNBOUND",0),
         SCENE_CONTROL_LABEL("$FINE_AIM$","UNBOUND",0),
         SCENE_CONTROL_LABEL("$MESSAGE_LOG$","UNBOUND",0),
 #endif
-        /* Present in train02, but no corresponding input field/binding exists
-         * in this first-playable frontend. Never invent a controller button. */
-        SCENE_CONTROL_LABEL("$HOLSTER$","UNBOUND",0)
     };
 #undef SCENE_CONTROL_LABEL
     uint32_t i=0,at=0,b=0,u=0,other=0;

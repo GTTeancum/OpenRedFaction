@@ -446,6 +446,7 @@ static void scene_turret_player_reset(void);
 static uint32_t scene_airlock_handoff_wait(void);
 static uint32_t scene_guard_retreat_section_wait(void);
 #include "scene_use_edge.inc"
+static void scene_player_holster_sample(uint32_t);
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
@@ -457,7 +458,8 @@ static int player_begin_frame(void *context,uint32_t frame)
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
-    if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>2 || value.alt_fire>1)return RF_FORMAT;
+    if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>2 || value.alt_fire>1 || value.holster>1)return RF_FORMAT;
+    scene_player_holster_sample(value.holster);
     scene_use_sample(value.use);
     if(campaign_endgame.phase){
         uint32_t pressed=value.use && !campaign_endgame.use_held;
@@ -2554,6 +2556,7 @@ static campaign_player_form_state campaign_player_form,campaign_player_form_carr
 uint32_t rf_scene_player_form[8]; /* active,variant,compromised,entries,exits,weapon,armor bits,status */
 uint32_t rf_scene_player_model[4];
 static uint32_t campaign_explicit_unarmed,campaign_import_applied;
+#include "scene_player_holster_state.inc"
 #include "scene_machine_pistol_carry_gameplay.inc"
 #include "scene_undercover_carry.inc"
 static scene_undercover_carry campaign_undercover_export_sidecar,campaign_undercover_import_sidecar;
@@ -2611,9 +2614,9 @@ int rf_scene_campaign_pose_get(float position[3],float orientation[9])
 int rf_scene_campaign_player_set(const rf_campaign_player_state *state)
 {
     int status;
-    if(!state){campaign_import_pending=0;scene_machine_carry_reset();scene_undercover_carry_reset_all();return RF_OK;}
+    if(!state){campaign_import_pending=0;scene_machine_carry_reset();scene_undercover_carry_reset_all();scene_player_holster_carry_reset();return RF_OK;}
     status=rf_campaign_player_copy(&campaign_player_import,state,state->catalog_hash);
-    if(!status){campaign_import_pending=1;scene_machine_carry_stage();scene_undercover_carry_stage();}return status;
+    if(!status){campaign_import_pending=1;scene_machine_carry_stage();scene_undercover_carry_stage();scene_player_holster_carry_stage();}return status;
 }
 
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
@@ -11828,8 +11831,7 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
         scene_player_riot_cancel();
         memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         campaign_explicit_unarmed=1; /*42cd53: full strip publishes primary -1.*/
-        campaign_player_view.flags_810&=~0x800u; /*42cd29..34 clears holster before removal.*/
-        campaign_player_damage.state.effects.flags_810&=~0x800u;
+        scene_player_holster_set(0); /*42cd29..34: clear both posture mirrors before removal.*/
         scene_continuous_charge_stop();rf_scene_riot[0]=0;
         memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
         rf_scene_combat[6]=0;campaign_ammo_publish();return scene_player_shield_damage_sync();
@@ -14335,6 +14337,7 @@ static uint32_t scene_remote_checkpoint_level_hash(void);
 static uint32_t scene_remote_checkpoint_catalog_hash(void);
 static int scene_remote_checkpoint_capture(void *,uint32_t,uint32_t *);
 static int scene_remote_checkpoint_preflight(scene_stream *,const void *,uint32_t);
+static int scene_remote_checkpoint_holster_admit(uint32_t);
 static void scene_remote_checkpoint_publish(void);
 static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
@@ -14360,6 +14363,7 @@ static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile
 static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static void scene_ai_projectile_checkpoint_flame_finish(const scene_ai_projectile_checkpoint_stage *);
 static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *);
+static int scene_ai_projectile_checkpoint_holster_admit(const scene_ai_projectile_checkpoint_stage *,uint32_t);
 static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
 static void scene_projectile_flight_audio_resume(scene_stream *);
 static void scene_ai_projectile_checkpoint_discard(scene_ai_projectile_checkpoint_stage **);
@@ -16488,6 +16492,7 @@ static int campaign_player_import_apply(void)
         scene_actor_collision_owner->machine_custom[0] && scene_actor_collision_owner->machine_custom[1],!!player_input.alt_fire);
     if(status)return status;
     status=scene_undercover_carry_apply(&imported,scene_actor_collision_owner,!!player_input.alt_fire);if(status)return status;
+    scene_player_holster_restore(scene_player_holster_import);scene_player_holster_import=0;
     if(scene_actor_collision_owner && scene_actor_collision_owner->weapon_modes_pending){
         scene_weapon_modes_checkpoint_assign(scene_actor_collision_owner,&scene_actor_collision_owner->weapon_modes_checkpoint);
         scene_actor_collision_owner->weapon_modes_pending=0;
@@ -16523,6 +16528,7 @@ static void campaign_player_export_capture(void)
     campaign_player_form_carry=campaign_player_form;
     scene_machine_carry_export();
     scene_undercover_carry_export();
+    scene_player_holster_export=campaign_export_valid && scene_player_weapon_holstered();
 }
 static uint32_t campaign_cycle_primary(uint32_t direction)
 {
@@ -16530,7 +16536,7 @@ static uint32_t campaign_cycle_primary(uint32_t direction)
     if((direction!=1 && direction!=2) || campaign_reload_blocks_ordinary_selection())return 0;
     for(step=1;step<=count;step++){
         uint32_t candidate=(campaign_equipped_slot+(direction==2?count-step:step))%count;int32_t id=campaign_slot_weapon(candidate);
-        if(scene_weapon_available(candidate) && campaign_player_inventory.owned[id] && (candidate!=campaign_equipped_slot || campaign_explicit_unarmed)){
+        if(scene_weapon_available(candidate) && campaign_player_inventory.owned[id] && (candidate!=campaign_equipped_slot || campaign_explicit_unarmed || scene_player_weapon_holstered())){
             campaign_select_primary(candidate);return 1;
         }
     }
@@ -16631,6 +16637,8 @@ static uint32_t scene_weapon_auto_reload_ready(const scene_stream *,uint32_t);
 #include "scene_machine_empty_selection.inc"
 #include "scene_weapon_camera_feedback.inc"
 #include "scene_player_riot_backend.inc"
+static uint32_t scene_remote_holster_pending(void);
+#include "scene_player_holster_input.inc"
 static int campaign_vehicle_attack_fixture(uint32_t frame);
 static void campaign_vehicle_attack_live_probe(void);
 static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3],scene_weapon_empty_request *empty_request)
@@ -16710,6 +16718,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     scene_vehicle_equipment_tick(stream,frame,on_foot);
+    scene_player_holster_input(stream,frame,on_foot);
     /* Update animated child positions before projectile or firearm contacts. */
     for(uint32_t i=0;i<scene_turret_generated_count;i++){
         int status=scene_turret_generated_publish(scene_turret_generated[i].head_handle);
@@ -16725,6 +16734,10 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         if(player_input.cycle_weapon && player_input.cycle_weapon!=weapon_cycle_held &&
            campaign_player_damage.state.effects.health>0) {
             if(campaign_cycle_primary(player_input.cycle_weapon)) {
+                if(scene_player_weapon_holstered()){
+                    scene_player_holster_set(0);scene_player_holster_release|=scene_player_holster_controls();
+                    scene_player_holster_mask();stream->player_pose_frame=0;stream->player_slot=UINT32_MAX;
+                }
                 if(campaign_equipped_slot!=2)scene_player_riot_cancel();
                 memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
                 rf_scene_combat[6]=0;++rf_scene_weapon_selection[1];campaign_ammo_publish();
@@ -16736,7 +16749,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(on_foot){status=scene_undercover_input(stream,position);if(status)return status;}
     status=scene_continuous_charge_prepare(stream,frame);if(status)return status;
     if(!frame){scene_scanner_enabled=scene_scanner_held=0;memset(rf_scene_scanner,0,sizeof(rf_scene_scanner));}
-    if(!on_foot || campaign_equipped_slot!=7 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_rail_id] || campaign_player_damage.state.effects.health<=0)scene_scanner_enabled=0;
+    if(!on_foot || scene_player_weapon_holstered() || campaign_equipped_slot!=7 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_rail_id] || campaign_player_damage.state.effects.health<=0)scene_scanner_enabled=0;
     else if(player_input.alt_fire && !scene_scanner_held)scene_scanner_enabled=!scene_scanner_enabled;
     scene_scanner_held=!!player_input.alt_fire;
 
@@ -16870,6 +16883,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(scene_driller_active(stream) || scene_turret_player_active() || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==12)return RF_OK;
     if(campaign_equipped_slot==13 && campaign_machine_mode.pending)return RF_OK;
     if(campaign_equipped_slot==16 && stream->undercover && !scene_undercover_mode_can_fire(&stream->undercover->mode))return RF_OK;
+    if(scene_player_weapon_holstered()){if(combat_trigger.cooldown)--combat_trigger.cooldown;return RF_OK;}
     if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])return RF_OK;
     alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3 || campaign_equipped_slot==14) && player_input.alt_fire && !player_input.fire;
     if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15 && !hmg_policy_ready){status=scene_conventional_fire_select(campaign_equipped_slot-13,&campaign_pistol,!!player_input.fire,!!player_input.alt_fire,&conventional);if(status){printf("FIRE_POLICY_ERROR %u %u %d damage%g fire%g burst%u seconds%g\n",frame,campaign_equipped_slot,status,(double)campaign_pistol.damage,(double)campaign_pistol.fire_seconds,campaign_pistol.burst_count,(double)campaign_pistol.burst_seconds);return status;}}
@@ -17661,7 +17675,7 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     /* Read actual owners. campaign_ammo_publish can select another weapon,
      * so rendering must never use it as a refresh operation. */
     armed=vehicle || mounted;
-    if(!vehicle && !mounted && !campaign_explicit_unarmed && campaign_equipped_slot<SCENE_WEAPON_SLOTS) {
+    if(!vehicle && !mounted && !scene_player_weapon_holstered() && !campaign_explicit_unarmed && campaign_equipped_slot<SCENE_WEAPON_SLOTS) {
         int32_t base=campaign_slot_weapon(campaign_equipped_slot);
         weapon=campaign_selected_weapon();
         if(base>=0 && base<64 && weapon>=0 && weapon<64 &&
@@ -20462,7 +20476,7 @@ static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
     rf_player_weapon *w=stream->player_weapon[campaign_view_slot()];int status,request=-1;
     if(stream->player_pose_frame==frame+1 && stream->player_slot==campaign_view_slot())return RF_OK;
     if(!frame)memset(rf_scene_player_weapon,0,sizeof(rf_scene_player_weapon));
-    if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)]){rf_scene_player_weapon[2]=0;stream->player_slot=UINT32_MAX;return RF_OK;}
+    if(scene_player_weapon_holstered() || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)]){rf_scene_player_weapon[2]=0;stream->player_slot=UINT32_MAX;return RF_OK;}
     if(!w)return RF_OK;
     if(!frame || stream->player_slot!=campaign_view_slot())request=campaign_equipped_slot==11 && rf_scene_combat[0]!=stream->player_shots?1:0;
     else if(rf_scene_combat[6]>stream->player_reload)request=2;
@@ -20509,7 +20523,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     rf_scene_player_weapon_view[2]=view_slot;
     if(scene_turret_player_active())return RF_OK;
     status=scene_player_weapon_advance(stream,frame);if(status)goto done;
-    if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)] || !w)return RF_OK;
+    if(scene_player_weapon_holstered() || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)] || !w)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
     status=scene_player_weapon_view_prepare(w,&view,&projection);if(status)goto done;
     memcpy(rf_scene_player_weapon_view+3,w->position,12);
@@ -21822,7 +21836,7 @@ static void campaign_session_history_reset(void)
     /* A pending load can reconstruct without a retained transition flag.
      * Preserve received text until the final successful restore boundary. */
     if(!rf_scene_quickload_pending())scene_message_history_reset();
-    scene_machine_carry_reset();scene_undercover_carry_reset_all();
+    scene_machine_carry_reset();scene_undercover_carry_reset_all();scene_player_holster_carry_reset();
     memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));
     scene_player_shield_damage_reset();scene_npc_shield_history_reset();
     campaign_ai_modes_reset();campaign_event_history_reset();

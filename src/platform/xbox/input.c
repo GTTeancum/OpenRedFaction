@@ -14,7 +14,7 @@ static uint32_t disconnect_edge,exit_rearm;
 enum {
     INPUT_FIRE=1u,INPUT_ALT=2u,INPUT_JUMP=4u,INPUT_USE=8u,
     INPUT_RELOAD=16u,INPUT_CROUCH=32u,INPUT_NEXT=64u,INPUT_PREVIOUS=128u,
-    INPUT_UP=256u,INPUT_DOWN=512u,INPUT_FINE_AIM=1024u
+    INPUT_UP=256u,INPUT_DOWN=512u,INPUT_FINE_AIM=1024u,INPUT_HOLSTER=2048u
 };
 volatile uint32_t rf_player_input_diagnostic[6]={0x5246494eu};
 volatile uint32_t rf_xbox_input_menu_observation;
@@ -120,6 +120,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_UP))actions|=INPUT_UP;
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_DOWN))actions|=INPUT_DOWN;
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSTICK))actions|=INPUT_FINE_AIM;
+    if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSTICK))actions|=INPUT_HOLSTER;
     if(actions&INPUT_UP)menu|=RF_XBOX_MENU_UP;
     if(actions&INPUT_DOWN)menu|=RF_XBOX_MENU_DOWN;
     if(actions&INPUT_JUMP)menu|=RF_XBOX_MENU_ACCEPT;
@@ -143,7 +144,8 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     actions&=~release_actions;
     {uint32_t load=back && (actions&INPUT_USE);
      uint32_t save=back && (actions&INPUT_RELOAD);
-     rf_scene_save_button(save&&!load);rf_scene_load_button(load);if(save||load)return RF_OK;}
+     rf_scene_save_button(save&&!load);rf_scene_load_button(load);
+     if(save||load){release_actions|=actions&INPUT_HOLSTER;return RF_OK;}}
     stick(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX),
           SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY),&horizontal,&vertical);
     input->move[0]=horizontal;input->move[2]=-vertical;
@@ -160,6 +162,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
       * ownership unchanged; the ordinary scope look scalar composes later.
       * The action bit shares hotplug/pause release suppression above. */
      if(actions&INPUT_FINE_AIM){input->look[0]*=.5f;input->look[1]*=.5f;}}
+    input->holster=!!(actions&INPUT_HOLSTER);
     input->fire=!!(actions&INPUT_FIRE);input->alt_fire=!!(actions&INPUT_ALT);
     {uint32_t forward=!!(actions&INPUT_NEXT),backward=!!(actions&INPUT_PREVIOUS);
      input->cycle_weapon=forward==backward?0:forward?1:2;}

@@ -62,7 +62,7 @@ static int scene_player_shield_bash_input(scene_stream *stream,uint32_t frame,
 {
     scene_player_shield_bash_event event;int status;
     if(!frame)scene_player_shield_bash_reset(&scene_player_shield_bash_state);
-    if(campaign_equipped_slot!=11 || campaign_explicit_unarmed || campaign_shield_id<0 ||
+    if(scene_player_weapon_holstered() || campaign_equipped_slot!=11 || campaign_explicit_unarmed || campaign_shield_id<0 ||
        !campaign_player_inventory.owned[campaign_shield_id] || campaign_player_damage.state.effects.health<=0){
         scene_player_shield_bash_reset(&scene_player_shield_bash_state);return RF_OK;
     }

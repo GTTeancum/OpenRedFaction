@@ -362,3 +362,20 @@ their existing ownership. No new PC binding is supplied. Authored training
 $FINE_AIM$ text now expands to HOLD RIGHT-STICK CLICK on Xbox. Source-written
 only; compilation and controller runtime are pending the parent-owned hourly
 batch. See [Player Fine Aim](PLAYER-FINE-AIM.md).
+
+
+## Xbox Holster first pass (2026-10-12)
+
+Click left stick to holster/unholster settled handheld equipment. Fire, alternate
+and reload are suppressed while holstered; click again or cycle an owned weapon
+to draw. Held weapon controls require release afterward. Busy reloads, throws,
+mode changes and delayed contacts decline the click without cancelling work.
+Inventory/ammo and completed weapon modes remain owned; views, scope/scanner,
+reticle and shield interception honor the retained posture. Mounted weapons
+keep their existing controls. Existing pause/hotplug and save/load suppression
+cover this action. $HOLSTER$ is LEFT-STICK CLICK on Xbox and UNBOUND on PC.
+
+The new trailing shared input boolean does not extend existing RFI records.
+RFWM3 retains the posture in its same32-byte layout; old saves decode ready and
+legacy profiles without RFWM reject holstered capture. Source-written only,
+uncompiled/runtime-unverified. See [Player Holster](PLAYER-HOLSTER.md).

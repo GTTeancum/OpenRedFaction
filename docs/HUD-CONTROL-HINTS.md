@@ -101,3 +101,12 @@ This adds no scope or alternate-fire action. The exact hold/50% choices are
 first-playable port policy, supported by the authored training precision-use
 intent; compile and native behavior remain unverified. See
 [Player Fine Aim](PLAYER-FINE-AIM.md).
+
+
+## Holster source update (2026-10-12)
+
+The earlier UNBOUND finding is historical for Xbox $HOLSTER$: the native
+left-stick click now reaches a filtered, ownership-checked Holster toggle, and
+the label is LEFT-STICK CLICK. PC remains UNBOUND. Message History and Fine Aim
+labels stay intact. The live weapon/view/shield and save owners are described in
+[Player Holster](PLAYER-HOLSTER.md); compilation/runtime remain unverified.

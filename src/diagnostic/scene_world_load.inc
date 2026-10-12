@@ -278,13 +278,17 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
     status=scene_ai_projectile_checkpoint_fusion_admit(projectiles,&player.player.player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_flame_admit(projectiles,&player.player.player);if(status)goto done;
+    status=scene_ai_projectile_checkpoint_holster_admit(projectiles,!!(player.modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));if(status)goto done;
     phase="continuous_charge";
     if(cost>budget||sizeof(charge)>budget-cost){status=RF_RANGE;goto done;}
     status=scene_continuous_charge_checkpoint_prepare(stream,v->data,v->bytes,&player.player.player,&charge);if(status)goto done;
     cost+=(uint32_t)sizeof(charge);
+    if((player.modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED) &&
+       (charge.next.episode_weapon>=0 || charge.next.current==2 || charge.next.pending==2)){status=RF_FORMAT;goto done;}
     status=scene_ai_projectile_checkpoint_burning_admit(projectiles,world->npcs);if(status)goto done;
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
+    status=scene_remote_checkpoint_holster_admit(!!(player.modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));if(status)goto done;
     phase="validate";
     status=scene_masako_checkpoint_admit(&masako,world->npcs,passive);if(status)goto done;
     status=scene_medic_flight_player_checkpoint_admit(world->npcs,&player);if(status)goto done;

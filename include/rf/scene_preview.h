@@ -904,7 +904,7 @@ uint32_t rf_scene_session_get_difficulty(void);
  * queued section handoff; normal scene retirement still owns every resource. */
 void rf_scene_session_end(void);
 /* cycle_weapon: 0 neutral, 1 next owned weapon, 2 previous owned weapon. */
-typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
+typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire,holster;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];
 extern uint32_t rf_scene_geo_regions[4];
 extern uint32_t rf_scene_terrain_shadows[4];

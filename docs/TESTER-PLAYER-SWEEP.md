@@ -47,8 +47,9 @@ deferred. The active repository and TO-DO.MD were not modified.
   handler. Kinds5/10 monitor/control handlers remain bounded deferrals. Existing
   docs state these limitations; this sweep found no new authored required
   progression owner proving either is a first-playable blocker.
-- Holster still has no first-playable input binding and its authored training
-  token displays UNBOUND. Xbox Message History now has the source-written
+- Holster now has a source-written left-stick-click toggle with retained
+  owned weapon posture and same-size RFWM3 save continuity; see
+  [Player Holster](PLAYER-HOLSTER.md). Xbox Message History has the source-written
   pause-menu route described above. Fine Aim is source-written on hold-right-stick
   click, halving the final normalized look response while leaving alternate-fire
   scoped zoom independent; see [Player Fine Aim](PLAYER-FINE-AIM.md). These

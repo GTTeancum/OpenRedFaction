@@ -1,4 +1,5 @@
 - October12 16:02 UTC stock64 Xbox build and bounded controller Options/New Game difficulty check passed on b304abcd: cold/paused option changes, reset defaults, Hard difficulty and End Session retention verified; startup Load Game compiled but saved restoration remains untested.
+- Player Holster is source-written on left-stick click with retained weapon ownership, view/shield/input gates and same-size RFWM3 continuity; await parent integration and the hourly stock64 batch (docs/PLAYER-HOLSTER.md).
 
 - Xbox Fine Aim is source-written on hold-right-stick click with half of final normalized look response and existing pause/hotplug suppression; await the next parent hourly stock64 compile/controller check (docs/PLAYER-FINE-AIM.md).
 

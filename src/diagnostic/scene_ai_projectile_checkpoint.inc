@@ -28,6 +28,17 @@ static uint32_t scene_ai_projectile_checkpoint_stage_bytes(void)
 {return (uint32_t)sizeof(scene_ai_projectile_checkpoint_stage);}
 static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *stage)
 {return stage&&stage->player_trigger_present&&(stage->player_trigger.cooldown||stage->player_trigger.held);}
+/* A holstered candidate may retain released flights and cooldowns, never
+ * unfinished input that would fire/reload behind the hidden view. */
+static int scene_ai_projectile_checkpoint_holster_admit(const scene_ai_projectile_checkpoint_stage *stage,uint32_t holstered)
+{
+    if(!holstered || !stage)return RF_OK;
+    if(stage->fusion_input.reloading || stage->player_throw.phase || stage->player_throw.ticks ||
+       stage->player_trigger.remaining || stage->player_trigger.delay ||
+       stage->flame.values[0] || stage->flame.values[1] || stage->flame.values[2] ||
+       stage->flame.values[8] || stage->flame.values[10])return RF_FORMAT;
+    return RF_OK;
+}
 static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile_checkpoint_stage *stage,
     const rf_campaign_player_state *player)
 {

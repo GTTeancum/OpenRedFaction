@@ -40,7 +40,7 @@ static uint32_t scene_scope_owner_reconcile(const scene_stream *s)
 {
     scene_scope_owner_state next={0,UINT32_MAX,-1};
     uint32_t source=campaign_player_object.handle,slot=campaign_equipped_slot;
-    if(s && (slot==6 || slot==15) && !campaign_explicit_unarmed &&
+    if(s && (slot==6 || slot==15) && !scene_player_weapon_holstered() && !campaign_explicit_unarmed &&
        !scene_driller_active(s) && !scene_turret_player_active() &&
        source && source!=UINT32_MAX &&
        campaign_player_object.view==&campaign_player_view &&
