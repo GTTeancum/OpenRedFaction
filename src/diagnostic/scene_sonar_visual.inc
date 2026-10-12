@@ -157,7 +157,7 @@ static uint32_t scene_sonar_effect_live(const scene_sonar_effect *e)
     for(i=0;i<SCENE_SONAR_PARTICLES;i++)n+=e->particles[i].age>=0;
     return n;
 }
-static void scene_sonar_visual_accept(uint32_t slot,const scene_ai_laser_projectile *accepted,uint32_t frame)
+static void scene_sonar_visual_bind(uint32_t slot,const scene_ai_laser_projectile *accepted,uint32_t frame)
 {
     scene_sonar_effect *e;uint32_t i;
     if(slot>=SCENE_AI_SONAR_CAPACITY || !accepted || !accepted->flight.active){rf_scene_sonar_visual[7]=RF_RANGE;return;}
@@ -168,7 +168,10 @@ static void scene_sonar_visual_accept(uint32_t slot,const scene_ai_laser_project
     e->ticket=scene_sonar_ticket;
     e->random.value=1; /* Private presentation seed: original global seed parity deferred. */
     for(i=0;i<SCENE_SONAR_PARTICLES;i++)e->particles[i].age=-1;
-    ++rf_scene_sonar_visual[0];
+}
+static void scene_sonar_visual_accept(uint32_t slot,const scene_ai_laser_projectile *accepted,uint32_t frame)
+{
+    scene_sonar_visual_bind(slot,accepted,frame);++rf_scene_sonar_visual[0];
 }
 static int scene_sonar_owner_matches(const scene_ai_laser_projectile *a,const scene_ai_laser_projectile *b)
 {

@@ -122,7 +122,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(scene_fusion_checkpoint_busy())return RF_NOT_FOUND;
     {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
         if(charge)return charge;}
-    if(scene_player_riot_save_pending() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_RANGE;
+    if(scene_player_riot_save_pending() || (modes==2?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending())return RF_RANGE;
     if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
     rocket_trigger=modes&&campaign_equipped_slot==4&&scene_player_rocket_pending(s)&&
         !combat_trigger.remaining&&!combat_trigger.delay&&combat_trigger.cooldown<=1200&&combat_trigger.held<=1;

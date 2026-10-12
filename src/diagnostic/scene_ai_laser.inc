@@ -19,7 +19,7 @@ static void scene_ai_laser_reset(void)
 }
 static uint32_t scene_ai_laser_pending(void)
 {
-    uint32_t i;if(scene_ai_laser_updating)return 1;
+    uint32_t i;if(scene_ai_laser_updating||scene_ai_direct_service_depth)return 1;
     for(i=0;i<SCENE_AI_LASER_CAPACITY;i++)if(scene_ai_lasers[i].flight.active)return 1;
     return 0;
 }

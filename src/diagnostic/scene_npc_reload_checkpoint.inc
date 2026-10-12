@@ -16,7 +16,7 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
     campaign_enemy_weapon_selection selected={0};rf_entity_motion_selection binding;
     const campaign_npc_body *owner;const campaign_model_owner *model_owner;
     const rf_entity_playback_model *model;const rf_motion_slot_state *active;
-    uint32_t skeleton,i,j,ordinary,found=0;int status;
+    uint32_t skeleton,i,j,ordinary,direct=0,found=0;int status;
     if(capturing>1||!inventory||!selection||!playback||!campaign_npc_bodies||index>=campaign_npc_body_count||
        !campaign_seeds.items||index>=campaign_seeds.records.count||!campaign_seeds.classes||cls>=campaign_seeds.class_count||
        campaign_seeds.items[index].class_index!=cls||campaign_seeds.classes[cls].model_kind!=2||
@@ -48,21 +48,33 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
      * checked below, independently of the live selected weapon. Rocket keeps the
      * existing action39-only exception; it never gains residual fire admission. */
     ordinary=status==RF_OK;
+    /* RFAP7 immediate Laser/Sonar have no delayed launch or reload owner.
+     * Their remaining action2 is independently retained RFNC presentation.
+     * The last paid reserve round may already have left zero ammunition. */
+    if(status==RF_NOT_FOUND&&(campaign_enemy_laser_weapon(weapon)||campaign_enemy_sonar_weapon(weapon))){
+        selected.primary=campaign_enemy_laser_weapon(weapon)?&scene_ai_laser_definition.primary:&scene_ai_sonar_definition.primary;
+        selected.ammo=campaign_weapon_supply.definitions+weapon;selected.reserve_fed=1;
+        direct=1;status=RF_OK;
+    }
     if(status==RF_NOT_FOUND&&weapon==campaign_rocket_id&&scene_rocket_resources){
         selected.primary=campaign_primary+4;selected.ammo=campaign_weapon_supply.definitions+weapon;status=RF_OK;
     }
-    if(status||!selected.primary||!selected.ammo||selected.melee||selected.reserve_fed||
-       selected.ammo->capacity<0||selected.ammo->magazine<=0||
-       selected.primary->magazine!=(uint32_t)selected.ammo->magazine||
-       campaign_enemy_ammo_validate(inventory,selected.ammo,selected.primary,weapon))return 0;
+    if(status||!selected.primary||!selected.ammo||selected.melee)return 0;
+    if(direct){
+        if(selected.ammo->ammo_type<0||selected.ammo->ammo_type>=32||selected.ammo->capacity!=200||
+           selected.ammo->magazine||selected.primary->magazine||inventory->loaded[weapon]||
+           inventory->reserve[selected.ammo->ammo_type]<0||inventory->reserve[selected.ammo->ammo_type]>200)return 0;
+    }else if(selected.reserve_fed||selected.ammo->capacity<0||selected.ammo->magazine<=0||
+        selected.primary->magazine!=(uint32_t)selected.ammo->magazine||
+        campaign_enemy_ammo_validate(inventory,selected.ammo,selected.primary,weapon))return 0;
     status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&binding);
     if(!status)status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,weapon,&binding);
     /* Compare members, not struct padding; weapon aliases belong to42ab20. */
     if(status||memcmp(&binding.mapping,&selection->mapping,sizeof(binding.mapping))||
        memcmp(binding.action_sounds,selection->action_sounds,sizeof(binding.action_sounds))||
        memcmp(binding.action_declarations,selection->action_declarations,sizeof(binding.action_declarations))||
-       motion<0||(motion!=binding.mapping.actions[39]&&
-                  (!ordinary||motion!=binding.mapping.actions[2])))return 0;
+       motion<0||(direct?motion!=binding.mapping.actions[2]:
+           (motion!=binding.mapping.actions[39]&&(!ordinary||motion!=binding.mapping.actions[2]))))return 0;
     skeleton=binding.mapping.skeleton;
     if(skeleton!=model_owner->pose->skeleton||!campaign_skeletons.items||skeleton>=campaign_skeletons.count||
        !campaign_skeletons.items[skeleton].bones||

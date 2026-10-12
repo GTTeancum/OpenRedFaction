@@ -1,3 +1,5 @@
+- NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
+
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
 
 NPC shoulder-cannon paid flights are now source-integrated with RFAP6 authored-source/candidate ownership joins and shared player/NPC pool continuity. Legacy RFAP1–5 remain supported. Compilation and saved continuation remain unverified; see docs/NPC-FUSION-FLIGHT-SAVE.md.

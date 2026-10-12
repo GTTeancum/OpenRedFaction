@@ -20,7 +20,7 @@ static void scene_ai_sonar_reset(void)
 }
 static uint32_t scene_ai_sonar_pending(void)
 {
-    uint32_t i;if(scene_ai_sonar_updating)return 1;
+    uint32_t i;if(scene_ai_sonar_updating||scene_ai_direct_service_depth)return 1;
     for(i=0;i<SCENE_AI_SONAR_CAPACITY;i++)if(scene_ai_sonars[i].flight.active)return 1;
     return 0;
 }

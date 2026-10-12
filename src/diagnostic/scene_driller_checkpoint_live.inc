@@ -217,7 +217,7 @@ static int scene_vehicle_checkpoint_player_capture_mode(scene_stream *s,rf_playe
     VEHICLE_CAPTURE_GUARD(20,scene_flame_input_pending());
     VEHICLE_CAPTURE_GUARD(21,scene_flame_canister_save_pending());
     VEHICLE_CAPTURE_GUARD(22,scene_player_riot_save_pending() || scene_player_rocket_lock_save_pending(s));
-    VEHICLE_CAPTURE_GUARD(23,scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending());
+    VEHICLE_CAPTURE_GUARD(23,(ordinary?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending());
 #undef VEHICLE_CAPTURE_GUARD
     rf_scene_vehicle_player_capture[7]=guard;
     if(guard){rf_scene_vehicle_player_capture[1]=(uint32_t)RF_RANGE;return RF_RANGE;}

@@ -2517,6 +2517,8 @@ static uint32_t scene_ai_tribeam_pending(void);
 static uint32_t scene_ai_cane_pending(void);
 static uint32_t scene_ai_spit_pending(void);
 static uint32_t scene_ai_laser_pending(void);
+static uint32_t scene_ai_direct_checkpoint_busy(void);
+static uint32_t scene_ai_direct_service_depth; /* Stack-owned; never cleared by world reset. */
 static int32_t campaign_enemy_extra_fallback_pick(const rf_weapon_inventory *,const rf_weapon_supply_catalog *,int32_t,uint32_t);
 static uint32_t scene_ai_rocket_pending(void);
 static uint32_t scene_fusion_projectile_pending(void);
@@ -12322,6 +12324,7 @@ static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
 static int scene_ai_rocket_launch(campaign_npc_body *,const float *);
 static int scene_ai_laser_launch(campaign_npc_body *,const float *);
 static int scene_ai_sonar_launch(campaign_npc_body *,const float *);
+static int scene_ai_direct_fire(uint32_t,uint32_t,const float *,uint32_t,uint32_t);
 static int scene_ai_tankbot_missile_launch(campaign_npc_body *,const float *);
 #include "scene_ai_opposed_acquisition.inc"
 #include "scene_ai_reload_completion.inc"
@@ -12668,15 +12671,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(status==RF_NOT_FOUND)continue;
             if(status)return status;
         }
-        if(campaign_enemy_sonar_weapon(weapon)){
-            status=scene_ai_sonar_launch(owner,target_eye);
-            if(status==RF_NOT_FOUND)continue;
+        if(campaign_enemy_laser_weapon(weapon)||campaign_enemy_sonar_weapon(weapon)){
+            /* RFAP7 persists paid flights. Publish cadence and consume a once
+             * request before any presentation callback can save this endpoint. */
+            status=scene_ai_direct_fire(i,frame,target_eye,once,once?single->mode:0);
             if(status)return status;
-        }
-        if(campaign_enemy_laser_weapon(weapon)){
-            status=scene_ai_laser_launch(owner,target_eye);
-            if(status==RF_NOT_FOUND)continue;
-            if(status)return status;
+            continue;
         }
         if(campaign_enemy_drone_smash_weapon(weapon) ||
            (!point_target && !vehicle_victim && campaign_enemy_delayed_melee_weapon(weapon))) {
@@ -14363,6 +14363,7 @@ static int scene_ai_projectile_checkpoint_weapon_mask(const void *,uint32_t,uint
 static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static void scene_ai_projectile_checkpoint_flame_finish(const scene_ai_projectile_checkpoint_stage *);
+static void scene_ai_projectile_checkpoint_direct_finish(const scene_ai_projectile_checkpoint_stage *);
 static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_projectile_checkpoint_stage *);
 static int scene_ai_projectile_checkpoint_holster_admit(const scene_ai_projectile_checkpoint_stage *,uint32_t);
 static void scene_ai_projectile_checkpoint_assign(scene_stream *,const scene_ai_projectile_checkpoint_stage *);
@@ -14390,6 +14391,7 @@ static void scene_turret_generated_attack_record(const campaign_npc_body *,const
 #include "scene_npc_reload_publication.inc"
 static int scene_ai_projectile_checkpoint_burning_admit(scene_ai_projectile_checkpoint_stage *,scene_npc_checkpoint_restore_stage *);
 static int scene_ai_projectile_checkpoint_npc_fusion_admit(const scene_ai_projectile_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *);
+static int scene_ai_projectile_checkpoint_direct_admit(const scene_ai_projectile_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *);
 #include "scene_mover_checkpoint.inc"
 #include "scene_event_checkpoint.inc"
 #include "scene_checkpoint_world.inc"
@@ -14430,9 +14432,9 @@ static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int
     {const char *reason=NULL;status=scene_medic_save_guard(&reason);
         if(status){printf("NPC_CHECKPOINT_REJECT %s\n",reason);return status;}}
     /* Save/export only: RFNC action playback cannot encode pending damage.
-     * Only the ordinary composed world caller owns RFAP6 NPC Fusion rows.
+     * Only the ordinary composed world caller owns RFAP6/7 NPC paid flights.
      * Do NOT move this into row capture, which load preflight also consumes. */
-    if((scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || (projectile_profile?scene_fusion_checkpoint_busy():scene_ai_fusion_save_blocked()) || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()))return RF_NOT_FOUND;
+    if((scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || (projectile_profile?scene_fusion_checkpoint_busy():scene_ai_fusion_save_blocked()) || (projectile_profile?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending()))return RF_NOT_FOUND;
     catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64)return RF_RANGE;
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -16594,6 +16596,7 @@ static int campaign_inventory_initialize(void)
 static void scene_sonar_visual_accept(uint32_t,const scene_ai_laser_projectile *,uint32_t);
 #include "scene_ai_sonar.inc"
 #include "scene_sonar_visual.inc"
+#include "scene_ai_direct_fire.inc"
 #include "scene_spit_visual.inc"
 #include "scene_cane_visual.inc"
 static int scene_remote_launch(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t *);
@@ -21864,7 +21867,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_entity_state_set *states=NULL,*form_states[3]={0};rf_entity_physics_config *form_configs=NULL;int motions_opened=0;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
-    uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
+    uint64_t bytes,count,capacity;uint32_t i,saved_direct_resources=0;int status;scene_stream *stream;
     memset(rf_scene_late_load,0,sizeof(rf_scene_late_load));
     campaign_dry_sweep_invalidate();
     memset(campaign_trigger_contact_cache,0,sizeof(campaign_trigger_contact_cache));
@@ -22319,6 +22322,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources,&scene_drone_missile_resources);
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons,&saved_npc_projectiles);
               npc_projectiles|=saved_npc_projectiles;
+              saved_direct_resources=saved_npc_projectiles&(SCENE_AI_DIRECT_RESOURCE_LASER|SCENE_AI_DIRECT_RESOURCE_SONAR);
               if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
@@ -22574,7 +22578,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 &stream->passive_vehicle_base[i],&stream->passive_vehicle_textures[i]);if(status)goto done;
         }
         uint32_t fighter_visual_needed=rf_scene_vehicle_enabled==5||stream->passive_vehicle_resources[1]!=NULL||stream->passive_vehicle_resources[2]!=NULL;
-        uint32_t laser_visual_needed=0,tribeam_visual_needed=0,sonar_visual_needed=0,spit_visual_needed=0,cane_visual_needed=0;
+        uint32_t laser_visual_needed=!!(saved_direct_resources&SCENE_AI_DIRECT_RESOURCE_LASER),tribeam_visual_needed=0,
+            sonar_visual_needed=!!(saved_direct_resources&SCENE_AI_DIRECT_RESOURCE_SONAR),spit_visual_needed=0,cane_visual_needed=0;
         for(i=0;i<campaign_npc_body_count;i++){
             const campaign_npc_body *npc=campaign_npc_bodies+i;
             if(npc->registration.view && !(npc->object_flags&2u) && !(npc->view.flags_810&1u) &&

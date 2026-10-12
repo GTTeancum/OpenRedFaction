@@ -68,7 +68,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     rf_weapon_modes_checkpoint modes;rf_campaign_triggers *triggers=NULL;rf_level_uid_object *objects=NULL;
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
     uint32_t at=(scene_ai_grenade_pending()||scene_ai_rocket_pending()||
-        scene_player_rocket_pending(s)||scene_player_grenade_pending()||scene_fusion_save_pending()||scene_flame_checkpoint_count()||scene_burning_save_pending()||!scene_continuous_charge_is_constructor())?
+        scene_player_rocket_pending(s)||scene_player_grenade_pending()||scene_ai_laser_pending()||scene_ai_sonar_pending()||scene_fusion_save_pending()||scene_flame_checkpoint_count()||scene_burning_save_pending()||!scene_continuous_charge_is_constructor())?
         RF_WORLD_CHECKPOINT_PREFIX_V3:RF_WORLD_CHECKPOINT_PREFIX;
     uint32_t bytes=0,total=0,i,slot,object_count=0,omissions=0,stage=0;
     int status=RF_OK;int32_t now;const char *part="identity";
@@ -94,7 +94,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(scene_fusion_checkpoint_busy()){part="fusion_service";status=RF_NOT_FOUND;goto done;}
     /* Runtime-only NPC strikes/flights cannot be silently omitted from a save. */
     if(scene_robot_death_save_pending()){part="robot_death_pending";status=RF_NOT_FOUND;goto done;}
-    if(scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()){part="npc_transient_attack";status=RF_NOT_FOUND;goto done;}
+    if(scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_direct_checkpoint_busy() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending()){part="npc_transient_attack";status=RF_NOT_FOUND;goto done;}
     status=scene_item_pickup_states_valid(s);if(status)goto done;
     /* RFNC14 admits the exact supported NPC freeze/wake owner below. */
     if(scene_turret_heap_pending()){status=RF_NOT_FOUND;goto done;}
