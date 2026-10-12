@@ -276,6 +276,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(status)goto done;cost+=scene_ai_projectile_checkpoint_stage_bytes();
         if(scene_ai_projectile_checkpoint_trigger_pending(projectiles)&&
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
+    status=scene_ai_projectile_checkpoint_npc_fusion_admit(projectiles,world->npcs);if(status)goto done;
     status=scene_ai_projectile_checkpoint_fusion_admit(projectiles,&player.player.player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_flame_admit(projectiles,&player.player.player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_holster_admit(projectiles,!!(player.modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));if(status)goto done;

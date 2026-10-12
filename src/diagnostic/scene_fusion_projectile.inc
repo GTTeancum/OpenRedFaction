@@ -15,6 +15,9 @@ typedef struct scene_fusion_projectile {
 } scene_fusion_projectile;
 typedef int (*scene_fusion_impact_visual)(scene_stream *,const rf_weapon_flight_contact *,uint32_t,float);
 static scene_fusion_projectile scene_fusion_projectiles[SCENE_FUSION_CAPACITY];
+/* Stack-owned service depth survives callback-driven world resets. */
+static uint32_t scene_fusion_service_depth;
+static uint32_t scene_fusion_checkpoint_busy(void){return scene_fusion_service_depth!=0;}
 /* launches, impacts, expired, live, capacity refusals */
 uint32_t rf_scene_fusion_projectiles[5];
 static void scene_fusion_projectile_reset(void)
@@ -48,7 +51,7 @@ static int scene_fusion_launch(const float position[3],const float direction[3],
     const rf_weapon_explosive_definition *definition,uint32_t *spawned)
 {return scene_fusion_launch_owned(position,direction,source,damage,definition,0,spawned);}
 #include "scene_ai_fusion.inc"
-static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scene_fusion_impact_visual visual)
+static int scene_fusion_projectile_tick_owned(scene_stream *stream,uint32_t frame,scene_fusion_impact_visual visual)
 {
     uint32_t i;int status;if(!stream || !visual)return RF_RANGE;rf_scene_fusion_projectiles[3]=0;
     for(i=0;i<SCENE_FUSION_CAPACITY;i++){
@@ -101,5 +104,11 @@ static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scen
         }
         if(shot->flight.active)++rf_scene_fusion_projectiles[3];
     }return RF_OK;
+}
+static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scene_fusion_impact_visual visual)
+{
+    int status;if(scene_fusion_service_depth)return RF_NOT_FOUND;
+    ++scene_fusion_service_depth;status=scene_fusion_projectile_tick_owned(stream,frame,visual);
+    --scene_fusion_service_depth;return status;
 }
 #endif

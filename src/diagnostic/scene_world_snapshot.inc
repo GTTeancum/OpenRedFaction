@@ -91,6 +91,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
      * sidecar yet. Never silently resume before its already-applied effect. */
     if(campaign_endgame.phase||campaign_defuse.active){status=RF_NOT_FOUND;goto done;}
     if(scene_player_rocket_lock_save_pending(s)){part="player_rocket_lock";status=RF_NOT_FOUND;goto done;}
+    if(scene_fusion_checkpoint_busy()){part="fusion_service";status=RF_NOT_FOUND;goto done;}
     /* Runtime-only NPC strikes/flights cannot be silently omitted from a save. */
     if(scene_robot_death_save_pending()){part="robot_death_pending";status=RF_NOT_FOUND;goto done;}
     if(scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()){part="npc_transient_attack";status=RF_NOT_FOUND;goto done;}
@@ -130,7 +131,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(!status)status=rf_player_checkpoint_encode(&player,&catalog,buffer+at,RF_PLAYER_CHECKPOINT_BYTES);
     bytes=RF_PLAYER_CHECKPOINT_BYTES;SNAP_END(RF_WORLD_PLAYER);
     SNAP_START("npc");scene_corpse_lifetime_checkpoint_scope(1);
-    status=scene_npc_checkpoint_export_mode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes,1);
+    status=scene_npc_checkpoint_export_mode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes,1,1);
     scene_corpse_lifetime_checkpoint_scope(0);SNAP_END(RF_WORLD_NPC);
     SNAP_START("mover");status=rf_scene_mover_checkpoint_export(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_MOVER);
     SNAP_START("events");memset(rf_scene_world_snapshot_event_probe,0,sizeof(rf_scene_world_snapshot_event_probe));

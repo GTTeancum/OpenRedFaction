@@ -14,6 +14,7 @@ struct scene_ai_projectile_checkpoint_stage {
     scene_ai_rocket_projectile rockets[SCENE_AI_ROCKET_CAPACITY];
     scene_grenade_projectile player_grenades[SCENE_GRENADE_CAPACITY];
     scene_fusion_projectile fusion[SCENE_FUSION_CAPACITY];
+    uint32_t fusion_source_uid[SCENE_FUSION_CAPACITY]; /* Kind12 candidate join only. */
     scene_fusion_input_state fusion_input;uint32_t fusion_present,fusion_live;
     rf_grenade_throw player_throw;
     uint32_t player_throw_present,player_grenades_live;
@@ -123,6 +124,7 @@ static int scene_ai_projectile_source_handle(uint32_t uid,uint32_t *handle)
         }
     return RF_NOT_FOUND;
 }
+#include "scene_ai_fusion_checkpoint.inc"
 /* RFAP2 adds player Fusion rows6 and input-only row7. Times are remaining
  * frame counts; runtime source handles and table pointers are reconstructed. */
 static void scene_ai_projectile_put_fusion_input(unsigned char *r)
@@ -133,17 +135,18 @@ static void scene_ai_projectile_put_fusion_input(unsigned char *r)
         scene_fusion_input.reload_due-combat_frame:0;
     checkpoint_put(r+60,cooldown);checkpoint_put(r+64,reload);
 }
-static int scene_ai_projectile_checkpoint_weapon_mask(const void *data,uint32_t bytes,uint32_t *mask)
+static int scene_ai_projectile_checkpoint_weapon_mask(const void *data,uint32_t bytes,uint32_t *mask,uint32_t *npc_mask)
 {
     const unsigned char *p=data;uint32_t count,i,version;
-    if(!mask)return RF_RANGE;if(!bytes)return data?RF_FORMAT:RF_OK;
+    if(!mask||!npc_mask)return RF_RANGE;if(!bytes)return data?RF_FORMAT:RF_OK;
     if(!p||bytes<16||memcmp(p,"RFAP",4)||checkpoint_u32(p+12))return RF_FORMAT;
     version=checkpoint_u32(p+4);count=checkpoint_u32(p+8);
-    if((version<1||version>5)||!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=16+112*count)return RF_FORMAT;
+    if((version<1||version>6)||!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=16+112*count)return RF_FORMAT;
     for(i=0;i<count;i++){
         uint32_t kind=checkpoint_u32(p+16+112*i);
-        if(!kind||kind>(version==1?5u:version==2?7u:version==3?9u:version==4?10u:11u))return RF_FORMAT;
+        if(!kind||kind>(version==1?5u:version==2?7u:version==3?9u:version==4?10u:version==5?11u:12u))return RF_FORMAT;
         if(kind==6||kind==7)*mask|=1u<<12;
+        if(kind==12)*npc_mask|=1u<<12; /* Shared mesh/effects, never player view/ownership. */
         if(kind==8||kind==9||kind==10)*mask|=1u<<10;
         if(kind==11){scene_continuous_charge_state state;
             int status=scene_continuous_charge_checkpoint_row(p+16+112*i,&state);if(status)return status;
@@ -156,25 +159,37 @@ static int scene_ai_projectile_checkpoint_weapon_mask(const void *data,uint32_t 
 }
 static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,void *output,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=output;uint32_t i,j,count=0,uid,fusion_count=0,charge_count=0;int status;
+    unsigned char *p=output;uint32_t i,j,count=0,uid,fusion_count=0,fusion_player_count=0,fusion_npc_count=0,charge_count=0;int status;
+    uint32_t fusion_controller=scene_fusion_input.reloading||
+        (scene_fusion_input.cooling&&(int32_t)(combat_frame-scene_fusion_input.next_fire)<0);
     if(!stream||!output||!written)return RF_RANGE;
     if(scene_player_rocket_lock_save_pending(stream))return RF_NOT_FOUND;
     status=scene_continuous_charge_checkpoint_capture(stream,NULL,&charge_count);if(status)return status;
-    /* Save-only rejection, before touching the output. RFAP1..5 cannot name
-     * Drone Missile, NPC Fusion or Laser, and prepare/restore must not inherit this live guard. */
-    if(scene_ai_drone_missile_save_blocked() || scene_ai_fusion_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_NOT_FOUND;
+    /* Save-only rejection, before touching the output. RFAP6 names NPC Fusion;
+     * other unsupported attacks and in-service callbacks still refuse.
+     * Prepare/restore must not inherit this live guard. */
+    if(scene_ai_drone_missile_save_blocked() || scene_fusion_checkpoint_busy() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_NOT_FOUND;
     for(i=0;i<SCENE_AI_GRENADE_CAPACITY;i++)count+=scene_ai_grenades[i].projectile.flight.lifecycle.active!=0;
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)count+=scene_ai_rockets[i].flight.active!=0;
     for(i=0;i<SCENE_ROCKETS;i++)count+=stream->rockets[i].active!=0;
     {uint32_t flights=0;for(i=0;i<SCENE_GRENADE_CAPACITY;i++)flights+=scene_grenades[i].flight.lifecycle.active!=0;
         count+=flights;if(!flights&&(scene_grenade_throw.cooldown||scene_grenade_throw.held))++count;}
-    for(i=0;i<SCENE_FUSION_CAPACITY;i++)fusion_count+=scene_fusion_projectiles[i].flight.active!=0;
-    count+=fusion_count;if(!fusion_count&&scene_fusion_save_pending())++count;
+    for(i=0;i<SCENE_FUSION_CAPACITY;i++){
+        const scene_fusion_projectile *shot=scene_fusion_projectiles+i;
+        if(!shot->flight.active)continue;
+        if(shot->npc_source){
+            status=scene_ai_fusion_checkpoint_shape(shot);if(status)return status;
+            status=scene_ai_fusion_checkpoint_source(shot->source,&uid);if(status)return status;
+            ++fusion_npc_count;
+        }else{if(shot->source!=campaign_player_object.handle)return RF_FORMAT;++fusion_player_count;}
+        ++fusion_count;
+    }
+    count+=fusion_count;if(!fusion_player_count&&fusion_controller)++count;
     count+=scene_flame_checkpoint_count()+scene_burning_checkpoint_count()+charge_count;
     if(!count){*written=0;return RF_OK;}
     if(count>SCENE_AI_PROJECTILE_MAX||capacity<SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW)return RF_RANGE;
     memset(p,0,SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW);
-    memcpy(p,"RFAP",4);checkpoint_put(p+4,charge_count?5:scene_burning_save_pending()?4:scene_flame_checkpoint_count()?3:scene_fusion_save_pending()?2:1);checkpoint_put(p+8,count);
+    memcpy(p,"RFAP",4);checkpoint_put(p+4,fusion_npc_count?6:charge_count?5:scene_burning_save_pending()?4:scene_flame_checkpoint_count()?3:scene_fusion_save_pending()?2:1);checkpoint_put(p+8,count);
     j=0;
     for(i=0;i<SCENE_AI_GRENADE_CAPACITY;i++){
         const scene_ai_grenade_projectile *shot=scene_ai_grenades+i;
@@ -252,17 +267,19 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
     for(i=0;i<SCENE_FUSION_CAPACITY;i++){
         const scene_fusion_projectile *shot=scene_fusion_projectiles+i;unsigned char *r;
         if(!shot->flight.active)continue;
-        if(shot->source!=campaign_player_object.handle)return RF_FORMAT;
+        uid=0;
+        if(shot->npc_source){status=scene_ai_fusion_checkpoint_source(shot->source,&uid);if(status)return status;}
+        else if(shot->source!=campaign_player_object.handle)return RF_FORMAT;
         r=p+SCENE_AI_PROJECTILE_HEADER+j++*SCENE_AI_PROJECTILE_ROW;
-        checkpoint_put(r,6);checkpoint_put(r+4,i);
+        checkpoint_put(r,shot->npc_source?12:6);checkpoint_put(r+4,i);checkpoint_put(r+8,uid);
         for(uint32_t k=0;k<3;k++){checkpoint_put_float(r+16+k*4,shot->flight.position[k]);
             checkpoint_put_float(r+28+k*4,shot->flight.velocity[k]);}
         checkpoint_put_float(r+40,shot->flight.radius);checkpoint_put(r+44,shot->liquid.query_flags);
         scene_ai_projectile_put_double(r+48,shot->flight.remaining);checkpoint_put_float(r+56,shot->damage);
-        scene_ai_projectile_put_fusion_input(r);
+        if(!shot->npc_source)scene_ai_projectile_put_fusion_input(r);
         for(uint32_t k=0;k<9;k++)checkpoint_put_float(r+72+k*4,shot->basis[k]);
     }
-    if(!fusion_count&&scene_fusion_save_pending()){
+    if(!fusion_player_count&&fusion_controller){
         unsigned char *r=p+SCENE_AI_PROJECTILE_HEADER+j++*SCENE_AI_PROJECTILE_ROW;
         checkpoint_put(r,7);scene_ai_projectile_put_fusion_input(r);
     }
@@ -276,6 +293,7 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
     {
         scene_ai_projectile_checkpoint_stage *check=NULL;
         uint32_t size=SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW;
+        if(j!=count)return RF_FORMAT;
         status=scene_ai_projectile_checkpoint_prepare(stream,p,size,sizeof(*check),&check);
         scene_ai_projectile_checkpoint_discard(&check);
         if(status)return status;
@@ -287,9 +305,9 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
 {
     const unsigned char *p=data;scene_ai_projectile_checkpoint_stage *stage;
     uint32_t count,i,seen_grenade=0,seen_rocket=0,seen_player_grenade=0,controller_only=0;
-    uint64_t seen_player=0;uint32_t seen_fusion=0,fusion_controller_only=0,version;int preflight;
+    uint64_t seen_player=0;uint32_t seen_fusion=0,seen_player_fusion=0,fusion_controller_only=0,version;int preflight;
     if(!stream||!out||*out||!data||bytes<SCENE_AI_PROJECTILE_HEADER||
-       budget<sizeof(*stage)||memcmp(p,"RFAP",4)||(checkpoint_u32(p+4)<1||checkpoint_u32(p+4)>5)||checkpoint_u32(p+12))return RF_FORMAT;
+       budget<sizeof(*stage)||memcmp(p,"RFAP",4)||(checkpoint_u32(p+4)<1||checkpoint_u32(p+4)>6)||checkpoint_u32(p+12))return RF_FORMAT;
     version=checkpoint_u32(p+4);count=checkpoint_u32(p+8);
     if(!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW)return RF_FORMAT;
     preflight=scene_continuous_charge_checkpoint_preflight(data,bytes);if(preflight)return preflight;
@@ -388,7 +406,7 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
                !scene_fusion_resources||!stream->player_weapon[12]||
                (stage->fusion_present&&memcmp(&stage->fusion_input,&input,sizeof(input))))goto invalid;
             if(kind==7){
-                if(slot||fusion_controller_only||seen_fusion||(!cooldown&&!reload))goto invalid;
+                if(slot||fusion_controller_only||seen_player_fusion||(!cooldown&&!reload))goto invalid;
                 for(k=16;k<60;k++)if(r[k])goto invalid;
                 for(k=68;k<112;k++)if(r[k])goto invalid;
                 fusion_controller_only=1;
@@ -396,7 +414,7 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
                 scene_fusion_projectile *shot;uint32_t flags=checkpoint_u32(r+44);
                 if(slot>=SCENE_FUSION_CAPACITY||seen_fusion&(1u<<slot)||fusion_controller_only||
                    !(flags&4u)||(flags&~0x1104u)||!isfinite(damage)||damage<=0||damage>10000)goto invalid;
-                seen_fusion|=1u<<slot;shot=stage->fusion+slot;
+                seen_fusion|=1u<<slot;seen_player_fusion|=1u<<slot;shot=stage->fusion+slot;
                 shot->flight.radius=radius;shot->flight.remaining=scene_ai_projectile_double(r+48);
                 shot->flight.active=1;shot->liquid.query_flags=flags;shot->damage=damage;
                 shot->definition=campaign_fusion;shot->source=campaign_player_object.handle;
@@ -406,6 +424,19 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
                 ++stage->fusion_live;
             }
             stage->fusion_input=input;stage->fusion_present=1;
+        }else if(kind==12&&version>=6){
+            scene_fusion_projectile *shot;uint32_t resolved_uid;
+            if(slot>=SCENE_FUSION_CAPACITY||seen_fusion&(1u<<slot)||!uid||uid==UINT32_MAX||variant||
+               checkpoint_u32(r+60)||checkpoint_u32(r+64)||checkpoint_u32(r+68)||checkpoint_u32(r+108)||
+               scene_ai_projectile_source_handle(uid,&source)||
+               scene_ai_fusion_checkpoint_source(source,&resolved_uid)||resolved_uid!=uid)goto invalid;
+            seen_fusion|=1u<<slot;shot=stage->fusion+slot;
+            shot->flight.radius=radius;shot->flight.remaining=scene_ai_projectile_double(r+48);
+            shot->flight.active=1;shot->liquid.query_flags=checkpoint_u32(r+44);shot->damage=damage;
+            shot->definition=campaign_fusion;shot->source=source;shot->npc_source=1;
+            stage->fusion_source_uid[slot]=uid;
+            for(k=0;k<9;k++)shot->basis[k]=checkpoint_float(r+72+k*4);
+            ++stage->fusion_live;
         }else if((kind==8||kind==9)&&version>=3){
             if(scene_flame_checkpoint_read(&stage->flame,r)||!stream->player_weapon[10])goto invalid;
             continue;
@@ -425,10 +456,11 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
                 stage->grenades[slot].projectile.flight.velocity[k]=velocity;}
             else if(kind==2){stage->rockets[slot].flight.position[k]=position;stage->rockets[slot].flight.velocity[k]=velocity;}
             else if(kind==3){stage->player_rockets[slot].position[k]=position;stage->player_rockets[slot].velocity[k]=velocity;}
-            else if(kind==6){stage->fusion[slot].flight.position[k]=position;stage->fusion[slot].flight.velocity[k]=velocity;}
+            else if(kind==6||kind==12){stage->fusion[slot].flight.position[k]=position;stage->fusion[slot].flight.velocity[k]=velocity;}
             else{stage->player_grenades[slot].flight.position[k]=position;
                 stage->player_grenades[slot].flight.velocity[k]=velocity;}
         }
+        if(kind==12&&scene_ai_fusion_checkpoint_shape(stage->fusion+slot))goto invalid;
         if(kind==1){stage->grenades[slot].damage=damage;stage->grenades[slot].source=source;}
         else if(kind==2){stage->rockets[slot].damage=damage;stage->rockets[slot].source=source;}
     }

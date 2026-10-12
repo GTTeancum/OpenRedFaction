@@ -4,7 +4,7 @@
  * stepping. The four original slots are shared with the player. Ordinary NPC
  * inventory/cadence/forced-shot queues own acceptance; no sidecar timers. */
 uint32_t rf_scene_ai_fusion[6]; /* accepted,pool refusals,direct hits,impacts,last source,status */
-static int scene_ai_fusion_fire(uint32_t slot,uint32_t frame,const float target[3],
+static int scene_ai_fusion_fire_owned(uint32_t slot,uint32_t frame,const float target[3],
     uint32_t once,uint32_t mode)
 {
     campaign_enemy_weapon_selection selected={0};campaign_npc_body *owner;
@@ -44,12 +44,18 @@ static int scene_ai_fusion_fire(uint32_t slot,uint32_t frame,const float target[
     if(status==RF_NOT_FOUND){++rf_scene_enemy_fire[2];return RF_OK;}
     return status;
 }
-/* RFAP1..5 kind6 is explicitly PLAYER-owned. Do not encode an NPC shell as a
- * player flight, lose source attribution, or discard it to make a save fit.
- * Loading an already-valid timeline remains available; normal pool reset or
- * validated assignment retires the outgoing live flights on publication. */
+static int scene_ai_fusion_fire(uint32_t slot,uint32_t frame,const float target[3],uint32_t once,uint32_t mode)
+{
+    int status;if(scene_fusion_service_depth)return RF_NOT_FOUND;
+    ++scene_fusion_service_depth;status=scene_ai_fusion_fire_owned(slot,frame,target,once,mode);
+    --scene_fusion_service_depth;return status;
+}
+/* RFAP6 kind12 owns NPC shells in the ordinary composed world profile.
+ * Standalone/legacy formats still refuse, as does a callback-active endpoint
+ * even after the final shell retires. This is never a restore-preflight gate. */
 static uint32_t scene_ai_fusion_save_blocked(void)
 {
+    if(scene_fusion_checkpoint_busy())return 1;
     for(uint32_t i=0;i<SCENE_FUSION_CAPACITY;i++)
         if(scene_fusion_projectiles[i].flight.active&&scene_fusion_projectiles[i].npc_source)return 1;
     return 0;

@@ -2521,6 +2521,7 @@ static int32_t campaign_enemy_extra_fallback_pick(const rf_weapon_inventory *,co
 static uint32_t scene_ai_rocket_pending(void);
 static uint32_t scene_fusion_projectile_pending(void);
 static uint32_t scene_ai_fusion_save_blocked(void);
+static uint32_t scene_fusion_checkpoint_busy(void);
 static uint32_t scene_fusion_save_pending(void);
 static void scene_fusion_restore_reset(void);
 static uint32_t scene_player_shield_damage_save_pending(void);
@@ -14358,7 +14359,7 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *,void *,ui
 static int scene_ai_projectile_checkpoint_prepare(const scene_stream *,const void *,uint32_t,uint32_t,
     scene_ai_projectile_checkpoint_stage **);
 static uint32_t scene_ai_projectile_checkpoint_stage_bytes(void);
-static int scene_ai_projectile_checkpoint_weapon_mask(const void *,uint32_t,uint32_t *);
+static int scene_ai_projectile_checkpoint_weapon_mask(const void *,uint32_t,uint32_t *,uint32_t *);
 static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static int scene_ai_projectile_checkpoint_flame_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
 static void scene_ai_projectile_checkpoint_flame_finish(const scene_ai_projectile_checkpoint_stage *);
@@ -14388,6 +14389,7 @@ static void scene_turret_generated_attack_record(const campaign_npc_body *,const
 #include "scene_npc_checkpoint_restore.inc"
 #include "scene_npc_reload_publication.inc"
 static int scene_ai_projectile_checkpoint_burning_admit(scene_ai_projectile_checkpoint_stage *,scene_npc_checkpoint_restore_stage *);
+static int scene_ai_projectile_checkpoint_npc_fusion_admit(const scene_ai_projectile_checkpoint_stage *,const scene_npc_checkpoint_restore_stage *);
 #include "scene_mover_checkpoint.inc"
 #include "scene_event_checkpoint.inc"
 #include "scene_checkpoint_world.inc"
@@ -14418,18 +14420,19 @@ int rf_scene_mover_checkpoint_export(const unsigned char identity[32],int32_t no
 /* Component export for ordinary save composition. Does not write a complete
  * save or relax world admission; caller supplies its authored source identity. */
 static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int32_t now,
-    void *output,uint32_t capacity,uint32_t *written,uint32_t burning_profile)
+    void *output,uint32_t capacity,uint32_t *written,uint32_t burning_profile,uint32_t projectile_profile)
 {
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
     scene_medic_flight_rng flight_rng;rf_npc_checkpoint_rng rng;
     uint32_t count=0,limit,i;int status;
     if(!identity||!output||!written||capacity<RF_NPC_CHECKPOINT_HEADER||
-       capacity>RF_CHECKPOINT_FILE_MAX)return RF_RANGE;
+       capacity>RF_CHECKPOINT_FILE_MAX||projectile_profile>1)return RF_RANGE;
     {const char *reason=NULL;status=scene_medic_save_guard(&reason);
         if(status){printf("NPC_CHECKPOINT_REJECT %s\n",reason);return status;}}
     /* Save/export only: RFNC action playback cannot encode pending damage.
+     * Only the ordinary composed world caller owns RFAP6 NPC Fusion rows.
      * Do NOT move this into row capture, which load preflight also consumes. */
-    if((scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_fusion_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()))return RF_NOT_FOUND;
+    if((scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || (projectile_profile?scene_fusion_checkpoint_busy():scene_ai_fusion_save_blocked()) || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()))return RF_NOT_FOUND;
     catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64)return RF_RANGE;
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -14451,7 +14454,7 @@ static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int
 
 int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
     void *output,uint32_t capacity,uint32_t *written)
-{return scene_npc_checkpoint_export_mode(identity,now,output,capacity,written,0);}
+{return scene_npc_checkpoint_export_mode(identity,now,output,capacity,written,0,0);}
 
 #include "scene_world_checkpoint_identity.inc"
 #include "scene_event_history.inc"
@@ -22312,9 +22315,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  status=scene_turret_generated_activation_initialize(scene_turret_generated[g].head_handle);if(status)break;}
              if(!status)status=scene_turret_combat_open(&tables,rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss"));
              if(status){rf_vpp_close(&tables);goto done;}
-             {scene_weapon_resource_demand demand;uint32_t saved_weapons=0;
+             {scene_weapon_resource_demand demand;uint32_t saved_weapons=0,saved_npc_projectiles=0;
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources,&scene_drone_missile_resources);
-              status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
+              status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons,&saved_npc_projectiles);
+              npc_projectiles|=saved_npc_projectiles;
               if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);

@@ -1,6 +1,6 @@
 /* Read-only ordinary-save resource demand. This does not grant inventory or
  * publish gameplay; the normal world transaction still validates every owner. */
-static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables_path,uint32_t *mask)
+static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables_path,uint32_t *mask,uint32_t *npc_mask)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=scene_live_load_active?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
@@ -11,7 +11,7 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
     rf_player_checkpoint_catalog catalog;rf_player_checkpoint player;
     rf_checkpoint_file_selection selection={0};unsigned char *data=NULL;
     uint32_t bytes=0,i;int status=RF_OK;
-    *mask=0;
+    if(!mask||!npc_mask)return RF_RANGE;*mask=*npc_mask=0;
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!scene_live_load_active){
@@ -43,11 +43,11 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
         if(id>=0&&player.player.inventory.owned[id])*mask|=1u<<i;
     }
     status=scene_ai_projectile_checkpoint_weapon_mask(world.sections[RF_WORLD_PROJECTILES-1].data,
-        world.sections[RF_WORLD_PROJECTILES-1].bytes,mask);if(status)goto done;
-    printf("WORLD_BOOT_WEAPONS mask%u\n",*mask);
+        world.sections[RF_WORLD_PROJECTILES-1].bytes,mask,npc_mask);if(status)goto done;
+    printf("WORLD_BOOT_WEAPONS mask%u npc%u\n",*mask,*npc_mask);
  done:
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;}
 #endif
-    free(data);if(status)*mask=0;return status;
+    free(data);if(status)*mask=*npc_mask=0;return status;
 }

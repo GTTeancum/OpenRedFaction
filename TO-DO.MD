@@ -1,3 +1,7 @@
+## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
+
+NPC shoulder-cannon paid flights are now source-integrated with RFAP6 authored-source/candidate ownership joins and shared player/NPC pool continuity. Legacy RFAP1–5 remain supported. Compilation and saved continuation remain unverified; see docs/NPC-FUSION-FLIGHT-SAVE.md.
+
 - October12 18:00 candidate rolls settings persistence, Standard/Southpaw layout, confirmed Dashboard Exit and sticky storage-cleanup ownership together; all are source-integrated and pending the sole hourly stock64 build.
 
 - Xbox confirmed Exit to Dashboard and persistent uncertain checkpoint-close ownership are source-written, with full-idle/settings/audio/input/render admission and no fallback reboot; await parent integration and the hourly stock64 batch (docs/XBOX-FRONTEND-DASHBOARD-EXIT.md).

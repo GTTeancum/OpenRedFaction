@@ -119,6 +119,7 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(!live)return RF_OK;
     if(!modes && scene_player_weapon_holstered())return RF_RANGE; /* Legacy RFCP has no posture field. */
     if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
+    if(scene_fusion_checkpoint_busy())return RF_NOT_FOUND;
     {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
         if(charge)return charge;}
     if(scene_player_riot_save_pending() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_RANGE;
