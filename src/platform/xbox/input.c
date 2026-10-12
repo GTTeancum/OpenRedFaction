@@ -13,6 +13,7 @@ enum {
     INPUT_UP=256u,INPUT_DOWN=512u
 };
 volatile uint32_t rf_player_input_diagnostic[6]={0x5246494eu};
+volatile uint32_t rf_xbox_input_menu_observation;
 uint32_t rf_xbox_input_pause_pressed(void){return pause_edge;}
 uint32_t rf_xbox_input_connected(void){return controller!=NULL;}
 uint32_t rf_xbox_input_connection_lost(void){return disconnect_edge;}
@@ -44,6 +45,7 @@ void rf_xbox_input_close(void)
 int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
 {
     int i;uint32_t attached=0,start,back,actions=0,menu=0;float horizontal,vertical;(void)context;
+    rf_xbox_input_menu_observation=0;
     if(!initialized || !input)return RF_RANGE;
     pause_edge=menu_edge=disconnect_edge=0;
     memset(input,0,sizeof(*input));
@@ -71,6 +73,11 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(!controller){start_held=menu_held=0;rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;}
     start=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)!=0;
     back=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK)!=0;
+    /* Observe even an exit-chord return. This getter reads SDL's current
+     * sample only; it does not repump USB or change held/edge ownership. */
+    rf_xbox_input_menu_observation=RF_XBOX_MENU_OBS_CONNECTED|
+        (SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A)?RF_XBOX_MENU_OBS_A:0)|
+        (start?RF_XBOX_MENU_OBS_START:0)|(back?RF_XBOX_MENU_OBS_BACK:0);
     /* Attaching a controller with Start held is not a fresh user press. */
     if(attached){start_held=start;exit_rearm=start||back;}
     pause_edge=start && !start_held && !back;start_held=start;
@@ -99,6 +106,9 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(attached){menu_held=menu;release_actions=actions;}
     menu_edge=menu&~menu_held;menu_held=menu;
     release_actions&=actions;
+    rf_xbox_input_menu_observation|=menu_edge<<RF_XBOX_MENU_OBS_EDGE_SHIFT;
+    if(!start && !back && !actions && !menu_held && !release_actions && !exit_rearm && !disconnect_edge)
+        rf_xbox_input_menu_observation|=RF_XBOX_MENU_OBS_NEUTRAL;
     if(pause_mode || pause_edge) {
         release_actions=actions;
         rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;

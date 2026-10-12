@@ -70,36 +70,60 @@ static uint32_t profile_milliseconds(void){return GetTickCount();}
 /* state:0 boot,1 front end,2 loading/play,3 ended,4 failed; starts,ends,status,
  * available pages after resident release. No storage/replay ABI is changed. */
 volatile uint32_t rf_xbox_frontend_diagnostic[5];
+/* Per frontend entry: returned polls, neutral/rearmed polls AFTER the latest
+ * successful draw, last returned input observation/status, draw calls/returns,
+ * last draw status, current boundary (1open,2poll,3draw,4sleep,5loading draw,
+ * 6close,7returned). Draw returns include errors. No timing/control policy. */
+volatile uint32_t rf_xbox_frontend_trace[8];
+static int player_frontend_present(uint32_t flags,int session_status)
+{
+    int status;
+    rf_xbox_frontend_trace[7]=(flags&RF_SCENE_FRONTEND_LOADING)?5:3;
+    ++rf_xbox_frontend_trace[4];rf_xbox_frontend_trace[1]=0;
+    status=rf_xbox_frontend_draw(flags,session_status);
+    rf_xbox_frontend_trace[6]=(uint32_t)status;++rf_xbox_frontend_trace[5];
+    return status;
+}
 static int player_frontend(uint32_t ended,int session_status)
 {
-    rf_scene_input input;uint32_t drawn=UINT32_MAX;int status;
+    rf_scene_input input;uint32_t drawn=UINT32_MAX,i;int status;
+    for(i=0;i<8;i++)rf_xbox_frontend_trace[i]=0;
+    rf_xbox_frontend_trace[7]=1;
     rf_xbox_frontend_diagnostic[0]=session_status?4:1;
     rf_xbox_frontend_diagnostic[3]=(uint32_t)session_status;
     status=rf_xbox_input_open();if(status)return status;
     rf_xbox_input_set_paused(1);
     for(;;){
         uint32_t flags=ended?RF_SCENE_FRONTEND_ENDED:0;
+        rf_xbox_frontend_trace[7]=2;
         status=rf_xbox_input_poll(NULL,0,&input);
+        rf_xbox_frontend_trace[2]=rf_xbox_input_menu_observation;
+        rf_xbox_frontend_trace[3]=(uint32_t)status;
+        ++rf_xbox_frontend_trace[0];
+        if(!status && (rf_xbox_frontend_trace[2]&RF_XBOX_MENU_OBS_NEUTRAL) &&
+           rf_xbox_frontend_trace[4] && rf_xbox_frontend_trace[4]==rf_xbox_frontend_trace[5] &&
+           !rf_xbox_frontend_trace[6])++rf_xbox_frontend_trace[1];
         /* Back+Start has no session to end here. Retain exit-chord priority,
          * but never reinterpret a held chord as New Game. */
         if(status && status!=RF_NOT_FOUND)break;
         if(!rf_xbox_input_connected())flags|=RF_SCENE_FRONTEND_DISCONNECTED;
         if(flags!=drawn){
-            int shown=rf_xbox_frontend_draw(flags,session_status);
+            int shown=player_frontend_present(flags,session_status);
             if(shown){status=shown;break;}drawn=flags;
         }
         if(!status && !session_status && rf_xbox_input_connected() &&
            !rf_xbox_input_connection_lost() && (rf_xbox_input_pause_pressed() ||
            (rf_xbox_input_menu_pressed()&RF_XBOX_MENU_ACCEPT))){
-            status=rf_xbox_frontend_draw(RF_SCENE_FRONTEND_LOADING,RF_OK);
+            status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK);
             if(!status){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;}
             break;
         }
-        Sleep(10);
+        rf_xbox_frontend_trace[7]=4;Sleep(10);
     }
     /* Gameplay opens its own controller; its first attached sample rearms
      * all buttons/triggers held through New Game instead of firing them. */
-    player_input_close();return status;
+    rf_xbox_frontend_trace[7]=6;player_input_close();
+    rf_xbox_frontend_trace[7]=7;return status;
 }
 static int player_session_ended_draw(void)
 {
