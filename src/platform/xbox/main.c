@@ -13,6 +13,7 @@
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
 #include "rf/scene_preview.h"
+#include "rf/frontend_load.h"
 #include "audio.h"
 #include "rf/frame_clock.h"
 #include "rf/particle_pool.h"
@@ -73,11 +74,13 @@ volatile uint32_t rf_xbox_frontend_diagnostic[5];
 /* Per frontend entry: returned polls, neutral/rearmed polls AFTER the latest
  * successful draw, last returned input observation/status, draw calls/returns,
  * last draw status, current boundary (1open,2poll,3draw,4sleep,5loading draw,
- * 6close,7returned,8options). Draw returns include errors. No timing/control policy. */
+ * 6close,7returned,8options,9load preflight). Draw returns include errors. */
 volatile uint32_t rf_xbox_frontend_trace[8];
 /* Page/selection/last accepted New Game difficulty, for bounded native receipt.
- * Page2 identifies Options; no scene state or input ownership is inferred. */
+ * Page2 identifies Options and3 Load Game; no scene/input ownership inferred. */
 volatile uint32_t rf_xbox_frontend_menu[3];
+/* Explicit source attempts, source enum, outcome enum, RF status. Not restore proof. */
+volatile uint32_t rf_xbox_frontend_load[4];
 static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
 {
     rf_scene_input input;rf_xbox_input_options options,drawn_options={0};
@@ -137,19 +140,22 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
     }
 }
 static int player_frontend_present(uint32_t flags,int session_status,
-    uint32_t page,uint32_t selection,uint32_t difficulty)
+    uint32_t page,uint32_t selection,uint32_t difficulty,uint32_t load_outcome,int load_status)
 {
     int status;
     rf_xbox_frontend_trace[7]=(flags&RF_SCENE_FRONTEND_LOADING)?5:3;
     ++rf_xbox_frontend_trace[4];rf_xbox_frontend_trace[1]=0;
-    status=rf_xbox_frontend_draw(flags,session_status,page,selection,difficulty);
+    status=rf_xbox_frontend_draw(flags,session_status,page,selection,difficulty,load_outcome,load_status);
     rf_xbox_frontend_trace[6]=(uint32_t)status;++rf_xbox_frontend_trace[5];
     return status;
 }
-static int player_frontend(uint32_t ended,int session_status)
+static int player_frontend(uint32_t ended,int session_status,char saved_level[64])
 {
     rf_scene_input input;uint32_t drawn=UINT32_MAX,i,page=RF_SCENE_FRONTEND_MAIN,selection=0;
-    uint32_t difficulty=rf_scene_session_get_difficulty();int status;
+    uint32_t difficulty=rf_scene_session_get_difficulty(),load_notice=0,load_outcome=RF_SCENE_FRONTEND_LOAD_READY;
+    int status,load_status=RF_OK;
+    if(!saved_level)return RF_RANGE;saved_level[0]=0;
+    memset((void *)rf_xbox_frontend_load,0,sizeof(rf_xbox_frontend_load));
     for(i=0;i<8;i++)rf_xbox_frontend_trace[i]=0;
     rf_xbox_frontend_trace[7]=1;
     rf_xbox_frontend_diagnostic[0]=session_status?4:1;
@@ -157,7 +163,8 @@ static int player_frontend(uint32_t ended,int session_status)
     status=rf_xbox_input_open();if(status)return status;
     rf_xbox_input_set_paused(1);
     for(;;){
-        uint32_t flags=ended?RF_SCENE_FRONTEND_ENDED:0,pressed,start;
+        uint32_t flags=(ended?RF_SCENE_FRONTEND_ENDED:0)|
+            (load_notice?RF_SCENE_FRONTEND_LOAD_NOTICE:0),pressed,start;
         rf_xbox_frontend_menu[0]=page;rf_xbox_frontend_menu[1]=selection;rf_xbox_frontend_menu[2]=difficulty;
         rf_xbox_frontend_trace[7]=2;
         status=rf_xbox_input_poll(NULL,0,&input);
@@ -172,31 +179,61 @@ static int player_frontend(uint32_t ended,int session_status)
         if(status && status!=RF_NOT_FOUND)break;
         if(!rf_xbox_input_connected())flags|=RF_SCENE_FRONTEND_DISCONNECTED;
         if(flags!=drawn){
-            int shown=player_frontend_present(flags,session_status,page,selection,difficulty);
+            int shown=player_frontend_present(flags,session_status,page,selection,difficulty,load_outcome,load_status);
             if(shown){status=shown;break;}drawn=flags;
         }
         if(!status && !session_status && rf_xbox_input_connected() && !rf_xbox_input_connection_lost()){
             pressed=rf_xbox_input_menu_pressed();start=rf_xbox_input_pause_pressed();
-            if(page==RF_SCENE_FRONTEND_DIFFICULTY && (start || (pressed&RF_XBOX_MENU_CANCEL))){
-                page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;
+            if(page!=RF_SCENE_FRONTEND_MAIN && (start || (pressed&RF_XBOX_MENU_CANCEL))){
+                selection=page==RF_SCENE_FRONTEND_LOAD?2:0;
+                page=RF_SCENE_FRONTEND_MAIN;load_notice=0;drawn=UINT32_MAX;
             }else if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
                 uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
-                uint32_t count=page==RF_SCENE_FRONTEND_MAIN?2:5;
-                if(up!=down){selection=(selection+(down?1:count-1))%count;drawn=UINT32_MAX;}
+                uint32_t count=page==RF_SCENE_FRONTEND_DIFFICULTY?5:3;
+                if(up!=down){selection=(selection+(down?1:count-1))%count;load_notice=0;drawn=UINT32_MAX;}
             }else if((pressed&RF_XBOX_MENU_ACCEPT) || (start&&page==RF_SCENE_FRONTEND_MAIN)){
                 if(page==RF_SCENE_FRONTEND_MAIN){
                     if(!selection){page=RF_SCENE_FRONTEND_DIFFICULTY;selection=difficulty;drawn=UINT32_MAX;}
-                    else {
+                    else if(selection==1){
                         uint32_t resume=0;
-                        rf_xbox_frontend_menu[0]=2;rf_xbox_frontend_trace[7]=8;
+                        rf_xbox_frontend_menu[0]=RF_SCENE_FRONTEND_OPTIONS;rf_xbox_frontend_trace[7]=8;
                         status=player_options_menu(NULL,0,0,&resume);if(status)break;
                         drawn=UINT32_MAX;
+                    }else {page=RF_SCENE_FRONTEND_LOAD;selection=0;load_notice=0;drawn=UINT32_MAX;}
+                }else if(page==RF_SCENE_FRONTEND_LOAD){
+                    if(selection==2){page=RF_SCENE_FRONTEND_MAIN;selection=2;load_notice=0;drawn=UINT32_MAX;}
+                    else {
+                        /* A source is opened only for this fresh acceptance.
+                         * Menu display/navigation never scans saved storage. */
+                        status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,
+                            page,selection,difficulty,RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
+                        if(status)break; /* Do not start storage work if presentation failed. */
+                        rf_xbox_frontend_trace[7]=9;++rf_xbox_frontend_load[0];
+                        rf_xbox_frontend_load[1]=selection;
+                        load_status=rf_scene_frontend_load_prepare(selection,saved_level,&load_outcome);
+                        rf_xbox_frontend_load[2]=load_outcome;rf_xbox_frontend_load[3]=(uint32_t)load_status;
+                        if(!load_status && load_outcome==RF_SCENE_FRONTEND_LOAD_READY && saved_level[0]){
+                            ++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;
+                            break; /* Existing cold load is armed; no reset or difficulty seed follows. */
+                        }
+                        /* Contradictory completion cannot authorize a retry over
+                         * a possibly armed cold load. Helper errors clear level. */
+                        if(!load_status || load_outcome==RF_SCENE_FRONTEND_LOAD_READY){
+                            load_status=RF_FORMAT;load_outcome=RF_SCENE_FRONTEND_LOAD_BLOCKED;
+                            rf_xbox_frontend_load[2]=load_outcome;rf_xbox_frontend_load[3]=(uint32_t)load_status;
+                        }
+                        load_notice=1;drawn=UINT32_MAX;
+                        if(load_outcome==RF_SCENE_FRONTEND_LOAD_BLOCKED){
+                            session_status=load_status;rf_xbox_frontend_diagnostic[0]=4;
+                            rf_xbox_frontend_diagnostic[3]=(uint32_t)session_status;
+                        }
                     }
                 }else if(selection==4){page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;}
                 else {
                     status=rf_scene_session_set_difficulty(selection);if(status)break;
                     difficulty=selection;rf_xbox_frontend_menu[2]=difficulty;
-                    status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,page,selection,difficulty);
+                    status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,page,selection,difficulty,
+                        RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
                     if(!status){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;}
                     break;
                 }
@@ -1333,10 +1370,12 @@ static void player_session_counters_reset(void)
 }
 /* One level/session transaction. Diagnostic profiles retain their existing
  * flags, bounded frame limits, post-run checks and terminal residency. */
-static int player_campaign_run(void)
+static int player_campaign_run(const char *saved_level)
 {
     rf_vpp archive={0};MM_STATISTICS memory={0};
     int result=RF_OK,live_mines_door_fixture=1;
+    uint32_t cold_load=saved_level && saved_level[0];
+    if(cold_load && (!tester_profile || !memchr(saved_level,0,64) || !rf_scene_quickload_pending()))return RF_RANGE;
     memory.Length=sizeof(memory);
     if (result == RF_OK) {
         char selection[128]={0},archive_path[80];int selected=0;
@@ -1349,7 +1388,7 @@ static int player_campaign_run(void)
                strcmp(selection,"levels3.vpp") && strcmp(selection,"levelsm.vpp") && strcmp(selection,"fragment-platform.vpp") && strcmp(selection,"scene-fixture.vpp")))result=RF_FORMAT;
             fclose(selection_file);
         }
-        if(result==RF_OK) {
+        if(result==RF_OK && !cold_load) {
             snprintf(archive_path,sizeof(archive_path),"D:\\%s",selected?selection:"levels1.vpp");
             result = rf_vpp_open(&archive, archive_path);
         }
@@ -1382,7 +1421,8 @@ static int player_campaign_run(void)
             live_mines_door_fixture=!tester_profile && !staged_climb && !selected;
             int climb_mode=climb_flag && fgetc(climb_flag)=='2'?2:1;
             if(climb_flag)fclose(climb_flag);
-            result = selected && staged_climb?RF_FORMAT:
+            result = cold_load?rf_level_campaign_open(&level,&archive,"D:\\",saved_level):
+                selected && staged_climb?RF_FORMAT:
                 rf_level_open(&level, &archive, selected?selection+64:staged_climb?"L1S2.rfl":"L1S1.rfl");
             if(result==RF_OK && staged_climb) {
                 result=rf_scene_stage_climb(&level,(uint32_t)climb_mode);
@@ -1611,14 +1651,15 @@ int main(void)
     if(result==RF_OK && tester_profile){
         uint32_t ended=0;
         for(;;){
+            char saved_level[64]={0};
             /* A failed load/teardown stays visibly failed. Never relabel it as
              * an ordinary End Session or retry over partially owned resources. */
             if(!result)result=rf_scene_session_reset();
-            {int menu=player_frontend(ended,result);if(menu){
+            {int menu=player_frontend(ended,result,saved_level);if(menu){
                 result=menu;rf_diagnostic[2]=0x80000100u|(uint32_t)(-result);
                 debugPrint("Session front end unavailable: %d\n",result);break;}}
             player_session_counters_reset();
-            result=player_campaign_run();
+            result=player_campaign_run(saved_level);
             rf_scene_set_input(NULL,NULL,0);player_input_close();
             rf_scene_set_audio(NULL,NULL);rf_xbox_audio_close();rf_scene_set_audio_events(NULL,NULL);
             player_resident_close();
@@ -1628,7 +1669,7 @@ int main(void)
             rf_xbox_frontend_diagnostic[4]=rf_xbox_available_memory_pages();
             printf("SESSION_RETURN status%d pages%u\n",result,rf_xbox_frontend_diagnostic[4]);
         }
-    }else if(result==RF_OK)result=player_campaign_run();
+    }else if(result==RF_OK)result=player_campaign_run(NULL);
     for (;;) Sleep(1000);
     return 0;
 }

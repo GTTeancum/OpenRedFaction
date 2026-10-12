@@ -23098,6 +23098,7 @@ int rf_scene_session_set_difficulty(uint32_t difficulty)
     rf_scene_campaign_countdown.difficulty=difficulty;
     return RF_OK;
 }
+#include "scene_frontend_load.inc"
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)

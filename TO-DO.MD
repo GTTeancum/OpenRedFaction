@@ -1,3 +1,5 @@
+- Startup Load Game is source-integrated with explicit Manual Save/Autosave selection, recoverable notices, fail-closed cleanup and direct saved-level routing through existing restoration; compilation and saved-load runtime remain unverified (docs/XBOX-FRONTEND-LOAD-GAME.md).
+
 - Controller Options and New Game difficulty are source-integrated: process-retained sensitivity, invert Y, radial deadzone, startup/pause UI and idle-only difficulty selection; await the next hourly stock64 compilation and bounded functional check (docs/XBOX-FRONTEND-OPTIONS.md).
 
 - Actual08 stationary session re-entry passed through the ordinary End Session menu; actual06/07 failures remain preserved and were consistent with the XEMU Back+Start shortcut collision (docs/XBOX-FRONTEND-DIAGNOSTICS.md).

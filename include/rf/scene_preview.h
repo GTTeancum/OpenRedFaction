@@ -678,9 +678,10 @@ int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags);
 enum {
     RF_SCENE_FRONTEND_DISCONNECTED=1u,RF_SCENE_FRONTEND_LOADING=2u,
-    RF_SCENE_FRONTEND_ENDED=4u
+    RF_SCENE_FRONTEND_ENDED=4u,RF_SCENE_FRONTEND_LOAD_NOTICE=8u
 };
-enum {RF_SCENE_FRONTEND_MAIN,RF_SCENE_FRONTEND_DIFFICULTY};
+enum {RF_SCENE_FRONTEND_MAIN,RF_SCENE_FRONTEND_DIFFICULTY,
+    RF_SCENE_FRONTEND_OPTIONS,RF_SCENE_FRONTEND_LOAD};
 enum {RF_SCENE_OPTIONS_SENSITIVITY,RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,
     RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_COUNT};
 enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u};
@@ -688,7 +689,8 @@ enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u};
  * to the page; difficulty is the last accepted New Game index, 0..3.
  * A nonzero previous status is terminal and must not advertise a retry. */
 int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
-    uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty);
+    uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
+    uint32_t load_outcome,int load_status);
 /* Draw-only Options page for either cold frontend or suspended pause menu.
  * All values are owned by the platform input settings, never this renderer. */
 int rf_scene_draw_options(rf_scene_particle_sink sink,void *context,uint32_t selection,

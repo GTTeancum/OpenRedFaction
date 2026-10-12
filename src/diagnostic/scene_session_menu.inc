@@ -1,3 +1,4 @@
+#include "rf/frontend_load.h"
 /* First-playable platform session UI, not recovered retail menu behavior.
  * This pass is called while the scene/input provider is suspended. It uses
  * only the existing untextured fallback glyphs, with no scene/image borrower,
@@ -52,23 +53,34 @@ int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
 /* Tester launch policy only; no retail menu reconstruction is implied. */
 static const char *const scene_difficulty_names[4]={"EASY","MEDIUM","HARD","IMPOSSIBLE"};
 int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
-    uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty)
+    uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
+    uint32_t load_outcome,int load_status)
 {
     int status;uint32_t i;
     if(!sink || particle_draw_stream || scene_actor_collision_owner || difficulty>3 ||
-       page>RF_SCENE_FRONTEND_DIFFICULTY || selection>(page==RF_SCENE_FRONTEND_MAIN?1u:4u) ||
+       page>RF_SCENE_FRONTEND_LOAD || page==RF_SCENE_FRONTEND_OPTIONS ||
+       selection>(page==RF_SCENE_FRONTEND_DIFFICULTY?4u:2u) ||
+       ((flags&RF_SCENE_FRONTEND_LOAD_NOTICE) && load_outcome>RF_SCENE_FRONTEND_LOAD_BLOCKED) ||
+       ((flags&RF_SCENE_FRONTEND_LOADING) && page==RF_SCENE_FRONTEND_LOAD && selection>1) ||
        (flags&~(RF_SCENE_FRONTEND_DISCONNECTED|RF_SCENE_FRONTEND_LOADING|
-          RF_SCENE_FRONTEND_ENDED)))return RF_RANGE;
+          RF_SCENE_FRONTEND_ENDED|RF_SCENE_FRONTEND_LOAD_NOTICE)))return RF_RANGE;
     status=combat_hud_centered(sink,context,60,"RED FACTION",0xffeeeeee);if(status)return status;
     status=combat_hud_centered(sink,context,96,"XBOX TESTER BUILD",0xffb8c0d0);if(status)return status;
     if(session_status){
         char message[48];
-        status=combat_hud_centered(sink,context,196,"SESSION STOPPED",0xffffc060);if(status)return status;
+        status=combat_hud_centered(sink,context,196,
+            (flags&RF_SCENE_FRONTEND_LOAD_NOTICE) && load_outcome==RF_SCENE_FRONTEND_LOAD_BLOCKED?
+            "STORAGE / SESSION CLEANUP FAILED":"SESSION STOPPED",0xffffc060);if(status)return status;
         snprintf(message,sizeof(message),"ERROR %d - REBOOT REQUIRED",session_status);
         status=combat_hud_centered(sink,context,244,message,0xffeeeeee);if(status)return status;
         return combat_hud_centered(sink,context,328,"REPORT THIS ERROR TO THE DEVELOPER",0xffb8c0d0);
     }
     if(flags&RF_SCENE_FRONTEND_LOADING){
+        if(page==RF_SCENE_FRONTEND_LOAD){
+            status=combat_hud_centered(sink,context,196,"LOADING SAVED GAME",0xff80ffb0);if(status)return status;
+            status=combat_hud_centered(sink,context,244,selection?"AUTOSAVE":"MANUAL SAVE",0xffeeeeee);if(status)return status;
+            return combat_hud_centered(sink,context,292,"VALIDATING SAVED WORLD",0xffb8c0d0);
+        }
         status=combat_hud_centered(sink,context,196,"STARTING NEW GAME",0xff80ffb0);if(status)return status;
         status=combat_hud_centered(sink,context,244,"LOADING LIVE MINES",0xffb8c0d0);if(status)return status;
         return combat_hud_centered(sink,context,292,scene_difficulty_names[difficulty],0xffeeeeee);
@@ -85,14 +97,41 @@ int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
         status=combat_hud_centered(sink,context,380,"D-PAD UP/DOWN   A START / SELECT",0xffeeeeee);if(status)return status;
         return combat_hud_centered(sink,context,412,"B OR START BACK",0xffb8c0d0);
     }
+    if(page==RF_SCENE_FRONTEND_LOAD){
+        static const char *const sources[3]={"MANUAL SAVE","AUTOSAVE","BACK"};
+        status=combat_hud_centered(sink,context,140,"LOAD GAME",0xffeeeeee);if(status)return status;
+        for(i=0;i<3;i++){
+            if(i==selection){status=combat_hud_rect(sink,context,160,176+i*38,320,30,0xff30485c);if(status)return status;}
+            status=combat_hud_centered(sink,context,184+i*38,sources[i],i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
+        }
+        if(flags&RF_SCENE_FRONTEND_LOAD_NOTICE){
+            char code[32];const char *message;
+            if(load_outcome==RF_SCENE_FRONTEND_LOAD_MISSING)
+                message=selection?"NO AUTOSAVE FOUND":"NO MANUAL SAVE FOUND";
+            else if(load_outcome==RF_SCENE_FRONTEND_LOAD_INCOMPATIBLE)
+                message="SAVE IS INCOMPATIBLE OR DAMAGED";
+            else message="COULD NOT READ SAVE OR GAME DATA";
+            status=combat_hud_centered(sink,context,306,message,0xffffc060);if(status)return status;
+            snprintf(code,sizeof(code),"STATUS %d",load_status);
+            status=combat_hud_centered(sink,context,336,code,0xffb8c0d0);if(status)return status;
+        }else {
+            status=combat_hud_centered(sink,context,316,"CHOOSE WHICH SAVE TO LOAD",0xffb8c0d0);if(status)return status;
+        }
+        if(flags&RF_SCENE_FRONTEND_DISCONNECTED)
+            return combat_hud_centered(sink,context,390,"CONNECT A CONTROLLER",0xffffc060);
+        status=combat_hud_centered(sink,context,390,"D-PAD UP/DOWN   A LOAD / SELECT",0xffeeeeee);if(status)return status;
+        return combat_hud_centered(sink,context,422,"B OR START BACK",0xffb8c0d0);
+    }
     if(flags&RF_SCENE_FRONTEND_ENDED){
         status=combat_hud_centered(sink,context,150,"SESSION ENDED",0xffb8c0d0);if(status)return status;
     }
-    for(i=0;i<2;i++){
-        if(i==selection){status=combat_hud_rect(sink,context,170,208+i*44,300,34,0xff30485c);if(status)return status;}
-        status=combat_hud_centered(sink,context,216+i*44,i?"OPTIONS":"NEW GAME",i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
+    for(i=0;i<3;i++){
+        if(i==selection){status=combat_hud_rect(sink,context,170,184+i*44,300,34,0xff30485c);if(status)return status;}
+        status=combat_hud_centered(sink,context,192+i*44,i==0?"NEW GAME":i==1?"OPTIONS":"LOAD GAME",
+            i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
     }
-    status=combat_hud_centered(sink,context,326,"START FRESH IN LIVE MINES",0xffb8c0d0);if(status)return status;
+    status=combat_hud_centered(sink,context,338,selection==0?"START FRESH IN LIVE MINES":
+        selection==1?"ADJUST CONTROLLER SETTINGS":"CONTINUE FROM AN EXISTING SAVE",0xffb8c0d0);if(status)return status;
     if(flags&RF_SCENE_FRONTEND_DISCONNECTED)
         return combat_hud_centered(sink,context,380,"CONNECT A CONTROLLER",0xffffc060);
     return combat_hud_centered(sink,context,380,"D-PAD UP/DOWN   A OR START SELECT",0xffeeeeee);

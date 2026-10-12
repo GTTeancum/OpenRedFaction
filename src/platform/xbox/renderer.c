@@ -469,7 +469,8 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
     stream_start_valid=0;
     return RF_OK;
 }
-int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty)
+int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
+    uint32_t load_outcome,int load_status)
 {
     int status;
     /* World borrowers must have retired before this cold screen. pbkit's
@@ -479,7 +480,7 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
     while(pb_busy()) {}
     pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
     pb_fill(0,0,640,480,0xff101018);
-    hud_batch_begin();status=rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status,page,selection,difficulty);hud_batch_end();
+    hud_batch_begin();status=rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status,page,selection,difficulty,load_outcome,load_status);hud_batch_end();
     if(status)return status;
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;

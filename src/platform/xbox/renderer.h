@@ -8,7 +8,7 @@ void rf_xbox_enable_retained_world(void);
  * rerender or advance the world; safe before the first gameplay presentation. */
 int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags);
 int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,
-    uint32_t selection,uint32_t difficulty);
+    uint32_t selection,uint32_t difficulty,uint32_t load_outcome,int load_status);
 int rf_xbox_options_menu_draw(uint32_t selection,uint32_t flags,
     uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent);
 int rf_xbox_scene_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
