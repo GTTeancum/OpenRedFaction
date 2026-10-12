@@ -1,3 +1,4 @@
+- Constant Nano-shield imagery is source-written with two guarded actors, authored looping mesh/material rendering and a909423-byte accounted loading peak; parent must compose the final-success load reset and integrate the slice into the hourly build (docs/NANO-SHIELD-CONSTANT.md).
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

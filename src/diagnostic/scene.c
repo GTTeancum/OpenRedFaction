@@ -2632,6 +2632,8 @@ static void scene_grenade_empty_input_reset(void);
 static void scene_npc_loop_audio_close(void);
 static void scene_npc_loop_audio_reset(void);
 static void scene_npc_loop_audio_remove(uint32_t);
+static void scene_nano_visual_reset(void);
+static void scene_nano_visual_remove(uint32_t);
 static void scene_turret_audio_close(void);
 static void scene_turret_audio_reset(void);
 static void scene_vehicle_loop_audio_close(void);
@@ -5579,6 +5581,7 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 static void scene_npc_shields_close(void);
 static void campaign_npc_bodies_close(void)
 {
+    scene_nano_visual_reset();
     scene_robot_death_reset();
     scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();
     scene_npc_loop_audio_close();
@@ -5956,6 +5959,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);if(status)return status;
         scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle); /* Unregister zeroed the wrapper. */
         scene_npc_loop_audio_remove(handle);
+        scene_nano_visual_remove(handle);
         /* Successful unregister has made scene_burning_owner unable to find
          * this target. Retire its live slot, then clear the retained backlink. */
         scene_burning_extinguish(handle);
@@ -16599,6 +16603,7 @@ static void scene_sonar_visual_accept(uint32_t,const scene_ai_laser_projectile *
 #include "scene_ai_direct_fire.inc"
 #include "scene_spit_visual.inc"
 #include "scene_cane_visual.inc"
+#include "scene_nano_visual.inc"
 static int scene_remote_launch(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t *);
 static void scene_remote_reset(void);
 static int scene_remote_tick(scene_stream *,uint32_t);
@@ -21100,6 +21105,8 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
             workspace->records,2048,&count);
         if(campaign_spawn)scene_cane_visual_queue_room(stream,stream->visibility.state.order[room]+1,
             workspace->records,2048,&count);
+        if(campaign_spawn)scene_nano_visual_queue_room(stream,stream->visibility.state.order[room]+1,
+            workspace->records,2048,&count);
         for(i=0;i<count;i++) {
             memcpy(workspace->spheres[i].position,workspace->records[i].position,12);
             workspace->spheres[i].radius=workspace->records[i].radius;workspace->spheres[i].sorted=workspace->records[i].sorted;
@@ -21124,6 +21131,9 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
                 scene_spit_visual_draw_one(stream,entry->object,sink,context);
             } else if(entry->callback==SCENE_CANE_DRAW_CALLBACK) {
                 scene_cane_visual_draw_one(stream,entry->object,sink,context);
+            } else if(entry->callback==SCENE_NANO_DRAW_CALLBACK) {
+                status=scene_nano_visual_draw(stream,entry->object,sink,context);
+                if(status){rf_scene_nano_visual[0]=(uint32_t)status;goto done;}
             } else if(entry->callback==0x488b00) {
                 rf_glare_base_owner *owner=rf_object_registry_lookup(&campaign_registry,entry->object);
                 if(!owner || owner->kind!=10){status=RF_RANGE;goto done;}
@@ -21535,6 +21545,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_script_physics_sample(frame);
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
+                scene_nano_visual_tick(stream,scene_step_seconds,frame);
                 scene_npc_footsteps_tick(frame);
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
                 status=scene_medic_syringe_tick();if(status)return status;
@@ -21575,6 +21586,7 @@ modal_step_done:
             if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
         scene_player_support_save_fixture_tick(frame);
+        if(campaign_spawn)scene_nano_visual_admit(stream,frame);
         scene_active_vehicle_visibility_fixture_tick(stream,frame);
         scene_active_vehicle_visibility_audit_tick(stream,frame);
         scene_passive_jeep_driver_fixture_tick(stream,frame);
@@ -22879,6 +22891,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         scene_turret_operator_reset();
         scene_late_load_mark(74,materials);
         status=scene_npc_seats_open(stream,0);if(status)goto done;
+        if(campaign_spawn)scene_nano_visual_prepare(stream,&archive,maps,map_count);
         scene_late_load_mark(80,materials);
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,stream);
@@ -22941,6 +22954,7 @@ done:
     scene_sonar_visual_close(&stream->sonar_visual);
     scene_spit_visual_close(&stream->spit_visual);
     scene_cane_visual_close(&stream->cane_visual);
+    scene_nano_visual_close();
     if(stream->rocket_visual){rf_vfx_asset_materials_close(&stream->rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->rocket_visual->geometry);free(stream->rocket_visual);}
     if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}
