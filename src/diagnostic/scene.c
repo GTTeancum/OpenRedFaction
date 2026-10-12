@@ -228,6 +228,9 @@ static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
+/* A failed retirement cannot be overwritten by a subsequent New Game. */
+static int scene_session_retire_status;
+static uint32_t scene_session_end_requested;
 static rf_cutscene_resources campaign_cutscene_resources;
 static rf_cutscene_runtime campaign_cutscene_runtime;
 uint32_t rf_scene_cutscene[12]; /* loaded descriptors/points, starts, active UID, point, actions, finishes, active, bytes, errors, camera hash, frame */
@@ -4542,7 +4545,8 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
 }
 static void campaign_clutter_render_close(void)
 {
-    if(campaign_clutter_bodies_close())return;
+    int closed=campaign_clutter_bodies_close();
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
     rf_model_materials_close(&campaign_clutter_materials);
     free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;
     free(campaign_clutter_appearance_slots);campaign_clutter_appearance_slots=NULL;
@@ -6459,11 +6463,14 @@ done:
 }
 static void campaign_close_movers(void)
 {
+    int closed;
     campaign_alpha_close();
-    if(campaign_glare_instances_close())return;
+    closed=campaign_glare_instances_close();
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
     rf_glare_materials_close(&campaign_glare_materials);
     rf_glare_classes_close(&campaign_glare_classes);
-    if(scene_medic_syringe_children_close())return;
+    closed=scene_medic_syringe_children_close();
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
     scene_medic_syringe_resources_close();
     campaign_clutter_render_close();
     rf_level_owned_clutter_close(&campaign_clutter_records);
@@ -21802,6 +21809,26 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
 #include "scene_precision_drop_demand.inc"
 #include "scene_ai_projectile_demand.inc"
 #include "scene_late_load_diagnostic.inc"
+/* The cold-session history policy also serves the existing no-transition
+ * campaign constructor. Ordinary next-section and save-load paths retain it. */
+static void campaign_session_history_reset(void)
+{
+    scene_machine_carry_reset();scene_undercover_carry_reset_all();
+    memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));
+    scene_player_shield_damage_reset();scene_npc_shield_history_reset();
+    campaign_ai_modes_reset();campaign_event_history_reset();
+    memset(&campaign_switch_history,0,sizeof(campaign_switch_history));
+    memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));
+    memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));
+    memset(&campaign_local_goals,0,sizeof(campaign_local_goals));
+    memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));
+    memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));
+    memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));
+    rf_scene_campaign_countdown.difficulty=1;
+    memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));
+    memset(campaign_pickup_states,0,sizeof(campaign_pickup_states));
+    memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
+}
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -22029,7 +22056,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {scene_machine_carry_reset();scene_undercover_carry_reset_all();memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));rf_scene_campaign_countdown.difficulty=1;memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(campaign_pickup_states,0,sizeof(campaign_pickup_states));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else campaign_session_history_reset();
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -22833,16 +22860,16 @@ done:
     rf_hud_scope_assets_close(stream->hud_scope);stream->hud_scope=NULL;
     rf_hud_assets_close(stream->hud_assets);stream->hud_assets=NULL;
     rf_vpp_close(&terrain_ui);
-    if(!status&&!scene_live_load_active)status=scene_world_checkpoint_probe(stream,level,tables_path);
-    if(!status&&!scene_live_load_active)status=scene_world_snapshot_capture(stream,level,tables_path);
-    if(!status&&!scene_live_load_active)status=scene_checkpoint_capture(stream);
+    if(!status&&!scene_live_load_active&&!scene_session_end_requested)status=scene_world_checkpoint_probe(stream,level,tables_path);
+    if(!status&&!scene_live_load_active&&!scene_session_end_requested)status=scene_world_snapshot_capture(stream,level,tables_path);
+    if(!status&&!scene_live_load_active&&!scene_session_end_requested)status=scene_checkpoint_capture(stream);
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}
 #endif
     /* Do not mutate any section history while an accepted airlock is waiting. */
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending &&
         !scene_live_load_active && !campaign_endgame.restart_requested)status=scene_airlock_checkpoint_admit(stream->collision);
-    if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
+    if(!status && campaign_spawn && collision && !scene_session_end_requested)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending && !scene_live_load_active && !campaign_endgame.restart_requested) {
         status=campaign_ai_modes_handoff_admit();
         if(!status)status=scene_death_item_handoff_admit();
@@ -22996,7 +23023,64 @@ done:
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     free(stream->checkpoint_clutter);
     if(scene_actor_collision_owner==stream)scene_actor_collision_owner=NULL;
-    rf_vpp_close(&archive);free(stream->world_projection.poses);free(stream);return status;
+    rf_vpp_close(&archive);free(stream->world_projection.poses);free(stream);
+    if(!status && scene_session_retire_status)status=scene_session_retire_status;
+    return status;
+}
+void rf_scene_session_end(void)
+{
+    /* An authored handoff can still be waiting on an airlock, medic or guard.
+     * A confirmed End Session owns this boundary instead of advancing it. */
+    scene_session_end_requested=1;
+    memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+    scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=0;
+    scene_section_autosave_pending=0;
+}
+int rf_scene_session_reset(void)
+{
+    /* The caller first ends the stream, detaches input/audio and releases the
+     * renderer. Never discard identity while a callback or failed close may
+     * still reference an owner. This function does not close a live scene. */
+    if(scene_session_retire_status)return scene_session_retire_status;
+    if(player_poll || particle_draw_stream || scene_actor_collision_owner ||
+       actor_follow_world || campaign_player_object.view || campaign_model_owners ||
+       campaign_npc_bodies || campaign_glare_instances || campaign_clutter_bodies ||
+       campaign_clutter_models || campaign_mover_objects || campaign_passive_vehicles)
+        return RF_RANGE;
+    /* These small owners intentionally survived ordinary section return for
+     * diagnostic/export callers. They have no borrower at a full-session end. */
+    rf_physics_body_close(&scene_actor_body);
+    free(rf_scene_world_checkpoint_data);rf_scene_world_checkpoint_data=NULL;
+    scene_checkpoint_release();
+    campaign_session_history_reset();
+    campaign_import_pending=campaign_export_valid=campaign_import_applied=0;
+    memset(&campaign_player_import,0,sizeof(campaign_player_import));
+    memset(&campaign_player_export,0,sizeof(campaign_player_export));
+    memset(&campaign_player_form,0,sizeof(campaign_player_form));
+    memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
+    campaign_inventory_ready=campaign_item_pending_count=campaign_startup_inventory_replay=0;
+    campaign_explicit_unarmed=0;
+    memset(campaign_item_pending,0,sizeof(campaign_item_pending));
+    memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+    memset(&campaign_endgame,0,sizeof(campaign_endgame));
+    memset(&campaign_defuse,0,sizeof(campaign_defuse));
+    memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));
+    memset(rf_scene_defuse,0,sizeof(rf_scene_defuse));
+    memset(&player_input,0,sizeof(player_input));
+    memset(campaign_current_level,0,sizeof(campaign_current_level));
+    campaign_player_model=NULL;life_valid=0;scene_session_end_requested=0;
+    scene_use_sample(0);scene_use_filtered(0);scene_use_pose_frame=UINT32_MAX;
+    scene_live_save_held=scene_live_save_pending=scene_live_save_until=0;
+    scene_live_load_held=scene_live_load_pending=scene_live_load_active=scene_live_notice_load=0;
+    scene_live_load_death_recovery=scene_live_load_auto_source=scene_section_autosave_pending=0;
+    scene_live_save_status=RF_OK;
+    /* New Game is explicitly fresh. Optical startup snapshots remain a
+     * diagnostic-only launch policy; later explicit manual loads still work. */
+    scene_world_startup_snapshot_consumed=1;
+    memset(rf_scene_world_checkpoint_state,0,sizeof(rf_scene_world_checkpoint_state));
+    memset(rf_scene_section_autosave,0,sizeof(rf_scene_section_autosave));
+    rf_scene_follow_level_exits=0;
+    return rf_scene_set_campaign_spawn(NULL);
 }
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,

@@ -1,5 +1,11 @@
 # Xbox pause and session controls
 
+Source update, October 12, 2026: the tester-profile startup/New Game frontend now
+returns End Session to the main menu and permits a fresh Live Mines session.
+This extension is uncompiled and unrun; see
+[Xbox startup and New Game](XBOX-STARTUP-AND-NEW-GAME.md). The earlier build result
+below establishes only the original pause-menu slice.
+
 Update: the parent stock64 Xbox batch compiled and linked this feature in source commit `7168ad0c4704c1f762c44f612302b37ebbe31a14` at 02:09:47 UTC on October 12, 2026. No runtime was performed; earlier source-only handoff wording below describes the pre-integration state.
 
 Source implementation, October 12, 2026. Compilation and Xbox behavior are
@@ -24,9 +30,10 @@ it, and B or Start resumes. The actions are:
   that section's authored/default player state and loadout. It does not carry
   current health, ammunition, equipment, pose or unsaved mission changes, and
   it does not load a checkpoint. The confirmation states the reset explicitly.
-- End Session: confirm with a fresh A press, then see a SESSION ENDED screen.
-  This ends the live loop; it does not return to the dashboard or provide a
-  title screen. Reboot the game to start another session.
+- End Session: confirm with a fresh A press. In the tester-profile package,
+  ordinary scene retirement returns to the main menu, where A or Start begins
+  a fresh New Game in Live Mines. Diagnostic packages retain the SESSION ENDED
+  terminal screen and reboot requirement. Neither path returns to the dashboard.
 
 The existing Back+Y quick-save, Back+X quick-load, Back+Start immediate session
 exit, and death X recovery/B restart remain available. Only menu load/restart/

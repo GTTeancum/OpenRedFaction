@@ -671,10 +671,19 @@ enum {
 };
 enum {
     RF_SCENE_SESSION_CONFIRM=1u,RF_SCENE_SESSION_DISCONNECTED=2u,
-    RF_SCENE_SESSION_ENDED=4u,RF_SCENE_SESSION_UNAVAILABLE=8u
+    RF_SCENE_SESSION_ENDED=4u,RF_SCENE_SESSION_UNAVAILABLE=8u,
+    RF_SCENE_SESSION_FRONTEND_EXIT=16u
 };
 int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags);
+enum {
+    RF_SCENE_FRONTEND_DISCONNECTED=1u,RF_SCENE_FRONTEND_LOADING=2u,
+    RF_SCENE_FRONTEND_ENDED=4u
+};
+/* Cold tester front end: one New Game action, no world/image/storage owner.
+ * A nonzero previous status is terminal and must not advertise a retry. */
+int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
+    uint32_t flags,int session_status);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
@@ -861,6 +870,13 @@ uint32_t rf_scene_restart_pending(void);
  * Requests the ordinary fresh current-section reload, without reading/writing
  * a save or changing its validation. Unavailable requests leave state intact. */
 int rf_scene_session_restart(void);
+/* Full-session boundary only, after stream/input/audio/renderer retirement.
+ * Clears campaign carry and requests without touching any stored save. Refuses
+ * live or incompletely retired owners; section reloads must not call this. */
+int rf_scene_session_reset(void);
+/* Confirmed whole-session exit at the suspended input boundary. Cancels a
+ * queued section handoff; normal scene retirement still owns every resource. */
+void rf_scene_session_end(void);
 /* cycle_weapon: 0 neutral, 1 next owned weapon, 2 previous owned weapon. */
 typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];

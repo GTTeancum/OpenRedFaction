@@ -1,3 +1,5 @@
+- Xbox tester startup/New Game and End Session re-entry are source-integrated with explicit resident retirement, cold campaign reset and terminal cleanup-failure handling; compilation/runtime await the sole parent-owned hourly stock64 batch, with no campaign-route testing (docs/XBOX-STARTUP-AND-NEW-GAME.md).
+
 - Compile the source-integrated NPC shoulder-cannon consumer in the sole03:00 stock64 batch: 16 authored heavy mercenary owners, finite shared Fusion flights/reload and original SP AI damage scaling, with explicit live-NPC-flight save refusal; runtime remains unverified (docs/NPC-SHOULDER-CANNON-FIRST-PASS.md).
 
 - Authored selected-NPC weapon sweep covers 32 primary and four secondary families across 94 installed levels; after Flame and shoulder-cannon integration no additional substantially missing selected family was found. This is source coverage, not runtime or campaign completion (docs/NPC-WEAPON-COVERAGE-SWEEP.md).

@@ -67,6 +67,47 @@ static void player_input_close(void)
     rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();rf_xbox_pause_diagnostic[6]=0;
 }
 static uint32_t profile_milliseconds(void){return GetTickCount();}
+/* state:0 boot,1 front end,2 loading/play,3 ended,4 failed; starts,ends,status,
+ * available pages after resident release. No storage/replay ABI is changed. */
+volatile uint32_t rf_xbox_frontend_diagnostic[5];
+static int player_frontend(uint32_t ended,int session_status)
+{
+    rf_scene_input input;uint32_t drawn=UINT32_MAX;int status;
+    rf_xbox_frontend_diagnostic[0]=session_status?4:1;
+    rf_xbox_frontend_diagnostic[3]=(uint32_t)session_status;
+    status=rf_xbox_input_open();if(status)return status;
+    rf_xbox_input_set_paused(1);
+    for(;;){
+        uint32_t flags=ended?RF_SCENE_FRONTEND_ENDED:0;
+        status=rf_xbox_input_poll(NULL,0,&input);
+        /* Back+Start has no session to end here. Retain exit-chord priority,
+         * but never reinterpret a held chord as New Game. */
+        if(status && status!=RF_NOT_FOUND)break;
+        if(!rf_xbox_input_connected())flags|=RF_SCENE_FRONTEND_DISCONNECTED;
+        if(flags!=drawn){
+            int shown=rf_xbox_frontend_draw(flags,session_status);
+            if(shown){status=shown;break;}drawn=flags;
+        }
+        if(!status && !session_status && rf_xbox_input_connected() &&
+           !rf_xbox_input_connection_lost() && (rf_xbox_input_pause_pressed() ||
+           (rf_xbox_input_menu_pressed()&RF_XBOX_MENU_ACCEPT))){
+            status=rf_xbox_frontend_draw(RF_SCENE_FRONTEND_LOADING,RF_OK);
+            if(!status){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;}
+            break;
+        }
+        Sleep(10);
+    }
+    /* Gameplay opens its own controller; its first attached sample rearms
+     * all buttons/triggers held through New Game instead of firing them. */
+    player_input_close();return status;
+}
+static int player_session_ended_draw(void)
+{
+    int status=rf_xbox_session_menu_draw(RF_SCENE_SESSION_EXIT,
+        RF_SCENE_SESSION_ENDED|(tester_profile?RF_SCENE_SESSION_FRONTEND_EXIT:0));
+    if(!status && tester_profile)rf_scene_session_end();
+    return status;
+}
 /* Session actions reuse the ordinary save/load and fresh-section owners. No
  * gameplay tick occurs while this menu owns the input-provider call. */
 static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
@@ -82,6 +123,7 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
     for(;;){
         uint32_t flags=(confirm?RF_SCENE_SESSION_CONFIRM:0)|
             (unavailable?RF_SCENE_SESSION_UNAVAILABLE:0)|
+            (tester_profile?RF_SCENE_SESSION_FRONTEND_EXIT:0)|
             (!rf_xbox_input_connected()?RF_SCENE_SESSION_DISCONNECTED:0);
         uint32_t pressed;
         /* Redraw only changed menu state. USB hotplug keeps pumping at10ms;
@@ -95,7 +137,7 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
         ++rf_xbox_pause_diagnostic[2];rf_xbox_pause_diagnostic[3]=(uint32_t)status;
         if(status){
             if(status==RF_NOT_FOUND){
-                int shown=rf_xbox_session_menu_draw(RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_ENDED);
+                int shown=player_session_ended_draw();
                 if(shown)return shown;
             }
             return status; /* Ordinary close releases paused voices. */
@@ -127,7 +169,7 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
             rf_xbox_pause_diagnostic[3]=(uint32_t)status;
             confirm=0;unavailable=1;continue;
         }
-        status=rf_xbox_session_menu_draw(selection,RF_SCENE_SESSION_ENDED);
+        status=player_session_ended_draw();
         return status?status:RF_NOT_FOUND;
     }
     rf_xbox_input_set_paused(0);
@@ -201,7 +243,7 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         int status=rf_xbox_input_poll(context,frame,input);
         if(status){
             if(status==RF_NOT_FOUND){
-                int shown=rf_xbox_session_menu_draw(RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_ENDED);
+                int shown=player_session_ended_draw();
                 if(shown)return shown;
             }
             return status;
@@ -1136,72 +1178,47 @@ cleanup:
 }
 volatile uint32_t rf_model_skin_test[8];
 volatile uint32_t rf_model_collision_test[8];
-int main(void)
+/* scene_miner has already retired its animation/AI/audio borrowers. Drain
+ * renderer DMA and drop texture aliases before freeing their world owners.
+ * This is also the established section-transition release path. */
+static void player_resident_close(void)
 {
-    rf_vpp archive;
-    MM_STATISTICS memory = {0};
-    int live_mines_door_fixture=1;
-    int result;
-    record_fp_control(1);
-    rf_diagnostic[2] = 1;
-    XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
-    {FILE *profile=fopen("D:\\tester-profile.flag","rb");
-     if(profile){char value[8];int valid=fread(value,1,8,profile)==8 &&
-         !memcmp(value,"RFTEST1\n",8) && fgetc(profile)==EOF;fclose(profile);
-         if(!valid){rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_FORMAT);
-             debugPrint("Invalid tester launch profile.\n");for(;;)Sleep(1000);}
-         tester_profile=1;}}
-    {FILE *test=fopen("D:\\model-skin-test.bin","rb");if(test){fclose(test);rf_model_skin_fixture("D:\\model-skin-test.bin","D:\\",rf_model_skin_test);for(;;)Sleep(1000);}}
-    {FILE *test=fopen("D:\\model-collision-test.bin","rb");if(test){fclose(test);rf_model_collision_fixture("D:\\model-collision-test.bin","D:\\",rf_model_collision_test);for(;;)Sleep(1000);}}
-    {FILE *test=fopen("D:\\particle-view.flag","rb");if(test){fclose(test);rf_scene_particle_view_enabled=1;}}
-    {FILE *test=fopen("D:\\campaign-particle-test.flag","rb");if(test){fclose(test);campaign_particle_test();for(;;)Sleep(1000);}}
-    { FILE *test=fopen("D:\\particle-render-test.flag","rb");
-      if(test){fclose(test);rf_xbox_particle_pixel_test();for(;;)Sleep(1000);} }
-
-    memory.Length = sizeof(memory);
-    if(tester_profile){
-        debugPrint("Red Faction reconstruction - tester campaign\n");
-        debugPrint("Stock 64 MiB. Starting Live Mines with live controls.\n");
-    }else{
-        debugPrint("Red Faction reconstruction - archive diagnostic\n");
-        debugPrint("Not a playable game. Stock 64 MiB target.\n");
-    }
-    if (NT_SUCCESS(MmQueryStatistics(&memory))) {
-        rf_diagnostic[3] = memory.TotalPhysicalPages;
-        rf_diagnostic[4] = memory.AvailablePages;
-        debugPrint("Physical pages: %lu; available: %lu\n", memory.TotalPhysicalPages, memory.AvailablePages);
-        if(tester_profile && memory.TotalPhysicalPages!=16384){
-            rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_RANGE);
-            debugPrint("Tester profile requires stock 64 MiB RAM.\n");for(;;)Sleep(1000);
-        }
-    }else if(tester_profile){
-        rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_IO);
-        debugPrint("Unable to verify tester memory configuration.\n");for(;;)Sleep(1000);
-    }
-    OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
-    record_fp_control(2);
-    if(!tester_profile)particle_resource_check();
-    record_fp_control(3);
-    result = rf_vpp_open(&archive, "D:\\tables.vpp");
-    if (result == RF_OK) {
-        rf_diagnostic[5] = archive.count;
-        rf_diagnostic[6] = archive.length;
-        rf_diagnostic[7] = rf_filename_checksum("tables.vpp");
-        debugPrint("tables.vpp: %u files, %u bytes\n", archive.count, archive.length);
-        OutputDebugStringA("RF_VPP_VALIDATED\n");
-        rf_vpp_close(&archive);
-        rf_diagnostic[2] = 2;
-    } else {
-        debugPrint("tables.vpp unavailable or invalid: %d\n", result);
-        OutputDebugStringA("RF_VPP_FAILED\n");
-        rf_diagnostic[2] = 0x80000000u | (uint32_t)(-result);
-    }
-    if (result == RF_OK && !tester_profile) {
-        uint32_t animation[8], i;
-        result=rf_animation_check("D:\\meshes.vpp","D:\\motions.vpp",animation);
-        for (i=0;i<8;++i) rf_diagnostic[48+i]=animation[i];
-        if (result!=RF_OK) rf_diagnostic[2]=0x80000200u | (uint32_t)(-result);
-    }
+    rf_xbox_scene_stream_close();rf_scene_actor_follow(NULL);
+    rf_preview_close(&door_mesh);door_capacity=0;
+    rf_scene_world_geometry_close(&resident_render_geometry);
+    rf_materials_close(&resident_materials);rf_lightmaps_close(&resident_lightmaps);
+    resident_membership_ready=0;
+    rf_group_mover_memberships_close(&resident_memberships);
+    free(resident_mover_objects);resident_mover_objects=NULL;
+    free(resident_controller_handles);resident_controller_handles=NULL;
+    rf_geometry_collision_movers_close(&resident_movers);
+    rf_group_runtime_close(&resident_group_runtime);rf_level_owned_groups_close(&resident_groups);
+    rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
+    rf_level_owned_entities_close(&resident_entities);
+    rf_geometry_collision_world_close(&resident_collision);rf_geometry_close(&resident_geometry);
+    rf_object_registry_init(&resident_registry);
+}
+static void player_session_counters_reset(void)
+{
+    player_pacing=scene_simulation_frames=campaign_total_frames=campaign_scene_start=campaign_frame_limit=0;
+    player_replay_size=campaign_exit_uid=campaign_forced_exit_uid=campaign_goal_uid=campaign_goto_uid=0;
+    campaign_setup_uid=campaign_return_exit_uid=campaign_return_item_uid=campaign_return_place=0;
+    campaign_setup_next_uid=campaign_setup_source_uid=campaign_setup_actor_uid=campaign_setup_immediate=campaign_goto_frame=0;
+    campaign_disable_auto_uid=campaign_single_fire_uid=campaign_npc_drop_uid=campaign_npc_drop_frame=0;
+    campaign_npc_drop_speed=0;quick_action_frames[0]=quick_action_frames[1]=UINT32_MAX;
+    actor_body_preview=actor_follow_preview=0;rf_xbox_load_stage=0;
+    memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
+    memset(rf_xbox_level_transitions,0,sizeof(rf_xbox_level_transitions));
+    memset(rf_xbox_event_handoff_probe,0,sizeof(rf_xbox_event_handoff_probe));
+    memset(rf_xbox_transition_target,0,sizeof(rf_xbox_transition_target));
+}
+/* One level/session transaction. Diagnostic profiles retain their existing
+ * flags, bounded frame limits, post-run checks and terminal residency. */
+static int player_campaign_run(void)
+{
+    rf_vpp archive={0};MM_STATISTICS memory={0};
+    int result=RF_OK,live_mines_door_fixture=1;
+    memory.Length=sizeof(memory);
     if (result == RF_OK) {
         char selection[128]={0},archive_path[80];int selected=0;
         FILE *selection_file=tester_profile?NULL:fopen("D:\\campaign-level.bin","rb");
@@ -1233,7 +1250,7 @@ int main(void)
             rf_scene_npc_damage_test_uid=UINT32_MAX;
             if(damage_file) {
                 if(fread(&rf_scene_npc_damage_test_uid,4,1,damage_file)!=1 || fgetc(damage_file)!=EOF) {
-                    fclose(damage_file);return RF_FORMAT;
+                    fclose(damage_file);rf_vpp_close(&archive);return RF_FORMAT;
                 }
                 fclose(damage_file);
             }
@@ -1377,19 +1394,8 @@ campaign_load_section:
                 if(!fresh){result=rf_scene_campaign_player_get(&state);
                     if(result==RF_OK)result=rf_scene_campaign_pose_get(departing_position,departing_orientation);}
                 if(result==RF_OK) {
-                    rf_xbox_scene_stream_close();rf_scene_actor_follow(NULL);
-                    rf_scene_world_geometry_close(&resident_render_geometry);
-                    rf_materials_close(&resident_materials);rf_lightmaps_close(&resident_lightmaps);
-                    resident_membership_ready=0;
-                    rf_group_mover_memberships_close(&resident_memberships);
-                    free(resident_mover_objects);resident_mover_objects=NULL;
-                    free(resident_controller_handles);resident_controller_handles=NULL;
-                    rf_geometry_collision_movers_close(&resident_movers);
-                    rf_group_runtime_close(&resident_group_runtime);rf_level_owned_groups_close(&resident_groups);
-                    rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
-                    rf_level_owned_entities_close(&resident_entities);
-                    rf_geometry_collision_world_close(&resident_collision);rf_geometry_close(&resident_geometry);
-                    if(!fresh)rf_vpp_close(&archive);rf_object_registry_init(&resident_registry);
+                    player_resident_close();
+                    if(!fresh)rf_vpp_close(&archive);
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
                     if(fresh){result=rf_level_open(&level,&archive,next.level);
@@ -1416,6 +1422,94 @@ campaign_load_section:
         record_fp_control(4);
         rf_diagnostic[2] = result == RF_OK ? 5u : 0x80000100u | (uint32_t)(-result);
     }
+    return result;
+}
+int main(void)
+{
+    rf_vpp archive;
+    MM_STATISTICS memory = {0};
+    int result;
+    record_fp_control(1);
+    rf_diagnostic[2] = 1;
+    XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+    {FILE *profile=fopen("D:\\tester-profile.flag","rb");
+     if(profile){char value[8];int valid=fread(value,1,8,profile)==8 &&
+         !memcmp(value,"RFTEST1\n",8) && fgetc(profile)==EOF;fclose(profile);
+         if(!valid){rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_FORMAT);
+             debugPrint("Invalid tester launch profile.\n");for(;;)Sleep(1000);}
+         tester_profile=1;}}
+    {FILE *test=fopen("D:\\model-skin-test.bin","rb");if(test){fclose(test);rf_model_skin_fixture("D:\\model-skin-test.bin","D:\\",rf_model_skin_test);for(;;)Sleep(1000);}}
+    {FILE *test=fopen("D:\\model-collision-test.bin","rb");if(test){fclose(test);rf_model_collision_fixture("D:\\model-collision-test.bin","D:\\",rf_model_collision_test);for(;;)Sleep(1000);}}
+    {FILE *test=fopen("D:\\particle-view.flag","rb");if(test){fclose(test);rf_scene_particle_view_enabled=1;}}
+    {FILE *test=fopen("D:\\campaign-particle-test.flag","rb");if(test){fclose(test);campaign_particle_test();for(;;)Sleep(1000);}}
+    { FILE *test=fopen("D:\\particle-render-test.flag","rb");
+      if(test){fclose(test);rf_xbox_particle_pixel_test();for(;;)Sleep(1000);} }
+
+    memory.Length = sizeof(memory);
+    if(tester_profile){
+        debugPrint("Red Faction reconstruction - tester campaign\n");
+        debugPrint("Stock 64 MiB. Choose New Game for Live Mines.\n");
+    }else{
+        debugPrint("Red Faction reconstruction - archive diagnostic\n");
+        debugPrint("Not a playable game. Stock 64 MiB target.\n");
+    }
+    if (NT_SUCCESS(MmQueryStatistics(&memory))) {
+        rf_diagnostic[3] = memory.TotalPhysicalPages;
+        rf_diagnostic[4] = memory.AvailablePages;
+        debugPrint("Physical pages: %lu; available: %lu\n", memory.TotalPhysicalPages, memory.AvailablePages);
+        if(tester_profile && memory.TotalPhysicalPages!=16384){
+            rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_RANGE);
+            debugPrint("Tester profile requires stock 64 MiB RAM.\n");for(;;)Sleep(1000);
+        }
+    }else if(tester_profile){
+        rf_diagnostic[2]=0x80000100u|(uint32_t)(-RF_IO);
+        debugPrint("Unable to verify tester memory configuration.\n");for(;;)Sleep(1000);
+    }
+    OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
+    record_fp_control(2);
+    if(!tester_profile)particle_resource_check();
+    record_fp_control(3);
+    result = rf_vpp_open(&archive, "D:\\tables.vpp");
+    if (result == RF_OK) {
+        rf_diagnostic[5] = archive.count;
+        rf_diagnostic[6] = archive.length;
+        rf_diagnostic[7] = rf_filename_checksum("tables.vpp");
+        debugPrint("tables.vpp: %u files, %u bytes\n", archive.count, archive.length);
+        OutputDebugStringA("RF_VPP_VALIDATED\n");
+        rf_vpp_close(&archive);
+        rf_diagnostic[2] = 2;
+    } else {
+        debugPrint("tables.vpp unavailable or invalid: %d\n", result);
+        OutputDebugStringA("RF_VPP_FAILED\n");
+        rf_diagnostic[2] = 0x80000000u | (uint32_t)(-result);
+    }
+    if (result == RF_OK && !tester_profile) {
+        uint32_t animation[8], i;
+        result=rf_animation_check("D:\\meshes.vpp","D:\\motions.vpp",animation);
+        for (i=0;i<8;++i) rf_diagnostic[48+i]=animation[i];
+        if (result!=RF_OK) rf_diagnostic[2]=0x80000200u | (uint32_t)(-result);
+    }
+    if(result==RF_OK && tester_profile){
+        uint32_t ended=0;
+        for(;;){
+            /* A failed load/teardown stays visibly failed. Never relabel it as
+             * an ordinary End Session or retry over partially owned resources. */
+            if(!result)result=rf_scene_session_reset();
+            {int menu=player_frontend(ended,result);if(menu){
+                result=menu;rf_diagnostic[2]=0x80000100u|(uint32_t)(-result);
+                debugPrint("Session front end unavailable: %d\n",result);break;}}
+            player_session_counters_reset();
+            result=player_campaign_run();
+            rf_scene_set_input(NULL,NULL,0);player_input_close();
+            rf_scene_set_audio(NULL,NULL);rf_xbox_audio_close();rf_scene_set_audio_events(NULL,NULL);
+            player_resident_close();
+            ended=1;++rf_xbox_frontend_diagnostic[2];
+            rf_xbox_frontend_diagnostic[0]=result?4:3;
+            rf_xbox_frontend_diagnostic[3]=(uint32_t)result;
+            rf_xbox_frontend_diagnostic[4]=rf_xbox_available_memory_pages();
+            printf("SESSION_RETURN status%d pages%u\n",result,rf_xbox_frontend_diagnostic[4]);
+        }
+    }else if(result==RF_OK)result=player_campaign_run();
     for (;;) Sleep(1000);
     return 0;
 }
