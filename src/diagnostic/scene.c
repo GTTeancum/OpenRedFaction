@@ -2387,10 +2387,21 @@ int rf_scene_player_flash_step(uint32_t player_entity_handle,float seconds,uint3
     if(rf_entity_lookup(&campaign_entities,(int32_t)player_entity_handle)!=&campaign_player_view)return RF_NOT_FOUND;
     return rf_screen_flash_step(&campaign_player_flash,seconds,freeze,draw,active);
 }
+static rf_scene_player_feedback_sink campaign_player_feedback_sink;
+static void *campaign_player_feedback_context;
+void rf_scene_set_player_feedback_sink(rf_scene_player_feedback_sink sink,void *context)
+{
+    if(campaign_player_feedback_sink)campaign_player_feedback_sink(campaign_player_feedback_context,0,0);
+    campaign_player_feedback_sink=sink;campaign_player_feedback_context=sink?context:NULL;
+}
 int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now)
 {
+    int status;
     if(rf_entity_lookup(&campaign_entities,(int32_t)player_entity_handle)!=&campaign_player_view)return RF_NOT_FOUND;
-    return rf_camera_effect_start(&campaign_camera_effect,strength,duration,now);
+    status=rf_camera_effect_start(&campaign_camera_effect,strength,duration,now);
+    if(!status && campaign_player_feedback_sink)
+        campaign_player_feedback_sink(campaign_player_feedback_context,strength,duration);
+    return status;
 }
 static int campaign_shake_player(void *context,const rf_level_event *event,int32_t now)
 {
@@ -6470,6 +6481,7 @@ done:
 static void campaign_close_movers(void)
 {
     int closed;
+    if(campaign_player_feedback_sink)campaign_player_feedback_sink(campaign_player_feedback_context,0,0);
     campaign_alpha_close();
     closed=campaign_glare_instances_close();
     if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
@@ -23139,6 +23151,7 @@ int rf_scene_session_exit_status(void)
        scene_live_load_active || scene_live_load_pending || scene_live_save_pending ||
        scene_section_autosave_pending || scene_actor_body.spheres.items ||
        rf_scene_world_checkpoint_data || rf_scene_geomod_checkpoint_data ||
+       campaign_player_feedback_sink || campaign_player_feedback_context ||
        campaign_audio_sink || campaign_audio_context || campaign_audio_observer ||
        campaign_audio_observer_context || campaign_audio_events_context ||
        campaign_audio_events.play || campaign_audio_events.stop || campaign_audio_events.poll ||

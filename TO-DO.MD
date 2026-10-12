@@ -1,3 +1,5 @@
+- USER Controller vibration: Compose the bounded live-player feedback bridge and Xbox output owner with current input/options source for the parent's next stock64 rollup (source implementation remains uncompiled; docs/XBOX-CONTROLLER-VIBRATION.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

@@ -6,6 +6,12 @@ void rf_xbox_input_close(void);
 /* Read-only shutdown admission; a connected pad is not the only input owner. */
 int rf_xbox_input_idle_status(void);
 int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input);
+/* Optional scene feedback output for the selected live controller only.
+ * Positive requests coalesce until poll, clamp to 250ms and 16-bit motors;
+ * zero/nonpositive input cancels immediately. Pause/close/hotplug discard
+ * pending output. Unsupported hardware is a no-op for gameplay. No settings,
+ * save/replay fields, device selection or controller ownership are changed. */
+void rf_xbox_input_player_feedback(void *context,float strength,float duration);
 /* Platform-only settings, retained for this process across open/close and
  * session changes. This input owner never writes disk or the gameplay/replay
  * input record; settings_storage handles explicit persistence separately.

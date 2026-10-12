@@ -458,6 +458,13 @@ extern uint32_t rf_scene_death_animation_test_enabled,rf_scene_death_animation_t
  * Strength/duration replace the previous effect. A stale/nonlocal entity
  * returns NOT_FOUND without changing it. No health or HUD damage here. */
 int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now);
+/* Optional presentation-only notification after accepted local-player camera
+ * feedback. Duration is in seconds. The sink must not reenter scene/damage.
+ * Output failure must not affect gameplay. Zero/zero cancels output on owner
+ * replacement or scene teardown; NULL disables and clears context. No input,
+ * camera, save or replay record grows. The platform owns registration lifetime. */
+typedef void (*rf_scene_player_feedback_sink)(void *context,float strength,float duration);
+void rf_scene_set_player_feedback_sink(rf_scene_player_feedback_sink sink,void *context);
 /* Separate retained local-player flash owner. Damage replaces color/alpha
  * with original4a7520 red128. Draw/decay is called by the HUD/render owner,
  * not by camera shake or simulation ticks. The campaign pass uses the same owner.

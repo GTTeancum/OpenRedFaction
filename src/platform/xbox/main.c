@@ -66,6 +66,7 @@ uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read stat
 volatile uint32_t rf_xbox_pause_diagnostic[8];
 static void player_input_close(void)
 {
+    rf_scene_set_player_feedback_sink(NULL,NULL);
     if(player_replay){fclose(player_replay);player_replay=NULL;}
     rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();rf_xbox_pause_diagnostic[6]=0;
 }
@@ -1161,6 +1162,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         campaign_frame_limit=limit;
         if(limit && campaign_total_frames>=limit){player_input_close();return RF_RANGE;}
         rf_scene_set_input(player_poll_paced,NULL,limit?limit-campaign_total_frames:0);
+        if(player_pacing)rf_scene_set_player_feedback_sink(rf_xbox_input_player_feedback,NULL);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }

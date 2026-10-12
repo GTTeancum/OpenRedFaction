@@ -11,6 +11,7 @@ static rf_xbox_input_options input_options={
 };
 static uint32_t pause_mode,pause_edge,start_held,release_actions,menu_held,menu_edge;
 static uint32_t disconnect_edge,exit_rearm;
+#include "input_feedback.inc"
 enum {
     INPUT_FIRE=1u,INPUT_ALT=2u,INPUT_JUMP=4u,INPUT_USE=8u,
     INPUT_RELOAD=16u,INPUT_CROUCH=32u,INPUT_NEXT=64u,INPUT_PREVIOUS=128u,
@@ -41,7 +42,8 @@ uint32_t rf_xbox_input_pause_pressed(void){return pause_edge;}
 uint32_t rf_xbox_input_connected(void){return controller!=NULL;}
 uint32_t rf_xbox_input_connection_lost(void){return disconnect_edge;}
 uint32_t rf_xbox_input_menu_pressed(void){return menu_edge;}
-void rf_xbox_input_set_paused(uint32_t paused){pause_mode=paused!=0;}
+void rf_xbox_input_set_paused(uint32_t paused)
+{pause_mode=paused!=0;if(pause_mode)input_rumble_cancel();}
 static void stick(Sint16 raw_x,Sint16 raw_y,float *x,float *y)
 {
     float a=raw_x/(raw_x<0?32768.0f:32767.0f),b=raw_y/(raw_y<0?32768.0f:32767.0f);
@@ -52,6 +54,7 @@ static void stick(Sint16 raw_x,Sint16 raw_y,float *x,float *y)
 int rf_xbox_input_open(void)
 {
     if(initialized)return RF_RANGE;
+    memset(&input_rumble,0,sizeof(input_rumble));
     pause_mode=pause_edge=start_held=release_actions=menu_held=menu_edge=0;
     disconnect_edge=exit_rearm=0;
     if(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER)) {rf_player_input_diagnostic[1]=2;return RF_IO;}
@@ -59,7 +62,9 @@ int rf_xbox_input_open(void)
 }
 void rf_xbox_input_close(void)
 {
+    input_rumble_cancel();
     if(controller){SDL_GameControllerClose(controller);controller=NULL;}
+    memset(&input_rumble,0,sizeof(input_rumble));
     if(initialized){SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);initialized=0;}
     pause_mode=pause_edge=start_held=release_actions=menu_held=menu_edge=0;
     disconnect_edge=exit_rearm=0;
@@ -82,11 +87,14 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
      * hubs in proportion to queue length. This owner consumes state only. */
     SDL_PumpEvents();
     if(controller && !SDL_GameControllerGetAttached(controller)) {
+        input_rumble_cancel();
         SDL_GameControllerClose(controller);controller=NULL;disconnect_edge=1;
+        memset(&input_rumble,0,sizeof(input_rumble));
     }
     if(!controller)for(i=0;i<SDL_NumJoysticks();++i)if(SDL_IsGameController(i)) {
         controller=SDL_GameControllerOpen(i);
         if(controller){
+            memset(&input_rumble,0,sizeof(input_rumble));
             /* It was not open during the pump; sample this newly attached
              * controller now rather than adding one frame of neutral input. */
             SDL_GameControllerUpdate();attached=1;break;
@@ -97,7 +105,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     SDL_FlushEvents(SDL_FIRSTEVENT,SDL_LASTEVENT);
     rf_player_input_diagnostic[2]=frame+1;
     rf_player_input_diagnostic[3]=controller!=NULL;
-    if(!controller){start_held=menu_held=0;rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;}
+    if(!controller){input_rumble_cancel();start_held=menu_held=0;rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;}
     start=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)!=0;
     back=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK)!=0;
     /* Observe even an exit-chord return. This getter reads SDL's current
@@ -110,6 +118,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     pause_edge=start && !start_held && !back;start_held=start;
     if(!back && !start)exit_rearm=0;
     if(back && start && !exit_rearm) {
+        input_rumble_cancel();
         rf_player_input_diagnostic[4]=1;return RF_NOT_FOUND;
     }
     if(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERRIGHT)>3855)actions|=INPUT_FIRE;
@@ -143,6 +152,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(!start && !back && !actions && !menu_held && !release_actions && !exit_rearm && !disconnect_edge)
         rf_xbox_input_menu_observation|=RF_XBOX_MENU_OBS_NEUTRAL;
     if(pause_mode || pause_edge) {
+        input_rumble_cancel();
         release_actions=actions;
         rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;
     }
@@ -150,7 +160,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     {uint32_t load=back && (actions&INPUT_USE);
      uint32_t save=back && (actions&INPUT_RELOAD);
      rf_scene_save_button(save&&!load);rf_scene_load_button(load);
-     if(save||load){release_actions|=actions&INPUT_HOLSTER;return RF_OK;}}
+     if(save||load){input_rumble_cancel();release_actions|=actions&INPUT_HOLSTER;return RF_OK;}}
     /* Port-owned Standard/Southpaw choice swaps only complete analog pairs.
      * Keep physical buttons, stick clicks, menu/chord and release-latch
      * ownership above unchanged. Look options follow the selected look pair. */
@@ -181,5 +191,6 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     }
     input->reload=!!(actions&INPUT_RELOAD);input->jump=!!(actions&INPUT_JUMP);
     input->use=!!(actions&INPUT_USE);input->crouch=!!(actions&INPUT_CROUCH);
+    input_rumble_update();
     rf_player_input_diagnostic[5]=input->crouch;return RF_OK;
 }
