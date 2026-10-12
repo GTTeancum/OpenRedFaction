@@ -1,3 +1,5 @@
+- USER Audio settings: Integrate the master/effects/music backend with the parent's startup/pause Options and RFCS5 persistence slice, then include it in the parent-owned stock64 compile (source implementation remains uncompiled; docs/XBOX-AUDIO-LEVELS.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

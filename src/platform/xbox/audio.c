@@ -6,10 +6,17 @@
 #include <windows.h>
 #include <string.h>
 #define VOICES RF_AUDIO_ORDINARY_SLOTS
-typedef struct audio_slot {nxAudioVoice voice;nxAudioBuffer buffer;uint32_t handle,created;} audio_slot;
+typedef struct audio_slot {
+    nxAudioVoice voice;nxAudioBuffer buffer;uint32_t handle,created;
+    float left,right; /* Last authored/spatial gain, before user-level scaling. */
+} audio_slot;
 static audio_slot slots[VOICES];
 static int initialized;
 static uint32_t audio_paused,paused_slots,paused_music;
+/* Preferences outlive backend sessions; they never own sample memory. */
+static rf_xbox_audio_options audio_options={RF_XBOX_AUDIO_VOLUME_DEFAULT,
+    RF_XBOX_AUDIO_VOLUME_DEFAULT,RF_XBOX_AUDIO_VOLUME_DEFAULT};
+static uint32_t audio_gain_pending;
 uint32_t rf_xbox_audio_pause_diagnostic[8];
 #define MUSIC_FRAMES 4096u
 /* Exactly 32 KiB of PCM; descriptors and pages remain stable until completion.
@@ -24,6 +31,42 @@ volatile uint32_t rf_xbox_music_diagnostic[12];
 extern void *g_hw_ac97_buffer;
 uint32_t rf_xbox_audio_diagnostic[12],rf_xbox_audio_close_phase;
 uint16_t rf_xbox_audio_snapshot[4096];
+static int ordinary_gain(audio_slot *slot)
+{
+    float level=(float)(audio_options.master_percent*audio_options.effects_percent)/10000.f;
+    return nxAudioVoiceSetChannelGain(&slot->voice,slot->left*level,slot->right*level,0,0,0,0);
+}
+static int music_gain(void)
+{
+    /* The decoder/mixer already supplies authored fades in the PCM. This is
+     * only the user multiplier, applied by the APU without touching buffers. */
+    float level=(float)(audio_options.master_percent*audio_options.music_percent)/10000.f;
+    return nxAudioVoiceSetChannelGain(&music.voice,level,level,0,0,0,0);
+}
+static int apply_options(void)
+{
+    uint32_t i;int status=RF_OK;
+    if(initialized){
+        for(i=0;i<VOICES;i++)if(slots[i].created && !ordinary_gain(slots+i)){
+            ++rf_xbox_audio_diagnostic[3];status=RF_IO;
+        }
+        if(music.created && !music_gain()){
+            ++rf_xbox_music_diagnostic[5];rf_xbox_music_diagnostic[11]=(uint32_t)RF_IO;status=RF_IO;
+        }
+    }
+    audio_gain_pending=status!=RF_OK;return status;
+}
+void rf_xbox_audio_get_options(rf_xbox_audio_options *options)
+{if(options)*options=audio_options;}
+int rf_xbox_audio_set_options(const rf_xbox_audio_options *options)
+{
+    if(!options || options->master_percent>RF_XBOX_AUDIO_VOLUME_MAX ||
+       options->effects_percent>RF_XBOX_AUDIO_VOLUME_MAX || options->music_percent>RF_XBOX_AUDIO_VOLUME_MAX)return RF_RANGE;
+    audio_options=*options;
+    /* Gain-only writes are valid while paused: no transport, queue, decoder,
+     * descriptor or borrower operation is part of changing user volume. */
+    return apply_options();
+}
 static uint32_t available(void)
 {MM_STATISTICS s={0};s.Length=sizeof(s);MmQueryStatistics(&s);return s.AvailablePages;}
 static int stopped(nxAudioVoice *voice,uint32_t timeout)
@@ -135,6 +178,7 @@ void rf_xbox_audio_close(void)
         }
     }
     memset(slots,0,sizeof(slots));memset(&music,0,sizeof(music));initialized=0;
+    audio_gain_pending=0; /* Preferences remain retained for the next session. */
     audio_paused=paused_slots=paused_music=0;rf_xbox_audio_pause_diagnostic[0]=0;
     rf_xbox_music_diagnostic[0]=0;rf_xbox_music_diagnostic[9]=0;
     rf_xbox_audio_diagnostic[10]=available();rf_xbox_audio_diagnostic[0]=0;
@@ -153,6 +197,7 @@ int rf_xbox_audio_open(void)
 {
     nxAudioInitParams init={0};
     if(initialized)return RF_RANGE;
+    audio_gain_pending=0;
     audio_paused=paused_slots=paused_music=0;
     memset(rf_xbox_audio_pause_diagnostic,0,sizeof(rf_xbox_audio_pause_diagnostic));
     memset(rf_xbox_audio_diagnostic,0,sizeof(rf_xbox_audio_diagnostic));
@@ -160,7 +205,8 @@ int rf_xbox_audio_open(void)
     memset(&music,0,sizeof(music));
     for(uint32_t i=0;i<12;i++)rf_xbox_music_diagnostic[i]=0;
     rf_xbox_music_diagnostic[8]=sizeof(music)+sizeof(music_pcm);
-    rf_xbox_audio_close_phase=0;rf_xbox_audio_diagnostic[6]=sizeof(slots)+sizeof(rf_xbox_audio_snapshot)+sizeof(music)+sizeof(music_pcm);
+    rf_xbox_audio_close_phase=0;rf_xbox_audio_diagnostic[6]=sizeof(slots)+sizeof(rf_xbox_audio_snapshot)+sizeof(music)+sizeof(music_pcm)+
+        sizeof(audio_options)+sizeof(audio_gain_pending);
     rf_xbox_audio_diagnostic[9]=available();
     if(!nxAudioInit(&init)){rf_xbox_audio_diagnostic[0]=(uint32_t)RF_IO;return RF_IO;}
     initialized=1;rf_xbox_audio_diagnostic[0]=1;rf_xbox_audio_diagnostic[8]=available();return RF_OK;
@@ -195,6 +241,9 @@ static int music_create(void)
     format.codec=NX_AUDIO_CODEC_PCM;format.type=NX_VOICE_TYPE_2D_STREAM;
     if(!nxAudioVoiceCreate(&music.voice,&format))return RF_IO;
     music.created=1;
+    /* Also used for drained-queue recreation; apply before queuing or starting.
+     * On failure the existing caller owns music_release's checked retirement. */
+    if(!music_gain())return RF_IO;
     nxAudioBufferSetCallback(&music.voice,music_completed,NULL);return RF_OK;
 }
 static int music_queue(const nxAudioBuffer *buffer)
@@ -287,11 +336,11 @@ static int play_mode(void *context,uint32_t handle,const rf_wave_pcm *pcm,float 
     format.sample_rate=pcm->rate;format.channels=(uint8_t)pcm->channels;
     format.bytes_per_sample=(uint8_t)(pcm->bits/8);format.codec=NX_AUDIO_CODEC_PCM;format.type=NX_VOICE_TYPE_2D_STATIC;
     if(!nxAudioVoiceCreate(&slot->voice,&format))goto fail;
-    slot->created=1;slot->handle=handle;
+    slot->created=1;slot->handle=handle;slot->left=left;slot->right=right;
     if(!nxAudioBufferInitialize(&slot->buffer,pcm->samples,pcm->bytes) ||
        !nxAudioBufferSubmit(&slot->voice,&slot->buffer) ||
        !nxAudioVoiceSetLooping(&slot->voice,looping!=0) ||
-       !nxAudioVoiceSetChannelGain(&slot->voice,left,right,0,0,0,0) || !nxAudioVoiceStart(&slot->voice))goto fail;
+       !ordinary_gain(slot) || !nxAudioVoiceStart(&slot->voice))goto fail;
     ++rf_xbox_audio_diagnostic[1];return RF_OK;
 fail:
     ++rf_xbox_audio_diagnostic[3];
@@ -311,6 +360,7 @@ static void poll(void *context)
 {
     uint32_t i,active=0,nonzero=0;const volatile int16_t *output=g_hw_ac97_buffer;
     (void)context;if(!initialized)return;
+    if(audio_gain_pending)(void)apply_options();
     for(i=0;i<VOICES;i++)if(slots[i].created && nxAudioVoiceGetState(&slots[i].voice)!=NX_STOPPED)++active;
     if(active>rf_xbox_audio_diagnostic[7])rf_xbox_audio_diagnostic[7]=active;
     if(!rf_xbox_audio_diagnostic[5]) {
@@ -326,7 +376,10 @@ static void gain(void *context,uint32_t handle,float left,float right)
     uint32_t i;(void)context;if(!initialized)return;
     if(!(left>=0 && left<=1 && right>=0 && right<=1)){++rf_xbox_audio_diagnostic[3];return;}
     for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle) {
-        if(!nxAudioVoiceSetChannelGain(&slots[i].voice,left,right,0,0,0,0))++rf_xbox_audio_diagnostic[3];
+        /* Retain attenuation/pan updates even while muted so raising volume
+         * restores the current authored gain rather than compounding scaling. */
+        slots[i].left=left;slots[i].right=right;
+        if(!ordinary_gain(slots+i)){++rf_xbox_audio_diagnostic[3];audio_gain_pending=1;}
         break;
     }
 }
