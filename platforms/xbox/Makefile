@@ -35,6 +35,7 @@ SRCS += $(PROJECT_ROOT)/src/core/authored_owner_extension.c $(PROJECT_ROOT)/src/
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_fixture.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
+SRCS += $(PROJECT_ROOT)/src/platform/xbox/settings_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c
 APU_BACKEND = $(PROJECT_ROOT)/build/nxaudio
 ifeq ($(wildcard $(APU_BACKEND)/audio_core.c),)
@@ -118,6 +119,7 @@ $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
 $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS) $(PROJECT_ROOT)/src/platform/xbox/retained_models.h
 
 $(PROJECT_ROOT)/src/platform/xbox/main.obj: $(wildcard $(PROJECT_ROOT)/tests/*_fixture.h)
+$(PROJECT_ROOT)/src/platform/xbox/main.obj $(PROJECT_ROOT)/src/platform/xbox/settings_storage.obj: $(PROJECT_ROOT)/src/platform/xbox/settings_storage.h $(PROJECT_ROOT)/src/platform/xbox/input.h
 
 # Scene implementation includes share the Windows dependency-path mismatch above.
 # Recompile their owner when any include changes; otherwise a new executable can

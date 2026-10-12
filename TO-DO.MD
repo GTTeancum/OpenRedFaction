@@ -1,3 +1,6 @@
+- Controller settings persistence is source-integrated with explicit Save Settings, startup restore, separate two-slot storage and last-good recovery; compilation and native persistence remain unverified (docs/XBOX-CONTROLLER-SETTINGS-PERSISTENCE.md).
+- October12 17:02 UTC stock64 build passed for Message History, Fine Aim and Holster; bounded History access/Back/Start and half normalized Fine Aim response at sensitivity100/200 passed. Holster behavior and settings persistence remain untested.
+
 - October12 16:02 UTC stock64 Xbox build and bounded controller Options/New Game difficulty check passed on b304abcd: cold/paused option changes, reset defaults, Hard difficulty and End Session retention verified; startup Load Game compiled but saved restoration remains untested.
 - Player Holster is source-written on left-stick click with retained weapon ownership, view/shield/input gates and same-size RFWM3 continuity; await parent integration and the hourly stock64 batch (docs/PLAYER-HOLSTER.md).
 

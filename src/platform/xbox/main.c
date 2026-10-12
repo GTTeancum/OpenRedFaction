@@ -19,6 +19,7 @@
 #include "rf/particle_pool.h"
 #include "renderer.h"
 #include "input.h"
+#include "settings_storage.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -81,6 +82,32 @@ volatile uint32_t rf_xbox_frontend_trace[8];
 volatile uint32_t rf_xbox_frontend_menu[3];
 /* Explicit source attempts, source enum, outcome enum, RF status. Not restore proof. */
 volatile uint32_t rf_xbox_frontend_load[4];
+static uint32_t player_options_storage_notice=RF_SCENE_OPTIONS_SESSION;
+static rf_xbox_input_options player_options_stored;
+static uint32_t player_options_storage_flags(const rf_xbox_input_options *options)
+{
+    if(player_options_storage_notice==RF_SCENE_OPTIONS_STORED &&
+       (options->look_sensitivity_percent!=player_options_stored.look_sensitivity_percent ||
+        options->invert_y!=player_options_stored.invert_y || options->deadzone_percent!=player_options_stored.deadzone_percent))
+        return RF_SCENE_OPTIONS_CHANGED;
+    return player_options_storage_notice;
+}
+static uint32_t player_options_storage_error(int status)
+{
+    if(rf_xbox_settings_storage_locked())return RF_SCENE_OPTIONS_STORAGE_LOCKED;
+    return status==RF_FORMAT || status==RF_RANGE?RF_SCENE_OPTIONS_BLOCKED:RF_SCENE_OPTIONS_STORAGE_ERROR;
+}
+static void player_options_restore(void)
+{
+    rf_xbox_input_options restored;uint32_t degraded=0;
+    int status=rf_xbox_settings_storage_load(&restored,&degraded);
+    if(!status){
+        rf_xbox_input_set_options(&restored);player_options_stored=restored;
+        player_options_storage_notice=degraded?RF_SCENE_OPTIONS_RECOVERED:RF_SCENE_OPTIONS_STORED;
+    }else player_options_storage_notice=status==RF_NOT_FOUND?RF_SCENE_OPTIONS_MISSING:player_options_storage_error(status);
+    /* Storage failure must not prevent a session or change safe input defaults.
+     * It remains visible on Options, including recovered-but-write-blocked data. */
+}
 static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
 {
     rf_scene_input input;rf_xbox_input_options options,drawn_options={0};
@@ -92,6 +119,7 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
             (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right;
         int direction;
         rf_xbox_input_get_options(&options);
+        flags|=player_options_storage_flags(&options);
         if(selection!=drawn_selection || flags!=drawn_flags ||
            options.look_sensitivity_percent!=drawn_options.look_sensitivity_percent ||
            options.invert_y!=drawn_options.invert_y || options.deadzone_percent!=drawn_options.deadzone_percent){
@@ -114,6 +142,17 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         if(left&&right)continue;
         direction=right?1:left?-1:0;
         if(selection==RF_SCENE_OPTIONS_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_OPTIONS_SAVE){
+            /* One released A edge is the only write request. Left/right, Back,
+             * Start, default-reset, hotplug and session transitions never save. */
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                int saved=rf_xbox_settings_storage_save(&options);
+                if(!saved){player_options_stored=options;player_options_storage_notice=RF_SCENE_OPTIONS_STORED;}
+                else player_options_storage_notice=player_options_storage_error(saved);
+                drawn_flags=UINT32_MAX;
+            }
+            continue;
+        }
         if(selection==RF_SCENE_OPTIONS_DEFAULTS){
             if(pressed&RF_XBOX_MENU_ACCEPT){
                 options=(rf_xbox_input_options){RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT};
@@ -1695,6 +1734,9 @@ int main(void)
     }
     if(result==RF_OK && tester_profile){
         uint32_t ended=0;
+        /* Read once per normal tester boot, before any controller/session opens.
+         * Diagnostic/replay launches do not acquire settings storage. */
+        player_options_restore();
         for(;;){
             char saved_level[64]={0};
             /* A failed load/teardown stays visibly failed. Never relabel it as

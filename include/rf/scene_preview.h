@@ -693,8 +693,17 @@ enum {
 enum {RF_SCENE_FRONTEND_MAIN,RF_SCENE_FRONTEND_DIFFICULTY,
     RF_SCENE_FRONTEND_OPTIONS,RF_SCENE_FRONTEND_LOAD};
 enum {RF_SCENE_OPTIONS_SENSITIVITY,RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,
-    RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_COUNT};
+    RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_SAVE,RF_SCENE_OPTIONS_COUNT};
 enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u};
+/* Exactly one storage notice is ORed with the existing low-bit menu flags.
+ * Existing option indices0-4 and their actions remain unchanged. */
+enum {
+    RF_SCENE_OPTIONS_SESSION=0u,RF_SCENE_OPTIONS_STORED=4u,
+    RF_SCENE_OPTIONS_CHANGED=8u,RF_SCENE_OPTIONS_MISSING=12u,
+    RF_SCENE_OPTIONS_BLOCKED=16u,RF_SCENE_OPTIONS_RECOVERED=20u,
+    RF_SCENE_OPTIONS_STORAGE_ERROR=24u,RF_SCENE_OPTIONS_STORAGE_LOCKED=28u,
+    RF_SCENE_OPTIONS_STORAGE_MASK=28u
+};
 /* Cold tester frontend has no world/image/storage owner. Selection is local
  * to the page; difficulty is the last accepted New Game index, 0..3.
  * A nonzero previous status is terminal and must not advertise a retry. */

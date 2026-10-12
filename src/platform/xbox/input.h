@@ -5,8 +5,9 @@ int rf_xbox_input_open(void);
 void rf_xbox_input_close(void);
 int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input);
 /* Platform-only settings, retained for this process across open/close and
- * session changes. No settings are written to disk or the gameplay/replay
- * input record. Sensitivity scales normalized look response, then clamps
+ * session changes. This input owner never writes disk or the gameplay/replay
+ * input record; settings_storage handles explicit persistence separately.
+ * Sensitivity scales normalized look response, then clamps
  * each axis to [-1,1]; it does not increase the engine's maximum turn rate.
  * The radial deadzone applies to both sticks. Sensitivity and deadzone are
  * percentages; invert_y is a boolean. */

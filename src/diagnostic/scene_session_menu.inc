@@ -139,10 +139,11 @@ int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
 int rf_scene_draw_options(rf_scene_particle_sink sink,void *context,uint32_t selection,
     uint32_t flags,uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent)
 {
-    uint32_t i;int status;char text[64];
+    uint32_t i,storage=flags&RF_SCENE_OPTIONS_STORAGE_MASK;int status;char text[64];
+    const char *notice="CHANGES APPLY FOR THIS SESSION",*detail="SELECT SAVE SETTINGS TO KEEP CHANGES";
     if(!sink || particle_draw_stream || selection>=RF_SCENE_OPTIONS_COUNT ||
        sensitivity_percent<25 || sensitivity_percent>200 || invert_y>1 || deadzone_percent>40 ||
-       (flags&~(RF_SCENE_OPTIONS_PAUSED|RF_SCENE_OPTIONS_DISCONNECTED)))return RF_RANGE;
+       (flags&~(RF_SCENE_OPTIONS_PAUSED|RF_SCENE_OPTIONS_DISCONNECTED|RF_SCENE_OPTIONS_STORAGE_MASK)))return RF_RANGE;
     status=combat_hud_centered(sink,context,58,"CONTROLLER OPTIONS",0xffeeeeee);if(status)return status;
     if(flags&RF_SCENE_OPTIONS_DISCONNECTED){
         status=combat_hud_centered(sink,context,172,"CONTROLLER DISCONNECTED",0xffffc060);if(status)return status;
@@ -152,12 +153,21 @@ int rf_scene_draw_options(rf_scene_particle_sink sink,void *context,uint32_t sel
         if(i==RF_SCENE_OPTIONS_SENSITIVITY)snprintf(text,sizeof(text),"LOOK SENSITIVITY   %u%%",sensitivity_percent);
         else if(i==RF_SCENE_OPTIONS_INVERT)snprintf(text,sizeof(text),"INVERT Y   %s",invert_y?"ON":"OFF");
         else if(i==RF_SCENE_OPTIONS_DEADZONE)snprintf(text,sizeof(text),"STICK DEADZONE   %u%%",deadzone_percent);
-        else snprintf(text,sizeof(text),"%s",i==RF_SCENE_OPTIONS_DEFAULTS?"RESET DEFAULTS":"BACK");
-        if(i==selection){status=combat_hud_rect(sink,context,104,116+i*38,432,30,0xff30485c);if(status)return status;}
-        status=combat_hud_centered(sink,context,124+i*38,text,i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
+        else snprintf(text,sizeof(text),"%s",i==RF_SCENE_OPTIONS_DEFAULTS?"RESET DEFAULTS":
+            i==RF_SCENE_OPTIONS_BACK?"BACK":"SAVE SETTINGS");
+        if(i==selection){status=combat_hud_rect(sink,context,104,116+i*34,432,30,0xff30485c);if(status)return status;}
+        status=combat_hud_centered(sink,context,124+i*34,text,i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
     }
-    status=combat_hud_centered(sink,context,326,"KEPT UNTIL THE GAME IS REBOOTED",0xffb8c0d0);if(status)return status;
-    status=combat_hud_centered(sink,context,366,"UP/DOWN SELECT   LEFT/RIGHT ADJUST",0xffeeeeee);if(status)return status;
-    return combat_hud_centered(sink,context,404,
+    if(storage==RF_SCENE_OPTIONS_STORED){notice="SETTINGS SAVED FOR THE NEXT BOOT";detail="RESET DEFAULTS DOES NOT SAVE AUTOMATICALLY";}
+    else if(storage==RF_SCENE_OPTIONS_CHANGED)notice="CURRENT CHANGES ARE NOT SAVED";
+    else if(storage==RF_SCENE_OPTIONS_MISSING)notice="NO SAVED SETTINGS YET";
+    else if(storage==RF_SCENE_OPTIONS_BLOCKED){notice="SETTINGS FILE NEEDS ATTENTION";detail="EXISTING FILES KEPT   SAVING BLOCKED";}
+    else if(storage==RF_SCENE_OPTIONS_RECOVERED){notice="OLDER SETTINGS RECOVERED";detail="DAMAGED OR UNKNOWN FILE KEPT   SAVE BLOCKED";}
+    else if(storage==RF_SCENE_OPTIONS_STORAGE_ERROR){notice="STORAGE ERROR   SAVE NOT CONFIRMED";detail="CURRENT CONTROLS STILL WORK";}
+    else if(storage==RF_SCENE_OPTIONS_STORAGE_LOCKED){notice="STORAGE CLOSE FAILED   REBOOT TO RETRY";detail="CURRENT CONTROLS STILL WORK";}
+    status=combat_hud_centered(sink,context,338,notice,storage>=RF_SCENE_OPTIONS_BLOCKED?0xffffc060:0xffb8c0d0);if(status)return status;
+    status=combat_hud_centered(sink,context,358,detail,0xffb8c0d0);if(status)return status;
+    status=combat_hud_centered(sink,context,394,"UP/DOWN SELECT   LEFT/RIGHT ADJUST",0xffeeeeee);if(status)return status;
+    return combat_hud_centered(sink,context,428,
         (flags&RF_SCENE_OPTIONS_PAUSED)?"A SELECT   B BACK   START RESUME":"A SELECT   B OR START BACK",0xffb8c0d0);
 }
