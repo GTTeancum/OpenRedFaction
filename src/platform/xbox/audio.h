@@ -3,6 +3,9 @@
 #include "rf/scene_preview.h"
 int rf_xbox_audio_open(void);
 void rf_xbox_audio_close(void);
+/* Read-only shutdown admission, including the existing stop-timeout fault.
+ * Never treats a paused voice or a failed drain as successful retirement. */
+int rf_xbox_audio_idle_status(void);
 /* Native-only single-player pause. Serialized with play/reset by the platform
  * owner; preserves voice cursors, borrowed PCM and the music decoder. Resume
  * only starts voices paused by this operation, never completed one-shots.

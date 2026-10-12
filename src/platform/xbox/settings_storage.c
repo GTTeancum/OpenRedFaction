@@ -32,7 +32,8 @@ static int settings_options_valid(const rf_xbox_input_options *o)
     return o && o->look_sensitivity_percent>=RF_XBOX_LOOK_SENSITIVITY_MIN &&
         o->look_sensitivity_percent<=RF_XBOX_LOOK_SENSITIVITY_MAX &&
         !((o->look_sensitivity_percent-RF_XBOX_LOOK_SENSITIVITY_MIN)%RF_XBOX_LOOK_SENSITIVITY_STEP) &&
-        o->invert_y<=1 && o->deadzone_percent<=RF_XBOX_STICK_DEADZONE_MAX;
+        o->invert_y<=1 && o->deadzone_percent<=RF_XBOX_STICK_DEADZONE_MAX &&
+        o->stick_layout<=RF_XBOX_STICK_LAYOUT_SOUTHPAW;
 }
 static void settings_owner_receipt(void)
 {
@@ -87,22 +88,32 @@ static int settings_begin(uint32_t operation)
 }
 static int settings_decode(settings_record *r,uint32_t slot)
 {
-    if(memcmp(r->bytes,"RFCS",4) || settings_get32(r->bytes+4)!=1 ||
-       settings_get32(r->bytes+8)!=SETTINGS_BYTES || settings_get32(r->bytes+28) ||
+    uint32_t version=settings_get32(r->bytes+4),layout=settings_get32(r->bytes+28);
+    /* RFCS1 keeps its exact reserved-zero contract and defaults to Standard.
+     * RFCS2 uses that same word for a strict layout enum; other versions stay
+     * unknown/corrupt to the existing last-good recovery and write refusal. */
+    if(memcmp(r->bytes,"RFCS",4) || (version!=1 && version!=2) ||
+       settings_get32(r->bytes+8)!=SETTINGS_BYTES || (version==1 && layout) ||
+       (version==2 && layout>RF_XBOX_STICK_LAYOUT_SOUTHPAW) ||
        settings_get32(r->bytes+32)!=settings_checksum(r->bytes))return RF_FORMAT;
     r->generation=settings_get32(r->bytes+12);
     r->options.look_sensitivity_percent=settings_get32(r->bytes+16);
     r->options.invert_y=settings_get32(r->bytes+20);
     r->options.deadzone_percent=settings_get32(r->bytes+24);
+    r->options.stick_layout=version==2?layout:RF_XBOX_STICK_LAYOUT_STANDARD;
     if(!r->generation || ((r->generation-1)&1u)!=slot || !settings_options_valid(&r->options))return RF_FORMAT;
     return RF_OK;
 }
 static void settings_encode(settings_record *r,const rf_xbox_input_options *options,uint32_t generation)
 {
     memset(r,0,sizeof(*r));memcpy(r->bytes,"RFCS",4);
-    settings_put32(r->bytes+4,1);settings_put32(r->bytes+8,SETTINGS_BYTES);
+    /* Preserve byte-identical RFCS1 output for Standard at the same settings
+     * and generation. Southpaw needs RFCS2, never a nonzero RFCS1 reserved word. */
+    settings_put32(r->bytes+4,options->stick_layout==RF_XBOX_STICK_LAYOUT_STANDARD?1u:2u);
+    settings_put32(r->bytes+8,SETTINGS_BYTES);
     settings_put32(r->bytes+12,generation);settings_put32(r->bytes+16,options->look_sensitivity_percent);
     settings_put32(r->bytes+20,options->invert_y);settings_put32(r->bytes+24,options->deadzone_percent);
+    settings_put32(r->bytes+28,options->stick_layout);
     settings_put32(r->bytes+32,settings_checksum(r->bytes));r->generation=generation;r->options=*options;
 }
 static int settings_read_open(uint32_t slot,settings_record *r)
@@ -171,6 +182,11 @@ static int settings_select(settings_record records[2],int found[2],uint32_t *sel
     rf_xbox_settings_storage_state[6]=*selected;return RF_OK;
 }
 uint32_t rf_xbox_settings_storage_locked(void){return settings_locked;}
+int rf_xbox_settings_storage_idle_status(void)
+{
+    if(settings_locked)return RF_IO;
+    return settings_mounted || settings_file!=INVALID_HANDLE_VALUE?RF_RANGE:RF_OK;
+}
 int rf_xbox_settings_storage_load(rf_xbox_input_options *options,uint32_t *degraded)
 {
     settings_record records[2];int found[2],status;uint32_t selected,damaged;

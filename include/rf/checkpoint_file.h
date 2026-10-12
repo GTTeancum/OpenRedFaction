@@ -17,6 +17,10 @@ typedef int (*rf_checkpoint_file_validate)(const void *data,uint32_t bytes,void 
 typedef struct rf_checkpoint_file_selection {
     uint32_t ready,slot,generation,bytes,checksum;
 } rf_checkpoint_file_selection;
+/* Read-only process-lifetime close admission. A failed fclose may already
+ * invalidate FILE while retaining native ownership; never retry that pointer
+ * or open another checkpoint after uncertainty. No runtime reset is offered. */
+int rf_checkpoint_file_idle_status(void);
 /* Files are base_path + ".0" / ".1". Capacity must be at least the MAX
  * constant so a newer candidate is never discarded only for buffer size.
  * Output buffer is unspecified on error.

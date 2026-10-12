@@ -6,6 +6,16 @@
 #define TOKEN_READY 0x52465354u
 #define EMPTY_SLOT UINT32_MAX
 #define PATH_BYTES 512
+static uint32_t checkpoint_close_uncertain;
+int rf_checkpoint_file_idle_status(void)
+{return checkpoint_close_uncertain?RF_IO:RF_OK;}
+static int checkpoint_close(FILE *file)
+{
+ int status=fclose(file);
+ /* fclose can invalidate its FILE even when native close fails. Remember
+  * uncertainty without retaining/retrying an invalid stdio pointer. */
+ if(status)checkpoint_close_uncertain=1;return status;
+}
 static uint32_t get32(const unsigned char *p)
 {return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static void put32(unsigned char *p,uint32_t v)
@@ -41,7 +51,7 @@ static int read_slot(const char *base,uint32_t slot,void *buffer,uint32_t capaci
   hash=hash_add(hash,p,n);if(compare && memcmp(p,compare+at,n))status=RF_FORMAT;at+=n;
  }
  if(!status){tail=fgetc(f);if(tail!=EOF)status=RF_FORMAT;else if(ferror(f))status=RF_IO;else if(hash!=out->checksum)status=RF_FORMAT;}
- if(fclose(f) && !status)status=RF_IO;
+ if(checkpoint_close(f))status=RF_IO;
  if(!status && validate)status=validate(buffer,out->bytes,context);
  if(!status)out->ready=TOKEN_READY;return status;
 }
@@ -51,6 +61,7 @@ int rf_checkpoint_file_load(const char *base,void *buffer,uint32_t capacity,uint
  rf_checkpoint_file_selection found[2],selected,again;int status[2],result;uint32_t i;
  if(selection)memset(selection,0,sizeof(*selection));if(bytes)*bytes=0;
  if(!buffer || capacity<RF_CHECKPOINT_FILE_MAX || !bytes || !validate || !selection)return RF_RANGE;
+ if(rf_checkpoint_file_idle_status())return RF_IO;
  for(i=0;i<2;i++){
   status[i]=read_slot(base,i,buffer,capacity,validate,context,NULL,NULL,&found[i]);
   if(status[i] && status[i]!=RF_NOT_FOUND && status[i]!=RF_FORMAT && status[i]!=RF_RANGE)return status[i];
@@ -71,11 +82,12 @@ int rf_checkpoint_file_store(const char *base,const void *data,uint32_t bytes,
 {
  rf_checkpoint_file_selection next,verified;char path[PATH_BYTES];unsigned char header[24];FILE *f;uint32_t at=0;int status;
  if(!data || !bytes || bytes>RF_CHECKPOINT_FILE_MAX || !validate || !selection || selection->ready!=TOKEN_READY || (selection->slot>1 && selection->slot!=EMPTY_SLOT))return RF_RANGE;
+ if(rf_checkpoint_file_idle_status())return RF_IO;
  if(selection->generation==UINT32_MAX)return RF_RANGE;
  status=validate(data,bytes,context);if(status)return status;
  if(selection->slot!=EMPTY_SLOT){status=read_slot(base,selection->slot,NULL,0,NULL,NULL,selection,NULL,&verified);if(status)return status;}
  else { /* Empty token must not clobber files created since selection. */
-  uint32_t i;for(i=0;i<2;i++){status=path_for(base,i,path);if(status)return status;errno=0;f=fopen(path,"rb");if(f){fclose(f);return RF_FORMAT;}if(errno!=ENOENT)return RF_IO;}
+  uint32_t i;for(i=0;i<2;i++){status=path_for(base,i,path);if(status)return status;errno=0;f=fopen(path,"rb");if(f){return checkpoint_close(f)?RF_IO:RF_FORMAT;}if(errno!=ENOENT)return RF_IO;}
  }
  next.ready=TOKEN_READY;next.slot=selection->slot==EMPTY_SLOT?0:1-selection->slot;next.generation=selection->generation+1;next.bytes=bytes;next.checksum=hash_add(2166136261u,data,bytes);
  status=path_for(base,next.slot,path);if(status)return status;
@@ -83,7 +95,7 @@ int rf_checkpoint_file_store(const char *base,const void *data,uint32_t bytes,
  f=fopen(path,"wb");if(!f)return RF_IO;
  status=fwrite(header,1,sizeof(header),f)==sizeof(header)?RF_OK:RF_IO;
  while(!status && at<bytes){size_t n=fwrite((const unsigned char *)data+at,1,bytes-at,f);if(!n){status=RF_IO;break;}at+=(uint32_t)n;}
- if(!status && fflush(f))status=RF_IO;if(fclose(f) && !status)status=RF_IO;if(status)return status;
+ if(!status && fflush(f))status=RF_IO;if(checkpoint_close(f))status=RF_IO;if(status)return status;
  status=read_slot(base,next.slot,NULL,0,NULL,NULL,&next,data,&verified);if(status)return status;
  *selection=next;return RF_OK;
 }

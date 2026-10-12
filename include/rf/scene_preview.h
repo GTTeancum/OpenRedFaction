@@ -691,12 +691,15 @@ enum {
     RF_SCENE_FRONTEND_ENDED=4u,RF_SCENE_FRONTEND_LOAD_NOTICE=8u
 };
 enum {RF_SCENE_FRONTEND_MAIN,RF_SCENE_FRONTEND_DIFFICULTY,
-    RF_SCENE_FRONTEND_OPTIONS,RF_SCENE_FRONTEND_LOAD};
+    RF_SCENE_FRONTEND_OPTIONS,RF_SCENE_FRONTEND_LOAD,RF_SCENE_FRONTEND_EXIT};
 enum {RF_SCENE_OPTIONS_SENSITIVITY,RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,
-    RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_SAVE,RF_SCENE_OPTIONS_COUNT};
-enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u};
+    RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_SAVE,
+    RF_SCENE_OPTIONS_STICK_LAYOUT,RF_SCENE_OPTIONS_COUNT};
+enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u,
+    RF_SCENE_OPTIONS_SOUTHPAW=32u};
 /* Exactly one storage notice is ORed with the existing low-bit menu flags.
- * Existing option indices0-4 and their actions remain unchanged. */
+ * Existing option indices0-5 and their actions remain unchanged; layout is6.
+ * SOUTHPAW reports analog layout only and does not change physical buttons. */
 enum {
     RF_SCENE_OPTIONS_SESSION=0u,RF_SCENE_OPTIONS_STORED=4u,
     RF_SCENE_OPTIONS_CHANGED=8u,RF_SCENE_OPTIONS_MISSING=12u,
@@ -904,6 +907,10 @@ int rf_scene_session_restart(void);
  * Clears campaign carry and requests without touching any stored save. Refuses
  * live or incompletely retired owners; section reloads must not call this. */
 int rf_scene_session_reset(void);
+/* Read-only full-idle admission after successful session reset. Does not end,
+ * reset, detach, save, load or retry cleanup; platforms check their own native
+ * input/audio/render/settings owners separately before a dashboard launch. */
+int rf_scene_session_exit_status(void);
 /* Idle-only process-local New Game seed. Cold constructors reuse it, while
  * section transitions and saved restores keep their existing difficulty owner.
  * Neither function reads or writes storage. Valid indices are 0..3. */

@@ -1,3 +1,9 @@
+- October12 18:00 candidate rolls settings persistence, Standard/Southpaw layout, confirmed Dashboard Exit and sticky storage-cleanup ownership together; all are source-integrated and pending the sole hourly stock64 build.
+
+- Xbox confirmed Exit to Dashboard and persistent uncertain checkpoint-close ownership are source-written, with full-idle/settings/audio/input/render admission and no fallback reboot; await parent integration and the hourly stock64 batch (docs/XBOX-FRONTEND-DASHBOARD-EXIT.md).
+
+- Xbox Standard/Southpaw analog-stick layout selection and same-size RFCS2 settings persistence are source-written with fixed buttons/chords and strict RFCS1 compatibility; await parent integration and the next hourly stock64 batch (docs/XBOX-CONTROLLER-LAYOUTS.md).
+
 - Controller settings persistence is source-integrated with explicit Save Settings, startup restore, separate two-slot storage and last-good recovery; compilation and native persistence remain unverified (docs/XBOX-CONTROLLER-SETTINGS-PERSISTENCE.md).
 - October12 17:02 UTC stock64 build passed for Message History, Fine Aim and Holster; bounded History access/Back/Start and half normalized Fine Aim response at sensitivity100/200 passed. Holster behavior and settings persistence remain untested.
 

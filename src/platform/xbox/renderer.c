@@ -450,6 +450,28 @@ void rf_xbox_scene_stream_close(void)
     stream_gpu=NULL;stream_textures=NULL;stream_materials=NULL;stream_lightmaps=NULL;
     stream_mode=0;stream_capacity=stream_fallback=0;
 }
+int rf_xbox_frontend_exit_status(void)
+{
+    uint32_t i,begin;
+    if(stream_gpu || stream_textures || stream_materials || stream_lightmaps ||
+       retained_world.source || retained_world.visibility || retained_world.vertices || retained_world.faces ||
+       retained_indices.items || retained_indices.groups || retained_indices.rooms ||
+       retained_model_count || retained_draws || retained_draw_count ||
+       hud_batch_active || hud_batch_open || hud_commands.p || particle_batch_active ||
+       hud_batch_pixels || particle_batch_pixels || rf_xbox_draw_audit[1])return RF_RANGE;
+    for(i=0;i<RETAINED_MODEL_LIMIT;i++)if(retained_models[i].geometry || retained_models[i].gpu ||
+        retained_models[i].parts || retained_models[i].bounds)return RF_RANGE;
+    if(stream_device_ready){
+        begin=GetTickCount();
+        while(pb_busy()){
+            /* Exit admission never waits forever or releases GPU borrowers
+             * on a stalled device. This bound changes no existing fence. */
+            if((uint32_t)(GetTickCount()-begin)>=1000u)return RF_IO;
+            Sleep(1);
+        }
+    }
+    return RF_OK;
+}
 int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
 {
     int status;

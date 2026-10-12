@@ -3,6 +3,8 @@
 #include "rf/scene_preview.h"
 int rf_xbox_input_open(void);
 void rf_xbox_input_close(void);
+/* Read-only shutdown admission; a connected pad is not the only input owner. */
+int rf_xbox_input_idle_status(void);
 int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input);
 /* Platform-only settings, retained for this process across open/close and
  * session changes. This input owner never writes disk or the gameplay/replay
@@ -10,18 +12,21 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input);
  * Sensitivity scales normalized look response, then clamps
  * each axis to [-1,1]; it does not increase the engine's maximum turn rate.
  * The radial deadzone applies to both sticks. Sensitivity and deadzone are
- * percentages; invert_y is a boolean. */
+ * percentages; invert_y is a boolean. Stick layout swaps analog pairs only;
+ * all physical buttons, including both stick clicks, remain fixed. */
 enum {
     RF_XBOX_LOOK_SENSITIVITY_MIN=25u,RF_XBOX_LOOK_SENSITIVITY_MAX=200u,
     RF_XBOX_LOOK_SENSITIVITY_STEP=25u,RF_XBOX_LOOK_SENSITIVITY_DEFAULT=100u,
     RF_XBOX_STICK_DEADZONE_MIN=0u,RF_XBOX_STICK_DEADZONE_MAX=40u,
     RF_XBOX_STICK_DEADZONE_STEP=1u,RF_XBOX_STICK_DEADZONE_DEFAULT=18u
 };
+enum {RF_XBOX_STICK_LAYOUT_STANDARD=0u,RF_XBOX_STICK_LAYOUT_SOUTHPAW=1u};
 typedef struct rf_xbox_input_options {
-    uint32_t look_sensitivity_percent,invert_y,deadzone_percent;
+    uint32_t look_sensitivity_percent,invert_y,deadzone_percent,stick_layout;
 } rf_xbox_input_options;
 /* Null pointers are ignored. Set clamps ranges and normalizes invert_y to
- * 0 or 1; get returns the effective values, even before input is opened. */
+ * 0 or 1 and unknown layouts to Standard; get returns the effective values,
+ * even before input is opened. Storage validates rather than normalizing. */
 void rf_xbox_input_get_options(rf_xbox_input_options *options);
 void rf_xbox_input_set_options(const rf_xbox_input_options *options);
 /* Native control edge from the latest poll, separate from the replay ABI.

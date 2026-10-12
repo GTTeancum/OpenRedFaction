@@ -140,6 +140,15 @@ void rf_xbox_audio_close(void)
     rf_xbox_audio_diagnostic[10]=available();rf_xbox_audio_diagnostic[0]=0;
     ++rf_xbox_audio_diagnostic[4];rf_xbox_audio_close_phase=4;
 }
+int rf_xbox_audio_idle_status(void)
+{
+    uint32_t i;
+    if(rf_xbox_audio_diagnostic[11] ||
+       (rf_xbox_audio_close_phase && rf_xbox_audio_close_phase!=4))return RF_IO;
+    if(initialized || music.created || audio_paused || paused_slots || paused_music)return RF_RANGE;
+    for(i=0;i<VOICES;i++)if(slots[i].created)return RF_RANGE;
+    return RF_OK;
+}
 int rf_xbox_audio_open(void)
 {
     nxAudioInitParams init={0};

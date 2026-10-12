@@ -23123,6 +23123,27 @@ int rf_scene_session_set_difficulty(uint32_t difficulty)
     return RF_OK;
 }
 #include "scene_frontend_load.inc"
+int rf_scene_session_exit_status(void)
+{
+    int status=scene_session_idle_status();if(status)return status;
+    if(campaign_spawn || rf_scene_follow_level_exits || rf_scene_level_transition.pending ||
+       scene_live_load_active || scene_live_load_pending || scene_live_save_pending ||
+       scene_section_autosave_pending || scene_actor_body.spheres.items ||
+       rf_scene_world_checkpoint_data || rf_scene_geomod_checkpoint_data ||
+       campaign_audio_sink || campaign_audio_context || campaign_audio_observer ||
+       campaign_audio_observer_context || campaign_audio_events_context ||
+       campaign_audio_events.play || campaign_audio_events.stop || campaign_audio_events.poll ||
+       campaign_audio_events.reset || campaign_audio_events.gain || campaign_audio_events.play_mode ||
+       campaign_audio_events.release_idle_sample || campaign_audio_events.playing || campaign_audio_events.music)
+        return RF_RANGE;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    status=rf_xbox_checkpoint_storage_idle_status();if(status)return status;
+    if(scene_frontend_load_storage.mounted || scene_checkpoint_hdd.mounted)return RF_RANGE;
+#else
+    status=rf_checkpoint_file_idle_status();if(status)return status;
+#endif
+    return RF_OK;
+}
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget)

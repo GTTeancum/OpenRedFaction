@@ -25,8 +25,12 @@ int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *,void *,uint32_t
  * untouched; newer bytes may exist even when native flush/close fails. */
 int rf_xbox_checkpoint_storage_store(rf_xbox_checkpoint_storage *,const void *,uint32_t,
     rf_checkpoint_file_validate,void *);
-/* Close only the alias this session created; failure retains ownership so
- * callers may retry. Native flush handles are closed on every return path;
- * a close failure is reported, never advertised as a successful save. */
+/* Read-only admission: reject an owned alias/handle or any uncertain close.
+ * Uncertain native/stdio ownership persists until process restart and blocks
+ * every later open/load/store. It cannot be cleared by session/menu reset. */
+int rf_xbox_checkpoint_storage_idle_status(void);
+/* Close only the alias this exact session created. Failed native close or
+ * unmount retains process-owned evidence and forbids automatic retry or a
+ * later reopen; never advertise that retirement as a successful save. */
 int rf_xbox_checkpoint_storage_close(rf_xbox_checkpoint_storage *);
 #endif

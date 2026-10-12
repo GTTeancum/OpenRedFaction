@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <hal/debug.h>
 #include <hal/video.h>
+#include <hal/xbox.h>
 #include <windows.h>
 #include <xboxkrnl/xboxkrnl.h>
 
@@ -78,7 +79,8 @@ volatile uint32_t rf_xbox_frontend_diagnostic[5];
  * 6close,7returned,8options,9load preflight). Draw returns include errors. */
 volatile uint32_t rf_xbox_frontend_trace[8];
 /* Page/selection/last accepted New Game difficulty, for bounded native receipt.
- * Page2 identifies Options and3 Load Game; no scene/input ownership inferred. */
+ * Page2 identifies Options,3 Load Game and4 Exit confirmation; root3 is Exit.
+ * No scene/input ownership is inferred from this draw-only receipt. */
 volatile uint32_t rf_xbox_frontend_menu[3];
 /* Explicit source attempts, source enum, outcome enum, RF status. Not restore proof. */
 volatile uint32_t rf_xbox_frontend_load[4];
@@ -88,7 +90,8 @@ static uint32_t player_options_storage_flags(const rf_xbox_input_options *option
 {
     if(player_options_storage_notice==RF_SCENE_OPTIONS_STORED &&
        (options->look_sensitivity_percent!=player_options_stored.look_sensitivity_percent ||
-        options->invert_y!=player_options_stored.invert_y || options->deadzone_percent!=player_options_stored.deadzone_percent))
+        options->invert_y!=player_options_stored.invert_y || options->deadzone_percent!=player_options_stored.deadzone_percent ||
+        options->stick_layout!=player_options_stored.stick_layout))
         return RF_SCENE_OPTIONS_CHANGED;
     return player_options_storage_notice;
 }
@@ -120,6 +123,7 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         int direction;
         rf_xbox_input_get_options(&options);
         flags|=player_options_storage_flags(&options);
+        if(options.stick_layout==RF_XBOX_STICK_LAYOUT_SOUTHPAW)flags|=RF_SCENE_OPTIONS_SOUTHPAW;
         if(selection!=drawn_selection || flags!=drawn_flags ||
            options.look_sensitivity_percent!=drawn_options.look_sensitivity_percent ||
            options.invert_y!=drawn_options.invert_y || options.deadzone_percent!=drawn_options.deadzone_percent){
@@ -155,7 +159,8 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         }
         if(selection==RF_SCENE_OPTIONS_DEFAULTS){
             if(pressed&RF_XBOX_MENU_ACCEPT){
-                options=(rf_xbox_input_options){RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT};
+                options=(rf_xbox_input_options){RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,
+                    RF_XBOX_STICK_DEADZONE_DEFAULT,RF_XBOX_STICK_LAYOUT_STANDARD};
                 rf_xbox_input_set_options(&options);
             }
             continue;
@@ -163,6 +168,9 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         if(!direction && !(pressed&RF_XBOX_MENU_ACCEPT))continue;
         if(!direction)direction=1;
         if(selection==RF_SCENE_OPTIONS_INVERT)options.invert_y=!options.invert_y;
+        else if(selection==RF_SCENE_OPTIONS_STICK_LAYOUT)
+            options.stick_layout=options.stick_layout==RF_XBOX_STICK_LAYOUT_STANDARD?
+                RF_XBOX_STICK_LAYOUT_SOUTHPAW:RF_XBOX_STICK_LAYOUT_STANDARD;
         else if(selection==RF_SCENE_OPTIONS_SENSITIVITY){
             if(direction>0){
                 if(options.look_sensitivity_percent<RF_XBOX_LOOK_SENSITIVITY_MAX)
@@ -222,12 +230,12 @@ static int player_frontend_present(uint32_t flags,int session_status,
     rf_xbox_frontend_trace[6]=(uint32_t)status;++rf_xbox_frontend_trace[5];
     return status;
 }
-static int player_frontend(uint32_t ended,int session_status,char saved_level[64])
+static int player_frontend(uint32_t ended,int session_status,char saved_level[64],uint32_t *dashboard_exit)
 {
     rf_scene_input input;uint32_t drawn=UINT32_MAX,i,page=RF_SCENE_FRONTEND_MAIN,selection=0;
     uint32_t difficulty=rf_scene_session_get_difficulty(),load_notice=0,load_outcome=RF_SCENE_FRONTEND_LOAD_READY;
     int status,load_status=RF_OK;
-    if(!saved_level)return RF_RANGE;saved_level[0]=0;
+    if(!saved_level || !dashboard_exit)return RF_RANGE;saved_level[0]=0;*dashboard_exit=0;
     memset((void *)rf_xbox_frontend_load,0,sizeof(rf_xbox_frontend_load));
     for(i=0;i<8;i++)rf_xbox_frontend_trace[i]=0;
     rf_xbox_frontend_trace[7]=1;
@@ -251,6 +259,12 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
          * chord as New Game, navigation or an options change. */
         if(status && status!=RF_NOT_FOUND)break;
         if(!rf_xbox_input_connected())flags|=RF_SCENE_FRONTEND_DISCONNECTED;
+        /* A lost/replaced controller disarms a selected destructive choice.
+         * Its existing attach/release latch still owns every button edge. */
+        if(page==RF_SCENE_FRONTEND_EXIT && selection &&
+           (!rf_xbox_input_connected() || rf_xbox_input_connection_lost())){
+            selection=0;drawn=UINT32_MAX;
+        }
         if(flags!=drawn){
             int shown=player_frontend_present(flags,session_status,page,selection,difficulty,load_outcome,load_status);
             if(shown){status=shown;break;}drawn=flags;
@@ -258,11 +272,12 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
         if(!status && !session_status && rf_xbox_input_connected() && !rf_xbox_input_connection_lost()){
             pressed=rf_xbox_input_menu_pressed();start=rf_xbox_input_pause_pressed();
             if(page!=RF_SCENE_FRONTEND_MAIN && (start || (pressed&RF_XBOX_MENU_CANCEL))){
-                selection=page==RF_SCENE_FRONTEND_LOAD?2:0;
+                selection=page==RF_SCENE_FRONTEND_LOAD?2:page==RF_SCENE_FRONTEND_EXIT?3:0;
                 page=RF_SCENE_FRONTEND_MAIN;load_notice=0;drawn=UINT32_MAX;
             }else if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
                 uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
-                uint32_t count=page==RF_SCENE_FRONTEND_DIFFICULTY?5:3;
+                uint32_t count=page==RF_SCENE_FRONTEND_DIFFICULTY?5:
+                    page==RF_SCENE_FRONTEND_MAIN?4:page==RF_SCENE_FRONTEND_EXIT?2:3;
                 if(up!=down){selection=(selection+(down?1:count-1))%count;load_notice=0;drawn=UINT32_MAX;}
             }else if((pressed&RF_XBOX_MENU_ACCEPT) || (start&&page==RF_SCENE_FRONTEND_MAIN)){
                 if(page==RF_SCENE_FRONTEND_MAIN){
@@ -272,7 +287,18 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                         rf_xbox_frontend_menu[0]=RF_SCENE_FRONTEND_OPTIONS;rf_xbox_frontend_trace[7]=8;
                         status=player_options_menu(NULL,0,0,&resume);if(status)break;
                         drawn=UINT32_MAX;
-                    }else {page=RF_SCENE_FRONTEND_LOAD;selection=0;load_notice=0;drawn=UINT32_MAX;}
+                    }else if(selection==2){page=RF_SCENE_FRONTEND_LOAD;selection=0;load_notice=0;drawn=UINT32_MAX;}
+                    else {page=RF_SCENE_FRONTEND_EXIT;selection=0;load_notice=0;drawn=UINT32_MAX;}
+                }else if(page==RF_SCENE_FRONTEND_EXIT){
+                    if(!selection){page=RF_SCENE_FRONTEND_MAIN;selection=3;drawn=UINT32_MAX;}
+                    else {
+                        /* Fresh A on the second row is the only confirmation.
+                         * Do not launch here: frontend still owns its input. */
+                        status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,
+                            page,selection,difficulty,RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
+                        if(!status)*dashboard_exit=1;
+                        break;
+                    }
                 }else if(page==RF_SCENE_FRONTEND_LOAD){
                     if(selection==2){page=RF_SCENE_FRONTEND_MAIN;selection=2;load_notice=0;drawn=UINT32_MAX;}
                     else {
@@ -1452,6 +1478,36 @@ static void player_session_counters_reset(void)
     memset(rf_xbox_event_handoff_probe,0,sizeof(rf_xbox_event_handoff_probe));
     memset(rf_xbox_transition_target,0,sizeof(rf_xbox_transition_target));
 }
+static int player_dashboard_exit(uint32_t *present_error)
+{
+    int status;
+    if(!present_error)return RF_RANGE;*present_error=1;
+    /* This is reachable only after the normal full-session reset (or cold
+     * idle startup) and after the confirmed frontend has closed its input.
+     * It never requests End Session, retries cleanup or steals a live owner. */
+    if(!tester_profile || player_replay || rf_xbox_pause_diagnostic[6] ||
+       resident_geometry.data || resident_render_geometry.world ||
+       resident_geometry.texture_offsets || resident_geometry.room_offsets || resident_geometry.face_offsets ||
+       resident_render_geometry.offsets || resident_render_geometry.slots ||
+       resident_materials.items || resident_lightmaps.images || resident_collision.storage ||
+       resident_movers.storage || resident_memberships.storage || resident_membership_ready ||
+       resident_group_runtime.items || resident_groups.storage || resident_triggers.storage ||
+       resident_events.storage || resident_entities.storage ||
+       resident_mover_objects || resident_controller_handles || door_mesh.vertices)
+        return RF_RANGE;
+    status=rf_scene_session_exit_status();if(status)return status;
+    status=rf_xbox_settings_storage_idle_status();if(status)return status;
+    status=rf_xbox_audio_idle_status();if(status)return status;
+    status=rf_xbox_input_idle_status();if(status)return status;
+    *present_error=0;
+    status=rf_xbox_frontend_exit_status();if(status)return status;
+    *present_error=1;
+    /* Installed NXDK hal/xbox.c maps NULL to LDT_LAUNCH_DASHBOARD. No custom
+     * path, direct firmware fallback or automatic retry is authorized here.
+     * Its void API can return on allocation failure; return is never success. */
+    XLaunchXBE(NULL);
+    return RF_IO;
+}
 /* One level/session transaction. Diagnostic profiles retain their existing
  * flags, bounded frame limits, post-run checks and terminal residency. */
 static int player_campaign_run(const char *saved_level)
@@ -1738,13 +1794,24 @@ int main(void)
          * Diagnostic/replay launches do not acquire settings storage. */
         player_options_restore();
         for(;;){
-            char saved_level[64]={0};
+            char saved_level[64]={0};uint32_t dashboard_exit=0;
             /* A failed load/teardown stays visibly failed. Never relabel it as
              * an ordinary End Session or retry over partially owned resources. */
             if(!result)result=rf_scene_session_reset();
-            {int menu=player_frontend(ended,result,saved_level);if(menu){
+            {int menu=player_frontend(ended,result,saved_level,&dashboard_exit);if(menu){
                 result=menu;rf_diagnostic[2]=0x80000100u|(uint32_t)(-result);
                 debugPrint("Session front end unavailable: %d\n",result);break;}}
+            if(dashboard_exit){
+                uint32_t present_error=0;
+                result=player_dashboard_exit(&present_error);
+                rf_xbox_frontend_diagnostic[0]=4;rf_xbox_frontend_diagnostic[3]=(uint32_t)result;
+                rf_diagnostic[2]=0x80000100u|(uint32_t)(-result);
+                /* A failed/timeout GPU admission must not immediately retry
+                 * its wait through the ordinary error-screen renderer. */
+                if(present_error)(void)player_frontend_present(0,result,RF_SCENE_FRONTEND_EXIT,0,
+                    rf_scene_session_get_difficulty(),RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
+                debugPrint("Dashboard exit stopped: %d\n",result);break;
+            }
             player_session_counters_reset();
             result=player_campaign_run(saved_level);
             rf_scene_set_input(NULL,NULL,0);player_input_close();

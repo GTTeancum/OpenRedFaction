@@ -7,7 +7,7 @@ static SDL_GameController *controller;
 static int initialized;
 /* This owner deliberately outlives controller/session open and close. */
 static rf_xbox_input_options input_options={
-    RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT
+    RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT,RF_XBOX_STICK_LAYOUT_STANDARD
 };
 static uint32_t pause_mode,pause_edge,start_held,release_actions,menu_held,menu_edge;
 static uint32_t disconnect_edge,exit_rearm;
@@ -34,6 +34,7 @@ void rf_xbox_input_set_options(const rf_xbox_input_options *options)
     if(next.deadzone_percent>RF_XBOX_STICK_DEADZONE_MAX)
         next.deadzone_percent=RF_XBOX_STICK_DEADZONE_MAX;
     next.invert_y=next.invert_y!=0;
+    if(next.stick_layout!=RF_XBOX_STICK_LAYOUT_SOUTHPAW)next.stick_layout=RF_XBOX_STICK_LAYOUT_STANDARD;
     input_options=next;
 }
 uint32_t rf_xbox_input_pause_pressed(void){return pause_edge;}
@@ -63,6 +64,10 @@ void rf_xbox_input_close(void)
     pause_mode=pause_edge=start_held=release_actions=menu_held=menu_edge=0;
     disconnect_edge=exit_rearm=0;
     rf_player_input_diagnostic[3]=0;
+}
+int rf_xbox_input_idle_status(void)
+{
+    return initialized || controller || SDL_WasInit(SDL_INIT_GAMECONTROLLER)?RF_RANGE:RF_OK;
 }
 int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
 {
@@ -146,11 +151,15 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
      uint32_t save=back && (actions&INPUT_RELOAD);
      rf_scene_save_button(save&&!load);rf_scene_load_button(load);
      if(save||load){release_actions|=actions&INPUT_HOLSTER;return RF_OK;}}
-    stick(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX),
-          SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY),&horizontal,&vertical);
-    input->move[0]=horizontal;input->move[2]=-vertical;
-    stick(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_RIGHTX),
-          SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_RIGHTY),&horizontal,&vertical);
+    /* Port-owned Standard/Southpaw choice swaps only complete analog pairs.
+     * Keep physical buttons, stick clicks, menu/chord and release-latch
+     * ownership above unchanged. Look options follow the selected look pair. */
+    {uint32_t southpaw=input_options.stick_layout==RF_XBOX_STICK_LAYOUT_SOUTHPAW;
+     stick(SDL_GameControllerGetAxis(controller,southpaw?SDL_CONTROLLER_AXIS_RIGHTX:SDL_CONTROLLER_AXIS_LEFTX),
+           SDL_GameControllerGetAxis(controller,southpaw?SDL_CONTROLLER_AXIS_RIGHTY:SDL_CONTROLLER_AXIS_LEFTY),&horizontal,&vertical);
+     input->move[0]=horizontal;input->move[2]=-vertical;
+     stick(SDL_GameControllerGetAxis(controller,southpaw?SDL_CONTROLLER_AXIS_LEFTX:SDL_CONTROLLER_AXIS_RIGHTX),
+           SDL_GameControllerGetAxis(controller,southpaw?SDL_CONTROLLER_AXIS_LEFTY:SDL_CONTROLLER_AXIS_RIGHTY),&horizontal,&vertical);}
     {float sensitivity=input_options.look_sensitivity_percent/100.0f;
      float pitch=input_options.invert_y?vertical:-vertical;
      /* Gameplay consumers, including the turret, require normalized axes. */
