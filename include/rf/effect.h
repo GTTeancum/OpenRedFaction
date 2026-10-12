@@ -683,6 +683,9 @@ int rf_particle_project(const rf_particle_projection *projection,rf_particle_pro
  * may supply runtime mode replacements; flag 0x2000 clears only depth mode. */
 #define RF_PARTICLE_NORMAL_MODE 0x00118c42u
 #define RF_PARTICLE_GLOW_MODE 0x06110c42u
+/* Opaque sky backdrop: blend0, depth-test only. Xbox assigns constant far Z;
+ * this is a world-only mode, never a HUD overlay. */
+#define RF_SKYBOX_MODE (RF_PARTICLE_NORMAL_MODE&~(31u<<15))
 /* Original50f9cd rate conversion and50f500 frame clock. Unsigned millisecond
  * subtraction wraps; output is zero-based, -1 for finished nonlooping playback.
  * Count1..255, nonnegative signed fps domain and int32 phase required. Mode2

@@ -1177,6 +1177,7 @@ uint32_t rf_scene_particle_view_enabled;
 uint32_t rf_scene_particle_view_back;
 static const rf_scene_world_geometry *actor_follow_world;
 void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_world=world;}
+#include "scene_skybox.inc"
 uint32_t rf_scene_actor_follow_summary[5]; /* frames, world hash, peak world bytes, camera hash, CPU capacity */
 uint32_t rf_scene_actor_follow_frames[64][14]; /* absolute frame, world vertices, camera position/orientation */
 static const float scene_step_seconds=1.0f/60.0f;
@@ -21467,6 +21468,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 campaign_triggers.vehicle_player_present=campaign_spawn && campaign_player_view.handle>=0;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
+                scene_skybox_tick(now);
                 if(campaign_endgame.phase==1){
                     int expired;int32_t remaining;
                     status=rf_timer_expired(campaign_endgame.deadline,now,&expired);
@@ -21868,6 +21870,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i,saved_direct_resources=0;int status;scene_stream *stream;
+    if(scene_skybox.stream)return RF_RANGE; /* A prior scene still owns its borrowed sky. */
     memset(rf_scene_late_load,0,sizeof(rf_scene_late_load));
     campaign_dry_sweep_invalidate();
     memset(campaign_trigger_contact_cache,0,sizeof(campaign_trigger_contact_cache));
@@ -22135,6 +22138,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.bolt_state=campaign_bolt_state;
             campaign_triggers.monitor_state=campaign_monitor_state;
+            campaign_triggers.skybox_state=scene_skybox_command;campaign_triggers.skybox_context=stream;
             campaign_triggers.shake_player=campaign_shake_player;campaign_triggers.shake_context=NULL;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
@@ -22817,6 +22821,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=scene_authored_clutter_baseline_capture(stream->terrain_authored->source_identity,0,stream->checkpoint_clutter);
             if(status){printf("AUTHORED_SCOPE_CAPTURE_ERROR %d\n",status);goto done;}
         }
+        scene_skybox_open_optional(stream,level); /* Final resident material owner, before startup events. */
         scene_late_load_mark(63,materials);
         status=scene_checkpoint_begin(stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
@@ -22955,6 +22960,7 @@ done:
     rf_level_particles_close(&stream->particles);
     scene_turret_death_effects_close();
     scene_script_explode_effects_close();
+    scene_skybox_close();
     scene_clutter_break_effects_close();
     scene_fusion_effects_close();
     scene_flame_effects_close();
@@ -23072,7 +23078,7 @@ void rf_scene_session_end(void)
 static int scene_session_idle_status(void)
 {
     if(scene_session_retire_status)return scene_session_retire_status;
-    if(player_poll || particle_draw_stream || scene_actor_collision_owner ||
+    if(player_poll || particle_draw_stream || scene_actor_collision_owner || scene_skybox.stream ||
        actor_follow_world || campaign_player_object.view || campaign_model_owners ||
        campaign_npc_bodies || campaign_glare_instances || campaign_clutter_bodies ||
        campaign_clutter_models || campaign_mover_objects || campaign_passive_vehicles)

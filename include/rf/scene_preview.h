@@ -722,6 +722,31 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
  * hash, allocated workspace bytes. Ring rows: frame/queued/visited/polygons/vertices/hash. */
 extern uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
+/* Authored sky borrows current level geometry/materials through the ordinary
+ * fenced pre-world pass. No image owner or second GPU mesh is created. */
+uint32_t rf_scene_skybox_ready(void);
+int rf_scene_draw_skybox(rf_scene_particle_sink sink,void *context);
+extern uint32_t rf_scene_skybox[16];
+/* Native values, not a disk codec. Exact version1 and matching level/sky-source
+ * identity required, including canonical no-sky records. present means resident
+ * source validity, independent of draw admission; rate>0 enables rotation.
+ * Axis is ASCII x/y/z, rate is finite degrees/second in [-3600,3600], phase
+ * is finite degrees in [0,360). No pointer, game-clock value or GPU state.
+ * Persistence remains INCOMPLETE until the parent joins its world codec. */
+typedef struct rf_scene_skybox_state {
+    uint32_t version,present,level_identity,room_uid,source_identity,axis;
+    float rate,phase;
+} rf_scene_skybox_state;
+/* Capture/validate preserve live state; failure preserves output. Capture
+ * samples the wrap-safe game clock without advancing the live clock twice.
+ * Validate against the target scene during load preparation. Restore is a
+ * non-failing assignment-only publication: caller MUST have validated state
+ * against this same still-live target and now in [0,RF_TIMER_PERIOD] before
+ * final successful world publication/storage close. No validation after close.
+ * No allocations, save reads/writes, resource publication or event replay. */
+int rf_scene_skybox_capture(int32_t now,rf_scene_skybox_state *out);
+int rf_scene_skybox_validate(const rf_scene_skybox_state *state);
+void rf_scene_skybox_restore(const rf_scene_skybox_state *state,int32_t now);
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;

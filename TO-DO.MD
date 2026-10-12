@@ -1,3 +1,5 @@
+- Authored sky-room rendering and Skybox_State59 are source-written with a 20 KiB additional allowance and pointer-free capture/validate/final-publication helpers; parent codec integration remains incomplete and the slice awaits the sole hourly stock64 build (docs/AUTHORED-SKYBOX.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

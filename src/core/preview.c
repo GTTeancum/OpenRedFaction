@@ -154,6 +154,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
             face.room=face.lightmap_mapping=UINT32_MAX;
             if(authored && generated->faces[f].source_face!=UINT32_MAX) {
                 rf_geometry_face parent;status=rf_geometry_get_face(authored,generated->faces[f].source_face,&parent);if(status)return status;
+                if(!origin && parent.room<authored->rooms && authored->data[authored->room_offsets[parent.room]+28])continue;
                 face.lightmap_mapping=parent.lightmap_mapping;
                 if(face.lightmap_mapping!=UINT32_MAX) {
                     status=rf_geometry_lightmap_projection(authored,face.lightmap_mapping,&projection);if(status)return status;
@@ -164,6 +165,9 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
                 projection=bindings[f].projection;lightmap=bindings[f].image;mapped=2;
             }
         } else rf_geometry_get_face(g, f, &face);
+        /* Authored sky uses its own centered pre-world camera; collision and
+         * mover geometry retain their original ownership and transforms. */
+        if(!generated && !origin && face.room<g->rooms && g->data[g->room_offsets[face.room]+28])continue;
         /* Primary room IDs are file-order visibility indices. Detail rooms are
          * not independently traversed: retain them until parent eligibility is
          * explicitly bound. Unknown-room faces and movers also remain visible. */

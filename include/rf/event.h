@@ -438,6 +438,9 @@ typedef struct rf_runtime_triggers {
     /* Monitor_State49 configures linked screens and their first linked camera on ON. */
     int (*monitor_state)(void *,const rf_level_event *,const uint32_t *uids,uint32_t count);
     void *monitor_context;
+    /* Skybox_State59: ON updates authored axis/rate, OFF has no inverse. */
+    int (*skybox_state)(void *,const rf_level_event *,int32_t);
+    void *skybox_context;
     /* Shake_Player18: local camera, authored percent strength and duration. */
     int (*shake_player)(void *,const rf_level_event *,int32_t);
     void *shake_context;
