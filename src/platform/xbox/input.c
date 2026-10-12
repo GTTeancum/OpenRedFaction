@@ -14,7 +14,7 @@ static uint32_t disconnect_edge,exit_rearm;
 enum {
     INPUT_FIRE=1u,INPUT_ALT=2u,INPUT_JUMP=4u,INPUT_USE=8u,
     INPUT_RELOAD=16u,INPUT_CROUCH=32u,INPUT_NEXT=64u,INPUT_PREVIOUS=128u,
-    INPUT_UP=256u,INPUT_DOWN=512u
+    INPUT_UP=256u,INPUT_DOWN=512u,INPUT_FINE_AIM=1024u
 };
 volatile uint32_t rf_player_input_diagnostic[6]={0x5246494eu};
 volatile uint32_t rf_xbox_input_menu_observation;
@@ -119,6 +119,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
        SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSHOULDER))actions|=INPUT_PREVIOUS;
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_UP))actions|=INPUT_UP;
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_DOWN))actions|=INPUT_DOWN;
+    if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSTICK))actions|=INPUT_FINE_AIM;
     if(actions&INPUT_UP)menu|=RF_XBOX_MENU_UP;
     if(actions&INPUT_DOWN)menu|=RF_XBOX_MENU_DOWN;
     if(actions&INPUT_JUMP)menu|=RF_XBOX_MENU_ACCEPT;
@@ -152,7 +153,13 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
      float pitch=input_options.invert_y?vertical:-vertical;
      /* Gameplay consumers, including the turret, require normalized axes. */
      input->look[0]=fmaxf(-1,fminf(1,pitch*sensitivity));
-     input->look[1]=fmaxf(-1,fminf(1,horizontal*sensitivity));}
+     input->look[1]=fmaxf(-1,fminf(1,horizontal*sensitivity));
+     /* Hold right-stick click for precision. Half response is first-playable
+      * Xbox policy, not a recovered retail scalar. Apply AFTER saturation so
+      * 200% sensitivity cannot cancel it. Keep movement/deadzone and LT scope
+      * ownership unchanged; the ordinary scope look scalar composes later.
+      * The action bit shares hotplug/pause release suppression above. */
+     if(actions&INPUT_FINE_AIM){input->look[0]*=.5f;input->look[1]*=.5f;}}
     input->fire=!!(actions&INPUT_FIRE);input->alt_fire=!!(actions&INPUT_ALT);
     {uint32_t forward=!!(actions&INPUT_NEXT),backward=!!(actions&INPUT_PREVIOUS);
      input->cycle_weapon=forward==backward?0:forward?1:2;}

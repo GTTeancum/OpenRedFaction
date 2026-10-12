@@ -7,7 +7,7 @@ int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags)
 {
     static const char *const items[RF_SCENE_SESSION_COUNT]={
-        "RESUME","QUICK SAVE","QUICK LOAD","RESTART SECTION","END SESSION","OPTIONS"
+        "RESUME","QUICK SAVE","QUICK LOAD","RESTART SECTION","END SESSION","OPTIONS","MESSAGE HISTORY"
     };
     uint32_t i;int status;
     if(!sink || particle_draw_stream || selection>=RF_SCENE_SESSION_COUNT ||
@@ -39,12 +39,12 @@ int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     }
     for(i=0;i<RF_SCENE_SESSION_COUNT;i++){
         if(i==selection){
-            status=combat_hud_rect(sink,context,140,116+i*36,360,30,0xff30485c);if(status)return status;
+            status=combat_hud_rect(sink,context,140,116+i*32,360,28,0xff30485c);if(status)return status;
         }
-        status=combat_hud_centered(sink,context,124+i*36,items[i],i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
+        status=combat_hud_centered(sink,context,122+i*32,items[i],i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
     }
     if(flags&RF_SCENE_SESSION_UNAVAILABLE){
-        status=combat_hud_centered(sink,context,338,"RESTART UNAVAILABLE IN THIS SCENE",0xffffc060);if(status)return status;
+        status=combat_hud_centered(sink,context,352,"RESTART UNAVAILABLE IN THIS SCENE",0xffffc060);if(status)return status;
     }
     status=combat_hud_centered(sink,context,380,"D-PAD UP/DOWN   A SELECT",0xffeeeeee);if(status)return status;
     return combat_hud_centered(sink,context,412,"B OR START RESUME",0xffb8c0d0);

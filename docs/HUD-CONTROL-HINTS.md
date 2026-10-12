@@ -30,13 +30,18 @@ current fixed frontend bindings in src/platform/xbox/input.c:
 - $RELOAD$ -> Y
 - $NEXT_WEAPON$ -> D-PAD RIGHT
 - $PREV_WEAPON$ -> D-PAD LEFT
+- $MESSAGE_LOG$ -> START / MESSAGE HISTORY (October12 source update)
 
-These eight mapped names cover22 observed occurrences. The remaining three
-original actions, $HOLSTER$, $MESSAGE_LOG$ and $FINE_AIM$, have no corresponding
-input field/binding in this first-playable frontend and display UNBOUND.
+The original eight mapped names covered22 observed occurrences. The October12
+source update describes the actual Xbox pause-menu route for $MESSAGE_LOG$;
+it does not invent a dedicated gameplay button. $HOLSTER$ and $FINE_AIM$ still
+have no corresponding input binding and display UNBOUND.
 No nonexistent controller button or unsupported feature is promised. Unknown
 tokens are preserved literally. The PC staging branch uses its existing
-keyboard/mouse defaults from play.c; no PC runtime work was performed.
+keyboard/mouse defaults from play.c and leaves $MESSAGE_LOG$ UNBOUND; no PC
+runtime work was performed. Message History reuses the same presentation-only
+expansion while keeping its retained authored text unchanged; see
+[Player Message History](PLAYER-MESSAGE-HISTORY.md).
 
 The labels are descriptions of current fixed controls, not a new input map.
 If input remapping is later implemented, the descriptions must be supplied by
@@ -85,3 +90,14 @@ cue requires it. The current actual Use binding remains X.
 No new per-slice fixture or test was created. Parent22:00 compilation/runtime
 remains pending; the original-data inventory above is source inspection,
 not execution of the new expansion code.
+
+
+## Fine Aim source update (2026-10-12)
+
+The earlier UNBOUND assessment is historical for $FINE_AIM$: the Xbox input
+adapter now maps hold-right-stick click to half of the final normalized look
+response. Its presentation label is HOLD RIGHT-STICK CLICK; PC remains UNBOUND.
+This adds no scope or alternate-fire action. The exact hold/50% choices are
+first-playable port policy, supported by the authored training precision-use
+intent; compile and native behavior remain unverified. See
+[Player Fine Aim](PLAYER-FINE-AIM.md).

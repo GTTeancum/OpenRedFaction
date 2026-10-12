@@ -338,3 +338,27 @@ replays remain accepted; omitted fields are zero. See RIOT-STICK.md for scope.
 Developer room only: Use + Reload (E+R or X+Y) refills supported weapons once
 per press. Normal reload remains available without Use; holding the chord
 does not grant continuous ammunition.
+
+
+## Xbox Fine Aim first pass (2026-10-12)
+
+Hold the right-stick click while looking to halve the effective look response;
+release it to return to the selected sensitivity. This is an independent
+precision modifier and remains available while LT controls weapon alternate
+fire or supported scoped zoom. The 50% response and hold binding are explicit
+Xbox port policy, not recovered retail Fine Aim tuning.
+
+The reduction follows the existing sensitivity/invert-Y calculation and
+[-1,1] saturation, so even 200% sensitivity retains a half-speed maximum while
+held. Movement, radial deadzone, weapon inputs, scoped projection and the
+shared input/replay/save layouts are unchanged. Existing pause and controller
+attachment release suppression also owns this button; held-through-resume or
+held-at-attachment input must be released before precision activates again.
+There is no toggle state, allocation or save field.
+
+The ordinary gameplay and mounted look consumers receive the same reduced
+normalized look commands. Cutscene, defuse, death and pause suppression retain
+their existing ownership. No new PC binding is supplied. Authored training
+$FINE_AIM$ text now expands to HOLD RIGHT-STICK CLICK on Xbox. Source-written
+only; compilation and controller runtime are pending the parent-owned hourly
+batch. See [Player Fine Aim](PLAYER-FINE-AIM.md).

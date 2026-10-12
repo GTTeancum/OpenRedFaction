@@ -1,3 +1,9 @@
+- October12 16:02 UTC stock64 Xbox build and bounded controller Options/New Game difficulty check passed on b304abcd: cold/paused option changes, reset defaults, Hard difficulty and End Session retention verified; startup Load Game compiled but saved restoration remains untested.
+
+- Xbox Fine Aim is source-written on hold-right-stick click with half of final normalized look response and existing pause/hotplug suppression; await the next parent hourly stock64 compile/controller check (docs/PLAYER-FINE-AIM.md).
+
+- Xbox authored Message History is source-written with16 copied messages, pause-menu paging, explicit oldest-entry eviction and fresh-session/restart/successful-load reset; compilation and runtime remain unverified pending parent integration and the scheduled stock64 batch (docs/PLAYER-MESSAGE-HISTORY.md).
+
 - Startup Load Game is source-integrated with explicit Manual Save/Autosave selection, recoverable notices, fail-closed cleanup and direct saved-level routing through existing restoration; compilation and saved-load runtime remain unverified (docs/XBOX-FRONTEND-LOAD-GAME.md).
 
 - Controller Options and New Game difficulty are source-integrated: process-retained sensitivity, invert Y, radial deadzone, startup/pause UI and idle-only difficulty selection; await the next hourly stock64 compilation and bounded functional check (docs/XBOX-FRONTEND-OPTIONS.md).

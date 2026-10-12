@@ -1,5 +1,11 @@
 # Player and interaction tester-readiness sweep
 
+October12 source update: authored Message History is now staged as a bounded
+pause-menu reader, with received story/objective wording only. The historical
+no-message-log finding below is superseded for Xbox by
+[Player Message History](PLAYER-MESSAGE-HISTORY.md). Compilation and runtime
+remain unverified; this does not turn the original sweep into new coverage.
+
 2026-10-11. Read-only source sweep of the parent-supplied `babf35f1` baseline.
 No implementation patch is proposed: no newly grounded foundational player
 blocker emerged. Existing secondary defects and retail polish are deliberately
@@ -41,9 +47,12 @@ deferred. The active repository and TO-DO.MD were not modified.
   handler. Kinds5/10 monitor/control handlers remain bounded deferrals. Existing
   docs state these limitations; this sweep found no new authored required
   progression owner proving either is a first-playable blocker.
-- Holster, message log and fine aim still have no first-playable input bindings;
-  authored training text explicitly displays UNBOUND. They are not presented as
-  implemented. Ordinary supported weapon zoom remains on alternate fire.
+- Holster still has no first-playable input binding and its authored training
+  token displays UNBOUND. Xbox Message History now has the source-written
+  pause-menu route described above. Fine Aim is source-written on hold-right-stick
+  click, halving the final normalized look response while leaving alternate-fire
+  scoped zoom independent; see [Player Fine Aim](PLAYER-FINE-AIM.md). These
+  October12 successors await compilation and native runtime validation.
 - Ladder top-edge smoothing and general physical-controller feel remain tester
   feedback work. Controller-loss autopause was considered and intentionally not
   pursued as a secondary edge case.

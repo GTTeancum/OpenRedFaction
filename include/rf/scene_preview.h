@@ -667,7 +667,8 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context);
  * it never advances the scene, touches storage or borrows world textures. */
 enum {
     RF_SCENE_SESSION_RESUME,RF_SCENE_SESSION_SAVE,RF_SCENE_SESSION_LOAD,
-    RF_SCENE_SESSION_RESTART,RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_OPTIONS,RF_SCENE_SESSION_COUNT
+    RF_SCENE_SESSION_RESTART,RF_SCENE_SESSION_EXIT,RF_SCENE_SESSION_OPTIONS,
+    RF_SCENE_SESSION_HISTORY,RF_SCENE_SESSION_COUNT
 };
 enum {
     RF_SCENE_SESSION_CONFIRM=1u,RF_SCENE_SESSION_DISCONNECTED=2u,
@@ -676,6 +677,15 @@ enum {
 };
 int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags);
+enum {RF_SCENE_HISTORY_DISCONNECTED=1u};
+/* Received authored text only; oldest retained index0, newest count-1.
+ * This transient16-entry history is not a checkpoint field. The draw call
+ * returns at least one page and borrows the suspended scene's optional HUD
+ * atlas only until the caller fences the complete HUD pass. No event/audio
+ * replay, gameplay mutation, allocation or storage access. */
+uint32_t rf_scene_message_history_count(void);
+int rf_scene_draw_message_history(rf_scene_particle_sink sink,void *context,
+    uint32_t index,uint32_t page,uint32_t flags,uint32_t *pages);
 enum {
     RF_SCENE_FRONTEND_DISCONNECTED=1u,RF_SCENE_FRONTEND_LOADING=2u,
     RF_SCENE_FRONTEND_ENDED=4u,RF_SCENE_FRONTEND_LOAD_NOTICE=8u

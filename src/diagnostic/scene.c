@@ -10666,6 +10666,7 @@ static rf_level_message campaign_subtitle;
 static int32_t campaign_subtitle_deadline=-1;
 static uint32_t campaign_subtitle_uid;
 static int32_t campaign_message_voice=-1;
+#include "scene_message_history.inc"
 #include "scene_message_audio.inc"
 #include "scene_medic_action.inc"
 #include "scene_medic_speech.inc"
@@ -10959,6 +10960,7 @@ static int campaign_show_message(void *context,const rf_level_event *event,int32
     if(voice_duration>(uint32_t)duration)duration=(int32_t)voice_duration;
     status=rf_timer_set(&deadline,now,duration);if(status)return status;
     campaign_subtitle=next;campaign_subtitle_uid=event->uid;campaign_subtitle_deadline=deadline;
+    scene_message_history_receive(event,&next);
     return RF_OK;
 }
 static rf_weapon_trigger_state combat_trigger;
@@ -11293,6 +11295,8 @@ static int campaign_ammo_reset(void)
 static void scene_death_quickload_request(void);
 static void campaign_section_request_restart(void)
 {
+    /* A genuine fresh-section restart abandons the unsaved timeline. */
+    scene_message_history_reset();
     memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
     strcpy(rf_scene_level_transition.level,campaign_current_level);
     rf_scene_level_transition.uid=UINT32_MAX-3u;
@@ -17639,6 +17643,7 @@ static int scene_scanner_draw(rf_scene_particle_sink sink,void *context)
 #include "scene_hud_assets.inc"
 #include "scene_hud_scope.inc"
 #include "scene_hud_messages.inc"
+#include "scene_message_history_menu.inc"
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
 {
     const float arms[4][4]={{310,239,7,2},{323,239,7,2},{319,230,2,7},{319,243,2,7}};
@@ -21814,6 +21819,9 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
 static uint32_t scene_session_difficulty=1;
 static void campaign_session_history_reset(void)
 {
+    /* A pending load can reconstruct without a retained transition flag.
+     * Preserve received text until the final successful restore boundary. */
+    if(!rf_scene_quickload_pending())scene_message_history_reset();
     scene_machine_carry_reset();scene_undercover_carry_reset_all();
     memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));
     scene_player_shield_damage_reset();scene_npc_shield_history_reset();
@@ -23033,6 +23041,7 @@ void rf_scene_session_end(void)
     /* An authored handoff can still be waiting on an airlock, medic or guard.
      * A confirmed End Session owns this boundary instead of advancing it. */
     scene_session_end_requested=1;
+    scene_message_history_reset();
     memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
     scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=0;
     scene_section_autosave_pending=0;
@@ -23058,6 +23067,7 @@ int rf_scene_session_reset(void)
     rf_physics_body_close(&scene_actor_body);
     free(rf_scene_world_checkpoint_data);rf_scene_world_checkpoint_data=NULL;
     scene_checkpoint_release();
+    scene_message_history_reset(); /* Genuine idle full-session reset. */
     campaign_session_history_reset();
     campaign_import_pending=campaign_export_valid=campaign_import_applied=0;
     memset(&campaign_player_import,0,sizeof(campaign_player_import));

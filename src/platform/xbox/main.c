@@ -139,6 +139,40 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         rf_xbox_input_set_options(&options);
     }
 }
+static int player_message_history_menu(void *context,uint32_t frame,uint32_t *resume)
+{
+    rf_scene_input input;
+    uint32_t count=rf_scene_message_history_count(),index=count?count-1:0,page=0,pages=1;
+    uint32_t drawn_index=UINT32_MAX,drawn_page=UINT32_MAX,drawn_flags=UINT32_MAX;
+    int status;
+    *resume=0;
+    /* Called only inside player_pause_menu: it remains the sole owner of
+     * paused input/audio and the eventual frame-clock rebase. */
+    for(;;){
+        uint32_t flags=!rf_xbox_input_connected()?RF_SCENE_HISTORY_DISCONNECTED:0,pressed;
+        if(index!=drawn_index || page!=drawn_page || flags!=drawn_flags){
+            status=rf_xbox_message_history_draw(index,page,flags,&pages);if(status)return status;
+            drawn_index=index;drawn_page=page;drawn_flags=flags;
+        }
+        Sleep(10);status=rf_xbox_input_poll(context,frame,&input);if(status)return status;
+        if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
+        if(rf_xbox_input_pause_pressed()){*resume=1;return RF_OK;}
+        pressed=rf_xbox_input_menu_pressed();
+        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
+            uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
+            if(up!=down){
+                if(up&&index){--index;page=0;}
+                else if(down&&index+1<count){++index;page=0;}
+            }
+            continue;
+        }
+        if(pressed&(RF_XBOX_MENU_LEFT|RF_XBOX_MENU_RIGHT)){
+            uint32_t left=!!(pressed&RF_XBOX_MENU_LEFT),right=!!(pressed&RF_XBOX_MENU_RIGHT);
+            if(left!=right){if(left&&page)--page;else if(right&&page+1<pages)++page;}
+        }
+    }
+}
 static int player_frontend_present(uint32_t flags,int session_status,
     uint32_t page,uint32_t selection,uint32_t difficulty,uint32_t load_outcome,int load_status)
 {
@@ -304,6 +338,17 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
         if(selection==RF_SCENE_SESSION_OPTIONS){
             uint32_t resume=0;
             status=player_options_menu(context,frame,1,&resume);
+            rf_xbox_pause_diagnostic[3]=(uint32_t)status;
+            if(status){
+                if(status==RF_NOT_FOUND){int shown=player_session_ended_draw();if(shown)return shown;}
+                return status;
+            }
+            if(resume)break;
+            drawn_selection=drawn_flags=UINT32_MAX;continue;
+        }
+        if(selection==RF_SCENE_SESSION_HISTORY){
+            uint32_t resume=0;
+            status=player_message_history_menu(context,frame,&resume);
             rf_xbox_pause_diagnostic[3]=(uint32_t)status;
             if(status){
                 if(status==RF_NOT_FOUND){int shown=player_session_ended_draw();if(shown)return shown;}

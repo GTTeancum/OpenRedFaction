@@ -1,5 +1,14 @@
 # Xbox pause and session controls
 
+October12 source update: Message History is appended as pause-menu row6 after
+Options; the previous action values0–5 are unchanged. It opens a read-only
+received-message reader: up/down selects older/newer text, left/right pages,
+B returns to pause and Start resumes. It keeps the same suspended simulation,
+input release guards, audio pause and frame-clock ownership. History is a
+bounded transient session feature and is not saved; see
+[Player Message History](PLAYER-MESSAGE-HISTORY.md). This addition is staged,
+uncompiled and runtime-unverified.
+
 Source update, October 12, 2026: the tester-profile startup/New Game frontend now
 returns End Session to the main menu and permits a fresh Live Mines session.
 This extension is uncompiled and unrun; see

@@ -469,6 +469,21 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
     stream_start_valid=0;
     return RF_OK;
 }
+int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uint32_t *pages)
+{
+    int status;
+    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
+    pb_fill(0,0,640,480,0xff101018);
+    hud_batch_begin();
+    status=rf_scene_draw_message_history(scene_hud_present,NULL,index,page,flags,pages);
+    /* The existing HUD atlas stays scene-owned. Fence it even on draw error;
+     * the menu never creates or caches a second atlas/scene/image owner. */
+    hud_batch_end();if(status)return status;
+    pb_show_front_screen();while(pb_finished()) {}
+    stream_start_valid=0;return RF_OK;
+}
 int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
     uint32_t load_outcome,int load_status)
 {

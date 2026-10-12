@@ -469,6 +469,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_vehicle_switch_checkpoint_close(&vehicle_switch);
     scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_turret_generated_checkpoint_close(&generated);scene_npc_seat_checkpoint_close(&seats);
     scene_npc_reload_publication_close(&reload_receipt);
-    scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
+    scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);
+    /* No saved history exists in this codec. This final return boundary is
+     * after publication, native storage close, rollback decisions and staged
+     * owner release. A failed/absent load cannot discard the prior ring. */
+    if(!status&&world_published)scene_message_history_reset();
+    return status;
 }
 #endif
