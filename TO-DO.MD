@@ -1,3 +1,5 @@
+- Shared player firing loops now retain failed native retirement without retrying a blocked firing episode, using 12 added transient bytes; integrate with the separate water gates in the parent hourly stock64 build (docs/WEAPON-LOOP-RETIREMENT.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
