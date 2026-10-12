@@ -120,23 +120,16 @@ static uint32_t scene_monitor_visible(scene_stream *s,uint32_t binding)
 static void scene_monitor_begin(scene_stream *s,uint32_t frame)
 {
     scene_monitor_images *m=s->monitors;uint32_t i,k,candidate=UINT32_MAX;
+    /* State advances even when image allocation was declined. */
+    for(i=0;i<campaign_monitor_count;i++)
+        campaign_monitor_cycle(campaign_monitor_cameras+i,campaign_monitor_bindings+i,frame);
     if(!m)return;
     ++m->serial;m->frame=frame;m->pending=UINT32_MAX;rf_scene_monitor_images[0]++;
     if(m->epoch!=campaign_monitor_epoch){
         for(i=0;i<m->count;i++){m->cache[i].valid=0;m->cache[i].binding=UINT32_MAX;}
         m->epoch=campaign_monitor_epoch;
     }
-    for(i=0;i<campaign_monitor_count;i++){
-        scene_monitor_cameras *list=campaign_monitor_cameras+i;
-        double interval=(double)campaign_monitor_bindings[i].refresh_seconds*60;
-        uint32_t ticks=interval>2147483647.0?2147483647u:interval<1?1:(uint32_t)interval;
-        if(!list->clock_valid){list->clock=frame;list->clock_valid=1;}
-        if((uint32_t)(frame-list->clock)>=ticks){
-            uint32_t steps=(frame-list->clock)/ticks;list->clock+=steps*ticks;
-            if(list->count>1){list->current=(list->current+steps%list->count)%list->count;++list->generation;}
-        }
-        m->visible[i]=scene_monitor_visible(s,i);
-    }
+    for(i=0;i<campaign_monitor_count;i++)m->visible[i]=scene_monitor_visible(s,i);
     /* Round robin refresh prevents one continuous screen from starving later
      * screens. Residency never changes after the primary draw list is built. */
     for(k=0;k<campaign_monitor_count;k++){
@@ -147,7 +140,7 @@ static void scene_monitor_begin(scene_stream *s,uint32_t frame)
         for(i=0;i<m->count;i++)if(m->cache[i].binding==b)break;
         if(i<m->count && m->cache[i].valid && m->cache[i].camera==camera &&
            m->cache[i].mode==binding->raw_value1 && m->cache[i].generation==list->generation &&
-           binding->authored_header_byte!=1 && binding->raw_value1!=2){
+           !list->continuous && binding->raw_value1!=2){
             ++rf_scene_monitor_images[11];continue;
         }
         candidate=b;break;

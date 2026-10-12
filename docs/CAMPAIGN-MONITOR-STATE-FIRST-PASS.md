@@ -57,4 +57,7 @@ camera cycling, per-placement screen.tga routing and bounded cache ownership
 are now implemented; see [Live monitor imagery](CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
 The interval is a camera-cycle timer and type60 invalidates linked screens.
 This update has no independent build/runtime validation; the parent owns the
-next Xbox build/smoke. Existing RFEN rows remain unchanged.
+next Xbox build/smoke. Existing RFEN binding rows remain unchanged; the RFEN8
+follow-on appends applied camera lists, selected camera, remaining cycle
+ticks and sticky continuous mode. RFEN1-7 still decode with the documented
+legacy fallback; see the live-imagery document for layout and ownership.

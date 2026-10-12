@@ -5,8 +5,8 @@ Implemented on `codex/live-security-monitors`, based on
 This is the source implementation handoff; no build, feature test, emulator
 session, capture, or screenshot was run by this task. The parent owns the
 serial Xbox build and short startup/running smoke; testers own functional
-coverage. Overall implementation remains approximately 88%; security monitors
-are approximately 90% pending native integration and the refinements below.
+coverage. The RFEN8 follow-on remains uncompiled pending the parent build;
+the remaining implementation limits are recorded below.
 
 ## Original evidence checked
 
@@ -47,7 +47,7 @@ simulation clock, with no extra simulation ticks.
 `scene_monitor_render.inc` reserves up to eight 128x128 RGBA native images,
 an opaque black fallback, and shared 64 KiB color plus 64 KiB reciprocal-depth
 scratch. The image/material table is finalized before the first presentation.
-Maximum additional storage is about 707 KiB including the camera lists and
+Maximum additional storage is about 708 KiB including the camera lists and
 descriptors, excluding allocator overhead and stack; native image pixels
 alone are 512 KiB. The regular combined renderer image budget and 512-slot
 limit still apply; admission reserves the full 4 MiB lightmap allowance plus
@@ -90,6 +90,52 @@ Partial render failures publish black, record the failure, and retry later
 without failing the main gameplay frame. The optional PC staging path uses
 the same source with its existing image layout; it was not compiled or run.
 
+## Save continuity (RFEN8)
+
+The follow-on implementation preserves the applied additive camera list in
+its exact order, the selected camera UID, remaining cycle ticks, whether the
+clock has started, and the sticky continuous flag. A later false event byte
+can be retained as authored while the applied continuous flag stays set.
+The cycle helper runs even when image allocation was declined. A save made
+between presentations normalizes a due cycle in the encoded copy without
+mutating the live list or running gameplay.
+
+RFEN8 retains the existing header, force/nav/cutscene/form records, 20-byte
+monitor bindings and eight-byte replay record. It then writes a 16-byte
+support-point record (presence word and three velocity floats), followed by
+an eight-byte monitor extension header (length and count). Each monitor has
+six 32-bit words: screen UID, camera count, selected camera UID, remaining
+ticks, clock-started flag and continuous flag, followed by its camera UIDs.
+The camera interval is still the port's 60 Hz simulation interval, clamped
+to 1..2147483647 ticks. Absolute frame counters, generations, GPU resources
+and pixel contents are not saved. Restore holds the elapsed cycle phase and
+rebases it on the first presentation, supporting both fresh and quick loads.
+
+The extension is bounded to 64 monitors with 256 cameras each, at most
+67,080 bytes. It uses the existing whole-save capacity refusal; the
+110,524-byte file cap and storage path are unchanged. Actual records contain
+only applied camera UIDs. The environment's single staging allocation holds
+the current and incoming camera lists, charged to the caller's restore
+budget (at most 134,656 additional bytes for both full tables). All failure
+paths free that allocation without publishing monitor state.
+
+Decoding checks section identity/checksum, exact lengths/counts, unique
+screen/camera UIDs, loaded camera classes, the first-camera anchor, selection
+membership, finite positive intervals, boolean flags and cycle bounds.
+Absent support-point velocity must be canonical zero. Commit admission
+also compares the live camera table and reset epoch with the preparation
+snapshot, so a changed event, cycle or invalidation rejects stale staging.
+Successful assignment copies the staged list directly and invalidates
+transient feed images; it does not scan authored events or restart cycles.
+
+RFEN1-7 remain readable. No-monitor saves still use RFEN6/7. Legacy saves
+cannot recover applied-list history or a selected camera/cycle remainder:
+their existing first-camera binding seeds an authored-link reconstruction
+and a fresh cycle; an unbound legacy screen remains unbound. The saved
+header byte supplies the available continuous-mode evidence. Loading an old
+save cannot recover history that the old format never recorded. No attack
+section or hourly-runner file changed in this follow-on.
+
 ## Known first-pass approximations
 
 - Fixed square resolution, eight-entry residency, nearest-neighbor sampling,
@@ -101,12 +147,8 @@ the same source with its existing image layout; it was not compiled or run.
   auxiliaries and the first-person player body. Native retained monitor draws
   use the normal rigid texture path; CPU fallback retains its existing ambient
   modulation in addition to the feed brightness factor.
-- RFEN's binding layout is unchanged. Images are regenerated after load. Old
-  saves contain only the first camera, mode/header and interval, so camera
-  lists are rebuilt from authored monitor links and cycling restarts. Exact
-  applied-event list history, selected-camera/cycle remainder and legacy
-  continuous-flag history are not serialized. This is a clear follow-up for
-  the parent's save-state lane, not a new competing save format.
+- Images are regenerated after load. RFEN8 retains monitor state as described
+  above; legacy saves use the documented reconstruction fallback.
 - The original `0x4126df` camera-actor `+0x520 = 15` side effect is recorded
   but not imposed on the port's AI state machine without a verified mapping.
   Live imagery uses the already-published camera actor eye/look pose.
@@ -119,14 +161,15 @@ the same source with its existing image layout; it was not compiled or run.
 The public addition is `rf_scene_update_monitor_images(lightmaps)` plus
 `rf_scene_monitor_images[12]`; the existing native scene renderer calls it
 under its current fence. The event service adds `monitor_force` next to
-`monitor_state`. The only save-owner edit is a call to
-`campaign_monitor_restored()` immediately after publishing RFEN's monitor
-binding table in `scene_world_environment_checkpoint.inc`.
+`monitor_state`. Save-owner changes stay in
+`scene_world_environment_checkpoint.inc`; its public staged-restore interface
+is unchanged. The follow-on extends RFEN to version 8 without changing the
+world envelope or the attack-state sections.
 
 Diagnostics are: presentations, resident images, owned scratch/pixel bytes,
 refreshes, last camera-pass triangles, evictions, failures, last error,
 last screen UID, last camera UID, effective mode, snapshot cache hits.
-The separately bounded camera-list table adds 65.25 KiB to the reported
+The separately bounded camera-list table adds 65.75 KiB to the reported
 scratch/pixel total. No telemetry hashes read rendered images.
 
 For the parent's hourly integration: build the feature commit on the usual

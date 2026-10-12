@@ -1,6 +1,6 @@
 /* RF.exe 412600/4126a0/412700: configuration, additive camera list and
- * camera cycling. RFEN5 keeps its existing 20-byte binding rows. Transient
- * rendering/cycling state is deliberately not a GPU/checkpoint owner. */
+ * camera cycling. RFEN8 persists the applied list, selection and cycle phase
+ * separately from the RFEN5 binding rows. Image caches remain transient. */
 enum {SCENE_MONITOR_BINDING_LIMIT=64,SCENE_MONITOR_CAMERAS=256};
 typedef struct scene_monitor_binding {
     uint32_t screen_uid,camera_uid,raw_value1,authored_header_byte;
@@ -8,6 +8,7 @@ typedef struct scene_monitor_binding {
 } scene_monitor_binding;
 typedef struct scene_monitor_cameras {
     uint32_t uids[SCENE_MONITOR_CAMERAS],count,current,clock,clock_valid,generation;
+    uint32_t continuous,rebase; /* Rebased clocks hold elapsed cycle ticks until presentation. */
 } scene_monitor_cameras;
 static scene_monitor_binding campaign_monitor_bindings[SCENE_MONITOR_BINDING_LIMIT];
 static scene_monitor_cameras campaign_monitor_cameras[SCENE_MONITOR_BINDING_LIMIT];
@@ -49,6 +50,23 @@ static int campaign_monitor_add_camera(scene_monitor_cameras *list,uint32_t uid)
     if(list->count==SCENE_MONITOR_CAMERAS)return RF_RANGE;
     list->uids[list->count++]=uid;return RF_OK;
 }
+static uint32_t campaign_monitor_cycle_ticks(const scene_monitor_binding *binding)
+{
+    double interval=(double)binding->refresh_seconds*60;
+    return interval>2147483647.0?2147483647u:interval<1?1:(uint32_t)interval;
+}
+static void campaign_monitor_cycle(scene_monitor_cameras *list,const scene_monitor_binding *binding,uint32_t frame)
+{
+    uint32_t ticks=campaign_monitor_cycle_ticks(binding),steps;
+    if(!list->clock_valid){list->clock=frame;list->clock_valid=1;}
+    else if(list->rebase)list->clock=frame-list->clock;
+    list->rebase=0;
+    steps=(uint32_t)(frame-list->clock)/ticks;
+    if(steps){
+        list->clock+=steps*ticks;
+        if(list->count>1){list->current=(list->current+steps%list->count)%list->count;++list->generation;}
+    }
+}
 static void campaign_monitor_rehash(void)
 {
     uint32_t i,hash=2166136261u;
@@ -76,7 +94,8 @@ static int campaign_monitor_state(void *context,const rf_level_event *event,cons
         binding=campaign_monitor_bindings+k;list=campaign_monitor_cameras+k;
         binding->raw_value1=raw_value1;
         /* 412629 ORs bit8; a later false authored byte never clears it. */
-        if(binding->authored_header_byte!=1)binding->authored_header_byte=event->header_byte;
+        binding->authored_header_byte=event->header_byte;
+        if(event->header_byte==1)list->continuous=1;
         binding->refresh_seconds=event->values[0]>0?event->values[0]:8.0f;
         for(n=0;n<count;n++){
             int status=campaign_monitor_add_camera(list,uids[n]);if(status)return status;
@@ -102,10 +121,14 @@ static void campaign_monitor_restored(void)
     ++campaign_monitor_epoch;memset(campaign_monitor_cameras,0,sizeof(campaign_monitor_cameras));
     /* Legacy RFEN rows do not encode a list or cycle clock. Rebuild authored
      * links around the saved first camera, restart the cycle, discard images.
-     * An applied-event list history is a future save-format refinement. */
+     * RFEN8 supplies the applied list directly and does not use this fallback. */
     for(i=0;i<campaign_monitor_count;i++){
         scene_monitor_cameras *list=campaign_monitor_cameras+i;
         const scene_monitor_binding *binding=campaign_monitor_bindings+i;
+        list->continuous=binding->authored_header_byte==1;
+        /* A legacy unbound screen cannot acquire a camera from an event that
+         * might not have fired. Keep its saved empty association. */
+        if(!binding->camera_uid)continue;
         campaign_monitor_add_camera(list,binding->camera_uid);
         for(e=0;e<campaign_events.count;e++){
             if(campaign_events.items[e].state.type!=49)continue;

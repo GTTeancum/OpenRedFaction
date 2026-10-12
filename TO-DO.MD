@@ -1,4 +1,4 @@
-- USER Security monitors: Integrate the live camera/material/cache implementation in the parent's next stock64 Xbox build and short smoke; tester feedback, exact camera-cycle save continuity and secondary effects remain (approximately90%; docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+- USER Security monitors: Integrate the live camera/material/cache implementation and RFEN8 applied camera-list, selection, cycle-time and continuous-mode persistence in the parent's next stock64 Xbox rollup (approximately95%; secondary effects remain deferred; docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
 
