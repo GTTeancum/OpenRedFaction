@@ -22819,6 +22819,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         scene_late_load_mark(63,materials);
         status=scene_checkpoint_begin(stream,level);if(status)goto done;
+        /* Every central vclip owner is already loaded; optional images cannot
+         * consume another central owner's budget or change startup activation. */
+        scene_script_explode_optional_open(stream,maps,map_count);
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
             memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
@@ -22952,6 +22955,7 @@ done:
     rf_lightmap_rgb_close(&stream->light_rgb);free(stream->light_overlay_work);
     rf_visibility_light_storage_close(&stream->light_storage);
     rf_level_owned_lights_close(&stream->lights);
+    scene_script_explode_optional_unbind(stream);
     rf_level_particles_close(&stream->particles);
     scene_turret_death_effects_close();
     scene_script_explode_effects_close();

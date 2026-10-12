@@ -1,3 +1,4 @@
+- Authored scripted-explosion sparks and fire/smoke trails are source-written with bounded optional resources, safe head reuse and successful-load cleanup; USER: integrate into the next hourly stock64 build and retain tester coverage plus the documented resource/fidelity limitations (docs/SCRIPTED-EXPLOSION-TRAILS.md).
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

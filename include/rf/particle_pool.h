@@ -4,10 +4,14 @@
 enum { RF_PARTICLE_POOL0_CAPACITY=500, RF_PARTICLE_POOL1_CAPACITY=1100,
        RF_PARTICLE_CAPACITY=1600, RF_PARTICLE_BASE_LISTS=5, RF_PARTICLE_EMITTER_CAPACITY=128 };
 typedef struct rf_particle_list {uint32_t next,previous;} rf_particle_list;
+/* Optional, non-reentrant observer: invalidate borrowed indices before a live
+ * particle returns to its free list. Must not mutate/reenter the pool. */
+typedef void (*rf_particle_recycle_sink)(void *context,uint32_t index);
 typedef struct rf_particle_pool {
     rf_particle *particles;
     rf_particle_list *lists;
     uint32_t list_count,live[2];
+    rf_particle_recycle_sink recycle_sink;void *recycle_context;
 } rf_particle_pool;
 /* Caller owns 1600 records and list_count list headers for the entire pool
  * lifetime. Lists 0/1 free, 2/3 global active, 4 detached, 5+ emitters.
@@ -18,6 +22,9 @@ typedef struct rf_particle_pool {
  * output index and pool storage must not overlap. */
 int rf_particle_pool_init(rf_particle_pool *pool,rf_particle *storage,
     rf_particle_list *lists,uint32_t list_count);
+/* Init clears the observer. Caller must detach before its context dies; pool
+ * destruction needs no notification. Replacing an observer is caller-owned. */
+void rf_particle_pool_set_recycle_sink(rf_particle_pool *,rf_particle_recycle_sink,void *context);
 /* 496840 free-head removal and active-tail append plus shared initialization.
  * Exhaustion returns RF_NOT_FOUND, preserving RNG, output and pool. */
 int rf_particle_pool_create(rf_particle_pool *pool,uint32_t kind,

@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_SCRIPT_EXPLODE_RUNTIME_INC
 #define RF_SCENE_SCRIPT_EXPLODE_RUNTIME_INC
+#include "scene_script_explode_optional_runtime.inc"
 static int scene_script_explode_effects_start(scene_stream *s,const float position[3],
     uint32_t frame,float radius,uint32_t clip_index)
 {
@@ -36,6 +37,8 @@ static int scene_script_explode_effects_start(scene_stream *s,const float positi
             &s->particles.state->random,effect->instances[n].slots+i);if(status)goto failed;
         effect->instances[n].clock.live|=1u<<i;++rf_scene_script_explode_visual[1];
     }
+    scene_script_explode_optional_start(s,effect,n,clip_index,position,
+        room.room==UINT32_MAX?0:room.room+1,frame,radius);
     ++rf_scene_script_explode_visual[0];rf_scene_script_explode_visual[6]=clip_index;
     return RF_OK;
 failed:
@@ -53,6 +56,7 @@ static int scene_script_explode_effects_tick(scene_stream *s,uint32_t frame)
             rf_explosion_clock_actions actions;
             status=rf_explosion_clock_tick(&effect->definition.recipe,1.f/60,&effect->instances[n].clock,&actions);
             if(status)return status;
+            scene_script_explode_optional_tick(s,effect,n,clip);
             for(i=0;i<effect->definition.recipe.central_count;i++)if(actions.process&(1u<<i)) {
                 uint32_t slot=effect->instances[n].slots[i];rf_particle_emitter_update_result result;
                 status=rf_particle_emitter_update(&s->particles.state->particles,&s->particles.state->slots[slot].runtime,
@@ -64,6 +68,7 @@ static int scene_script_explode_effects_tick(scene_stream *s,uint32_t frame)
                 ++rf_scene_script_explode_visual[3];
             }
             if(effect->instances[n].clock.active)++active;
+            else if(effect->optional)effect->optional->instances[n].count=0;
         }
     }
     rf_scene_script_explode_visual[5]=active;return RF_OK;

@@ -45,6 +45,12 @@ int rf_image_missing(rf_image *image,uint32_t budget);
  * Budget includes old and new pixels concurrently; errors preserve the owner.
  * Native swizzled and PC linear storage share the same logical averaging. */
 int rf_image_reduce(rf_image *image,uint32_t maximum_dimension,uint32_t budget);
+/* Streaming box reduction for optional power-of-two TGA textures. Limit is
+ * a power of two <=128. Allocates only output pixels (no full-size image);
+ * fixed decoder stack includes a4096-byte reader and2048-byte row sums.
+ * Same type2/10,24/32-bit and orientation rules as rf_image_tga. Output must
+ * be empty; failure preserves it. Budget counts output pixels only. */
+int rf_image_tga_limited(rf_image *,rf_vpp *,const rf_vpp_entry *,uint32_t limit,uint32_t budget);
 void rf_image_close(rf_image *image);
 /* Original 50fe39 TGA depth dispatch: 8/16/24/32 -> 1/5/6/7, else zero.
  * This classifier does not extend decoder support beyond 24/32-bit TGA. */
