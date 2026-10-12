@@ -976,6 +976,7 @@ static int scene_passive_vehicle_actor_collision(scene_stream *,uint32_t,uint32_
 #include "scene_fusion_effects_resources.inc"
 #include "scene_clutter_break_resources.inc"
 #include "scene_script_explode_resources.inc"
+#include "scene_play_vclip_resources.inc"
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static scene_stream *scene_actor_collision_owner;
@@ -16599,6 +16600,7 @@ static void scene_sonar_visual_accept(uint32_t,const scene_ai_laser_projectile *
 #include "scene_ai_direct_fire.inc"
 #include "scene_spit_visual.inc"
 #include "scene_cane_visual.inc"
+#include "scene_play_vclip_runtime.inc"
 static int scene_remote_launch(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t *);
 static void scene_remote_reset(void);
 static int scene_remote_tick(scene_stream *,uint32_t);
@@ -21057,6 +21059,7 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
     status=scene_volume_npc_fixture(&c);if(status)goto done;
     ++rf_scene_volume_draw[0];
     workspace=stream->particle_workspace;row[0]=stream->particle_frame;
+    if(campaign_spawn){status=scene_play_vclip_draw(stream,sink,context);if(status)goto done;}
     for(room=0;room<stream->visibility.state.visible_count;room++) {
         uint32_t count=0;
         status=rf_level_particles_queue_room(&stream->particles,stream->visibility.state.order[room]+1,
@@ -21479,6 +21482,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_scene_endgame[4]=campaign_endgame.phase;
                 status=scene_turret_death_effects_tick(stream,frame);if(status)return status;
                 status=scene_script_explode_effects_tick(stream,frame);if(status)return status;
+                scene_play_vclip_tick(now);
                 campaign_hit_flags_clear();
                 /* Read-only audit snapshots rescan the event/force owners.
                  * Runtime events, hit clearing and tick counters stay live;
@@ -22141,6 +22145,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.defuse_nuke=scene_script_defuse;campaign_triggers.defuse_context=stream;
             campaign_triggers.clear_endgame_if_killed=campaign_clear_endgame_if_killed;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
+            campaign_triggers.play_vclip=scene_play_vclip_start;campaign_triggers.vclip_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
             rf_scene_pickup_notice[0]=0;campaign_pickup_notice_frame=0;
@@ -22700,6 +22705,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 if(!status)scene_late_load_mark(48,materials);
                 if(!status)status=scene_turret_death_effects_open(&effect_tables,maps,map_count);
                 if(!status)scene_robot_death_visual_open(&effect_tables,maps,map_count);
+                if(!status)scene_play_vclip_open_optional(&effect_tables,&archive,maps,map_count);
                 rf_vpp_close(&effect_tables);if(status)goto done;
             }
             for(i=0;i<campaign_clutter_records.count;i++)if(campaign_clutter_bodies&&campaign_clutter_bodies[i]){
@@ -22955,6 +22961,7 @@ done:
     rf_level_particles_close(&stream->particles);
     scene_turret_death_effects_close();
     scene_script_explode_effects_close();
+    scene_play_vclip_close();
     scene_clutter_break_effects_close();
     scene_fusion_effects_close();
     scene_flame_effects_close();
@@ -23138,7 +23145,7 @@ int rf_scene_session_exit_status(void)
     if(campaign_spawn || rf_scene_follow_level_exits || rf_scene_level_transition.pending ||
        scene_live_load_active || scene_live_load_pending || scene_live_save_pending ||
        scene_section_autosave_pending || scene_actor_body.spheres.items ||
-       rf_scene_world_checkpoint_data || rf_scene_geomod_checkpoint_data ||
+       rf_scene_world_checkpoint_data || rf_scene_geomod_checkpoint_data || scene_play_vclip_owner ||
        campaign_audio_sink || campaign_audio_context || campaign_audio_observer ||
        campaign_audio_observer_context || campaign_audio_events_context ||
        campaign_audio_events.play || campaign_audio_events.stop || campaign_audio_events.poll ||

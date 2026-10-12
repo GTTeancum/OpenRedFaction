@@ -791,6 +791,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         }
         return;
     }
+    if(state->type==70) {
+        if(action!=1)return;
+        if(!c->triggers->play_vclip){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->play_vclip(c->triggers->vclip_context,
+            &c->event->authored->record,c->now);
+        return;
+    }
     if(state->type==10) {
         if(action==2)return;
         if(!c->triggers->explode){++c->report->unsupported_actions;return;}
@@ -1736,6 +1743,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==71 && triggers->endgame) &&
            !(event->state.type==67 && triggers->clear_endgame_if_killed) &&
            !(event->state.type==10 && triggers->explode) &&
+           !(event->state.type==70 && triggers->play_vclip) &&
            !(event->state.type==7 && triggers->look_at) &&
            !(event->state.type==15 && triggers->show_message) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&

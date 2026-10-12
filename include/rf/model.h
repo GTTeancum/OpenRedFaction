@@ -183,6 +183,9 @@ typedef struct rf_model_bone_override {
  * translation. Caller owns enabled/generation gates. Weights wrap by float unit steps, without
  * quaternion normalization; invalid input/result preserves the matrix. */
 int rf_model_override_pose(float matrix[12],const float basis[9],float weight);
+/* Original519da0 float quaternion interpolation, shared by VFX PART tracks.
+ * Finite inputs and t in[0,1]; errors preserve output, input/output may alias. */
+int rf_model_interpolate_rotation(const float a[4],const float b[4],float t,float out[4]);
 /* Reconstructed 0x51c620: row-vector local * parent, with implicit final column
  * (0,0,0,1). Aliased output is supported; errors leave it unchanged. */
 int rf_model_compose_transform(const float local[12], const float parent[12], float result[12]);

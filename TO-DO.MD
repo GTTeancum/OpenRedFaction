@@ -1,3 +1,5 @@
+- Authored Play_Vclip type70 now has bounded complete transport-explosion presentation source; integrate the feature branch into the parent-owned hourly Xbox build, preserving current native cleanup guards (docs/AUTHORED-PLAY-VCLIP.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

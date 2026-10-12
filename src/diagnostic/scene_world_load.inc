@@ -481,6 +481,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
      * after publication, native storage close, rollback decisions and staged
      * owner release. A failed/absent load cannot discard the prior ring. */
     if(!status&&world_published)scene_message_history_reset();
+    if(!status&&world_published){scene_play_vclip_reset();++rf_scene_play_vclip[21];}
     return status;
 }
 #endif

@@ -862,11 +862,13 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     };
     gpu_texture texture={0};uint32_t *p,i,j,reuse_state,hud_triangles=0,hud_color_change=0,emit_count=count,base_mode=mode&~(31u<<20);
     const uint32_t hud_state_words=8+5*(sizeof(program)/16)+128;
-    uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u;int status;
+    uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u,
+        opaque=mode==RF_VFX_OPAQUE_MODE;int status;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !rf_finite_float(depth_scale) || !rf_finite_float(depth_bias))return RF_RANGE;
     if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) &&
-        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid && !corona) || depth_mode>1)return RF_NOT_FOUND;
+        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid && !corona && !opaque) ||
+       (depth_mode>1&&!opaque))return RF_NOT_FOUND;
     glow=corona || base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
     if(solid && (fog_enabled&255u))return RF_NOT_FOUND;
     /* Avoid submitting invalid values to the GPU; original infinity behavior
@@ -931,9 +933,9 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     p=pb_push1(p,NV097_SET_BLEND_EQUATION,NV097_SET_BLEND_EQUATION_V_FUNC_ADD);
     p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);
     p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,depth_mode!=0);
-    p=pb_push1(p,NV097_SET_DEPTH_MASK,0);
+    p=pb_push1(p,NV097_SET_DEPTH_MASK,opaque);
     p=pb_push1(p,NV097_SET_DEPTH_FUNC,NV097_SET_DEPTH_FUNC_V_LEQUAL);
-    p=pb_push1(p,NV097_SET_BLEND_ENABLE,1);
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,!opaque);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,glow?NV097_SET_BLEND_FUNC_DFACTOR_V_ONE:NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
     if(!solid) {

@@ -456,6 +456,9 @@ typedef struct rf_runtime_triggers {
     /* Explode10 world service; authored clip/scale values, never rocket defaults. */
     int (*explode)(void *,const rf_level_event *,int32_t,uint32_t);
     void *explode_context;
+    /* Play_Vclip70: ON-only authored presentation; ordinary links still run. */
+    int (*play_vclip)(void *,const rf_level_event *,int32_t);
+    void *vclip_context;
     /* Look_At7: ordered linked actors receive an on/off gaze target. */
     int (*look_at)(void *,const rf_level_event *,const rf_level_link_target *,uint32_t);
     void *look_at_context;
