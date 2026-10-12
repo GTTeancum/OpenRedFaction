@@ -2515,6 +2515,7 @@ static uint32_t scene_ai_laser_pending(void);
 static int32_t campaign_enemy_extra_fallback_pick(const rf_weapon_inventory *,const rf_weapon_supply_catalog *,int32_t,uint32_t);
 static uint32_t scene_ai_rocket_pending(void);
 static uint32_t scene_fusion_projectile_pending(void);
+static uint32_t scene_ai_fusion_save_blocked(void);
 static uint32_t scene_fusion_save_pending(void);
 static void scene_fusion_restore_reset(void);
 static uint32_t scene_player_shield_damage_save_pending(void);
@@ -12275,6 +12276,7 @@ done:
 #include "scene_ai_sonar_profile.inc"
 #include "scene_ai_extra_weapons.inc"
 #include "scene_ai_flame_profile.inc"
+#include "scene_ai_fusion_profile.inc"
 #include "scene_ai_tankbot_primary.inc"
 #include "scene_ai_vauss_primary.inc"
 #include "scene_ai_reeper_claw.inc"
@@ -12299,6 +12301,8 @@ static void scene_cane_visual_accept(uint32_t,const scene_ai_laser_projectile *,
 static void scene_spit_visual_accept(uint32_t,const scene_ai_laser_projectile *,uint32_t);
 #include "scene_ai_spit.inc"
 extern uint32_t rf_scene_ai_flame[8];
+extern uint32_t rf_scene_ai_fusion[6];
+static int scene_ai_fusion_fire(uint32_t,uint32_t,const float *,uint32_t,uint32_t);
 static int scene_ai_flame_fire(scene_stream *,uint32_t,uint32_t,const float *,uint32_t,uint32_t);
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
 static int scene_ai_rocket_launch(campaign_npc_body *,const float *);
@@ -12429,6 +12433,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(status==RF_NOT_FOUND)status=campaign_enemy_sonar_select(owner,&campaign_weapon_supply,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_spit_select(owner,&campaign_weapon_supply,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_flame_select(owner,&campaign_weapon_supply,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_fusion_select(owner,&campaign_weapon_supply,&selected);
         if(status && status!=RF_NOT_FOUND)return status;
         if(weapon==campaign_grenade_id){
             if(!scene_grenade_resources)continue;
@@ -12603,6 +12608,11 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if((!point_target && distance>attack_range*attack_range) || distance<.0001f){if(melee)++rf_scene_enemy_melee[1];continue;}
         if(!point_target){status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
             if(blocked && !selected.penetrates_world){++rf_scene_enemy_combat[4];continue;}}
+        if(weapon==campaign_fusion_id&&selected.slot==12){
+            status=scene_ai_fusion_fire(i,frame,target_eye,once,once?single->mode:0);
+            rf_scene_ai_fusion[5]=(uint32_t)status;if(status)return status;
+            continue; /* Real shared Fusion flight owns debit; never generic hitscan. */
+        }
         if(weapon==campaign_flame_id&&selected.slot==10){
             status=scene_ai_flame_fire(stream,i,frame,target_eye,once,once?single->mode:0);
             rf_scene_ai_flame[7]=(uint32_t)status;if(status)return status;
@@ -14404,7 +14414,7 @@ static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int
         if(status){printf("NPC_CHECKPOINT_REJECT %s\n",reason);return status;}}
     /* Save/export only: RFNC action playback cannot encode pending damage.
      * Do NOT move this into row capture, which load preflight also consumes. */
-    if((scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()))return RF_NOT_FOUND;
+    if((scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_fusion_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending()))return RF_NOT_FOUND;
     catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64)return RF_RANGE;
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -14603,7 +14613,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
-    if(prefix && (scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())){status=RF_NOT_FOUND;goto done;}
+    if(prefix && (scene_robot_death_save_pending() || scene_ai_drone_smash_save_pending() || scene_ai_drone_secondary_save_pending() || scene_ai_tankbot_secondary_save_pending() || scene_ai_drone_missile_save_blocked() || scene_ai_fusion_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_script_physics_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_vehicle_visibility_legacy_save_allowed(s)){status=RF_NOT_FOUND;goto done;}
     if(prefix && !scene_vehicle_invulnerability_legacy_save_allowed()){status=RF_NOT_FOUND;goto done;}
@@ -16750,6 +16760,9 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     status=scene_ai_sonar_tick(stream,frame,position);if(status)return status;
     status=scene_sonar_visual_tick(stream,frame);if(status)return status;
     status=campaign_vehicle_attack_fixture(frame);if(status)return status;
+    /* Reset before any NPC can accept a frame-zero Fusion shot. The player
+     * input owner still resets at its original service below. */
+    if(!frame)scene_fusion_projectile_reset();
     scene_npc_loop_audio_begin();
     status=(rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
@@ -21873,6 +21886,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(campaign_spawn && campaign_player_form_carry.active){rf_scene_player_form[0]=1;rf_scene_player_form[1]=campaign_player_form_carry.variant;}
     rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=scene_ai_flame_resources=scene_tankbot_missile_resources=scene_drone_missile_resources=0;
     memset(rf_scene_ai_flame,0,sizeof(rf_scene_ai_flame));
+    memset(rf_scene_ai_fusion,0,sizeof(rf_scene_ai_fusion));
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=scene_flame_visual_ready=0;memset(rf_scene_flame_visual,0,sizeof(rf_scene_flame_visual));
     scene_remote_reset();
     memset(scene_grenades,0,sizeof(scene_grenades));memset(&scene_grenade_throw,0,sizeof(scene_grenade_throw));memset(rf_scene_grenades,0,sizeof(rf_scene_grenades));
@@ -22270,7 +22284,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   if(!status && scene_drone_missile_resources)status=scene_ai_drone_missile_resources_open(&tables);
                   if(!status && scene_remote_resources)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
                   if(!status && scene_grenade_resources)status=rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade);
-                  scene_fusion_resources=!!(demand.mask&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
+                  scene_fusion_resources=!!((demand.mask|npc_projectiles)&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
                   if(!status && scene_fusion_resources)status=rf_weapon_primary_load(&tables,"shoulder_cannon",128*1024,&campaign_primary[12]);
                   if(!status && scene_fusion_resources)status=rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion);}}
              if(!status){rf_scene_campaign_load_stage=25;status=campaign_weapon_models_open(tables_path,&archive);}

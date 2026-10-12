@@ -1,3 +1,7 @@
+- Compile the source-integrated NPC shoulder-cannon consumer in the sole03:00 stock64 batch: 16 authored heavy mercenary owners, finite shared Fusion flights/reload and original SP AI damage scaling, with explicit live-NPC-flight save refusal; runtime remains unverified (docs/NPC-SHOULDER-CANNON-FIRST-PASS.md).
+
+- Authored selected-NPC weapon sweep covers 32 primary and four secondary families across 94 installed levels; after Flame and shoulder-cannon integration no additional substantially missing selected family was found. This is source coverage, not runtime or campaign completion (docs/NPC-WEAPON-COVERAGE-SWEEP.md).
+
 - Friendly NPC Use now resolves authored class/persona/Foley speech through existing actor voice ownership; compiled in the October12 02:00 systems batch; audibility and repeated interaction remain unverified, with gestures/facing deferred (docs/NPC-USE-DIALOGUE.md).
 
 - Operational tester controls, NPC Flamethrower primary and friendly NPC Use speech compiled together on stock64 Xbox; continue substantial missing NPC weapon support and leave campaign playthrough and route coverage to testers.

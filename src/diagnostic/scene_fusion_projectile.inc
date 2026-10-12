@@ -11,7 +11,7 @@
 #define SCENE_FUSION_CAPACITY 4u
 typedef struct scene_fusion_projectile {
     rf_weapon_flight flight;rf_weapon_flight_liquid_state liquid;
-    rf_weapon_explosive_definition definition;uint32_t source;float damage,basis[9];
+    rf_weapon_explosive_definition definition;uint32_t source,npc_source;float damage,basis[9];
 } scene_fusion_projectile;
 typedef int (*scene_fusion_impact_visual)(scene_stream *,const rf_weapon_flight_contact *,uint32_t,float);
 static scene_fusion_projectile scene_fusion_projectiles[SCENE_FUSION_CAPACITY];
@@ -21,11 +21,11 @@ static void scene_fusion_projectile_reset(void)
 {memset(scene_fusion_projectiles,0,sizeof(scene_fusion_projectiles));memset(rf_scene_fusion_projectiles,0,sizeof(rf_scene_fusion_projectiles));}
 static uint32_t scene_fusion_projectile_pending(void)
 {uint32_t i;for(i=0;i<SCENE_FUSION_CAPACITY;i++)if(scene_fusion_projectiles[i].flight.active)return 1;return 0;}
-static int scene_fusion_launch(const float position[3],const float direction[3],uint32_t source,float damage,
-    const rf_weapon_explosive_definition *definition,uint32_t *spawned)
+static int scene_fusion_launch_owned(const float position[3],const float direction[3],uint32_t source,float damage,
+    const rf_weapon_explosive_definition *definition,uint32_t npc_source,uint32_t *spawned)
 {
     scene_fusion_projectile shot={0};uint32_t i,k;double length=0;float forward[3],up[3]={0,1,0};int status;
-    if(!position || !direction || !definition || !spawned || !isfinite(damage) || damage<=0 ||
+    if(!position || !direction || !definition || !spawned || npc_source>1 || !isfinite(damage) || damage<=0 ||
        !isfinite(definition->damage_radius) || definition->damage_radius<=0 ||
        !isfinite(definition->crater_radius) || definition->crater_radius<0 ||
        definition->impact_count!=1 || !isfinite(definition->impact_radius[0]) || definition->impact_radius[0]<=0)return RF_RANGE;
@@ -39,15 +39,21 @@ static int scene_fusion_launch(const float position[3],const float direction[3],
     length=sqrt((double)shot.basis[0]*shot.basis[0]+(double)shot.basis[1]*shot.basis[1]+(double)shot.basis[2]*shot.basis[2]);
     for(k=0;k<3;k++){shot.basis[k]=(float)(shot.basis[k]/length);shot.basis[6+k]=forward[k];}
     shot.basis[3]=forward[1]*shot.basis[2]-forward[2]*shot.basis[1];shot.basis[4]=forward[2]*shot.basis[0]-forward[0]*shot.basis[2];shot.basis[5]=forward[0]*shot.basis[1]-forward[1]*shot.basis[0];
-    shot.definition=*definition;shot.source=source;shot.damage=damage;
+    shot.definition=*definition;shot.source=source;shot.npc_source=npc_source;shot.damage=damage;
     shot.liquid.query_flags=0x1004u|(definition->collision_radius<.05f?0x100u:0);
     scene_fusion_projectiles[i]=shot;*spawned=1;++rf_scene_fusion_projectiles[0];++rf_scene_fusion_projectiles[3];return RF_OK;
 }
+/* Existing player caller and its save grammar retain a zero NPC receipt. */
+static int scene_fusion_launch(const float position[3],const float direction[3],uint32_t source,float damage,
+    const rf_weapon_explosive_definition *definition,uint32_t *spawned)
+{return scene_fusion_launch_owned(position,direction,source,damage,definition,0,spawned);}
+#include "scene_ai_fusion.inc"
 static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scene_fusion_impact_visual visual)
 {
     uint32_t i;int status;if(!stream || !visual)return RF_RANGE;rf_scene_fusion_projectiles[3]=0;
     for(i=0;i<SCENE_FUSION_CAPACITY;i++){
         scene_fusion_projectile *shot=scene_fusion_projectiles+i;rf_weapon_flight_liquid_event movement;
+        const uint64_t epoch=scene_robot_death_epoch;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};scene_ai_projectile_query query={stream,shot->source};
         if(!shot->flight.active)continue;
         status=rf_weapon_flight_step_liquid(&shot->flight,1.f/60,&shot->liquid,&policy,scene_ai_projectile_sweep,&query,&movement);if(status)return status;
@@ -56,6 +62,14 @@ static int scene_fusion_projectile_tick(scene_stream *stream,uint32_t frame,scen
         if(movement.terminal.kind==1){
             rf_weapon_flight_contact *contact=&movement.terminal.contact;uint32_t tag=contact->object,k;float blast[3];
             ++rf_scene_fusion_projectiles[1];
+            if(shot->npc_source){
+                /* Copy the terminal paid flight before any damage callback can
+                 * retire owners, load another scene, or reuse this pool slot. */
+                const scene_fusion_projectile accepted=*shot;
+                status=scene_ai_fusion_impact(stream,frame,&accepted,contact,visual);if(status)return status;
+                if(epoch!=scene_robot_death_epoch)return RF_OK;
+                continue;
+            }
             if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
                 uint32_t index=tag&0xffffu,consumed;
                 if(index>=campaign_npc_body_count)return RF_RANGE;

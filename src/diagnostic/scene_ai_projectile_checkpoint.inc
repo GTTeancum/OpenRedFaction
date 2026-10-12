@@ -150,8 +150,8 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
     if(scene_player_rocket_lock_save_pending(stream))return RF_NOT_FOUND;
     status=scene_continuous_charge_checkpoint_capture(stream,NULL,&charge_count);if(status)return status;
     /* Save-only rejection, before touching the output. RFAP1..5 cannot name
-     * Drone Missile or Laser, and prepare/restore must not inherit this live guard. */
-    if(scene_ai_drone_missile_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_NOT_FOUND;
+     * Drone Missile, NPC Fusion or Laser, and prepare/restore must not inherit this live guard. */
+    if(scene_ai_drone_missile_save_blocked() || scene_ai_fusion_save_blocked() || scene_ai_laser_pending() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending() || scene_ai_sonar_pending())return RF_NOT_FOUND;
     for(i=0;i<SCENE_AI_GRENADE_CAPACITY;i++)count+=scene_ai_grenades[i].projectile.flight.lifecycle.active!=0;
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)count+=scene_ai_rockets[i].flight.active!=0;
     for(i=0;i<SCENE_ROCKETS;i++)count+=stream->rockets[i].active!=0;
