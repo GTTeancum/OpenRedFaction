@@ -1,3 +1,5 @@
+- NPC continuous loops now retain failed native retirements in existing fixed records with one ordinary retirement attempt per frame and 8 added global bytes; combine the independent lifecycle gates in the parent hourly stock64 build (docs/NPC-LOOP-RETIREMENT.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

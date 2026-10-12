@@ -447,9 +447,11 @@ static uint32_t scene_airlock_handoff_wait(void);
 static uint32_t scene_guard_retreat_section_wait(void);
 #include "scene_use_edge.inc"
 static void scene_player_holster_sample(uint32_t);
+static void scene_npc_loop_audio_begin_frame(uint32_t);
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
+    scene_npc_loop_audio_begin_frame(frame);
     if(frame && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
         !scene_airlock_handoff_wait() && !scene_medic_handoff_wait() && !scene_guard_retreat_section_wait())return RF_NOT_FOUND;
     if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
@@ -2630,7 +2632,9 @@ static int scene_grenade_empty_load(rf_vpp *);
 static void scene_grenade_empty_reset(void);
 static void scene_grenade_empty_input_reset(void);
 static void scene_npc_loop_audio_close(void);
-static void scene_npc_loop_audio_reset(void);
+static int scene_npc_loop_audio_reset(void);
+static int scene_npc_loop_audio_drain(void);
+static int scene_npc_loop_audio_idle_status(void);
 static void scene_npc_loop_audio_remove(uint32_t);
 static void scene_turret_audio_close(void);
 static void scene_turret_audio_reset(void);
@@ -3078,6 +3082,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0,foley_groups,foley_samples,foley_bank_bytes,global_hash=2166136261u;
     rf_vpp_entry foley_entry,entity_entry;void *foley_text=NULL,*entity_text=NULL;
     campaign_foley_registration foley_registration={0};int status;
+    status=scene_npc_loop_audio_drain();if(status)return status;
     memset(rf_scene_foley,0,sizeof(rf_scene_foley));
     memset(rf_scene_npc_pain_groups,0,sizeof(rf_scene_npc_pain_groups));
     scene_npc_landing_audio_reset();
@@ -6470,6 +6475,8 @@ done:
 static void campaign_close_movers(void)
 {
     int closed;
+    closed=scene_npc_loop_audio_drain();
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
     campaign_alpha_close();
     closed=campaign_glare_instances_close();
     if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
@@ -18162,6 +18169,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     world_profile_mark(0,&world_clock);
     if(campaign_spawn) {
         campaign_audio_listener(position,orientation[0]);
+        scene_npc_loop_audio_retirement_tick(frame);
         scene_player_water_audio_tick(stream,frame,position);
         campaign_message_audio_refresh();
         /* Original480ef7 follows listener refresh. Use the owned replay clock;
@@ -21868,6 +21876,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i,saved_direct_resources=0;int status;scene_stream *stream;
+    status=scene_npc_loop_audio_reset();if(status)return status;
     memset(rf_scene_late_load,0,sizeof(rf_scene_late_load));
     campaign_dry_sweep_invalidate();
     memset(campaign_trigger_contact_cache,0,sizeof(campaign_trigger_contact_cache));
@@ -21905,7 +21914,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     scene_rifle_audio_reset();
     scene_hmg_audio_reset();scene_machine_pistol_audio_reset();
     scene_npc_liquid_damage_reset();
-    scene_npc_rifle_audio_reset();scene_npc_launch_audio_reset();scene_npc_action_foley_reset();scene_npc_loop_audio_reset();
+    scene_npc_rifle_audio_reset();scene_npc_launch_audio_reset();scene_npc_action_foley_reset();
     scene_tankbot_burst_audio_reset();
     scene_turret_audio_reset();scene_vehicle_loop_audio_reset();
     scene_player_landing_audio_reset();
@@ -23072,6 +23081,7 @@ void rf_scene_session_end(void)
 static int scene_session_idle_status(void)
 {
     if(scene_session_retire_status)return scene_session_retire_status;
+    if(scene_npc_loop_audio_idle_status())return RF_RANGE;
     if(player_poll || particle_draw_stream || scene_actor_collision_owner ||
        actor_follow_world || campaign_player_object.view || campaign_model_owners ||
        campaign_npc_bodies || campaign_glare_instances || campaign_clutter_bodies ||
