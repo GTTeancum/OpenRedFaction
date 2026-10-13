@@ -27,10 +27,11 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
      * Scene setup binds its real callback/resources; the world composer owns
      * admission of already-mutated terrain and damage. Keep the deadline. */
     case 10:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
-    case 18:case 49:case 60:case 61:return RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
+    /* RFEN9 now owns applied sky state; RFEC keeps queued type59 dispatch. */
+    case 18:case 49:case 59:case 60:case 61:return RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
     case 1:case 13:case 14:case 17:return RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE;
     case 5:case 6:case 11:case 12:case 24:case 28:case 30:case 34:case 38:case 67:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
-    case 15:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
+    case 15:case 70:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
     case 19:case 47:case 56:case 65:case 81:return RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
     case 22:return RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL;
     case 35:case 36:case 37:return RF_EVENT_CHECKPOINT_EXTERNAL_GOALS;
@@ -42,7 +43,7 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
     case 72:case 86:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
     case 82:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC|RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
     case 54:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD|RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
-    case 43:case 59:case 80:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
+    case 43:case 80:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
     case 46:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 3:case 48:return 0;
     case 2:case 16:case 20:case 32:case 39:case 44:case 50:case 51:case 52:case 53:

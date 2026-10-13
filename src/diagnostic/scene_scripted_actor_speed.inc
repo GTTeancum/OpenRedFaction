@@ -10,6 +10,15 @@ static int campaign_scripted_speed_ground(void *context,uint32_t handle)
     rf_physics_ground_probe probe;rf_collision_actor_contact contact={0};scene_piece_support piece={0};
     if(!s||!s->collision)return RF_RANGE;
     status=campaign_npc_motion_owner(handle,&o,&cls,&pose);if(status)return status;
+    if(o->crouch.flags&SCENE_CROUCH_PRESENT){
+        rf_physics_bounds bounds;
+        /* Stance-center publication changes the enclosing radius. Refresh
+         * it before ground/sweep consumers, including standing requested by
+         * an existing stronger motion owner after a crouched checkpoint. */
+        status=rf_physics_spheres_bounds(o->body.spheres.items,o->body.spheres.count,
+            o->body.state.position,&bounds);if(status)return status;
+        o->body.state.bounds=bounds;
+    }
     status=scene_npc_ground_query_piece(s->collision,handle,scene_step_seconds,&probe,&contact,&found,&piece);if(status)return status;
     moving=found&&contact.handle&&contact.handle!=UINT32_MAX&&campaign_object_velocity(contact.handle)!=NULL;
     if(found&&contact.time<1&&contact.normal[1]>=.5f){

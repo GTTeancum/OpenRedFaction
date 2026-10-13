@@ -1,7 +1,8 @@
 #ifndef RF_SCENE_MEDIC_FLIGHT_INCLUDED
 #define RF_SCENE_MEDIC_FLIGHT_INCLUDED
-/* Known L3S1 medic783 only. Original407fb0/4085f0/404f70; reviewed private
- * navigation is separate. No global AI dispatch or optional persona service. */
+/* Source-qualified unarmed humanoid damage flight:407fb0/4085f0/404f70.
+ * The preexisting medic lane remains wire-compatible. No global AI dispatch,
+ * arbitrary target acquisition or optional persona service is introduced. */
 /* Shared CRT receipt and runtime-only lifetime fence are declared by scene. */
 /* qualified, requests, entries, extensions, defaults, ticks, pain pauses,
  * no-route, sight refresh, unsupported, last source, status */
@@ -14,14 +15,41 @@ static int scene_medic_flight_raw_string(const uint8_t *p,uint32_t size,uint32_t
     if(n>size-*at)return RF_FORMAT;
     *at+=n;return RF_OK;
 }
+/* Historical identity is used ONLY for RFNC1-29 compatibility and its old
+ * mandatory constructor receipt; never as a new gameplay allowlist. */
+static uint32_t scene_medic_flight_legacy_owner(uint32_t index)
+{
+    const char *name,*level=campaign_current_level;
+    if(index>=campaign_seeds.records.count||!campaign_seeds.records.items)return 0;
+    name=campaign_seeds.records.items[index].record.class_name;
+    return campaign_seeds.records.items[index].record.uid==783&&
+        rf_emitter_name_lookup(&name,1,"medic1")==0&&rf_emitter_name_lookup(&level,1,"l3s1.rfl")==0;
+}
 static int scene_medic_flight_binding(uint32_t index)
 {
     const rf_level_owned_entity *record;rf_level_entity_spawn spawn;rf_level_entity_ai ai;
-    const uint8_t *raw;uint32_t at=4,size,i;int status;const char *level=campaign_current_level,*name;
+    const uint8_t *raw;uint32_t at=4,size,i,cls;int status;
     if(index>=campaign_seeds.records.count||!campaign_seeds.records.items)return RF_RANGE;
-    record=campaign_seeds.records.items+index;name=record->record.class_name;
-    if(record->record.uid!=783||rf_emitter_name_lookup(&name,1,"medic1")!=0||
-       rf_emitter_name_lookup(&level,1,"l3s1.rfl")!=0)return RF_NOT_FOUND;
+    if(!campaign_seeds.items||!campaign_seeds.classes||!campaign_base_motions.classes)return RF_RANGE;
+    record=campaign_seeds.records.items+index;cls=campaign_seeds.items[index].class_index;
+    if(cls>=campaign_seeds.class_count||cls>=campaign_base_motions.class_count)return RF_FORMAT;
+    /*4270a0 requires a sentient nonplayer;40a2f0 rejects Jeep. The retained
+     * humanoid grounded projection also excludes APC/other vehicle models. */
+    if((campaign_seeds.classes[cls].physics.flags&0x20011u)!=0x20011u||
+       (campaign_seeds.classes[cls].physics.flags&(0x200u|0x400000u))||
+       campaign_seeds.classes[cls].physics.use_kind==1||campaign_seeds.classes[cls].model_kind!=2)return RF_NOT_FOUND;
+    {const rf_entity_default_weapons *d=&campaign_base_motions.classes[cls].default_weapons;
+     int32_t weapons[2]={d->primary,d->secondary};
+     const char *names[2]={record->record.primary_weapon,record->record.secondary_weapon};
+     for(i=0;i<2;i++){
+        int32_t id;
+        if(!memchr(names[i],0,RF_LEVEL_NAME_CAPACITY))return RF_FORMAT;
+        if(scene_npc_loadout_equal(names[i],"none")){weapons[i]=-1;continue;}
+        id=rf_weapon_name_find(&campaign_weapon_supply.names,!i&&scene_npc_loadout_equal(names[i],"glock")?"12mm handgun":names[i]);
+        if(id>=0)weapons[i]=id; /* Empty/unknown inherits the actual class. */
+     }
+     if(weapons[0]!=-1||weapons[1]!=-1)return RF_NOT_FOUND;
+    }
     status=rf_level_entity_spawn_read(record,&spawn);if(status)return status;
     status=rf_level_entity_ai_read(record,&ai);if(status)return status;
     if(spawn.seat_host_uid!=-1||ai.mode!=1)return RF_NOT_FOUND;
@@ -50,17 +78,121 @@ static void scene_medic_flight_construct(campaign_npc_body *o,int32_t now,float 
      * Unwritten request/start geometry has explicit validity bits. */
     o->flight=f;
 }
+/* Independent of current action/weapon: used for real owners and saved candidates. */
+static int scene_civilian_flight_mapping(uint32_t index,const rf_entity_motion_selection *selection)
+{
+    rf_entity_motion_selection base;uint32_t cls;int status;
+    static const uint32_t states[5]={0,2,4,6,13};
+    if(!selection||index>=campaign_seeds.records.count||!campaign_seeds.items)return RF_RANGE;
+    cls=campaign_seeds.items[index].class_index;
+    status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&base);if(status)return status;
+    if(memcmp(&base.mapping,&selection->mapping,sizeof(base.mapping)))return RF_NOT_FOUND;
+    if(!campaign_motion_catalog.models||base.mapping.skeleton==UINT32_MAX||
+       base.mapping.skeleton>=campaign_motion_catalog.model_count)return RF_NOT_FOUND;
+    for(uint32_t i=0;i<5;i++){
+        int32_t id=base.mapping.states[states[i]];
+        if(id<0)return RF_NOT_FOUND;
+        if((uint32_t)id>=campaign_motion_catalog.models[base.mapping.skeleton].count)return RF_FORMAT;
+    }
+    return RF_OK;
+}
+/* Reserve the complete existing cache demand before reset/RNG/navigation.
+ * Fixed locals only; actual cache and its unchanged1280KiB ceiling own bytes. */
+static int scene_civilian_flight_resources(uint32_t index)
+{
+    const campaign_npc_body *o;const rf_entity_pose *pose;
+    const rf_entity_playback_model *model;int32_t ids[24];uint32_t cache[24],count=5,unique=0;
+    uint32_t skeleton;uint64_t missing=0;int status;
+    static const uint32_t states[5]={0,2,4,6,13};
+    if(!campaign_npc_bodies||index>=campaign_npc_body_count)return RF_RANGE;
+    o=campaign_npc_bodies+index;skeleton=o->selection.mapping.skeleton;
+    status=scene_civilian_flight_mapping(index,&o->selection);if(status)return status;
+    if(!campaign_playback_resources.models||!campaign_motion_catalog.models[skeleton].items||!campaign_poses.items||index>=campaign_poses.count||skeleton>=campaign_playback_resources.model_count)return RF_FORMAT;
+    pose=campaign_poses.items+index;model=campaign_playback_resources.models+skeleton;
+    if(pose->skeleton!=skeleton||!model->resources||!model->cache_ids||
+       pose->playback.completion.active.count>16||pose->playback.completion.frozen||
+       pose->playback.completion.active.freeze_slot!=-1)return RF_NOT_FOUND;
+    for(uint32_t j=0;j<5;j++)ids[j]=o->selection.mapping.states[states[j]];
+    for(uint32_t j=0;j<3;j++){
+        int32_t state=j==0?pose->controller.current:j==1?pose->controller.next:
+            pose->controller.override_enabled?pose->controller.override_state:-1;
+        if(state< -1||state>=23)return RF_FORMAT;
+        if(state>=0)ids[count++]=o->selection.mapping.states[state];
+    }
+    for(uint32_t j=0;j<pose->playback.completion.active.count;j++)ids[count++]=pose->playback.completion.active.slots[j].motion;
+    /* Two new locomotion loop slots may coexist with the current crossfade. */
+    {uint32_t slots=pose->playback.completion.active.count;
+     for(uint32_t n=3;n<5;n++){
+        uint32_t j;for(j=0;j<pose->playback.completion.active.count;j++)
+            if(pose->playback.completion.active.slots[j].motion==ids[n])break;
+        if(j==pose->playback.completion.active.count&&(n==3||ids[n]!=ids[3]))++slots;
+     }
+     if(slots>16)return RF_NOT_FOUND;
+    }
+    for(uint32_t j=0;j<count;j++){
+        int32_t id=ids[j];uint32_t c,k;const rf_motion_file *file;
+        if(id<0||(uint32_t)id>=model->count||(uint32_t)id>=campaign_motion_catalog.models[skeleton].count)return RF_NOT_FOUND;
+        c=model->cache_ids[id];file=&campaign_motion_catalog.models[skeleton].items[id].file;
+        if(c>=campaign_npc_motion_count||!campaign_npc_motion_data||!campaign_npc_motion_sizes||
+           !file->archive||!file->entry.size||model->resources[id].references<0)return RF_FORMAT;
+        for(k=0;k<unique;k++)if(cache[k]==c)break;
+        if(k==unique){cache[unique++]=c;if(!campaign_npc_motion_data[c])missing+=file->entry.size;}
+        if(campaign_npc_motion_data[c]&&campaign_npc_motion_sizes[c]!=file->entry.size)return RF_FORMAT;
+    }
+    if((uint64_t)campaign_npc_motion_bytes+missing>SCENE_NPC_MOTION_BUDGET)return RF_NOT_FOUND;
+    for(uint32_t j=0;j<count;j++){status=campaign_npc_motion_require(skeleton,(uint32_t)ids[j]);if(status)return status;}
+    return RF_OK;
+}
 static int scene_medic_flight_initialize(campaign_npc_body *o,uint32_t index,int32_t now,uint32_t ordinal)
 {
     static const float biases[3]={-.5f,0,.5f};int status;
     memset(&o->flight,0,sizeof(o->flight));
     status=scene_medic_flight_binding(index);if(status==RF_NOT_FOUND)return RF_OK;
     if(status)return status;
-    if(o->medic.default_action!=2||o->view.weapons[0]!=-1||o->view.weapons[1]!=-1)return RF_NOT_FOUND;
+    if(o->view.weapons[0]!=-1||o->view.weapons[1]!=-1)return RF_OK;
+    /* Resolve the actual base selection; unsupported models remain ordinary
+     * actors. No guessed flee/cower filename or extra constructor load. */
+    status=scene_civilian_flight_mapping(index,&o->selection);if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
+    if(o->medic.default_action!=-1&&o->medic.default_action!=2)return RF_NOT_FOUND;
+    status=rf_entity_ai_set_action(&o->ai_mode,2,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+    o->view.action_520=2;
     scene_medic_flight_construct(o,now,biases[ordinal%3]);
     o->navigation.start.radius=o->navigation_radius;
     o->navigation.start.height=o->death_item_extent_7c4;o->navigation.start.word_040=0;
     ++rf_scene_medic_flight[0];return RF_OK;
+}
+static uint32_t scene_civilian_flight_owner(const campaign_npc_body *o)
+{
+    if(!o||!campaign_npc_bodies||o<campaign_npc_bodies||o>=campaign_npc_bodies+campaign_npc_body_count)return 0;
+    return o->flight.qualified==1&&!scene_medic_flight_legacy_owner((uint32_t)(o-campaign_npc_bodies));
+}
+static int scene_civilian_flight_cancel(campaign_npc_body *o,int32_t now,uint32_t preserve)
+{
+    rf_entity_ai_transition_state next;float bias;int status;
+    if(!o||preserve>1||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(scene_medic_flight_restoring)return RF_OK;
+    status=scene_alarm_runner_cancel(o,now,preserve);if(status)return status;
+    if(!scene_civilian_flight_owner(o))return RF_OK;
+    /* Accepted commands also fence callbacks during first onset, before the
+     * episode has published entered. Never resume over their replacement. */
+    ++scene_medic_flight_lifetime;
+    if(!o->flight.entered)return RF_OK;
+    next=o->ai_mode;
+    if(!preserve&&next.action_280==7){
+        status=rf_entity_ai_set_action(&next,2,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+        status=rf_entity_ai_set_state(&next,0,(float)now);if(status)return status;
+    }
+    if(preserve&&next.action_280==7)return RF_FORMAT;
+    bias=o->flight.nav.bias_158;
+    if(!preserve){
+        /* Caller has accepted the replacement, but has not installed its
+         * navigation/command yet. Release only the outgoing flight aliases. */
+        memset(&o->navigation,0,sizeof(o->navigation));
+        o->navigation.start.radius=o->navigation_radius;o->navigation.start.height=o->death_item_extent_7c4;
+        memset(o->command_714,0,12);memset(o->look.command_708,0,12);
+        o->ai_mode=next;o->view.action_520=next.action_280;
+    }
+    scene_medic_flight_construct(o,now,bias);return RF_OK;
 }
 static uint32_t scene_medic_flight_live(const campaign_npc_body *o)
 {return scene_medic_live(o)&&o->flight.qualified==1;}
@@ -194,10 +326,20 @@ static int scene_medic_flight_damage(campaign_npc_body *o,uint32_t source,int32_
     if(source!=campaign_player_object.handle||campaign_player_object.view!=&campaign_player_view||
        rf_object_registry_lookup(&campaign_registry,source)!=&campaign_player_object||
        rf_entity_lookup(&campaign_entities,(int32_t)source)!=&campaign_player_view)return RF_OK;
+    if(scene_civilian_flight_owner(o)&&(o->view.weapons[0]!=-1||o->view.weapons[1]!=-1))return RF_OK;
     *handled=1;
     if(o->ai_mode.action_280==1||o->ai_mode.action_280==9||o->ai_mode.action_280==8||o->ai_mode.action_280==13||
        o->damage.effects.health<=0||(o->object_flags&(2u|0x4000u))||(o->view.flags_810&1u))return RF_OK;
     index=(uint32_t)(o-campaign_npc_bodies);
+    if(scene_civilian_flight_owner(o)&&
+       (campaign_cutscene_runtime.active||o->script_animation.active||o->script_animation.freeze||
+        o->scripted_physics||o->scripted_physics_seen||o->attachment_75c!=-1||
+        scene_npc_seat_attached(o->registration.handle)||
+        (o->ai_mode.action_280!=2&&o->ai_mode.action_280!=7)))return RF_OK;
+    if(scene_civilian_flight_owner(o)){
+        status=scene_guard_retreat_player_onfoot(scene_actor_collision_owner);
+        if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
+    }
     if(scene_medic_flight_overlap(o)||o->movement_slot>=16||
        (campaign_modes[o->movement_slot].index!=1&&campaign_modes[o->movement_slot].index!=3)||
        !(campaign_seeds.classes[campaign_seeds.items[index].class_index].physics.flags&0x20000u)||
@@ -211,6 +353,10 @@ static int scene_medic_flight_damage(campaign_npc_body *o,uint32_t source,int32_
     threat.model_radius=campaign_player_geometry.model_radius;
     status=scene_medic_flight_visibility_admit(scene_actor_collision_owner,o,&threat,&supported);if(status)return status;
     if(!supported){++rf_scene_medic_flight[9];return RF_OK;}
+    if(scene_civilian_flight_owner(o)){
+        status=scene_civilian_flight_resources(index);
+        if(status==RF_NOT_FOUND){++rf_scene_medic_flight[9];return RF_OK;}if(status)return status;
+    }
     handle=o->registration.handle;epoch=scene_continuous_charge_runtime.epoch;lifetime=scene_medic_flight_lifetime;
     status=rf_scene_npc_reset_ai_animation(handle,1);if(status)return status;
     /* Existing actor Message owns1400. Audio may callback; revalidate before
@@ -248,7 +394,9 @@ static int scene_medic_flight_restore_admit(const campaign_npc_body *o,int32_t a
     if(!o||!p)return RF_RANGE;f=&p->state;
     if(!f->qualified){scene_medic_flight_snapshot zero={0};return memcmp(&zero,p,sizeof(zero))?RF_FORMAT:RF_OK;}
     status=scene_medic_flight_index(o,&index);if(status)return status;
-    if(o->medic.default_action!=2||o->ai_mode.state_2b4!=0||f->qualified!=1||f->entered>1||f->target_handle||f->target_kind>SCENE_FLIGHT_TARGET_UNRESOLVED||
+    status=scene_civilian_flight_mapping(index,&o->selection);if(status)return status;
+    if((o->medic.default_action!=-1&&o->medic.default_action!=2)||
+       o->view.weapons[0]!=-1||o->view.weapons[1]!=-1||o->ai_mode.state_2b4!=0||f->qualified!=1||f->entered>1||f->target_handle||f->target_kind>SCENE_FLIGHT_TARGET_UNRESOLVED||
        f->visible_published_29c>1||f->visible_eye_29d>1||
        (f->target_kind==SCENE_FLIGHT_TARGET_PLAYER&&(!player||player==UINT32_MAX))||
        (action==7&&!f->entered)||
@@ -257,6 +405,12 @@ static int scene_medic_flight_restore_admit(const campaign_npc_body *o,int32_t a
         f->reset_deadline_1370,f->stall_deadline_4d0};
      for(uint32_t i=0;i<5;i++)if(deadlines[i]<-1||deadlines[i]>RF_TIMER_PERIOD)return RF_FORMAT;}
     if(f->entered&&scene_medic_flight_overlap(o))return RF_NOT_FOUND;
+    if(!scene_medic_flight_legacy_owner(index)&&
+       (!f->entered||o->script_animation.active||o->scripted_physics||o->scripted_physics_seen||
+        o->attachment_75c!=-1))return RF_NOT_FOUND;
+    if(action==14){const char *name=campaign_seeds.records.items[index].record.class_name;
+        if(rf_emitter_name_lookup(&name,1,"medic1")!=0)return RF_NOT_FOUND;
+    }
     if(!f->entered&&(f->target_kind||f->nav.count||f->nav.start_valid||f->nav.eye_valid||
        f->nav.pair[0].kind||f->nav.pair[1].kind||f->visible_published_29c||f->visible_eye_29d||
        f->reset_deadline_1370!=-1))return RF_FORMAT;
@@ -271,6 +425,15 @@ static int scene_medic_flight_capture(const campaign_npc_body *o,int32_t now,sce
     scene_medic_flight_snapshot p={0};int status;
     if(!o||!out||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
     if(o->flight.qualified!=1){*out=p;return RF_OK;}
+    if(scene_civilian_flight_owner(o)&&!o->flight.entered){
+        /* Lazy new-family receipts: inert constructor state owns no physical
+         * command/start/airborne alias and does not add232bytes per idle NPC. */
+        const scene_medic_flight_state *f=&o->flight;
+        if(f->target_kind||f->target_handle||f->nav.count||f->nav.start_valid||f->nav.eye_valid||
+           f->nav.pair[0].kind||f->nav.pair[1].kind||f->visible_published_29c||f->visible_eye_29d||
+           f->reset_deadline_1370!=-1||o->ai_mode.action_280==7)return RF_FORMAT;
+        *out=p;return RF_OK;
+    }
     p.state=o->flight;p.state.target_handle=0;
     if(p.state.target_kind==SCENE_FLIGHT_TARGET_PLAYER&&
        (o->flight.target_handle!=campaign_player_object.handle||
@@ -333,5 +496,5 @@ static void scene_medic_flight_world_construct(void)
     scene_medic_flight_player_motion(NULL);
 }
 static uint32_t scene_medic_flight_command_overlap(const campaign_npc_body *o)
-{return !scene_medic_flight_restoring&&o->flight.qualified==1&&o->flight.entered;}
+{return !scene_medic_flight_restoring&&o->flight.qualified==1&&o->flight.entered&&!scene_civilian_flight_owner(o);}
 #endif

@@ -4,7 +4,7 @@
 #include "rf/motion.h"
 enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW_V3=544,RF_NPC_CHECKPOINT_ROW_V4=548,RF_NPC_CHECKPOINT_ROW_V5=552,RF_NPC_CHECKPOINT_ROW_V6=564,RF_NPC_CHECKPOINT_ROW_V7=568,RF_NPC_CHECKPOINT_ROW_V8=572,RF_NPC_CHECKPOINT_ROW_V9=588,RF_NPC_CHECKPOINT_ROW=600,
     RF_NPC_CHECKPOINT_EXTENSION_BYTES=168,RF_NPC_CHECKPOINT_COMBAT_BYTES=40,RF_NPC_CHECKPOINT_ANIMATION_BASE=108,
-    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_FLIGHT_BYTES=232,RF_NPC_CHECKPOINT_AIRBORNE_BYTES=84,RF_NPC_CHECKPOINT_RELOAD_BYTES=12,RF_NPC_CHECKPOINT_GUARD_RETREAT_BYTES=224,RF_NPC_CHECKPOINT_ROW_MAX=2240,
+    RF_NPC_CHECKPOINT_PHYSICS_BYTES=76,RF_NPC_CHECKPOINT_PAIN_BYTES=24,RF_NPC_CHECKPOINT_HOLSTER_BYTES=4,RF_NPC_CHECKPOINT_CAPEK_BYTES=4,RF_NPC_CHECKPOINT_DRONE_BYTES=76,RF_NPC_CHECKPOINT_ITEM_DROP_BYTES=24,RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES=4,RF_NPC_CHECKPOINT_MEDIC_BYTES=16,RF_NPC_CHECKPOINT_ROUTE_BYTES=36,RF_NPC_CHECKPOINT_FLIGHT_BYTES=232,RF_NPC_CHECKPOINT_AIRBORNE_BYTES=84,RF_NPC_CHECKPOINT_RELOAD_BYTES=12,RF_NPC_CHECKPOINT_GUARD_RETREAT_BYTES=224,RF_NPC_CHECKPOINT_ALARM_BYTES=16,RF_NPC_CHECKPOINT_ROW_MAX=2240,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 /* Event sleep/wake, the angular prepare gate, and falling/support bits. Class,
  * sphere and unrelated descriptor flags remain reconstructed from the owner. */
@@ -79,7 +79,27 @@ typedef struct rf_npc_checkpoint_airborne {
     uint32_t present,body_bits,object_bits;
     float velocity[3],angular[3],momentum[3],force[3],torque[3],inherited_velocity[3];
 } rf_npc_checkpoint_airborne;
+/* RFNC31 conditional alarm obligation. phase1 travels,2 faces,3 owns action44.
+ * Route and action playback remain in their existing payloads. */
+typedef struct rf_npc_checkpoint_alarm {
+    uint32_t present,event,phase,started;
+} rf_npc_checkpoint_alarm;
 typedef struct rf_npc_checkpoint_rng {uint32_t present,value;} rf_npc_checkpoint_rng;
+/* RFNC38 finite tactical state; target identity uses the existing combat row.
+ * A phase0 present receipt owns only the independent primary recovery. */
+typedef struct rf_npc_checkpoint_tactical {
+    uint32_t present,phase,phase_remaining,recovery_present,recovery_remaining,random;
+} rf_npc_checkpoint_tactical;
+/* RFNC40 bounded loss-of-sight delay. UID zero denotes the player. */
+typedef struct rf_npc_checkpoint_pursuit_delay {
+    uint32_t present,target_uid,sight_flags,remaining,random;
+} rf_npc_checkpoint_pursuit_delay;
+/* RFNC39 physical/intent continuation. Scene joins remain mandatory. */
+typedef struct rf_npc_checkpoint_crouch {
+    uint32_t flags; /* present1, intent2, physical4, transition stamp8 */
+    int32_t switch_remaining,attention_remaining;
+    uint32_t random,stamp_age;
+} rf_npc_checkpoint_crouch;
 typedef struct rf_npc_checkpoint_record {
     uint32_t uid,class_id,retired,flags,affiliation;
     float health,armor,position[3],yaw;
@@ -90,7 +110,7 @@ typedef struct rf_npc_checkpoint_record {
     float eye_angles[3]; /* Exact look.angles.angles_87c; no smoothing reset. */
     uint32_t controller_uid; /* Zero is no backlink; source key UID, never a live handle. */
     uint32_t combat_alert; /* Ordinary awareness; active RFNC28 additionally retains its current timing. */
-    uint32_t dead_pose,death_flags_810;int32_t death_action;
+    uint32_t dead_pose,death_flags_810;int32_t death_action; /* RFNC29 dead_pose2 requires composed RFAP13 ownership. */
     rf_npc_checkpoint_move move; /* Authored movement or ordinary pursuit; borrowed navigation rebinds by index. */
     rf_npc_checkpoint_look look; /* Active authored Look_At order; event UID is checked against the loaded scene. */
     rf_npc_checkpoint_combat combat; /* Typed authored/reactive target; relative deadlines. */
@@ -113,6 +133,14 @@ typedef struct rf_npc_checkpoint_record {
     rf_npc_checkpoint_airborne airborne; /* RFNC26; absent is entirely zero. */
     uint32_t reload_present,reload_weapon,reload_remaining; /* RFNC27: accepted owner, weapon and frames; present due0 is not absence. */
     rf_npc_checkpoint_guard_retreat guard_retreat; /* RFNC28; absent is entirely zero. */
+    rf_npc_checkpoint_alarm alarm; /* RFNC31; absent is entirely zero. */
+    uint32_t blind_profile,blind_present,blind_age; /* RFNC37; profile is nonwire legacy discriminator. */
+    uint32_t tactical_profile; /* Nonwire RFNC38 discriminator. */
+    rf_npc_checkpoint_tactical tactical;
+    uint32_t crouch_profile; /* Nonwire RFNC39 discriminator. */
+    rf_npc_checkpoint_crouch crouch;
+    uint32_t pursuit_delay_profile;
+    rf_npc_checkpoint_pursuit_delay pursuit_delay;
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     rf_motion_playback_state playback;
@@ -123,7 +151,32 @@ typedef struct rf_npc_checkpoint_catalog {
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC28 component (RFNC1-27 remain readable; writer emits28 only for an
+/* RFNC37 appends a presence word and conditional saturated sight-age word.
+ * Profile37 absence is strict; only explicit legacy rows may initialize grace.
+ * Plain standalone APIs reject present receipts. Existing row/save caps remain.
+ * RFNC36 adds nonempty immutable One way defaults, no new bytes/capacity.
+ * Terminal arrival rebinds cursor0, preserving direction and skipping final wait.
+ * Mode0 dwell requires an adjacent predecessor; a singleton never owns dwell.
+ * RFNC<=35 rejects origin2/mode0. Standalone APIs refuse visible mode0 defaults;
+ * composed scene admission also gates interrupted immutable One way owners.
+ * RFNC35 adds positive-delay waypoint-event patrol capability, no new bytes.
+ * Composed source-qualified unfrozen nonloop action playback may coexist with
+ * its exact default route/dwell. RFEC owns delays; no tag or action is replayed.
+ * RFNC<=34 rejects the newly admitted active default-route/action overlap.
+ * RFNC34 adds oriented/inert-tag patrol reader capability, no bytes beyond33.
+ * The source-independent writer promotes every enabled patrol (route.patrol&1),
+ * even an unchanged plain path or a future arrival without pending dwell.
+ * Readers retain older source-qualified routes and absent-route semantics.
+ * RFNC33 admits action6 only in composed receipts. It adds no bytes to32.
+ * Action6 is fixed noise investigation: active follow2/event0, no authored
+ * route/combat/flight/script owner; retry0..30 is the initial wait, target
+ * equals route_goal. Existing route ordinals/cursor and playback continue it.
+ * Plain standalone encode/decode reject6; old versions cannot encode it.
+ * Section history deliberately returns toWaiting instead of storing a point.
+ * RFNC32 appends4 bytes only for route flag64 (bounded remaining dwell, including0).
+ * RFNC1-31 default it to zero; existing row/whole-save caps remain unchanged.
+ * When36/35/34/33 are not required, writer emits32 only for a live dwell, otherwise31 only for an
+ * admitted authored Alarm runner, otherwise28 only for an
  * admitted active guard retreat, otherwise27 only for an
  * admitted ordinary reload receipt, otherwise26 only for an
  * admitted ordinary airborne continuation, otherwise25 only for a
@@ -356,7 +409,9 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     const rf_npc_checkpoint_record *,uint32_t count,void *,uint32_t capacity,uint32_t *written);
 int rf_npc_checkpoint_decode(const void *,uint32_t bytes,const unsigned char identity[32],
     const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count);
-/* Receipt-aware ownership APIs. Old wrappers reject flight/guard ownership rather
+/* RFNC30 uses the RFNC29 byte layout and broadens source-qualified unarmed
+ * flight owners. Legacy1-29 still decode under their prior wire grammar.
+ * Receipt-aware ownership APIs. Old wrappers reject flight/guard ownership rather
  * than silently discarding its RNG receipt; ordinary airborne and reload
  * receipts are pointer-free and supported by both codec API families. Scene
  * restore entrypoints still require their complete composed publication
@@ -365,6 +420,29 @@ int rf_npc_checkpoint_encode_with_rng(const unsigned char identity[32],const rf_
     const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,void *,uint32_t capacity,uint32_t *written);
 int rf_npc_checkpoint_decode_with_rng(const void *,uint32_t bytes,const unsigned char identity[32],
     const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count,rf_npc_checkpoint_rng *);
+/* Explicit cursor-aware APIs. Older API families refuse RFNC38 rather than
+ * silently discarding scheduler continuation. Legacy input returns cursor0.
+ * The composed caller must seal and publish cursor with the entire scene. */
+int rf_npc_checkpoint_encode_with_tactics(const unsigned char identity[32],const rf_npc_checkpoint_catalog *,
+    const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,uint32_t cursor,
+    void *,uint32_t capacity,uint32_t *written);
+int rf_npc_checkpoint_decode_with_tactics(const void *,uint32_t bytes,const unsigned char identity[32],
+    const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count,
+    rf_npc_checkpoint_rng *,uint32_t *cursor);
+/* Explicit RFNC39 APIs; older mutating readers refuse the new ownership. */
+int rf_npc_checkpoint_encode_with_stance(const unsigned char identity[32],const rf_npc_checkpoint_catalog *,
+    const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,uint32_t cursor,
+    void *,uint32_t capacity,uint32_t *written);
+int rf_npc_checkpoint_decode_with_stance(const void *,uint32_t bytes,const unsigned char identity[32],
+    const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count,
+    rf_npc_checkpoint_rng *,uint32_t *cursor);
+/* Older mutating readers refuse RFNC40. Read-only preflight understands it. */
+int rf_npc_checkpoint_encode_with_pursuit_delay(const unsigned char identity[32],const rf_npc_checkpoint_catalog *,
+    const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,uint32_t cursor,
+    void *,uint32_t capacity,uint32_t *written);
+int rf_npc_checkpoint_decode_with_pursuit_delay(const void *,uint32_t bytes,const unsigned char identity[32],
+    const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count,
+    rf_npc_checkpoint_rng *,uint32_t *cursor);
 int rf_npc_checkpoint_record_validate(const rf_npc_checkpoint_record *,const rf_npc_checkpoint_catalog *);
 int rf_npc_checkpoint_preflight(const void *,uint32_t bytes,const unsigned char identity[32],
     const rf_npc_checkpoint_catalog *,uint32_t *count);

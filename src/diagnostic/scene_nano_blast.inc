@@ -9,7 +9,7 @@
 static int scene_nano_blast_contact(uint32_t slot,uint32_t handle,const float origin[3],
     float radius,float amount,uint32_t *consumed)
 {
-    campaign_npc_body *owner;uint32_t cls,k;float overlap_radius,next_armor,delta[3];
+    campaign_npc_body *owner;uint32_t cls,k,depleted=0;float overlap_radius,next_armor,delta[3],hit_direction[3];
     double squared=0;int status;
     if(!origin || !consumed || !isfinite(radius) || radius<=.1f ||
        !isfinite(amount) || amount<=0)return RF_RANGE;
@@ -30,12 +30,16 @@ static int scene_nano_blast_contact(uint32_t slot,uint32_t handle,const float or
     }
     /* 506fd0's strict overlap; a rejected shell still cannot spill to health. */
     if(!(squared<(double)overlap_radius*overlap_radius))return RF_OK;
-    if(owner->object_flags&4u)return RF_OK;
+    /*489050->409fa0: presentation direction is object+e4 MINUS blast,
+     * independent of the published-origin overlap above. No extra admission. */
+    for(k=0;k<3;k++)hit_direction[k]=(float)((double)owner->body.state.position[k]-origin[k]);
+    if(owner->object_flags&4u){scene_nano_hit_response(owner,1,hit_direction,0,1);return RF_OK;}
     next_armor=fmaxf(0,owner->damage.effects.armor-amount);
     if(next_armor==0) {
-        status=scene_capek_shield_break(owner);if(status)return status;
+        status=scene_capek_shield_break(owner);if(status)return status;depleted=1;
     }
     owner->damage.effects.armor=next_armor;
+    scene_nano_hit_response(owner,1,hit_direction,depleted,1);
     return RF_OK;
 }
 #endif

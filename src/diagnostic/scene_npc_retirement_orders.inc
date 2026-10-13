@@ -18,7 +18,7 @@ static int scene_npc_retirement_cancel_orders(campaign_npc_body *owner)
     owner->navigation.retained.count=0;owner->controller_handle=0;
     owner->combat_alert=owner->combat_due=owner->combat_burst_remaining=0;
     owner->combat_reload_due=0;owner->combat_reload_weapon=-1;owner->combat_reload_pending=0;
-    owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;
+    owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;scene_blind_clear(owner);
     owner->ai_mode.action_280=owner->view.action_520=1;
     {int status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_PRESERVE_INCOMING);
      if(status)return status;}

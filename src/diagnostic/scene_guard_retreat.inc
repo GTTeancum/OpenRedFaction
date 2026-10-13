@@ -177,7 +177,7 @@ static int scene_guard_retreat_save_owners(uint32_t index,const campaign_npc_bod
         int32_t id=pose->playback.completion.active.slots[j].motion;
         if(model->resources[id].looping||scene_npc_pain_checkpoint_clip(&pain,&o->selection,id))continue;
         if(scene_npc_checkpoint_residual_weapon_clip(index,campaign_seeds.items[index].class_index,
-            o->view.weapons[0],&o->inventory,&o->selection,&pose->playback,id,1))continue;
+            o->view.weapons[0],&o->inventory,&o->selection,&pose->playback,id,1,!!(o->crouch.flags&SCENE_CROUCH_PRESENT)))continue;
         if(pain.present&&scene_npc_pain_checkpoint_residual(index,campaign_seeds.items[index].class_index,
             o->view.weapons[0],&o->selection,&pose->playback,id,1))continue;
         return RF_NOT_FOUND;
@@ -190,7 +190,9 @@ static int scene_guard_retreat_cancel(campaign_npc_body *o,int32_t now,uint32_t 
     if(!o||disposition>SCENE_GUARD_CANCEL_PRESERVE_INCOMING||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
     if(scene_medic_flight_restoring)return RF_OK;
     if(o->guard_retreat_fault)return RF_FORMAT;
-    if(!scene_guard_retreat_active(o))return RF_OK;
+    scene_noise_cancel(o);
+    scene_patrol_dwell_clear(o); /* Accepted command supersedes the finite node hold. */
+    if(!scene_guard_retreat_active(o))return scene_civilian_flight_cancel(o,now,disposition);
     o->guard_retreat_fault=1;
     if(!o->flight.entered||(o->guard_resume_action!=0&&o->guard_resume_action!=2)||
        o->ai_mode.action_280!=o->view.action_520)return RF_FORMAT;
@@ -220,7 +222,7 @@ static int scene_guard_retreat_return(campaign_npc_body *o,int32_t now)
        rf_object_registry_lookup(&campaign_registry,target)!=&campaign_player_object||
        rf_entity_lookup(&campaign_entities,(int32_t)target)!=&campaign_player_view||
        !campaign_enemy_target_living(o,target,campaign_player_damage.state.effects.health)){
-        campaign_pursuit_stop(o);o->combat_alert=o->combat_target=o->combat_scripted=0;
+        campaign_pursuit_stop(o);o->combat_alert=o->combat_target=o->combat_scripted=0;scene_blind_clear(o);
         o->combat_due=o->combat_navigation_due=o->combat_burst_remaining=0;
     }
     return RF_OK;
@@ -232,6 +234,7 @@ static int scene_guard_retreat_cancel_player(int32_t now)
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         campaign_npc_body *o=campaign_npc_bodies+i;
         if(o->guard_retreat_fault)return RF_FORMAT;
+        scene_noise_cancel(o);
         if(!scene_guard_retreat_active(o))continue;
         status=scene_guard_retreat_cancel(o,now,SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
     }
@@ -274,7 +277,7 @@ static int scene_guard_retreat_live_present(uint32_t frame,uint32_t *present)
 }
 static uint32_t scene_guard_retreat_section_wait(void)
 {
-    for(uint32_t i=0;i<campaign_npc_body_count;i++)if(scene_guard_retreat_active(campaign_npc_bodies+i))return 1;
+    for(uint32_t i=0;i<campaign_npc_body_count;i++)if(scene_guard_retreat_active(campaign_npc_bodies+i)||campaign_npc_bodies[i].alarm.present||campaign_npc_bodies[i].alarm_fault)return 1;
     return 0;
 }
 static uint32_t scene_guard_retreat_same_owner(const campaign_npc_body *o,uint32_t index,uint32_t handle,

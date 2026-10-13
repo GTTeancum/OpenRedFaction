@@ -4,11 +4,11 @@
 #include <nxdk/mount.h>
 #include <xboxkrnl/xboxkrnl.h>
 
-enum {SETTINGS_BYTES=36,SETTINGS_CHECKSUM_OFFSET=32};
+enum {SETTINGS_LEGACY_BYTES=36,SETTINGS_BYTES=48};
 typedef struct settings_record {
     unsigned char bytes[SETTINGS_BYTES];
     rf_xbox_input_options options;
-    uint32_t generation;
+    uint32_t generation,length;
 } settings_record;
 static const char *const settings_paths[2]={
     "S:\\OpenRedFaction\\controller-settings.0",
@@ -25,15 +25,18 @@ static uint32_t settings_get32(const unsigned char *p)
 static void settings_put32(unsigned char *p,uint32_t value)
 {uint32_t i;for(i=0;i<4;i++)p[i]=(unsigned char)(value>>(i*8));}
 /* Bounded FNV-1a accidental-corruption check, not authentication. */
-static uint32_t settings_checksum(const unsigned char *p)
-{uint32_t i,value=2166136261u;for(i=0;i<SETTINGS_CHECKSUM_OFFSET;i++){value^=p[i];value*=16777619u;}return value;}
+static uint32_t settings_checksum(const unsigned char *p,uint32_t length)
+{uint32_t i,value=2166136261u;for(i=0;i<length-4u;i++){value^=p[i];value*=16777619u;}return value;}
 static int settings_options_valid(const rf_xbox_input_options *o)
 {
     return o && o->look_sensitivity_percent>=RF_XBOX_LOOK_SENSITIVITY_MIN &&
         o->look_sensitivity_percent<=RF_XBOX_LOOK_SENSITIVITY_MAX &&
         !((o->look_sensitivity_percent-RF_XBOX_LOOK_SENSITIVITY_MIN)%RF_XBOX_LOOK_SENSITIVITY_STEP) &&
         o->invert_y<=1 && o->deadzone_percent<=RF_XBOX_STICK_DEADZONE_MAX &&
-        o->stick_layout<=RF_XBOX_STICK_LAYOUT_SOUTHPAW;
+        o->stick_layout<=RF_XBOX_STICK_LAYOUT_SOUTHPAW &&
+        o->button_map<RF_XBOX_BUTTON_PERMUTATIONS && o->text_language<RF_TEXT_LANGUAGE_COUNT &&
+        o->master_volume_percent<=RF_XBOX_VOLUME_MAX &&
+        o->effects_volume_percent<=RF_XBOX_VOLUME_MAX && o->music_volume_percent<=RF_XBOX_VOLUME_MAX;
 }
 static void settings_owner_receipt(void)
 {
@@ -89,40 +92,64 @@ static int settings_begin(uint32_t operation)
 static int settings_decode(settings_record *r,uint32_t slot)
 {
     uint32_t version=settings_get32(r->bytes+4),layout=settings_get32(r->bytes+28);
-    /* RFCS1 keeps its exact reserved-zero contract and defaults to Standard.
-     * RFCS2 uses that same word for a strict layout enum; other versions stay
-     * unknown/corrupt to the existing last-good recovery and write refusal. */
-    if(memcmp(r->bytes,"RFCS",4) || (version!=1 && version!=2) ||
-       settings_get32(r->bytes+8)!=SETTINGS_BYTES || (version==1 && layout) ||
+    /* RFCS1..4 retain their exact36-byte contracts. RFCS5 retains RFCS4's
+     * packed word28, adds three gain percentages, and moves the checksum.
+     * Every admitted rank has exactly one collision-free 10-control map. */
+    if(memcmp(r->bytes,"RFCS",4) || version<1 || version>5 ||
+       r->length!=(version==5?SETTINGS_BYTES:SETTINGS_LEGACY_BYTES) ||
+       settings_get32(r->bytes+8)!=r->length || (version==1 && layout) ||
        (version==2 && layout>RF_XBOX_STICK_LAYOUT_SOUTHPAW) ||
-       settings_get32(r->bytes+32)!=settings_checksum(r->bytes))return RF_FORMAT;
+       (version==3 && layout>=2u*RF_XBOX_BUTTON_PERMUTATIONS) ||
+       (version>=4 && layout>=RF_TEXT_LANGUAGE_COUNT*2u*RF_XBOX_BUTTON_PERMUTATIONS) ||
+       settings_get32(r->bytes+r->length-4u)!=settings_checksum(r->bytes,r->length))return RF_FORMAT;
     r->generation=settings_get32(r->bytes+12);
     r->options.look_sensitivity_percent=settings_get32(r->bytes+16);
     r->options.invert_y=settings_get32(r->bytes+20);
     r->options.deadzone_percent=settings_get32(r->bytes+24);
-    r->options.stick_layout=version==2?layout:RF_XBOX_STICK_LAYOUT_STANDARD;
+    r->options.text_language=version>=4?layout%RF_TEXT_LANGUAGE_COUNT:RF_TEXT_ENGLISH;
+    if(version>=4)layout/=RF_TEXT_LANGUAGE_COUNT;
+    r->options.stick_layout=version>=3?(layout&1u):version==2?layout:RF_XBOX_STICK_LAYOUT_STANDARD;
+    r->options.button_map=version>=3?layout>>1:0;
+    r->options.master_volume_percent=version==5?settings_get32(r->bytes+32):RF_XBOX_VOLUME_DEFAULT;
+    r->options.effects_volume_percent=version==5?settings_get32(r->bytes+36):RF_XBOX_VOLUME_DEFAULT;
+    r->options.music_volume_percent=version==5?settings_get32(r->bytes+40):RF_XBOX_VOLUME_DEFAULT;
     if(!r->generation || ((r->generation-1)&1u)!=slot || !settings_options_valid(&r->options))return RF_FORMAT;
     return RF_OK;
 }
 static void settings_encode(settings_record *r,const rf_xbox_input_options *options,uint32_t generation)
 {
+    uint32_t audio=options->master_volume_percent!=RF_XBOX_VOLUME_DEFAULT ||
+        options->effects_volume_percent!=RF_XBOX_VOLUME_DEFAULT || options->music_volume_percent!=RF_XBOX_VOLUME_DEFAULT;
+    uint32_t version=audio?5u:options->text_language!=RF_TEXT_ENGLISH?4u:options->button_map?3u:
+        options->stick_layout==RF_XBOX_STICK_LAYOUT_STANDARD?1u:2u;
     memset(r,0,sizeof(*r));memcpy(r->bytes,"RFCS",4);
-    /* Preserve byte-identical RFCS1 output for Standard at the same settings
-     * and generation. Southpaw needs RFCS2, never a nonzero RFCS1 reserved word. */
-    settings_put32(r->bytes+4,options->stick_layout==RF_XBOX_STICK_LAYOUT_STANDARD?1u:2u);
-    settings_put32(r->bytes+8,SETTINGS_BYTES);
+    /* Default audio preserves byte-identical canonical RFCS1..4 records at
+     * the same generation. Nondefault audio requires exact48-byte RFCS5.
+     * Older readers must refuse overwriting an unsupported record. */
+    r->length=audio?SETTINGS_BYTES:SETTINGS_LEGACY_BYTES;
+    settings_put32(r->bytes+4,version);settings_put32(r->bytes+8,r->length);
     settings_put32(r->bytes+12,generation);settings_put32(r->bytes+16,options->look_sensitivity_percent);
     settings_put32(r->bytes+20,options->invert_y);settings_put32(r->bytes+24,options->deadzone_percent);
-    settings_put32(r->bytes+28,options->stick_layout);
-    settings_put32(r->bytes+32,settings_checksum(r->bytes));r->generation=generation;r->options=*options;
+    {uint32_t packed=(options->button_map<<1)|options->stick_layout;
+     if(version>=4)packed=packed*RF_TEXT_LANGUAGE_COUNT+options->text_language;
+     settings_put32(r->bytes+28,packed);}
+    if(audio){
+        settings_put32(r->bytes+32,options->master_volume_percent);
+        settings_put32(r->bytes+36,options->effects_volume_percent);
+        settings_put32(r->bytes+40,options->music_volume_percent);
+    }
+    settings_put32(r->bytes+r->length-4u,settings_checksum(r->bytes,r->length));
+    r->generation=generation;r->options=*options;
 }
 static int settings_read_open(uint32_t slot,settings_record *r)
 {
     LARGE_INTEGER bytes;DWORD read=0;
     if(!GetFileSizeEx(settings_file,&bytes))return settings_failure(2,RF_IO,GetLastError(),0);
-    if(bytes.QuadPart!=SETTINGS_BYTES)return settings_failure(2,RF_FORMAT,0,0);
-    if(!ReadFile(settings_file,r->bytes,SETTINGS_BYTES,&read,NULL))return settings_failure(2,RF_IO,GetLastError(),0);
-    if(read!=SETTINGS_BYTES || settings_decode(r,slot))return settings_failure(2,RF_FORMAT,0,0);
+    if(bytes.QuadPart!=SETTINGS_LEGACY_BYTES && bytes.QuadPart!=SETTINGS_BYTES)
+        return settings_failure(2,RF_FORMAT,0,0);
+    memset(r,0,sizeof(*r));r->length=(uint32_t)bytes.QuadPart;
+    if(!ReadFile(settings_file,r->bytes,r->length,&read,NULL))return settings_failure(2,RF_IO,GetLastError(),0);
+    if(read!=r->length || settings_decode(r,slot))return settings_failure(2,RF_FORMAT,0,0);
     return RF_OK;
 }
 static int settings_read_slot(uint32_t slot,settings_record *r)
@@ -226,20 +253,30 @@ int rf_xbox_settings_storage_save(const rf_xbox_input_options *options)
     if(found[target]==RF_OK){
         status=settings_read_open(target,&again);
         if(status)return settings_finish(status);
-        if(memcmp(again.bytes,records[target].bytes,SETTINGS_BYTES))return settings_finish(settings_failure(5,RF_FORMAT,0,0));
+        if(again.length!=records[target].length || memcmp(again.bytes,records[target].bytes,again.length))return settings_finish(settings_failure(5,RF_FORMAT,0,0));
         if(SetFilePointer(settings_file,0,NULL,FILE_BEGIN)==INVALID_SET_FILE_POINTER)
             return settings_finish(settings_failure(5,RF_IO,GetLastError(),0));
     }
-    if(!WriteFile(settings_file,next.bytes,SETTINGS_BYTES,&written,NULL))
+    if(!WriteFile(settings_file,next.bytes,next.length,&written,NULL))
         return settings_finish(settings_failure(5,RF_IO,GetLastError(),0));
-    if(written!=SETTINGS_BYTES)return settings_finish(settings_failure(5,RF_IO,0,0));
+    if(written!=next.length)return settings_finish(settings_failure(5,RF_IO,0,0));
+    if(found[target]==RF_OK && records[target].length>next.length){
+        FILE_END_OF_FILE_INFORMATION end;
+        /* Only the exclusively revalidated, known older RFCS5 slot may
+         * shrink to canonical legacy length. Unknown bytes are never repaired.
+         * A failure leaves this inactive slot unconfirmed; preserve the newest. */
+        end.EndOfFile.QuadPart=next.length;
+        native=NtSetInformationFile(settings_file,&io,&end,sizeof(end),FileEndOfFileInformation);
+        if(native==STATUS_PENDING){native=NtWaitForSingleObject(settings_file,FALSE,NULL);if(NT_SUCCESS(native))native=io.Status;}
+        if(!NT_SUCCESS(native))return settings_finish(settings_failure(5,RF_IO,RtlNtStatusToDosError(native),native));
+    }
     native=NtFlushBuffersFile(settings_file,&io);
     if(native==STATUS_PENDING){native=NtWaitForSingleObject(settings_file,FALSE,NULL);if(NT_SUCCESS(native))native=io.Status;}
     if(!NT_SUCCESS(native))return settings_finish(settings_failure(6,RF_IO,RtlNtStatusToDosError(native),native));
     if(settings_close_file())return settings_finish(RF_IO);
     status=settings_read_slot(target,&again);
     if(status)return settings_finish(status==RF_NOT_FOUND?settings_failure(7,RF_IO,0,0):status);
-    if(memcmp(next.bytes,again.bytes,SETTINGS_BYTES))return settings_finish(settings_failure(7,RF_FORMAT,0,0));
+    if(next.length!=again.length || memcmp(next.bytes,again.bytes,next.length))return settings_finish(settings_failure(7,RF_FORMAT,0,0));
     status=settings_finish(RF_OK);
     if(!status){
         rf_xbox_settings_storage_state[1]=7;rf_xbox_settings_storage_state[3]=rf_xbox_settings_storage_state[4]=0;

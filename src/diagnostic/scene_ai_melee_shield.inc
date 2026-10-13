@@ -137,7 +137,7 @@ static int scene_ai_melee_actor_cover(scene_stream *stream,const scene_ai_melee_
 }
 static int campaign_enemy_melee_actor_contact(scene_stream *stream,const scene_ai_melee_pair *pair,
     const float start[3],const float target_delta[3],float reach,const float player_eye[3],
-    float damage,int32_t kind,scene_ai_melee_valid_fn valid,void *context,uint32_t *contact)
+    float damage,int32_t kind,scene_ai_melee_valid_fn valid,void *context,uint32_t *contact,float *contact_point)
 {
     campaign_npc_body *source,*victim;const rf_physics_body *body;
     scene_ai_shield_ray_selection npc_shield={0};scene_player_shield_candidate player_shield={0};
@@ -198,7 +198,10 @@ static int campaign_enemy_melee_actor_contact(scene_stream *stream,const scene_a
         status=scene_ai_melee_actor_cover(stream,pair,start,ray,body_fraction,damage,kind,valid,context,&consumed);
         if(status || consumed)return status;
     }
-    if(scene_ai_melee_contact_valid(pair,valid,context))*contact=body_hit;
+    if(scene_ai_melee_contact_valid(pair,valid,context)) {
+        *contact=body_hit;
+        if(body_hit && contact_point)for(i=0;i<3;i++)contact_point[i]=start[i]+ray[i]*body_fraction;
+    }
     return RF_OK;
 }
 #endif

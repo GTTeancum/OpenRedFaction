@@ -108,6 +108,10 @@ int rf_scene_campaign_player_set(const rf_campaign_player_state *);
  * Moving-solid/GeoMod routing and ray shadows remain open. No frame allocation. */
 int rf_scene_prepare_lightmaps(rf_lightmaps *);
 int rf_scene_update_lightmaps(rf_lightmaps *);
+/* Synchronous secondary camera render/publication after the native GPU fence.
+ * Uses only the current presentation owner; never advances simulation. */
+void rf_scene_update_monitor_images(const rf_lightmaps *);
+extern uint32_t rf_scene_monitor_images[12];
 extern uint32_t rf_scene_lightmap_regeneration[8];
 /* Initial dirty2 fixture:1 follows visibility,2 forces the entire level. */
 extern uint32_t rf_scene_lightmap_regeneration_test;
@@ -458,6 +462,13 @@ extern uint32_t rf_scene_death_animation_test_enabled,rf_scene_death_animation_t
  * Strength/duration replace the previous effect. A stale/nonlocal entity
  * returns NOT_FOUND without changing it. No health or HUD damage here. */
 int rf_scene_player_feedback(uint32_t player_entity_handle,float strength,float duration,int32_t now);
+/* Optional presentation-only notification after accepted local-player camera
+ * feedback. Duration is in seconds. The sink must not reenter scene/damage.
+ * Output failure must not affect gameplay. Zero/zero cancels output on owner
+ * replacement or scene teardown; NULL disables and clears context. No input,
+ * camera, save or replay record grows. The platform owns registration lifetime. */
+typedef void (*rf_scene_player_feedback_sink)(void *context,float strength,float duration);
+void rf_scene_set_player_feedback_sink(rf_scene_player_feedback_sink sink,void *context);
 /* Separate retained local-player flash owner. Damage replaces color/alpha
  * with original4a7520 red128. Draw/decay is called by the HUD/render owner,
  * not by camera shake or simulation ticks. The campaign pass uses the same owner.
@@ -694,12 +705,14 @@ enum {RF_SCENE_FRONTEND_MAIN,RF_SCENE_FRONTEND_DIFFICULTY,
     RF_SCENE_FRONTEND_OPTIONS,RF_SCENE_FRONTEND_LOAD,RF_SCENE_FRONTEND_EXIT};
 enum {RF_SCENE_OPTIONS_SENSITIVITY,RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,
     RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_BACK,RF_SCENE_OPTIONS_SAVE,
-    RF_SCENE_OPTIONS_STICK_LAYOUT,RF_SCENE_OPTIONS_COUNT};
+    RF_SCENE_OPTIONS_STICK_LAYOUT,RF_SCENE_OPTIONS_BUTTONS,RF_SCENE_OPTIONS_LANGUAGE,
+    RF_SCENE_OPTIONS_AUDIO,RF_SCENE_OPTIONS_COUNT};
 enum {RF_SCENE_OPTIONS_PAUSED=1u,RF_SCENE_OPTIONS_DISCONNECTED=2u,
-    RF_SCENE_OPTIONS_SOUTHPAW=32u};
+    RF_SCENE_OPTIONS_SOUTHPAW=32u,RF_SCENE_OPTIONS_AUDIO_ERROR=64u};
 /* Exactly one storage notice is ORed with the existing low-bit menu flags.
- * Existing option indices0-5 and their actions remain unchanged; layout is6.
- * SOUTHPAW reports analog layout only and does not change physical buttons. */
+ * Existing option indices0-8 remain unchanged; Audio is9.
+ * SOUTHPAW reports analog layout independently of gameplay button mapping.
+ * AUDIO_ERROR reports an unconfirmed native gain update, independently of disk. */
 enum {
     RF_SCENE_OPTIONS_SESSION=0u,RF_SCENE_OPTIONS_STORED=4u,
     RF_SCENE_OPTIONS_CHANGED=8u,RF_SCENE_OPTIONS_MISSING=12u,
@@ -713,15 +726,56 @@ enum {
 int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
     uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
     uint32_t load_outcome,int load_status);
-/* Draw-only Options page for either cold frontend or suspended pause menu.
+/* Explicit read-only optional catalog refresh outside rendering. Language is
+ * process-owned, independent of campaign checkpoints; English labels remain on
+ * missing/invalid catalogs. Retains only32 current-language labels (2KiB). */
+int rf_scene_text_configure(const char *tables_path,uint32_t language);
+/* Draw-only Options menu: two bounded five-row pages selected by row index,
+ * for either cold frontend or suspended pause menu.
  * All values are owned by the platform input settings, never this renderer. */
 int rf_scene_draw_options(rf_scene_particle_sink sink,void *context,uint32_t selection,
     uint32_t flags,uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent);
+/* Audio uses its own six-row subpage; gains are bounded percentages. */
+enum {RF_SCENE_AUDIO_MASTER,RF_SCENE_AUDIO_EFFECTS,RF_SCENE_AUDIO_MUSIC,
+    RF_SCENE_AUDIO_DEFAULTS,RF_SCENE_AUDIO_SAVE,RF_SCENE_AUDIO_BACK,RF_SCENE_AUDIO_COUNT};
+int rf_scene_draw_audio_options(rf_scene_particle_sink sink,void *context,uint32_t selection,
+    uint32_t flags,uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent);
+/* Two fixed six-row pages; strings are borrowed only for this draw call.
+ * Native input owns the ten action/control labels, order and remapping. */
+enum {RF_SCENE_BUTTON_ACTION_COUNT=10u,RF_SCENE_BUTTON_DEFAULTS=10u,
+    RF_SCENE_BUTTON_BACK=11u,RF_SCENE_BUTTON_COUNT=12u};
+int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
+    uint32_t selection,uint32_t flags,const char *const *actions,const char *const *controls);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
  * hash, allocated workspace bytes. Ring rows: frame/queued/visited/polygons/vertices/hash. */
 extern uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
+/* Authored sky borrows current level geometry/materials through the ordinary
+ * fenced pre-world pass. No image owner or second GPU mesh is created. */
+uint32_t rf_scene_skybox_ready(void);
+int rf_scene_draw_skybox(rf_scene_particle_sink sink,void *context);
+extern uint32_t rf_scene_skybox[16];
+/* Native values, not a disk codec. Exact version1 and matching level/sky-source
+ * identity required, including canonical no-sky records. present means resident
+ * source validity, independent of draw admission; rate>0 enables rotation.
+ * Axis is ASCII x/y/z, rate is finite degrees/second in [-3600,3600], phase
+ * is finite degrees in [0,360). No pointer, game-clock value or GPU state.
+ * RFEN9 joins this state at final successful world/storage publication. */
+typedef struct rf_scene_skybox_state {
+    uint32_t version,present,level_identity,room_uid,source_identity,axis;
+    float rate,phase;
+} rf_scene_skybox_state;
+/* Capture/validate preserve live state; failure preserves output. Capture
+ * samples the wrap-safe game clock without advancing the live clock twice.
+ * Validate against the target scene during load preparation. Restore is a
+ * non-failing assignment-only publication: caller MUST have validated state
+ * against this same still-live target and now in [0,RF_TIMER_PERIOD] before
+ * final successful world publication/storage close. No validation after close.
+ * No allocations, save reads/writes, resource publication or event replay. */
+int rf_scene_skybox_capture(int32_t now,rf_scene_skybox_state *out);
+int rf_scene_skybox_validate(const rf_scene_skybox_state *state);
+void rf_scene_skybox_restore(const rf_scene_skybox_state *state,int32_t now);
 typedef struct rf_scene_world_geometry {
     const rf_geometry *world;
     rf_geometry_movers movers;
@@ -945,6 +999,7 @@ extern uint32_t rf_scene_flame_canister[5];
 extern uint32_t rf_scene_burning[5];
 extern uint32_t rf_scene_burning_visual[5];
 extern uint32_t rf_scene_scanner[4];
+extern uint32_t rf_scene_scanner_silhouette[8];
 extern float rf_scene_scope_projection; /* world-only magnification, default1 */
 extern uint32_t rf_scene_rocket_blast[8];
 extern uint32_t rf_scene_rocket_visual[8];

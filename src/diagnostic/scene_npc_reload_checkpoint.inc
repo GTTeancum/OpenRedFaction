@@ -9,7 +9,7 @@
  * Exact serialized selection/playback is sufficient for this narrow profile. */
 static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls,int32_t weapon,
     const rf_weapon_inventory *inventory,const rf_entity_motion_selection *selection,
-    const rf_motion_playback_state *playback,int32_t motion,uint32_t capturing)
+    const rf_motion_playback_state *playback,int32_t motion,uint32_t capturing,uint32_t crouch_present)
 {
     const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
         campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
@@ -17,7 +17,7 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
     const campaign_npc_body *owner;const campaign_model_owner *model_owner;
     const rf_entity_playback_model *model;const rf_motion_slot_state *active;
     uint32_t skeleton,i,j,ordinary,direct=0,found=0;int status;
-    if(capturing>1||!inventory||!selection||!playback||!campaign_npc_bodies||index>=campaign_npc_body_count||
+    if(capturing>1||crouch_present>1||!inventory||!selection||!playback||!campaign_npc_bodies||index>=campaign_npc_body_count||
        !campaign_seeds.items||index>=campaign_seeds.records.count||!campaign_seeds.classes||cls>=campaign_seeds.class_count||
        campaign_seeds.items[index].class_index!=cls||campaign_seeds.classes[cls].model_kind!=2||
        !campaign_poses.items||index>=campaign_poses.count||
@@ -56,6 +56,17 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
         selected.ammo=campaign_weapon_supply.definitions+weapon;selected.reserve_fed=1;
         direct=1;status=RF_OK;
     }
+    if(status==RF_NOT_FOUND&&(campaign_enemy_tribeam_weapon(weapon)||campaign_enemy_spit_weapon(weapon)||campaign_enemy_cane_weapon(weapon))){
+        const scene_ai_spit_profile *spit=campaign_enemy_spit_profile(weapon);
+        selected.primary=campaign_enemy_tribeam_weapon(weapon)?&scene_ai_tribeam_definition.flight.primary:
+            spit?&spit->flight.primary:&scene_ai_cane_definition.flight.primary;
+        selected.ammo=campaign_weapon_supply.definitions+weapon;selected.reserve_fed=1;
+        if(spit){
+            if(!(campaign_seeds.classes[cls].physics.flags2&0x20u)||
+               !scene_npc_loadout_equal(campaign_seeds.records.items[index].record.class_name,spit->owner_class))return 0;
+        }
+        direct=1;status=RF_OK;
+    }
     if(status==RF_NOT_FOUND&&weapon==campaign_rocket_id&&scene_rocket_resources){
         selected.primary=campaign_primary+4;selected.ammo=campaign_weapon_supply.definitions+weapon;status=RF_OK;
     }
@@ -74,7 +85,8 @@ static int scene_npc_checkpoint_residual_weapon_clip(uint32_t index,uint32_t cls
        memcmp(binding.action_sounds,selection->action_sounds,sizeof(binding.action_sounds))||
        memcmp(binding.action_declarations,selection->action_declarations,sizeof(binding.action_declarations))||
        motion<0||(direct?motion!=binding.mapping.actions[2]:
-           (motion!=binding.mapping.actions[39]&&(!ordinary||motion!=binding.mapping.actions[2]))))return 0;
+           (motion!=binding.mapping.actions[39]&&(!ordinary||
+            (motion!=binding.mapping.actions[2]&&!scene_crouch_action4(index,crouch_present,&binding,motion))))))return 0;
     skeleton=binding.mapping.skeleton;
     if(skeleton!=model_owner->pose->skeleton||!campaign_skeletons.items||skeleton>=campaign_skeletons.count||
        !campaign_skeletons.items[skeleton].bones||

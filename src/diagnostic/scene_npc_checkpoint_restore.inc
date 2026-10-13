@@ -5,11 +5,21 @@
 /* Read-only candidate-world placement/support and room resolver. Must fill a
  * fresh room state with query_position equal to placement.position. No gameplay
  * callbacks, allocation of live resources or actor publication are permitted. */
-typedef int (*scene_npc_checkpoint_place)(void *,const rf_checkpoint_placement *,rf_entity_room_state *,rf_physics_support_contact *);
+/* Explicit identity travels with private candidate spheres. A copied shape
+ * must never lose class/support/prop admission because its address differs
+ * from the live owner's allocation. Full handle includes the generation. */
+typedef int (*scene_npc_checkpoint_place)(void *,uint32_t,uint32_t,uint32_t,
+    const rf_checkpoint_placement *,rf_entity_room_state *,rf_physics_support_contact *);
 typedef struct scene_npc_checkpoint_restore_entry {
     uint32_t slot,handle,registered,flags,controller_handle,attack_target_handle;
-    uint32_t reload_deadline;
-    uint32_t unowned_motion_mask; /* Staged only; RFAP may own exact burn pain. */
+    uint32_t reload_deadline,dwell_deadline;
+    uint32_t blind_target,blind_last_seen; /* Prepared actual-generation receipt; final-close only. */
+    scene_pursuit_delay_receipt pursuit_delay_prepared;
+    uint32_t tactical_target;int32_t tactical_phase_due,tactical_recovery_due;
+    uint32_t crouch_shape_present,crouch_intent,crouch_stamp,crouch_retire_pending;
+    scene_crouch_receipt crouch_prepared;
+    scene_crouch_shape_seal crouch_shape; /* Preparation snapshot; pre-demand admission is separate. */
+    uint32_t unowned_motion_mask; /* Low16: burn pain; bit31: RFNC29 finalizer obligation. */
     uint32_t item_attempted_before;int32_t item_fault_before;rf_campaign_item_drop item_drop_before;
     rf_npc_checkpoint_record saved,before;
     scene_medic_flight_snapshot flight;
@@ -30,9 +40,16 @@ typedef struct scene_npc_checkpoint_restore_entry {
 typedef struct scene_npc_checkpoint_restore_stage {
     uint32_t count,bytes,fresh_boot;int32_t now;
     scene_medic_flight_rng flight_rng,flight_rng_before;
-    uint32_t flight_profile,flight_joined,flight_player;
+    uint32_t flight_profile,flight_joined,flight_player,alarm_joined;
+    uint32_t patrol_events_joined,patrol_binding_generation;
+    uint32_t blind_joined; /* No publication of unresolved on-foot candidates. */
+    uint32_t tactical_cursor,tactical_joined,crouch_joined;
     scene_npc_checkpoint_restore_entry entries[];
 } scene_npc_checkpoint_restore_stage;
+/* Previous Xbox32 entry11456/header80; additional allowance100 includes
+ * both saved-row copies, owner_before and the prepared delay receipt. */
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_entry)<=11556,"Pursuit delay candidate restore growth exceeds reviewed allowance");
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_stage)<=80,"Crouch restore header exceeds reviewed allowance");
 /* Read-only native failure detail: phase FNV1a, row index, UID, status,
  * expected resident row count and supplied row count. UINT32_MAX identifies
  * a non-row failure. This is separate from capture admission diagnostics. */
@@ -83,6 +100,57 @@ static int scene_npc_checkpoint_attack_target_handle(uint32_t uid,
     status=scene_npc_checkpoint_living_npc_handle(uid,rows,count,handle);if(status!=RF_NOT_FOUND)return status;
     return scene_turret_attack_checkpoint_handle(uid,handle);
 }
+/* All candidate placement consumers share one shape selector. Original
+ * overlap exceptions deliberately retain live source spheres separately. */
+static int scene_npc_checkpoint_restore_spheres(const scene_npc_checkpoint_restore_entry *e,
+    const rf_physics_sphere **spheres,uint32_t *count)
+{
+    const rf_physics_spheres *live;
+    if(!e||!spheres||!count||e->slot>=campaign_npc_body_count||!campaign_npc_bodies||
+       e->crouch_shape_present>1)return RF_RANGE;
+    live=&campaign_npc_bodies[e->slot].body.spheres;
+    if(e->crouch_shape_present){
+        if(!e->crouch_shape.prepared.count||e->crouch_shape.prepared.count>8||e->crouch_shape.prepared.count!=live->count)
+            return RF_FORMAT;
+        *spheres=e->crouch_shape.prepared.spheres;*count=e->crouch_shape.prepared.count;
+    }else{*spheres=live->items;*count=live->count;}
+    return RF_OK;
+}
+/* Pure private shape preparation. This does not enable live stance policy.
+ * Both sides matter: a legacy standing row must not inherit a destination
+ * actor's crouched geometry. Dead but retained bodies keep their real shape;
+ * retired allocations are discarded by the existing retirement publisher. */
+static int scene_npc_checkpoint_restore_crouch(scene_npc_checkpoint_restore_stage *stage,
+    scene_npc_checkpoint_restore_entry *e)
+{
+    campaign_npc_body *o;scene_crouch_shape_candidate shape;
+    uint32_t physical,frame=combat_frame==UINT32_MAX?0:combat_frame;int status;
+    if(!stage||!e||!campaign_npc_bodies||e->slot>=campaign_npc_body_count)return RF_RANGE;
+    o=campaign_npc_bodies+e->slot;
+    status=scene_crouch_receipt_prepare(&e->saved.crouch,e->saved.crouch_profile,
+        stage->now,frame,&e->crouch_prepared,&e->crouch_intent,&physical);if(status)return status;
+    status=scene_crouch_stamp_prepare(&e->saved.crouch,(double)frame*scene_step_seconds,
+        scene_step_seconds,&e->crouch_stamp);if(status)return status;
+    if(e->saved.retired){
+        if(e->saved.crouch.flags)return RF_FORMAT;
+        if(!(o->crouch.flags&SCENE_CROUCH_PRESENT))return RF_OK;
+        /* Keep the outgoing shape allocation through the final close. The
+         * retired row publishes no replacement shape or policy. */
+        e->crouch_retire_pending=1;physical=!!(o->view.flags_810&0x400u);
+        status=scene_crouch_live_shape(e->slot,o);if(status)return status;
+    }
+    if(!e->saved.crouch.flags&&!o->crouch.flags&&!(o->view.flags_810&0x400u))return RF_OK;
+    if(!e->registered||scene_npc_reload_identity(e->slot,o)||!scene_npc_reload_standalone(o)||
+       !campaign_npc_stances||e->saved.class_id>=campaign_seeds.class_count||
+       !campaign_poses.items||e->slot>=campaign_poses.count)return RF_FORMAT;
+    status=scene_tactical_source(e->slot);if(status)return status;
+    status=scene_crouch_shape_prepare(&o->body.spheres,campaign_npc_stances+e->saved.class_id,
+        e->saved.position,o->view.flags_810,physical,&shape);if(status)return status;
+    status=scene_crouch_shape_seal_prepare(&o->body.spheres,&shape,&e->crouch_shape);if(status)return status;
+    e->crouch_shape_present=1;e->owner_before=*o;e->pose_before=campaign_poses.items[e->slot];
+    stage->crouch_joined=0;
+    return RF_OK;
+}
 static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
     rf_checkpoint_placement *p,uint32_t *retired)
 {
@@ -91,10 +159,10 @@ static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
     if(!stage||index>=stage->count)return RF_RANGE;e=stage->entries+index;
     /* Hidden actors retain their saved pose but do not participate in live
      * body contacts; pair clearance only applies to active solid actors. */
-    *retired=e->saved.retired||!!(e->saved.flags&0x4000u);if(*retired)return RF_OK;
+    *retired=e->saved.retired||e->saved.dead_pose==2||!!(e->saved.flags&0x4000u);if(*retired)return RF_OK;
     if(e->slot>=campaign_npc_body_count)return RF_FORMAT;
-    memset(p,0,sizeof(*p));p->spheres=campaign_npc_bodies[e->slot].body.spheres.items;
-    p->count=campaign_npc_bodies[e->slot].body.spheres.count;
+    memset(p,0,sizeof(*p));
+    {int status=scene_npc_checkpoint_restore_spheres(e,&p->spheres,&p->count);if(status)return status;}
     memcpy(p->position,e->published,12);memcpy(p->basis,e->basis,36);return RF_OK;
 }
 /* An authored spawn can contain overlapping NPC collision spheres (L6S3's
@@ -213,13 +281,52 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     memset(rf_scene_npc_restore_reject,0,sizeof(rf_scene_npc_restore_reject));
     rf_scene_npc_restore_reject[1]=rf_scene_npc_restore_reject[2]=UINT32_MAX;
     rf_scene_npc_restore_reject[5]=count;
-    if(flight_profile>1||(flight_profile&&!rng)||(rng&&(rng->present>1||(!rng->present&&rng->value)||(!flight_profile&&rng->present)))||fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)
+    if(flight_profile>2||(flight_profile&&!rng)||(rng&&(rng->present>1||(!rng->present&&rng->value)||(!flight_profile&&rng->present)))||fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)
         return scene_npc_checkpoint_restore_failure("arguments",UINT32_MAX,UINT32_MAX,RF_RANGE);
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return scene_npc_checkpoint_restore_failure("owners",UINT32_MAX,UINT32_MAX,RF_RANGE);
+    for(i=0;i<count;i++)if(rows[i].alarm.present)for(j=0;j<i;j++)
+        if(rows[j].alarm.present&&rows[j].alarm.event==rows[i].alarm.event)
+            return scene_npc_checkpoint_restore_failure("duplicate_alarm_runner",i,rows[i].uid,RF_FORMAT);
+    {int boundary=scene_waypoint_boundary();if(boundary)return boundary;}
     if(!fresh_boot){
-        uint32_t reload_present;
+        uint32_t tactical_present;
+        status=scene_tactical_live_present(&tactical_present);if(status)return status;
+        if(tactical_present||scene_tactical_cursor)return RF_NOT_FOUND;
+        for(i=0;i<count;i++)if(rows[i].tactical.present)return RF_NOT_FOUND;
+        uint32_t blind_outgoing,blind_incoming;
+        status=scene_blind_live_present(combat_frame==UINT32_MAX?0:combat_frame,&blind_outgoing);if(status)return status;
+        status=scene_blind_incoming_present(rows,count,&blind_incoming);if(status)return status;
+        if(blind_outgoing||blind_incoming)return RF_NOT_FOUND;
+        uint32_t outgoing_one_way,incoming_one_way;
+        status=scene_patrol_one_way_live_present(&outgoing_one_way);
+        if(status)return scene_npc_checkpoint_restore_failure("standalone_one_way_owner",UINT32_MAX,UINT32_MAX,status);
+        status=scene_patrol_one_way_incoming_present(rows,count,&incoming_one_way);
+        if(status||outgoing_one_way||incoming_one_way)
+            return scene_npc_checkpoint_restore_failure("standalone_one_way",UINT32_MAX,UINT32_MAX,status?status:RF_NOT_FOUND);
+        uint32_t tags_present;
+        status=scene_waypoint_live_present(&tags_present);if(status||tags_present)return status?status:RF_NOT_FOUND;
+        for(i=0;i<count;i++)if(rows[i].route.patrol&1){
+            for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==rows[i].uid)break;
+            if(j==campaign_npc_body_count)return RF_FORMAT;
+            status=scene_waypoint_actor_events(j,&tags_present);if(status||tags_present)return status?status:RF_NOT_FOUND;
+        }
+        uint32_t noise_present;
+        status=scene_noise_live_present(&noise_present);
+        if(status||noise_present)return scene_npc_checkpoint_restore_failure("standalone_noise_owner",UINT32_MAX,UINT32_MAX,status?status:RF_NOT_FOUND);
+        for(i=0;i<count;i++)if(rows[i].ai_mode==6)
+            return scene_npc_checkpoint_restore_failure("standalone_noise",i,rows[i].uid,RF_NOT_FOUND);
+        uint32_t dwell_present;
+        status=scene_patrol_dwell_live_present(&dwell_present);
+        if(status||dwell_present)return scene_npc_checkpoint_restore_failure("standalone_dwell_owner",UINT32_MAX,UINT32_MAX,status?status:RF_NOT_FOUND);
+        for(i=0;i<count;i++)if(rows[i].route.flags&64)
+            return scene_npc_checkpoint_restore_failure("standalone_dwell",i,rows[i].uid,RF_NOT_FOUND);
+        uint32_t alarm_present,reload_present;
+        status=scene_alarm_runner_live_present(&alarm_present);
+        if(status||alarm_present)return scene_npc_checkpoint_restore_failure("standalone_alarm_owner",UINT32_MAX,UINT32_MAX,status?status:RF_NOT_FOUND);
+        for(i=0;i<count;i++)if(rows[i].alarm.present)
+            return scene_npc_checkpoint_restore_failure("standalone_alarm",i,rows[i].uid,RF_NOT_FOUND);
         status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_present);
         if(status||reload_present)return scene_npc_checkpoint_restore_failure("standalone_reload_owner",UINT32_MAX,UINT32_MAX,status?status:RF_NOT_FOUND);
         for(i=0;i<campaign_npc_body_count;i++)if(scene_guard_retreat_active(campaign_npc_bodies+i)||campaign_npc_bodies[i].guard_retreat_fault)
@@ -266,7 +373,11 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
     }
     if(bytes>budget||bytes>UINT32_MAX)return scene_npc_checkpoint_restore_failure("budget",UINT32_MAX,UINT32_MAX,RF_RANGE);
     stage=calloc(1,(size_t)bytes);if(!stage)return scene_npc_checkpoint_restore_failure("allocation",UINT32_MAX,UINT32_MAX,RF_IO);stage->count=count;stage->bytes=(uint32_t)bytes;stage->now=now;stage->fresh_boot=fresh_boot;
-    stage->flight_profile=flight_profile;stage->flight_joined=!flight_profile;
+    stage->flight_profile=flight_profile;stage->flight_joined=!flight_profile;stage->alarm_joined=1;stage->blind_joined=!fresh_boot;stage->tactical_joined=1;
+    stage->crouch_joined=1;
+    stage->patrol_events_joined=!scene_waypoint_events.handle_count;
+    stage->patrol_binding_generation=scene_waypoint_events.generation;
+    for(i=0;i<count;i++)if(rows[i].alarm.present)stage->alarm_joined=0;
     if(rng){stage->flight_rng.present=rng->present;stage->flight_rng.value=rng->value;}
     scene_medic_flight_rng_capture(&stage->flight_rng_before);
     bone_storage=(unsigned char*)(stage->entries+count);
@@ -281,11 +392,16 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].persistence_registered&&
             (uint32_t)campaign_seeds.records.items[j].record.uid==rows[i].uid)break;
         if(j==campaign_npc_body_count){status=RF_FORMAT;goto fail;}o=campaign_npc_bodies+j;cls=campaign_seeds.items[j].class_index;
+        if(rows[i].dead_pose==2&&(!fresh_boot||!flight_profile||
+           scene_robot_death_profile_at(j)<0||!scene_robot_death_identity(j,o->registration.handle)||
+           !o->body.allocated_bytes||!campaign_model_owners||j>=campaign_model_owner_count||
+           campaign_model_owners[j].owned)){status=RF_FORMAT;goto fail;}
         if(cls!=rows[i].class_id||cls>=campaign_seeds.class_count||!campaign_seeds.classes){status=RF_FORMAT;goto fail;}
         detail="medic_flight";
         if((rows[i].flight.entered&&(!rng||!rng->present))||(rows[i].flight.present&&!flight_profile)||
-           (flight_profile&&o->flight.qualified==1&&!rows[i].retired&&!rows[i].flight.present)||
+           (flight_profile&&o->flight.qualified==1&&scene_medic_flight_legacy_owner(j)&&!rows[i].retired&&!rows[i].flight.present)||
            (rows[i].retired&&rows[i].flight.present)){status=RF_FORMAT;goto fail;}
+        if(rows[i].flight.present&&!scene_medic_flight_legacy_owner(j)&&flight_profile<2){status=RF_FORMAT;goto fail;}
         status=scene_medic_flight_checkpoint_prepare(&rows[i].flight,now,&e->flight);if(status)goto fail;
         detail="guard_retreat";
         if(rows[i].guard_retreat.present&&(!flight_profile||!rng||!rng->present)){status=RF_FORMAT;goto fail;}
@@ -308,8 +424,8 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         status=scene_medic_state_admit(o,&rows[i].medic);if(status)goto fail;
         e->medic_owner_snapshot=scene_medic_syringe_qualified(o);
         e->effective_ai_mode=rows[i].ai_mode;
-        if(e->medic_owner_snapshot&&!rows[i].retired&&!rows[i].dead_pose&&rows[i].health>0&&
-           rows[i].ai_mode==0&&o->medic.default_action==2){
+        if((e->medic_owner_snapshot||o->flight.qualified==1)&&!rows[i].retired&&!rows[i].dead_pose&&rows[i].health>0&&
+           rows[i].ai_mode==0&&(o->medic.default_action==2||o->flight.qualified==1)){
             rf_level_entity_ai authored;
             /* Older NPC capture retained raw calloc0 before medic placed-AI
              * initialization existed. All audited explicit living setters
@@ -347,6 +463,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         e->item_attempted_before=o->death_item_attempted;e->item_fault_before=o->death_item_fault;
         e->item_drop_before=rf_scene_defeated_actors.item_drops[o->persistence_slot];
         e->slot=j;e->handle=o->registration.handle;e->registered=o->registration.view!=NULL;e->saved=rows[i];e->idle=-1;
+        status=scene_npc_checkpoint_restore_spheres(e,&placement.spheres,&placement.count);if(status)goto fail;
         detail="base_speed";
         if(!campaign_npc_movement_configs){status=RF_RANGE;goto fail;}
         e->base_speed=scene_npc_effective_base_speed(o,cls,rows[i].capek_shield_broken);
@@ -359,7 +476,8 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         if(rows[i].move.active){
             uint32_t mode,k;
             detail="move_binding";
-            if(rows[i].route.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT)
+            if(rows[i].alarm.present){mode=0;status=RF_OK;}
+            else if(rows[i].route.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT)
                 status=scene_patrol_binding(j,&e->move_path,&mode);
             else status=scene_npc_checkpoint_move_binding(rows[i].move.event,e->handle,rows[i].move.follow,&e->move_path,&mode);
             if(status)goto fail;
@@ -417,6 +535,17 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
             if(spread_seen&&spread_saved!=rows[i].combat.spread_rng){status=RF_FORMAT;goto fail;}
             spread_seen=1;spread_saved=rows[i].combat.spread_rng;
         }
+        detail="blind_pursuit";
+        status=scene_blind_candidate(j,rows+i,rows,count,combat_frame==UINT32_MAX?0:combat_frame,
+            &e->blind_target,&e->blind_last_seen);if(status)goto fail;
+        if(e->blind_target&&rows[i].combat.active&&e->blind_target!=e->attack_target_handle){status=RF_FORMAT;goto fail;}
+        status=scene_pursuit_delay_candidate(j,rows+i,e->blind_target,stage->now,&e->pursuit_delay_prepared);if(status)goto fail;
+        detail="tactical";
+        {scene_tactical_receipt prepared;
+         status=scene_tactical_candidate(j,rows+i,rows,count,now,&prepared);if(status)goto fail;
+         e->tactical_target=prepared.target;e->tactical_phase_due=prepared.phase_due;e->tactical_recovery_due=prepared.recovery_due;
+         if(rows[i].tactical.present)stage->tactical_joined=0; /* Complete player/seat joins remain mandatory. */
+        }
         detail="fresh_identity";
         if(fresh_boot){
             if(!campaign_poses.items||j>=campaign_poses.count){status=RF_FORMAT;goto fail;}
@@ -426,6 +555,9 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         }else {status=scene_npc_checkpoint_row_profile(j,now,&e->before,0,0,1);if(status)goto fail;}
         if(!rows[i].retired&&!e->registered){status=RF_RANGE;goto fail;} /* Fresh actors, never resurrect freed bodies. */
         e->flags=(o->object_flags&~0x4004u)|rows[i].flags;
+        detail="crouch_shape";
+        status=scene_npc_checkpoint_restore_crouch(stage,e);if(status)goto fail;
+        status=scene_npc_checkpoint_restore_spheres(e,&placement.spheres,&placement.count);if(status)goto fail;
         detail="drone_pose";status=scene_npc_drone_checkpoint_admit(j,o,rows+i);if(status)goto fail;
         detail="ordinary_airborne";status=scene_npc_airborne_checkpoint_admit(j,o,rows+i,fresh_boot);if(status)goto fail;
         memcpy(e->published,rows[i].position,12);angles[1]=rows[i].yaw;
@@ -442,6 +574,20 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
          status=rf_eye_physics_orientation(e->basis,&eye_angles,e->look_basis);if(status)goto fail;}
         rf_motion_playback_initialize(&e->playback);
         if(rows[i].retired)continue;
+        if(rows[i].dead_pose==2){
+            /* This body has already died and will only be removed at the next
+             * outer drain. No placement, idle clip, death choice or loot replay.
+             * The retained blast center belongs to RFAP, not this inert pose. */
+            e->unowned_motion_mask|=SCENE_ROBOT_DEATH_CHECKPOINT_UNJOINED;e->body=o->body.state;e->room=o->room;
+            e->selection=o->selection;e->support.material=-1;
+            memcpy(e->body.position,e->published,12);memcpy(e->body.next_position,e->published,12);
+            memcpy(e->body.orientation,e->basis,36);memcpy(e->body.next_orientation,e->basis,36);
+            memset(e->body.velocity,0,12);memcpy(e->room.query_position,e->published,12);
+            status=rf_physics_spheres_bounds(placement.spheres,placement.count,
+                e->body.position,&e->body.bounds);if(status)goto fail;
+            status=rf_physics_tensor_world(e->body.local_tensor,e->basis,e->body.world_tensor);if(status)goto fail;
+            memcpy(e->eye,e->published,12);continue;
+        }
         if(!campaign_model_owners||j>=campaign_model_owner_count||!campaign_poses.items||j>=campaign_poses.count){status=RF_RANGE;goto fail;}
         e->movement=o->movement;e->movement_slot=o->movement_slot;
         detail="movement_slot";
@@ -470,7 +616,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         if(seated)e->body.flags&=~(1u|0x400000u);
         memcpy(e->body.orientation,e->basis,36);memcpy(e->body.next_orientation,e->basis,36);memset(e->body.velocity,0,12);
         detail="body_prepare";
-        status=rf_physics_spheres_bounds(o->body.spheres.items,o->body.spheres.count,e->body.position,&e->body.bounds);if(status)goto fail;
+        status=rf_physics_spheres_bounds(placement.spheres,placement.count,e->body.position,&e->body.bounds);if(status)goto fail;
         status=rf_physics_tensor_world(e->body.local_tensor,e->basis,e->body.world_tensor);if(status)goto fail;
         status=rf_physics_publish_position(&e->body,e->published,&e->flags);if(status)goto fail;
         detail="script_physics";
@@ -481,10 +627,11 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
             memcpy(e->body.vector_c8,rows[i].guard_retreat.angular,12);
             memcpy(e->body.vector_ec,rows[i].guard_retreat.torque,12);
         }
-        placement.spheres=o->body.spheres.items;placement.count=o->body.spheres.count;
+        detail="candidate_shape";
+        status=scene_npc_checkpoint_restore_spheres(e,&placement.spheres,&placement.count);if(status)goto fail;
         placement.query_flags=(((rows[i].airborne.present||rows[i].drone.kind==1)?e->body.state_124:o->body.state.state_124)&~0x1000u)|4u;
         memcpy(placement.position,e->published,12);memcpy(placement.basis,e->basis,36);
-        detail="placement";status=place(context,&placement,&e->room,&e->support);if(status)goto fail;
+        detail="placement";status=place(context,e->slot,e->handle,e->saved.uid,&placement,&e->room,&e->support);if(status)goto fail;
         detail="support_admission";
         if(rows[i].airborne.present&&(e->support.handle||e->support.material!=-1||e->body.flags!=0x80000079u)){status=RF_FORMAT;goto fail;}
         if(memcmp(e->room.query_position,e->published,12)||
@@ -498,9 +645,18 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&e->selection);if(status)goto fail;
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
         if(e->selection.mapping.skeleton!=campaign_poses.items[j].skeleton){status=RF_FORMAT;goto fail;}
+        detail="noise_investigation";
+        status=scene_noise_candidate(j,rows+i,&e->selection);if(status)goto fail;
+        if(rows[i].ai_mode==6&&e->movement.speed<=0){status=RF_FORMAT;goto fail;}
+        detail="alarm_runner";
+        status=scene_alarm_runner_candidate(j,rows+i,&e->selection);if(status)goto fail;
+        detail="patrol_candidate";
+        status=scene_patrol_candidate(j,rows+i,&e->selection);if(status)goto fail;
+        e->dwell_deadline=(rows[i].route.flags&64)?scene_patrol_frame()+rows[i].route.dwell_remaining:0;
+        if(rows[i].alarm.present&&e->movement.speed<=0){status=RF_FORMAT;goto fail;}
         detail="reload_owner";
         status=scene_npc_reload_saved(j,rows+i,&e->selection,1,&e->reload_deadline);if(status)goto fail;
-        if((rows[i].reload_present||rows[i].guard_retreat.present)&&seated){status=RF_FORMAT;goto fail;}
+        if((rows[i].blind_present||rows[i].ai_mode==6||rows[i].reload_present||rows[i].guard_retreat.present||rows[i].flight.entered||rows[i].alarm.present||(rows[i].route.flags&64))&&seated){status=RF_FORMAT;goto fail;}
         detail="pain_owner";
         status=scene_npc_pain_checkpoint_prepare(j,rows+i,&e->selection,now,e->pain_deadlines);if(status)goto fail;
         id=e->selection.mapping.states[0];
@@ -535,11 +691,12 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
                 if(!model->resources[motion].looping&&!rows[i].script_animation.active&&!rows[i].dead_pose&&
                    !scene_npc_pain_checkpoint_clip(&rows[i].pain,&e->selection,motion)&&
                    !(!rows[i].reload_present&&(rows[i].combat_alert||rows[i].combat.active)&&
-                     (motion==e->selection.mapping.actions[2]||motion==e->selection.mapping.actions[39]))&&
+                     (motion==e->selection.mapping.actions[2]||motion==e->selection.mapping.actions[39]||
+                      scene_crouch_action4(j,!!(rows[i].crouch.flags&1u),&e->selection,motion)))&&
                    !((rows[i].reload_present||(rows[i].combat_alert==0&&rows[i].combat.active==0))&&
                      !rows[i].retired&&rows[i].health>0&&!(e->flags&2u)&&
                      scene_npc_checkpoint_residual_weapon_clip(j,cls,rows[i].primary,&rows[i].inventory,
-                         &e->selection,&rows[i].playback,motion,0))&&
+                         &e->selection,&rows[i].playback,motion,0,!!(rows[i].crouch.flags&1u)))&&
                    !(rows[i].pain_residual_profile&&rows[i].pain.present&&
                      !rows[i].retired&&!rows[i].dead_pose&&rows[i].health>0&&!(e->flags&2u)&&
                      scene_npc_pain_checkpoint_residual(j,cls,rows[i].primary,
@@ -629,12 +786,17 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
     uint32_t budget,scene_npc_checkpoint_restore_stage **out)
 {
     uint32_t i;int status;scene_medic_flight_rng live_rng;
+    if((count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_RANGE;
     /* NPC-only replacement has no shared receipt/player composition. Refuse
      * old live nonconstructor ownership before staging, not during capture or
      * ordinary QuickLoad. Untouched qualification remains legacy eligible. */
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
+    {uint32_t present;status=scene_tactical_live_present(&present);if(status)return status;
+     if(present||scene_tactical_cursor)return scene_npc_checkpoint_restore_failure("standalone_tactical",UINT32_MAX,UINT32_MAX,RF_NOT_FOUND);}
+    for(i=0;i<count;i++)if(rows[i].tactical_profile||rows[i].tactical.present)
+        return scene_npc_checkpoint_restore_failure("standalone_tactical_row",i,rows[i].uid,RF_NOT_FOUND);
     scene_medic_flight_rng_capture(&live_rng);
     if(live_rng.present)return scene_npc_checkpoint_restore_failure("standalone_flight_rng",UINT32_MAX,UINT32_MAX,RF_NOT_FOUND);
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].flight.entered)
@@ -649,12 +811,59 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
     }
     return RF_OK;
 }
+/* Rebind the exact prepared generation, including the incoming target row's
+ * living/standalone semantics. The paused combat frame is part of the receipt;
+ * no age is recomputed or seeded at final publication. */
+#include "scene_tactical_prepared.inc"
+#include "scene_crouch_prepared.inc"
+static int scene_blind_prepared(const scene_npc_checkpoint_restore_stage *stage,const scene_npc_checkpoint_restore_entry *e)
+{
+    const rf_npc_checkpoint_record *r=&e->saved;uint32_t frame=combat_frame==UINT32_MAX?0:combat_frame,uid;float seconds;int status;
+    if(!e->blind_target)return e->blind_last_seen||r->blind_present?RF_FORMAT:RF_OK;
+    if(e->slot>=campaign_npc_body_count||(campaign_npc_bodies[e->slot].view.flags_810&1u)||
+       !e->registered||e->blind_target==e->handle||r->blind_profile>1||r->blind_present>1||
+       (!r->blind_profile&&r->blind_present)||(r->blind_profile&&!r->blind_present)||
+       (!r->blind_present&&r->blind_age)||r->retired||r->dead_pose||r->health<=0||
+       !r->combat_alert||(r->combat.active!=0&&r->combat.active!=2&&r->combat.active!=4))return RF_FORMAT;
+    status=scene_blind_source(e->slot,r->primary,!!r->blind_present,&seconds);if(status)return status;
+    if(r->blind_age>scene_blind_age_limit(seconds)||frame-e->blind_last_seen!=(r->blind_present?r->blind_age:0))return RF_FORMAT;
+    uid=r->combat.active?r->combat.event:0;
+    if(!uid)return r->combat.active==4||e->blind_target!=campaign_player_object.handle||
+        campaign_player_object.view!=&campaign_player_view||
+        rf_object_registry_lookup(&campaign_registry,e->blind_target)!=&campaign_player_object||
+        rf_entity_lookup(&campaign_entities,(int32_t)e->blind_target)!=&campaign_player_view?RF_FORMAT:RF_OK;
+    if(e->attack_target_handle!=e->blind_target)return RF_FORMAT;
+    for(uint32_t j=0;j<stage->count;j++)if(stage->entries[j].saved.uid==uid){
+        const scene_npc_checkpoint_restore_entry *v=stage->entries+j;
+        if(!v->registered||v->handle!=e->blind_target||v->saved.retired||v->saved.dead_pose||
+           v->saved.health<=0||v->slot>=campaign_npc_body_count||
+           (campaign_npc_bodies[v->slot].view.flags_810&1u)||
+           scene_npc_reload_identity(v->slot,campaign_npc_bodies+v->slot))return RF_FORMAT;
+        return RF_OK;
+    }
+    return RF_FORMAT;
+}
+static int scene_pursuit_delay_prepared(const scene_npc_checkpoint_restore_stage *stage,
+    const scene_npc_checkpoint_restore_entry *e)
+{
+    scene_pursuit_delay_receipt prepared;int status;
+    if(!stage||!e)return RF_RANGE;
+    status=scene_pursuit_delay_candidate(e->slot,&e->saved,e->blind_target,stage->now,&prepared);if(status)return status;
+    if(memcmp(&prepared,&e->pursuit_delay_prepared,sizeof(prepared)))return RF_FORMAT;
+    /* The caller's ordinary Blind validator also proves the living prepared
+     * target and exact registry generation on both composed player sides. */
+    if(prepared.flags)return scene_blind_prepared(stage,e);
+    return RF_OK;
+}
 /* All fallible work finishes before the first actor assignment. The caller
  * keeps scene/resource ownership stable between prepare and commit. */
 static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoint_restore_stage *stage)
 {
     uint32_t i;int status;rf_npc_checkpoint_record current;
-    if(!stage)return RF_RANGE;
+    if(!stage||stage->blind_joined!=1||stage->tactical_joined!=1||stage->crouch_joined!=1)return RF_RANGE;
+    status=scene_waypoint_boundary();if(status)return status;
+    if(!stage->alarm_joined||!stage->patrol_events_joined||
+       stage->patrol_binding_generation!=scene_waypoint_events.generation)return RF_FORMAT;
     {scene_medic_flight_rng current_rng;scene_medic_flight_rng_capture(&current_rng);
      if(!stage->flight_joined||memcmp(&current_rng,&stage->flight_rng_before,sizeof(current_rng)))return RF_FORMAT;}
     if(stage->flight_profile&&(stage->flight_player!=campaign_player_object.handle||
@@ -663,7 +872,16 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
        rf_entity_lookup(&campaign_entities,(int32_t)stage->flight_player)!=&campaign_player_view))return RF_FORMAT;
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
+        status=scene_blind_prepared(stage,e);if(status)return status;
+        status=scene_pursuit_delay_prepared(stage,e);if(status)return status;
+        status=scene_tactical_prepared(stage,e);if(status)return status;
+        status=scene_crouch_prepared(stage,e);if(status)return status;
         status=scene_guard_retreat_checkpoint_validate(&e->guard_retreat);if(status)return status;
+        status=scene_noise_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        status=scene_alarm_runner_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        status=scene_patrol_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        if(e->saved.alarm.present)for(uint32_t j=0;j<i;j++)if(stage->entries[j].saved.alarm.present&&
+           stage->entries[j].saved.alarm.event==e->saved.alarm.event)return RF_FORMAT;
         if(e->unowned_motion_mask||e->slot>=campaign_npc_body_count||
            campaign_npc_bodies[e->slot].registration.handle!=e->handle||
            campaign_npc_bodies[e->slot].death_item_attempted!=e->item_attempted_before||
@@ -843,7 +1061,12 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
             memcpy(o->script_look.position,e->saved.look.position,sizeof(e->saved.look.position));
         }
         if(e->saved.dead_pose){
-            o->view.flags_810=e->saved.death_flags_810;o->damage.effects.flags_810=e->saved.death_flags_810;
+            uint32_t flags=e->saved.death_flags_810;
+            /* The old sphere allocation remains authoritative until final
+             * successful close. Do not advertise the incoming physical
+             * stance while those old sphere centers are still installed. */
+            if(e->crouch_shape_present)flags=(flags&~0x400u)|(o->view.flags_810&0x400u);
+            o->view.flags_810=flags;o->damage.effects.flags_810=flags;
             o->death.action_824=e->saved.death_action;o->death.deadline_4b8=-1;
         }
         if(e->saved.move.active){
@@ -862,6 +1085,15 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         }
         o->ai_mode.action_280=e->effective_ai_mode;o->ai_mode.clock_288=stage->now;
         o->view.action_520=e->effective_ai_mode;
+        if(e->effective_ai_mode==6){
+            o->ai_mode.state_2b4=e->saved.move.retry?12:1;
+            o->ai_mode.clock_2bc=stage->now;
+            o->ai_mode.argument_28c=o->ai_mode.argument_290=UINT32_MAX;
+        }else if(scene_noise_active(&e->owner_before)){
+            /* An incoming absence retires the old wait/travel phase only at
+             * final-success assignment. New typed owners publish below. */
+            o->ai_mode.state_2b4=0;
+        }
         if(e->effective_ai_mode!=e->saved.ai_mode){
             ++rf_scene_medic_ai_restored[0];rf_scene_medic_ai_restored[1]=e->saved.uid;
             rf_scene_medic_ai_restored[2]=(uint32_t)e->saved.ai_mode;rf_scene_medic_ai_restored[3]=(uint32_t)e->effective_ai_mode;
@@ -913,8 +1145,11 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         rf_scene_defeated_actors.item_drops[persistence]=e->saved.item_drop;
         rf_scene_defeated_actors.capek_shield_broken[persistence]=(uint8_t)e->saved.capek_shield_broken;
         if(e->saved.retired){
-            if(e->registered)(void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&o->registration);
-            rf_physics_body_close(&o->body);o->object_flags|=2|0x4000u;o->view.flags_810|=1;o->damage.effects.flags_810=o->view.flags_810;
+            if(!e->crouch_retire_pending){
+                if(e->registered)(void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&o->registration);
+                rf_physics_body_close(&o->body);
+            }
+            o->object_flags|=2|0x4000u;o->view.flags_810|=1;o->damage.effects.flags_810=o->view.flags_810;
         }else{
             o->body.state=e->body;o->room=e->room;o->support=e->support;o->selection=e->selection;memcpy(o->eye_position,e->eye,12);
             if(e->movement_resolved){o->movement=e->movement;o->movement_slot=e->movement_slot;o->movement_orientation=campaign_identity[0];}
@@ -939,11 +1174,44 @@ static inline void scene_npc_checkpoint_restore_finish(scene_npc_checkpoint_rest
     /* Retire old transient ownership only at this completed transaction boundary.
      * This reset never overwrites the newly assigned saved AI/playback. */
     scene_medic_load_committed();
+    scene_tactical_cursor=stage->tactical_cursor;
+    scene_tactical_service_frame=(combat_frame==UINT32_MAX?0:combat_frame)-1u;
     for(i=0;i<stage->count;i++){
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;
         campaign_npc_body *o=campaign_npc_bodies+e->slot;
         if(e->medic_owner_snapshot)scene_medic_syringe_restore_publish(o,&e->medic_child);
-        scene_actor_route_publish(o,&e->saved.route,&e->move_path);
+        /* Geometry and policy change only after the complete transaction has
+         * passed its final close. All shape/identity checks were performed
+         * against the sealed old owner, never during these assignments. */
+        if(e->crouch_retire_pending){
+            /* Registry identity and allocation were sealed before close.
+             * These ordinary retirement stores/free operations have no
+             * gameplay callback, resource demand or recoverable failure. */
+            if(e->registered)(void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&o->registration);
+            rf_physics_body_close(&o->body);scene_crouch_body_retired(o);
+        }else if(e->crouch_shape_present){
+            scene_crouch_shape_publish(&o->body.spheres,&e->crouch_shape.prepared);
+            o->view.flags_810=(o->view.flags_810&~0x400u)|(e->crouch_shape.prepared.flags&0x400u);
+            o->damage.effects.flags_810=(o->damage.effects.flags_810&~0x400u)|(o->view.flags_810&0x400u);
+            o->crouch=e->crouch_prepared;o->unholster.stance_7bc=(int32_t)e->crouch_intent;
+            o->stance_clock_7b4=e->crouch_stamp;
+        }else if(e->saved.retired){
+            memset(&o->crouch,0,sizeof(o->crouch));o->unholster.stance_7bc=0;o->stance_clock_7b4=0;
+        }
+        scene_blind_clear(o);
+        if(e->blind_target){o->blind.present=1;o->blind.target=e->blind_target;o->blind.last_seen=e->blind_last_seen;}
+        o->pursuit_delay=e->pursuit_delay_prepared;
+        memset(&o->tactical,0,sizeof(o->tactical));
+        if(e->saved.tactical.present){
+            const rf_npc_checkpoint_tactical *t=&e->saved.tactical;
+            uint32_t mode=e->saved.combat.active==2?1u:e->saved.combat.active==4?2u:0u;
+            o->tactical.flags=(t->phase?(SCENE_TACTICAL_PRESENT|(mode<<SCENE_TACTICAL_MODE_SHIFT)):0u)|
+                (t->recovery_present?SCENE_TACTICAL_RECOVERY:0u);
+            o->tactical.phase=t->phase;o->tactical.target=e->tactical_target;
+            o->tactical.phase_due=e->tactical_phase_due;o->tactical.recovery_due=e->tactical_recovery_due;
+            o->tactical.random.value=t->random;
+        }
+        scene_actor_route_publish(o,&e->saved.route,&e->move_path,e->dwell_deadline);
         rf_scene_defeated_actors.routes[o->persistence_slot]=e->saved.route;
         scene_medic_state_assign(o,&e->saved.medic);
         rf_scene_defeated_actors.medic[o->persistence_slot]=e->saved.medic;
@@ -969,6 +1237,12 @@ static inline void scene_npc_checkpoint_restore_finish(scene_npc_checkpoint_rest
             else scene_medic_flight_legacy_restore(o,stage->now);
         }
         scene_guard_retreat_checkpoint_assign(&e->guard_retreat);
+        o->alarm=e->saved.alarm;o->alarm_fault=0;
+        if(o->alarm.present){
+            o->script_move.origin=SCENE_MOVE_ORIGIN_NONE;
+            o->ai_mode.action_280=o->view.action_520=16;o->ai_mode.state_2b4=o->alarm.phase==1?1:10;
+            o->ai_mode.flags_530=(o->ai_mode.flags_530&~0x200000u)|(o->alarm.started?0x200000u:0);
+        }
         o->death_item_attempted=e->saved.retired||e->saved.dead_pose;o->death_item_fault=0;
     }
     scene_medic_flight_rng_publish(&stage->flight_rng);

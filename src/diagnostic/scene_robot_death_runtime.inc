@@ -123,7 +123,8 @@ static int scene_robot_death_tick(scene_stream *stream,uint32_t frame)
     if(scene_robot_death_fault)return (int)scene_robot_death_fault;
     epoch=scene_robot_death_epoch;scene_robot_death_draining=1;++rf_scene_robot_death[14];
     /* Bound chains without losing the remainder. Subsequent outer ticks drain
-     * FIFO receipts, and saving stays blocked until all gameplay is consumed. */
+     * FIFO receipts. RFAP13 may retain a bounded queued-only remainder at an
+     * outer boundary; draining/partial-fault snapshots remain forbidden. */
     for(budget=0;budget<32;budget++){
         scene_robot_death_receipt receipt;uint32_t slot=UINT32_MAX,i,before;
         uint64_t first=UINT64_MAX;

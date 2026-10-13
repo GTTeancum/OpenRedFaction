@@ -16,11 +16,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
 #endif
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
-    unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,rows_bytes=0,added=0,flags=0,selected=0,cost=0;int status=RF_OK,found=0;
+    unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,rows_bytes=0,added=0,flags=0,selected=0,cost=sizeof(uint32_t);int status=RF_OK,found=0;
     const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
     if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
-    rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;rf_npc_checkpoint_rng inspected_rng={0};
+    rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;rf_npc_checkpoint_rng inspected_rng={0};uint32_t inspected_tactical_cursor=0;
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_authored_checkpoint_stage *terrain_stage=NULL;
     scene_authored_collection_stage *collection_stage=NULL;
@@ -30,9 +30,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_continuous_charge_checkpoint_stage charge={0};
     uint32_t projectile_audio_resume=0,world_published=0,flight_locked=0;
     scene_npc_airborne_restore_receipt airborne_receipt={0};
-    uint32_t reload_transaction=0,storage_close_attempted=0;
+    uint32_t reload_transaction=0,storage_close_attempted=0,blind_potential=0,crouch_transaction=0;
     scene_npc_reload_player_receipt reload_player={0};
     scene_npc_reload_publication_receipt *reload_receipt=NULL;
+    scene_crouch_late_receipt *crouch_late=NULL;
     scene_passive_vehicle_checkpoint_stage *passive=NULL;
     scene_vehicle_allegiance_stage *allegiance=NULL;
     scene_vehicle_attack_stage *vehicle_attack=NULL;scene_vehicle_ai_stage *vehicle_ai=NULL;
@@ -59,16 +60,19 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
 #endif
     if(!path||!*path)return RF_OK;
+    status=scene_waypoint_boundary();if(status)return status;
     rf_scene_world_checkpoint_state[8]=1;
     if(scene_turret_player_active()||scene_player_jeep_gunner_active(stream)){status=RF_RANGE;goto done;}
     if(!stream||!level||!tables_path||!stream->collision||
        (stream->terrain&&!scene_world_l1s2_authored_terrain(stream))||
        (!stream->terrain&&(stream->terrain_authored||stream->terrain_publication))||
        stream->terrain_history_count||stream->terrain_publication_serial){status=RF_RANGE;goto done;}
-    /* RFAP has no lock target. Refuse replacing a live guided timeline before
-     * any staged publication; otherwise a later load failure could pair new
-     * ordinary flights with an outgoing slot's guidance target. */
+    /* This direct in-session loader retains its conservative outgoing
+     * guided-timeline refusal. QuickLoad constructs a fresh scene; incoming
+     * RFAP10 flights/guidance publish together only after final success. */
     if(scene_player_rocket_lock_save_pending(stream)){phase="player_rocket_lock";status=RF_NOT_FOUND;goto done;}
+    if(scene_ai_melee_checkpoint_busy()){phase="delayed_melee_callback";status=RF_NOT_FOUND;goto done;}
+    if(scene_turret_heap_checkpoint_busy()||scene_turret_heap_pending()){phase="turret_heap_outgoing";status=RF_NOT_FOUND;goto done;}
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=64){status=RF_FORMAT;goto done;}
     memset(identity.level,0,64);strcpy(identity.level,campaign_current_level);
@@ -112,24 +116,56 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     rows_bytes=rows_count*(uint32_t)sizeof(*rows);
     if(rows_count){rows=malloc(rows_bytes);if(!rows){status=RF_IO;goto done;}}
     /* Resource inspection validates but does not restore the singleton. */
-    status=rf_npc_checkpoint_decode_with_rng(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng);if(status)goto done;
+    status=rf_npc_checkpoint_decode_with_pursuit_delay(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng,&inspected_tactical_cursor);if(status)goto done;
     /* Select outgoing/incoming reload OR active guard before residency can
      * reclaim a zero-reference mapped payload. Incoming absence still closes
      * the outgoing guard only after this complete transaction succeeds. Invalid claims never fall through to legacy load. */
     phase="reload_selector";
     status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&reload_transaction);if(status)goto done;
+    {uint32_t outgoing,incoming;
+     status=scene_blind_live_present(combat_frame==UINT32_MAX?0:combat_frame,&outgoing);if(status)goto done;
+     status=scene_blind_incoming_present(rows,rows_count,&incoming);if(status)goto done;
+     blind_potential=incoming;reload_transaction|=outgoing;
+     for(i=0;i<rows_count;i++)reload_transaction|=rows[i].blind_present;}
+    {uint32_t outgoing,incoming;
+     status=scene_crouch_live_present(&outgoing);if(status)goto done;
+     status=scene_crouch_incoming_present(rows,rows_count,&incoming);if(status)goto done;
+     crouch_transaction=outgoing|incoming;}
+    {uint32_t tactical_present;
+     status=scene_tactical_live_present(&tactical_present);if(status)goto done;
+     reload_transaction|=tactical_present;
+     for(i=0;i<rows_count;i++)reload_transaction|=rows[i].tactical.present;}
     {uint32_t guard_present;
      status=scene_guard_retreat_live_present(combat_frame==UINT32_MAX?0:combat_frame,&guard_present);if(status)goto done;
      reload_transaction|=guard_present;}
+    {uint32_t alarm_present;status=scene_alarm_runner_live_present(&alarm_present);if(status)goto done;reload_transaction|=alarm_present;}
+    {uint32_t noise_present;status=scene_noise_live_present(&noise_present);if(status)goto done;reload_transaction|=noise_present;}
+    {uint32_t dwell_present;status=scene_patrol_dwell_live_present(&dwell_present);if(status)goto done;reload_transaction|=dwell_present;}
+    {uint32_t tags_present;status=scene_waypoint_event_selection(&envelope,&tags_present);if(status)goto done;
+     reload_transaction|=tags_present;}
+    /* Both immutable defaults select before demand, even when the outgoing
+     * current route is interrupted or the incoming row deliberately omits it. */
+    {uint32_t outgoing,incoming;
+     status=scene_patrol_one_way_live_present(&outgoing);if(status)goto done;
+     status=scene_patrol_one_way_incoming_present(rows,rows_count,&incoming);if(status)goto done;
+     reload_transaction|=outgoing|incoming;}
     for(i=0;i<rows_count;i++){
+        if(rows[i].route.patrol&1){
+            uint32_t slot,tags_present;
+            for(slot=0;slot<campaign_npc_body_count;slot++)if((uint32_t)campaign_seeds.records.items[slot].record.uid==rows[i].uid)break;
+            if(slot==campaign_npc_body_count){status=RF_FORMAT;goto done;}
+            status=scene_waypoint_actor_events(slot,&tags_present);if(status)goto done;reload_transaction|=tags_present;
+        }
         if(rows[i].reload_present>1||(!rows[i].reload_present&&(rows[i].reload_weapon||rows[i].reload_remaining))){status=RF_FORMAT;goto done;}
-        reload_transaction|=rows[i].reload_present|rows[i].guard_retreat.present;
+        reload_transaction|=(rows[i].ai_mode==6)|rows[i].reload_present|rows[i].guard_retreat.present|rows[i].alarm.present|!!(rows[i].route.flags&64);
     }
-    if(reload_transaction){
-        uint32_t extra=(uint32_t)(sizeof(reload_player)+sizeof(reload_receipt)+2*sizeof(uint32_t));
+    /* Potential-only participants reserve the protected lane before demand,
+     * but RFNS/player ownership must resolve before they require on-foot. */
+    if(reload_transaction||blind_potential||crouch_transaction){
+        uint32_t extra=(uint32_t)(sizeof(reload_player)+sizeof(reload_receipt)+sizeof(crouch_late)+3*sizeof(uint32_t));
         if(cost>budget||extra>budget-cost||rows_bytes>budget-cost-extra){status=RF_RANGE;goto done;}
         cost+=extra;phase="reload_current_on_foot";
-        status=scene_npc_reload_player_admit(stream,&reload_player);if(status)goto done;
+        if(reload_transaction){status=scene_npc_reload_player_admit(stream,&reload_player);if(status)goto done;}
     }
     phase="npc_resources";
     status=scene_corpse_lifetime_checkpoint_admit(corpses,rows,rows_count);if(status)goto done;
@@ -270,6 +306,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_masako_checkpoint_legacy_history(&masako,history);if(status)goto done;
     status=scene_campaign_history_checkpoint_rebind_prepare(history,budget-cost,&bindings);if(status)goto done;cost+=bindings->bytes;
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
+    phase="alarm_event_join";status=scene_alarm_runner_event_join(world->npcs,events);if(status)goto done;
+    phase="waypoint_event_join";status=scene_waypoint_event_join(world->npcs,events);if(status)goto done;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
     phase="projectiles";v=envelope.sections+RF_WORLD_PROJECTILES-1;
     if(v->bytes){status=scene_ai_projectile_checkpoint_prepare(stream,v->data,v->bytes,budget-cost,&projectiles);
@@ -278,8 +316,18 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
            player.player.player.weapon!=(uint32_t)campaign_rocket_id){status=RF_FORMAT;goto done;}}
     status=scene_ai_projectile_checkpoint_npc_fusion_admit(projectiles,world->npcs);if(status)goto done;
     status=scene_ai_projectile_checkpoint_direct_admit(projectiles,world->npcs);if(status)goto done;
+    status=scene_ai_projectile_checkpoint_delayed_admit(projectiles,world->npcs);if(status)goto done;
+    status=scene_ai_projectile_checkpoint_secondary_admit(projectiles,world->npcs);if(status)goto done;
+    status=scene_robot_death_checkpoint_admit(projectiles,world->npcs);if(status)goto done;
+    status=scene_ai_melee_checkpoint_admit(projectiles,world->npcs,seats,generated,&player,
+        turret_player!=NULL||(vehicle_present&&vehicle.value.vehicle.player_occupied),
+        environment->spread_next,turret_player);if(status)goto done;
+    status=scene_turret_heap_checkpoint_admit(projectiles,world->npcs,turrets,&player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_fusion_admit(projectiles,&player.player.player);if(status)goto done;
     status=scene_ai_projectile_checkpoint_flame_admit(projectiles,&player.player.player);if(status)goto done;
+    status=scene_player_rocket_checkpoint_admit(projectiles,world->npcs,passive,turrets,&player,
+        environment->form_next.active||environment->cutscene_next.active||turret_player!=NULL||
+        (vehicle_present&&vehicle.value.vehicle.player_occupied));if(status)goto done;
     status=scene_ai_projectile_checkpoint_holster_admit(projectiles,!!(player.modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));if(status)goto done;
     phase="continuous_charge";
     if(cost>budget||sizeof(charge)>budget-cost){status=RF_RANGE;goto done;}
@@ -294,6 +342,15 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="validate";
     status=scene_masako_checkpoint_admit(&masako,world->npcs,passive);if(status)goto done;
     status=scene_medic_flight_player_checkpoint_admit(world->npcs,&player);if(status)goto done;
+    {int outside=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,0,turret_player!=NULL);
+     if(outside&&outside!=RF_NOT_FOUND){status=outside;goto done;}
+     status=scene_blind_composed_prepare(world->npcs,seats,&player,outside==RF_NOT_FOUND);if(status)goto done;
+     status=scene_tactical_composed_prepare(world->npcs,seats,&player,outside==RF_NOT_FOUND);if(status)goto done;
+     status=scene_crouch_composed_prepare(world->npcs,seats,&player);if(status)goto done;
+     if(blind_potential&&!reload_transaction){
+         for(i=0;i<world->npcs->count;i++)reload_transaction|=!!world->npcs->entries[i].blind_target;
+         if(reload_transaction){status=scene_npc_reload_player_admit(stream,&reload_player);if(status)goto done;}
+     }}
     status=scene_npc_checkpoint_restore_validate(world->npcs);if(status)goto done;
     status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;
     status=scene_passive_vehicle_checkpoint_validate(passive);if(status)goto done;
@@ -323,14 +380,24 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_world_environment_validate(environment);if(status)goto done;
     status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
     status=scene_npc_airborne_restore_begin(world->npcs,&airborne_receipt);if(status)goto done;
-    if(reload_transaction){
-        phase="reload_two_sided_on_foot";
-        status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
-        status=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,gunner!=NULL,turret_player!=NULL);if(status)goto done;
+    if(reload_transaction||crouch_transaction){
+        if(reload_transaction){
+            phase="reload_two_sided_on_foot";
+            status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
+            status=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,gunner!=NULL,turret_player!=NULL);if(status)goto done;
+        }
         phase="reload_publication_begin";
         if(cost>budget){status=RF_RANGE;goto done;}
+        status=scene_blind_composed(world->npcs,seats,&player,0);if(status)goto done;
+        status=scene_tactical_composed(world->npcs,seats,&player,0);if(status)goto done;
+        status=scene_crouch_composed(world->npcs,seats,&player);if(status)goto done;
         status=scene_npc_reload_publication_begin(world->npcs,budget-cost,&reload_receipt);if(status)goto done;
         cost+=scene_npc_reload_publication_bytes(reload_receipt);
+        if(crouch_transaction&&!reload_transaction){
+            phase="crouch_late_begin";
+            status=scene_crouch_late_begin(world->npcs,reload_receipt,budget-cost,&crouch_late);if(status)goto done;
+            cost+=crouch_late->bytes;
+        }
     }
     scene_medic_flight_restore_scope(1);flight_locked=1;
     scene_continuous_charge_restore_scope(1);charge.locked=1;
@@ -350,20 +417,35 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_clutter_checkpoint_assign(world->clutter);
     if(airborne_receipt.active)phase="airborne_assignment_identity";
     status=scene_npc_airborne_restore_identity(world->npcs,&airborne_receipt,1);if(status)goto done;
-    if(reload_transaction){
+    if(reload_transaction||crouch_transaction){
         phase="reload_publication_seal";
-        status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
-        status=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,gunner!=NULL,turret_player!=NULL);if(status)goto done;
+        status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
+        status=scene_alarm_runner_event_join(world->npcs,events);if(status)goto done;
+        status=scene_waypoint_event_join(world->npcs,events);if(status)goto done;
+        if(reload_transaction){
+            status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
+            status=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,gunner!=NULL,turret_player!=NULL);if(status)goto done;
+        }
+        status=scene_blind_composed(world->npcs,seats,&player,0);if(status)goto done;
+        status=scene_tactical_composed(world->npcs,seats,&player,0);if(status)goto done;
+        status=scene_crouch_composed(world->npcs,seats,&player);if(status)goto done;
         status=scene_npc_reload_publication_seal(world->npcs,reload_receipt);if(status)goto done;
         /* Actual native unmount can fail while leaving mounted set. Record
          * the attempt before calling; neither success nor failure retries it.
          * Fixture/portable paths cross the same logical publication barrier. */
-        phase="reload_storage_close";storage_close_attempted=1;
+        if(reload_transaction){
+            phase="reload_storage_close";storage_close_attempted=1;
 #ifdef RF_IMAGE_XBOX_NATIVE
-        status=scene_world_storage_close(&storage);if(status)goto done;
+            status=scene_world_storage_close(&storage);if(status)goto done;
 #endif
+        }
     }
     scene_npc_checkpoint_restore_assign(world->npcs);airborne_receipt.assigned=airborne_receipt.active;
+    /* The existing early-close lane never performs this new fallible step.
+     * Only independent crouch loads retain their native close until after
+     * all occupied-vehicle and other world publication has succeeded. */
+    if(crouch_late){phase="crouch_assigned_projection";
+        status=scene_crouch_late_capture(world->npcs,crouch_late);if(status)goto done;}
     scene_corpse_lifetime_checkpoint_assign(corpses);
     scene_turret_checkpoint_assign(turrets);
     scene_turret_retirement_checkpoint_assign_deferred(generated);
@@ -425,6 +507,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_turret_player_checkpoint_assign(turret_player);
     scene_player_impact_relocated();
     campaign_switch_ambient_restore();
+    if(crouch_late){phase="crouch_late_seal";
+        status=scene_crouch_late_seal(world->npcs,crouch_late);if(status)goto done;}
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
     scene_world_startup_snapshot_consumed=1;
@@ -445,10 +529,16 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         (void)scene_npc_airborne_restore_abort(world->npcs,&airborne_receipt);
     /* Transient gasp/scope/melee belongs to the replaced timeline only after the load
      * succeeds. Preparation, rejection and storage failure preserve it. */
-    if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_robot_death_reset();scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_rocket_lock_reset(stream,!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
+    if(!status && world_published){scene_campaign_history_checkpoint_assign_rebound(history,bindings);scene_airlock_restore_assign(&mission->airlock);scene_npc_checkpoint_restore_finish(world->npcs);scene_player_outside_audio_forget();scene_scope_owner_reset(!!player_input.alt_fire);scene_player_rocket_lock_reset(stream,!!player_input.alt_fire);scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();}
     if(!status&&world_published)scene_npc_use_dialogue_stop();
     if(!status&&world_published){scene_ai_projectile_checkpoint_flame_finish(projectiles);
-        scene_ai_projectile_checkpoint_direct_finish(projectiles);}
+        scene_ai_projectile_checkpoint_direct_finish(projectiles);
+        scene_ai_projectile_checkpoint_delayed_finish(projectiles);
+        scene_ai_projectile_checkpoint_secondary_finish(projectiles);
+        scene_ai_melee_checkpoint_finish(projectiles);
+        scene_turret_heap_checkpoint_finish(projectiles);
+        scene_robot_death_checkpoint_finish(projectiles);
+        scene_player_rocket_checkpoint_finish(stream,projectiles);}
     scene_continuous_charge_checkpoint_finish(&charge,!status&&world_published);
     if(flight_locked){
         /* Ordinary pain/burn assignment may write this shared RNG before close.
@@ -463,7 +553,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     if(status)printf("WORLD_SNAPSHOT_LOAD_REJECT phase%s status%d\n",phase,status);
     scene_authored_checkpoint_stage_discard(&terrain_stage);
     scene_authored_collection_stage_discard(&collection_stage);
-    scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
+    scene_remote_checkpoint_discard();scene_world_event_close(&events);
+    /* Sky is independent of the earlier environment assignment: failed native
+     * storage close must preserve its pre-load timeline. No fallible work follows. */
+    if(!status&&world_published)scene_world_environment_finish(environment);
+    scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
     scene_ai_projectile_checkpoint_discard(&projectiles);
     scene_jeep_gunner_checkpoint_close(&gunner);
@@ -475,12 +569,18 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_vehicle_physics_checkpoint_close(&vehicle_physics);
     scene_vehicle_switch_checkpoint_close(&vehicle_switch);
     scene_passive_vehicle_checkpoint_close(&passive);scene_turret_checkpoint_close(&turrets);scene_turret_generated_checkpoint_close(&generated);scene_npc_seat_checkpoint_close(&seats);
+    scene_crouch_late_close(&crouch_late);
     scene_npc_reload_publication_close(&reload_receipt);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);
     /* No saved history exists in this codec. This final return boundary is
      * after publication, native storage close, rollback decisions and staged
      * owner release. A failed/absent load cannot discard the prior ring. */
-    if(!status&&world_published)scene_message_history_reset();
+    if(!status&&world_published){scene_message_history_reset();scene_weapon_impact_visual_reset(stream,1);}
+    if(!status&&world_published)scene_script_explode_effects_reset(stream);
+    if(!status&&world_published){scene_play_vclip_reset();++rf_scene_play_vclip[21];}
+    if(!status&&world_published)scene_nano_visual_reset();
+    if(!status&&world_published)scene_cane_warmup_reset();
+    if(!status&&world_published)scene_nano_hit_reset();
     return status;
 }
 #endif

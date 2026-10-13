@@ -745,6 +745,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             &c->event->authored->record,c->event->authored->links,c->event->authored->record.link_count);
         return;
     }
+    if(state->type==59) {
+        if(action!=1)return;
+        if(!c->triggers->skybox_state){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->skybox_state(c->triggers->skybox_context,
+            &c->event->authored->record,c->now);
+        return;
+    }
     if(state->type==18) {
         if(action!=1)return; /* Original4bb660 ON; generic OFF does nothing. */
         if(!c->triggers->shake_player){++c->report->unsupported_actions;return;}
@@ -753,9 +760,10 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     if(state->type==60) {
-        /* Original4b9af0 invalidates cached monitor render images. This port
-         * has no retained monitor image cache to invalidate; configuration
-         * remains Monitor_State49. Common phase2 still forwards authored links. */
+        /* Original4b9af0 visits linked monitors; 412990 clears validity. */
+        if(action!=1)return;
+        if(c->triggers->monitor_force)c->status=c->triggers->monitor_force(c->triggers->monitor_context,
+            c->event->authored->links,c->event->authored->record.link_count);
         return;
     }
     if(state->type==61) {
@@ -789,6 +797,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
             if(status){c->status=status;return;}
         }
+        return;
+    }
+    if(state->type==70) {
+        if(action!=1)return;
+        if(!c->triggers->play_vclip){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->play_vclip(c->triggers->vclip_context,
+            &c->event->authored->record,c->now);
         return;
     }
     if(state->type==10) {
@@ -1696,6 +1711,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==55 && triggers->start_cutscene) &&
            !(event->state.type==83) &&
            !(event->state.type==49 && triggers->monitor_state) &&
+           !(event->state.type==59 && triggers->skybox_state) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
            !(event->state.type==62 && triggers->set_physics_enabled) &&
@@ -1736,6 +1752,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==71 && triggers->endgame) &&
            !(event->state.type==67 && triggers->clear_endgame_if_killed) &&
            !(event->state.type==10 && triggers->explode) &&
+           !(event->state.type==70 && triggers->play_vclip) &&
            !(event->state.type==7 && triggers->look_at) &&
            !(event->state.type==15 && triggers->show_message) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&

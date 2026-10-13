@@ -12,6 +12,10 @@ static int scene_medic_flight_player_checkpoint_admit(scene_npc_checkpoint_resto
        rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_player_view)return RF_FORMAT;
     for(i=0;i<stage->count;i++){
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body candidate;
+        if(e->saved.alarm.present){
+            if(!isfinite(player->player.player.health)||player->player.player.health<=0)return RF_FORMAT;
+            status=scene_guard_retreat_player_onfoot(scene_actor_collision_owner);if(status)return status;
+        }
         if(e->saved.guard_retreat.present){
             if(!isfinite(player->player.player.health)||player->player.player.health<=0)return RF_FORMAT;
             status=scene_guard_retreat_checkpoint_validate(&e->guard_retreat);if(status)return status;
@@ -24,6 +28,14 @@ static int scene_medic_flight_player_checkpoint_admit(scene_npc_checkpoint_resto
         candidate.ai_mode.state_2b4=0; /* This qualified grammar admits only substate0. */
         candidate.damage.effects.health=e->saved.health;candidate.damage.effects.armor=e->saved.armor;
         candidate.object_flags=e->flags;candidate.body.state=e->body;
+        candidate.selection=e->selection;candidate.movement=e->movement;candidate.movement_slot=e->movement_slot;
+        candidate.script_animation.active=e->saved.script_animation.active;
+        candidate.script_animation.freeze=e->saved.script_animation.freeze;
+        candidate.scripted_physics=e->saved.physics.present?e->saved.physics.scripted:0;
+        candidate.scripted_physics_seen=e->saved.physics.present;
+        /* RFNS candidate seated ownership has already rejected entered flight
+         * in prepare; never borrow an outgoing parent into this candidate. */
+        candidate.view.linked_handle=-1;
         candidate.view.weapons[0]=e->saved.primary;candidate.view.weapons[1]=e->saved.secondary;
         candidate.patrol.enabled=e->saved.route.patrol&1;
         memset(&candidate.script_move,0,sizeof(candidate.script_move));

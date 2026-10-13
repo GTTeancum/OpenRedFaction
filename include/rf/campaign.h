@@ -97,14 +97,18 @@ typedef struct rf_campaign_medic_state {
 int rf_campaign_medic_state_validate(const rf_campaign_medic_state *);
 /* RFNC23/RFCH9 route provenance and bounded section AI continuation.
  * Existing actor level/UID owns the key. No event is synthesized for an actor
- * default. flags: present1, path2, mode bits2..3, reverse16, active32.
+ * default. flags: present1, path2, mode bits2..3, reverse16, active32, dwell64.
  * origin:0 none/pursuit,1 real event,2 immutable authored actor default.
  * patrol: enabled1, independently retained default reverse2. A zero lane is
- * legacy absence, not permission to initialize a newly discovered patrol. */
+ * legacy absence, not permission to initialize a newly discovered patrol.
+ * RFNC36/RFCH13 permit default-only mode0/reverse and intermediate dwell;
+ * terminal rebind is cursor0 with no dwell, including a singleton path. */
 typedef struct rf_campaign_actor_route {
     uint32_t flags;int32_t action;
     uint32_t offset,count,cursor,section_hash,origin,event,patrol;
+    uint32_t dwell_remaining; /* RFNC32/RFCH10: flag64 owns even a due-now zero. */
 } rf_campaign_actor_route;
+enum { RF_CAMPAIGN_PATROL_DWELL_MAX_FRAMES=3600 };
 int rf_campaign_actor_route_validate(const rf_campaign_actor_route *);
 /* Same owned key layout, separate namespace and capacity from pickups. */
 typedef struct rf_campaign_actors {
@@ -126,7 +130,7 @@ typedef struct rf_campaign_actors {
     uint8_t ai_suppressed[RF_CAMPAIGN_ACTOR_SLOTS];
     /* Independent finite reserve and generated syringe role. Fixed32KiB. */
     rf_campaign_medic_state medic[RF_CAMPAIGN_ACTOR_SLOTS];
-    rf_campaign_actor_route routes[RF_CAMPAIGN_ACTOR_SLOTS]; /* 72KiB, replaces64KiB sidecar. */
+    rf_campaign_actor_route routes[RF_CAMPAIGN_ACTOR_SLOTS]; /* 80KiB; RFCH10 adds one word per existing slot. */
 } rf_campaign_actors;
 int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
 /* Quantity is remaining ammunition: zero still emits an acquirable empty

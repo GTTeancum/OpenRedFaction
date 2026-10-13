@@ -1,5 +1,10 @@
 # Bounded live player / living-NPC contact
 
+October 12 update: the complementary grounded NPC-to-player live movement
+consumer is now source-written; see [NPC-PLAYER-CONTACT.md](NPC-PLAYER-CONTACT.md).
+The one-way implementation and historical limitations below describe this
+original player-first slice; global pair scheduling remains outside both.
+
 Source baseline: `97e37677e8d4b9ed326ee6b7d5569ecd71ac13ad`. Staged and source-reviewed 2026-10-10. This change has not been compiled or exercised by its author/reviewer.
 
 ## Scope and integration

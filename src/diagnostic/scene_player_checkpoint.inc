@@ -118,13 +118,15 @@ static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t li
     if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
     if(!modes && scene_player_weapon_holstered())return RF_RANGE; /* Legacy RFCP has no posture field. */
-    if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
-    if(scene_fusion_checkpoint_busy())return RF_NOT_FOUND;
+    if(modes==2){uint32_t rows;int status=scene_player_rocket_checkpoint_capture(s,NULL,&rows);if(status)return status;}
+    else if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
+    if(scene_fusion_checkpoint_busy() || scene_turret_heap_checkpoint_busy() || (modes!=2&&scene_turret_heap_pending()))return RF_NOT_FOUND;
     {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
         if(charge)return charge;}
-    if(scene_player_riot_save_pending() || (modes==2?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending())return RF_RANGE;
+    if(scene_player_riot_save_pending() || (modes==2?scene_ai_melee_checkpoint_busy():scene_ai_melee_checkpoint_pending()) || (modes==2?scene_ai_secondary_checkpoint_busy():scene_ai_secondary_checkpoint_pending()) || (modes==2?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || (modes==2?scene_ai_delayed_checkpoint_busy():scene_ai_delayed_checkpoint_pending()))return RF_RANGE;
     if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
-    rocket_trigger=modes&&campaign_equipped_slot==4&&scene_player_rocket_pending(s)&&
+    rocket_trigger=modes&&campaign_equipped_slot==4&&(scene_player_rocket_pending(s)||
+        (modes==2&&scene_player_rocket_checkpoint_pending(s)))&&
         !combat_trigger.remaining&&!combat_trigger.delay&&combat_trigger.cooldown<=1200&&combat_trigger.held<=1;
     if(campaign_support_handle && (!modes||(modes==2?
        scene_checkpoint_player_support_state(s,&support_uid,point_velocity,&point_present):

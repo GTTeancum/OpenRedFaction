@@ -76,7 +76,7 @@ static int scene_fusion_projectile_tick_owned(scene_stream *stream,uint32_t fram
             if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
                 uint32_t index=tag&0xffffu,consumed;
                 if(index>=campaign_npc_body_count)return RF_RANGE;
-                status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_fusion_id,shot->damage,&consumed);
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_fusion_id,shot->damage,contact->hit.point,&consumed);
                 if(status)return status;if(consumed)continue;
             }
             status=visual(stream,contact,frame,shot->definition.impact_radius[0]);if(status)return status;

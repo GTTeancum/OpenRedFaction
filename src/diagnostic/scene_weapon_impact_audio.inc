@@ -396,42 +396,4 @@ done:
     if(rf_scene_combat_trace)printf("WEAPON_IMPACT_AUDIO %d %d %d %d %d %d\n",weapon,material,group,sample,voice,status);
 }
 
-/* Audio-only original ordered-contact query, not generic nearest geometry.
- * Retained-fraction shortening can prefer a mover over a nearer static face.
- * Caller supplies the accepted fired ray and its current target limit.
- * Existing gameplay visibility queries
- * remain unchanged and must never consume this helper's observations. */
-static void scene_weapon_impact_audio_world(scene_stream *stream,int32_t weapon,
-    const float start[3],const float delta[3],float limit)
-{
-    rf_collision_solid_hit hit;rf_geometry_materials mapping={0};
-    rf_geometry_body_surfaces surfaces;float end[3];uint32_t matched=0,i,texture,material=0;
-    int status,material_status=RF_NOT_FOUND;
-    if(!scene_weapon_impact_audio_ready(weapon))return;
-    if(!stream || !stream->collision || !start || !delta || !isfinite(limit) || limit<0 || limit>1) {
-        status=RF_RANGE;goto failed;
-    }
-    for(i=0;i<3;i++) {
-        if(!isfinite(start[i]) || !isfinite(delta[i])){status=RF_FORMAT;goto failed;}
-        end[i]=start[i]+delta[i]*limit;
-    }
-    ++rf_scene_weapon_impact_audio[4];
-    status=rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x26,&hit,&matched);
-    if(status)goto failed;if(!matched)return;
-    ++rf_scene_weapon_impact_audio[5];
-    if(actor_follow_world && campaign_surface_palette && campaign_surface_sources) {
-        mapping.offsets=actor_follow_world->offsets;mapping.slots=actor_follow_world->slots;
-        mapping.count=actor_follow_world->geometry_count;mapping.textures.count=actor_follow_world->material_count;
-        surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;
-        surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
-        material_status=campaign_body_surface(&surfaces,hit.solid_index,hit.face_index,&texture,&material);
-    }
-    /* Missing metadata uses the original default slot, never an invented rock
-     * or metal assignment. A real material index outside0..9 is rejected. */
-    scene_weapon_impact_audio_contact(weapon,material_status?-1:(int32_t)material,hit.hit.point);
-    if(material_status) {++rf_scene_weapon_impact_audio[3];rf_scene_weapon_impact_audio[8]=(uint32_t)material_status;}
-    return;
-failed:
-    ++rf_scene_weapon_impact_audio[3];rf_scene_weapon_impact_audio[8]=(uint32_t)status;
-}
 #endif

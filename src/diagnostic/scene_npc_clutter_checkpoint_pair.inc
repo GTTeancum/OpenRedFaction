@@ -13,7 +13,7 @@ typedef struct scene_npc_clutter_checkpoint_pair {
 } scene_npc_clutter_checkpoint_pair;
 
 static uint32_t scene_npc_clutter_checkpoint_pair_prepare(const scene_world_restore_stage *world,
-    const rf_npc_checkpoint_record *saved,uint32_t slot,const rf_checkpoint_placement *placement,
+    const rf_npc_checkpoint_record *saved,uint32_t slot,uint32_t handle,const rf_checkpoint_placement *placement,
     scene_npc_clutter_checkpoint_pair *out)
 {
     scene_npc_clutter_checkpoint_pair next={0};const campaign_npc_body *owner;uint32_t cls;
@@ -24,11 +24,14 @@ static uint32_t scene_npc_clutter_checkpoint_pair_prepare(const scene_world_rest
     if(cls!=saved->class_id||cls>=campaign_seeds.class_count||
        (uint32_t)campaign_seeds.records.items[slot].record.uid!=saved->uid||
        !owner->persistence_registered||!owner->body.allocated_bytes||
-       placement->spheres!=owner->body.spheres.items||placement->count!=owner->body.spheres.count||
+       owner->registration.handle!=handle||placement->count!=owner->body.spheres.count||
+       (placement->count&&!placement->spheres)||
        memcmp(placement->position,saved->position,12)||owner->registration.object_kind||owner->view.type||
        owner->registration.view!=&owner->view||(uint32_t)owner->view.handle!=owner->registration.handle||
        rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration||
        rf_entity_lookup(&campaign_entities,(int32_t)owner->registration.handle)!=&owner->view)return 0;
+    /* Shape records may be private. The caller's explicit full-generation
+     * owner binding preserves this class-based pair filter for either shape. */
     next.world=world;next.actor.handle=owner->registration.handle;
     next.actor.actor.object_flags=(owner->object_flags&~0x4004u)|saved->flags;
     next.actor.actor.body_flags=owner->body.state.flags;

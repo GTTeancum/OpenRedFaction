@@ -3,11 +3,12 @@
 /* Port first-pass gunfire awareness. The caller emits one event per real
  * player firearm shot, outside pellet loops; melee/dry clicks do not call it.
  * Hearing is omnidirectional and crosses walls within a supplied bounded
- * radius. Acoustic portals, attenuation and original AI noise rules are not
- * reconstructed. Existing combat owns turning, pursuit, LOS and firing.
- * No per-frame scan, allocation, target override or repeated alert delay. */
-static int campaign_enemy_hear_shot(const float position[3],float radius,uint32_t frame,
-    uint32_t *alerted)
+ * radius. Qualified authored-Waiting armed listeners first consume action6
+ * fixed-position investigation; unsupported profiles keep this legacy alert.
+ * Active6 never reaches the fallback on subsequent automatic rounds.
+ * Acoustic portals and attenuation remain unreconstructed. */
+static int campaign_enemy_hear_player_shot(scene_stream *stream,const float position[3],float radius,uint32_t frame,
+    uint32_t source,uint64_t epoch,uint32_t *alerted)
 {
     uint32_t i,j,count=0;float radius_squared;int status;
     if(!position || !alerted || !isfinite(radius) || radius<=0 || radius>100 ||
@@ -16,18 +17,25 @@ static int campaign_enemy_hear_shot(const float position[3],float radius,uint32_
     radius_squared=radius*radius;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float distance=0;
-        if(campaign_npc_ai_suppressed(owner) || !owner->registration.view || owner->damage.effects.health<=0 ||
+        if(scene_noise_active(owner) || campaign_npc_ai_suppressed(owner) || !owner->registration.view || owner->damage.effects.health<=0 ||
            (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1) ||
            owner->view.weapons[0]<0 || owner->damage.effects.affiliation!=0 ||
            owner->combat_alert || owner->combat_scripted || !campaign_enemy_mode_admits(owner,0,1))continue;
+        if(stream){uint32_t handled;
+            status=scene_noise_hear_player_shot(stream,position,radius,frame,source,epoch,i,&handled);if(status)return status;
+            if(handled)continue;}
         for(j=0;j<3;j++){float d=owner->eye_position[j]-position[j];distance+=d*d;}
         if(!isfinite(distance) || distance>radius_squared)continue;
         status=campaign_animation_cancel(owner);if(status)return status;
         if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;owner->script_move.stop=1;}
         owner->combat_target=campaign_player_object.handle;owner->combat_alert=1;
-        owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=frame+30;
+        owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=frame+30;scene_blind_sync(owner,frame);
         ++count;
     }
     *alerted=count;return RF_OK;
 }
+/* Preserve the mounted/legacy four-argument contract. It carries no invented
+ * on-foot receipt and cannot start6 or retarget an existing investigation. */
+static int campaign_enemy_hear_shot(const float position[3],float radius,uint32_t frame,uint32_t *alerted)
+{return campaign_enemy_hear_player_shot(NULL,position,radius,frame,0,0,alerted);}
 #endif

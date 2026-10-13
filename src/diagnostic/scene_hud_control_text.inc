@@ -1,3 +1,6 @@
+#ifdef RF_IMAGE_XBOX_NATIVE
+#include "../platform/xbox/input.h"
+#endif
 /* Authored training messages contain action tokens. Expand only presentation
  * text using the current platform's real bindings; never alter the stored
  * subtitle, its timing length, voice owner or gameplay input. */
@@ -34,6 +37,17 @@ static int scene_hud_control_text(const char *source,uint32_t source_capacity,
                 uint32_t size=bindings[j].token_bytes;
                 if(size<=source_capacity-i&&!memcmp(source+i,bindings[j].token,size)){
                     replacement=bindings[j].label;read=size;write=bindings[j].label_bytes;
+#ifdef RF_IMAGE_XBOX_NATIVE
+                    /* Query at presentation time so existing authored messages,
+                     * history and credits track remaps without changing text. */
+                    {static const uint32_t actions[]={RF_XBOX_BIND_USE,RF_XBOX_BIND_FIRE,RF_XBOX_BIND_ALT,
+                        RF_XBOX_BIND_JUMP,RF_XBOX_BIND_CROUCH,RF_XBOX_BIND_RELOAD,
+                        RF_XBOX_BIND_NEXT,RF_XBOX_BIND_PREVIOUS,RF_XBOX_BIND_HOLSTER,RF_XBOX_BIND_FINE_AIM};
+                     if(j<sizeof(actions)/sizeof(actions[0])){
+                         replacement=rf_xbox_input_binding_label(actions[j]);
+                         if(!replacement)return RF_RANGE;write=(uint32_t)strlen(replacement);
+                     }}
+#endif
                     if(bindings[j].mapped)++b;else ++u;break;
                 }
             }

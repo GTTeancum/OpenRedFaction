@@ -52,10 +52,13 @@ static int scene_continuous_charge_checkpoint_scan(const void *data,uint32_t byt
     if(!bytes)return data?RF_FORMAT:RF_OK;
     if(!p||bytes<16||bytes>RF_CHECKPOINT_FILE_MAX||memcmp(p,"RFAP",4)||checkpoint_u32(p+12))return RF_FORMAT;
     version=checkpoint_u32(p+4);count=checkpoint_u32(p+8);
-    if(version<1||version>7||!count||count>(RF_CHECKPOINT_FILE_MAX-16u)/112u||bytes!=16+count*112u)return RF_FORMAT;
+    if(version<1||version>14||!count||count>(RF_CHECKPOINT_FILE_MAX-16u)/112u||bytes!=16+count*112u)return RF_FORMAT;
     for(uint32_t i=0;i<count;i++){
         const unsigned char *row=p+16+112*i;uint32_t kind=checkpoint_u32(row);
-        if(!kind||kind>(version==1?5u:version==2?7u:version==3?9u:version==4?10u:version==5?11u:version==6?12u:14u))return RF_FORMAT;
+        if(!kind||kind>(version==1?5u:version==2?7u:version==3?9u:version==4?10u:version==5?11u:version==6?12u:version==7?14u:version==8?20u:version==9?22u:version==10?24u:version==11?25u:version==12?26u:27u))return RF_FORMAT;
+        if(kind==26){uint32_t family=checkpoint_u32(row+12);
+            if(family>7u||(family>4u&&version<14))return RF_FORMAT;
+        }
         if(kind==11){int status;if(seen++)return RF_FORMAT;
             status=scene_continuous_charge_checkpoint_row(row,value);if(status)return status;
         }else if(kind==9){

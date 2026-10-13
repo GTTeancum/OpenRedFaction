@@ -34,8 +34,8 @@ static void scene_npc_bullet_impact_ray(int32_t weapon,int32_t material,
 static void scene_npc_bullet_impact_stop(scene_stream *stream,int32_t weapon,
     const float start[3],const float delta[3],const scene_npc_bullet_contact *contact)
 {
-    if(!scene_npc_bullet_impact_ready(weapon) || !contact)return;
-    if(contact->kind==1)scene_weapon_impact_audio_world(stream,weapon,start,delta,contact->limit);
-    else if(contact->kind==2)scene_weapon_impact_audio_contact(weapon,-1,contact->point);
+    if(!contact || weapon==campaign_rail_id || weapon==campaign_sniper_id)return;
+    if(contact->kind==1)scene_weapon_impact_world(stream,weapon,start,delta,contact->limit);
+    else if(contact->kind==2 && scene_npc_bullet_impact_ready(weapon))scene_weapon_impact_audio_contact(weapon,-1,contact->point);
 }
 #endif

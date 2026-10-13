@@ -169,8 +169,9 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     if(frame>UINT32_MAX-30){status=RF_RANGE;goto fail;}
     status=campaign_animation_cancel(owner);if(status)goto fail;
     if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
+    scene_noise_cancel(owner);
     owner->combat_scripted=2;owner->combat_target=target->registration.handle;owner->combat_alert=1;
-    owner->combat_navigation_due=owner->combat_burst_remaining=0;owner->combat_due=frame+30;
+    owner->combat_navigation_due=owner->combat_burst_remaining=0;owner->combat_due=frame+30;scene_blind_sync(owner,frame);
     ++rf_scene_enemy_opposed[2];++rf_scene_enemy_combat[1];
     ++rf_scene_enemy_opposed[owner->damage.effects.affiliation==2?12:13];
     rf_scene_enemy_opposed[6]=(uint32_t)campaign_seeds.records.items[slot].record.uid;

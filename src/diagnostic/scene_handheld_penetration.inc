@@ -111,7 +111,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
                     ++rf_scene_detached_hitscan[1];rf_scene_detached_hitscan[3]=hit.batch;rf_scene_detached_hitscan[4]=hit.piece.piece;
                     rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);combat_surface_frame=frame;
                     scene_weapon_impact_audio_contact(shot->weapon,-1,hit.piece.hit.point);
-                }else scene_weapon_impact_audio_world(stream,shot->weapon,position,delta,hit.piece.hit.fraction);
+                }else scene_weapon_impact_world(stream,shot->weapon,position,delta,hit.piece.hit.fraction);
                 return RF_OK;
             }
         }
@@ -128,14 +128,14 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
                 status=scene_driller_projectile_damage(&vehicle_contact,shot->source,damage,
                     shot->kind,frame,&handled,&applied);if(status)return status;
                 if(handled && audio_contact)scene_weapon_impact_audio_contact(shot->weapon,-1,vehicle_contact.hit.point);
-            }else scene_weapon_impact_audio_world(stream,shot->weapon,position,delta,nearest);
+            }else scene_weapon_impact_world(stream,shot->weapon,position,delta,nearest);
             return RF_OK;
         }
         if(target==UINT32_MAX) {
-            scene_weapon_impact_audio_world(stream,shot->weapon,position,delta,nearest);return RF_OK;
+            scene_weapon_impact_world(stream,shot->weapon,position,delta,nearest);return RF_OK;
         }
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
-        if(blocked){scene_weapon_impact_audio_world(stream,shot->weapon,position,delta,nearest);return RF_OK;}
+        if(blocked){scene_weapon_impact_world(stream,shot->weapon,position,delta,nearest);return RF_OK;}
         {
             campaign_npc_body *owner;uint32_t entered,clock_bits,material;
             float amount,point[3],seconds=(float)frame/60;
@@ -160,7 +160,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             query_fraction=body_fraction;
             nearest=penetration.cursor+(1-penetration.cursor)*query_fraction;
             if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
-            {uint32_t consumed;status=scene_nano_weapon_contact(owner,shot->weapon,request.amount,&consumed);
+            {uint32_t consumed;status=scene_nano_weapon_contact(owner,shot->weapon,request.amount,body_contact.point,&consumed);
                 if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
             if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
             memcpy(point,body_contact.point,12);
@@ -187,7 +187,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
                 combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
                 if(shot->alternate && shot->slot==1)++rf_scene_rifle_alt[1];
                 if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0) {
-                    owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];
+                    owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;scene_blind_sync(owner,frame);++rf_scene_enemy_combat[1];
                 }
                 if(owner->damage.effects.health>0 && owner->combat_alert && campaign_player_form.active) {
                     campaign_player_form.compromised=1;rf_scene_player_form[2]=1;

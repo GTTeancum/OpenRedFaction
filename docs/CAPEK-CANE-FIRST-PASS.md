@@ -1,5 +1,7 @@
 # Capek Cane: delayed retained-lock energy flight
 
+October13: the separate source-written primary warmup consumer is documented in [CAPEK-CANE-WARMUP.md](CAPEK-CANE-WARMUP.md); this supersedes the historical warmup exclusion below after parent integration, without changing mechanics or save ownership.
+
 Source staged against `c621714b`, 2026-10-10. No compilation, syntax checks, tests, XEMU/PC run, new gameplay fixture, route traversal, event firing or inventory grant was performed by this implementation worker. Parent owns integration and the scheduled Xbox batch. All attack, collision, save, audio, model/tag and stock-64-MiB runtime behavior remains unverified.
 
 ## Real missing selected-owner attack

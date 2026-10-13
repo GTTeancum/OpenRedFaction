@@ -10,7 +10,8 @@
  * swept projectile occlusion includes other bodies/props/rubble; live static
  * vehicle/turret owners participate; primary cancels the hold; retired, dead
  * or hidden targets permanently leave their shot ballistic. No new damage,
- * ammunition, collision, effect, homing reacquisition or save format. */
+ * ammunition, collision, effect or homing reacquisition. RFAP10 owns the
+ * bounded continuation independently of these reconstructed gameplay rules. */
 enum {SCENE_ROCKET_LOCK_TICKS=165,SCENE_ROCKET_LOCK_SCAN_TICKS=5};
 /* active,target,remaining,locked,scans,guided launches,unlocked releases,
  * steering steps,lost flight targets,live guided,last launch target,status */
@@ -155,6 +156,21 @@ static int scene_player_rocket_lock_input(scene_stream *s,uint32_t frame,
        rf_scene_player_swim[2] || (player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]) ||
        (lock->active && lock->source!=campaign_player_object.handle)){
         scene_player_rocket_lock_cancel(s,held);return RF_OK;
+    }
+    /* A chord or hotplug emits neutral gameplay input without a physical
+     * release. Retain the hold and freeze its remaining acquisition; after a
+     * load or suppression, only a fresh effective held sample can rearm it. */
+#ifdef RF_IMAGE_XBOX_NATIVE
+    if(player_poll && rf_xbox_input_alt_sample_suppressed()){
+        if(lock->active && !lock->resume_pending){lock->resume_pending=1;lock->resume_frame=frame;}
+        return RF_OK;
+    }
+#endif
+    if(lock->resume_pending){
+        if(!held)return RF_OK;
+        lock->scan_due+=frame-lock->resume_frame;
+        if(lock->target&&!lock->locked)lock->lock_due+=frame-lock->resume_frame;
+        lock->resume_pending=lock->resume_frame=0;edge=0;
     }
     lock->held=held;
     if(edge){lock->active=1;lock->source=campaign_player_object.handle;

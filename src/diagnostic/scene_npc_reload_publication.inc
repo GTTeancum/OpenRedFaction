@@ -10,12 +10,28 @@
  * No callback, demand, publication, rollback, or vehicle admission lives here.
  * Fixed adapters and the paused synchronous world-load contract are required.
  */
-enum { SCENE_RELOAD_SEAL_REQUESTS=56 };
+/* Enumeration bound, not a payload or allocation cap. Fourteen additional
+ * old/new crouch requests are deduplicated before byte accounting; all seal
+ * bytes still must fit the caller's unchanged world budget. */
+enum { SCENE_RELOAD_SEAL_REQUESTS=70 };
 typedef struct scene_npc_reload_publication_row {
-    uint32_t slot,uid,class_id,handle,registered,bone_count,medic;
+    uint32_t slot,uid,class_id,handle,registered,bone_count,medic,skeleton_id;
     uint32_t retired,dead_pose,animation_present,reload_present,reload_weapon,reload_remaining,reload_deadline;
+    uint32_t blind_profile,blind_present,blind_age,blind_target,blind_last_seen;
+    uint32_t pursuit_delay_profile;
+    rf_npc_checkpoint_pursuit_delay pursuit_delay_saved;
+    scene_pursuit_delay_receipt pursuit_delay_prepared;
+    uint32_t tactical_profile,tactical_target;int32_t tactical_phase_due,tactical_recovery_due;
+    rf_npc_checkpoint_tactical tactical_saved;
+    uint32_t crouch_profile,crouch_shape_present,crouch_intent,crouch_stamp,crouch_retire_pending;
+    rf_npc_checkpoint_crouch crouch_saved;
+    scene_crouch_receipt crouch_prepared;
+    scene_crouch_shape_seal crouch_shape;
     scene_guard_retreat_checkpoint_stage guard_retreat;
     rf_npc_checkpoint_guard_retreat guard_saved;
+    rf_npc_checkpoint_alarm alarm_saved;
+    rf_campaign_actor_route patrol_saved;uint32_t dwell_deadline;
+    rf_npc_checkpoint_move alarm_move;uint32_t alarm_script[4];
     float guard_look_command[3];rf_physics_body_state guard_body;
     uint32_t guard_combat_alert;int32_t guard_action;
     campaign_model_owner model;
@@ -39,6 +55,7 @@ typedef struct scene_npc_reload_publication_resource {
     rf_entity_model_motion motion;
     const void *payload;
 } scene_npc_reload_publication_resource;
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_reload_publication_resource)<=320,"Crouch resource receipt exceeds reviewed Xbox32 allowance");
 typedef struct scene_npc_reload_publication_child {
     rf_clutter_base_owner *address;
     rf_clutter_base_owner value;
@@ -50,15 +67,18 @@ typedef struct scene_npc_reload_publication_link {
 } scene_npc_reload_publication_link;
 typedef struct scene_npc_reload_publication_receipt {
     uint64_t epoch;uint32_t bytes,count,resource_count,child_count,link_count,medic_count;
-    uint32_t spread_before;
+    uint32_t spread_before,tactical_cursor_before;float tactical_player_cosine_before;
     const scene_npc_checkpoint_restore_stage *stage;
     unsigned char stage_header[offsetof(scene_npc_checkpoint_restore_stage,entries)];
+    scene_waypoint_event_binding waypoint_binding;
     campaign_npc_body *owners;uint32_t owner_count,model_count,persistence_count;
     campaign_model_owner *models;rf_entity_collision_cache *collisions;
     rf_model_skeletal_registration *model_head;
     rf_entity_seeds seeds;rf_entity_poses poses;rf_entity_skeletons skeletons;
     rf_entity_playback_resources resources;rf_entity_motion_catalog motions;
     rf_entity_base_motions base_motions;
+    scene_noise_class_metadata noise_classes;
+    scene_blind_class_metadata blind_classes;
     rf_entity_render_models render_models;rf_entity_collision_models collision_models;
     rf_clutter_classes clutter_classes;
     rf_level_owned_navigation navigation;
@@ -73,6 +93,10 @@ typedef struct scene_npc_reload_publication_receipt {
     scene_npc_reload_publication_child *children;
     scene_npc_reload_publication_link *links;
 } scene_npc_reload_publication_receipt;
+/* Previous Xbox32 seal row3360/header9336; additional44 bytes retain
+ * the delay profile, saved payload and prepared receipt. */
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_reload_publication_row)<=3404,"Pursuit delay seal row exceeds reviewed allowance");
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_reload_publication_receipt)<=9336,"Crouch seal header exceeds reviewed allowance");
 
 static void scene_npc_reload_publication_close(scene_npc_reload_publication_receipt **receipt)
 {if(receipt&&*receipt){free(*receipt);*receipt=NULL;}}
@@ -228,7 +252,9 @@ static int scene_npc_reload_publication_request(const scene_npc_checkpoint_resto
     *skeleton=p->skeleton;*id=-1;
     if(!e->registered)return RF_NOT_FOUND;
     if(p->skeleton==UINT32_MAX)return e->owner_before.combat_reload_pending||e->saved.reload_present||
-        e->owner_before.flight.qualified==2||e->saved.guard_retreat.present?RF_FORMAT:RF_NOT_FOUND;
+        e->owner_before.flight.qualified==2||e->saved.guard_retreat.present||e->owner_before.tactical.phase||e->saved.tactical.phase||
+        (e->owner_before.crouch.flags&SCENE_CROUCH_PRESENT)||(e->saved.crouch.flags&1u)||
+        scene_noise_active(&e->owner_before)||e->saved.ai_mode==6||e->owner_before.alarm.present||e->saved.alarm.present||scene_patrol_future_state(&e->owner_before)||((e->saved.route.patrol&1)&&!e->saved.retired&&!e->saved.dead_pose&&e->saved.health>0)?RF_FORMAT:RF_NOT_FOUND;
     if(request<16){if(request<p->playback.completion.active.count)*id=p->playback.completion.active.slots[request].motion;}
     else if(request<32){if(request-16<e->playback.completion.active.count)*id=e->playback.completion.active.slots[request-16].motion;}
     else if(request<38){
@@ -246,10 +272,29 @@ static int scene_npc_reload_publication_request(const scene_npc_checkpoint_resto
     else if(request<56){
         uint32_t old=request<49,k=(request-42)%7;
         const rf_entity_motion_selection *selection=old?&e->owner_before.selection:&e->selection;
-        if(old?e->owner_before.flight.qualified!=2:!e->saved.guard_retreat.present)return RF_NOT_FOUND;
-        const int32_t ids[7]={selection->mapping.states[0],selection->mapping.states[2],selection->mapping.states[4],
-            selection->mapping.states[6],selection->mapping.states[13],selection->mapping.actions[2],selection->mapping.actions[39]};
-        *id=ids[k];if(*id<0)return RF_FORMAT;
+        if(old?scene_noise_active(&e->owner_before):e->saved.ai_mode==6){
+            if(k>=2)return RF_NOT_FOUND;*id=selection->mapping.states[k?2:0];
+        }else if(old?e->owner_before.alarm.present:e->saved.alarm.present){
+            const int32_t ids[4]={selection->mapping.states[0],selection->mapping.states[2],selection->mapping.states[4],selection->mapping.actions[44]};
+            if(k>=4)return RF_NOT_FOUND;*id=ids[k];
+        }else if(old?scene_patrol_future_state(&e->owner_before):((e->saved.route.patrol&1)&&!e->saved.retired&&!e->saved.dead_pose&&e->saved.health>0)){
+            if(k>=2)return RF_NOT_FOUND;*id=selection->mapping.states[k?2:0];
+        }else if((old?e->owner_before.tactical.phase:e->saved.tactical.phase)&&
+                 (old?e->owner_before.flight.qualified!=2:!e->saved.guard_retreat.present)){
+            if(k>=2)return RF_NOT_FOUND;*id=selection->mapping.states[k?2:0];
+        }else{
+            if(old?e->owner_before.flight.qualified!=2:!e->saved.guard_retreat.present)return RF_NOT_FOUND;
+            const int32_t ids[7]={selection->mapping.states[0],selection->mapping.states[2],selection->mapping.states[4],
+                selection->mapping.states[6],selection->mapping.states[13],selection->mapping.actions[2],selection->mapping.actions[39]};
+            *id=ids[k];
+        }
+        if(*id<0)return RF_FORMAT;
+    }else if(request<70){
+        uint32_t old=request<63,k=(request-56)%7;
+        if(!(old?(e->owner_before.crouch.flags&SCENE_CROUCH_PRESENT):(e->saved.crouch.flags&1u)))return RF_NOT_FOUND;
+        if(old?(e->owner_before.damage.effects.health<=0||(e->owner_before.view.flags_810&1u)):
+            (e->saved.retired||e->saved.dead_pose||e->saved.health<=0))return RF_NOT_FOUND;
+        return scene_crouch_future_clip(old?&e->owner_before.selection:&e->selection,k,id);
     }else return RF_RANGE;
     if(*id< -1)return RF_FORMAT;
     if((request==40&&e->owner_before.combat_reload_pending)||(request==41&&e->saved.reload_present))
@@ -463,6 +508,8 @@ static int scene_npc_reload_publication_lifetime(const scene_npc_checkpoint_rest
        memcmp(&r->resources,&campaign_playback_resources,sizeof(r->resources))||
        memcmp(&r->motions,&campaign_motion_catalog,sizeof(r->motions))||
        memcmp(&r->base_motions,&campaign_base_motions,sizeof(r->base_motions))||
+       memcmp(&r->noise_classes,&scene_noise_classes,sizeof(r->noise_classes))||
+       memcmp(&r->blind_classes,&scene_blind_classes,sizeof(r->blind_classes))||
        memcmp(&r->render_models,&campaign_render_models,sizeof(r->render_models))||
        memcmp(&r->collision_models,&campaign_collision_models,sizeof(r->collision_models))||
        memcmp(&r->clutter_classes,&campaign_clutter_classes,sizeof(r->clutter_classes))||
@@ -473,7 +520,8 @@ static int scene_npc_reload_publication_lifetime(const scene_npc_checkpoint_rest
        r->motion_count!=campaign_npc_motion_count||r->motion_bytes!=campaign_npc_motion_bytes||
        r->clutter_bodies!=campaign_clutter_bodies||r->clutter_count!=campaign_clutter_records.count||
        r->glares!=campaign_glare_instances||r->glare_count!=campaign_glare_instance_count)return RF_FORMAT;
-    if(memcmp(r->stage_header,stage,sizeof(r->stage_header))||stage->count!=r->count||!stage->fresh_boot)return RF_FORMAT;
+    if(memcmp(r->stage_header,stage,sizeof(r->stage_header))||stage->count!=r->count||!stage->fresh_boot||
+       memcmp(&r->waypoint_binding,&scene_waypoint_events,sizeof(r->waypoint_binding))||scene_waypoint_boundary())return RF_FORMAT;
     return RF_OK;
 }
 static int scene_npc_reload_publication_seal(const scene_npc_checkpoint_restore_stage *stage,
@@ -481,7 +529,8 @@ static int scene_npc_reload_publication_seal(const scene_npc_checkpoint_restore_
 {
     uint32_t i,j;int status=scene_npc_reload_publication_lifetime(stage,receipt);if(status)return status;
     status=scene_npc_reload_publication_registry();if(status)return status;
-    if(receipt->spread_before!=campaign_enemy_spread_random.value)return RF_FORMAT;
+    if(receipt->spread_before!=campaign_enemy_spread_random.value||receipt->tactical_cursor_before!=scene_tactical_cursor)return RF_FORMAT;
+    if(memcmp(&receipt->tactical_player_cosine_before,&campaign_player_geometry.sight_cosine,sizeof(float)))return RF_FORMAT;
     /* First authenticate row IDs and all borrowed per-skeleton array headers.
      * A later resource lookup must not read through a replaced model pointer. */
     for(i=0;i<receipt->count;i++){
@@ -489,6 +538,7 @@ static int scene_npc_reload_publication_seal(const scene_npc_checkpoint_restore_
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;const rf_entity_pose *p;
         if(e->slot!=r->slot||e->saved.uid!=r->uid||e->saved.class_id!=r->class_id||e->handle!=r->handle||
            e->registered!=r->registered||e->bone_count!=r->bone_count||e->medic_owner_snapshot!=r->medic||
+           e->pose_before.skeleton!=r->skeleton_id||
            e->saved.retired!=r->retired||e->saved.dead_pose!=r->dead_pose||e->saved.animation_present!=r->animation_present||
            e->saved.reload_present!=r->reload_present||e->saved.reload_weapon!=r->reload_weapon||
            e->saved.reload_remaining!=r->reload_remaining||e->reload_deadline!=r->reload_deadline||
@@ -496,12 +546,53 @@ static int scene_npc_reload_publication_seal(const scene_npc_checkpoint_restore_
            e->original_generations!=r->original_generations||memcmp(&e->selection,&r->selection,sizeof(r->selection))||
            memcmp(&e->playback,&r->playback,sizeof(r->playback))||memcmp(&e->move_path,&r->move_path,sizeof(r->move_path))||
            memcmp(e->move_nodes,r->move_nodes,sizeof(r->move_nodes))||memcmp(&e->medic_child,&r->medic_child,sizeof(r->medic_child)))return RF_FORMAT;
-        if(memcmp(&e->guard_retreat,&r->guard_retreat,sizeof(r->guard_retreat))||
+        if(e->saved.blind_profile!=r->blind_profile||e->saved.blind_present!=r->blind_present||
+           e->saved.blind_age!=r->blind_age||e->blind_target!=r->blind_target||e->blind_last_seen!=r->blind_last_seen)return RF_FORMAT;
+        if(e->saved.crouch_profile!=r->crouch_profile||memcmp(&e->saved.crouch,&r->crouch_saved,sizeof(r->crouch_saved))||
+           e->crouch_shape_present!=r->crouch_shape_present||e->crouch_intent!=r->crouch_intent||e->crouch_stamp!=r->crouch_stamp||
+           e->crouch_retire_pending!=r->crouch_retire_pending||
+           memcmp(&e->crouch_prepared,&r->crouch_prepared,sizeof(r->crouch_prepared))||
+           memcmp(&e->crouch_shape,&r->crouch_shape,sizeof(r->crouch_shape)))return RF_FORMAT;
+        if(e->crouch_shape_present){
+            if(!campaign_npc_stances||e->saved.class_id>=campaign_seeds.class_count)return RF_FORMAT;
+            status=scene_crouch_shape_seal_check(&campaign_npc_bodies[e->slot].body.spheres,
+                campaign_npc_stances+e->saved.class_id,&e->crouch_shape.prepared,&e->crouch_shape);
+            if(status)return status;
+        }
+        if(e->saved.pursuit_delay_profile!=r->pursuit_delay_profile||
+           memcmp(&e->saved.pursuit_delay,&r->pursuit_delay_saved,sizeof(r->pursuit_delay_saved))||
+           memcmp(&e->pursuit_delay_prepared,&r->pursuit_delay_prepared,sizeof(r->pursuit_delay_prepared)))return RF_FORMAT;
+        status=scene_pursuit_delay_prepared(stage,e);if(status)return status;
+        status=scene_blind_prepared(stage,e);if(status)return status;
+        if(e->saved.tactical_profile!=r->tactical_profile||memcmp(&e->saved.tactical,&r->tactical_saved,sizeof(r->tactical_saved))||
+           e->tactical_target!=r->tactical_target||e->tactical_phase_due!=r->tactical_phase_due||
+           e->tactical_recovery_due!=r->tactical_recovery_due)return RF_FORMAT;
+        status=scene_tactical_prepared(stage,e);if(status)return status;
+        status=scene_crouch_prepared(stage,e);if(status)return status;
+        if(memcmp(&e->saved.route,&r->patrol_saved,sizeof(r->patrol_saved))||e->dwell_deadline!=r->dwell_deadline)return RF_FORMAT;
+        if(memcmp(&e->saved.alarm,&r->alarm_saved,sizeof(r->alarm_saved))||
+           memcmp(&e->guard_retreat,&r->guard_retreat,sizeof(r->guard_retreat))||
            memcmp(&e->saved.guard_retreat,&r->guard_saved,sizeof(r->guard_saved)))return RF_FORMAT;
-        if(e->guard_retreat.participates){
+        if(e->saved.ai_mode==6||r->guard_action==6||e->guard_retreat.participates||e->saved.alarm.present||(e->saved.route.patrol&1)){
             if(e->saved.combat_alert!=r->guard_combat_alert||e->saved.ai_mode!=r->guard_action||
                memcmp(e->saved.look_command,r->guard_look_command,12)||memcmp(&e->body,&r->guard_body,sizeof(e->body)))return RF_FORMAT;
             status=scene_guard_retreat_checkpoint_validate(&e->guard_retreat);if(status)return status;
+        }
+        if(e->saved.ai_mode==6||r->guard_action==6){
+            if(e->effective_ai_mode!=6||memcmp(&e->saved.move,&r->alarm_move,sizeof(r->alarm_move))||
+               memcmp(&e->saved.script_animation,r->alarm_script,sizeof(r->alarm_script))||
+               memcmp(e->saved.position,r->guard_body.position,12)||memcmp(e->published,r->guard_body.position,12))return RF_FORMAT;
+            status=scene_noise_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        }
+        if(e->saved.route.patrol&1){
+            if(memcmp(&e->saved.move,&r->alarm_move,sizeof(r->alarm_move))||
+               memcmp(&e->saved.script_animation,r->alarm_script,sizeof(r->alarm_script)))return RF_FORMAT;
+            status=scene_patrol_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        }
+        if(e->saved.alarm.present){
+            if(memcmp(&e->saved.move,&r->alarm_move,sizeof(r->alarm_move))||
+               memcmp(&e->saved.script_animation,r->alarm_script,sizeof(r->alarm_script)))return RF_FORMAT;
+            status=scene_alarm_runner_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
         }
         status=scene_npc_reload_publication_owner(e);if(status)return status;p=campaign_poses.items+e->slot;
         if(e->slot<campaign_model_owner_count&&
@@ -554,13 +645,20 @@ static int scene_npc_reload_publication_begin(const scene_npc_checkpoint_restore
     uint32_t at_clip=0,at_child=0;int status;
     if(!out||*out||!stage||!stage->fresh_boot||stage->count>RF_NPC_CHECKPOINT_MAX_COUNT||
        campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||campaign_model_owner_count>RF_CAMPAIGN_ACTOR_SLOTS||
-       !stage->flight_joined||(stage->count&&(!campaign_npc_bodies||!campaign_poses.items)))return RF_RANGE;
+       !stage->blind_joined||!stage->tactical_joined||!stage->flight_joined||!stage->alarm_joined||!stage->patrol_events_joined||(stage->count&&(!campaign_npc_bodies||!campaign_poses.items)))return RF_RANGE;
     status=scene_npc_reload_publication_registry();if(status)return status;
     /* The caller has completed ordinary restore validation and every joined
      * component admission. Do not recapture a whole row or replay those joins;
      * only their exact touched lifetime projections are sealed here. */
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;const rf_entity_pose *p;
+        status=scene_patrol_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        if(e->saved.ai_mode==6){
+            status=scene_noise_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        }
+        if(e->saved.alarm.present){
+            status=scene_alarm_runner_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
+        }
         status=scene_npc_reload_publication_owner(e);if(status)return status;p=campaign_poses.items+e->slot;
         for(j=0;j<i;j++)if(stage->entries[j].slot==e->slot||stage->entries[j].saved.uid==e->saved.uid||
            (e->registered&&stage->entries[j].registered&&stage->entries[j].handle==e->handle))return RF_FORMAT;
@@ -621,19 +719,23 @@ static int scene_npc_reload_publication_begin(const scene_npc_checkpoint_restore
     r->bytes=(uint32_t)bytes;r->epoch=scene_robot_death_epoch;r->stage=stage;r->count=stage->count;
     r->resource_count=clips;r->child_count=children;r->link_count=links;r->medic_count=medics;
     memcpy(r->stage_header,stage,sizeof(r->stage_header));
+    r->waypoint_binding=scene_waypoint_events;
     r->owners=campaign_npc_bodies;r->owner_count=campaign_npc_body_count;
     r->models=campaign_model_owners;r->model_count=campaign_model_owner_count;r->collisions=campaign_collision_caches;
     r->model_head=campaign_model_head;r->persistence_count=rf_scene_defeated_actors.count;
 #define SCENE_RELOAD_SEAL_HEADER(member,global) memcpy(&r->member,&global,sizeof(r->member))
     SCENE_RELOAD_SEAL_HEADER(seeds,campaign_seeds);SCENE_RELOAD_SEAL_HEADER(poses,campaign_poses);
     SCENE_RELOAD_SEAL_HEADER(skeletons,campaign_skeletons);SCENE_RELOAD_SEAL_HEADER(resources,campaign_playback_resources);
+    SCENE_RELOAD_SEAL_HEADER(noise_classes,scene_noise_classes);
+    SCENE_RELOAD_SEAL_HEADER(blind_classes,scene_blind_classes);
     SCENE_RELOAD_SEAL_HEADER(motions,campaign_motion_catalog);SCENE_RELOAD_SEAL_HEADER(base_motions,campaign_base_motions);
     SCENE_RELOAD_SEAL_HEADER(render_models,campaign_render_models);SCENE_RELOAD_SEAL_HEADER(collision_models,campaign_collision_models);
     SCENE_RELOAD_SEAL_HEADER(clutter_classes,campaign_clutter_classes);
     SCENE_RELOAD_SEAL_HEADER(navigation,campaign_navigation);SCENE_RELOAD_SEAL_HEADER(clutter_list,campaign_clutter_objects);
     SCENE_RELOAD_SEAL_HEADER(candidate_list,scene_medic_syringe_candidates);
 #undef SCENE_RELOAD_SEAL_HEADER
-    r->spread_before=campaign_enemy_spread_random.value;
+    r->spread_before=campaign_enemy_spread_random.value;r->tactical_cursor_before=scene_tactical_cursor;
+    r->tactical_player_cosine_before=campaign_player_geometry.sight_cosine;
     r->events=campaign_events.items;r->event_count=campaign_events.count;r->triggers=campaign_triggers.items;r->trigger_count=campaign_triggers.count;
     r->motion_data=campaign_npc_motion_data;r->motion_sizes=campaign_npc_motion_sizes;r->motion_count=campaign_npc_motion_count;r->motion_bytes=campaign_npc_motion_bytes;
     r->clutter_bodies=campaign_clutter_bodies;r->clutter_count=campaign_clutter_records.count;r->glares=campaign_glare_instances;r->glare_count=campaign_glare_instance_count;
@@ -646,11 +748,22 @@ static int scene_npc_reload_publication_begin(const scene_npc_checkpoint_restore
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;const rf_entity_pose *p=campaign_poses.items+e->slot;
         scene_npc_reload_publication_row *row=r->rows+i;
         row->slot=e->slot;row->uid=e->saved.uid;row->class_id=e->saved.class_id;row->handle=e->handle;
-        row->registered=e->registered;row->bone_count=e->bone_count;row->medic=e->medic_owner_snapshot;
+        row->registered=e->registered;row->bone_count=e->bone_count;row->medic=e->medic_owner_snapshot;row->skeleton_id=p->skeleton;
         row->retired=e->saved.retired;row->dead_pose=e->saved.dead_pose;row->animation_present=e->saved.animation_present;
         row->reload_present=e->saved.reload_present;row->reload_weapon=e->saved.reload_weapon;
         row->reload_remaining=e->saved.reload_remaining;row->reload_deadline=e->reload_deadline;
-        row->guard_retreat=e->guard_retreat;row->guard_saved=e->saved.guard_retreat;
+        row->blind_profile=e->saved.blind_profile;row->blind_present=e->saved.blind_present;row->blind_age=e->saved.blind_age;
+        row->blind_target=e->blind_target;row->blind_last_seen=e->blind_last_seen;
+        row->pursuit_delay_profile=e->saved.pursuit_delay_profile;
+        row->pursuit_delay_saved=e->saved.pursuit_delay;row->pursuit_delay_prepared=e->pursuit_delay_prepared;
+        row->tactical_profile=e->saved.tactical_profile;row->tactical_saved=e->saved.tactical;
+        row->tactical_target=e->tactical_target;row->tactical_phase_due=e->tactical_phase_due;row->tactical_recovery_due=e->tactical_recovery_due;
+        row->crouch_profile=e->saved.crouch_profile;row->crouch_saved=e->saved.crouch;
+        row->crouch_shape_present=e->crouch_shape_present;row->crouch_intent=e->crouch_intent;row->crouch_stamp=e->crouch_stamp;
+        row->crouch_prepared=e->crouch_prepared;row->crouch_shape=e->crouch_shape;row->crouch_retire_pending=e->crouch_retire_pending;
+        row->guard_retreat=e->guard_retreat;row->guard_saved=e->saved.guard_retreat;row->alarm_saved=e->saved.alarm;
+        row->patrol_saved=e->saved.route;row->dwell_deadline=e->dwell_deadline;
+        row->alarm_move=e->saved.move;memcpy(row->alarm_script,&e->saved.script_animation,sizeof(row->alarm_script));
         row->guard_combat_alert=e->saved.combat_alert;row->guard_action=e->saved.ai_mode;
         memcpy(row->guard_look_command,e->saved.look_command,12);row->guard_body=e->body;
         row->matrices=e->matrices;row->generations=e->generations;row->original_matrices=e->original_matrices;row->original_generations=e->original_generations;

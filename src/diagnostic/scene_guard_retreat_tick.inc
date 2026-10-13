@@ -99,14 +99,14 @@ physical:
         proposal.next_position[1]=proposal.position[1];
         proposal.next_position[2]=proposal.position[2]+world[2]*o->movement.speed*elapsed;
         GUARD_STEP(rf_physics_body_prepare_sweep(&proposal));
-        GUARD_STEP(rf_scene_npc_body_sweep(s->collision,handle,&proposal,0x460,scratch,8,&hit,&blocked));
+        GUARD_STEP(scene_npc_live_body_sweep(s->collision,o,&proposal,0x460,scratch,8,&hit,&blocked));
         if(blocked&&hit.contact.normal[1]>=.5f){
             float dx=proposal.next_position[0]-proposal.position[0],dz=proposal.next_position[2]-proposal.position[2];
             float rise=-(dx*hit.contact.normal[0]+dz*hit.contact.normal[2])/hit.contact.normal[1];
             if(rise>0){
                 proposal.next_position[1]=proposal.position[1]+rise+.001f;
                 GUARD_STEP(rf_physics_body_prepare_sweep(&proposal));
-                GUARD_STEP(rf_scene_npc_body_sweep(s->collision,handle,&proposal,0x460,scratch,8,&hit,&blocked));
+                GUARD_STEP(scene_npc_live_body_sweep(s->collision,o,&proposal,0x460,scratch,8,&hit,&blocked));
             }
         }
         if(blocked&&fabsf(hit.contact.normal[1])<.5f){
@@ -119,13 +119,13 @@ physical:
                     proposal.next_position[0]=proposal.position[0]+dx;proposal.next_position[1]=proposal.position[1];
                     proposal.next_position[2]=proposal.position[2]+dz;
                     GUARD_STEP(rf_physics_body_prepare_sweep(&proposal));
-                    GUARD_STEP(rf_scene_npc_body_sweep(s->collision,handle,&proposal,0x460,scratch,8,&hit,&blocked));
+                    GUARD_STEP(scene_npc_live_body_sweep(s->collision,o,&proposal,0x460,scratch,8,&hit,&blocked));
                 }
             }
         }
     }
-    /* Current sweeps cover world, movers, passive vehicles and detached
-     * pieces. Reciprocal living-actor obstruction remains explicitly deferred. */
+    /* Keep the existing kinematic stop/slide response, now including the
+     * actual grounded player in each live translation query. */
     if(blocked||!owned)memcpy(proposal.next_position,proposal.position,12);
     memcpy(o->body.state.next_position,proposal.next_position,12);o->body.state.flags|=0x40000000u;
     GUARD_STEP(rf_scene_npc_commit_ordinary(handle,elapsed));

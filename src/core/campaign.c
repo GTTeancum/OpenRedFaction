@@ -15,14 +15,14 @@ int rf_campaign_medic_state_validate(const rf_campaign_medic_state *m)
         m->child_health<=50.f?RF_OK:RF_FORMAT;
     return child_bits?RF_FORMAT:RF_OK;
 }
-_Static_assert(sizeof(rf_campaign_actor_route)==36,"actor route lane is36B");
+_Static_assert(sizeof(rf_campaign_actor_route)==40,"actor route lane is40B");
 int rf_campaign_actor_route_validate(const rf_campaign_actor_route *r)
 {
     rf_campaign_actor_route zero={0};uint32_t mode;
     if(!r)return RF_RANGE;
     if(!r->flags)return memcmp(r,&zero,sizeof(zero))?RF_FORMAT:RF_OK;
     mode=(r->flags>>2)&3;
-    if(!(r->flags&1)||(r->flags&~63u)||mode>2||r->origin>2||r->patrol>3||
+    if(!(r->flags&1)||(r->flags&~127u)||mode>2||r->origin>2||r->patrol>3||
        ((r->patrol&2)&&!(r->patrol&1))||r->event==UINT32_MAX)return RF_FORMAT;
     if(r->action!=-1&&r->action!=1&&r->action!=2&&r->action!=3&&r->action!=4&&
        r->action!=10&&r->action!=11&&r->action!=13)return RF_FORMAT;
@@ -30,12 +30,20 @@ int rf_campaign_actor_route_validate(const rf_campaign_actor_route *r)
     if(r->flags&2){
         if((r->patrol&1)&&((r->flags>>4)&1)!=((r->patrol>>1)&1))return RF_FORMAT;
         if(!r->count||r->cursor>=r->count||!r->origin||
-           ((r->flags&16)&&mode!=2&&!(mode==1&&(r->patrol&1))))return RF_FORMAT;
+           ((r->flags&16)&&mode!=2&&!(mode==1&&(r->patrol&1))&&
+            !(mode==0&&r->origin==2&&(r->patrol&1))))return RF_FORMAT;
     }else if(r->offset||r->count||r->cursor||r->section_hash||(r->flags&28))return RF_FORMAT;
     if(r->origin==1){if(!r->event)return RF_FORMAT;}
     else if(r->event)return RF_FORMAT;
     if(r->origin==2&&(!(r->patrol&1)||!(r->flags&2)))return RF_FORMAT;
     if(!r->origin&&(r->flags&32))return RF_FORMAT;
+    if(r->flags&64){
+        if(r->action!=4||r->origin!=2||!(r->patrol&1)||(r->flags&34)!=34||
+           r->count<2||r->dwell_remaining>RF_CAMPAIGN_PATROL_DWELL_MAX_FRAMES)return RF_FORMAT;
+        /* A One way hold requires a real adjacent predecessor. Cursor0 after
+         * forward rebind, reverse last and every singleton have no such hold. */
+        if(!mode&&((r->flags&16)?r->cursor+1>=r->count:!r->cursor))return RF_FORMAT;
+    }else if(r->dwell_remaining)return RF_FORMAT;
     return RF_OK;
 }
 static int object_register(char (*levels)[64],uint32_t *level_count,rf_campaign_object_record *items,uint32_t *count,uint32_t capacity,const char *level,uint32_t uid,uint32_t *slot)

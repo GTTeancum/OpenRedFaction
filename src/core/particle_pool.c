@@ -34,10 +34,15 @@ int rf_particle_pool_init(rf_particle_pool *pool,rf_particle *storage,
     if(!pool || !storage || !lists || list_count<5 || list_count>UINT32_MAX-RF_PARTICLE_CAPACITY)return RF_RANGE;
     pool->particles=storage;pool->lists=lists;pool->list_count=list_count;
     pool->live[0]=pool->live[1]=0;
+    pool->recycle_sink=NULL;pool->recycle_context=NULL;
     memset(storage,0,RF_PARTICLE_CAPACITY*sizeof(*storage));
     for(i=0;i<list_count;i++)lists[i].next=lists[i].previous=RF_PARTICLE_CAPACITY+i;
     for(i=0;i<RF_PARTICLE_CAPACITY;i++)append_particle(pool,i<RF_PARTICLE_POOL0_CAPACITY?0:1,i);
     return RF_OK;
+}
+void rf_particle_pool_set_recycle_sink(rf_particle_pool *pool,rf_particle_recycle_sink sink,void *context)
+{
+    if(pool){pool->recycle_sink=sink;pool->recycle_context=sink?context:NULL;}
 }
 int rf_particle_pool_create(rf_particle_pool *pool,uint32_t kind,
     const rf_particle_spawn *spawn,uint32_t owner,uint32_t room,uint32_t emitter,
@@ -248,6 +253,7 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index)
     if(!pool_valid(pool) || index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     p=&pool->particles[index];
     if(!(p->flags&1u) || p->pool>1 || !pool->live[p->pool])return RF_RANGE;
+    if(pool->recycle_sink)pool->recycle_sink(pool->recycle_context,index);
     unlink_particle(pool,index);p->flags=0;append_particle(pool,p->pool,index);
     pool->live[p->pool]--;return RF_OK;
 }

@@ -4,6 +4,7 @@
 #include "rf/entity.h"
 #include "rf/vpp.h"
 #include "rf/player.h"
+#include "rf/text_language.h"
 
 #define RF_LEVEL_MAX_SECTIONS 128
 #define RF_LEVEL_NAME_CAPACITY 256
@@ -28,7 +29,12 @@ int rf_level_geomod_settings_decode(const void *,uint32_t,rf_level_geomod_settin
 int rf_level_geomod_settings_read(const rf_level *,rf_level_geomod_settings *);
 typedef struct rf_level_lighting {unsigned char color[4],directional;} rf_level_lighting;
 typedef struct rf_level_message {uint32_t id;char voice[64],text[512];} rf_level_message;
-/* Bounded English mission-table lookup; caller owns output. Errors preserve it. */
+/* Bounded mission-table lookup; legacy entry points remain English. Selected
+ * missing/empty/(gr)/(fr) placeholder text falls back per message to English.
+ * Voice names and received-message history are unchanged. Errors preserve output. */
+int rf_level_message_parse_language(const void *data,uint32_t bytes,uint32_t id,
+    uint32_t language,rf_level_message *result);
+int rf_level_message_read_language(const rf_level *level,uint32_t id,uint32_t language,rf_level_message *result);
 int rf_level_message_parse(const void *data,uint32_t bytes,uint32_t id,rf_level_message *result);
 int rf_level_message_read(const rf_level *level,uint32_t id,rf_level_message *result);
 /* v180 section900 /4618b0: initial RGBA and directional switch after texture
@@ -214,6 +220,14 @@ typedef struct rf_level_entity_ai {
  * Validates the complete v180 record, without changing spawn ABI or inferring
  * combat from affiliation. Values are authored inputs, not a live AI state. */
 int rf_level_entity_ai_read(const rf_level_owned_entity *,rf_level_entity_ai *);
+/*464563/46457c ->464c36/464c3c: v180 final switch and optional float
+ * override AI528/52c. Full raw-record validation, no allocation/spawn ABI
+ * change. Disabled value retains original15; enabled range must be finite,
+ * positive and at most1000000 (same supported authored weapon-range bound).
+ * Errors preserve output. This immutable input does not own live AI state. */
+typedef struct rf_level_entity_combat_range {uint32_t enabled;float range;} rf_level_entity_combat_range;
+int rf_level_entity_combat_range_read(const rf_level_owned_entity *,rf_level_entity_combat_range *);
+
 /*464212/464225 ->46483c..464874: authored default waypoint name and mode.
  * Full retained-record validation, no ABI/hash change; preserves output on error. */
 int rf_level_entity_waypoint_read(const rf_level_owned_entity *,char result[2][RF_LEVEL_NAME_CAPACITY]);

@@ -1,6 +1,6 @@
 #ifndef RF_SCENE_AI_MODE_PERSISTENCE_INCLUDED
 #define RF_SCENE_AI_MODE_PERSISTENCE_INCLUDED
-/* RFCH9 replaces the old unencoded32B sidecar with the keyed36B shared lane.
+/* RFCH9 encodes the keyed36B route lane; RFCH10 adds conditional4B dwell.
  * Same-level RFNC retains pose/navigation; section history rebuilds navigation
  * from authored revisit placement. It never converts combat3 into a default. */
 /* Resolve borrowed waypoint storage from a unique authored movement event.
@@ -59,7 +59,7 @@ static int scene_actor_route_admit(const campaign_npc_body *o,const rf_campaign_
         status=scene_npc_checkpoint_move_binding(a->event,o->registration.handle,follow,&authored,&mode);if(status)return status;
     }
     if(a->flags&2){
-        if((a->patrol&1)&&mode==0)return RF_NOT_FOUND; /* Qualified One way replacement is deferred. */
+        if((a->patrol&1)&&a->origin==SCENE_MOVE_ORIGIN_EVENT&&mode==0)return RF_NOT_FOUND; /* Qualified One way replacement is deferred. */
         if(!campaign_waypoints||!campaign_navigation.nodes||!authored.indices||
            a->offset>campaign_waypoint_bytes||(uint64_t)a->count*4>campaign_waypoint_bytes-a->offset||
            a->section_hash!=npc_hash_bytes(2166136261u,campaign_waypoints,campaign_waypoint_bytes)||
@@ -68,6 +68,7 @@ static int scene_actor_route_admit(const campaign_npc_body *o,const rf_campaign_
             for(k=0;k<3;k++)if(!isfinite(campaign_navigation.nodes[node].candidate.position[k]))return RF_FORMAT;}
         *path=authored;
     }else if(authored.count)return RF_FORMAT;
+    {uint32_t reached=0;status=scene_patrol_dwell_route(a,&authored,&reached);if(status)return status;}
     return RF_OK;
 }
 /* section0 is an exact current snapshot; section1 is a representable revisit; section2 only fingerprints a current owner.
@@ -76,6 +77,7 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
 {
     rf_campaign_actor_route a={0};rf_level_waypoint_path path={0};uint32_t slot,index,terminal;uintptr_t base,address;int status;
     if(!o||!out||section>2||!o->persistence_registered)return RF_RANGE;
+    status=scene_waypoint_boundary();if(status)return status;
     slot=o->persistence_slot;index=scene_actor_route_index(o);
     if(slot>=rf_scene_defeated_actors.count||slot>=RF_CAMPAIGN_ACTOR_SLOTS||index>=campaign_npc_body_count)return RF_FORMAT;
     {
@@ -92,6 +94,18 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
            rf_object_registry_lookup(&campaign_registry,o->registration.handle)!=&o->registration))return RF_FORMAT;
     }
     terminal=o->damage.effects.health<=0||rf_scene_defeated_actors.items[slot].retired;
+    if(scene_noise_active(o)){
+        status=scene_noise_live(index);if(status)return status;
+        if(section==1){a.flags=1;a.action=2;}
+        *out=a;return RF_OK;
+    }
+    if(o->alarm_fault)return RF_FORMAT;
+    if(o->alarm.present){
+        if(section==1)return RF_NOT_FOUND;
+        if(o->ai_mode.action_280!=16||o->view.action_520!=16||o->patrol.enabled||
+           o->script_move.origin||o->script_move.path.count||o->script_move.path.indices)return RF_FORMAT;
+        *out=a;return RF_OK;
+    }
     if(o->guard_retreat_fault)return RF_FORMAT;
     if(scene_guard_retreat_active(o)){
         /* This finite owner never becomes campaign history. The same-level
@@ -117,7 +131,8 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
     }
     if(section!=1&&!o->patrol.enabled&&!rf_scene_defeated_actors.routes[slot].flags&&
        !(o->script_move.origin&& !o->script_move.active)&&!o->script_move.path.count){*out=a;return RF_OK;}
-    if(o->patrol.enabled>1||o->patrol.reverse>1)return RF_FORMAT;
+    if(o->patrol.enabled>1||o->patrol.reverse>1||o->patrol.dwell_present>1||
+       (!o->patrol.dwell_present&&o->patrol.dwell_deadline))return RF_FORMAT;
     a.flags=1;a.action=o->ai_mode.action_280?o->ai_mode.action_280:-1;
     a.patrol=o->patrol.enabled|(o->patrol.reverse<<1);
     if(!terminal){
@@ -127,7 +142,11 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
             const rf_level_event *event=scene_actor_route_event(o->script_move.event);
             if(!event||o->script_move.follow!=(uint32_t)!strcmp(event->type,"Goto_Player"))return RF_FORMAT;
         }
-        if(section==1&&o->patrol.enabled&&o->script_animation.active)return RF_NOT_FOUND;
+        if(o->patrol.enabled&&o->script_animation.active&&o->script_move.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT&&
+           !scene_patrol_dwell_owner(o))return RF_NOT_FOUND;
+        /* RFCH12: only a proven visual waypoint action ends at section unload.
+         * Cursor/dwell and independent pending event deadlines survive. */
+        if(section==1&&o->patrol.enabled&&o->script_animation.active&&!scene_patrol_dwell_owner(o))return RF_NOT_FOUND;
         if(section==1&&(a.action==3||a.action==13))return RF_NOT_FOUND;
         if(o->patrol.enabled&&(o->script_look.active||o->script_shoot.active))return RF_NOT_FOUND;
         if(o->script_move.follow==2){
@@ -150,6 +169,11 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
         if(a.action==4&&(!(a.flags&2)||!(a.flags&32)))return RF_NOT_FOUND;
         if(a.action==10&&(!(a.patrol&1)||a.origin!=SCENE_MOVE_ORIGIN_EVENT))return RF_NOT_FOUND;
     }
+    if(o->patrol.dwell_present){
+        if(terminal||!scene_patrol_dwell_owner(o)||o->navigation.retained.count||o->script_move.retry||
+           o->script_move.route_index!=1)return RF_NOT_FOUND;
+        a.flags|=64;a.dwell_remaining=scene_patrol_remaining(o,scene_patrol_frame());
+    }
     if(section==2&&a.action==14&&!o->patrol.enabled&&o->medic.pending&&scene_medic_syringe_qualified(o)){
         rf_campaign_actor_route identity=a;identity.action=2;
         status=scene_actor_route_admit(o,&identity,&path);
@@ -162,14 +186,16 @@ static int scene_actor_route_capture(const campaign_npc_body *o,uint32_t section
 /* The saved lane and borrowed path were checked while still private. Called
  * only after final close/history rebinding; never invokes default return. */
 static void scene_actor_route_publish(campaign_npc_body *o,const rf_campaign_actor_route *a,
-    const rf_level_waypoint_path *path)
+    const rf_level_waypoint_path *path,uint32_t dwell_deadline)
 {
+    scene_patrol_dwell_clear(o);
     if(!a->flags){
         scene_patrol_legacy_reset(o);
         o->script_move.origin=o->script_move.active&&o->script_move.follow!=2?SCENE_MOVE_ORIGIN_EVENT:SCENE_MOVE_ORIGIN_NONE;
         return;
     }
     o->patrol.enabled=a->patrol&1;o->patrol.reverse=(a->patrol>>1)&1;
+    if(a->flags&64){o->patrol.dwell_present=1;o->patrol.dwell_deadline=dwell_deadline;}
     o->script_move.origin=a->origin;
     if(!o->script_move.active){
         o->script_move.event=a->event;o->script_move.path=*path;o->script_move.path_index=a->cursor;
@@ -197,8 +223,10 @@ static void campaign_ai_modes_reset(void)
 static int campaign_ai_modes_handoff_admit(void)
 {
     uint32_t i;int status;rf_campaign_actor_route a;
+    status=scene_waypoint_boundary();if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
-        if(campaign_npc_bodies[i].guard_retreat_fault)return RF_FORMAT;
+        if(campaign_npc_bodies[i].guard_retreat_fault||campaign_npc_bodies[i].alarm_fault)return RF_FORMAT;
+        if(campaign_npc_bodies[i].alarm.present)return RF_NOT_FOUND;
         if(scene_guard_retreat_active(campaign_npc_bodies+i))return RF_NOT_FOUND;
     }
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].persistence_registered){
@@ -226,7 +254,9 @@ static int campaign_ai_mode_restore(campaign_npc_body *o,int32_t now)
         o->navigation.start.radius=o->navigation_radius;
         o->navigation.start.height=o->death_item_extent_7c4;
     }
-    scene_actor_route_publish(o,a,&path);o->script_move.active=(a->flags>>5)&1;
+    /* Section revisit keeps its established reconstructed-placement policy.
+     * The new scene starts at frame0, independent of outgoing combat_frame. */
+    scene_actor_route_publish(o,a,&path,a->dwell_remaining);o->script_move.active=(a->flags>>5)&1;
     o->script_move.stop=!o->script_move.active;o->script_move.route_index=1;
     if(path.count)memcpy(o->script_move.target,campaign_navigation.nodes[rf_level_waypoint_node(&path,a->cursor)].candidate.position,12);
     else if(a->origin==SCENE_MOVE_ORIGIN_EVENT){

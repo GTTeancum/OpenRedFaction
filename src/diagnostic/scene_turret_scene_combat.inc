@@ -149,18 +149,18 @@ static int scene_turret_scene_penetration(scene_turret_scene_context *c,
              * do not jump to an unchecked farther body or fabricate a hit. */
             if(!body_hit || body_fraction>query_fraction){if(!penetration.count)++rf_scene_turret_shots[5];return RF_OK;}
             if(kind==3 || kind==4)kind-=2;
+            for(i=0;i<3;i++)point[i]=actor_start[i]+actor_delta[i]*body_fraction;
             if(kind==2) {
                 campaign_npc_body *victim=campaign_npc_bodies+slot;uint32_t consumed;
                 if(slot>=campaign_npc_body_count || victim->registration.handle!=handle || !scene_turret_scene_npc_live(slot))return RF_OK;
                 ++rf_scene_enemy_damage_kinds[shot->kind];
-                status=scene_nano_weapon_contact(victim,shot->weapon,shot->base,&consumed);if(status)return status;
+                status=scene_nano_weapon_contact(victim,shot->weapon,shot->base,point,&consumed);if(status)return status;
                 if(consumed)return RF_OK;
                 radius=victim->body.state.bounds.radius;
             } else {
                 if(campaign_player_object.handle!=handle || !scene_turret_scene_player_live())return RF_OK;
                 ++rf_scene_enemy_damage_kinds[shot->kind];radius=scene_actor_body.state.bounds.radius;
             }
-            for(i=0;i<3;i++)point[i]=actor_start[i]+actor_delta[i]*body_fraction;
             fraction=penetration.cursor+(1-penetration.cursor)*body_fraction;
             request.amount=damage;
             /* Spend the real enclosing body radius and prepare the next ray
@@ -291,7 +291,8 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
      ++rf_scene_enemy_damage_kinds[definition->damage_kind];
      if(kind==2) {
          campaign_npc_body *victim=campaign_npc_bodies+slot;uint32_t consumed,entered;
-         status=scene_nano_weapon_contact(victim,weapon,damage,&consumed);if(status)goto fail;if(consumed)return RF_OK;
+         float nano_point[3];for(i=0;i<3;i++)nano_point[i]=eye[i]+spread[i]*body_fraction;
+         status=scene_nano_weapon_contact(victim,weapon,damage,nano_point,&consumed);if(status)goto fail;if(consumed)return RF_OK;
          status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock,&effects,&amount);if(!status)status=feedback.status;if(status)goto fail;
          rf_scene_turret_shots[6]=victim->registration.handle;
          if(victim->damage.effects.health<=0) {
@@ -312,7 +313,7 @@ static int scene_turret_scene_shot(void *context,uint32_t source,uint32_t intend
 fail:
     ++rf_scene_turret_shots[7];return status;
 }
-static int scene_turret_scene_tick(scene_stream *stream,uint32_t frame)
+static int scene_turret_scene_tick_service(scene_stream *stream,uint32_t frame)
 {
     scene_turret_scene_context context={stream,frame,{0}};scene_turret_combat_backend backend;
     if(!scene_turret_count){scene_turret_audio_close();return RF_OK;}
@@ -331,4 +332,12 @@ static int scene_turret_scene_tick(scene_stream *stream,uint32_t frame)
         scene_turret_scene_blocked,scene_turret_scene_shot,&context};
     {int status=scene_turret_generated_activation_tick(frame,&backend);if(status){scene_turret_audio_close();return status;}}
     return scene_turret_combat_tick(frame,&backend);
+}
+
+/* Keep accepted flight and subsequent cadence publication indivisible to capture. */
+static int scene_turret_scene_tick(scene_stream *stream,uint32_t frame)
+{
+    int status;++scene_turret_heap_service_depth;
+    status=scene_turret_scene_tick_service(stream,frame);
+    --scene_turret_heap_service_depth;return status;
 }

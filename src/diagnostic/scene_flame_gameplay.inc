@@ -64,7 +64,7 @@ static int scene_flame_tick(scene_stream *stream,uint32_t frame,const float orig
         if(!status)status=feedback.status;if(status)return status;
         if(amount>0) {
             combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
-            if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_due=frame+30;++rf_scene_enemy_awareness[1];}
+            if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_due=frame+30;scene_blind_sync(owner,frame);++rf_scene_enemy_awareness[1];}
         }
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
         if(owner->damage.effects.health<=0) {

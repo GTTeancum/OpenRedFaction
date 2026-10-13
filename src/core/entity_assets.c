@@ -1909,6 +1909,41 @@ int rf_entity_lod_distances_read(const void *text,uint32_t bytes,const char *nam
     }
     if(!selected)return RF_NOT_FOUND;*result=value;return RF_OK;
 }
+/*433fb3..433fce reads this game.tbl setting into63c110. Completion
+ * credits43dec6..43dee7 start that configured name, not a fixed credit track. */
+int rf_game_main_menu_music_read(const void *text,uint32_t bytes,char name[64])
+{
+    static const char *words[]={"$Main","Menu","Music","Filename:"};
+    lexer l;char t[256],value[64];uint32_t match=0,i;int found=0,status,quoted;
+    if(!text || !bytes || !name)return RF_RANGE;
+    l.text=text;l.size=bytes;l.at=0;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted){match=0;continue;}
+        if(same(t,words[match]))++match;
+        else match=same(t,words[0])?1:0;
+        if(match==4) {
+            if(found)return RF_FORMAT;
+            status=metadata_string(&l,value,sizeof(value));if(status)return status;
+            if(!value[0])return RF_FORMAT;
+            for(i=0;value[i];i++)if((unsigned char)value[i]<32 || (unsigned char)value[i]==127)return RF_FORMAT;
+            found=1;match=0;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    memcpy(name,value,strlen(value)+1);return RF_OK;
+}
+int rf_game_main_menu_music_load(rf_vpp *tables,uint32_t budget,char name[64])
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name)return RF_RANGE;
+    status=rf_vpp_find(tables,"game.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_game_main_menu_music_read(text,entry.size,name);
+    free(text);return status;
+}
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height)
 {
     static const char *words[]={"$Max","Entity","Jump","Height:"};

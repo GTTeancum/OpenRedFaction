@@ -42,7 +42,7 @@ static int campaign_ai_mode_apply(campaign_npc_body *owner,int32_t action,int32_
     status=scene_guard_retreat_cancel(owner,now,SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
     scene_ai_drone_smash_cancel_source(owner->registration.handle);
     campaign_pursuit_stop(owner);
-    owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
+    owner->combat_scripted=owner->combat_target=owner->combat_alert=0;scene_blind_clear(owner);
     owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
     if(action==1){owner->script_move.active=0;owner->script_move.stop=1;owner->navigation.retained.count=0;}
     if(action==4) {

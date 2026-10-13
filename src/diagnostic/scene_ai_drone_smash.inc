@@ -5,8 +5,8 @@
  * for missile eligibility. RF.exe42606f..4260ce starts action2 and schedules
  * both int(seconds*1000+.5) offsets from current game time, not from hit1.
  * Include after scene_ai_melee_shield.inc and scene_authored_holster.inc.
- * Pending entries are runtime-only, never RFNC animation state. Save/export
- * must reject a live reservation/strike; load preparation must not clear it.
+ * RFAP12 owns armed continuation separately from RFNC animation state.
+ * Callback reservations remain unsavable; load preparation never clears them.
  * All cancellation uses full registry handles, never an authored UID/index.
  */
 #define SCENE_AI_DRONE_SMASH_PENDING 64u
@@ -61,6 +61,15 @@ static void scene_ai_drone_smash_cancel_handle(uint32_t handle)
         scene_ai_delayed_melee_stats(p->weapon)[5]+=p->phase==1 || p->remaining!=0;
         memset(p,0,sizeof(*p));
     }
+}
+/* Phase2 alone is serializable. Callback depth survives an inner reset, so
+ * a cleared/replaced slot must never make an active callback checkpointable. */
+static uint32_t scene_ai_melee_checkpoint_busy(void)
+{
+    if(scene_ai_drone_smash_servicing||scene_ai_drone_smash_presenting)return 1;
+    for(uint32_t i=0;i<SCENE_AI_DRONE_SMASH_PENDING;i++)
+        if(scene_ai_drone_smash_pending[i].phase&&scene_ai_drone_smash_pending[i].phase!=2)return 1;
+    return 0;
 }
 static uint32_t scene_ai_drone_smash_save_pending(void)
 {
@@ -301,7 +310,7 @@ static int scene_ai_drone_smash_impact(scene_stream *stream,uint32_t frame,
     scene_ai_melee_pair pair={strike->source_slot,strike->source,
         strike->target_slot,strike->target};
     scene_ai_melee_delayed_guard guard={0};
-    float delta[3],distance,amount=0,seconds=(float)frame/60;
+    float delta[3],distance,amount=0,seconds=(float)frame/60,nano_point[3];
     float source_eye[3],source_basis[9],target_eye[3];rf_physics_body_state target_state;
     uint32_t contact,clock_bits,*stats=scene_ai_delayed_melee_stats(strike->weapon);int status;
     int32_t now=(int32_t)(((uint64_t)frame*1000/60)%RF_TIMER_PERIOD);
@@ -324,7 +333,7 @@ static int scene_ai_drone_smash_impact(scene_stream *stream,uint32_t frame,
     guard.slot=slot;guard.strike=strike;
     status=campaign_enemy_melee_actor_contact(stream,&pair,source_eye,delta,
         primary->ai_attack_range,player_eye,request.amount,request.kind,
-        scene_ai_melee_delayed_valid,&guard,&contact);
+        scene_ai_melee_delayed_valid,&guard,&contact,nano_point);
     if(status)return status;
     if(!contact){++stats[6];return RF_OK;}
     /* Rubble contact can invoke mutation callbacks. Requalify both full
@@ -342,7 +351,7 @@ static int scene_ai_drone_smash_impact(scene_stream *stream,uint32_t frame,
     if(victim) {
         uint32_t consumed;
         /* Requalified contact only; use its captured once-scaled primary amount. */
-        status=scene_nano_weapon_contact(victim,strike->weapon,request.amount,&consumed);
+        status=scene_nano_weapon_contact(victim,strike->weapon,request.amount,nano_point,&consumed);
         if(status)return status;if(consumed)goto melee_impact_done;
         status=rf_scene_npc_damage(strike->target,&request,1,clock_bits,&effects,&amount);
         if(!status)status=feedback.status;if(status)return status;

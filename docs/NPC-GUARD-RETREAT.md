@@ -1,5 +1,10 @@
 # Bounded guard retreat and ordinary-combat return
 
+October 12 update: retreat's three live translation queries now also compose
+the grounded player; see [NPC-PLAYER-CONTACT.md](NPC-PLAYER-CONTACT.md).
+This supersedes the player-obstruction limitation below for that narrow
+movement consumer. General NPC/NPC collision is unchanged.
+
 Status: the complete 29-file runtime/codec composition has independent source acceptance and is integrated after the October 11, 2026 17:00 UTC batch. It has not yet been compiled or run. The next ordinary stock-64-MiB Xbox build is planned for 18:00 UTC. Source review does not establish gameplay, protected-save compatibility, target ABI, stack fit or peak memory.
 
 ## First-playable behavior

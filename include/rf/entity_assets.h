@@ -301,6 +301,11 @@ int rf_game_liquid_damage_read(const void *text,uint32_t bytes,float rates[2]);
 int rf_game_liquid_damage_load(rf_vpp *tables,uint32_t budget,float rates[2]);
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height);
 int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height);
+/* game.tbl433fb3 completion-credit music selection. One nonempty quoted
+ * name, at most63 bytes; missing/duplicate/malformed input preserves output.
+ * Reuses the table lexer; loader scratch is budgeted and never retained. */
+int rf_game_main_menu_music_read(const void *text,uint32_t bytes,char name[64]);
+int rf_game_main_menu_music_load(rf_vpp *tables,uint32_t budget,char name[64]);
 /* Optional entity.tbl $JumpSnd: -> class120, resolved against434cb0's Foley
  * names. Missing/empty/unknown sound names yield-1. First case-insensitive
  * class match; duplicate/malformed fields preserve output. No allocation,

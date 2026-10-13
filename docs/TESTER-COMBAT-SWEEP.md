@@ -84,14 +84,14 @@ still determine availability. It does not authorize changing stock-64-MiB limits
    saves/in-session loads explicitly refuse acquisition or live guided flights;
    they never write them as ordinary rockets. See `PLAYER-ROCKET-LOCK-FIRST-PASS.md`
    for grounded controls, approximations and the verification boundary.
-2. **Automatic reload rejects legitimate shared-ammo surplus.**
-   `scene_weapon_auto_reload_ready` rejects reserve greater than the selected
-   definition's capacity. Existing `scene_pickup_shared_ammo_grant` deliberately
-   admits a larger shared pool (for example, Machine Pistol 12mm reserve carried
-   while selecting the lower-capacity handgun/Undercover handgun).
-   Ordinary manual/empty-trigger reload uses `rf_weapon_reload_transfer`, which
-   does not impose that per-gun reserve maximum, so basic reload remains usable.
-   This is a deferred tester issue rather than a system-completion blocker.
+2. **Shared-ammo automatic reload is corrected in source, pending compilation.**
+   `scene_weapon_auto_reload_ready` now uses the existing shared pickup policy's
+   catalog-wide same-ammo maximum, admitting legitimate surplus above the
+   selected gun's capacity, including after the larger gun is removed.
+   Negative or over-bound reserve and negative matching capacities remain
+   rejected. Manual/empty-trigger reload, timing and inventory transfer are
+   unchanged. The source correction is integrated and independently reviewed;
+   hourly Xbox compilation remains pending. No fresh gameplay result is claimed.
 
 Other explicit first-pass limitations, such as remote placement's short toss,
 exact homing/animation/effect fidelity, broader action/save coverage and isolated
@@ -106,6 +106,7 @@ only. They do not collectively establish a fresh whole-set runtime pass.
 
 Suggested status after parent integration: "The 17-slot player weapon set and
 basic combat loop are source-integrated for first-playable testing, including
-Rocket lock-on alternate. The shared-ammo auto-reload issue has a manual
-workaround. Broad combat runtime acceptance is still pending; a neutral startup
-cannot establish Rocket lock acquisition, steering or damage."
+Rocket lock-on alternate. Shared-ammo auto-reload has a bounded source
+correction awaiting compilation. Broad combat runtime acceptance is still
+pending; a neutral startup cannot establish Rocket lock acquisition, steering
+or damage."

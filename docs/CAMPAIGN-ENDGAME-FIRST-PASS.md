@@ -13,7 +13,8 @@ English failure description selected by the authored reason key from the
 installed `endgame.tbl`. A missing description falls back to the key. Use (`E`/`X`) after the
 fade reopens the current section at its authored spawn with fresh campaign
 state. Repeated requests cannot replace the first outcome. `call_credits` has
-a distinct immediate terminal screen. Live quick-save rejects an active
+a distinct immediate terminal screen, now extended to the bounded authored
+credits roll described in `CAMPAIGN-AUTHORED-CREDITS.md`. Live quick-save rejects an active
 terminal outcome because the fade and screen are not yet in the checkpoint
 format. The failure screen offers separate controls: `E`/`X` restarts the
 current section, while `F9`/`Back+X` quick-loads the saved slot. ASCII key
@@ -105,5 +106,6 @@ confirms that a normal countdown expiry pulse can traverse the same kinds of
 links. A full naturally timed campaign route remains open.
 
 Remaining work is language selection beyond English, a menu/load-slot
-choice, credits sequence, naturally deactivated event coverage, and checkpoint ownership
+choice, localized credits beyond the installed English roll, naturally
+deactivated event coverage, and checkpoint ownership
 if saving during a terminal transition is later allowed.

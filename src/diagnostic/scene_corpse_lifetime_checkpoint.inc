@@ -156,7 +156,7 @@ static int scene_corpse_lifetime_checkpoint_admit(scene_corpse_lifetime_stage *s
     const rf_npc_checkpoint_record *rows,uint32_t count)
 {
     uint32_t i,j,found=0;if(!s)return RF_OK;if(count&&!rows)return RF_RANGE;
-    for(i=0;i<count;i++)if(rows[i].dead_pose) {
+    for(i=0;i<count;i++)if(rows[i].dead_pose==1) { /* RFNC29 clipless finalizers have no corpse. */
         const rf_npc_checkpoint_record *a=rows+i;
         for(j=0;j<s->count;j++)if(s->rows[j].uid==a->uid)break;
         if(j==s->count||a->retired||a->health>0||!(a->death_flags_810&1u)||

@@ -63,6 +63,10 @@ static int scene_medic_flight_tick(scene_stream *s,campaign_npc_body *o,uint32_t
     if(scene_medic_flight_restoring||!scene_medic_flight_live(o)||!o->flight.entered||
        o->ai_mode.action_280!=7)return RF_NOT_FOUND;
     if(o->damage.effects.health<=0||(o->view.flags_810&1u)||(o->object_flags&(2u|0x4000u)))return RF_OK;
+    if(scene_civilian_flight_owner(o)&&
+       (campaign_cutscene_runtime.active||o->script_animation.active||o->scripted_physics||
+        o->view.linked_handle!=-1||scene_npc_seat_attached(o->registration.handle)))
+        return scene_civilian_flight_cancel(o,now,0);
     if(scene_medic_flight_overlap(o))return RF_NOT_FOUND;
     if(index>=campaign_model_owner_count)return RF_RANGE;
     memcpy(basis,campaign_model_owners[index].basis,36);
@@ -146,13 +150,13 @@ physical:
         proposal.next_position[1]=proposal.position[1];
         proposal.next_position[2]=proposal.position[2]+world[2]*o->movement.speed*elapsed;
         status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
-        status=rf_scene_npc_body_sweep(s->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+        status=scene_npc_live_body_sweep(s->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
         if(blocked&&hit.contact.normal[1]>=.5f){
             float dx=proposal.next_position[0]-proposal.position[0],dz=proposal.next_position[2]-proposal.position[2];
             float rise=-(dx*hit.contact.normal[0]+dz*hit.contact.normal[2])/hit.contact.normal[1];
             if(rise>0){proposal.next_position[1]=proposal.position[1]+rise+.001f;
                 status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
-                status=rf_scene_npc_body_sweep(s->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;}
+                status=scene_npc_live_body_sweep(s->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;}
         }
         if(blocked&&fabsf(hit.contact.normal[1])<.5f){
             float nx=hit.contact.normal[0],nz=hit.contact.normal[2],length=nx*nx+nz*nz;
@@ -164,7 +168,7 @@ physical:
                     proposal.next_position[0]=proposal.position[0]+dx;proposal.next_position[1]=proposal.position[1];
                     proposal.next_position[2]=proposal.position[2]+dz;
                     status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
-                    status=rf_scene_npc_body_sweep(s->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+                    status=scene_npc_live_body_sweep(s->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
                 }
             }
         }

@@ -1,3 +1,99 @@
+- October 13, 8:00 a.m. EDT: stock64 build and minimal startup smoke passed on bc6bc3b7, 12 simulation/10 presentation frames and clean shutdown (docs/HOURLY-20261013-1200.md); broader pursuit remains external unfinished staging.
+- October 13 11:00 UTC: shared NPC navigation workspace guard compiled; stock64 build and minimal startup smoke passed on 7ebebcbe, 13 simulation/10 presentation frames and clean shutdown (docs/HOURLY-20261013-1100.md). Broader pursuit/retreat remains external unfinished staging.
+- Shared NPC pathfinding workspace exclusion is integrated and compiled for ordinary and scripted requests (docs/NPC-NAVIGATION-WORKSPACE-GUARD.md).
+- October 13 10:00 UTC: stock64 build and minimal startup smoke passed on 60c61637, 15 simulation/10 presentation frames with clean shutdown; broader pursuit/retreat remains external uncompiled staging. See docs/HOURLY-20261013-1000.md.
+- October 13 09:00 UTC: stock64 build and minimal startup smoke passed on 9214bf8f, 15 simulation/10 presentation frames with clean shutdown; broader pursuit/retreat remains external uncompiled staging. See docs/HOURLY-20261013-0900.md.
+- October 13 08:00 UTC: stock64 build and minimal startup smoke passed on b7050e54, 12 simulation/10 presentation frames with clean shutdown; broader pursuit/retreat integration remains pending. See docs/HOURLY-20261013-0800.md.
+- October 13 07:00 UTC: authored NPC combat-range and Stand Ground changes compiled on044cbeab; startup smoke PASS13 simulation/10 presentation frames, clean shutdown. See docs/HOURLY-20261013-0700.md. No functional coverage claim.
+- Placed ordinary ranged NPC combat-range overrides are parent source-reviewed for matching firing and pursuit admission without new live/save state; hourly stock64 compilation remains pending (docs/NPC-AUTHORED-COMBAT-RANGE.md).
+- Combat crouch/RFNC39 and bounded pursuit delay/RFNC40 passed the October 13 06:00 corrective stock64 build and minimal startup smoke; the original compile failure is preserved separately (docs/HOURLY-20261013-0600.md). Functional coverage remains tester-owned.
+- Bounded loss-of-sight pursuit delay and RFNC40 continuation are parent source-reviewed with existing sight sampling, target lifecycle and final-close joins; integrated and pending hourly stock64 compilation (docs/NPC-LOSS-OF-SIGHT-DELAY.md).
+- Bounded ordinary combat crouch and RFNC39 are source-reviewed across live policy, physical shape, animation and saved continuation; integrated and pending the next hourly stock64 compile (docs/NPC-COMBAT-CROUCH.md).
+- Ordinary Direct/Evasive combat repositioning and RFNC38 continuation passed the October 13 03:00 stock64 compile/package and minimal startup smoke; functional coverage remains tester-owned (docs/NPC-COMBAT-REPOSITIONING.md).
+- Nano shield hit/depletion feedback, Capek warmup and Blind Pursuit passed the corrected October 13 01:00 stock64 build and minimal startup smoke; functional coverage remains tester-owned.
+- Capek NanoAttackSource warmup imagery is source-composed with actor-muzzle attachment, independent one-shot timing, two-instance256-KiB ownership and final-success reset; parent integration and the next hourly build remain pending (docs/CAPEK-CANE-WARMUP.md).
+
+- USER: Ordinary humanoid Blind Pursuit expiry and RFNC37 elapsed-age continuation are source-written with bounded sight work and protected final-close ownership; complete exact source review and parent integration before the hourly Xbox compilation (docs/NPC-BLIND-PURSUIT.md).
+
+- Ordinary player auto-reload now admits legitimate shared-ammo surplus within the existing catalog-wide same-ammo bound; source-integrated and independently reviewed, pending hourly Xbox compilation (docs/WEAPON-AUTO-RELOAD.md).
+
+- Constant Nano-shield imagery is source-composed with two guarded actors, authored looping mesh/material rendering, a909423-byte accounted loading peak and final-success load reset; parent integration and the hourly build remain pending (docs/NANO-SHIELD-CONSTANT.md).
+- Authored Stand Ground humanoids now suppress only combat pursuit, including explicit Attack and first-service legacy routes, while retaining firing, authored movement and physical support; source-written, pending parent review/integration and hourly Xbox compilation (docs/NPC-STAND-GROUND-COMBAT.md).
+
+- Stationary turret firing loops now preserve pending native identity in existing 28-byte sidecars with one ordinary retirement attempt per frame and 8 scheduling bytes; combine its independent lifecycle gates in the parent hourly stock64 build (docs/TURRET-LOOP-RETIREMENT.md).
+
+- Ordinary nonempty One way actor defaults now rebind cursor0 at terminal arrival without a final wait, retaining shared direction and qualified visual actions, with same-layout RFNC36/RFCH13 and explicit two-sided final-close selection; source-written, pending parent integration and hourly Xbox compilation (docs/NPC-ONE-WAY-DEFAULT-PATROL.md).
+
+- NPC continuous loops now retain failed native retirements in existing fixed records with one ordinary retirement attempt per frame and 8 added global bytes; combine the independent lifecycle gates in the parent hourly stock64 build (docs/NPC-LOOP-RETIREMENT.md).
+
+- Ordinary authored waypoint tags now schedule bounded delayed Play_Animation/Look_At/Message through the existing event runtime, with route/action coexistence, same-layout RFNC35/RFCH12 and final-close continuation; source-written and pending parent-owned hourly Xbox compilation (docs/NPC-WAYPOINT-EVENT-COMPOSITION.md).
+
+- Shared player firing loops now retain failed native retirement without retrying a blocked firing episode, using 12 added transient bytes; integrate with the separate water gates in the parent hourly stock64 build (docs/WEAPON-LOOP-RETIREMENT.md).
+
+- Water-loop native stop failures now retain full-handle retirement ownership and block replacement/reset/bank teardown with 12 added owner bytes; await parent integration and the sole hourly stock64 compile (docs/WATER-LOOP-RETIREMENT.md).
+
+- Authored patrol arrival facing and original-inert tag admission are integrated and independently source-reviewed, with same-layout RFNC34/RFCH11 capability gating. Pending hourly Xbox compilation (docs/NPC-PATROL-ARRIVAL-FACING.md).
+
+- Completion credits now select the authored game.tbl main-menu music with the existing bounded lexer, stream and loop metadata; source-written, pending the next parent-owned hourly Xbox compile/package rollup (docs/CAMPAIGN-AUTHORED-CREDITS.md).
+
+- Authored skybox rendering, Skybox_State59 and RFEN9 continuation are integrated and independently source-reviewed; borrowed resident resources and final-close publication preserve current caps. Pending hourly Xbox compilation (docs/AUTHORED-SKYBOX-SAVE.md).
+
+- Waiting armed humanoids now investigate a fixed heard position with a finite route and RFNC33 continuation; independently source-reviewed, pending hourly Xbox compilation (docs/NPC-NOISE-INVESTIGATION.md).
+
+- Replaced impact-radius strtof call with a bounded authored decimal parser because NXDK strtof asserts and halts. Source-reviewed; startup recovery remains unverified until the next hourly build/smoke. Actual21/22 failures remain preserved.
+
+- Authored Play_Vclip transport explosion presentation is integrated and independently source-reviewed with late optional resource admission, bounded private particles and final-success transient cleanup; pending hourly Xbox compilation (docs/AUTHORED-PLAY-VCLIP.md).
+
+- Authored hostile Waiting NPCs now have a source-written sight-to-Alarm46 consumer using the existing perception policy, explicit damage/sight admission and unchanged runner/save/resource ownership; integrate after source review in the next hourly Xbox compile/package rollup (docs/NPC-SIGHT-ALARM.md).
+
+- Ordinary qualified unarmed civilians now have a source-written nearby loud-player-shot flight consumer using the original10–20 second request and existing motion/RFNC ownership; integrate after source review in the next hourly Xbox compile/package rollup (docs/CIVILIAN-GUNFIRE-FLIGHT.md).
+
+- Ordinary grounded humanoid Loop/Ping Pong patrols and authored node waits are source-integrated and independently reviewed with actual motion admission, bounded RFNC32/RFCH10 continuation and final-success publication; integrate in the next hourly stock64 compile/package rollup (docs/NPC-AUTHORED-PATROL-DWELL.md).
+
+- Authored scripted explosion sparks, fire heads and smoke trails are integrated and independently source-reviewed within existing resource/pool caps; pending hourly Xbox compilation (docs/SCRIPTED-EXPLOSION-TRAILS.md).
+
+- October 12, 21:00 UTC rollup compiled class melee, audio controls, impact effects, civilian flight and controller vibration; startup smoke timed out after New Game acceptance with no simulation frames, cause unproven; preserve the failed evidence and use bounded existing startup-stage receipts next hour.
+
+- Authored Alarm46 NPC runners and conditional RFNC31 continuation are source-written with actual damage admission, route/facing/action44 completion and final-success save ownership; integrate in the next hourly Xbox rollup (docs/NPC-ALARM-RUNNER.md).
+
+- Bounded selected-controller vibration is integrated and independently source-reviewed with pause/disconnect/session cancellation; pending hourly Xbox compilation (docs/XBOX-CONTROLLER-VIBRATION.md).
+
+- Ordinary authored unarmed civilian damage-flight is integrated and independently reviewed with lazy RFNC30 continuation; pending hourly Xbox compilation (docs/CIVILIAN-DAMAGE-FLIGHT.md).
+
+- October 12, 20:00 UTC rollup compiled HEAP/delayed-melee/robot-death persistence, credits, remapping, scanner silhouettes, NPC/player contact and UI-language selection and passed the short startup smoke; older source-only entries below describe historical implementation milestones.
+
+- Conventional dry-world gun impact flashes, authored spark bursts and smoke are source-integrated and independently reviewed; uncompiled with exact ordered weapon profiles, shared accepted-contact feedback, a deduplicated optional512KiB bank and success-only transient reset; integrate in the next hourly Xbox compile/package rollup (docs/WEAPON-WORLD-IMPACT-VISUALS.md).
+
+- Xbox master/effects/music preferences, bounded Audio subpage and strict RFCS5/legacy settings storage are source-integrated and independently reviewed with the retained backend API; include in the next hourly compile/package rollup (docs/XBOX-AUDIO-SETTINGS.md).
+
+- Tankbot and both Snake class-default close-range melee switches are source-integrated and independently reviewed; uncompiled with owned authored pairs, deferred paid obligations and same-size RFAP14 kind26 family5–7 continuation; integrate in the next hourly Xbox compile/package rollup (docs/NPC-CLASS-MELEE-SWITCH.md).
+
+- English/German/French authored UI-subset selection, bounded current-language catalog, placeholder-aware narrative fallback and same-size RFCS4 settings are source-written; integrate in the next hourly compile/package rollup (docs/AUTHORED-TEXT-LANGUAGE.md).
+
+- Rail scanner body silhouettes are integrated using bounded admitted model geometry, published poses and the existing depth-free HUD sink; uncompiled pending hourly rollup (docs/RAIL-SCANNER-SILHOUETTES.md).
+
+- Grounded NPC patrol/pursuit, scripted movement, retreat/medic translation and support carry now compose the actual player body with reversed original pair admission; source-written for the next hourly compile/package rollup (docs/NPC-PLAYER-CONTACT.md).
+
+- Xbox ten-action button remapping, collision-safe swaps, release gating, live control hints and same-size RFCS3 persistence are source-written; integrate into the next hourly compile/package rollup (docs/XBOX-CONTROLLER-BUTTON-MAPPING.md).
+
+- Authored English credits, bounded scrolling/wrapping, streamed credits music and ordinary frontend return are integrated; uncompiled pending hourly rollup (docs/CAMPAIGN-AUTHORED-CREDITS.md).
+
+- Queued Tankbot/Drone/Spike finalizers are source-written with bounded RFNC29/RFAP13 continuation, mandatory source joins and final-storage-success publication; integrate after RFAP12 in the next hourly compile/package rollup (docs/ROBOT-DEATH-SAVE.md).
+
+- Drone Smash and Reeper/Mutant delayed-melee controllers are source-written for RFAP12 with exact remaining impacts/deadlines, authored source/target/order/cadence ownership and final-storage-success publication; integrate in the next hourly rollup, preserving callback and whole-save-cap refusals (docs/NPC-DELAYED-MELEE-SAVE.md).
+
+- HEAP paid turret flights are source-written for RFAP11 with authored host/candidate joins, independent launch-time operator exclusion, exact metadata demand and final-storage-success publication; integrate into the next hourly rollup (docs/TURRET-HEAP-FLIGHT-SAVE.md).
+
+- Player Rocket held lock and paid guided flights are integrated with RFAP10 typed target joins, suppression-safe LT rearm and final-success publication; uncompiled pending hourly rollup (docs/PLAYER-ROCKET-LOCK-SAVE.md).
+
+- Live monitor imagery and RFEN8 camera-list, selected-camera, cycle-timer and continuous-mode persistence are integrated from Codex commits 74c64ebb and 30abe6a0; uncompiled pending the hourly rollup (docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+
+- Drone/Tankbot independent secondary cooldowns and straight Drone Missile flights are integrated for RFAP9 with paid inventory joins, source/candidate ownership, exact resource demand and final-success publication; uncompiled pending the next hourly rollup (docs/NPC-SECONDARY-ATTACK-SAVE.md).
+
+- Live security-monitor imagery is integrated from Codex commit74c64ebb: bounded camera feeds/cycling, black/noise modes and per-prop screen textures. Compilation pending; exact camera-cycle save continuity and secondary visual effects remain documented refinements (docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+
+- NPC TriBeam/Spit/Cane delayed attacks are source-written for RFAP8 with prepaid windups, paired reservations, paid cadence, Cane target continuity and final-success publication; integrate the bounded slice in the next hourly rollup, retaining the whole-file capacity refusal (docs/NPC-DELAYED-ATTACK-SAVE.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
@@ -428,7 +524,7 @@ Remaining first-playable work, grouped for planning:
 - Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving, preserves the suspended route through ordinary Xbox saves, and resumes a nonzero cursor without teleport on stock-64-MiB Xbox; authored NPC seats are integrated, while broader vehicle behavior remains open (docs/VEHICLE-AI-MODES.md).
 - Auto Turret heads: Stock-64-MiB Xbox creates the real dependent head, updates its animated attachment and independent aim, and lands11 shots with zero base-handheld shots; RFTU2 live-head save/load passes a focused stock-64-MiB Xbox continuation (5 source shots,3 after load); base-to-head coupled death passes stock-64-MiB Xbox (5 shots before death,0 after); scripted base removal and RFTU3 removed-base save/fresh-load pass stock-64-MiB Xbox (head hidden, detached, health preserved,0 shots after); head-to-base direct-hit death and scripted head-only removal now pass stock-64-MiB Xbox, and generated-head Attack-target saves now restore real NPC firing; head-only removal saves and possession remain open.
 - Generated-head Attack saves: RFNC11 restores the target, pending fire deadline and RNG through an ordinary stock-64-MiB Xbox save/fresh-load; the guard resumes firing and damages head60 to40 with base80 unchanged; broader encounters remain (docs/AUTO-TURRET-ATTACK-SAVE.md).
-- HEAP turrets: Authored instance weapons now override turret class defaults; stock64MiB Xbox verifies ordinary HEAP mount, two swept impacts/blasts, player attribution and exit; victim damage, terrain cuts, autonomous firing and pending-flight saves remain (docs/TURRET-HEAP-FIRST-PASS.md).
+- HEAP turrets: Authored instance weapons now override turret class defaults; stock64MiB Xbox verifies ordinary HEAP mount, two swept impacts/blasts, player attribution and exit; victim damage, terrain cuts and autonomous firing remain tester-owned; pending-flight save continuation is source-written in RFAP11 (docs/TURRET-HEAP-FLIGHT-SAVE.md).
 - NPC teleportation: Stock64MiB Xbox verifies the original L12S1 delayed miner teleport, exact immediate pose, one real Jeep-seat release and no snapback; core checks cover ordered propagation/OFF, while item/clutter targets, other attachments and saves remain open (docs/NPC-TELEPORT-PREP.md).
 - Stationary turrets: Player Use/aim/fire/dismount passes stock-64-MiB Xbox (one mount/exit,24 aim updates,six shots, no handheld shots/self-damage); ordinary mounted save/fresh-load now restores exact aim/cadence/RNG, resumes firing and exits without reboarding; held-input saves, seated animation and HEAP-specific save coverage remain open (docs/STATIONARY-TURRET-PLAYER.md).
 - Moving APC exits: Stock-64-MiB Xbox verifies Use exit at1.20m/s against the final chassis pose, full ownership release and subsequent on-foot movement; crowded/wreck exits remain (docs/APC-MOVING-EXIT.md).

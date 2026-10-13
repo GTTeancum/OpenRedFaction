@@ -46,7 +46,8 @@ static int scene_ai_drone_secondary_service(uint32_t frame)
     }
     return RF_OK;
 }
-/* Save/export only. RFNC has no independent secondary-deadline field. A
+/* Legacy save/export only. RFAP9 has the independent secondary-deadline owner;
+ * RFNC alone cannot represent it. A
  * failed save or load PREPARATION must never clear or postpone these entries.
  * Read-only expiry permits a save as soon as the real cooldown has elapsed,
  * even if the normal enemy service has not yet reclaimed its slot this tick.

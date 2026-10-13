@@ -163,13 +163,13 @@ static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uin
         }
         if(status)return status;
         if(campaign_equipped_slot==9){
-            const char *hint=remote_pending?"DETONATING":loaded?
+            char detonate[32];const char *hint;
 #ifdef RF_IMAGE_XBOX_NATIVE
-                "RT DETONATE":
+            snprintf(detonate,sizeof(detonate),"%s DETONATE",rf_xbox_input_binding_short_label(RF_XBOX_BIND_FIRE));
 #else
-                "FIRE DETONATE":
+            strcpy(detonate,"FIRE DETONATE");
 #endif
-                "NO CHARGES";
+            hint=remote_pending?"DETONATING":loaded?detonate:"NO CHARGES";
             status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,"DEPLOYED",496,62,132,0,color);if(status)return status;
             status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,hint,496,78,132,0,
                 loaded?color:0xffee6060);if(status)return status;

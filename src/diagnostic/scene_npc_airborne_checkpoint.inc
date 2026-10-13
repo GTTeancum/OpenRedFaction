@@ -52,7 +52,8 @@ static uint32_t scene_npc_airborne_potential(uint32_t index,const campaign_npc_b
 {
     return o&&scene_npc_airborne_class(index)&&o->registration.view&&
         isfinite(o->damage.effects.health)&&o->damage.effects.health>0&&o->movement_slot==3&&
-        !o->scripted_physics&&!o->scripted_physics_seen&&!o->flight.qualified&&!o->flight.entered;
+        !o->scripted_physics&&!o->scripted_physics_seen&&
+        (!o->flight.qualified||scene_civilian_flight_owner(o))&&!o->flight.entered;
 }
 static int scene_npc_airborne_identity(uint32_t index,const campaign_npc_body *o,
     scene_npc_airborne_failure *failure)
@@ -106,7 +107,8 @@ static int scene_npc_airborne_identity(uint32_t index,const campaign_npc_body *o
     NPC_AIRBORNE_U(!scene_npc_seat_attached(h),0,1,0);
     NPC_AIRBORNE_U(!o->scripted_physics,0,o->scripted_physics,0);
     NPC_AIRBORNE_U(!o->scripted_physics_seen,0,o->scripted_physics_seen,0);
-    NPC_AIRBORNE_U(!o->flight.qualified,0,o->flight.qualified,0);
+    /* A lazy civilian constructor owns no airborne/body aliases. */
+    NPC_AIRBORNE_U(!o->flight.qualified||scene_civilian_flight_owner(o),0,o->flight.qualified,0);
     NPC_AIRBORNE_U(!o->flight.entered,0,o->flight.entered,0);
     NPC_AIRBORNE_U(!o->robot_death.state,0,o->robot_death.state,0);
     return RF_OK;
@@ -124,11 +126,12 @@ static int scene_npc_airborne_basis_equal(const float *a,const float *b,
 static int scene_npc_airborne_geometry(uint32_t index,const campaign_npc_body *o,
     scene_npc_airborne_failure *failure)
 {
-    uint32_t cls,i,j,flags;float tensor[9];rf_physics_bounds bounds;rf_movement_settings speed;
+    uint32_t cls,i,j,flags,physical=!!(o->view.flags_810&0x400u);float tensor[9];rf_physics_bounds bounds;rf_movement_settings speed;
     const rf_physics_stance_cache *stance;const scene_npc_hit_location_class *hit;
     const rf_entity_material *material;const rf_physics_body_state *b=&o->body.state;int status;
     status=scene_npc_airborne_identity(index,o,failure);if(status)return status;
     cls=campaign_seeds.items[index].class_index;
+    if(physical)NPC_AIRBORNE_STATUS(scene_crouch_live_shape(index,o));
     NPC_AIRBORNE_U(campaign_npc_stances!=NULL,0,0,1);
     NPC_AIRBORNE_U(scene_npc_hit_location_classes!=NULL,0,0,1);
     NPC_AIRBORNE_U(campaign_npc_movement_configs!=NULL,0,0,1);
@@ -161,8 +164,8 @@ static int scene_npc_airborne_geometry(uint32_t index,const campaign_npc_body *o
         NPC_AIRBORNE_F(sphere->radius==hit->spheres[i].radius,i,sphere->radius,hit->spheres[i].radius);
         NPC_AIRBORNE_F(sphere->parameter_10==-1,i,sphere->parameter_10,-1);
         NPC_AIRBORNE_U(!sphere->opaque_14,i,sphere->opaque_14,0);
-        for(j=0;j<3;j++)NPC_AIRBORNE_F(isfinite(sphere->center[j])&&isfinite(stance->centers[0][i][j])&&
-            sphere->center[j]==stance->centers[0][i][j],i*3+j,sphere->center[j],stance->centers[0][i][j]);
+        for(j=0;j<3;j++)NPC_AIRBORNE_F(isfinite(sphere->center[j])&&isfinite(stance->centers[physical][i][j])&&
+            sphere->center[j]==stance->centers[physical][i][j],i*3+j,sphere->center[j],stance->centers[physical][i][j]);
     }
     flags=rf_entity_creation_physics_flags(campaign_seeds.items[index].spawn.creation_flags,
         campaign_seeds.classes[cls].physics.flags,campaign_seeds.classes[cls].physics.flags2,
@@ -196,7 +199,7 @@ static int scene_npc_airborne_endpoint(uint32_t index,const campaign_npc_body *o
     NPC_AIRBORNE_F(o->look.body_angles[0]==0,0,o->look.body_angles[0],0);
     NPC_AIRBORNE_F(o->look.body_angles[2]==0,2,o->look.body_angles[2],0);
     NPC_AIRBORNE_F(isfinite(o->look.body_angles[1]),1,o->look.body_angles[1],0);
-    NPC_AIRBORNE_U(!(o->view.flags_810&0x400u),0,o->view.flags_810&0x400u,0);
+    if(o->view.flags_810&0x400u)NPC_AIRBORNE_STATUS(scene_crouch_live_shape(index,o));
     NPC_AIRBORNE_U(!b->state_124,0,b->state_124,0);
     NPC_AIRBORNE_F(b->scalar_144==1,0,b->scalar_144,1);
     NPC_AIRBORNE_U(b->reference_15c==-1,0,b->reference_15c,-1);

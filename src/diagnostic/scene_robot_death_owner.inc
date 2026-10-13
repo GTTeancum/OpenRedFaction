@@ -47,13 +47,18 @@ static void scene_robot_death_reset(void)
         memset(&campaign_npc_bodies[i].robot_death,0,sizeof(campaign_npc_bodies[i].robot_death));
     rf_scene_robot_death[10]=0;
 }
+static uint32_t scene_robot_death_checkpoint_busy(void)
+{
+    return scene_robot_death_draining||scene_robot_death_fault||
+        campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
+        (campaign_npc_body_count&&!campaign_npc_bodies);
+}
 /* SAVE/EXPORT ONLY, never load preflight or shared row capture. Consumed
  * receipts need no wire extension: successful removal is the terminal state.
  * A partial gameplay failure remains visible and cannot masquerade as saved. */
 static uint32_t scene_robot_death_save_pending(void)
 {
-    uint32_t i;if(scene_robot_death_draining||scene_robot_death_fault)return 1;
-    if(campaign_npc_body_count&&!campaign_npc_bodies)return 1;
+    uint32_t i;if(scene_robot_death_checkpoint_busy())return 1;
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].robot_death.state==1)return 1;
     return 0;
 }

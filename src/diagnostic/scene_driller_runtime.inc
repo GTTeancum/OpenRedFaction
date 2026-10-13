@@ -370,7 +370,7 @@ static int scene_passive_vehicle_roof_stimulus(scene_stream *s,rf_physics_body_s
         status=rf_scene_npc_normal(s->collision,handle,NULL);if(status)return status;
         if(rf_scene_passive_roof_fixture[9]>=5){
             campaign_pursuit_stop(npc);memset(&npc->script_move,0,sizeof(npc->script_move));
-            npc->combat_alert=npc->combat_scripted=npc->combat_target=npc->combat_due=npc->combat_navigation_due=0;
+            npc->combat_alert=npc->combat_scripted=npc->combat_target=npc->combat_due=npc->combat_navigation_due=0;scene_blind_clear(npc);
         }else{
             npc->script_move.active=1;npc->script_move.follow=0;
             npc->script_move.retry=UINT32_MAX;

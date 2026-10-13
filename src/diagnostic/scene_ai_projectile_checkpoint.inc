@@ -4,11 +4,22 @@
  * never a registry handle or resource pointer. Player/controller identity
  * words are reserved zeros; their row kind selects the local-player role.
  * Slot order is retained so the next launch chooses the same free entry. */
+#include "scene_ai_delayed_checkpoint_types.inc"
+#include "scene_ai_secondary_checkpoint_types.inc"
+#include "scene_ai_melee_checkpoint_types.inc"
 enum {SCENE_AI_PROJECTILE_HEADER=16,SCENE_AI_PROJECTILE_ROW=112,
     SCENE_AI_PROJECTILE_MAX=SCENE_AI_GRENADE_CAPACITY+SCENE_AI_ROCKET_CAPACITY+
         SCENE_ROCKETS+SCENE_GRENADE_CAPACITY+SCENE_FUSION_CAPACITY+SCENE_FLAME_CANISTER_CAPACITY+SCENE_BURNING_CAPACITY+4+
-        SCENE_AI_LASER_CAPACITY+SCENE_AI_SONAR_CAPACITY};
+        SCENE_AI_LASER_CAPACITY+SCENE_AI_SONAR_CAPACITY+
+        SCENE_AI_DELAYED_OWNERS+SCENE_AI_DELAYED_SLOTS+SCENE_AI_CANE_CAPACITY+
+        2u*SCENE_AI_SECONDARY_CHECKPOINT_CAPACITY+1u+SCENE_ROCKETS+SCENE_TURRET_HEAP_CAPACITY+SCENE_AI_MELEE_CHECKPOINT_CAPACITY+SCENE_ROBOT_DEATH_CHECKPOINT_CAPACITY};
 struct scene_ai_projectile_checkpoint_stage {
+    scene_player_rocket_lock_state player_lock;
+    scene_player_rocket_checkpoint_target player_lock_target,player_targets[SCENE_ROCKETS];
+    uint32_t player_lock_present;
+    scene_ai_delayed_checkpoint_stage delayed;
+    scene_ai_secondary_checkpoint_stage secondary;
+    uint32_t rocket_source_uid[SCENE_AI_ROCKET_CAPACITY]; /* RFAP9 secondary source join. */
     scene_ai_laser_projectile lasers[SCENE_AI_LASER_CAPACITY],sonars[SCENE_AI_SONAR_CAPACITY];
     uint32_t laser_source_uid[SCENE_AI_LASER_CAPACITY],sonar_source_uid[SCENE_AI_SONAR_CAPACITY];
     uint32_t lasers_live,sonars_live;
@@ -28,6 +39,10 @@ struct scene_ai_projectile_checkpoint_stage {
     rf_weapon_trigger_state player_trigger;
     uint32_t player_trigger_present;
     uint32_t grenades_live,rockets_live,player_rockets_live;
+    scene_turret_heap_round heap[SCENE_TURRET_HEAP_CAPACITY];
+    uint32_t heap_host_uid[SCENE_TURRET_HEAP_CAPACITY],heap_operator_uid[SCENE_TURRET_HEAP_CAPACITY],heap_live;
+    scene_ai_melee_checkpoint_stage melee;
+    scene_robot_death_checkpoint_stage robot_death;
 };
 static uint32_t scene_ai_projectile_checkpoint_stage_bytes(void)
 {return (uint32_t)sizeof(scene_ai_projectile_checkpoint_stage);}
@@ -38,7 +53,7 @@ static uint32_t scene_ai_projectile_checkpoint_trigger_pending(const scene_ai_pr
 static int scene_ai_projectile_checkpoint_holster_admit(const scene_ai_projectile_checkpoint_stage *stage,uint32_t holstered)
 {
     if(!holstered || !stage)return RF_OK;
-    if(stage->fusion_input.reloading || stage->player_throw.phase || stage->player_throw.ticks ||
+    if(stage->player_lock.active || stage->fusion_input.reloading || stage->player_throw.phase || stage->player_throw.ticks ||
        stage->player_trigger.remaining || stage->player_trigger.delay ||
        stage->flame.values[0] || stage->flame.values[1] || stage->flame.values[2] ||
        stage->flame.values[8] || stage->flame.values[10])return RF_FORMAT;
@@ -130,6 +145,12 @@ static int scene_ai_projectile_source_handle(uint32_t uid,uint32_t *handle)
 }
 #include "scene_ai_fusion_checkpoint.inc"
 #include "scene_ai_direct_checkpoint.inc"
+#include "scene_ai_delayed_checkpoint.inc"
+#include "scene_ai_secondary_checkpoint.inc"
+#include "scene_player_rocket_checkpoint.inc"
+#include "scene_turret_heap_checkpoint.inc"
+#include "scene_ai_melee_checkpoint.inc"
+#include "scene_robot_death_checkpoint.inc"
 /* RFAP2 adds player Fusion rows6 and input-only row7. Times are remaining
  * frame counts; runtime source handles and table pointers are reconstructed. */
 static void scene_ai_projectile_put_fusion_input(unsigned char *r)
@@ -146,14 +167,34 @@ static int scene_ai_projectile_checkpoint_weapon_mask(const void *data,uint32_t 
     if(!mask||!npc_mask)return RF_RANGE;if(!bytes)return data?RF_FORMAT:RF_OK;
     if(!p||bytes<16||memcmp(p,"RFAP",4)||checkpoint_u32(p+12))return RF_FORMAT;
     version=checkpoint_u32(p+4);count=checkpoint_u32(p+8);
-    if((version<1||version>7)||!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=16+112*count)return RF_FORMAT;
+    if((version<1||version>14)||!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=16+112*count)return RF_FORMAT;
     for(i=0;i<count;i++){
         uint32_t kind=checkpoint_u32(p+16+112*i);
-        if(!kind||kind>(version==1?5u:version==2?7u:version==3?9u:version==4?10u:version==5?11u:version==6?12u:14u))return RF_FORMAT;
+        if(!kind||kind>(version==1?5u:version==2?7u:version==3?9u:version==4?10u:version==5?11u:version==6?12u:version==7?14u:version==8?20u:version==9?22u:version==10?24u:version==11?25u:version==12?26u:27u))return RF_FORMAT;
+        if(kind==2){
+            uint32_t variant=checkpoint_u32(p+16+112*i+12);
+            if(variant<1||variant>(version>=9?3u:2u))return RF_FORMAT;
+            *npc_mask|=1u<<4;
+            if(variant==2)*npc_mask|=SCENE_AI_SECONDARY_RESOURCE_TANKBOT;
+            if(variant==3)*npc_mask|=SCENE_AI_SECONDARY_RESOURCE_DRONE;
+        }
+        if(kind==21||kind==22)*npc_mask|=(1u<<4)|(kind==21?SCENE_AI_SECONDARY_RESOURCE_DRONE:SCENE_AI_SECONDARY_RESOURCE_TANKBOT);
+        if(kind==26){uint32_t family=checkpoint_u32(p+16+112*i+12);
+            if(family>SCENE_AI_REEPER_CLAWS||(family>SCENE_AI_LEGACY_CLAWS&&version<14))return RF_FORMAT;
+        }
+        if(kind==25)*npc_mask|=SCENE_TURRET_HEAP_RESOURCE;
+        if(kind==23)*mask|=1u<<4;
+        if(kind==3||kind==24)*npc_mask|=1u<<4; /* Paid flights need no player view. */
         if(kind==6||kind==7)*mask|=1u<<12;
         if(kind==12)*npc_mask|=1u<<12; /* Shared mesh/effects, never player view/ownership. */
         if(kind==13)*npc_mask|=SCENE_AI_DIRECT_RESOURCE_LASER;
         if(kind==14)*npc_mask|=SCENE_AI_DIRECT_RESOURCE_SONAR;
+        if(kind>=15&&kind<=20){
+            uint32_t family=kind==15?checkpoint_u32(p+16+112*i+12):kind==20?3:kind-16;
+            if(family>3)return RF_FORMAT;
+            if(kind==15&&family==3)*npc_mask|=SCENE_AI_DELAYED_RESOURCE_CANE_MUZZLE;
+            *npc_mask|=family==0?SCENE_AI_DELAYED_RESOURCE_TRIBEAM:family<3?SCENE_AI_DELAYED_RESOURCE_SPIT:SCENE_AI_DELAYED_RESOURCE_CANE;
+        }
         if(kind==8||kind==9||kind==10)*mask|=1u<<10;
         if(kind==11){scene_continuous_charge_state state;
             int status=scene_continuous_charge_checkpoint_row(p+16+112*i,&state);if(status)return status;
@@ -166,18 +207,24 @@ static int scene_ai_projectile_checkpoint_weapon_mask(const void *data,uint32_t 
 }
 static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,void *output,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=output;uint32_t i,j,count=0,uid,fusion_count=0,fusion_player_count=0,fusion_npc_count=0,charge_count=0,direct_count=0;int status;
+    unsigned char *p=output;uint32_t i,j,count=0,uid,fusion_count=0,fusion_player_count=0,fusion_npc_count=0,charge_count=0,direct_count=0,delayed_count=0,secondary_count=0,secondary_flights=0,player_rocket_count=0,heap_count=0,melee_count=0,melee_version=12,robot_death_count=0;int status;
     uint32_t fusion_controller=scene_fusion_input.reloading||
         (scene_fusion_input.cooling&&(int32_t)(combat_frame-scene_fusion_input.next_fire)<0);
     if(!stream||!output||!written)return RF_RANGE;
-    if(scene_player_rocket_lock_save_pending(stream))return RF_NOT_FOUND;
+    status=scene_robot_death_checkpoint_capture(NULL,&robot_death_count);if(status)return status;
+    status=scene_ai_melee_checkpoint_capture_version(NULL,&melee_count,&melee_version);if(status)return status;
+    status=scene_turret_heap_checkpoint_capture(NULL,&heap_count);if(status)return status;
+    status=scene_player_rocket_checkpoint_capture(stream,NULL,&player_rocket_count);if(status)return status;
     status=scene_continuous_charge_checkpoint_capture(stream,NULL,&charge_count);if(status)return status;
-    /* Save-only rejection, before touching the output. RFAP6/7 name paid NPC flights;
+    /* Save-only rejection, before touching the output. RFAP6/7/8/9 own paid NPC attacks;
      * other unsupported attacks and in-service callbacks still refuse.
      * Prepare/restore must not inherit this live guard. */
-    if(scene_ai_drone_missile_save_blocked() || scene_fusion_checkpoint_busy() || scene_ai_direct_checkpoint_busy() || scene_ai_tribeam_pending() || scene_ai_cane_pending() || scene_ai_spit_pending())return RF_NOT_FOUND;
+    if(scene_ai_melee_checkpoint_busy() || scene_ai_secondary_checkpoint_busy() || scene_fusion_checkpoint_busy() || scene_ai_direct_checkpoint_busy() || scene_ai_delayed_checkpoint_busy())return RF_NOT_FOUND;
     for(i=0;i<SCENE_AI_GRENADE_CAPACITY;i++)count+=scene_ai_grenades[i].projectile.flight.lifecycle.active!=0;
-    for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)count+=scene_ai_rockets[i].flight.active!=0;
+    for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active){
+        ++count;secondary_flights+=scene_ai_rockets[i].definition==&campaign_tankbot_missile||
+            scene_ai_rockets[i].definition==&campaign_drone_missile;
+    }
     for(i=0;i<SCENE_ROCKETS;i++)count+=stream->rockets[i].active!=0;
     {uint32_t flights=0;for(i=0;i<SCENE_GRENADE_CAPACITY;i++)flights+=scene_grenades[i].flight.lifecycle.active!=0;
         count+=flights;if(!flights&&(scene_grenade_throw.cooldown||scene_grenade_throw.held))++count;}
@@ -193,11 +240,13 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
     }
     count+=fusion_count;if(!fusion_player_count&&fusion_controller)++count;
     status=scene_ai_direct_checkpoint_capture(stream,NULL,&direct_count);if(status)return status;
-    count+=scene_flame_checkpoint_count()+scene_burning_checkpoint_count()+charge_count+direct_count;
+    status=scene_ai_delayed_checkpoint_capture(stream,NULL,&delayed_count);if(status)return status;
+    status=scene_ai_secondary_checkpoint_capture(NULL,&secondary_count);if(status)return status;
+    count+=scene_flame_checkpoint_count()+scene_burning_checkpoint_count()+charge_count+direct_count+delayed_count+secondary_count+player_rocket_count+heap_count+melee_count+robot_death_count;
     if(!count){*written=0;return RF_OK;}
     if(count>SCENE_AI_PROJECTILE_MAX||capacity<SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW)return RF_RANGE;
     memset(p,0,SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW);
-    memcpy(p,"RFAP",4);checkpoint_put(p+4,direct_count?7:fusion_npc_count?6:charge_count?5:scene_burning_save_pending()?4:scene_flame_checkpoint_count()?3:scene_fusion_save_pending()?2:1);checkpoint_put(p+8,count);
+    memcpy(p,"RFAP",4);checkpoint_put(p+4,melee_count&&melee_version==14?14:robot_death_count?13:melee_count?12:heap_count?11:player_rocket_count?10:(secondary_count||secondary_flights)?9:delayed_count?8:direct_count?7:fusion_npc_count?6:charge_count?5:scene_burning_save_pending()?4:scene_flame_checkpoint_count()?3:scene_fusion_save_pending()?2:1);checkpoint_put(p+8,count);
     j=0;
     for(i=0;i<SCENE_AI_GRENADE_CAPACITY;i++){
         const scene_ai_grenade_projectile *shot=scene_ai_grenades+i;
@@ -222,11 +271,13 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
         const scene_ai_rocket_projectile *shot=scene_ai_rockets+i;
         unsigned char *r;uint32_t variant;
         if(!shot->flight.active)continue;
-        status=scene_ai_projectile_source_uid(shot->source,&uid);if(status)return status;
-        variant=shot->definition==&campaign_rocket?1:shot->definition==&campaign_tankbot_missile?2:0;
+        variant=shot->definition==&campaign_rocket?1:shot->definition==&campaign_tankbot_missile?2:
+            shot->definition==&campaign_drone_missile?3:0;
         if(!variant)return RF_FORMAT;
-        if(shot->weapon!=(variant==1?campaign_rocket_id:
-            rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile")))return RF_FORMAT;
+        status=variant==1?scene_ai_projectile_source_uid(shot->source,&uid):scene_ai_secondary_checkpoint_source_uid(shot->source,&uid);
+        if(status)return status;
+        if(variant>=2){status=scene_ai_secondary_checkpoint_missile_shape(stream,variant,shot);if(status)return status;}
+        else if(shot->weapon!=campaign_rocket_id)return RF_FORMAT;
         r=p+SCENE_AI_PROJECTILE_HEADER+j++*SCENE_AI_PROJECTILE_ROW;
         checkpoint_put(r,2);checkpoint_put(r+4,i);checkpoint_put(r+8,uid);checkpoint_put(r+12,variant);
         for(uint32_t k=0;k<3;k++){checkpoint_put_float(r+16+k*4,shot->flight.position[k]);checkpoint_put_float(r+28+k*4,shot->flight.velocity[k]);}
@@ -291,13 +342,37 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
         unsigned char *r=p+SCENE_AI_PROJECTILE_HEADER+j++*SCENE_AI_PROJECTILE_ROW;
         checkpoint_put(r,7);scene_ai_projectile_put_fusion_input(r);
     }
+    if(player_rocket_count){uint32_t rows=0;
+        status=scene_player_rocket_checkpoint_capture(stream,p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
+        if(status||rows!=player_rocket_count)return status?status:RF_FORMAT;j+=rows;
+    }
     if(direct_count){uint32_t rows=0;
         status=scene_ai_direct_checkpoint_capture(stream,p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
         if(status||rows!=direct_count)return status?status:RF_FORMAT;j+=rows;
     }
+    if(delayed_count){uint32_t rows=0;
+        status=scene_ai_delayed_checkpoint_capture(stream,p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
+        if(status||rows!=delayed_count)return status?status:RF_FORMAT;j+=rows;
+    }
+    if(secondary_count){uint32_t rows=0;
+        status=scene_ai_secondary_checkpoint_capture(p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
+        if(status||rows!=secondary_count)return status?status:RF_FORMAT;j+=rows;
+    }
     if(charge_count){uint32_t rows=0;
         status=scene_continuous_charge_checkpoint_capture(stream,p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
         if(status||rows!=charge_count)return status?status:RF_FORMAT;j+=rows;
+    }
+    if(robot_death_count){uint32_t rows=0;
+        status=scene_robot_death_checkpoint_capture(p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
+        if(status||rows!=robot_death_count)return status?status:RF_FORMAT;j+=rows;
+    }
+    if(melee_count){uint32_t rows=0,version=12;
+        status=scene_ai_melee_checkpoint_capture_version(p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows,&version);
+        if(status||rows!=melee_count||version!=melee_version)return status?status:RF_FORMAT;j+=rows;
+    }
+    if(heap_count){uint32_t rows=0;
+        status=scene_turret_heap_checkpoint_capture(p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
+        if(status||rows!=heap_count)return status?status:RF_FORMAT;j+=rows;
     }
     j+=scene_flame_checkpoint_capture(p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW);
     {uint32_t rows=0;status=scene_burning_checkpoint_capture(p+SCENE_AI_PROJECTILE_HEADER+j*SCENE_AI_PROJECTILE_ROW,&rows);
@@ -319,16 +394,41 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
     uint32_t count,i,seen_grenade=0,seen_rocket=0,seen_player_grenade=0,controller_only=0;
     uint64_t seen_player=0;uint32_t seen_fusion=0,seen_player_fusion=0,fusion_controller_only=0,version;int preflight;
     if(!stream||!out||*out||!data||bytes<SCENE_AI_PROJECTILE_HEADER||
-       budget<sizeof(*stage)||memcmp(p,"RFAP",4)||(checkpoint_u32(p+4)<1||checkpoint_u32(p+4)>7)||checkpoint_u32(p+12))return RF_FORMAT;
+       budget<sizeof(*stage)||memcmp(p,"RFAP",4)||(checkpoint_u32(p+4)<1||checkpoint_u32(p+4)>14)||checkpoint_u32(p+12))return RF_FORMAT;
     version=checkpoint_u32(p+4);count=checkpoint_u32(p+8);
     if(!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW)return RF_FORMAT;
     preflight=scene_continuous_charge_checkpoint_preflight(data,bytes);if(preflight)return preflight;
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
+    stage->delayed.present=version>=8;stage->melee.present=version>=12;
     for(i=0;i<count;i++){
         const unsigned char *r=p+SCENE_AI_PROJECTILE_HEADER+i*SCENE_AI_PROJECTILE_ROW;
         uint32_t kind=checkpoint_u32(r),slot=checkpoint_u32(r+4),uid=checkpoint_u32(r+8),variant=checkpoint_u32(r+12),source=0,k;
         float radius=checkpoint_float(r+40),damage=checkpoint_float(r+56);
         int status=(kind==1||kind==2)?scene_ai_projectile_source_handle(uid,&source):RF_OK;
+        if(kind==27&&version>=13){
+            if(scene_robot_death_checkpoint_read(&stage->robot_death,r))goto invalid;
+            continue;
+        }
+        if(kind==26&&version>=12){
+            if(scene_ai_melee_checkpoint_read(&stage->melee,r,version))goto invalid;
+            continue;
+        }
+        if(kind==25&&version>=11){
+            if(scene_turret_heap_checkpoint_read(stage,r))goto invalid;
+            continue;
+        }
+        if((kind==23||kind==24)&&version>=10){
+            if(scene_player_rocket_checkpoint_read(stage,r))goto invalid;
+            continue;
+        }
+        if((kind==21||kind==22)&&version>=9){
+            if(scene_ai_secondary_checkpoint_read(&stage->secondary,r))goto invalid;
+            continue;
+        }
+        if(kind>=15&&kind<=20&&version>=8){
+            if(scene_ai_delayed_checkpoint_read(stream,&stage->delayed,r))goto invalid;
+            continue;
+        }
         if(status||((kind!=5&&kind!=7&&kind!=9&&kind!=10&&kind!=11)&&(!isfinite(radius)||radius<=0||radius>10))||
            ((kind==1||kind==2)&&(!isfinite(damage)||damage<0||damage>10000)))goto invalid;
         if((kind==13||kind==14)&&version>=7){
@@ -355,13 +455,18 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
         }else if(kind==2){
             scene_ai_rocket_projectile *shot;
             uint32_t flags=checkpoint_u32(r+44);
-            if(slot>=SCENE_AI_ROCKET_CAPACITY||(variant!=1&&variant!=2)||seen_rocket&(1u<<slot)||
+            if(slot>=SCENE_AI_ROCKET_CAPACITY||(variant!=1&&variant!=2&&!(variant==3&&version>=9))||seen_rocket&(1u<<slot)||
                !(flags&4u)||(flags&~0x1104u))goto invalid;
             seen_rocket|=1u<<slot;shot=stage->rockets+slot;
             shot->flight.radius=radius;shot->flight.remaining=scene_ai_projectile_double(r+48);
             shot->flight.active=1;shot->liquid.query_flags=flags;
-            shot->definition=variant==1?&campaign_rocket:&campaign_tankbot_missile;
-            shot->weapon=variant==1?campaign_rocket_id:rf_weapon_name_find(&campaign_weapon_supply.names,"Tankbot Missile");
+            shot->definition=variant==1?&campaign_rocket:variant==2?&campaign_tankbot_missile:&campaign_drone_missile;
+            shot->weapon=variant==1?campaign_rocket_id:rf_weapon_name_find(&campaign_weapon_supply.names,variant==2?"Tankbot Missile":"Drone Missile");
+            if(version>=9&&variant>=2){uint32_t resolved_uid;
+                if(checkpoint_u32(r+60)||checkpoint_u32(r+64)||checkpoint_u32(r+68)||checkpoint_u32(r+108)||
+                   scene_ai_secondary_checkpoint_source_uid(source,&resolved_uid)||resolved_uid!=uid)goto invalid;
+                stage->rocket_source_uid[slot]=uid;
+            }
             if(shot->weapon<0 || shot->weapon>=64 || (uint32_t)shot->weapon>=campaign_weapon_supply.names.count)goto invalid;
             if(!isfinite(shot->flight.remaining)||shot->flight.remaining<=0||shot->flight.remaining>120||
                !isfinite(shot->definition->speed)||shot->definition->speed<=0)goto invalid;
@@ -374,6 +479,7 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
             trigger.cooldown=checkpoint_u32(r+56);trigger.remaining=checkpoint_u32(r+60);
             trigger.delay=checkpoint_u32(r+64);trigger.held=checkpoint_u32(r+68);
             if(uid||variant!=1||slot>=SCENE_ROCKETS||seen_player&(1ull<<slot)||
+               (version>=10&&checkpoint_u32(r+108))||
                trigger.cooldown>1200||trigger.remaining||trigger.delay||trigger.held>1||
                (stage->player_trigger_present&&memcmp(&stage->player_trigger,&trigger,sizeof(trigger)))||
                !(flags&4u)||(flags&~0x1104u))goto invalid;
@@ -478,9 +584,12 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
         }
         if(kind==12&&scene_ai_fusion_checkpoint_shape(stage->fusion+slot))goto invalid;
         if(kind==1){stage->grenades[slot].damage=damage;stage->grenades[slot].source=source;}
-        else if(kind==2){stage->rockets[slot].damage=damage;stage->rockets[slot].source=source;}
+        else if(kind==2){stage->rockets[slot].damage=damage;stage->rockets[slot].source=source;
+            if(version>=9&&variant>=2&&scene_ai_secondary_checkpoint_missile_shape(stream,variant,stage->rockets+slot))goto invalid;}
     }
+    if(scene_player_rocket_checkpoint_complete(stream,stage))goto invalid;
     if(stage->flame.live&&!stage->flame.present)goto invalid;
+    if(scene_ai_melee_checkpoint_complete(&stage->melee)||scene_ai_delayed_checkpoint_complete(&stage->delayed)||scene_ai_secondary_checkpoint_complete(&stage->secondary))goto invalid;
     *out=stage;return RF_OK;
 invalid:
     free(stage);return RF_FORMAT;
@@ -499,16 +608,13 @@ static void scene_ai_projectile_checkpoint_assign(scene_stream *stream,const sce
     scene_burning_checkpoint_assign(stage?&stage->burning:NULL);
     if(!stage)return;
     memcpy(scene_ai_grenades,stage->grenades,sizeof(scene_ai_grenades));
-    memcpy(scene_ai_rockets,stage->rockets,sizeof(scene_ai_rockets));
+    /* Shared NPC rocket pool publishes after final storage success, including legacy rows. */
     memcpy(scene_grenades,stage->player_grenades,sizeof(stage->player_grenades));
     if(stage->player_throw_present)scene_grenade_throw=stage->player_throw;
-    memcpy(stream->rockets,stage->player_rockets,sizeof(stage->player_rockets));
-    memcpy(stream->rocket_liquid,stage->player_liquid,sizeof(stage->player_liquid));
-    memcpy(stream->rocket_basis,stage->player_basis,sizeof(stage->player_basis));
-    if(stage->player_trigger_present)combat_trigger=stage->player_trigger;
-    rf_scene_ai_grenades[3]=stage->grenades_live;rf_scene_ai_rockets[3]=stage->rockets_live;
+    /* Player Rocket flights, guidance and trigger publish together only
+     * after final storage success in scene_player_rocket_checkpoint_finish. */
+    rf_scene_ai_grenades[3]=stage->grenades_live;
     rf_scene_grenades[4]=stage->player_grenades_live;
-    rf_scene_rockets[3]=stage->player_rockets_live;
     memcpy(scene_fusion_projectiles,stage->fusion,sizeof(stage->fusion));
     scene_fusion_input=stage->fusion_input;
     if(scene_fusion_input.cooling)scene_fusion_input.next_fire+=combat_frame;
@@ -530,8 +636,15 @@ static void scene_projectile_flight_audio_resume(scene_stream *stream)
         scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i,stream->rockets[i].position);
     for(uint32_t i=0;i<SCENE_GRENADE_CAPACITY;i++)if(scene_grenades[i].flight.lifecycle.active)
         scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_PLAYER_GRENADE,i,scene_grenades[i].flight.position);
-    for(uint32_t i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active && scene_ai_rockets[i].definition==&campaign_rocket)
-        scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,scene_ai_rockets[i].flight.position);
+    for(uint32_t i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active){
+        if(scene_ai_rockets[i].definition==&campaign_rocket)
+            scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,scene_ai_rockets[i].flight.position);
+        else if(scene_ai_rockets[i].definition==&campaign_drone_missile){
+            rf_audio_parameters profile={10,0,.9f,1};
+            profile.far_distance=rf_audio_far_distance(profile.near_distance,profile.rolloff,profile.volume);
+            scene_projectile_flight_audio_start_profile(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,scene_ai_rockets[i].flight.position,&profile);
+        } /* Resume the optional loop only, never the accepted launch one-shot. */
+    }
     for(uint32_t i=0;i<SCENE_AI_GRENADE_CAPACITY;i++)if(scene_ai_grenades[i].projectile.flight.lifecycle.active)
         scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_GRENADE,i,scene_ai_grenades[i].projectile.flight.position);
 }

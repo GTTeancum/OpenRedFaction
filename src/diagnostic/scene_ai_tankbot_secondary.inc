@@ -48,7 +48,8 @@ static int scene_ai_tankbot_secondary_service(uint32_t frame)
     }
     return RF_OK;
 }
-/* SAVE/EXPORT ONLY. RFNC cannot encode this independent wait. No guard or
+/* LEGACY SAVE/EXPORT ONLY. RFAP9 owns this independent wait; RFNC alone
+ * cannot encode it. No guard or
  * clearing belongs in shared candidate capture, NPC assign, or load prepare.
  * Read-only expiry allows saving immediately once the real wait ends. */
 static uint32_t scene_ai_tankbot_secondary_save_pending(void)

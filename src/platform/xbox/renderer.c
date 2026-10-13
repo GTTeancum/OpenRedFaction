@@ -166,6 +166,7 @@ static int scene_particle_present(void *context,const rf_particle_draw_vertex *v
     /* Screen-space solid overlays have direct depth, not world reciprocal-Z.
      * Applying the world bias at depth0 exceeds the24-bit far plane. */
     if(mode==0x18000u)return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
+    if(mode==RF_SKYBOX_MODE)return rf_xbox_particle_draw(vertices,count,image,mode,0,16777214.0f,0,0);
     return rf_xbox_particle_draw(vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
 }
 /* HUD coordinates and UVs are supplied by the scene/asset owners. Texture
@@ -348,6 +349,8 @@ static int retained_face_visible(const retained_face *face)
 {
     const rf_visibility *v=retained_world.visibility;
     if(!face->count)return 0;
+    if(face->room<retained_world.source->rooms &&
+       retained_world.source->data[retained_world.source->room_offsets[face->room]+28])return 0;
     if(v && !face->detail && face->room<v->count && !v->rooms[face->room].visible)return 0;
     return rf_preview_plane_visible(face->plane,retained_world.position)!=0;
 }
@@ -537,6 +540,35 @@ int rf_xbox_options_menu_draw(uint32_t selection,uint32_t flags,
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
+int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
+    uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent)
+{
+    int status;
+    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
+    pb_fill(0,0,640,480,0xff101018);
+    hud_batch_begin();
+    status=rf_scene_draw_audio_options(scene_hud_present,NULL,selection,flags,
+        master_percent,effects_percent,music_percent);
+    hud_batch_end();if(status)return status;
+    pb_show_front_screen();while(pb_finished()) {}
+    stream_start_valid=0;return RF_OK;
+}
+int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
+    const char *const *actions,const char *const *controls)
+{
+    int status;
+    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
+    pb_fill(0,0,640,480,0xff101018);
+    hud_batch_begin();
+    status=rf_scene_draw_button_mapping(scene_hud_present,NULL,selection,flags,actions,controls);
+    hud_batch_end();if(status)return status;
+    pb_show_front_screen();while(pb_finished()) {}
+    stream_start_valid=0;return RF_OK;
+}
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
     uint32_t *p, i, frame;
@@ -600,6 +632,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(model==4) {
         int status;while(pb_busy()) {}
         status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;
+        rf_scene_update_monitor_images(lightmaps);
         __asm__ volatile("sfence" ::: "memory");
     }
     renderer_mark(1,&profile_previous,profiling);
@@ -678,6 +711,26 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
          * commands while clear completes. No CPU framebuffer access, resource
          * reuse or pb_reset intervenes; end-of-frame lifetime fences remain. */
         p=pb_begin();p=pb_push1(p,NV097_WAIT_FOR_IDLE,0);pb_end(p);
+        if(streaming && rf_scene_skybox_ready()) {
+            int status;particle_batch_begin();
+            status=rf_scene_draw_skybox(scene_world_particle_present,NULL);particle_batch_end();
+            /* Far backdrop precedes transparent world/models. Drain even on
+             * error before the borrowed scene/material owner can retire. */
+            while(pb_busy()) {}
+            if(status)return status;
+            vertex_program(program,sizeof(program)/4);
+            p=pb_begin();
+#include "preview_fragment.inl"
+            p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
+            p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);
+            p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);
+            p=pb_push1(p,NV097_SET_SPECULAR_ENABLE,0);
+            p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
+            p=pb_push1(p,NV097_SET_FOG_ENABLE,0);
+            p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);
+            p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+            p=pb_push1(p,NV097_SET_DEPTH_FUNC,NV097_SET_DEPTH_FUNC_V_LESS);pb_end(p);
+        }
         renderer_mark(4,&profile_previous,profiling);
         uint32_t draw_profile_previous=profile_previous;
         if(model==4 && retained_world.ready==1) {
@@ -862,11 +915,13 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     };
     gpu_texture texture={0};uint32_t *p,i,j,reuse_state,hud_triangles=0,hud_color_change=0,emit_count=count,base_mode=mode&~(31u<<20);
     const uint32_t hud_state_words=8+5*(sizeof(program)/16)+128;
-    uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u;int status;
+    uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u,
+        opaque=mode==RF_VFX_OPAQUE_MODE,sky=mode==RF_SKYBOX_MODE;int status;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !rf_finite_float(depth_scale) || !rf_finite_float(depth_bias))return RF_RANGE;
     if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) &&
-        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid && !corona) || depth_mode>1)return RF_NOT_FOUND;
+        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid && !corona && !opaque && !sky) ||
+       (depth_mode>1&&!opaque))return RF_NOT_FOUND;
     glow=corona || base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
     if(solid && (fog_enabled&255u))return RF_NOT_FOUND;
     /* Avoid submitting invalid values to the GPU; original infinity behavior
@@ -931,9 +986,9 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     p=pb_push1(p,NV097_SET_BLEND_EQUATION,NV097_SET_BLEND_EQUATION_V_FUNC_ADD);
     p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);
     p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,depth_mode!=0);
-    p=pb_push1(p,NV097_SET_DEPTH_MASK,0);
+    p=pb_push1(p,NV097_SET_DEPTH_MASK,opaque);
     p=pb_push1(p,NV097_SET_DEPTH_FUNC,NV097_SET_DEPTH_FUNC_V_LEQUAL);
-    p=pb_push1(p,NV097_SET_BLEND_ENABLE,1);
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,!opaque&&!sky);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,glow?NV097_SET_BLEND_FUNC_DFACTOR_V_ONE:NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
     if(!solid) {

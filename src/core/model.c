@@ -2157,6 +2157,14 @@ static int pose_interpolate(const float a[4], const float b[4], float t, float o
     }
     return RF_OK;
 }
+int rf_model_interpolate_rotation(const float a[4],const float b[4],float t,float out[4])
+{
+    float next[4];unsigned i;int status;
+    if(!a||!b||!out||!isfinite(t)||t<0||t>1)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(a[i])||!isfinite(b[i]))return RF_FORMAT;
+    status=pose_interpolate(a,b,t,next);if(status)return status;
+    memcpy(out,next,sizeof(next));return RF_OK;
+}
 int rf_model_override_pose(float matrix[12],const float basis[9],float weight)
 {
     float target[4],current[4],blended[4],result[12];int status;unsigned i;

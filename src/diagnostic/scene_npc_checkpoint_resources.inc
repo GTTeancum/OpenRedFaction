@@ -28,25 +28,71 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
     uint32_t scratch_budget,uint32_t *added_bytes)
 {
     scene_npc_checkpoint_resource_request *plan=NULL;uint32_t capacity,requests=0,i,j,k,slot,before;
-    uint64_t scratch,missing=0;uint32_t live_present,new_present,guard_present;int status=RF_OK;
+    uint64_t scratch,missing=0;uint32_t live_present,new_present,guard_present,alarm_present,crouch_live=0,crouch_new=0;int status=RF_OK;
     if(!added_bytes||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||
-       campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS)return RF_RANGE;
+       campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
+       (campaign_npc_body_count&&!campaign_npc_bodies))return RF_RANGE;
     status=scene_npc_reload_live_present(combat_frame==UINT32_MAX?0:combat_frame,&live_present);if(status)return status;
     status=scene_guard_retreat_live_present(combat_frame==UINT32_MAX?0:combat_frame,&guard_present);if(status)return status;
-    new_present=live_present|guard_present;live_present|=guard_present;
+    status=scene_alarm_runner_live_present(&alarm_present);if(status)return status;
+    new_present=live_present|guard_present|alarm_present;live_present|=guard_present|alarm_present;
+    {uint32_t noise_present;status=scene_noise_live_present(&noise_present);if(status)return status;
+     new_present|=noise_present;live_present|=noise_present;}
+    for(i=0;i<campaign_npc_body_count;i++)if(scene_patrol_future_owner(campaign_npc_bodies+i)||campaign_npc_bodies[i].tactical.phase)new_present=live_present=1;
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].flight.qualified==1&&campaign_npc_bodies[i].flight.entered)
+        new_present=live_present=1;
     for(i=0;i<count;i++){
         if(rows[i].reload_present>1||(!rows[i].reload_present&&(rows[i].reload_weapon||rows[i].reload_remaining)))return RF_FORMAT;
-        new_present|=rows[i].reload_present|rows[i].guard_retreat.present;
+        new_present|=(rows[i].ai_mode==6)|rows[i].reload_present|rows[i].guard_retreat.present|rows[i].flight.entered|rows[i].alarm.present|(rows[i].route.patrol&1)|!!rows[i].tactical.phase;
     }
-    if(!count&&!live_present){*added_bytes=0;return RF_OK;}
+    /* Authenticate retained ownership before any demand or eviction. Count
+     * only actual crouch rows, leaving legacy scratch requirements unchanged. */
+    {uint32_t present;
+     status=scene_crouch_live_present(&present);if(status)return status;
+     status=scene_crouch_incoming_present(rows,count,&present);if(status)return status;}
+    for(i=0;i<campaign_npc_body_count;i++)crouch_live+=!!(campaign_npc_bodies[i].crouch.flags&SCENE_CROUCH_PRESENT);
+    for(i=0;i<count;i++)crouch_new+=!!(rows[i].crouch.flags&1u);
+    if(!count&&!live_present&&!crouch_live){*added_bytes=0;return RF_OK;}
     if(!campaign_npc_bodies||!campaign_seeds.items||!campaign_seeds.records.items||!campaign_seeds.classes||
        campaign_seeds.records.count<campaign_npc_body_count||!campaign_npc_motion_data||!campaign_npc_motion_sizes)return RF_RANGE;
-    /*21 incoming requests:16 slots,3 controller states,script and mapped
-     * logical reload, plus one possible outgoing mapped request per body.
-     * Authenticate old pending before any demand can evict zero-ref payloads. */
-    capacity=count*20u+(new_present?8u*(count+campaign_npc_body_count):0u);scratch=(uint64_t)capacity*sizeof(*plan);
+    /* Existing capacity:20 incoming slot/controller/script requests plus8
+     * future-owner requests per incoming/outgoing actor. A flight episode
+     * needs5 and cannot overlap guard7/reload ownership. Crouch adds at
+     * most7 requests per retained side, charged to the same scratch budget.
+     * Authenticate old pending before demand can evict zero-ref payloads. */
+    capacity=count*20u+(new_present?8u*(count+campaign_npc_body_count):0u)+7u*(crouch_live+crouch_new);scratch=(uint64_t)capacity*sizeof(*plan);
     if(scratch>scratch_budget||scratch>SIZE_MAX)return RF_RANGE;
     plan=malloc((size_t)scratch);if(!plan)return RF_IO;
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].crouch.flags&SCENE_CROUCH_PRESENT){
+        const campaign_npc_body *o=campaign_npc_bodies+i;int32_t id;
+        status=scene_crouch_live_shape(i,o);if(status)goto done;
+        /* Dead retained geometry has no future locomotion obligation; any
+         * residual active action4 is covered by ordinary playback requests. */
+        if(o->damage.effects.health<=0||(o->view.flags_810&1u))continue;
+        for(k=0;k<7;k++){
+            status=scene_crouch_future_clip(&o->selection,k,&id);
+            if(status==RF_NOT_FOUND)continue;if(status)goto done;
+            status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,o->selection.mapping.skeleton,id);if(status)goto done;
+        }
+    }
+    for(i=0;i<campaign_npc_body_count;i++)if(scene_patrol_future_owner(campaign_npc_bodies+i)){
+        const rf_entity_motion_selection *sel=&campaign_npc_bodies[i].selection;
+        status=scene_patrol_resources(i,sel,0);if(status)goto done;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[0]);if(status)goto done;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[2]);if(status)goto done;
+    }
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].tactical.phase){
+        const rf_entity_motion_selection *sel=&campaign_npc_bodies[i].selection;
+        status=scene_tactical_owner(i);if(status)goto done;
+        status=scene_patrol_resources(i,sel,0);if(status)goto done;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[0]);if(status)goto done;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[2]);if(status)goto done;
+    }
+    for(i=0;i<campaign_npc_body_count;i++)if(scene_noise_active(campaign_npc_bodies+i)){
+        const rf_entity_motion_selection *sel=&campaign_npc_bodies[i].selection;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[0]);if(status)goto done;
+        status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[2]);if(status)goto done;
+    }
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].combat_reload_pending){
         const campaign_npc_body *o=campaign_npc_bodies+i;
         status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,
@@ -61,6 +107,24 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
             status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,ids[k]);if(status)goto done;
         }
     }
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].alarm.present){
+        const rf_entity_motion_selection *sel=&campaign_npc_bodies[i].selection;rf_npc_checkpoint_alarm receipt;
+        const int32_t ids[4]={sel->mapping.states[0],sel->mapping.states[2],sel->mapping.states[4],sel->mapping.actions[44]};
+        status=scene_alarm_runner_capture(i,&receipt);if(status)goto done;
+        status=scene_alarm_runner_resources(i,sel,0);if(status)goto done;
+        for(k=0;k<4;k++){
+            status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,ids[k]);if(status)goto done;
+        }
+    }
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].flight.qualified==1&&campaign_npc_bodies[i].flight.entered){
+        static const uint32_t states[5]={0,2,4,6,13};
+        const rf_entity_motion_selection *sel=&campaign_npc_bodies[i].selection;
+        status=scene_civilian_flight_mapping(i,sel);if(status)goto done;
+        for(k=0;k<5;k++){
+            status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,sel->mapping.skeleton,sel->mapping.states[states[k]]);
+            if(status)goto done;
+        }
+    }
     for(i=0;i<count;i++){
         const rf_npc_checkpoint_record *r=rows+i;rf_entity_motion_selection selection;uint32_t found=0,skeleton;
         if(r->uid==UINT32_MAX||r->retired>1||r->animation_present>1||r->reload_present>1||
@@ -69,6 +133,11 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
         for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==r->uid){slot=j;++found;}
         if(found!=1||!campaign_npc_bodies[slot].persistence_registered||
            r->class_id!=campaign_seeds.items[slot].class_index||r->class_id>=campaign_seeds.class_count){status=RF_FORMAT;goto done;}
+        if(r->dead_pose==2){
+            /* RFAP13 owns retirement; never demand an idle/death animation. */
+            if(scene_robot_death_profile_at(slot)<0){status=RF_FORMAT;goto done;}
+            continue;
+        }
         if(r->retired){if(r->reload_present){status=RF_FORMAT;goto done;}continue;}
         if(!campaign_npc_bodies[slot].registration.view||!campaign_poses.items||slot>=campaign_poses.count){status=RF_RANGE;goto done;}
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,r->class_id,&selection);if(status)goto done;
@@ -76,11 +145,42 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
         skeleton=selection.mapping.skeleton;
         if(skeleton!=campaign_poses.items[slot].skeleton){status=RF_FORMAT;goto done;}
 #define NPC_RESOURCE_ADD(id) do{status=scene_npc_checkpoint_resource_add(plan,&requests,capacity,skeleton,(id));if(status)goto done;}while(0)
+        if((r->crouch.flags&1u)&&!r->dead_pose&&r->health>0){
+            int32_t id;
+            for(k=0;k<7;k++){
+                status=scene_crouch_future_clip(&selection,k,&id);
+                if(status==RF_NOT_FOUND)continue;if(status)goto done;
+                NPC_RESOURCE_ADD(id);
+            }
+        }
+        if(r->tactical.phase){
+            status=scene_tactical_source(slot);if(status)goto done;
+            NPC_RESOURCE_ADD(selection.mapping.states[0]);NPC_RESOURCE_ADD(selection.mapping.states[2]);
+        }
+        if(r->ai_mode==6){
+            status=scene_noise_candidate(slot,r,&selection);if(status)goto done;
+            NPC_RESOURCE_ADD(selection.mapping.states[0]);NPC_RESOURCE_ADD(selection.mapping.states[2]);
+        }
+        if((r->route.patrol&1)&&!r->dead_pose&&r->health>0){
+            status=scene_patrol_candidate(slot,r,&selection);if(status)goto done;
+            NPC_RESOURCE_ADD(selection.mapping.states[0]);NPC_RESOURCE_ADD(selection.mapping.states[2]);
+        }
+        if(r->alarm.present){
+            const int32_t ids[4]={selection.mapping.states[0],selection.mapping.states[2],selection.mapping.states[4],selection.mapping.actions[44]};
+            status=scene_alarm_runner_candidate(slot,r,&selection);if(status)goto done;
+            for(k=0;k<4;k++)NPC_RESOURCE_ADD(ids[k]);
+        }
         if(r->guard_retreat.present){
             status=scene_guard_retreat_binding(slot,r->primary,r->secondary,&r->inventory,&selection,0);if(status)goto done;
             const int32_t ids[7]={selection.mapping.states[0],selection.mapping.states[2],selection.mapping.states[4],
                 selection.mapping.states[6],selection.mapping.states[13],selection.mapping.actions[2],selection.mapping.actions[39]};
             for(k=0;k<7;k++){if(ids[k]<0){status=RF_FORMAT;goto done;}NPC_RESOURCE_ADD(ids[k]);}
+        }
+        if(r->flight.entered){
+            static const uint32_t states[5]={0,2,4,6,13};
+            if(r->primary!=-1||r->secondary!=-1){status=RF_FORMAT;goto done;}
+            status=scene_civilian_flight_mapping(slot,&selection);if(status)goto done;
+            for(k=0;k<5;k++)NPC_RESOURCE_ADD(selection.mapping.states[states[k]]);
         }
         if(r->reload_present){
             status=scene_npc_reload_saved(slot,r,&selection,0,NULL);if(status)goto done;

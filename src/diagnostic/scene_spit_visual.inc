@@ -151,18 +151,22 @@ static uint32_t scene_spit_effect_live(const scene_spit_effect *e)
     for(part=0;part<SCENE_SPIT_PARTS;part++)for(i=0;i<SCENE_SPIT_PARTICLES;i++)count+=e->particles[part][i].age>=0;
     return count;
 }
-static void scene_spit_visual_accept(uint32_t slot,const scene_ai_laser_projectile *accepted,uint32_t frame)
+static uint32_t scene_spit_visual_bind(uint32_t slot,const scene_ai_laser_projectile *accepted,uint32_t frame)
 {
     scene_spit_effect *e;uint32_t part,i;
-    if(slot>=SCENE_AI_SPIT_CAPACITY || !accepted || !accepted->flight.active){rf_scene_spit_visual[7]=RF_RANGE;return;}
+    if(slot>=SCENE_AI_SPIT_CAPACITY || !accepted || !accepted->flight.active){rf_scene_spit_visual[7]=RF_RANGE;return 0;}
     e=scene_spit_effects+slot;
     if(e->active)rf_scene_spit_visual[9]+=scene_spit_effect_live(e);
     memset(e,0,sizeof(*e));
-    if(scene_spit_visual_ticket==UINT64_MAX){rf_scene_spit_visual[7]=RF_RANGE;return;}
+    if(scene_spit_visual_ticket==UINT64_MAX){rf_scene_spit_visual[7]=RF_RANGE;return 0;}
     e->owner=*accepted;e->frame=frame;e->active=1;e->ticket=++scene_spit_visual_ticket;
     e->random.value=1; /* Isolated deterministic presentation policy; no gameplay draws. */
     for(part=0;part<SCENE_SPIT_PARTS;part++)for(i=0;i<SCENE_SPIT_PARTICLES;i++)e->particles[part][i].age=-1;
-    ++rf_scene_spit_visual[0];
+    return 1;
+}
+static void scene_spit_visual_accept(uint32_t slot,const scene_ai_laser_projectile *accepted,uint32_t frame)
+{
+    if(scene_spit_visual_bind(slot,accepted,frame))++rf_scene_spit_visual[0];
 }
 static int scene_spit_owner_matches(const scene_ai_laser_projectile *a,const scene_ai_laser_projectile *b)
 {

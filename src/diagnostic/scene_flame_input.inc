@@ -79,10 +79,27 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
     if(selected) {
         status=scene_continuous_charge_finish(stream,frame,empty_request);if(status)return status;
     }
+    /* Retain the pulse's actual player before damage/audio can replace it. */
+    uint32_t shot_source=campaign_player_object.handle;uint64_t shot_epoch=scene_continuous_charge_runtime.epoch;
     status=scene_flame_tick(stream,frame,position,forward,weapon,definition,admitted,&pulse,admitted?empty_request:NULL);if(status)return status;
     *active=admitted;
-    if(pulse){uint32_t alerted;++rf_scene_combat[0];campaign_last_alt=0;
-        status=campaign_enemy_hear_shot(position,16.0f,frame,&alerted);if(status)return status;}
+    if(pulse){uint32_t alerted;scene_player_shot_hearing_policy hearing={0};
+        ++rf_scene_combat[0];campaign_last_alt=0;
+        int32_t reset=rf_weapon_name_find(&campaign_weapon_reset.names,campaign_weapon_names[10]);
+        if(reset>=0){
+            status=scene_player_shot_hearing(campaign_weapon_reset.definitions[reset].flags_264,
+                weapon,-1,0,1,&hearing);if(status)return status;
+        }
+        /* New investigation uses the pulse's captured full identity and the
+         * same silent policy as civilian flight. Preserve legacy armed
+         * hearing when this optional authored policy does not emit. */
+        if(hearing.emit)status=campaign_enemy_hear_player_shot(stream,position,hearing.radius,
+            frame,shot_source,shot_epoch,&alerted);
+        else status=campaign_enemy_hear_shot(position,16.0f,frame,&alerted);
+        if(status)return status;
+        if(hearing.emit){status=scene_civilian_hear_player_shot(stream,position,hearing.radius,
+            frame,shot_source,shot_epoch);if(status)return status;}
+    }
     return RF_OK;
 }
 #endif

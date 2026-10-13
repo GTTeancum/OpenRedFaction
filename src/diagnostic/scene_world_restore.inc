@@ -55,17 +55,29 @@ static inline int scene_world_restore_failure(const char *phase,int status)
 #endif
     return status;
 }
-static inline int scene_world_restore_place(void *context,const rf_checkpoint_placement *placement,
+static inline int scene_world_restore_place(void *context,uint32_t actor_slot,uint32_t actor_handle,
+    uint32_t actor_uid,const rf_checkpoint_placement *placement,
     rf_entity_room_state *room,rf_physics_support_contact *support)
 {
     scene_world_restore_stage *s=context;scene_checkpoint_world_context world=s->world;
     scene_npc_clutter_checkpoint_pair prop_pair;
     rf_collision_room_location location;const rf_npc_checkpoint_record *saved;
     uint32_t i,uid=UINT32_MAX,support_uid,seat_handled=0;int status;
-    while(s->placement_next<s->placement_count&&s->placement_rows[s->placement_next].retired)s->placement_next++;
+    while(s->placement_next<s->placement_count&&(s->placement_rows[s->placement_next].retired||
+        s->placement_rows[s->placement_next].dead_pose==2))s->placement_next++;
     if(s->placement_next>=s->placement_count)return RF_FORMAT;
     saved=s->placement_rows+s->placement_next;
-    uid=saved->uid;support_uid=saved->support_uid;world.npc_hover_no_support=world.npc_drone_no_support=world.npc_airborne_no_support=0;
+    uid=saved->uid;support_uid=saved->support_uid;
+    /* Bind the caller's candidate to the exact resident owner before any seat,
+     * passive support or ordinary world-placement exception can apply. */
+    if(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
+       actor_slot>=campaign_npc_body_count||actor_slot>=campaign_seeds.records.count||
+       actor_uid!=uid||(uint32_t)campaign_seeds.records.items[actor_slot].record.uid!=uid||
+       campaign_npc_bodies[actor_slot].registration.handle!=actor_handle||
+       scene_npc_reload_identity(actor_slot,campaign_npc_bodies+actor_slot)||
+       placement->count!=campaign_npc_bodies[actor_slot].body.spheres.count||
+       (placement->count&&!placement->spheres))return RF_FORMAT;
+    world.npc_hover_no_support=world.npc_drone_no_support=world.npc_airborne_no_support=0;
     rf_scene_world_restore_reject[6]=uid;rf_scene_world_restore_reject[7]=s->placement_next;
     if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
     world.npc_route_contact=s->placement_rows[s->placement_next].move.active&&
@@ -94,14 +106,14 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     world.npc_prop_pair_rejected=NULL;world.npc_prop_pair_context=NULL;
     if(!world.authored_static_unchanged &&
        scene_checkpoint_world_outside_modified(&world,placement))world.authored_static_unchanged=1;
-    /* Immutable sphere-owner binding identifies the class, without consulting
-     * live positions. Empty sets take the point-only room path (speed unused). */
-    for(i=0;i<campaign_npc_body_count;i++)if(placement->count&&
-        placement->spheres==campaign_npc_bodies[i].body.spheres.items){
+    /* Explicit checked owner binding also admits privately prepared spheres.
+     * Empty sets retain the existing point-only room path (speed unused). */
+    i=actor_slot;
+    if(placement->count){
         uint32_t cls=campaign_seeds.items[i].class_index;
         if(uid!=(uint32_t)campaign_seeds.records.items[i].record.uid)return RF_FORMAT;
         if(!campaign_npc_movement_configs||cls>=campaign_seeds.class_count)return RF_FORMAT;
-        if(scene_npc_clutter_checkpoint_pair_prepare(s,saved,i,placement,&prop_pair)){
+        if(scene_npc_clutter_checkpoint_pair_prepare(s,saved,i,actor_handle,placement,&prop_pair)){
             world.npc_prop_pair_rejected=scene_npc_clutter_checkpoint_pair_rejected;
             world.npc_prop_pair_context=&prop_pair;
         }
@@ -138,7 +150,7 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
             world.authored_rotating_npc=!strcmp(campaign_seeds.records.items[i].record.class_name,"Auto Turret");
             world.authored_center_shift_npc=!world.authored_rotating_npc;
         }
-        world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+i,cls,saved->capek_shield_broken);break;
+        world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+i,cls,saved->capek_shield_broken);
     }
     if(saved->airborne.present&&!world.npc_airborne_no_support)return RF_FORMAT;
     status=rf_geometry_collision_world_locate(world.world,placement->position,&location);
@@ -187,7 +199,7 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
 {
     const uint32_t mask=RF_WORLD_CHECKPOINT_MASK(RF_WORLD_NPC)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_MOVER)|RF_WORLD_CHECKPOINT_MASK(RF_WORLD_CLUTTER);
     rf_world_checkpoint envelope;scene_world_restore_stage *s=NULL;
-    rf_mover_checkpoint_record *mover_rows=NULL;rf_npc_checkpoint_record *npc_rows=NULL;rf_npc_checkpoint_rng flight_rng={0};
+    rf_mover_checkpoint_record *mover_rows=NULL;rf_npc_checkpoint_record *npc_rows=NULL;rf_npc_checkpoint_rng flight_rng={0};uint32_t tactical_cursor=0;
     const rf_world_checkpoint_slice *npc,*mover,*clutter;
     unsigned char clutter_identity[32];uint32_t npc_count,mover_count,prop_count,i,slot;
     uint64_t fixed,temp,resident;const char *phase="allocation";int status;
@@ -256,11 +268,13 @@ static inline int scene_world_restore_prepare_with_passive(const void *data,uint
     temp=(uint64_t)npc_count*sizeof(*npc_rows);
     if((uint64_t)s->allocated_bytes+temp>budget){status=RF_RANGE;goto fail;}
     if(npc_count){npc_rows=malloc((size_t)temp);if(!npc_rows){status=RF_IO;goto fail;}}
-    phase="npc_decode";status=rf_npc_checkpoint_decode_with_rng(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng);if(status)goto fail;
+    phase="npc_decode";status=rf_npc_checkpoint_decode_with_pursuit_delay(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng,&tactical_cursor);if(status)goto fail;
     s->placement_rows=npc_rows;s->placement_count=npc_count;
     phase="npc_stage";
     status=scene_npc_checkpoint_restore_prepare_mode(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,
-        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs,seats,&flight_rng,checkpoint_u32((const unsigned char*)npc->data+4)>=25);if(status)goto fail;
+        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs,seats,&flight_rng,(checkpoint_u32((const unsigned char*)npc->data+4)>=30?2u:checkpoint_u32((const unsigned char*)npc->data+4)>=25?1u:0u));if(status)goto fail;
+    if(campaign_npc_body_count?tactical_cursor>=campaign_npc_body_count:tactical_cursor!=0){status=RF_FORMAT;goto fail;}
+    s->npcs->tactical_cursor=tactical_cursor;
     s->allocated_bytes+=s->npcs->bytes;s->placement_rows=NULL;s->placement_count=s->placement_next=0;free(npc_rows);npc_rows=NULL;
     s->semantic_mask=mask;*out=s;return RF_OK;
 fail:

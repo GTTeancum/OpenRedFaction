@@ -1,4 +1,6 @@
 #include "rf/npc_checkpoint.h"
+/* Previous Xbox32 decoded row2400 plus24 bytes; no row-count cap growth. */
+_Static_assert(sizeof(void*)!=4||sizeof(rf_npc_checkpoint_record)<=2424,"Pursuit delay decoded row exceeds reviewed allowance");
 #include "rf/timer.h"
 #include <math.h>
 #include <string.h>
@@ -499,7 +501,7 @@ static int route_valid(const rf_npc_checkpoint_record *r)
     if(!a->flags)return (r->ai_mode==3||r->ai_mode==4||r->ai_mode==10)?RF_FORMAT:RF_OK;
     if(a->action!=(r->ai_mode?r->ai_mode:-1))return RF_FORMAT;
     if((r->ai_mode==3||r->ai_mode==4||r->ai_mode==10)&&!(a->patrol&1))return RF_FORMAT;
-    if(r->retired||r->dead_pose||r->health<=0)return (a->origin||(a->flags&62))?RF_FORMAT:RF_OK;
+    if(r->retired||r->dead_pose||r->health<=0)return (a->origin||(a->flags&126))?RF_FORMAT:RF_OK;
     if((a->patrol&1)&&(r->look.active||r->combat.active==1))return RF_FORMAT;
     if(r->ai_mode==3&&(!r->combat_alert||(r->combat.active==1)||a->origin))return RF_FORMAT;
     if(r->ai_mode==4&&(!a->origin||!(a->flags&2)||!(a->flags&32)))return RF_FORMAT;
@@ -510,6 +512,21 @@ static int route_valid(const rf_npc_checkpoint_record *r)
            (a->origin==2&&(m->event||m->follow)))return RF_FORMAT;
     }
     if(r->ai_mode==10&&(a->origin!=1||(a->flags&2)||(m->active&&m->follow!=1)))return RF_FORMAT;
+    /* RFNC35 structural half. Scene admission must prove this exact clip's
+     * immutable delayed waypoint source/actor binding; RFEC joins separately. */
+    if(a->origin==2&&r->script_animation.active){
+        if(r->ai_mode!=4||!(a->patrol&1)||r->script_animation.active!=1||
+           r->script_animation.loop||r->script_animation.freeze||!r->animation_present||
+           r->playback.completion.frozen||r->playback.completion.active.freeze_slot!=-1||
+           r->flags&(2u|0x4000u)||!r->movement_present||r->movement_slot>=16||
+           r->combat_alert||r->combat.active||r->look.active||r->shot_count||
+           r->ai_suppressed||r->alarm.present||r->flight.entered||r->guard_retreat.present||
+           r->controller_uid||r->physics.present||!m->active||m->follow)return RF_FORMAT;
+    }
+    if((a->flags&64)&&(r->combat_alert||r->combat.active||r->look.active||r->shot_count||
+       r->ai_suppressed||r->alarm.present||r->flight.entered||
+       r->guard_retreat.present||r->controller_uid||r->physics.present||!m->active||m->follow||
+       m->retained_count||m->retry||m->route_index!=1))return RF_FORMAT;
     return RF_OK;
 }
 static void read_animation(const unsigned char *p,rf_npc_checkpoint_record *r)
@@ -540,10 +557,110 @@ static void write_animation(unsigned char *p,const rf_npc_checkpoint_record *r)
     put(p+100,(uint32_t)r->controller.override_state);put(p+104,r->controller.override_enabled);
     for(i=0;i<a->count;i++){put(p+108+12*i,(uint32_t)a->slots[i].motion);put(p+112+12*i,(uint32_t)a->slots[i].tick);put_real(p+116+12*i,a->slots[i].weight);}
 }
+static int alarm_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_alarm *a=&r->alarm;rf_npc_checkpoint_alarm zero={0};
+    if(a->present>1)return RF_FORMAT;
+    if(!a->present)return memcmp(a,&zero,sizeof(zero))||r->ai_mode==16?RF_FORMAT:RF_OK;
+    if(!a->event||a->event==UINT32_MAX||a->phase<1||a->phase>3||
+       a->started!=(a->phase==3)||r->ai_mode!=16||r->retired||r->dead_pose||
+       !isfinite(r->health)||r->health<=0||r->controller_uid||r->support_uid||
+       r->flight.present||r->guard_retreat.present||r->physics.present||r->drone.kind||
+       r->route.flags||r->look.active||r->combat.active||r->combat_alert||r->shot_count||
+       r->reload_present||r->ai_suppressed||r->medic.child_state||!r->movement_present)return RF_FORMAT;
+    if(a->phase==1){
+        if(!r->move.active||r->move.event!=a->event||r->move.follow||r->move.path_count||
+           r->script_animation.active)return RF_FORMAT;
+    }else if(r->move.active)return RF_FORMAT;
+    if(a->phase==3){
+        if(!r->animation_present||!r->script_animation.active||r->script_animation.loop||
+           r->script_animation.freeze||r->script_animation.motion<0)return RF_FORMAT;
+    }else if(r->script_animation.active)return RF_FORMAT;
+    return RF_OK;
+}
+static uint32_t alarm_bytes(const rf_npc_checkpoint_record *r)
+{return r->alarm.present?RF_NPC_CHECKPOINT_ALARM_BYTES:4u;}
+static void read_alarm(const unsigned char *p,rf_npc_checkpoint_alarm *a)
+{
+    a->present=word(p);if(a->present){a->event=word(p+4);a->phase=word(p+8);a->started=word(p+12);}
+}
+static void write_alarm(unsigned char *p,const rf_npc_checkpoint_alarm *a)
+{
+    put(p,a->present);if(a->present){put(p+4,a->event);put(p+8,a->phase);put(p+12,a->started);}
+}
+/* RFNC33 adds semantic ownership only. Existing move bytes retain the fixed
+ * noise point, remaining30-tick onset and typed four-node route window. */
+static int noise_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_move *m=&r->move;
+    if(r->ai_mode!=6)return RF_OK;
+    if(r->retired||r->dead_pose||!isfinite(r->health)||r->health<=0||r->flags||r->affiliation||
+       r->primary<0||r->primary>=64||r->inventory.owned[r->primary]!=1||
+       r->combat_alert||r->combat.active||r->look.active||r->shot_count||r->reload_present||
+       r->route.flags||r->flight.present||r->guard_retreat.present||r->alarm.present||r->drone.kind||
+       r->medic.reserve_seen||r->medic.child_state||r->controller_uid||r->physics.present||r->ai_suppressed||
+       !r->movement_present||!r->animation_present||r->script_animation.active||r->script_animation.freeze||
+       r->playback.completion.frozen||r->playback.completion.active.freeze_slot!=-1||
+       m->active!=1||m->follow!=2||m->event||m->path_count||m->path_index||m->path_mode||m->path_reverse||
+       m->retry>30||!m->route_index||(m->retry&&(m->retained_count||m->route_index!=1))||
+       memcmp(m->target,m->route_goal,12))return RF_FORMAT;
+    return RF_OK;
+}
+/* Structural grammar only. Source/style/route/target and final-close joins
+ * are mandatory in the composed scene before this receipt becomes live. */
+static int tactical_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_tactical *t=&r->tactical;
+    if(r->tactical_profile>1||t->present>1||t->phase>2||t->recovery_present>1)return RF_FORMAT;
+    if(!t->present)return (t->phase||t->phase_remaining||t->recovery_present||t->recovery_remaining||t->random)?RF_FORMAT:RF_OK;
+    if(!r->tactical_profile||r->retired||r->dead_pose||r->health<=0)return RF_FORMAT;
+    if((!t->recovery_present&&t->recovery_remaining)||t->recovery_remaining>500)return RF_FORMAT;
+    if(!t->phase)return (!t->recovery_present||t->phase_remaining)?RF_FORMAT:RF_OK;
+    if(!r->combat_alert||(r->combat.active!=0&&r->combat.active!=2&&r->combat.active!=4))return RF_FORMAT;
+    if(t->phase_remaining>(t->phase==2?1299u:4999u))return RF_FORMAT;
+    if(t->phase==2){
+        const rf_npc_checkpoint_move *m=&r->move;
+        if(!m->active||m->follow!=2||m->event||m->path_count||m->retry||
+           r->route.origin||(r->route.flags&126u)||
+           (m->retained_count!=2&&m->retained_count!=4)||!m->route_index||
+           m->route_index>=m->retained_count||m->retained_nodes[0]!=UINT32_MAX||
+           m->retained_nodes[m->retained_count-1]!=UINT32_MAX-1||
+           memcmp(m->target,m->route_goal,12))return RF_FORMAT;
+    }
+    return RF_OK;
+}
+static int pursuit_delay_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_pursuit_delay *v=&r->pursuit_delay;
+    if(r->pursuit_delay_profile>1||v->present>1||(v->sight_flags&~7u))return RF_FORMAT;
+    if(!v->present)return (v->target_uid||v->sight_flags||v->remaining||v->random)?RF_FORMAT:RF_OK;
+    if(!r->pursuit_delay_profile||r->retired||r->dead_pose||r->health<=0||!r->combat_alert||
+       !r->blind_present||(r->combat.active!=0&&r->combat.active!=2&&r->combat.active!=4)||
+       v->target_uid!=(r->combat.active?r->combat.event:0u)||v->remaining>5000u||
+       ((v->sight_flags&4u)&&!(v->sight_flags&2u))||
+       ((v->sight_flags&2u)&&!(v->sight_flags&4u)&&!v->remaining)||
+       ((!(v->sight_flags&2u)||(v->sight_flags&4u))&&v->remaining))return RF_FORMAT;
+    return RF_OK;
+}
+static int crouch_valid(const rf_npc_checkpoint_record *r)
+{
+    const rf_npc_checkpoint_crouch *v=&r->crouch;
+    if(r->crouch_profile>1||(v->flags&~15u))return RF_FORMAT;
+    if(!(v->flags&1u))return (v->flags||v->switch_remaining||v->attention_remaining||v->random||v->stamp_age)?RF_FORMAT:RF_OK;
+    if(r->retired||!r->crouch_profile||v->switch_remaining< -1||v->switch_remaining>4000||
+       v->attention_remaining< -1||v->attention_remaining>2000||
+       ((v->flags&4u)&&!(v->flags&8u))||(!(v->flags&8u)&&v->stamp_age)||v->stamp_age>0x7fffffffu)return RF_FORMAT;
+    return RF_OK;
+}
 static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catalog *c)
 {
     uint32_t i,j;uint8_t used[32]={0};rf_npc_checkpoint_move zero_move={0};rf_npc_checkpoint_look zero_look={0};rf_npc_checkpoint_combat zero_combat={0};
-    if(guard_retreat_valid(r,c)||reload_valid(r,c)||airborne_valid(r)||flight_valid(r)||route_valid(r)||physics_valid(r)||pain_valid(r)||drone_valid(r)||rf_campaign_medic_state_validate(&r->medic)||r->ai_suppressed>1)return RF_FORMAT;
+    if(tactical_valid(r)||crouch_valid(r)||pursuit_delay_valid(r))return RF_FORMAT;
+    if(r->blind_profile>1||r->blind_present>1||(!r->blind_present&&r->blind_age)||
+       (r->blind_present&&(!r->blind_profile||r->blind_age>5184002u||r->retired||r->dead_pose||
+        r->health<=0||!r->combat_alert||
+        (r->combat.active!=0&&r->combat.active!=2&&r->combat.active!=4))))return RF_FORMAT;
+    if(noise_valid(r)||alarm_valid(r)||guard_retreat_valid(r,c)||reload_valid(r,c)||airborne_valid(r)||flight_valid(r)||route_valid(r)||physics_valid(r)||pain_valid(r)||drone_valid(r)||rf_campaign_medic_state_validate(&r->medic)||r->ai_suppressed>1)return RF_FORMAT;
     if(rf_campaign_item_drop_validate(&r->item_drop)||
        (r->item_drop.state&&((!r->retired&&!r->dead_pose)||r->health>0)))return RF_FORMAT;
     if(r->capek_shield_broken>1 || (r->capek_shield_broken &&
@@ -563,15 +680,19 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
     if(r->support_uid==UINT32_MAX||(r->support_uid&&(r->retired||r->dead_pose||r->health<=0)))return RF_FORMAT;
     for(i=0;i<3;i++)if(!isfinite(r->support_velocity[i])||fabsf(r->support_velocity[i])>10000.f||
         (!r->support_uid&&r->support_velocity[i]!=0))return RF_FORMAT;
-    if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->controller_uid==UINT32_MAX||r->retired>1||r->combat_alert>1||r->dead_pose>1||
+    if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->controller_uid==UINT32_MAX||r->retired>1||r->combat_alert>1||r->dead_pose>2||
        (r->retired&&r->combat_alert)||(r->flags&~0x4004u)||
        !isfinite(r->health)||(!r->retired&&!r->dead_pose&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
        !isfinite(r->yaw)||
-       (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=3&&r->ai_mode!=4&&r->ai_mode!=7&&r->ai_mode!=10&&r->ai_mode!=11&&r->ai_mode!=13))return RF_FORMAT;
+       (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=3&&r->ai_mode!=4&&r->ai_mode!=6&&r->ai_mode!=7&&r->ai_mode!=10&&r->ai_mode!=11&&r->ai_mode!=13&&r->ai_mode!=16))return RF_FORMAT;
     if(r->dead_pose){
         if(r->retired||r->health>0||r->combat_alert||!(r->death_flags_810&1u)||
-           r->death_action<0||r->death_action>=45||!r->animation_present||
-           r->playback.completion.active.count!=1||r->script_animation.active)return RF_FORMAT;
+           r->script_animation.active)return RF_FORMAT;
+        if(r->dead_pose==1){
+            if(r->death_action<0||r->death_action>=45||!r->animation_present||
+               r->playback.completion.active.count!=1)return RF_FORMAT;
+        }else if(r->death_action!=-1||r->animation_present||r->physics.present||r->drone.kind||
+            r->controller_uid||r->capek_shield_broken)return RF_FORMAT;
     }else if(r->death_flags_810||r->death_action)return RF_FORMAT;
     if(r->move.active>1)return RF_FORMAT;
     if(!r->move.active){if(memcmp(&r->move,&zero_move,sizeof(zero_move)))return RF_FORMAT;}
@@ -581,7 +702,8 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
            r->move.path_mode>2||r->move.path_reverse>1||
            (r->move.path_count?r->move.path_index>=r->move.path_count:
             r->move.path_index||r->move.path_mode||r->move.path_reverse)||
-           (r->move.path_reverse&&r->move.path_mode!=2&&!(r->move.path_mode==1&&(r->route.patrol&1)))||
+           (r->move.path_reverse&&r->move.path_mode!=2&&!(r->move.path_mode==1&&(r->route.patrol&1))&&
+            !(r->move.path_mode==0&&r->route.origin==2&&(r->route.patrol&1)))||
            (r->move.follow&&r->move.path_count)||r->move.retained_count>4||
            (r->move.retained_count&&r->move.route_index>r->move.retained_count)||
            r->move.retry>60||!isfinite(r->move.fall_speed))return RF_FORMAT;
@@ -631,9 +753,12 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
     }else if(r->drop.weapon||r->drop.quantity||r->drop.position[0]||r->drop.position[1]||r->drop.position[2])return RF_FORMAT;
     return animation_valid(r);
 }
+static uint32_t alarm_bytes(const rf_npc_checkpoint_record *);
+static void read_alarm(const unsigned char *,rf_npc_checkpoint_alarm *);
+static void write_alarm(unsigned char *,const rf_npc_checkpoint_alarm *);
 static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_record *r)
 {
-    uint32_t i,move_at=version>=10?600:version>=9?588:version>=8?572:568,combat_at=0;memset(r,0,sizeof(*r));r->pain_residual_profile=version>=24;r->uid=word(p);r->class_id=word(p+4);r->retired=word(p+8);
+    uint32_t i,move_at=version>=10?600:version>=9?588:version>=8?572:568,combat_at=0;memset(r,0,sizeof(*r));r->pain_residual_profile=version>=24;r->blind_profile=version>=37;r->tactical_profile=version>=38;r->crouch_profile=version>=39;r->pursuit_delay_profile=version>=40;r->uid=word(p);r->class_id=word(p+4);r->retired=word(p+8);
     r->flags=word(p+12);r->affiliation=word(p+16);r->health=real(p+20);r->armor=real(p+24);
     for(i=0;i<3;i++)r->position[i]=real(p+28+i*4);r->yaw=real(p+40);
     r->primary=signed_word(p+44);r->secondary=signed_word(p+48);
@@ -696,7 +821,24 @@ static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_r
         if(version>=26)read_airborne(p+tail+276+flight_bytes(r),&r->airborne);
         if(version>=27)read_reload(p+tail+276+flight_bytes(r)+airborne_bytes(r),r);
         if(version>=28)read_guard_retreat(p+tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r),&r->guard_retreat);
+        if(version>=31)read_alarm(p+tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r),&r->alarm);
         if(version>=23)read_route(p+tail+12+RF_NPC_CHECKPOINT_PHYSICS_BYTES+RF_NPC_CHECKPOINT_PAIN_BYTES+RF_NPC_CHECKPOINT_HOLSTER_BYTES+RF_NPC_CHECKPOINT_CAPEK_BYTES+RF_NPC_CHECKPOINT_DRONE_BYTES+RF_NPC_CHECKPOINT_ITEM_DROP_BYTES+RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES+RF_NPC_CHECKPOINT_MEDIC_BYTES,&r->route);
+        if(version>=32&&(r->route.flags&64))r->route.dwell_remaining=word(p+tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r));
+        if(version>=37){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u);
+            r->blind_present=word(p+at);if(r->blind_present)r->blind_age=word(p+at+4);}
+        if(version>=38){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u)+(r->blind_present?8u:4u);
+            r->tactical.present=word(p+at);if(r->tactical.present){
+                r->tactical.phase=word(p+at+4);r->tactical.phase_remaining=word(p+at+8);
+                r->tactical.recovery_present=word(p+at+12);r->tactical.recovery_remaining=word(p+at+16);
+                r->tactical.random=word(p+at+20);}}
+        if(version>=39){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u)+(r->blind_present?8u:4u)+(r->tactical.present?24u:4u);
+            r->crouch.flags=word(p+at);if(r->crouch.flags&1u){
+                r->crouch.switch_remaining=signed_word(p+at+4);r->crouch.attention_remaining=signed_word(p+at+8);
+                r->crouch.random=word(p+at+12);r->crouch.stamp_age=word(p+at+16);}}
+        if(version>=40){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u)+(r->blind_present?8u:4u)+(r->tactical.present?24u:4u)+((r->crouch.flags&1u)?20u:4u);
+            r->pursuit_delay.present=word(p+at);if(r->pursuit_delay.present){
+                r->pursuit_delay.target_uid=word(p+at+4);r->pursuit_delay.sight_flags=word(p+at+8);
+                r->pursuit_delay.remaining=word(p+at+12);r->pursuit_delay.random=word(p+at+16);}}
     }
 }
 static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r,uint32_t version)
@@ -755,7 +897,24 @@ static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r,uint32_
         if(version>=26)write_airborne(p+tail+276+flight_bytes(r),&r->airborne);
         if(version>=27)write_reload(p+tail+276+flight_bytes(r)+airborne_bytes(r),r);
         if(version>=28)write_guard_retreat(p+tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r),&r->guard_retreat);
+        if(version>=31)write_alarm(p+tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r),&r->alarm);
         if(version>=23)write_route(p+tail+12+RF_NPC_CHECKPOINT_PHYSICS_BYTES+RF_NPC_CHECKPOINT_PAIN_BYTES+RF_NPC_CHECKPOINT_HOLSTER_BYTES+RF_NPC_CHECKPOINT_CAPEK_BYTES+RF_NPC_CHECKPOINT_DRONE_BYTES+RF_NPC_CHECKPOINT_ITEM_DROP_BYTES+RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES+RF_NPC_CHECKPOINT_MEDIC_BYTES,&r->route);
+        if(version>=32&&(r->route.flags&64))put(p+tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r),r->route.dwell_remaining);
+        if(version>=37){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u);
+            put(p+at,r->blind_present);if(r->blind_present)put(p+at+4,r->blind_age);}
+        if(version>=38){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u)+(r->blind_present?8u:4u);
+            put(p+at,r->tactical.present);if(r->tactical.present){
+                put(p+at+4,r->tactical.phase);put(p+at+8,r->tactical.phase_remaining);
+                put(p+at+12,r->tactical.recovery_present);put(p+at+16,r->tactical.recovery_remaining);
+                put(p+at+20,r->tactical.random);}}
+        if(version>=39){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u)+(r->blind_present?8u:4u)+(r->tactical.present?24u:4u);
+            put(p+at,r->crouch.flags);if(r->crouch.flags&1u){
+                put(p+at+4,(uint32_t)r->crouch.switch_remaining);put(p+at+8,(uint32_t)r->crouch.attention_remaining);
+                put(p+at+12,r->crouch.random);put(p+at+16,r->crouch.stamp_age);}}
+        if(version>=40){uint32_t at=tail+276+flight_bytes(r)+airborne_bytes(r)+reload_bytes(r)+guard_retreat_bytes(r)+alarm_bytes(r)+((r->route.flags&64)?4u:0u)+(r->blind_present?8u:4u)+(r->tactical.present?24u:4u)+((r->crouch.flags&1u)?20u:4u);
+            put(p+at,r->pursuit_delay.present);if(r->pursuit_delay.present){
+                put(p+at+4,r->pursuit_delay.target_uid);put(p+at+8,r->pursuit_delay.sight_flags);
+                put(p+at+12,r->pursuit_delay.remaining);put(p+at+16,r->pursuit_delay.random);}}
     }
 }
 /* Called only after record validation, so every variable count is bounded. */
@@ -768,18 +927,23 @@ static uint32_t row_bytes(const rf_npc_checkpoint_record *r,uint32_t version)
         (version>=20?RF_NPC_CHECKPOINT_ITEM_DROP_BYTES:0u)+(version>=21?RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES:0u)+
         (version>=22?RF_NPC_CHECKPOINT_MEDIC_BYTES:0u)+(version>=23?RF_NPC_CHECKPOINT_ROUTE_BYTES:0u)+
         (version>=25?flight_bytes(r):0u)+(version>=26?airborne_bytes(r):0u)+
-        (version>=27?reload_bytes(r):0u)+(version>=28?guard_retreat_bytes(r):0u);
+        (version>=27?reload_bytes(r):0u)+(version>=28?guard_retreat_bytes(r):0u)+(version>=31?alarm_bytes(r):0u)+(version>=32&&(r->route.flags&64)?4u:0u)+(version>=37?(r->blind_present?8u:4u):0u)+(version>=38?(r->tactical.present?24u:4u):0u)+(version>=39?((r->crouch.flags&1u)?20u:4u):0u)+(version>=40?(r->pursuit_delay.present?20u:4u):0u);
 }
-int rf_npc_checkpoint_encode_with_rng(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
-    const rf_npc_checkpoint_record *rows,uint32_t count,const rf_npc_checkpoint_rng *rng,void *output,uint32_t capacity,uint32_t *written)
+static int encode(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    const rf_npc_checkpoint_record *rows,uint32_t count,const rf_npc_checkpoint_rng *rng,void *output,uint32_t capacity,uint32_t *written,uint32_t tactics,uint32_t cursor)
 {
     unsigned char *p=output;uint32_t i,bytes,at,version=10,pain_seen=0,pain_random=0,spread_seen=0,spread_saved=0;int status;
     if(!identity||!output||!written||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_RANGE;
     if(!rng||rng->present>1||(!rng->present&&rng->value))return RF_RANGE;
+    if(tactics>3||cursor>=RF_NPC_CHECKPOINT_MAX_COUNT||(!count&&cursor))return RF_RANGE;
     if(rng->present)version=25;
+    if(tactics)version=37+tactics;
     status=catalog_valid(c);if(status)return status;
-    bytes=64+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
+    bytes=(tactics?68u:64u)+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
     for(i=0;i<count;i++){
+        if(!tactics&&(rows[i].tactical_profile||rows[i].tactical.present))return RF_FORMAT;
+        if(tactics<2&&(rows[i].crouch_profile||rows[i].crouch.flags))return RF_FORMAT;
+        if(tactics<3&&(rows[i].pursuit_delay_profile||rows[i].pursuit_delay.present))return RF_FORMAT;
         status=valid(rows+i,c);if(status)return status;if(i&&rows[i-1].uid>=rows[i].uid)return RF_FORMAT;
         if(rows[i].pain.present){
             if(pain_seen&&pain_random!=rows[i].pain.random)return RF_FORMAT;
@@ -799,13 +963,23 @@ int rf_npc_checkpoint_encode_with_rng(const unsigned char identity[32],const rf_
         if(rows[i].route.flags&&version<23)version=23;
         if((rows[i].pain_residual_profile||(rows[i].pain.present&&rows[i].pain.action>=24))&&version<24)version=24;
         if((rows[i].flight.entered||rows[i].guard_retreat.present)&&!rng->present)return RF_FORMAT;
-        if(rows[i].flight.present&&version<25)version=25;
+        /*RFNC30 widens scene-qualified unarmed owners; no new wire fields.*/
+        if(rows[i].flight.present&&version<30)version=30;
         if(rows[i].airborne.present&&version<26)version=26;
         if(rows[i].reload_present&&version<27)version=27;
         if(rows[i].guard_retreat.present&&version<28)version=28;
+        if(rows[i].dead_pose==2&&version<29)version=29;
+        if(rows[i].alarm.present&&version<31)version=31;
+        if((rows[i].route.flags&64)&&version<32)version=32;
+        if(rows[i].ai_mode==6&&version<33)version=33;
+        /*RFNC36 adds immutable One way defaults with the RFNC35 layout. The
+         * source-independent codec promotes every enabled patrol, including an
+         * interrupted event/absent route that can later return to its default.*/
+        if((rows[i].route.patrol&1)&&version<36)version=36;
+        if(rows[i].blind_profile&&version<37)version=37;
     }
     if(rng->present&&pain_seen&&rng->value!=pain_random)return RF_FORMAT;
-    bytes=64;
+    bytes=tactics?68u:64u;
     for(i=0;i<count;i++){
         uint32_t n=row_bytes(rows+i,version);
         if(version>=28){status=guard_spread_join(rows+i,&spread_seen,&spread_saved);if(status)return status;}
@@ -814,12 +988,13 @@ int rf_npc_checkpoint_encode_with_rng(const unsigned char identity[32],const rf_
         bytes+=n;
     }
     memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,version);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);put(p+20,rng->present);put(p+60,rng->value);
-    for(i=0,at=64;i<count;i++){write_row(p+at,rows+i,version);at+=row_bytes(rows+i,version);}
+    if(tactics)put(p+64,cursor);
+    for(i=0,at=tactics?68u:64u;i<count;i++){write_row(p+at,rows+i,version);at+=row_bytes(rows+i,version);}
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
 static int row_span(const unsigned char *p,uint32_t available,uint32_t version,uint32_t *span)
 {
-    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:version==4?RF_NPC_CHECKPOINT_ROW_V4:version==5?RF_NPC_CHECKPOINT_ROW_V5:version==6?RF_NPC_CHECKPOINT_ROW_V6:version==7?RF_NPC_CHECKPOINT_ROW_V7:version==8?RF_NPC_CHECKPOINT_ROW_V8:version==9?RF_NPC_CHECKPOINT_ROW_V9:RF_NPC_CHECKPOINT_ROW,n=0,extension=0,combat=0,shots=0;
+    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:version==4?RF_NPC_CHECKPOINT_ROW_V4:version==5?RF_NPC_CHECKPOINT_ROW_V5:version==6?RF_NPC_CHECKPOINT_ROW_V6:version==7?RF_NPC_CHECKPOINT_ROW_V7:version==8?RF_NPC_CHECKPOINT_ROW_V8:version==9?RF_NPC_CHECKPOINT_ROW_V9:RF_NPC_CHECKPOINT_ROW,n=0,extension=0,combat=0,shots=0,dwell=0;
     if(available<base)return RF_FORMAT;
     if(version>=7){extension=word(p+564);if((extension!=0&&extension!=RF_NPC_CHECKPOINT_EXTENSION_BYTES)||extension>available-base)return RF_FORMAT;}
     if(version>=8){combat=word(p+568);if((combat!=0&&combat!=RF_NPC_CHECKPOINT_COMBAT_BYTES)||combat>available-base-extension)return RF_FORMAT;}
@@ -839,7 +1014,11 @@ static int row_span(const unsigned char *p,uint32_t available,uint32_t version,u
     if(version>=20){if(available-*span<RF_NPC_CHECKPOINT_ITEM_DROP_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_ITEM_DROP_BYTES;}
     if(version>=21){if(available-*span<RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_AI_SUPPRESSION_BYTES;}
     if(version>=22){if(available-*span<RF_NPC_CHECKPOINT_MEDIC_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_MEDIC_BYTES;}
-    if(version>=23){if(available-*span<RF_NPC_CHECKPOINT_ROUTE_BYTES)return RF_FORMAT;*span+=RF_NPC_CHECKPOINT_ROUTE_BYTES;}
+    if(version>=23){
+        if(available-*span<RF_NPC_CHECKPOINT_ROUTE_BYTES)return RF_FORMAT;
+        dwell=!!(word(p+*span)&64u);if(dwell&&version<32)return RF_FORMAT;
+        *span+=RF_NPC_CHECKPOINT_ROUTE_BYTES;
+    }
     if(version>=25){uint32_t present,n;
         if(available-*span<4)return RF_FORMAT;present=word(p+*span);if(present>1)return RF_FORMAT;
         n=present?RF_NPC_CHECKPOINT_FLIGHT_BYTES:4u;if(available-*span<n)return RF_FORMAT;*span+=n;
@@ -856,27 +1035,55 @@ static int row_span(const unsigned char *p,uint32_t available,uint32_t version,u
         if(available-*span<4)return RF_FORMAT;present=word(p+*span);if(present>1)return RF_FORMAT;
         n=present?RF_NPC_CHECKPOINT_GUARD_RETREAT_BYTES:4u;if(available-*span<n)return RF_FORMAT;*span+=n;
     }
+    if(version>=31){uint32_t present,n;
+        if(available-*span<4)return RF_FORMAT;present=word(p+*span);if(present>1)return RF_FORMAT;
+        n=present?RF_NPC_CHECKPOINT_ALARM_BYTES:4u;if(available-*span<n)return RF_FORMAT;*span+=n;
+    }
+    if(dwell){if(available-*span<4)return RF_FORMAT;*span+=4;}
+    if(version>=37){uint32_t present,n;
+        if(available-*span<4)return RF_FORMAT;present=word(p+*span);if(present>1)return RF_FORMAT;
+        n=present?8u:4u;if(available-*span<n)return RF_FORMAT;*span+=n;
+    }
+    if(version>=38){uint32_t present,n;
+        if(available-*span<4)return RF_FORMAT;present=word(p+*span);if(present>1)return RF_FORMAT;
+        n=present?24u:4u;if(available-*span<n)return RF_FORMAT;*span+=n;
+    }
+    if(version>=39){uint32_t flags,n;
+        if(available-*span<4)return RF_FORMAT;flags=word(p+*span);
+        if((flags&~15u)||(!(flags&1u)&&flags))return RF_FORMAT;
+        n=(flags&1u)?20u:4u;if(available-*span<n)return RF_FORMAT;*span+=n;
+    }
+    if(version>=40){uint32_t present,n;
+        if(available-*span<4)return RF_FORMAT;present=word(p+*span);
+        if(present>1)return RF_FORMAT;n=present?20u:4u;
+        if(available-*span<n)return RF_FORMAT;*span+=n;
+    }
     return *span>RF_NPC_CHECKPOINT_ROW_MAX?RF_FORMAT:RF_OK;
 }
 static int decode(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
-    rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *out_count,uint32_t publish,rf_npc_checkpoint_rng *out_rng,uint32_t receipt_aware)
+    rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *out_count,uint32_t publish,rf_npc_checkpoint_rng *out_rng,uint32_t receipt_aware,uint32_t tactics,uint32_t *out_cursor)
 {
     const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,span,at,previous=0,pain_seen=0,pain_random=0,spread_seen=0,spread_saved=0;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
-    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>28||
+    if(bytes<64||bytes>68+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>40||
        word(p+8)!=bytes||(word(p+4)<25?(word(p+20)||word(p+60)):(word(p+20)>1||(!word(p+20)&&word(p+60))))||word(p+56)!=c->hash||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
     version=word(p+4);count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_FORMAT;
+    if(version>=38&&(bytes<68||!tactics||word(p+64)>=RF_NPC_CHECKPOINT_MAX_COUNT||(!count&&word(p+64))))return RF_FORMAT;
+    if(version>=39&&tactics<2)return RF_FORMAT;
+    if(version>=40&&tactics<3)return RF_FORMAT;
     if(!receipt_aware&&word(p+20))return RF_FORMAT;
     if(publish&&(count>capacity||(count&&!rows)))return RF_RANGE;
-    for(i=0,at=64;i<count;i++){
+    for(i=0,at=version>=38?68u:64u;i<count;i++){
         status=row_span(p+at,bytes-at,version,&span);if(status)return status;
         read_row(p+at,version,&r);
         if((version<11&&r.combat.active==3)||(version<12&&r.combat.active==4)||
            (version<17&&r.physics.present&&r.dead_pose)||
-           (version<24&&r.pain.present&&r.pain.action>=24))return RF_FORMAT;
+           (version<24&&r.pain.present&&r.pain.action>=24)||(version<29&&r.dead_pose==2)||
+           (version<33&&r.ai_mode==6)||(version<35&&r.route.origin==2&&r.script_animation.active)||
+           (version<36&&r.route.origin==2&&((r.route.flags>>2)&3)==0))return RF_FORMAT;
         status=valid(&r,c);if(status)return status;
-        if((!receipt_aware&&(r.flight.present||r.guard_retreat.present))||
+        if((!receipt_aware&&(r.blind_present||r.ai_mode==6||r.flight.present||r.guard_retreat.present||r.alarm.present||(r.route.flags&64)||(r.route.origin==2&&(r.script_animation.active||((r.route.flags>>2)&3)==0))||r.dead_pose==2))||
            ((r.flight.entered||r.guard_retreat.present)&&!word(p+20)))return RF_FORMAT;
         if(version>=28){status=guard_spread_join(&r,&spread_seen,&spread_saved);if(status)return status;}
         if(r.pain.present){
@@ -886,29 +1093,63 @@ static int decode(const void *data,uint32_t bytes,const unsigned char identity[3
         if(i&&previous>=r.uid)return RF_FORMAT;previous=r.uid;at+=span;
     }
     if(at!=bytes||(word(p+20)&&pain_seen&&word(p+60)!=pain_random))return RF_FORMAT;
-    if(publish)for(i=0,at=64;i<count;i++){(void)row_span(p+at,bytes-at,version,&span);read_row(p+at,version,rows+i);at+=span;}
+    if(publish)for(i=0,at=version>=38?68u:64u;i<count;i++){(void)row_span(p+at,bytes-at,version,&span);read_row(p+at,version,rows+i);at+=span;}
     if(out_rng){out_rng->present=word(p+20);out_rng->value=word(p+60);}
+    if(out_cursor)*out_cursor=version>=38?word(p+64):0u;
     *out_count=count;return RF_OK;
 }
 int rf_npc_checkpoint_decode(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *count)
-{return decode(data,bytes,identity,c,rows,capacity,count,1,NULL,0);}
+{return decode(data,bytes,identity,c,rows,capacity,count,1,NULL,0,0,NULL);}
 int rf_npc_checkpoint_preflight(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,uint32_t *count)
-{return decode(data,bytes,identity,c,NULL,0,count,0,NULL,1);}
+{return decode(data,bytes,identity,c,NULL,0,count,0,NULL,1,3,NULL);}
 
 int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     const rf_npc_checkpoint_record *rows,uint32_t count,void *output,uint32_t capacity,uint32_t *written)
 {
     uint32_t i;rf_npc_checkpoint_rng rng={0};
     if((count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_RANGE;
-    for(i=0;i<count;i++)if(rows[i].flight.present||rows[i].guard_retreat.present)return RF_FORMAT;
+    for(i=0;i<count;i++)if(rows[i].blind_present||rows[i].ai_mode==6||rows[i].flight.present||rows[i].guard_retreat.present||rows[i].alarm.present||(rows[i].route.flags&64)||(rows[i].route.origin==2&&(rows[i].script_animation.active||((rows[i].route.flags>>2)&3)==0))||rows[i].dead_pose==2)return RF_FORMAT;
     return rf_npc_checkpoint_encode_with_rng(identity,c,rows,count,&rng,output,capacity,written);
 }
 int rf_npc_checkpoint_decode_with_rng(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *count,rf_npc_checkpoint_rng *rng)
 {
     if(!rng)return RF_RANGE;
-    return decode(data,bytes,identity,c,rows,capacity,count,1,rng,1);
+    return decode(data,bytes,identity,c,rows,capacity,count,1,rng,1,0,NULL);
 }
 int rf_npc_checkpoint_record_validate(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catalog *c)
 {int status=catalog_valid(c);if(status)return status;return r?valid(r,c):RF_RANGE;}
+
+int rf_npc_checkpoint_encode_with_rng(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    const rf_npc_checkpoint_record *rows,uint32_t count,const rf_npc_checkpoint_rng *rng,void *output,uint32_t capacity,uint32_t *written)
+{return encode(identity,c,rows,count,rng,output,capacity,written,0,0);}
+int rf_npc_checkpoint_encode_with_tactics(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    const rf_npc_checkpoint_record *rows,uint32_t count,const rf_npc_checkpoint_rng *rng,uint32_t cursor,void *output,uint32_t capacity,uint32_t *written)
+{return encode(identity,c,rows,count,rng,output,capacity,written,1,cursor);}
+int rf_npc_checkpoint_decode_with_tactics(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *count,rf_npc_checkpoint_rng *rng,uint32_t *cursor)
+{
+    if(!rng||!cursor)return RF_RANGE;
+    return decode(data,bytes,identity,c,rows,capacity,count,1,rng,1,1,cursor);
+}
+
+int rf_npc_checkpoint_encode_with_stance(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    const rf_npc_checkpoint_record *rows,uint32_t count,const rf_npc_checkpoint_rng *rng,uint32_t cursor,void *output,uint32_t capacity,uint32_t *written)
+{return encode(identity,c,rows,count,rng,output,capacity,written,2,cursor);}
+int rf_npc_checkpoint_decode_with_stance(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *count,rf_npc_checkpoint_rng *rng,uint32_t *cursor)
+{
+    if(!rng||!cursor)return RF_RANGE;
+    return decode(data,bytes,identity,c,rows,capacity,count,1,rng,1,2,cursor);
+}
+
+int rf_npc_checkpoint_encode_with_pursuit_delay(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    const rf_npc_checkpoint_record *rows,uint32_t count,const rf_npc_checkpoint_rng *rng,uint32_t cursor,void *output,uint32_t capacity,uint32_t *written)
+{return encode(identity,c,rows,count,rng,output,capacity,written,3,cursor);}
+int rf_npc_checkpoint_decode_with_pursuit_delay(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
+    rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *count,rf_npc_checkpoint_rng *rng,uint32_t *cursor)
+{
+    if(!rng||!cursor)return RF_RANGE;
+    return decode(data,bytes,identity,c,rows,capacity,count,1,rng,1,3,cursor);
+}

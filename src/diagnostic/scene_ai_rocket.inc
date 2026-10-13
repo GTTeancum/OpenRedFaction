@@ -11,6 +11,7 @@ typedef struct scene_ai_rocket_projectile {
     const rf_weapon_explosive_definition *definition;
 } scene_ai_rocket_projectile;
 static scene_ai_rocket_projectile scene_ai_rockets[SCENE_AI_ROCKET_CAPACITY];
+static uint32_t scene_ai_missile_service_depth; /* Stack-owned; world reset cannot reopen saving. */
 /* launches, impacts, expired, live, pool refusals */
 uint32_t rf_scene_ai_rockets[5];
 uint32_t rf_scene_ai_rocket_timing[3]; /* latest launch, impact, expiry frames */
@@ -18,8 +19,8 @@ static void scene_ai_rocket_reset(void)
 {scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_NPC_ROCKET);memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));memset(rf_scene_ai_rocket_timing,0,sizeof(rf_scene_ai_rocket_timing));}
 static uint32_t scene_ai_rocket_pending(void)
 {uint32_t i;for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active)return 1;return 0;}
-/* RFAP1..4 have only Rocket/Tankbot variants. Save-only callers must refuse
- * these flights, never relabel them; load preparation remains available. */
+/* Legacy save/export paths have no Drone variant. RFAP9 alone owns it;
+ * the settled-only callers keep this refusal, never relabeling a flight. */
 static uint32_t scene_ai_drone_missile_save_blocked(void)
 {
     uint32_t i;
@@ -29,9 +30,9 @@ static uint32_t scene_ai_drone_missile_save_blocked(void)
     }
     return 0;
 }
-/* Successful timeline publication only: old Drone flights have no RFAP
- * representation. Empty-section loads must not retain a frame-zero launch
- * after the independent cooldown has been cleared. Other missiles remain. */
+/* Successful timeline publication only: retire outgoing Drone flights before
+ * the optional RFAP9 owner publishes. Empty/legacy loads cannot retain a
+ * frame-zero launch after independent cooldown reset. Other missiles remain. */
 static void scene_ai_drone_missile_reset(void)
 {
     uint32_t i,live=0;
@@ -44,7 +45,7 @@ static void scene_ai_drone_missile_reset(void)
     }
     rf_scene_ai_rockets[3]=live;
 }
-static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3],
+static int scene_ai_missile_launch_inner(campaign_npc_body *owner,const float target[3],
     int32_t weapon,const rf_weapon_explosive_definition *definition,float damage)
 {
     scene_ai_rocket_projectile shot={0};float direction[3],up[3]={0,1,0};double length=0;uint32_t i,k;int status;
@@ -78,6 +79,13 @@ static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3
     else if(definition==&campaign_drone_missile)scene_drone_missile_audio_accepted(i,shot.flight.position);
     ++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];rf_scene_ai_rocket_timing[0]=combat_frame;return RF_OK;
 }
+static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3],
+    int32_t weapon,const rf_weapon_explosive_definition *definition,float damage)
+{
+    int status;++scene_ai_missile_service_depth;
+    status=scene_ai_missile_launch_inner(owner,target,weapon,definition,damage);
+    --scene_ai_missile_service_depth;return status;
+}
 static int scene_ai_rocket_launch(campaign_npc_body *owner,const float target[3])
 {return scene_ai_missile_launch(owner,target,campaign_rocket_id,&campaign_rocket,
     combat_enemy_primary_damage(campaign_primary+4));}
@@ -105,7 +113,7 @@ static int scene_ai_drone_missile_launch(campaign_npc_body *owner,const float ta
     return scene_ai_missile_launch(owner,target_eye,weapon,&campaign_drone_missile,
         combat_enemy_primary_damage(&campaign_drone_missile_primary));
 }
-static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
+static int scene_ai_rocket_tick_inner(scene_stream *stream,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_ai_rockets[3]=0;
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++){
@@ -113,8 +121,8 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
         const rf_weapon_explosive_definition *definition=shot->definition;
         /* Accepted family receipt survives contact callbacks; never require a
          * still-living source, held pair or authored UID at impact. Tankbot's
-         * RFAP variant2 restores this identity and raw damage; Drone remains
-         * excluded from saves while its unsupported flight is active. */
+         * RFAP variant2 and RFAP9 variant3 restore family and raw damage;
+         * flight ownership does not depend on a still-pending cooldown. */
         const uint32_t current_player_difficulty=definition==&campaign_tankbot_missile ||
             definition==&campaign_drone_missile;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};scene_ai_projectile_query query={stream,shot->source};
@@ -132,7 +140,7 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
             if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
                 uint32_t index=tag&0xffffu,consumed;
                 if(index>=campaign_npc_body_count)return RF_RANGE;
-                status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,&consumed);
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,contact->hit.point,&consumed);
                 if(status)return status;if(consumed)continue;
             }
             status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);
@@ -179,5 +187,22 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
         if(shot->flight.active)++rf_scene_ai_rockets[3];
     }
     return RF_OK;
+}
+static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
+{
+    int status;++scene_ai_missile_service_depth;
+    status=scene_ai_rocket_tick_inner(stream,frame);--scene_ai_missile_service_depth;return status;
+}
+static uint32_t scene_ai_secondary_checkpoint_busy(void)
+{
+    if(scene_ai_missile_service_depth||scene_ai_drone_secondary_launching||scene_ai_tankbot_secondary_launching)return 1;
+    for(uint32_t i=0;i<SCENE_AI_DRONE_SECONDARY_CAPACITY;i++)
+        if(scene_ai_drone_secondary_cooldowns[i].phase&&scene_ai_drone_secondary_cooldowns[i].phase!=2)return 1;
+    return 0;
+}
+static uint32_t scene_ai_secondary_checkpoint_pending(void)
+{
+    return scene_ai_secondary_checkpoint_busy()||scene_ai_drone_secondary_save_pending()||
+        scene_ai_tankbot_secondary_save_pending()||scene_ai_drone_missile_save_blocked();
 }
 #endif

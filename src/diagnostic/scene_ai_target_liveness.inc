@@ -13,7 +13,7 @@ static uint32_t campaign_enemy_target_living(campaign_npc_body *owner,
     if(player_health>0)return 1;
     if(owner->combat_scripted && owner->combat_target!=player_handle)return 1;
     campaign_pursuit_stop(owner);
-    owner->combat_alert=owner->combat_scripted=owner->combat_target=0;
+    owner->combat_alert=owner->combat_scripted=owner->combat_target=0;scene_blind_clear(owner);
     owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
     return 0;
 }

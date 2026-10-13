@@ -148,7 +148,7 @@ static int scene_turret_player_select(scene_stream *stream,uint32_t *handle)
        scene_turret_operator_find(o->registration.handle)||scene_turret_generated_find(o->registration.handle))return RF_OK;
     *handle=o->registration.handle;return RF_OK;
 }
-static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
+static int scene_turret_player_tick_service(scene_stream *stream,uint32_t frame)
 {
     scene_turret_player_state *p=&scene_turret_player;scene_turret_owner *o=NULL;
     scene_turret_combat_state *aim;uint32_t edge,alive,handle,reachable,affiliation;int status;
@@ -258,5 +258,13 @@ mounted_fire_done:
      q[14]=rf_scene_turret_player[5];q[15]=frame;memcpy(q+16,p->anchor,12);}
     return RF_OK;
 fail:scene_turret_audio_stop(p->host);++rf_scene_turret_player[7];return status;
+}
+
+/* Keep accepted flight and subsequent cadence publication indivisible to capture. */
+static int scene_turret_player_tick(scene_stream *stream,uint32_t frame)
+{
+    int status;++scene_turret_heap_service_depth;
+    status=scene_turret_player_tick_service(stream,frame);
+    --scene_turret_heap_service_depth;return status;
 }
 #endif

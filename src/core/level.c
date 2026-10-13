@@ -35,36 +35,59 @@ static int message_quoted(const char **cursor,const char *end,char *out,uint32_t
     if(p==end)return RF_FORMAT;
     if(out)out[n]=0;*cursor=p+1;return RF_OK;
 }
-int rf_level_message_parse(const void *data,uint32_t bytes,uint32_t id,rf_level_message *result)
+int rf_level_message_parse_language(const void *data,uint32_t bytes,uint32_t id,
+    uint32_t language,rf_level_message *result)
 {
-    const char *p=data,*end;rf_level_message candidate={0},selected={0};uint32_t current=0,have=0,found=0,english=0;int status;
-    if(!data || !result || bytes>65536)return RF_RANGE;
+    const char *p=data,*end;rf_level_message candidate={0},selected={0};char translated[512]={0};
+    uint32_t current=0,have=0,found=0,seen=0;int status;
+    if(!data || !result || bytes>65536 || language>=RF_TEXT_LANGUAGE_COUNT)return RF_RANGE;
     end=p+bytes;
     while(1) {
-        message_space(&p,end);if(p==end)break;
-        if(end-p>=2 && p[0]=='/' && p[1]=='/'){while(p<end && *p!='\n' && *p!='\r')++p;continue;}
-        if(*p>='0' && *p<='9') {
-            if(have && !english)return RF_FORMAT;
-            current=0;english=0;memset(&candidate,0,sizeof(candidate));
+        message_space(&p,end);
+        if(p==end || (*p>='0' && *p<='9')){
+            if(have){
+                if(!(seen&(1u<<RF_TEXT_ENGLISH)))return RF_FORMAT;
+                if(current==id){
+                    if(found)return RF_FORMAT;
+                    if(language!=RF_TEXT_ENGLISH && rf_text_translation_available(translated,(uint32_t)strlen(translated)))
+                        strcpy(candidate.text,translated);
+                    selected=candidate;found=1;
+                }
+            }
+            if(p==end)break;
+            current=0;seen=0;translated[0]=0;memset(&candidate,0,sizeof(candidate));
             do {uint32_t digit=(uint32_t)(*p++-'0');if(current>(UINT32_MAX-digit)/10)return RF_RANGE;current=current*10+digit;} while(p<end && *p>='0' && *p<='9');
             candidate.id=current;have=1;message_space(&p,end);
             status=message_quoted(&p,end,candidate.voice,sizeof(candidate.voice));if(status)return status;
-        } else {
-            uint32_t en;
+        }else if(end-p>=2 && p[0]=='/' && p[1]=='/'){
+            while(p<end && *p!='\n' && *p!='\r')++p;
+        }else {
+            uint32_t lang;char *output=NULL;
             if(!have || end-p<3 || p[2]!=':')return RF_FORMAT;
-            en=p[0]=='E' && p[1]=='n';p+=3;message_space(&p,end);
-            if(en && english)return RF_FORMAT;
-            status=message_quoted(&p,end,en?candidate.text:NULL,sizeof(candidate.text));if(status)return status;
-            if(en){english=1;if(current==id){if(found)return RF_FORMAT;selected=candidate;found=1;}}
+            lang=rf_text_tag_language(p);p+=3;message_space(&p,end);
+            if(lang<RF_TEXT_LANGUAGE_COUNT){
+                if(seen&(1u<<lang))return RF_FORMAT;seen|=1u<<lang;
+                if(lang==RF_TEXT_ENGLISH)output=candidate.text;
+                else if(lang==language && current==id)output=translated;
+            }
+            {const char *start=p;
+             status=message_quoted(&p,end,output,sizeof(candidate.text));
+             if(status==RF_RANGE && output==translated){
+                 /* A translated line outside the fixed subtitle budget is
+                  * unavailable, not a reason to lose a valid English line. */
+                 translated[0]=0;p=start;status=message_quoted(&p,end,NULL,0);
+             }
+             if(status)return status;}
         }
     }
-    if(have && !english)return RF_FORMAT;
     if(!found)return RF_NOT_FOUND;*result=selected;return RF_OK;
 }
-int rf_level_message_read(const rf_level *level,uint32_t id,rf_level_message *result)
+int rf_level_message_parse(const void *data,uint32_t bytes,uint32_t id,rf_level_message *result)
+{return rf_level_message_parse_language(data,bytes,id,RF_TEXT_ENGLISH,result);}
+int rf_level_message_read_language(const rf_level *level,uint32_t id,uint32_t language,rf_level_message *result)
 {
     char name[RF_LEVEL_NAME_CAPACITY];const char *dot;uint32_t n;rf_vpp_entry entry;void *data;int status;
-    if(!level || !level->archive || !result)return RF_RANGE;
+    if(!level || !level->archive || !result || language>=RF_TEXT_LANGUAGE_COUNT)return RF_RANGE;
     dot=strrchr(level->entry.name,'.');n=dot?(uint32_t)(dot-level->entry.name):(uint32_t)strlen(level->entry.name);
     if(n+10>sizeof(name))return RF_RANGE;
     memcpy(name,level->entry.name,n);memcpy(name+n,"_text.tbl",10);
@@ -72,9 +95,11 @@ int rf_level_message_read(const rf_level *level,uint32_t id,rf_level_message *re
     if(entry.size>65536)return RF_RANGE;
     data=malloc(entry.size?entry.size:1);if(!data)return RF_IO;
     status=rf_vpp_read(level->archive,&entry,0,data,entry.size);
-    if(!status)status=rf_level_message_parse(data,entry.size,id,result);
+    if(!status)status=rf_level_message_parse_language(data,entry.size,id,language,result);
     free(data);return status;
 }
+int rf_level_message_read(const rf_level *level,uint32_t id,rf_level_message *result)
+{return rf_level_message_read_language(level,id,RF_TEXT_ENGLISH,result);}
 
 static uint32_t le32(const unsigned char *p)
 {
@@ -404,6 +429,32 @@ int rf_level_entity_ai_read(const rf_level_owned_entity *entity,rf_level_entity_
     for(i=0;i<7;i++){status=entity_raw_string(raw,size,&cursor);if(status)return status;}
     start=cursor;status=entity_raw_skip(size,&cursor,18);if(status)return status;
     value.mode=raw[start];value.attack_style=raw[start+1];*result=value;return RF_OK;
+}
+
+int rf_level_entity_combat_range_read(const rf_level_owned_entity *entity,
+    rf_level_entity_combat_range *result)
+{
+    rf_level_entity_spawn checked;rf_level_entity_combat_range value={0,15.f};
+    const uint8_t *raw;uint32_t at=4,size,start,bits;int status;
+    if(!result)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,48);if(status)return status;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,13);if(status)return status;
+    for(uint32_t i=0;i<2;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,29);if(status)return status;
+    for(uint32_t i=0;i<7;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,18);if(status)return status;
+    start=at;status=entity_raw_skip(size,&at,17);if(status)return status;
+    value.enabled=raw[start+16];
+    if(value.enabled){
+        start=at;status=entity_raw_skip(size,&at,4);if(status)return status;
+        bits=le32(raw+start);memcpy(&value.range,&bits,4);
+        if(!isfinite(value.range)||value.range<=0||value.range>1000000.f)return RF_RANGE;
+    }
+    *result=value;return RF_OK;
 }
 
 int rf_level_entity_waypoint_read(const rf_level_owned_entity *entity,char result[2][RF_LEVEL_NAME_CAPACITY])

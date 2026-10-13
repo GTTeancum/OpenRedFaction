@@ -115,4 +115,65 @@ static inline int scene_world_event_probe(scene_stream *stream,const scene_world
 #endif
     scene_world_event_close(&events);return status;
 }
+/* Discharge the RFNC31 obligation only against the complete candidate event
+ * stage. Component-only callers cannot certify it using current event state. */
+static int scene_alarm_runner_event_join(scene_npc_checkpoint_restore_stage *npcs,
+    const scene_world_event_stage *events)
+{
+    if(!npcs||!events||!events->world||events->world->npcs!=npcs)return RF_RANGE;
+    for(uint32_t i=0;i<npcs->count;i++)if(npcs->entries[i].saved.alarm.present){
+        const rf_npc_checkpoint_alarm *alarm=&npcs->entries[i].saved.alarm;uint32_t found=0;
+        for(uint32_t j=0;j<events->events.count;j++){
+            const scene_event_checkpoint_entry *event=events->events.entries+j;
+            if(!event->next.authored||event->next.authored->record.uid!=alarm->event)continue;
+            if(++found!=1||event->next.retired||event->next.state.type!=46||event->next.state.deadline>=0||
+               event->target!=scene_alarm_runner_event(alarm->event))return RF_FORMAT;
+        }
+        if(found!=1)return RF_FORMAT;
+    }
+    npcs->alarm_joined=1;return RF_OK;
+}
+/* Early selector only, before resource demand. Full RFEC mapped validation
+ * remains mandatory and rejects malformed/duplicate/missing packets. */
+static int scene_waypoint_event_selection(const rf_world_checkpoint *envelope,uint32_t *present)
+{
+    const rf_world_checkpoint_slice *v;const unsigned char *p;uint32_t i,j;int status;
+    if(!envelope||!present)return RF_RANGE;status=scene_waypoint_live_present(present);if(status)return status;
+    v=envelope->sections+RF_WORLD_EVENT-1;p=v->data;
+    if(v->bytes!=(uint64_t)campaign_events.count*RF_EVENT_CHECKPOINT_BYTES||(v->bytes&&!p))return RF_FORMAT;
+    for(i=0;i<campaign_events.count;i++){
+        const unsigned char *packet=p+i*RF_EVENT_CHECKPOINT_BYTES;uint32_t uid=scene_event_checkpoint_word(packet+16);
+        for(j=0;j<scene_waypoint_events.handle_count;j++){
+            const rf_runtime_event *e=scene_waypoint_event(scene_waypoint_events.handles[j]);
+            if(!e||!e->authored)return RF_FORMAT;if(e->authored->record.uid!=uid)continue;
+            if(memcmp(packet,"RFEC",4)||scene_event_checkpoint_word(packet+8)!=RF_EVENT_CHECKPOINT_BYTES)return RF_FORMAT;
+            if(scene_event_checkpoint_word(packet+4)>=3&&!scene_event_checkpoint_word(packet+112)&&
+               scene_event_checkpoint_word(packet+160)!=UINT32_MAX)*present=1;
+            break;
+        }
+    }
+    return RF_OK;
+}
+static int scene_waypoint_event_join(scene_npc_checkpoint_restore_stage *npcs,const scene_world_event_stage *events)
+{
+    uint32_t i,j;int status;
+    if(!npcs||!events||!events->world||events->world->npcs!=npcs||
+       npcs->patrol_binding_generation!=scene_waypoint_events.generation)return RF_RANGE;
+    status=scene_waypoint_boundary();if(status)return status;
+    if(events->events.count!=campaign_events.count)return RF_FORMAT;
+    for(i=0;i<scene_waypoint_events.handle_count;i++){
+        const rf_runtime_event *bound=scene_waypoint_event(scene_waypoint_events.handles[i]);uint32_t found=0;
+        if(!bound)return RF_FORMAT;
+        for(j=0;j<events->events.count;j++){
+            const scene_event_checkpoint_entry *e=events->events.entries+j;
+            if(e->target!=bound)continue;if(++found!=1)return RF_FORMAT;
+            status=scene_waypoint_runtime_admit(&e->next);if(status)return status;
+            if(e->next.handle!=bound->handle||e->next.authored!=bound->authored)return RF_FORMAT;
+        }
+        if(found!=1)return RF_FORMAT;
+    }
+    /* Source/actor stay independently decoded RFEC references. Neither a
+     * pending event nor an action owner is manufactured from a cursor. */
+    npcs->patrol_events_joined=1;return RF_OK;
+}
 #endif

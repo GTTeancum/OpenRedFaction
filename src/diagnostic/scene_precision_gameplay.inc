@@ -105,7 +105,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
                 rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);
                 combat_surface_frame=frame;
                 scene_weapon_impact_audio_contact(weapon,-1,hit.piece.hit.point);
-            }else if(!rail)scene_weapon_impact_audio_world(stream,weapon,position,delta,hit.piece.hit.fraction);
+            }else if(!rail)scene_weapon_impact_world(stream,weapon,position,delta,hit.piece.hit.fraction);
             if(!rail)return RF_OK;
         }
     }
@@ -124,7 +124,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
             status=scene_driller_projectile_damage(&vehicle_contact,campaign_player_object.handle,
                 rail?campaign_pistol.damage:sniper_damage,rail?campaign_pistol.damage_kind:sniper_kind,frame,&handled,&applied);if(status)return status;
             if(handled && audio_contact)scene_weapon_impact_audio_contact(weapon,-1,vehicle_contact.hit.point);
-        }else if(!rail)scene_weapon_impact_audio_world(stream,weapon,position,delta,vehicle_contact.hit.fraction);
+        }else if(!rail)scene_weapon_impact_world(stream,weapon,position,delta,vehicle_contact.hit.fraction);
         if(!rail)return RF_OK;
     }
     for(i=0;i<count;++i){
@@ -142,7 +142,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
         }
         if(!rail){status=combat_shot_obstructed(stream,position,delta,hits[i].actor.fraction,&blocked);
             if(status)return status;if(blocked){
-                scene_weapon_impact_audio_world(stream,weapon,position,delta,hits[i].actor.fraction);return RF_OK;}}
+                scene_weapon_impact_world(stream,weapon,position,delta,hits[i].actor.fraction);return RF_OK;}}
         if(hits[i].shield_hit){
             uint32_t accepted,broken;
             status=scene_npc_shield_commit(&hits[i].shield,actor_position,end,request.amount,request.kind,&accepted,&broken);
@@ -151,9 +151,9 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
              * ownership changed. Rail continues with later ordered owners. */
             if(!rail)return RF_OK;continue;
         }
-        {uint32_t consumed;status=scene_nano_weapon_contact(owner,rail?campaign_slot_weapon(campaign_equipped_slot):weapon,request.amount,&consumed);
-         if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
         for(uint32_t j=0;j<3;j++)point[j]=actor_position[j]+actor_delta[j]*hits[i].query_fraction;
+        {uint32_t consumed;status=scene_nano_weapon_contact(owner,rail?campaign_slot_weapon(campaign_equipped_slot):weapon,request.amount,point,&consumed);
+         if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
         if(!rail){
             /* Nano and physical shields precede4c9b20; they keep unscaled base
              * damage and consume the shot. Snapshot this real body's radius
@@ -169,7 +169,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
         if(amount>0){
             combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
             if(!campaign_npc_ai_suppressed(owner) && !owner->combat_alert && owner->view.weapons[0]>=0){
-                owner->combat_alert=1;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}
+                owner->combat_alert=1;owner->combat_due=frame+30;scene_blind_sync(owner,frame);++rf_scene_enemy_combat[1];}
             if(owner->damage.effects.health>0 && owner->combat_alert && campaign_player_form.active){
                 campaign_player_form.compromised=1;rf_scene_player_form[2]=1;
             }
@@ -184,7 +184,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
     if(!rail && continue_sniper)continue;
     /* A sniper miss can still contact world geometry. Rail deliberately has
      * no synthetic world hit: its pierced world-contact sequence is not retained. */
-    if(!rail && !count)scene_weapon_impact_audio_world(stream,weapon,position,delta,nearest);
+    if(!rail && !count)scene_weapon_impact_world(stream,weapon,position,delta,nearest);
     return RF_OK;
     }
 }

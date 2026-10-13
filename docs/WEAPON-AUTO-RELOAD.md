@@ -114,10 +114,13 @@ The helper requires:
   while its own `scene_flame_input.reload_left` is nonzero, independently of
   the shared published reload countdown.
 - Positive authored magazine and capacity, loaded count exactly zero,
-  and actual mapped reserve in `(0,capacity]`. Negative/inconsistent port
-  inventory is rejected rather than following the original's unchecked
-  nonpositive branch. The retained firing definition must agree on magazine
-  size, and existing reload ticks must be positive and bounded.
+  and positive actual mapped reserve no larger than the catalog-wide maximum
+  capacity for that ammo type. This matches shared pickup's historical-surplus
+  bound, including reserve retained after a higher-capacity weapon is removed.
+  Negative matching capacities and inconsistent port inventory are rejected
+  rather than following the original's unchecked nonpositive branch. The
+  retained firing definition must agree on magazine size, and existing reload
+  ticks must be positive and bounded.
 - The matching first-person owner must already be initialized and in its
   real idle clip, with a loaded reload clip. The scene's view slot must match
   current selection and its shot counter must reflect the last actual shot.
@@ -283,3 +286,40 @@ reload allocation, multiplayer branches, first-person blend equivalence and
 broader saved animation fidelity are separate. The parent scheduled build can
 establish compilation only; natural final-shot/release/reload and cancellation
 runtime remain unverified until actually observed.
+
+## Shared-reserve admission correction (2026-10-12)
+
+The source correction is independently reviewed and integrated at
+`5024dd6a05a49942fbe33ca71047790ba54c5cab`; the hourly Xbox compile remains
+pending.
+
+The prior optional-request guard rejected reserve greater than the selected
+weapon's individual capacity. Installed single-player tables give the ordinary
+and Undercover 12mm handguns capacity 125, but Machine Pistol capacity 200;
+all map to 12mm. The existing `scene_pickup_shared_ammo_grant` intentionally
+preserves the larger shared reserve, including historical surplus after the
+larger-capacity weapon is removed. Its catalog-wide same-ammo maximum remains
+the authoritative live pickup bound; this correction does not change it.
+
+Read-only disassembly of the supplied RF.exe was independently revisited:
+`425312..42532e` admits positive mapped reserve, and `4254bc..425508` stages
+min(missing magazine space, reserve), without an individual reserve ceiling.
+The scene correction applies the existing bounded port-inventory policy to
+the optional automatic request, not the original's unchecked input policy.
+It scans at most 64 catalog definitions, rejects negative matching capacities
+and reserve above their maximum, and retains every existing owner, selection,
+presentation, empty-magazine and timing gate. No ownership is inferred.
+
+Manual reload and `rf_weapon_reload_transfer` are unchanged, as are pickup
+capacity, save layout/validation, resource caps and APIs. There is no retained
+state, heap allocation, asset work or I/O; the helper adds three 32-bit scalar
+locals and a bounded read-only scan. Exact compiled code/stack impact awaits
+the parent-owned hourly Xbox batch. No build, test, fixture, runtime check,
+image or original-input edit was performed for this correction.
+
+## October 13 corrective build evidence
+
+The shared-ammo correction was included in clean b91601bf and passed the
+stock64 Xbox compile/link/package and short startup smoke at 00:05:51 UTC.
+Fourteen simulation and ten presentation frames completed with clean shutdown.
+This does not functionally verify automatic reload; tester coverage remains.

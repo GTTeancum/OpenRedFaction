@@ -168,16 +168,20 @@ done:
 }
 static uint32_t scene_cane_effect_live(const scene_cane_effect *e)
 {uint32_t i,n=0;for(i=0;i<SCENE_CANE_PARTICLES;i++)n+=e->particles[i].age>=0;return n;}
-static void scene_cane_visual_accept(uint32_t slot,const scene_ai_laser_projectile *shot,uint32_t frame)
+static uint32_t scene_cane_visual_bind(uint32_t slot,const scene_ai_laser_projectile *shot,uint32_t frame)
 {
     scene_cane_effect *e;uint32_t i;
-    if(slot>=SCENE_AI_CANE_CAPACITY || !shot || !shot->flight.active){rf_scene_cane_visual[7]=RF_RANGE;return;}
+    if(slot>=SCENE_AI_CANE_CAPACITY || !shot || !shot->flight.active){rf_scene_cane_visual[7]=RF_RANGE;return 0;}
     e=scene_cane_effects+slot;if(e->active)rf_scene_cane_visual[9]+=scene_cane_effect_live(e);
     memset(e,0,sizeof(*e));
-    if(scene_cane_visual_ticket==UINT64_MAX){rf_scene_cane_visual[7]=RF_RANGE;return;}
+    if(scene_cane_visual_ticket==UINT64_MAX){rf_scene_cane_visual[7]=RF_RANGE;return 0;}
     e->owner=*shot;e->frame=frame;e->active=1;e->ticket=++scene_cane_visual_ticket;e->random.value=1;
     for(i=0;i<SCENE_CANE_PARTICLES;i++)e->particles[i].age=-1;
-    ++rf_scene_cane_visual[0];
+    return 1;
+}
+static void scene_cane_visual_accept(uint32_t slot,const scene_ai_laser_projectile *shot,uint32_t frame)
+{
+    if(scene_cane_visual_bind(slot,shot,frame))++rf_scene_cane_visual[0];
 }
 static int scene_cane_owner_matches(const scene_ai_laser_projectile *a,const scene_ai_laser_projectile *b)
 {

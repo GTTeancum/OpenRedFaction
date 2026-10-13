@@ -12,6 +12,10 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,
     uint32_t selection,uint32_t difficulty,uint32_t load_outcome,int load_status);
 int rf_xbox_options_menu_draw(uint32_t selection,uint32_t flags,
     uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent);
+int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
+    uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent);
+int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
+    const char *const *actions,const char *const *controls);
 int rf_xbox_scene_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
     uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3]);
 int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,

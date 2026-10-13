@@ -47,6 +47,21 @@ static void scene_turret_combat_close(void)
     memset(&scene_turret_heap_primary,0,sizeof(scene_turret_heap_primary));
     memset(&scene_turret_heap_explosive,0,sizeof(scene_turret_heap_explosive));
 }
+static int scene_turret_heap_resources_open(rf_vpp *tables)
+{
+    rf_weapon_primary_definition primary;rf_weapon_explosive_definition explosive;
+    int32_t heap;int status;
+    if(scene_turret_heap_id>=0)return RF_OK;
+    if(!tables)return RF_RANGE;
+    heap=rf_weapon_name_find(&campaign_weapon_supply.names,"HEAP");
+    if(heap<0||heap>=64)return RF_NOT_FOUND;
+    status=rf_weapon_primary_load(tables,"HEAP",128*1024,&primary);if(status)return status;
+    status=rf_weapon_explosive_load(tables,"HEAP",128*1024,&explosive);if(status)return status;
+    if(primary.projectiles!=1||primary.damage_kind!=3||primary.ai_attack_range<=0||
+       primary.magazine||primary.reload_seconds)return RF_FORMAT;
+    scene_turret_heap_primary=primary;scene_turret_heap_explosive=explosive;
+    scene_turret_heap_id=heap;return RF_OK;
+}
 static int scene_turret_combat_open(rf_vpp *tables,int32_t vauss_id)
 {
     rf_weapon_primary_definition primary;uint32_t i,j;int status;
@@ -74,11 +89,7 @@ static int scene_turret_combat_open(rf_vpp *tables,int32_t vauss_id)
     }
     {int32_t heap=rf_weapon_name_find(&campaign_weapon_supply.names,"HEAP");
      for(i=0;i<scene_turret_count;i++)if(heap>=0&&scene_turrets[i].view.weapons[0]==heap){
-        status=rf_weapon_primary_load(tables,"HEAP",128*1024,&scene_turret_heap_primary);if(status)return status;
-        status=rf_weapon_explosive_load(tables,"HEAP",128*1024,&scene_turret_heap_explosive);if(status)return status;
-        if(scene_turret_heap_primary.projectiles!=1||scene_turret_heap_primary.damage_kind!=3||
-           scene_turret_heap_primary.ai_attack_range<=0||scene_turret_heap_primary.magazine||scene_turret_heap_primary.reload_seconds)return RF_FORMAT;
-        scene_turret_heap_id=heap;break;
+        status=scene_turret_heap_resources_open(tables);if(status)return status;break;
      }}
     scene_turret_primary=primary;scene_turret_vauss_id=vauss_id;scene_turret_combat_ready=1;return RF_OK;
 }

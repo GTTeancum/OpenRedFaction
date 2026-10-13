@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-/* RFCH9 is session history, not the current-level NPC/event payload. Include
+/* RFCH13 is session history, not the current-level NPC/event payload. Include
  * after all campaign stores/carry declarations. Caller identity must bind the
  * installed campaign/catalogs, not merely the current level. Current owners
  * merge into private copies; no session capture side effects. Existing budgets
@@ -12,6 +12,17 @@
  * RFCH7 adds at most8192B for residual Goto AI suppression;
  * RFCH8 adds at most32768B for finite medic reserve and syringe role;
  * RFCH9 adds at most73728B for explicit bounded AI/route provenance.
+ * RFCH10 appends4 bytes per flagged dwell after fixed actor rows, in row order;
+ * the existing wire/storage budgets still refuse an oversized history.
+ * RFCH13 adds immutable One way default capability with no layout/cap change;
+ * every enabled patrol promotes, even while its current route is absent/event-owned.
+ * RFCH<=12 rejects origin2/mode0 rather than misreading a terminal continuation.
+ * RFCH12 adds positive-delay waypoint-event capability, with the same layout.
+ * A running proven visual action ends at section unload; pending RFEC history
+ * and next-cursor/dwell survive, with no tag/clip replay on revisit.
+ * RFCH11 adds oriented/inert-tag patrol reader capability with the RFCH10
+ * layout. Any enabled stored patrol promotes, including unchanged old sources;
+ * older source-qualified histories and absent-route semantics remain readable.
  * Separate goals/pickups/triggers/startup/current-player and omitted sidecars must be
  * composed independently. Restore replaces store indices: dependent NPC/shield/
  * AI slots require composition-level UID rebinding before gameplay resumes. */
@@ -194,7 +205,7 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
 {
     const unsigned char *p=data,*r,*levels;uint32_t counts[6],i,j,k,v,at=96;uint64_t expected=96;int status;
     if(!identity||!data)return RF_RANGE;
-    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)<1||scene_history_word(p+4)>9)||
+    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)<1||scene_history_word(p+4)>13)||
        scene_history_word(p+8)!=bytes||memcmp(p+16,identity,32)||scene_history_word(p+12)!=scene_history_hash(p,bytes))return RF_FORMAT;
     v=scene_history_word(p+4);
     for(i=v==1?72:v==2?80:92;i<96;i+=4)if(scene_history_word(p+i))return RF_FORMAT;
@@ -209,9 +220,9 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
         if(counts[i*2]>RF_CAMPAIGN_PICKUP_LEVELS||counts[i*2+1]>(i==2?RF_CAMPAIGN_ACTOR_SLOTS:RF_CAMPAIGN_PICKUP_SLOTS))return RF_FORMAT;
         expected+=(uint64_t)counts[i*2]*64+(uint64_t)counts[i*2+1]*scene_history_row_bytes(v,i);
     }
-    if(expected!=bytes)return RF_FORMAT;
+    if(expected>bytes||(v<10&&expected!=bytes))return RF_FORMAT;
     for(k=0;k<3;k++){
-        uint32_t stride=scene_history_row_bytes(v,k),n=counts[k*2+1];levels=p+at;at+=counts[k*2]*64;r=p+at;
+        uint32_t stride=scene_history_row_bytes(v,k),n=counts[k*2+1],dwell_at;levels=p+at;at+=counts[k*2]*64;r=p+at;dwell_at=at+n*stride;
         status=scene_history_keys(levels,counts[k*2],r,n,stride);if(status)return status;
         for(i=0;i<n;i++,r+=stride){
             if(k==0){if(scene_history_word(r+20)>255)return RF_FORMAT;}
@@ -240,9 +251,14 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
                 if(v>=5&&scene_history_word(r+56)>1)return RF_FORMAT;
                 if(v>=7&&scene_history_word(r+84)>1)return RF_FORMAT;
                 if(v>=9){rf_campaign_actor_route a={0};scene_history_route_read(r+104,&a);
+                    if(a.flags&64){
+                        if(v<10||dwell_at>bytes||bytes-dwell_at<4)return RF_FORMAT;
+                        a.dwell_remaining=scene_history_word(p+dwell_at);dwell_at+=4;expected+=4;
+                    }
+                    if(v<13&&a.origin==2&&((a.flags>>2)&3)==0)return RF_FORMAT;
                     if(rf_campaign_actor_route_validate(&a))return RF_FORMAT;
                     if((scene_history_word(r+8)|| (scene_history_word(r+12)&&scene_history_float(r+16)<=0))&&
-                       (a.origin||(a.flags&62)))return RF_FORMAT;}
+                       (a.origin||(a.flags&126)))return RF_FORMAT;}
                 if(v>=8){rf_campaign_medic_state m={0};scene_history_medic_read(r+88,&m);
                     if(rf_campaign_medic_state_validate(&m))return RF_FORMAT;}
                 if(v>=6){rf_campaign_item_drop d={0};scene_history_item_drop_read(r+60,&d);
@@ -250,8 +266,9 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
                        (!scene_history_word(r+12)||scene_history_float(r+16)>0)))return RF_FORMAT;}
             }
         }
-        at+=n*stride;
+        at=k==2?dwell_at:at+n*stride;
     }
+    if(expected!=bytes)return RF_FORMAT;
     return v>=2?scene_history_carry_read(p+at,scene_history_word(p+72),NULL):RF_OK;
 }
 static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,const scene_stream *stream,int32_t now)
@@ -263,6 +280,7 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,con
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items)))return RF_RANGE;
     if(campaign_import_pending>1||campaign_export_valid>1||campaign_machine_import_sidecar.valid>1||
        campaign_machine_export_sidecar.valid>1||campaign_undercover_import_sidecar.valid>1||campaign_undercover_export_sidecar.valid>1)return RF_FORMAT;
+    status=scene_waypoint_boundary();if(status)return status;
     s->carry_mask=campaign_import_pending|(campaign_export_valid<<1)|(campaign_machine_import_sidecar.valid<<2)|
         (campaign_machine_export_sidecar.valid<<3)|(campaign_undercover_import_sidecar.valid<<4)|(campaign_undercover_export_sidecar.valid<<5);
     s->player_import=campaign_player_import;s->player_export=campaign_player_export;
@@ -340,6 +358,8 @@ static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,c
         if(s->actors.ai_suppressed[i]&&version<7)version=7;
         status=rf_campaign_actor_route_validate(s->actors.routes+i);if(status)goto done;
         if(s->actors.routes[i].flags&&version<9)version=9;
+        if((s->actors.routes[i].flags&64)&&version<10)version=10;
+        if((s->actors.routes[i].patrol&1)&&version<13)version=13;
         status=rf_campaign_medic_state_validate(s->actors.medic+i);if(status)goto done;
         if((s->actors.medic[i].reserve_seen||s->actors.medic[i].child_state)&&version<8)version=8;
     }
@@ -347,6 +367,7 @@ static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,c
     bytes=96+(s->switches.level_count+s->events.level_count+s->actors.level_count)*64+
         s->switches.count*32+s->events.count*56+s->actors.count*scene_history_row_bytes(version,2)+
         scene_history_carry_bytes(s->carry_mask);
+    if(version>=10)for(i=0;i<s->actors.count;i++)if(s->actors.routes[i].flags&64)bytes+=4;
     if(bytes>capacity||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES){status=RF_RANGE;goto done;}
     p=calloc(1,bytes);if(!p){status=RF_IO;goto done;}
     memcpy(p,"RFCH",4);scene_history_put(p+4,version);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
@@ -381,6 +402,9 @@ static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,c
                 if(version>=9)scene_history_route_write(r+104,s->actors.routes+i);}
             at+=scene_history_row_bytes(version,k);
         }
+    }
+    if(version>=10)for(i=0;i<s->actors.count;i++)if(s->actors.routes[i].flags&64){
+        scene_history_put(p+at,s->actors.routes[i].dwell_remaining);at+=4;
     }
     scene_history_carry_write(p+at,s);
     scene_history_put(p+12,scene_history_hash(p,bytes));status=scene_campaign_history_checkpoint_preflight(identity,p,bytes);
@@ -421,6 +445,9 @@ static inline int scene_campaign_history_checkpoint_prepare(const unsigned char 
                 if(scene_history_word(p+4)>=9)scene_history_route_read(r+104,s->actors.routes+i);}
             at+=scene_history_row_bytes(scene_history_word(p+4),k);
         }
+    }
+    if(scene_history_word(p+4)>=10)for(i=0;i<s->actors.count;i++)if(s->actors.routes[i].flags&64){
+        s->actors.routes[i].dwell_remaining=scene_history_word(p+at);at+=4;
     }
     if(scene_history_word(p+4)>=2){status=scene_history_carry_read(p+at,scene_history_word(p+72),s);if(status){free(s);return status;}}
     status=scene_history_route_sections(&s->actors);if(status){free(s);return status;}
@@ -554,6 +581,18 @@ static int scene_campaign_history_checkpoint_capek_admit(
         if(!b->registered||b->uid!=e->saved.uid||b->new_slot>=history->actors.count||
            history->actors.capek_shield_broken[b->new_slot]!=e->saved.capek_shield_broken||
            history->actors.ai_suppressed[b->new_slot]!=e->saved.ai_suppressed)return RF_FORMAT;
+        if(e->saved.dead_pose==2){
+            uint32_t slot=b->new_slot;
+            /* The pending finalizer will retire this rebound key. A conflicting
+             * history tombstone/vital/drop must not fail later inside its drain. */
+            if(history->actors.items[slot].retired||history->actors.items[slot].uid!=e->saved.uid||
+               history->actors.vitals[slot].valid!=1||
+               history->actors.vitals[slot].health!=e->saved.health||
+               history->actors.vitals[slot].armor!=e->saved.armor||
+               history->actors.mission[slot].affiliation!=e->saved.affiliation||
+               history->actors.mission[slot].flags!=e->saved.flags||
+               memcmp(history->actors.drops+slot,&e->saved.drop,sizeof(e->saved.drop)))return RF_FORMAT;
+        }
         if(rf_campaign_item_drop_validate(&e->saved.item_drop)||
            rf_campaign_item_drop_validate(history->actors.item_drops+b->new_slot)||
            memcmp(history->actors.item_drops+b->new_slot,&e->saved.item_drop,sizeof(e->saved.item_drop)))return RF_FORMAT;

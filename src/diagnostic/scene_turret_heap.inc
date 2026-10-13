@@ -3,27 +3,8 @@
 /* Include after scene_apc_primary_runtime.inc and shared explosion helpers.
  * HEAP has no gravity/model/homing declaration. Flights retain launch-time
  * identities after dismount/death; ownership is not consulted again at impact.
- * Shared impact appearance is provisional. Ordinary saves must reject pending
- * flights until a projectile companion serializes this bounded owner. */
-enum {SCENE_TURRET_HEAP_CAPACITY=8};
-typedef struct scene_turret_heap_round {
-    rf_weapon_flight flight;
-    uint32_t host,source,operator_handle;
-    int32_t weapon;
-    float damage,blast,crater,impact;
-} scene_turret_heap_round;
-static scene_turret_heap_round scene_turret_heap_rounds[SCENE_TURRET_HEAP_CAPACITY];
-static uint32_t scene_turret_heap_frame=UINT32_MAX;
-/* launches,contacts,expired,live,errors,blasts,last damage source,pool-full,
- * direct damaging contacts,last frame,last status,reserved */
-uint32_t rf_scene_turret_heap[12];
-/* Immutable first physical contact: valid,frame,object,face,host,source,
- * excluded operator,point xyz (float bits),normal y (float bits),kind. */
-uint32_t rf_scene_turret_heap_contact[12];
-/* Immutable first positive direct damage: valid,frame,object,face,target,
- * source,applied(float bits),requested(float bits). Blast telemetry remains
- * in the existing shared explosion service; this is not a total damage sum. */
-uint32_t rf_scene_turret_heap_damage[8];
+ * Shared impact appearance is provisional. RFAP11 retains the paid flight
+ * and each independently owned launch-time identity. */
 static void scene_turret_heap_reset(void)
 {
     scene_turret_heap_frame=UINT32_MAX;
@@ -104,7 +85,7 @@ static int scene_turret_heap_direct(scene_stream *stream,uint32_t frame,
         index=tag&0xffffu;if(index>=campaign_npc_body_count)return RF_RANGE;
         target=campaign_npc_bodies[index].registration.handle;
         if(target==shot->host||target==shot->operator_handle)return RF_OK;
-        status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,consumed);
+        status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,contact->hit.point,consumed);
         if(status||*consumed)return status;
         status=rf_scene_npc_damage(target,&request,1,bits,&effects,&applied);
         if(!status&&campaign_npc_bodies[index].damage.effects.health<=0){
@@ -115,7 +96,7 @@ static int scene_turret_heap_direct(scene_stream *stream,uint32_t frame,
     if(status)return status;if(feedback.status)return feedback.status;
     scene_turret_heap_direct_probe(shot,contact,frame,target,applied);return RF_OK;
 }
-static int scene_turret_heap_tick(scene_stream *stream,uint32_t frame)
+static int scene_turret_heap_tick_service(scene_stream *stream,uint32_t frame)
 {
     float dt=frame?scene_step_seconds:0;uint32_t i,k;int status;
     if(!stream||!stream->collision||!isfinite(dt)||dt<0||dt>.05f)return scene_turret_heap_error(RF_RANGE);
@@ -149,5 +130,11 @@ static int scene_turret_heap_tick(scene_stream *stream,uint32_t frame)
         if(shot->flight.active)++rf_scene_turret_heap[3];
     }
     return RF_OK;
+}
+static int scene_turret_heap_tick(scene_stream *stream,uint32_t frame)
+{
+    int status;++scene_turret_heap_service_depth;
+    status=scene_turret_heap_tick_service(stream,frame);
+    --scene_turret_heap_service_depth;return status;
 }
 #endif

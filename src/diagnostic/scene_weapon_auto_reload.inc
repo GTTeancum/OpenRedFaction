@@ -15,8 +15,8 @@ static uint32_t scene_weapon_auto_reload_ready(const scene_stream *s,uint32_t on
 {
     const rf_weapon_acquire_definition *supply;
     const rf_player_weapon *view;
-    uint32_t slot=campaign_equipped_slot,view_slot;
-    int32_t base,weapon,reserve;
+    uint32_t slot=campaign_equipped_slot,view_slot,i;
+    int32_t base,weapon,reserve,historical_limit;
     if(!s || on_foot!=1 || campaign_explicit_unarmed || campaign_player_form.active ||
        campaign_cutscene_runtime.active || scene_driller_active(s) || scene_turret_player_active() ||
        !(campaign_player_damage.state.effects.health>0) || rf_scene_enemy_combat[6] ||
@@ -45,7 +45,17 @@ static uint32_t scene_weapon_auto_reload_ready(const scene_stream *s,uint32_t on
        (uint32_t)supply->magazine!=campaign_pistol.magazine ||
        !pistol_reload_ticks || pistol_reload_ticks>3600)return 0;
     reserve=campaign_player_inventory.reserve[supply->ammo_type];
-    if(reserve<=0 || reserve>supply->capacity)return 0;
+    if(reserve<=0)return 0;
+    /* Shared pickup policy preserves surplus after a larger weapon is removed.
+     * Reuse its catalog-wide same-ammo bound, not the selected gun's ceiling. */
+    historical_limit=supply->capacity;
+    for(i=0;i<campaign_weapon_supply.names.count;i++)
+        if(campaign_weapon_supply.definitions[i].ammo_type==supply->ammo_type){
+            int32_t capacity=campaign_weapon_supply.definitions[i].capacity;
+            if(capacity<0)return 0;
+            if(capacity>historical_limit)historical_limit=capacity;
+        }
+    if(reserve>historical_limit)return 0;
     view_slot=campaign_view_slot();
     if(view_slot>=SCENE_WEAPON_SLOTS || s->player_slot!=view_slot || !s->player_pose_frame ||
        s->player_shots!=rf_scene_combat[0])return 0;

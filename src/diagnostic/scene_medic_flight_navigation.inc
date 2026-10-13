@@ -161,7 +161,6 @@ static int scene_flight_nearest(void *context,const float point[3],uint32_t alte
 }
 static uint32_t scene_flight_grounded_mode(int32_t kind)
 {return !(kind==12||kind==15||kind==13||kind==11||kind==9||kind==4||kind==7);}
-static uint32_t scene_flight_search_busy;
 static int scene_medic_flight_nav_request(scene_stream *stream,campaign_npc_body *o,
     const scene_medic_flight_threat_view *threat,int32_t now,uint32_t *found)
 {

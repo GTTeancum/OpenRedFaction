@@ -125,6 +125,49 @@ int rf_image_missing(rf_image *image,uint32_t budget)
     return RF_OK;
 }
 
+int rf_image_tga_limited(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t limit,uint32_t budget)
+{
+    rf_image value={0};reader r={0};unsigned char h[18],pixel[4],id[255];
+    uint32_t sums[128][4],width,height,total,at=0,stride,alpha,sx,sy,samples,row_pixels;
+    int status;
+    if(!image || image->rgba || !archive || !entry || !limit || limit>128 || (limit&(limit-1)))return RF_RANGE;
+    r.archive=archive;r.entry=entry;status=read_bytes(&r,h,sizeof(h));if(status)return status;
+    width=h[12]|(uint32_t)h[13]<<8;height=h[14]|(uint32_t)h[15]<<8;alpha=h[17]&15;
+    if(h[1] || (h[2]!=2 && h[2]!=10) || (h[16]!=24 && h[16]!=32) ||
+       (h[17]&0xc0) || (alpha!=0 && alpha!=8) || (h[16]==24 && alpha) ||
+       !width || !height || width>4096 || height>4096 ||
+       (width&(width-1)) || (height&(height-1)))return RF_FORMAT;
+    value.width=width;value.height=height;value.source_format=rf_image_tga_format(h[16]);
+    while(value.width>limit || value.height>limit){if(value.width>1)value.width/=2;if(value.height>1)value.height/=2;}
+    value.bytes=value.width*value.height*4;if(value.bytes>budget)return RF_RANGE;
+    status=read_bytes(&r,id,h[0]);if(status)return status;
+    status=rf_image_allocate_pixels(&value);if(status)return status;
+    total=width*height;stride=h[16]/8;sx=width/value.width;sy=height/value.height;
+    samples=sx*sy;row_pixels=width*sy;
+    while(at<total){
+        uint32_t count=1,repeat=0,i;
+        if(h[2]==10){unsigned char packet;status=read_bytes(&r,&packet,1);if(status)goto failed;
+            count=(packet&127)+1;repeat=packet&128;}
+        if(count>total-at){status=RF_FORMAT;goto failed;}
+        for(i=0;i<count;i++,at++){
+            uint32_t column=(at%width)/sx;
+            if(!(at%row_pixels))memset(sums,0,sizeof(sums));
+            if(!repeat || !i){status=read_bytes(&r,pixel,stride);if(status)goto failed;}
+            sums[column][0]+=pixel[2];sums[column][1]+=pixel[1];sums[column][2]+=pixel[0];
+            sums[column][3]+=alpha==8?pixel[3]:255;
+            if(!((at+1)%row_pixels)){
+                uint32_t x,y=at/row_pixels,k;if(!(h[17]&32))y=value.height-1-y;
+                for(x=0;x<value.width;x++){
+                    unsigned char *out=rf_image_pixel(&value,(h[17]&16)?value.width-1-x:x,y);
+                    for(k=0;k<4;k++)out[k]=(unsigned char)((sums[x][k]+samples/2)/samples);
+                }
+            }
+        }
+    }
+    *image=value;return RF_OK;
+failed:
+    rf_image_close(&value);return status;
+}
 int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget)
 {
     unsigned char h[18], pixel[4], id[255];

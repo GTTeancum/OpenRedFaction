@@ -3,6 +3,25 @@
 #include "rf/scene_preview.h"
 int rf_xbox_audio_open(void);
 void rf_xbox_audio_close(void);
+enum {RF_XBOX_AUDIO_VOLUME_MAX=100u,RF_XBOX_AUDIO_VOLUME_DEFAULT=100u};
+typedef struct rf_xbox_audio_options {
+    uint32_t master_percent,effects_percent,music_percent;
+} rf_xbox_audio_options;
+/* Process-retained user levels, initialized to 100/100/100 and not reset by
+ * open/close. Effects covers every ordinary voice, including speech; streamed
+ * music has its own level. No PCM or authored gain is changed. Null get is a
+ * no-op; get also works before the optional audio backend is opened. */
+void rf_xbox_audio_get_options(rf_xbox_audio_options *options);
+/* Main-thread/platform-owner call, serialized with play/poll/pause/reset.
+ * Null or any percentage above 100 returns RF_RANGE without changing anything.
+ * Valid settings are retained and applied to all created voices, including
+ * paused voices, without stopping/restarting them. RF_IO means a native gain
+ * update failed: requested settings stay retained (and get returns them),
+ * native gains may be partially applied, and the ordinary poll retries them.
+ * Voice/PCM/stream ownership is unchanged on failure. Future voices use the
+ * retained settings. An unopened backend accepts valid settings with RF_OK.
+ * This API never accesses settings storage; persistence belongs to its caller. */
+int rf_xbox_audio_set_options(const rf_xbox_audio_options *options);
 /* Read-only shutdown admission, including the existing stop-timeout fault.
  * Never treats a paused voice or a failed drain as successful retirement. */
 int rf_xbox_audio_idle_status(void);

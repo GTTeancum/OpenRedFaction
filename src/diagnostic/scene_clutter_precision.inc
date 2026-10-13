@@ -31,7 +31,7 @@ static int scene_clutter_precision_commit(scene_stream *stream,const float start
         status=campaign_clutter_firearm_damage(contact->slot,damage,kind);if(status)return status;
         for(i=0;i<3;i++)point[i]=start[i]+delta[i]*contact->fraction;
         scene_weapon_impact_audio_contact(weapon,-1,point);
-    }else scene_weapon_impact_audio_world(stream,weapon,start,delta,contact->fraction);
+    }else scene_weapon_impact_world(stream,weapon,start,delta,contact->fraction);
     *handled=1;return RF_OK;
 }
 static int scene_clutter_precision_rail(const float start[3],const float delta[3],float damage,int32_t kind,int32_t weapon,uint32_t *hits)

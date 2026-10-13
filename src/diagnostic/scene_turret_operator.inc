@@ -70,7 +70,7 @@ static int scene_turret_operator_bind(uint32_t host,uint32_t actor,int32_t tag,i
         scene_turret_combat_state *combat=scene_turret_combat_states+(turret-scene_turrets);
         if(!scene_turret_combat_ready||combat->handle!=host)return RF_NOT_FOUND;
         scene_ai_drone_smash_cancel_source(actor);
-        campaign_pursuit_stop(npc);npc->combat_alert=npc->combat_due=npc->combat_burst_remaining=npc->combat_navigation_due=0;
+        campaign_pursuit_stop(npc);npc->combat_alert=npc->combat_due=npc->combat_burst_remaining=npc->combat_navigation_due=0;scene_blind_clear(npc);
         npc->ai_mode=next;npc->view.action_520=next.action_280;
         /* Original4096b9..4096dc; do not replace a protected host AI action. */
         if(!(turret->view.flags_814&0x4000u))turret->view.action_520=2;

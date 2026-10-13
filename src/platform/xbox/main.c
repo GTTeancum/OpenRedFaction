@@ -66,6 +66,7 @@ uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read stat
 volatile uint32_t rf_xbox_pause_diagnostic[8];
 static void player_input_close(void)
 {
+    rf_scene_set_player_feedback_sink(NULL,NULL);
     if(player_replay){fclose(player_replay);player_replay=NULL;}
     rf_player_replay_diagnostic[0]=0;rf_xbox_input_close();rf_xbox_pause_diagnostic[6]=0;
 }
@@ -86,12 +87,18 @@ volatile uint32_t rf_xbox_frontend_menu[3];
 volatile uint32_t rf_xbox_frontend_load[4];
 static uint32_t player_options_storage_notice=RF_SCENE_OPTIONS_SESSION;
 static rf_xbox_input_options player_options_stored;
+static int player_audio_options_status;
 static uint32_t player_options_storage_flags(const rf_xbox_input_options *options)
 {
     if(player_options_storage_notice==RF_SCENE_OPTIONS_STORED &&
        (options->look_sensitivity_percent!=player_options_stored.look_sensitivity_percent ||
         options->invert_y!=player_options_stored.invert_y || options->deadzone_percent!=player_options_stored.deadzone_percent ||
-        options->stick_layout!=player_options_stored.stick_layout))
+        options->stick_layout!=player_options_stored.stick_layout ||
+        options->button_map!=player_options_stored.button_map ||
+        options->text_language!=player_options_stored.text_language ||
+        options->master_volume_percent!=player_options_stored.master_volume_percent ||
+        options->effects_volume_percent!=player_options_stored.effects_volume_percent ||
+        options->music_volume_percent!=player_options_stored.music_volume_percent))
         return RF_SCENE_OPTIONS_CHANGED;
     return player_options_storage_notice;
 }
@@ -99,6 +106,16 @@ static uint32_t player_options_storage_error(int status)
 {
     if(rf_xbox_settings_storage_locked())return RF_SCENE_OPTIONS_STORAGE_LOCKED;
     return status==RF_FORMAT || status==RF_RANGE?RF_SCENE_OPTIONS_BLOCKED:RF_SCENE_OPTIONS_STORAGE_ERROR;
+}
+static void player_options_audio_apply(const rf_xbox_input_options *options)
+{
+    rf_xbox_audio_options audio={options->master_volume_percent,
+        options->effects_volume_percent,options->music_volume_percent};
+    /* A native failure retains the backend's requested gains but may leave
+     * current voices partially updated. Keep preferences and report this apart
+     * from storage; never claim the values were fully applied or unpause audio. */
+    player_audio_options_status=rf_xbox_audio_set_options(&audio);
+    if(player_audio_options_status)printf("AUDIO_OPTIONS apply status%d\n",player_audio_options_status);
 }
 static void player_options_restore(void)
 {
@@ -108,8 +125,135 @@ static void player_options_restore(void)
         rf_xbox_input_set_options(&restored);player_options_stored=restored;
         player_options_storage_notice=degraded?RF_SCENE_OPTIONS_RECOVERED:RF_SCENE_OPTIONS_STORED;
     }else player_options_storage_notice=status==RF_NOT_FOUND?RF_SCENE_OPTIONS_MISSING:player_options_storage_error(status);
+    {rf_xbox_input_options effective;rf_xbox_input_get_options(&effective);
+     int text_status=rf_scene_text_configure("D:\\tables.vpp",effective.text_language);
+     player_options_audio_apply(&effective);
+     printf("AUTHORED_TEXT language%u status%d\n",effective.text_language,text_status);}
     /* Storage failure must not prevent a session or change safe input defaults.
      * It remains visible on Options, including recovered-but-write-blocked data. */
+}
+static void player_options_apply(const rf_xbox_input_options *options)
+{
+    rf_xbox_input_options previous,effective;rf_xbox_input_get_options(&previous);
+    rf_xbox_input_set_options(options);rf_xbox_input_get_options(&effective);
+    if(previous.master_volume_percent!=effective.master_volume_percent ||
+       previous.effects_volume_percent!=effective.effects_volume_percent ||
+       previous.music_volume_percent!=effective.music_volume_percent || player_audio_options_status)
+        player_options_audio_apply(&effective);
+    if(previous.text_language!=effective.text_language){
+        int status=rf_scene_text_configure("D:\\tables.vpp",effective.text_language);
+        printf("AUTHORED_TEXT language%u status%d\n",effective.text_language,status);
+    }
+}
+/* Called only for one released physical A edge on an explicit Save Settings
+ * row. Reset, navigation, disconnect and session transitions never write. */
+static void player_options_save(const rf_xbox_input_options *options)
+{
+    int saved=rf_xbox_settings_storage_save(options);
+    if(!saved){player_options_stored=*options;player_options_storage_notice=RF_SCENE_OPTIONS_STORED;}
+    else player_options_storage_notice=player_options_storage_error(saved);
+}
+static uint32_t player_audio_step(uint32_t value,uint32_t decrease)
+{
+    if(decrease)return value>=RF_XBOX_VOLUME_STEP?value-RF_XBOX_VOLUME_STEP:RF_XBOX_VOLUME_MIN;
+    return value<=RF_XBOX_VOLUME_MAX-RF_XBOX_VOLUME_STEP?value+RF_XBOX_VOLUME_STEP:RF_XBOX_VOLUME_MAX;
+}
+static int player_audio_options_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
+{
+    rf_scene_input input;rf_xbox_input_options options,drawn_options={0};
+    uint32_t selection=0,drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
+    int status;
+    *resume=0;
+    /* An ordinary audio poll may have retried an earlier native failure.
+     * Reapply the desired values once on entry to show a current result. */
+    rf_xbox_input_get_options(&options);player_options_audio_apply(&options);
+    for(;;){
+        uint32_t flags=(paused?RF_SCENE_OPTIONS_PAUSED:0)|
+            (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right;
+        rf_xbox_input_get_options(&options);flags|=player_options_storage_flags(&options);
+        if(player_audio_options_status)flags|=RF_SCENE_OPTIONS_AUDIO_ERROR;
+        if(selection!=drawn_selection || flags!=drawn_flags ||
+           options.master_volume_percent!=drawn_options.master_volume_percent ||
+           options.effects_volume_percent!=drawn_options.effects_volume_percent ||
+           options.music_volume_percent!=drawn_options.music_volume_percent){
+            status=rf_xbox_audio_options_draw(selection,flags,options.master_volume_percent,
+                options.effects_volume_percent,options.music_volume_percent);if(status)return status;
+            drawn_selection=selection;drawn_flags=flags;drawn_options=options;
+        }
+        Sleep(10);status=rf_xbox_input_poll(context,frame,&input);
+        if(status){if(status==RF_NOT_FOUND&&!paused)continue;return status;}
+        if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
+        if(rf_xbox_input_pause_pressed()){*resume=paused;return RF_OK;}
+        pressed=rf_xbox_input_menu_pressed();
+        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
+            uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
+            if(up!=down)selection=(selection+(down?1:RF_SCENE_AUDIO_COUNT-1))%RF_SCENE_AUDIO_COUNT;
+            continue;
+        }
+        left=!!(pressed&RF_XBOX_MENU_LEFT);right=!!(pressed&RF_XBOX_MENU_RIGHT);
+        if(left&&right)continue;
+        if(selection==RF_SCENE_AUDIO_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_AUDIO_SAVE){
+            if(pressed&RF_XBOX_MENU_ACCEPT){player_options_save(&options);drawn_flags=UINT32_MAX;}
+            continue;
+        }
+        if(selection==RF_SCENE_AUDIO_DEFAULTS){
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                options.master_volume_percent=options.effects_volume_percent=options.music_volume_percent=RF_XBOX_VOLUME_DEFAULT;
+                player_options_apply(&options);
+            }
+            continue;
+        }
+        if(!left && !right && !(pressed&RF_XBOX_MENU_ACCEPT))continue;
+        if(selection==RF_SCENE_AUDIO_MASTER)options.master_volume_percent=player_audio_step(options.master_volume_percent,left);
+        else if(selection==RF_SCENE_AUDIO_EFFECTS)options.effects_volume_percent=player_audio_step(options.effects_volume_percent,left);
+        else options.music_volume_percent=player_audio_step(options.music_volume_percent,left);
+        player_options_apply(&options);
+    }
+}
+static int player_button_mapping_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
+{
+    rf_scene_input input;rf_xbox_input_options options;
+    uint32_t selection=0,drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX,drawn_map=UINT32_MAX;
+    int status;
+    *resume=0;
+    for(;;){
+        uint32_t flags=(paused?RF_SCENE_OPTIONS_PAUSED:0)|
+            (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right,i;
+        rf_xbox_input_get_options(&options);
+        if(selection!=drawn_selection || flags!=drawn_flags || options.button_map!=drawn_map){
+            const char *actions[RF_XBOX_BIND_COUNT],*controls[RF_XBOX_BIND_COUNT];
+            for(i=0;i<RF_XBOX_BIND_COUNT;i++){
+                actions[i]=rf_xbox_input_action_label(i);controls[i]=rf_xbox_input_binding_label(i);
+            }
+            status=rf_xbox_button_mapping_draw(selection,flags,actions,controls);if(status)return status;
+            drawn_selection=selection;drawn_flags=flags;drawn_map=options.button_map;
+        }
+        Sleep(10);status=rf_xbox_input_poll(context,frame,&input);
+        if(status){if(status==RF_NOT_FOUND&&!paused)continue;return status;}
+        if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
+        if(rf_xbox_input_pause_pressed()){*resume=paused;return RF_OK;}
+        pressed=rf_xbox_input_menu_pressed();
+        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
+            uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
+            if(up!=down)selection=(selection+(down?1:RF_SCENE_BUTTON_COUNT-1))%RF_SCENE_BUTTON_COUNT;
+            continue;
+        }
+        if(selection==RF_SCENE_BUTTON_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_BUTTON_DEFAULTS){
+            if(pressed&RF_XBOX_MENU_ACCEPT){options.button_map=0;player_options_apply(&options);}
+            continue;
+        }
+        left=!!(pressed&RF_XBOX_MENU_LEFT);right=!!(pressed&RF_XBOX_MENU_RIGHT);
+        if(left&&right)continue;
+        if(left || right || (pressed&RF_XBOX_MENU_ACCEPT)){
+            uint32_t control=rf_xbox_input_binding_control(selection);
+            control=(control+(left?RF_XBOX_BUTTON_COUNT-1:1))%RF_XBOX_BUTTON_COUNT;
+            status=rf_xbox_input_rebind(selection,control);if(status)return status;
+        }
+    }
 }
 static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
 {
@@ -123,10 +267,12 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         int direction;
         rf_xbox_input_get_options(&options);
         flags|=player_options_storage_flags(&options);
+        if(player_audio_options_status)flags|=RF_SCENE_OPTIONS_AUDIO_ERROR;
         if(options.stick_layout==RF_XBOX_STICK_LAYOUT_SOUTHPAW)flags|=RF_SCENE_OPTIONS_SOUTHPAW;
         if(selection!=drawn_selection || flags!=drawn_flags ||
            options.look_sensitivity_percent!=drawn_options.look_sensitivity_percent ||
-           options.invert_y!=drawn_options.invert_y || options.deadzone_percent!=drawn_options.deadzone_percent){
+           options.invert_y!=drawn_options.invert_y || options.deadzone_percent!=drawn_options.deadzone_percent ||
+           options.text_language!=drawn_options.text_language){
             status=rf_xbox_options_menu_draw(selection,flags,options.look_sensitivity_percent,
                 options.invert_y,options.deadzone_percent);if(status)return status;
             drawn_selection=selection;drawn_flags=flags;drawn_options=options;
@@ -146,13 +292,25 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         if(left&&right)continue;
         direction=right?1:left?-1:0;
         if(selection==RF_SCENE_OPTIONS_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_OPTIONS_BUTTONS){
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                status=player_button_mapping_menu(context,frame,paused,resume);if(status || *resume)return status;
+                drawn_selection=drawn_flags=UINT32_MAX;
+            }
+            continue;
+        }
+        if(selection==RF_SCENE_OPTIONS_AUDIO){
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                status=player_audio_options_menu(context,frame,paused,resume);if(status || *resume)return status;
+                drawn_selection=drawn_flags=UINT32_MAX;
+            }
+            continue;
+        }
         if(selection==RF_SCENE_OPTIONS_SAVE){
             /* One released A edge is the only write request. Left/right, Back,
              * Start, default-reset, hotplug and session transitions never save. */
             if(pressed&RF_XBOX_MENU_ACCEPT){
-                int saved=rf_xbox_settings_storage_save(&options);
-                if(!saved){player_options_stored=options;player_options_storage_notice=RF_SCENE_OPTIONS_STORED;}
-                else player_options_storage_notice=player_options_storage_error(saved);
+                player_options_save(&options);
                 drawn_flags=UINT32_MAX;
             }
             continue;
@@ -160,14 +318,17 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         if(selection==RF_SCENE_OPTIONS_DEFAULTS){
             if(pressed&RF_XBOX_MENU_ACCEPT){
                 options=(rf_xbox_input_options){RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,
-                    RF_XBOX_STICK_DEADZONE_DEFAULT,RF_XBOX_STICK_LAYOUT_STANDARD};
-                rf_xbox_input_set_options(&options);
+                    RF_XBOX_STICK_DEADZONE_DEFAULT,RF_XBOX_STICK_LAYOUT_STANDARD,0,RF_TEXT_ENGLISH,
+                    RF_XBOX_VOLUME_DEFAULT,RF_XBOX_VOLUME_DEFAULT,RF_XBOX_VOLUME_DEFAULT};
+                player_options_apply(&options);
             }
             continue;
         }
         if(!direction && !(pressed&RF_XBOX_MENU_ACCEPT))continue;
         if(!direction)direction=1;
         if(selection==RF_SCENE_OPTIONS_INVERT)options.invert_y=!options.invert_y;
+        else if(selection==RF_SCENE_OPTIONS_LANGUAGE)
+            options.text_language=(options.text_language+(direction>0?1:RF_TEXT_LANGUAGE_COUNT-1))%RF_TEXT_LANGUAGE_COUNT;
         else if(selection==RF_SCENE_OPTIONS_STICK_LAYOUT)
             options.stick_layout=options.stick_layout==RF_XBOX_STICK_LAYOUT_STANDARD?
                 RF_XBOX_STICK_LAYOUT_SOUTHPAW:RF_XBOX_STICK_LAYOUT_STANDARD;
@@ -183,7 +344,7 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
             else if(options.deadzone_percent>RF_XBOX_STICK_DEADZONE_MIN)
                 options.deadzone_percent-=RF_XBOX_STICK_DEADZONE_STEP;
         }
-        rf_xbox_input_set_options(&options);
+        player_options_apply(&options);
     }
 }
 static int player_message_history_menu(void *context,uint32_t frame,uint32_t *resume)
@@ -1161,6 +1322,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         campaign_frame_limit=limit;
         if(limit && campaign_total_frames>=limit){player_input_close();return RF_RANGE;}
         rf_scene_set_input(player_poll_paced,NULL,limit?limit-campaign_total_frames:0);
+        if(player_pacing)rf_scene_set_player_feedback_sink(rf_xbox_input_player_feedback,NULL);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }

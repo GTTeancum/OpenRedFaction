@@ -7,9 +7,14 @@
 typedef struct fit_context {uint32_t calls,fail;} fit_context;
 /* Tests candidate-provider failure atomicity. Real world clearance/support
  * belongs to the parent's composed candidate adapter, not this fixture. */
-static int fit(void *context,const rf_checkpoint_placement *p,rf_entity_room_state *room,rf_physics_support_contact *support)
+static int fit(void *context,uint32_t slot,uint32_t handle,uint32_t uid,
+    const rf_checkpoint_placement *p,rf_entity_room_state *room,rf_physics_support_contact *support)
 {
-    fit_context *c=context;c->calls++;if(c->calls==c->fail)return RF_NOT_FOUND;
+    fit_context *c=context;
+    if(slot>=campaign_npc_body_count||slot>=campaign_seeds.records.count||
+       campaign_npc_bodies[slot].registration.handle!=handle||
+       (uint32_t)campaign_seeds.records.items[slot].record.uid!=uid)return RF_FORMAT;
+    c->calls++;if(c->calls==c->fail)return RF_NOT_FOUND;
     if((p->count?(!p->spheres||p->count!=1):p->spheres!=NULL)||p->basis[4]!=1)return RF_FORMAT;
     memset(room,0,sizeof(*room));room->room=1;memcpy(room->query_position,p->position,12);
     support->handle=0;support->material=p->count?3:-1;return RF_OK;
