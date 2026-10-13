@@ -1,3 +1,5 @@
+- Capek NanoAttackSource warmup imagery is source-written with actor-muzzle attachment, independent one-shot timing and two-instance256-KiB ownership; parent must compose final-success reset and integrate the next build (docs/CAPEK-CANE-WARMUP.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
