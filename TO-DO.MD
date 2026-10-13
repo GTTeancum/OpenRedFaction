@@ -1,3 +1,5 @@
+- Nano-shield Small/Big/Destroy feedback is source-written with accepted contact geometry, authored particles and a bounded768-KiB owner; USER: parent must compose final-success reset, preserve newer presentation hooks and review/integrate the next Xbox build (docs/NANO-SHIELD-HIT-RESPONSE.md).
+
 - NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
 
 ## October 12, 18:06 UTC: NPC shoulder-cannon save continuation

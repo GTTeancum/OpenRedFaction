@@ -29,9 +29,9 @@ static int campaign_set_nano_shield(void *context,uint32_t handle,uint32_t enabl
  * that breaks the shield is still consumed, with no health spill-through.
  * Exhausted armor is clamped to0 for the port's nonnegative save/vitals contract. */
 uint32_t rf_scene_nano_contact[8]; /* contacts,breaks,invulnerable,last UID,amount,armor,health,last weapon */
-static int scene_nano_weapon_contact(campaign_npc_body *owner,int32_t weapon,float amount,uint32_t *consumed)
+static int scene_nano_weapon_contact(campaign_npc_body *owner,int32_t weapon,float amount,const float *point,uint32_t *consumed)
 {
-    uint32_t cls;float adjusted,next_armor;int status;
+    uint32_t cls,depleted=0;float adjusted,next_armor;int status;
     if(!owner||!consumed||!isfinite(amount)||amount<0)return RF_RANGE;
     *consumed=0;cls=campaign_seeds.items[owner-campaign_npc_bodies].class_index;
     if(cls>=campaign_seeds.class_count)return RF_FORMAT;
@@ -45,13 +45,14 @@ static int scene_nano_weapon_contact(campaign_npc_body *owner,int32_t weapon,flo
         next_armor=fmaxf(0,owner->damage.effects.armor-adjusted);
         if(next_armor==0) {
             status=scene_capek_shield_break(owner);if(status)return status;
-            ++rf_scene_nano_contact[1];
+            ++rf_scene_nano_contact[1];depleted=1;
         }
         owner->damage.effects.armor=next_armor;
     }
     rf_scene_nano_contact[3]=(uint32_t)campaign_seeds.records.items[owner-campaign_npc_bodies].record.uid;
     memcpy(rf_scene_nano_contact+4,&adjusted,4);memcpy(rf_scene_nano_contact+5,&owner->damage.effects.armor,4);
     memcpy(rf_scene_nano_contact+6,&owner->damage.effects.health,4);rf_scene_nano_contact[7]=(uint32_t)weapon;
+    scene_nano_hit_response(owner,adjusted>=100.f,point,depleted,0);
     return RF_OK;
 }
 #endif

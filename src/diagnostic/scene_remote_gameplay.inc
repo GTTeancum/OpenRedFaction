@@ -105,7 +105,7 @@ static int scene_remote_tick(scene_stream *s,uint32_t frame)
             if(index>=campaign_npc_body_count)return RF_RANGE;
             /* Original4c5a90..4c5b5d consumes remote contact with amount0,
              * before sticky-host publication, sound or any explosion request. */
-            status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_remote_id,0,&consumed);
+            status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_remote_id,0,event.contact.hit.point,&consumed);
             if(status)return status;
             if(consumed){
                 charge->flight.lifecycle.active=0;charge->object_flags|=2;

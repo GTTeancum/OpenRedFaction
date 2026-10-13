@@ -183,12 +183,13 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
                 status=combat_shot_obstructed(stream,start,delta,fraction,&blocked);if(status)return status;
                 if(blocked){++rf_scene_enemy_spread[4];return RF_OK;}
             }
+            for(i=0;i<3;i++)point[i]=actor_start[i]+actor_delta[i]*actor.body_fraction;
             if(actor.victim) {
                 campaign_npc_body *victim;uint32_t consumed;
                 if(!scene_ai_actor_penetration_npc_live(actor.victim_slot,handle))return RF_OK;
                 victim=campaign_npc_bodies+actor.victim_slot;
                 ++rf_scene_enemy_spread[2];++rf_scene_enemy_damage_kinds[shot->kind];
-                status=scene_nano_weapon_contact(victim,shot->weapon,shot->base,&consumed);if(status)return status;
+                status=scene_nano_weapon_contact(victim,shot->weapon,shot->base,point,&consumed);if(status)return status;
                 if(consumed)return RF_OK;
                 if(!scene_ai_actor_penetration_npc_live(actor.victim_slot,handle))return RF_OK;
                 radius=victim->body.state.bounds.radius;material=(int32_t)victim->collision_material;
@@ -197,7 +198,6 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
                 ++rf_scene_enemy_spread[2];++rf_scene_enemy_damage_kinds[shot->kind];
                 radius=scene_actor_body.state.bounds.radius;material=(int32_t)campaign_player_material;
             }
-            for(i=0;i<3;i++)point[i]=actor_start[i]+actor_delta[i]*actor.body_fraction;
             request.amount=damage;
             /* Original4c9b75..4c9bde spends .2f times the actual enclosing body
              * radius and advances that radius along incoming direction. Save

@@ -2629,6 +2629,10 @@ static void scene_remote_selection_cancel(void);
 static int scene_grenade_empty_load(rf_vpp *);
 static void scene_grenade_empty_reset(void);
 static void scene_grenade_empty_input_reset(void);
+static void scene_nano_hit_close(void);
+static void scene_nano_hit_reset(void);
+static void scene_nano_hit_audio_close(void);
+static void scene_nano_hit_response(campaign_npc_body *,uint32_t,const float *,uint32_t,uint32_t);
 static void scene_npc_loop_audio_close(void);
 static void scene_npc_loop_audio_reset(void);
 static void scene_npc_loop_audio_remove(uint32_t);
@@ -5579,6 +5583,7 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 static void scene_npc_shields_close(void);
 static void campaign_npc_bodies_close(void)
 {
+    scene_nano_hit_close();
     scene_robot_death_reset();
     scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();
     scene_npc_loop_audio_close();
@@ -6514,6 +6519,7 @@ static void campaign_close_movers(void)
     scene_cane_flight_audio_close();
     scene_projectile_flight_audio_close();
     scene_tankbot_burst_audio_close();
+    scene_nano_hit_audio_close();
     scene_weapon_impact_audio_close();
     scene_weapon_empty_audio_close();scene_grenade_empty_reset();
     scene_machine_pistol_audio_close();scene_hmg_audio_close();scene_rifle_audio_close();
@@ -10641,6 +10647,7 @@ static void scene_impact_sound(const float position[3],uint32_t frame)
     if(rf_scene_combat_trace)printf("IMPACT_SOUND %u %d %d %.9g %.9g %.9g\n",frame,sample,audio.status,position[0],position[1],position[2]);
 }
 
+#include "scene_nano_hit_audio.inc"
 static void combat_sound(const char *name,const float position[3])
 {
     int32_t group,sample;int status;campaign_pain_audio_context audio={&combat_sound_random,0,rf_scene_weapon_audio,1};
@@ -12756,12 +12763,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             goto enemy_shot_done;
         }
         if(melee) {
-            uint32_t contact;
+            uint32_t contact;float nano_point[3];
             if(vehicle_victim)goto enemy_shot_done;
             if(!melee_guarded)goto enemy_shot_done;
             status=campaign_enemy_melee_actor_contact(stream,&melee_guard.pair,
                 melee_start,melee_delta,attack_range,player_eye,melee_damage,melee_kind,
-                scene_ai_melee_guard_valid,&melee_guard,&contact);
+                scene_ai_melee_guard_valid,&melee_guard,&contact,nano_point);
             if(status)return status;
             if(!contact || !scene_ai_melee_guard_valid(&melee_guard))goto enemy_shot_done;
             if(!definition)++rf_scene_enemy_damage_kinds[9];
@@ -12775,7 +12782,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                     victim=scene_ai_melee_npc_identity(melee_guard.pair.target_slot,melee_guard.pair.target);
                     if(!victim)goto enemy_shot_done;
                     /* The retained primary amount already includes AI scaling. */
-                    status=scene_nano_weapon_contact(victim,melee_guard.weapon,request.amount,&consumed);
+                    status=scene_nano_weapon_contact(victim,melee_guard.weapon,request.amount,nano_point,&consumed);
                     if(status)return status;if(consumed)goto enemy_shot_done;
                     status=rf_scene_npc_damage(melee_guard.pair.target,&request,1,
                         clock_bits,&effects,&amount);
@@ -12898,7 +12905,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
          rf_damage_request request={shot_damage,pistol_shot.active?pistol_shot.source:owner->registration.handle,kind,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
-             if(!melee){uint32_t consumed;status=scene_nano_weapon_contact(victim,weapon,request.amount,&consumed);
+             if(!melee){uint32_t consumed;status=scene_nano_weapon_contact(victim,weapon,request.amount,bullet_point,&consumed);
                  if(status)return status;if(consumed)goto enemy_shot_done;}
              if(pistol_shot.active){
                  if(!scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
@@ -16442,7 +16449,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                 uint32_t index=event.contact.object&0xffffu,consumed;
                 if(index>=campaign_npc_body_count)return RF_RANGE;
                 status=scene_nano_weapon_contact(campaign_npc_bodies+index,campaign_rocket_id,
-                    campaign_primary[4].damage,&consumed);if(status)return status;
+                    campaign_primary[4].damage,event.contact.hit.point,&consumed);if(status)return status;
                 if(consumed)continue;
             }
             status=scene_impact_start(s,&event.contact,frame);if(status)return status;
@@ -16599,6 +16606,7 @@ static void scene_sonar_visual_accept(uint32_t,const scene_ai_laser_projectile *
 #include "scene_ai_direct_fire.inc"
 #include "scene_spit_visual.inc"
 #include "scene_cane_visual.inc"
+#include "scene_nano_hit_visual.inc"
 static int scene_remote_launch(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t *);
 static void scene_remote_reset(void);
 static int scene_remote_tick(scene_stream *,uint32_t);
@@ -17183,7 +17191,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         }
         if(!body_contact.matched || body_contact.fraction>nearest)continue;
         if(!scene_npc_body_contact_live(&body_ray,&body_contact))return RF_OK;
-        if(body_shot.slot!=2){uint32_t consumed;status=scene_nano_weapon_contact(owner,body_shot.weapon,request.amount,&consumed);
+        if(body_shot.slot!=2){uint32_t consumed;status=scene_nano_weapon_contact(owner,body_shot.weapon,request.amount,body_contact.point,&consumed);
          if(status)return status;if(consumed){combat_hit_frame=frame;continue;}}
         if(!scene_npc_body_contact_live(&body_ray,&body_contact))return RF_OK;
         status=scene_npc_body_contact_amount(&body_contact,body_shot.base,&request.amount);if(status)return status;
@@ -21100,6 +21108,8 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
             workspace->records,2048,&count);
         if(campaign_spawn)scene_cane_visual_queue_room(stream,stream->visibility.state.order[room]+1,
             workspace->records,2048,&count);
+        if(campaign_spawn)scene_nano_hit_queue_room(stream,stream->visibility.state.order[room]+1,
+            workspace->records,2048,&count);
         for(i=0;i<count;i++) {
             memcpy(workspace->spheres[i].position,workspace->records[i].position,12);
             workspace->spheres[i].radius=workspace->records[i].radius;workspace->spheres[i].sorted=workspace->records[i].sorted;
@@ -21124,6 +21134,9 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
                 scene_spit_visual_draw_one(stream,entry->object,sink,context);
             } else if(entry->callback==SCENE_CANE_DRAW_CALLBACK) {
                 scene_cane_visual_draw_one(stream,entry->object,sink,context);
+            } else if(entry->callback==SCENE_NANO_HIT_CALLBACK || entry->callback==SCENE_NANO_HIT_PARTICLE_CALLBACK) {
+                status=scene_nano_hit_draw(stream,entry->object,entry->callback==SCENE_NANO_HIT_PARTICLE_CALLBACK,sink,context);
+                if(status)goto done;
             } else if(entry->callback==0x488b00) {
                 rf_glare_base_owner *owner=rf_object_registry_lookup(&campaign_registry,entry->object);
                 if(!owner || owner->kind!=10){status=RF_RANGE;goto done;}
@@ -21535,6 +21548,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_script_physics_sample(frame);
                 npc_step_profile_mark(0,&npc_clock);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
+                scene_nano_hit_tick(stream,scene_step_seconds,frame);
                 scene_npc_footsteps_tick(frame);
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
                 status=scene_medic_syringe_tick();if(status)return status;
@@ -21574,6 +21588,7 @@ modal_step_done:
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
             if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
             if(status)return status;}
+        if(!frame)scene_nano_hit_admit(stream);
         scene_player_support_save_fixture_tick(frame);
         scene_active_vehicle_visibility_fixture_tick(stream,frame);
         scene_active_vehicle_visibility_audit_tick(stream,frame);
@@ -22879,6 +22894,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         scene_turret_operator_reset();
         scene_late_load_mark(74,materials);
         status=scene_npc_seats_open(stream,0);if(status)goto done;
+        scene_nano_hit_prepare(stream,&archive,maps,map_count);
         scene_late_load_mark(80,materials);
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,stream);
         else status=rf_animation_stream_placed(meshes_path,motions_path,1024*1024,&placement,scene_frame,stream);
@@ -22941,6 +22957,7 @@ done:
     scene_sonar_visual_close(&stream->sonar_visual);
     scene_spit_visual_close(&stream->spit_visual);
     scene_cane_visual_close(&stream->cane_visual);
+    scene_nano_hit_close();
     if(stream->rocket_visual){rf_vfx_asset_materials_close(&stream->rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->rocket_visual->geometry);free(stream->rocket_visual);}
     if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}

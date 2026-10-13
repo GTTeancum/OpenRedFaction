@@ -85,7 +85,7 @@ static int scene_ai_fusion_impact(scene_stream *stream,uint32_t frame,
         target=campaign_npc_bodies[index].registration.handle;
         victim=scene_ai_melee_npc_live(index,target);
         if(victim){
-            status=scene_nano_weapon_contact(victim,campaign_fusion_id,shot->damage,&consumed);
+            status=scene_nano_weapon_contact(victim,campaign_fusion_id,shot->damage,contact->hit.point,&consumed);
             if(status)return status;if(epoch!=scene_robot_death_epoch||consumed)return RF_OK;
         }
     }

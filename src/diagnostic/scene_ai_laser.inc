@@ -220,7 +220,7 @@ static int scene_ai_laser_contact_result(scene_stream *stream,uint32_t frame,con
         if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
         stats[6]+=accepted;return RF_OK;
      }
-     status=scene_nano_weapon_contact(npc,shot->weapon,shot->damage,&accepted);if(status)return status;
+     status=scene_nano_weapon_contact(npc,shot->weapon,shot->damage,contact->hit.point,&accepted);if(status)return status;
      if(accepted){if(consumed)*consumed=1;++stats[7];return RF_OK;}
      if(!scene_ai_melee_npc_live(q->target_slot,q->target))return RF_OK;
      ++stats[5];status=rf_scene_npc_damage(q->target,&request,1,clock,&effects,&amount);

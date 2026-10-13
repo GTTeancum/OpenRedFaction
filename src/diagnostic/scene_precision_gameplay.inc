@@ -151,9 +151,9 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
              * ownership changed. Rail continues with later ordered owners. */
             if(!rail)return RF_OK;continue;
         }
-        {uint32_t consumed;status=scene_nano_weapon_contact(owner,rail?campaign_slot_weapon(campaign_equipped_slot):weapon,request.amount,&consumed);
-         if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
         for(uint32_t j=0;j<3;j++)point[j]=actor_position[j]+actor_delta[j]*hits[i].query_fraction;
+        {uint32_t consumed;status=scene_nano_weapon_contact(owner,rail?campaign_slot_weapon(campaign_equipped_slot):weapon,request.amount,point,&consumed);
+         if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
         if(!rail){
             /* Nano and physical shields precede4c9b20; they keep unscaled base
              * damage and consume the shot. Snapshot this real body's radius

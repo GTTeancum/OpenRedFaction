@@ -160,7 +160,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             query_fraction=body_fraction;
             nearest=penetration.cursor+(1-penetration.cursor)*query_fraction;
             if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
-            {uint32_t consumed;status=scene_nano_weapon_contact(owner,shot->weapon,request.amount,&consumed);
+            {uint32_t consumed;status=scene_nano_weapon_contact(owner,shot->weapon,request.amount,body_contact.point,&consumed);
                 if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
             if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
             memcpy(point,body_contact.point,12);

@@ -132,7 +132,7 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
             if((tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
                 uint32_t index=tag&0xffffu,consumed;
                 if(index>=campaign_npc_body_count)return RF_RANGE;
-                status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,&consumed);
+                status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,contact->hit.point,&consumed);
                 if(status)return status;if(consumed)continue;
             }
             status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);

@@ -104,7 +104,7 @@ static int scene_turret_heap_direct(scene_stream *stream,uint32_t frame,
         index=tag&0xffffu;if(index>=campaign_npc_body_count)return RF_RANGE;
         target=campaign_npc_bodies[index].registration.handle;
         if(target==shot->host||target==shot->operator_handle)return RF_OK;
-        status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,consumed);
+        status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,contact->hit.point,consumed);
         if(status||*consumed)return status;
         status=rf_scene_npc_damage(target,&request,1,bits,&effects,&applied);
         if(!status&&campaign_npc_bodies[index].damage.effects.health<=0){

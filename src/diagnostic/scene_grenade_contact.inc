@@ -28,7 +28,7 @@ static int scene_grenade_contact_damage(scene_stream *stream,uint32_t frame,
         rf_scene_grenade_contacts[3]=(uint32_t)campaign_seeds.records.items[index].record.uid;
         /* Grenade instance bit10 admits armor debit; an ordinary grenade is
          * still consumed by the shield, but its adjusted shield amount is0. */
-        status=scene_nano_weapon_contact(owner,campaign_grenade_id,flags&0x10u?damage:0,&consumed);
+        status=scene_nano_weapon_contact(owner,campaign_grenade_id,flags&0x10u?damage:0,contact->hit.point,&consumed);
         if(status)return status;if(consumed){++rf_scene_grenade_contacts[1];return RF_OK;}
         /* Location multiplier1 is the current port policy, not recovered mesh scaling. */
         status=rf_scene_npc_damage(owner->registration.handle,&request,1,bits,&effects,&applied);

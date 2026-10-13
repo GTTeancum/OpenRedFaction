@@ -216,8 +216,9 @@ static int scene_player_riot_melee_contact(scene_stream *stream,
         /* 4c5a90..4c5b5d: either qualified Riot mode uses primary amount
          * and consumes Nano before generic damage, including the contact
          * that exhausts its armor. */
-        {uint32_t consumed;
-            status=scene_nano_weapon_contact(npc,contact->weapon,request.amount,&consumed);
+        {uint32_t consumed;float nano_point[3];
+            for(i=0;i<3;i++)nano_point[i]=position[i]+delta[i]*nearest;
+            status=scene_nano_weapon_contact(npc,contact->weapon,request.amount,nano_point,&consumed);
             if(status)return status;if(consumed)return RF_OK;
         }
         /* 4c6052..4c60a6 gates Riot + captured alternate bit 0x20.
