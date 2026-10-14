@@ -1,3 +1,4 @@
+- October 14 14:55 UTC: isolated NPC save-capture membership/status fix integrated for the hourly Xbox build; registered-row refusals abort, and second-pass capacity/status/record validation precede copying. Build pending; broader pursuit-return remains external staging.
 - October 13, 8:00 a.m. EDT: stock64 build and minimal startup smoke passed on bc6bc3b7, 12 simulation/10 presentation frames and clean shutdown (docs/HOURLY-20261013-1200.md); broader pursuit remains external unfinished staging.
 - October 13 11:00 UTC: shared NPC navigation workspace guard compiled; stock64 build and minimal startup smoke passed on 7ebebcbe, 13 simulation/10 presentation frames and clean shutdown (docs/HOURLY-20261013-1100.md). Broader pursuit/retreat remains external unfinished staging.
 - Shared NPC pathfinding workspace exclusion is integrated and compiled for ordinary and scripted requests (docs/NPC-NAVIGATION-WORKSPACE-GUARD.md).

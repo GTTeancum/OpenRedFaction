@@ -573,7 +573,13 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
     }
     status=rf_npc_checkpoint_encode(identity,catalog,NULL,0,encoded,sizeof(encoded),&written);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
-        status=scene_npc_checkpoint_row_profile(i,now,&row,0,burning_profile,0);if(status==RF_NOT_FOUND)continue;if(status)return status;
+        status=scene_npc_checkpoint_row_profile(i,now,&row,0,burning_profile,0);
+        /* Only absent, unregistered actors may be omitted. Registered-owner
+         * refusals can also be RF_NOT_FOUND and must abort the save. */
+        if(status==RF_NOT_FOUND&&!campaign_npc_bodies[i].persistence_registered&&
+           !campaign_npc_bodies[i].registration.view)continue;
+        if(status)return status;
+        if(!campaign_npc_bodies[i].persistence_registered)return RF_FORMAT;
         if(row.dead_pose==2&&!burning_profile)return RF_NOT_FOUND;
         status=rf_npc_checkpoint_record_validate(&row,catalog);
         if(status){
@@ -598,8 +604,13 @@ static int scene_npc_checkpoint_capture_mode(const rf_npc_checkpoint_catalog *ca
     }
     if(n>capacity||(n&&!rows))return RF_RANGE;
     n=0;for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].persistence_registered){
-        /* No callbacks/mutations occurred since preflight; this pass cannot fail. */
-        (void)scene_npc_checkpoint_row_profile(i,now,rows+n,0,burning_profile,0);n++;
+        /* Recheck every result before publishing a scratch row. A failure
+         * leaves earlier scratch rows written, but count unpublished. */
+        if(n>=capacity||!rows)return RF_RANGE;
+        status=scene_npc_checkpoint_row_profile(i,now,&row,0,burning_profile,0);
+        if(status)return status;
+        status=rf_npc_checkpoint_record_validate(&row,catalog);if(status)return status;
+        rows[n++]=row;
     }
     if(n)qsort(rows,n,sizeof(*rows),scene_npc_checkpoint_row_compare);*count=n;return RF_OK;
 }
