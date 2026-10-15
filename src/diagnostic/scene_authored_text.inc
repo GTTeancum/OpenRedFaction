@@ -6,10 +6,23 @@ static const uint32_t scene_text_ids[]={42,43,986,788,85,86,87,88,123,138,143,13
     124,156,983,145,146,147,148,149,150,151,152,153,154,169,170,202,820,821,590,59};
 #define SCENE_TEXT_COUNT (sizeof(scene_text_ids)/sizeof(scene_text_ids[0]))
 static char scene_text_labels[SCENE_TEXT_COUNT][SCENE_TEXT_LABEL_BYTES];
-static uint32_t scene_text_language;
+static uint32_t scene_text_language,scene_text_profile;
+/* Reuse exactly the same32 slots. Each draw owns one page-family profile;
+ * no label pointer survives a profile switch or language reconfiguration. */
+static uint32_t scene_text_slot_id(uint32_t slot)
+{
+    uint32_t id=scene_text_ids[slot];
+    if(scene_text_profile==RF_SCENE_TEXT_PROFILE_OPTIONS){
+        switch(id){case 42:return 114;case 986:return 784;case 85:return 785;case 86:return 786;
+        case 87:return 787;case 88:return 179;case 123:return 180;default:break;}
+    }else if(scene_text_profile==RF_SCENE_TEXT_PROFILE_LOAD){
+        if(id==145)return 933;if(id==146)return 987;
+    }
+    return id;
+}
 static const char *scene_text(uint32_t id,const char *fallback)
 {
-    uint32_t i;for(i=0;i<SCENE_TEXT_COUNT;i++)if(scene_text_ids[i]==id)
+    uint32_t i;for(i=0;i<SCENE_TEXT_COUNT;i++)if(scene_text_slot_id(i)==id)
         return scene_text_labels[i][0]?scene_text_labels[i]:fallback;
     return fallback;
 }
@@ -90,13 +103,13 @@ int rf_scene_text_configure(const char *tables_path,uint32_t language)
                         if(id>(UINT32_MAX-digit)/10u){status=RF_RANGE;goto done;}id=id*10u+digit;
                     }
                     while(*p==' ' || *p=='\t' || *p=='\r')++p;
-                    if(!*p)for(i=0;i<SCENE_TEXT_COUNT;i++)if(scene_text_ids[i]==id){current=i;break;}
+                    if(!*p)for(i=0;i<SCENE_TEXT_COUNT;i++)if(scene_text_slot_id(i)==id){current=i;break;}
                 }
             }else if(current<SCENE_TEXT_COUNT && strlen(p)>=3 && p[2]==':'){
                 uint32_t lang=rf_text_tag_language(p),rank=lang==language?2u:lang==RF_TEXT_ENGLISH?1u:0u;
                 char value[SCENE_TEXT_LABEL_BYTES];
                 if(rank && !scene_text_quoted(p+3,value) &&
-                   strlen(value)<=scene_text_label_limit(scene_text_ids[current]) &&
+                   strlen(value)<=scene_text_label_limit(scene_text_slot_id(current)) &&
                    (lang==RF_TEXT_ENGLISH || rf_text_translation_available(value,(uint32_t)strlen(value))) &&
                    rank>next->rank[current]){
                     strcpy(next->labels[current],value);next->rank[current]=rank;
@@ -108,4 +121,14 @@ int rf_scene_text_configure(const char *tables_path,uint32_t language)
     memcpy(scene_text_labels,next->labels,sizeof(scene_text_labels));status=RF_OK;
 done:
     free(next);rf_vpp_close(&archive);return status;
+}
+
+int rf_scene_text_select_profile(const char *tables_path,uint32_t profile)
+{
+    if(!tables_path || profile>RF_SCENE_TEXT_PROFILE_LOAD)return RF_RANGE;
+    if(scene_text_profile==profile)return RF_OK;
+    /* Record the attempted profile even on optional catalog failure, so idle
+     * redraws do not repeatedly open/parse a bad catalog. configure clears it. */
+    scene_text_profile=profile;
+    return rf_scene_text_configure(tables_path,scene_text_language);
 }

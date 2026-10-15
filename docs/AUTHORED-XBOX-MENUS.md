@@ -1,6 +1,12 @@
 # Authored Xbox menus and optional PS2 menu overlay
 
-Status: authored menu integration passed stock64 native Xbox compile/link/package
+Current status October 15, 14:10 UTC: expanded menu presentation and the
+geometry-only title redraw correction compiled in Actual14. Difficulty entry,
+release readiness, accepted New Game notice and frontend retirement completed.
+Overall startup FAILED after loading at simulation1/presentation0. See
+HOURLY-20261015-1400.md. No fresh visual capture or full functional pass is claimed.
+
+Prior accepted milestone: authored menu integration passed stock64 native Xbox compile/link/package
 and ordinary startup on October 15 at 04:06 UTC, built commit
 e6290c269003688857a51e468cd28847af15d96e. See HOURLY-20261015-0400.md.
 Main and Options native captures were delivered from the preceding build.
@@ -67,7 +73,7 @@ Native retirement precedes PCM free and archive close; uncertain retirement
 retains ownership and blocks gameplay/Dashboard transitions. Pause Options
 never replaces the scene's audio backend.
 
-## Remaining presentation scope
+## Historical presentation scope at the accepted 04:00 milestone
 
 Settled menu layouts are implemented first. Stock panorama scrolling and panel
 entry/sweep animation are deferred. Load uses the recovered 599x366 panel at (33,58), with the existing two
@@ -87,3 +93,118 @@ the same authored button widget for the four existing values and Back. This
 is an Xbox adaptation with unchanged routing, not a claimed original PC
 difficulty page. This refinement is source-reviewed and compiled in the accepted Actual04
 hourly batch; the delivered screenshots precede it.
+
+## Continued menu motion implementation (October 15, 11:24 UTC)
+
+The accepted release above is a milestone, not the end of menu work. Following
+user direction, stock panorama and independent entry tracks are source-integrated
+and compiled in Actual11. That batch failed its startup check; no new capture
+is claimed. Later additions and the Actual12 outcome are recorded below.
+
+Original 442ce0 advances the background at 15 logical pixels per second and
+resets to zero after source width minus 640. The 640-wide overlay stays still.
+Original 443620/44f69a move title panels from x637 to125 at 2048 pixels/second;
+44369c moves the category rail from 11 minus resolved button width to11 at
+four button widths per second. Load body uses its separate x637 to33 track
+(44008b), with title and body widgets attached to their own origins. Options
+body changes do not restart the title or category tracks. Xbox-only controls
+follow the same body origin, without changing input/action/save routing.
+
+The existing canvas is recomposed only when its integer crop or panel positions
+change, after the native GPU fence. Raw TGA/VBM reads seek to visible source
+rows; RLE remains bounded sequential decoding with original orientation and
+alpha semantics. No second image owner, atlas enlargement, label growth or
+budget increase is introduced. New scalar state is included in sizeof-owner
+budget accounting. The legacy prepare_page API remains a settled-layout path.
+
+Historical first-slice boundary: this motion slice implemented entry and background scrolling. Original
+out-then-in Options body replacement and outgoing main-menu sweeps remain
+subsequent presentation work; no exact full transition parity is claimed.
+
+### Follow-on integration compiled in Actual12
+
+The first motion pin compiled in Actual11; its ordinary startup check failed
+with a QMP response timeout (see HOURLY-20261015-1100.md). After that terminal
+batch, all four menu input loops gained timed redraw requests. Settled
+640-wide overlays stay idle; entry/departure tracks request presentation ticks,
+and stock panorama requests a redraw on integer crop changes.
+
+Menu ownership now retains its two read-only checked archive handles until
+retirement and lazily caches nine fixed page-source entries. This removes
+per-frame directory validation/name scans; small image-header reads remain.
+The archive pointers refer to the stable menu owner. Checked-close failure
+invalidates readiness, attempts both closes once, retains the pixel owner and
+blocks gameplay admission. Failed unpublished opens retire handles before
+freeing pixels. Retained stdio/scratch remains inside the existing32-KiB reserve;
+no additional reserve is charged to the peak.
+
+Outgoing Main/Options shell sweeps and Options body departures are integrated.
+They start at the currently presented coordinates and use original linear
+velocities. The old page's widgets travel with its panel before the existing
+navigation executes once. The presentation drain services controller latches
+and cold menu audio but dispatches no actions, settings or saves. The modal
+Exit path and gameplay admission paths retain their existing behavior.
+These follow-on changes compiled in Actual12; its startup failure is preserved
+separately from compilation and is not a runtime pass.
+
+### Popup underlay and localized menu banks, compiled in Actual12
+
+The inactive Main rail is now drawn beneath the Exit popup using the normal
+font/sprite path. Popup top400x119 and bottom400x183 are split into four
+alpha-preserving crops with one-pixel gutters in the unused right strip of the
+existing1024x512 canvas. Backing, bottom and top draw after the rail and before
+popup text. The selected overlay contains neither popup replacement, so these
+members resolve from stock ui.vpp. Unexpected dimensions are rejected before
+writing. No additional image, glyph atlas space or interactive Main route is
+introduced while the popup is active.
+
+The unchanged32x64-byte localization cache now selects a page-family ID bank.
+Options reuses seven unneeded Main/difficulty slots for original IDs114,
+784-787 and179-180; Load reuses two mapping slots for933/987. Selected-language
+or original English fallback parsing is unchanged. Profile equality prevents
+per-frame reparsing, including after a failed optional load. Default IDs are
+restored for Main/Difficulty/Exit and after menu retirement before gameplay.
+Xbox-only prompts retain explicit English wording; no translation is invented.
+
+### Immediate adapted navigation and accepted-action notice correction
+
+After Actual12, Main-to-Difficulty commits its real destination immediately
+without the added outgoing drain. Difficulty remains an explicit Xbox-specific
+adaptation, not a claimed original PC page. Incoming presentation remains.
+Options/Load retain their source-derived outgoing sweeps.
+
+Once a frontend action is accepted, a same-page loading/exit notice reuses
+its last successful ready artwork instead of advancing animation/reopening
+assets. A changed page or prior preparation error still requires preparation.
+The notice is drawn normally before the existing ownership handoff. This
+correction changes neither input receipts nor observer limits. It compiled in
+Actual13 and remains included in Actual14; it does not establish either timeout cause.
+
+### Geometry-only Options and adapted Difficulty title motion
+
+Actual13 compiled the immediate-navigation/loading-notice correction and reached
+Difficulty, but timed out during a neutral redraw before New Game acceptance.
+See HOURLY-20261015-1300.md for the preserved terminal failure.
+
+The next source correction caches the512x64 titlebar as two alpha-preserving,
+guttered pieces in the existing canvas right strip:382x64 at641,1 and130x64 at
+641,67. Options and Difficulty have no body artwork; their title/rail/widget
+motion now updates coordinates without clearing the canvas or decoding assets.
+Original linear timing and text offsets remain. Stock panorama crop changes
+still recompose background and cache under the existing renderer fence.
+
+The cache is mutually exclusive with Exit popup storage. Other pages retain
+the existing composition path so their title-before-body overlap and larger
+panels are unchanged. No extra image allocation, atlas space, label slot or
+resource limit is introduced. Differently sized valid titlebar overrides retain
+the original composition fallback; geometry-only invalidation requires the
+actual owner cache flag. This correction compiled in Actual14; the bounded
+frontend milestones and overall startup failure are recorded below. No visual pass is claimed.
+
+### Actual14 compiled result
+
+The geometry-only title correction compiled in Actual14. Difficulty entry,
+release readiness, accepted New Game notice and frontend retirement completed.
+Overall startup remains a preserved failure: QMP response timeout after loading,
+simulation1/presentation0. See HOURLY-20261015-1400.md. This result establishes
+those bounded frontend milestones, not full menu functionality or visual parity.

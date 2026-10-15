@@ -243,20 +243,33 @@ int rf_xbox_menu_art_failed(void)
 }
 int rf_xbox_menu_close(void)
 {
+    int status;
     if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
     if(!menu_assets)return RF_OK;
     while(pb_busy()) {}
-    rf_menu_assets_close(menu_assets);menu_assets=NULL;
+    status=rf_menu_assets_close(menu_assets);
+    if(status){rf_xbox_menu_resources[1]=(uint32_t)status;return status;}
+    menu_assets=NULL;
+    (void)rf_scene_text_select_profile("D:\\tables.vpp",RF_SCENE_TEXT_PROFILE_DEFAULT);
     rf_xbox_menu_resources[2]=rf_xbox_menu_resources[3]=0;
     rf_xbox_menu_resources[5]=UINT32_MAX;return RF_OK;
 }
+int rf_xbox_menu_begin_departure(uint32_t shell)
+{return rf_menu_assets_begin_departure(menu_assets,shell,GetTickCount());}
+int rf_xbox_menu_departure_done(void)
+{return rf_menu_assets_departure_done(menu_assets);}
+int rf_xbox_menu_redraw_due(void)
+{return rf_menu_assets_redraw_due(menu_assets,GetTickCount());}
 static int menu_prepare(uint32_t page)
 {
-    int status;rf_xbox_menu_resources[1]=RF_OK;if(!menu_assets)return RF_RANGE;
+    int status;uint32_t text_profile=page==RF_MENU_PAGE_LOAD?RF_SCENE_TEXT_PROFILE_LOAD:
+        page>=RF_MENU_PAGE_OPTIONS && page<=RF_MENU_PAGE_BUTTONS?RF_SCENE_TEXT_PROFILE_OPTIONS:RF_SCENE_TEXT_PROFILE_DEFAULT;
+    rf_xbox_menu_resources[1]=RF_OK;if(!menu_assets)return RF_RANGE;
     /* Every prior HUD call fenced before return. Never mutate a GPU borrower. */
     if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
     while(pb_busy()) {}
-    status=rf_menu_assets_prepare_page(menu_assets,page);
+    (void)rf_scene_text_select_profile("D:\\tables.vpp",text_profile);
+    status=rf_menu_assets_prepare_frame(menu_assets,page,GetTickCount());
     rf_xbox_menu_resources[1]=(uint32_t)status;
     rf_xbox_menu_resources[3]=rf_menu_assets_resident_bytes(menu_assets);
     rf_xbox_menu_resources[4]=rf_menu_assets_peak_bytes(menu_assets);
@@ -587,7 +600,18 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
      * Keep the original allocation-free error screen available on that path. */
     if(!menu_assets && !session_status)return RF_RANGE;
     if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
-    if(menu_assets){status=menu_prepare(art_page);if(status)return status;}
+    if(menu_assets){
+        if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+        if(rf_vpp_checked_idle_status()){rf_xbox_menu_resources[1]=(uint32_t)RF_IO;return RF_IO;}
+    }
+    /* Once an action is accepted, present its loading/exit notice over the
+     * last ready page without recomposing animation pixels or reading assets.
+     * The following ownership handoff retires it. A genuinely different page
+     * still needs preparation; no readiness or failure check is bypassed. */
+    if(menu_assets && (!(flags&RF_SCENE_FRONTEND_LOADING) ||
+       !rf_menu_assets_page_ready(menu_assets,art_page) || rf_xbox_menu_resources[1]!=RF_OK)){
+        status=menu_prepare(art_page);if(status)return status;
+    }
     while(pb_busy()) {}
     pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
     hud_batch_begin();

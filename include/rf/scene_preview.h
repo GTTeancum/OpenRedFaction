@@ -745,6 +745,10 @@ int rf_scene_draw_frontend(rf_scene_particle_sink sink,void *context,
  * process-owned, independent of campaign checkpoints; English labels remain on
  * missing/invalid catalogs. Retains only32 current-language labels (2KiB). */
 int rf_scene_text_configure(const char *tables_path,uint32_t language);
+/* Same fixed32-label cache, selected once per menu page-family. Optional load
+ * failure leaves English fallbacks. Restore DEFAULT before returning to world. */
+enum {RF_SCENE_TEXT_PROFILE_DEFAULT,RF_SCENE_TEXT_PROFILE_OPTIONS,RF_SCENE_TEXT_PROFILE_LOAD};
+int rf_scene_text_select_profile(const char *tables_path,uint32_t profile);
 /* Draw-only Options menu: two bounded five-row pages selected by row index,
  * for either cold frontend or suspended pause menu.
  * All values are owned by the platform input settings, never this renderer. */

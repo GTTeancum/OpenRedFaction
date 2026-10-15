@@ -45,11 +45,24 @@ typedef struct menu_image_info {
 } menu_image_info;
 struct rf_menu_assets {
     rf_image canvas,atlas,bars[2];
+    rf_vpp stock,overlay;
+    menu_source page_sources[9];
+    uint32_t source_cached[9],close_failed;
     menu_rect sprites[RF_MENU_SPRITE_COUNT];
     menu_font fonts[RF_MENU_FONT_COUNT];
     char stock_path[MENU_PATH_LIMIT],overlay_path[MENU_PATH_LIMIT];
-    uint32_t resident,peak,budget,page,ready;
+    uint32_t resident,peak,budget,page,ready,title_cached;
+    uint32_t background_width,clock_valid,last_ms,title_ms,rail_ms,body_ms;
+    float panorama;
+    int32_t crop_x,title_x,body_x,rail_x;
+    uint32_t departure,departure_ms;
+    int32_t departure_title,departure_body,departure_rail;
 };
+/* Four alpha-preserving popup crops in otherwise unused canvas storage.
+ * One-pixel gutters remain outside the visible640x480 background rectangle. */
+static const menu_rect popup_rects[4]={{641,1,382,119},{641,122,382,183},
+    {641,308,18,119},{662,308,18,183}};
+static const menu_rect title_rects[2]={{641,1,382,64},{641,67,130,64}};
 static const char *const sprite_names[RF_MENU_SPRITE_COUNT]={
     "mars_background.tga","button.tga","button_more.tga","button_selected.tga",
     "lit_button_selected.tga","lit_button_small_selected.tga",
@@ -165,9 +178,9 @@ static void write_pixel(rf_image *image,uint32_t left,uint32_t top,
     for(c=0;c<3;c++)dst[c]=(unsigned char)((rgba[c]*alpha+dst[c]*(255-alpha)+127)/255);
     dst[3]=255;
 }
-static int image_into(rf_image *image,uint32_t left,uint32_t top,
+static int image_crop_into(rf_image *image,uint32_t left,uint32_t top,
     uint32_t limit_width,uint32_t limit_height,const menu_source *source,
-    uint32_t expected_width,uint32_t expected_height,int blend)
+    uint32_t expected_width,uint32_t expected_height,int blend,uint32_t crop_x,uint32_t crop_y)
 {
     menu_reader r;menu_image_info info;unsigned char h[32],p[4],rgba[4],id[255];
     uint32_t at=0,total,stride,alpha;int status;
@@ -176,24 +189,31 @@ static int image_into(rf_image *image,uint32_t left,uint32_t top,
        limit_height>image->height-top)return RF_RANGE;
     status=image_info(source,&info);if(status)return status;
     if(info.width!=expected_width || info.height!=expected_height)return RF_FORMAT;
+    if(crop_x>=info.width || crop_y>=info.height)return RF_OK;
     memset(&r,0,sizeof(r));r.source=source;total=info.width*info.height;
-    if(info.vbm){
-        r.offset=32;
-        while(at<total){
-            uint32_t v,format=info.format;
-            status=read_bytes(&r,p,2);if(status)return status;v=u16(p);
-            /* VBM disk format1 maps to original ARGB4444 format4. V1
-             * disk format0 maps to1555 and flips alpha, including0xffff. */
-            if(format==0 && info.version==1)v^=0x8000;
-            if(format==1){
-                rgba[0]=(unsigned char)(((v>>8)&15)*17);rgba[1]=(unsigned char)(((v>>4)&15)*17);
-                rgba[2]=(unsigned char)((v&15)*17);rgba[3]=(unsigned char)((v>>12)*17);
-            }else{
-                rgba[0]=(unsigned char)(((v>>(format==2?11:10))&31)*255/31);
-                rgba[1]=(unsigned char)(((v>>5)&(format==2?63:31))*255/(format==2?63:31));
-                rgba[2]=(unsigned char)((v&31)*255/31);rgba[3]=(unsigned char)(format==0?(v&32768?255:0):255);
+    if(!info.vbm){status=rf_vpp_read(source->archive,&source->entry,0,h,18);if(status)return status;}
+    if(info.vbm || h[2]==2){
+        uint32_t yy,xx,w=info.width-crop_x,hh=info.height-crop_y;
+        uint32_t base=info.vbm?32:18+h[0];
+        stride=info.vbm?2:h[16]/8;
+        if(w>limit_width)w=limit_width;if(hh>limit_height)hh=limit_height;
+        for(yy=0;yy<hh;yy++){
+            uint32_t sy=crop_y+yy,sx=crop_x;
+            if(!info.vbm){if(!(h[17]&32))sy=info.height-1-sy;if(h[17]&16)sx=info.width-crop_x-w;}
+            {uint32_t offset=base+(sy*info.width+sx)*stride;
+            /* Full uncropped VBM/top-origin rows continue through the same
+             * bounded reader; only a genuine crop/orientation gap seeks. */
+            if(r.offset-(r.count-r.cursor)!=offset){r.offset=offset;r.cursor=r.count=0;}}
+            for(xx=0;xx<w;xx++){
+                uint32_t dx=xx;status=read_bytes(&r,p,stride);if(status)return status;
+                if(info.vbm){
+                    uint32_t v=u16(p),format=info.format;
+                    if(format==0 && info.version==1)v^=0x8000;
+                    if(format==1){rgba[0]=((v>>8)&15)*17;rgba[1]=((v>>4)&15)*17;rgba[2]=(v&15)*17;rgba[3]=(v>>12)*17;}
+                    else {rgba[0]=((v>>(format==2?11:10))&31)*255/31;rgba[1]=((v>>5)&(format==2?63:31))*255/(format==2?63:31);rgba[2]=(v&31)*255/31;rgba[3]=format==0?(v&32768?255:0):255;}
+                }else{rgba[0]=p[2];rgba[1]=p[1];rgba[2]=p[0];rgba[3]=(h[17]&15)==8?p[3]:255;if(h[17]&16)dx=w-1-xx;}
+                write_pixel(image,left,top,limit_width,limit_height,dx,yy,rgba,blend);
             }
-            write_pixel(image,left,top,limit_width,limit_height,at%info.width,at/info.width,rgba,blend);++at;
         }
         return RF_OK;
     }
@@ -212,11 +232,14 @@ static int image_into(rf_image *image,uint32_t left,uint32_t top,
             if(!repeat || !i){status=read_bytes(&r,p,stride);if(status)return status;}
             if(h[17]&16)x=info.width-1-x;if(!(h[17]&32))y=info.height-1-y;
             rgba[0]=p[2];rgba[1]=p[1];rgba[2]=p[0];rgba[3]=alpha==8?p[3]:255;
-            write_pixel(image,left,top,limit_width,limit_height,x,y,rgba,blend);
+            if(x>=crop_x && y>=crop_y)write_pixel(image,left,top,limit_width,limit_height,x-crop_x,y-crop_y,rgba,blend);
         }
     }
     return RF_OK;
 }
+static int image_into(rf_image *image,uint32_t left,uint32_t top,
+    uint32_t width,uint32_t height,const menu_source *source,uint32_t sw,uint32_t sh,int blend)
+{return image_crop_into(image,left,top,width,height,source,sw,sh,blend,0,0);}
 static int append_rect(menu_plan *p,menu_rect *r)
 {
     if(!r->w)return RF_OK;
@@ -303,62 +326,218 @@ static void black_slab(rf_image *image,uint32_t x,uint32_t y,uint32_t w,uint32_t
     for(yy=0;yy<h && y+yy<MENU_HEIGHT;yy++)for(xx=0;xx<w && x+xx<MENU_WIDTH;xx++)
         write_pixel(image,x,y,MENU_WIDTH-x,MENU_HEIGHT-y,xx,yy,rgba,1);
 }
-static int composite_named(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,
-    const char *name,const char *alternate,uint32_t x,uint32_t y)
+static int cached_page_source(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,
+    const char *name,const char *alternate,menu_source *out)
 {
-    menu_source source;menu_image_info info;int status=source_find(&source,stock,overlay,name,alternate);
-    if(status)return status;status=image_info(&source,&info);if(status)return status;
-    return image_into(&a->canvas,x,y,MENU_WIDTH-x,MENU_HEIGHT-y,&source,info.width,info.height,1);
+    static const char *const names[]={"mars_background.tga","main_title.vbm","titlebar.vbm",
+        "gamesettings_panel.vbm","controls_panel.vbm","audio_panel.vbm","loadgame_panel.tga",
+        "popup_buttons.vbm","popup_top.vbm"};
+    uint32_t i;int status;
+    if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
+    for(i=0;i<9;i++)if(!strcmp(name,names[i]))break;
+    if(i==9)return RF_RANGE;
+    if(!a->source_cached[i]){
+        status=source_find(a->page_sources+i,stock,overlay,name,alternate);if(status)return status;
+        a->source_cached[i]=1;
+    }
+    *out=a->page_sources[i];return RF_OK;
 }
+static int composite_named(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,
+    const char *name,const char *alternate,int32_t x,int32_t y)
+{
+    menu_source source;menu_image_info info;
+    uint32_t cx=x<0?(uint32_t)-x:0,cy=y<0?(uint32_t)-y:0;
+    int status=cached_page_source(a,stock,overlay,name,alternate,&source);if(status)return status;
+    status=image_info(&source,&info);if(status)return status;
+    if(x>=(int32_t)MENU_WIDTH || y>=(int32_t)MENU_HEIGHT)return RF_OK;
+    if(x<0)x=0;if(y<0)y=0;
+    return image_crop_into(&a->canvas,x,y,MENU_WIDTH-x,MENU_HEIGHT-y,&source,info.width,info.height,1,cx,cy);
+}
+static int prepare_popup(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay)
+{
+    uint32_t part;int status;
+    for(part=0;part<4;part++){
+        menu_source source;menu_image_info info;const menu_rect *r=popup_rects+part;
+        status=cached_page_source(a,stock,overlay,part&1?"popup_buttons.vbm":"popup_top.vbm",
+            part&1?"popup_buttons.tga":"popup_top.tga",&source);if(status)return status;
+        status=image_info(&source,&info);if(status)return status;
+        if(info.width!=400 || info.height!=r->h)return RF_FORMAT;
+        status=image_crop_into(&a->canvas,r->x,r->y,r->w,r->h,&source,400,r->h,0,part>=2?382:0,0);
+        if(status)return status;gutter(&a->canvas,r);
+    }
+    return RF_OK;
+}
+static int prepare_title(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay)
+{
+    menu_source source;menu_image_info info;uint32_t part;int status;
+    status=cached_page_source(a,stock,overlay,"titlebar.vbm","titlebar.tga",&source);if(status)return status;
+    status=image_info(&source,&info);if(status)return status;
+    if(info.width!=512 || info.height!=64)
+        return composite_named(a,stock,overlay,"titlebar.vbm","titlebar.tga",a->title_x,0);
+    for(part=0;part<2;part++){
+        const menu_rect *r=title_rects+part;
+        status=image_crop_into(&a->canvas,r->x,r->y,r->w,r->h,&source,512,64,0,part?382:0,0);
+        if(status)return status;gutter(&a->canvas,r);
+    }
+    a->title_cached=1;
+    return RF_OK;
+}
+static int composited_body(uint32_t page)
+{return page==RF_MENU_PAGE_LOAD || page==RF_MENU_PAGE_GAME || page==RF_MENU_PAGE_CONTROLS || page==RF_MENU_PAGE_BUTTONS || page==RF_MENU_PAGE_AUDIO;}
+static int cached_title(uint32_t page)
+{return page==RF_MENU_PAGE_OPTIONS || page==RF_MENU_PAGE_DIFFICULTY;}
 static int prepare_open_page(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,uint32_t page)
 {
     const char *panel=NULL,*alternate=NULL;int status;
-    a->ready=0;opaque_black(&a->canvas);
-    status=composite_named(a,stock,overlay,"mars_background.tga",NULL,0,0);if(status)return status;
-    if(page==RF_MENU_PAGE_MAIN)return composite_named(a,stock,overlay,"main_title.vbm","main_title.tga",125,58);
+    a->ready=0;a->title_cached=0;opaque_black(&a->canvas);
+    status=composite_named(a,stock,overlay,"mars_background.tga",NULL,-a->crop_x,0);if(status)return status;
+    if(page==RF_MENU_PAGE_MAIN)return composite_named(a,stock,overlay,"main_title.vbm","main_title.tga",a->title_x,58);
     if(page==RF_MENU_PAGE_EXIT){
         /* Source455c00/4561b0: two buttons move the bottom picture to y148.
          * Original455f20 draws backing, bottom, top, then text/buttons. */
-        status=composite_named(a,stock,overlay,"main_title.vbm","main_title.tga",125,58);if(status)return status;
-        black_slab(&a->canvas,130,158,380,163);
-        status=composite_named(a,stock,overlay,"popup_buttons.vbm","popup_buttons.tga",120,148);if(status)return status;
-        return composite_named(a,stock,overlay,"popup_top.vbm","popup_top.tga",120,120);
+        status=composite_named(a,stock,overlay,"main_title.vbm","main_title.tga",a->title_x,58);if(status)return status;
+        return prepare_popup(a,stock,overlay);
     }
     /* Original44f065/44f707: titlebar y63c070 is zero, before body44f7ca..803.
      * Source title text at265,12 never overlaps the body beginning y58. */
-    status=composite_named(a,stock,overlay,"titlebar.vbm","titlebar.tga",125,0);if(status)return status;
+    status=cached_title(page)?prepare_title(a,stock,overlay):
+        composite_named(a,stock,overlay,"titlebar.vbm","titlebar.tga",a->title_x,0);if(status)return status;
     if(page==RF_MENU_PAGE_LOAD){
         /* Source44011f/440177 settles the599x366 panel at x33, not125. */
-        black_slab(&a->canvas,43,68,599,346);
-        return composite_named(a,stock,overlay,"loadgame_panel.tga",NULL,33,58);
+        black_slab(&a->canvas,a->body_x+10,68,599,346);
+        return composite_named(a,stock,overlay,"loadgame_panel.tga",NULL,a->body_x,58);
     }
     switch(page){
     case RF_MENU_PAGE_GAME:panel="gamesettings_panel.vbm";alternate="gamesettings_panel.tga";break;
     case RF_MENU_PAGE_CONTROLS:case RF_MENU_PAGE_BUTTONS:
-        black_slab(&a->canvas,230,68,512,346);panel="controls_panel.vbm";alternate="controls_panel.tga";break;
+        black_slab(&a->canvas,a->body_x+105,68,512,346);panel="controls_panel.vbm";alternate="controls_panel.tga";break;
     case RF_MENU_PAGE_AUDIO:
-        black_slab(&a->canvas,230,123,512,107);panel="audio_panel.vbm";alternate="audio_panel.tga";break;
+        black_slab(&a->canvas,a->body_x+105,123,512,107);panel="audio_panel.vbm";alternate="audio_panel.tga";break;
     default:break;
     }
-    if(panel){status=composite_named(a,stock,overlay,panel,alternate,125,58);if(status)return status;}
+    if(panel){status=composite_named(a,stock,overlay,panel,alternate,a->body_x,58);if(status)return status;}
     return RF_OK;
 }
 int rf_menu_assets_prepare_page(rf_menu_assets *a,uint32_t page)
 {
-    rf_vpp stock={0},overlay={0};int status;
+    int status;
     if(!a || page>=RF_MENU_PAGE_COUNT)return RF_RANGE;
-    if(a->ready && a->page==page)return RF_OK;
+    if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
+    if(a->ready && a->page==page && !a->clock_valid)return RF_OK;
+    a->clock_valid=0;a->departure=0;a->panorama=0;a->crop_x=0;
+    a->title_x=125;a->body_x=page==RF_MENU_PAGE_LOAD?33:125;a->rail_x=11;
     a->ready=0;
-    status=archives_open(a,&stock,&overlay);
-    if(!status)status=prepare_open_page(a,&stock,&overlay,page);
-    status=archives_close(&stock,&overlay,status);
+    if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
+    status=prepare_open_page(a,&a->stock,&a->overlay,page);
     if(!status){a->page=page;a->ready=1;}
     return status;
 }
-void rf_menu_assets_close(rf_menu_assets *a)
+/* Original442ce0 panorama15px/s;443620/44f69a panel2048px/s;
+ * category rail4*resolved button width/s. Clock belongs to presentation only.
+ * No per-frame allocations; archive/texture mutations stay under caller fence. */
+static int options_family(uint32_t page)
+{return page>=RF_MENU_PAGE_OPTIONS && page<=RF_MENU_PAGE_BUTTONS;}
+static int32_t entering_x(uint32_t age,int32_t target)
+{uint32_t distance=(uint32_t)(637-target),travel=age>=1000?2048:age*2048/1000;return travel>=distance?target:637-(int32_t)travel;}
+int rf_menu_assets_prepare_frame(rf_menu_assets *a,uint32_t page,uint32_t now)
+{
+    uint32_t dt,old_page;int32_t crop,title,body,rail;int changed,status;
+    if(!a || page>=RF_MENU_PAGE_COUNT)return RF_RANGE;
+    if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
+    old_page=a->page;dt=a->clock_valid?now-a->last_ms:0;
+    changed=!a->clock_valid || old_page!=page;
+    if(!a->clock_valid){a->title_ms=a->rail_ms=a->body_ms=now;a->clock_valid=1;}
+    else if(changed){
+        if(a->departure==2 || (!(options_family(old_page) && options_family(page)) && page!=RF_MENU_PAGE_EXIT && old_page!=RF_MENU_PAGE_EXIT))
+            a->title_ms=a->rail_ms=now;
+        a->body_ms=now;a->departure=0;
+    }
+    a->last_ms=now;
+    a->panorama+=(float)dt*.015f;
+    if(a->background_width<=640 || a->panorama>(float)(a->background_width-640))a->panorama=0;
+    crop=(int32_t)a->panorama;
+    title=entering_x(now-a->title_ms,125);
+    body=entering_x(now-a->body_ms,page==RF_MENU_PAGE_LOAD?33:125);
+    {uint32_t age=now-a->rail_ms,w=a->sprites[RF_MENU_BUTTON].w;
+    rail=age>=250?11:11-(int32_t)(w-(uint64_t)w*age/250);}
+    if(page==RF_MENU_PAGE_EXIT){title=125;body=125;rail=11;}
+    if(a->departure){
+        uint32_t age=now-a->departure_ms,travel=age>=1000?2048:age*2048/1000;
+        body=travel>=(uint32_t)(637-a->departure_body)?637:a->departure_body+(int32_t)travel;
+        title=a->departure_title;rail=a->departure_rail;
+        if(a->departure==2){
+            uint32_t w=a->sprites[RF_MENU_BUTTON].w,step=age>=1000?w*4:(uint32_t)((uint64_t)w*4*age/1000);
+            int32_t target=11-(int32_t)w;
+            title=travel>=(uint32_t)(637-a->departure_title)?637:a->departure_title+(int32_t)travel;
+            rail=step>=(uint32_t)(a->departure_rail-target)?target:a->departure_rail-(int32_t)step;
+        }
+    }
+    if(!changed && a->ready && crop==a->crop_x && title==a->title_x && body==a->body_x && rail==a->rail_x)return RF_OK;
+    /* Cached titlebar and widgets move as geometry; absent body panels never
+     * invalidate background pixels. Main title/body artwork still composes. */
+    if(!changed && a->ready && crop==a->crop_x &&
+       (a->title_cached || title==a->title_x) &&
+       (!composited_body(page) || body==a->body_x)){
+        a->title_x=title;a->body_x=body;a->rail_x=rail;return RF_OK;
+    }
+    a->crop_x=crop;a->title_x=title;a->body_x=body;a->rail_x=rail;a->ready=0;
+    if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
+    status=prepare_open_page(a,&a->stock,&a->overlay,page);
+    if(!status){a->page=page;a->ready=1;}
+    return status;
+}
+int rf_menu_assets_begin_departure(rf_menu_assets *a,uint32_t shell,uint32_t now)
+{
+    if(!a || !a->ready || !a->clock_valid || shell>1)return RF_RANGE;
+    if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
+    if(a->departure)return RF_RANGE;
+    a->departure=shell?2:1;a->departure_ms=now;
+    a->departure_title=a->title_x;a->departure_body=a->body_x;a->departure_rail=a->rail_x;
+    return RF_OK;
+}
+int rf_menu_assets_departure_done(const rf_menu_assets *a)
+{
+    if(!a || !a->departure || !a->ready)return 0;
+    return a->body_x==637 && (a->departure==1 ||
+        (a->title_x==637 && a->rail_x==11-(int32_t)a->sprites[RF_MENU_BUTTON].w));
+}
+int rf_menu_assets_page_ready(const rf_menu_assets *a,uint32_t page)
+{return a && a->ready && !a->close_failed && a->page==page && rf_vpp_checked_idle_status()==RF_OK;}
+/* Dirty-input loops also need presentation ticks. Settled640-wide overlays
+ * stay idle; panoramas redraw only on a changed integer source crop. */
+int rf_menu_assets_redraw_due(const rf_menu_assets *a,uint32_t now)
+{
+    uint32_t dt;float offset;
+    if(!a)return 0;
+    if(!a->ready || !a->clock_valid)return 1;
+    dt=now-a->last_ms;if(dt<16)return 0;
+    if(a->departure)return !rf_menu_assets_departure_done(a);
+    if(a->title_x!=125 || a->rail_x!=11 ||
+       a->body_x!=(a->page==RF_MENU_PAGE_LOAD?33:125))return 1;
+    if(a->background_width<=640)return 0;
+    offset=a->panorama+(float)dt*.015f;
+    if(offset>(float)(a->background_width-640))offset=0;
+    return (int32_t)offset!=a->crop_x;
+}
+int32_t rf_menu_assets_title_offset(const rf_menu_assets *a){return a?a->title_x-125:0;}
+int32_t rf_menu_assets_body_offset(const rf_menu_assets *a){return a?a->body_x-(a->page==RF_MENU_PAGE_LOAD?33:125):0;}
+int32_t rf_menu_assets_rail_offset(const rf_menu_assets *a){return a?a->rail_x-11:0;}
+static void assets_free(rf_menu_assets *a)
 {
     if(!a)return;rf_image_close(&a->canvas);rf_image_close(&a->atlas);
     rf_image_close(a->bars);rf_image_close(a->bars+1);free(a);
+}
+int rf_menu_assets_close(rf_menu_assets *a)
+{
+    int status;
+    if(!a)return RF_OK;
+    if(a->close_failed)return RF_IO;
+    /* Close each checked stream exactly once. On uncertainty keep the menu
+     * owner as an admission barrier, but never retain/retry a FILE pointer. */
+    a->ready=0;
+    status=archives_close(&a->stock,&a->overlay,RF_OK);
+    if(status){a->close_failed=1;a->ready=0;return status;}
+    assets_free(a);return RF_OK;
 }
 int rf_menu_assets_open(rf_menu_assets **out,const char *stock_path,const char *overlay_path,uint32_t budget)
 {
@@ -370,9 +549,13 @@ int rf_menu_assets_open(rf_menu_assets **out,const char *stock_path,const char *
         (uint64_t)MENU_CANVAS_WIDTH*MENU_CANVAS_HEIGHT*4+(uint64_t)MENU_ATLAS_WIDTH*MENU_ATLAS_HEIGHT*4;
     if(used>budget)return RF_RANGE;
     a=calloc(1,sizeof(*a));p=calloc(1,sizeof(*p));if(!a || !p){status=RF_IO;goto done;}
+    a->title_x=a->body_x=125;a->rail_x=11;
     a->budget=budget;strcpy(a->stock_path,stock_path);if(overlay_path)strcpy(a->overlay_path,overlay_path);
     status=archives_open(a,&stock,&overlay);if(status)goto done;
-    resident=sizeof(*a)+(uint64_t)MENU_CANVAS_WIDTH*MENU_CANVAS_HEIGHT*4+
+    {menu_source bg;menu_image_info bi;
+    status=source_find(&bg,&stock,&overlay,"mars_background.tga",NULL);if(status)goto done;
+    status=image_info(&bg,&bi);if(status)goto done;a->background_width=bi.width;}
+    resident=sizeof(*a)+MENU_SCRATCH_RESERVE+(uint64_t)MENU_CANVAS_WIDTH*MENU_CANVAS_HEIGHT*4+
         (uint64_t)MENU_ATLAS_WIDTH*MENU_ATLAS_HEIGHT*4;
     for(i=1;i<RF_MENU_SPRITE_COUNT;i++){
         menu_rect *r=a->sprites+i;menu_image_info info;const char *alternate=NULL;
@@ -421,20 +604,36 @@ int rf_menu_assets_open(rf_menu_assets **out,const char *stock_path,const char *
             gutter(&a->atlas,r);
         }
     }
-    status=prepare_open_page(a,&stock,&overlay,RF_MENU_PAGE_MAIN);
+    /* Transfer validated handles before caching page entries, so cached
+     * archive pointers refer to the stable owner, never these local handles. */
+    a->stock=stock;a->overlay=overlay;memset(&stock,0,sizeof(stock));memset(&overlay,0,sizeof(overlay));
+    status=prepare_open_page(a,&a->stock,&a->overlay,RF_MENU_PAGE_MAIN);
  done:
     /* A failed checked close prevents publication and latches further opens.
      * Each owned handle is closed exactly once even after the first failure. */
     status=archives_close(&stock,&overlay,status);
     if(p){for(i=0;i<RF_MENU_FONT_COUNT;i++)free(p->font_data[i]);free(p);}
     if(!status){a->page=RF_MENU_PAGE_MAIN;a->ready=1;*out=a;a=NULL;}
-    rf_menu_assets_close(a);return status;
+    if(a){status=archives_close(&a->stock,&a->overlay,status);assets_free(a);}
+    return status;
 }
 static void sprite(const rf_image *image,const menu_rect *r,rf_hud_sprite *out)
 {
     out->image=image;out->width=r->w;out->height=r->h;
     out->uv[0]=(float)r->x/image->width;out->uv[1]=(float)r->y/image->height;
     out->uv[2]=(float)(r->x+r->w)/image->width;out->uv[3]=(float)(r->y+r->h)/image->height;
+}
+int rf_menu_assets_title_piece(const rf_menu_assets *a,uint32_t part,rf_hud_sprite *out)
+{
+    if(!a || !out || part>=2)return RF_RANGE;
+    if(!a->ready || !a->title_cached || !cached_title(a->page))return RF_NOT_FOUND;
+    sprite(&a->canvas,title_rects+part,out);return RF_OK;
+}
+int rf_menu_assets_popup_piece(const rf_menu_assets *a,uint32_t part,rf_hud_sprite *out)
+{
+    if(!a || !out || part>=4)return RF_RANGE;
+    if(!a->ready || a->page!=RF_MENU_PAGE_EXIT)return RF_NOT_FOUND;
+    sprite(&a->canvas,popup_rects+part,out);return RF_OK;
 }
 int rf_menu_assets_sprite(const rf_menu_assets *a,uint32_t id,rf_hud_sprite *out)
 {

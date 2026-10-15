@@ -13,6 +13,9 @@ int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uin
  * before gameplay, Dashboard admission or caller return. No savedata writes. */
 int rf_xbox_menu_open(void);
 int rf_xbox_menu_close(void);
+int rf_xbox_menu_redraw_due(void);
+int rf_xbox_menu_begin_departure(uint32_t shell);
+int rf_xbox_menu_departure_done(void);
 /* True only for image/source admission failures with all checked archives
  * closed successfully; never use this to hide native-close or input errors. */
 int rf_xbox_menu_art_failed(void);

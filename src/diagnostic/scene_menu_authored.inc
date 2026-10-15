@@ -1,6 +1,19 @@
 #include "rf/menu_assets.h"
 /* Authored source geometry plus Xbox-specific functional settings. The asset
  * owner and platform input/storage remain outside this draw-only layer. */
+typedef struct scene_menu_motion_context {
+    rf_scene_particle_sink sink;void *context;float dx;
+} scene_menu_motion_context;
+/* Body widgets use their own source panel origin; viewport decorations and
+ * category/title rails remain on their independent presentation tracks. */
+static int scene_menu_motion_present(void *context,const rf_particle_draw_vertex *vertices,
+    uint32_t count,const rf_image *image,uint32_t mode)
+{
+    scene_menu_motion_context *m=context;rf_particle_draw_vertex moved[4];uint32_t i;
+    if(!m || !vertices || count>4)return RF_RANGE;
+    for(i=0;i<count;i++){moved[i]=vertices[i];moved[i].screen[0]+=m->dx;}
+    return m->sink(m->context,moved,count,image,mode);
+}
 static int scene_menu_sprite(rf_scene_particle_sink sink,void *context,const rf_menu_assets *a,
     uint32_t id,float x,float y,uint32_t color,uint32_t additive)
 {
@@ -43,7 +56,23 @@ static int scene_menu_centered(const rf_menu_assets *a,rf_scene_particle_sink si
     float y,const char *text,uint32_t color)
 {return scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,24,y,592,text,color,1);}
 static int scene_menu_background(const rf_menu_assets *a,rf_scene_particle_sink sink,void *context)
-{return scene_menu_sprite(sink,context,a,RF_MENU_BACKGROUND,0,0,0xffffffffu,0);}
+{
+    uint32_t part,i;int status=scene_menu_sprite(sink,context,a,RF_MENU_BACKGROUND,0,0,0xffffffffu,0);
+    if(status)return status;
+    for(part=0;part<2;part++){
+        rf_hud_sprite sp;rf_particle_draw_vertex v[4]={{0}};
+        status=rf_menu_assets_title_piece(a,part,&sp);
+        if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
+        for(i=0;i<4;i++){
+            uint32_t right=i==1||i==2,bottom=i>=2;
+            v[i].screen[0]=125+rf_menu_assets_title_offset(a)+(part?382:0)+(right?sp.width:0);
+            v[i].screen[1]=bottom?sp.height:0;v[i].reciprocal_w=1;v[i].argb=0xffffffffu;
+            v[i].uv[0]=sp.uv[right?2:0];v[i].uv[1]=sp.uv[bottom?3:1];
+        }
+        status=sink(context,v,4,sp.image,RF_PARTICLE_NORMAL_MODE&~(31u<<20));if(status)return status;
+    }
+    return RF_OK;
+}
 static int scene_menu_borders(const rf_menu_assets *a,rf_scene_particle_sink sink,void *context)
 {
     uint32_t side,i;int status;
@@ -65,17 +94,45 @@ static int scene_menu_borders(const rf_menu_assets *a,rf_scene_particle_sink sin
 static int scene_menu_button(const rf_menu_assets *a,rf_scene_particle_sink sink,void *context,
     uint32_t row,const char *text,uint32_t selected,uint32_t more,uint32_t disabled)
 {
-    float y=58+row*61;uint32_t height=rf_menu_assets_font_height(a,RF_MENU_FONT_MEDIUM);int status;
-    status=scene_menu_sprite(sink,context,a,more?RF_MENU_BUTTON_MORE:RF_MENU_BUTTON,11,y,0xffffffffu,0);if(status)return status;
-    if(selected){status=scene_menu_sprite(sink,context,a,RF_MENU_BUTTON_SELECTED,11,y,0xffffffffu,1);if(status)return status;}
-    return scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,11,y+(61-height)*.5f,204,text,
+    float x=11+rf_menu_assets_rail_offset(a),y=58+row*61;uint32_t height=rf_menu_assets_font_height(a,RF_MENU_FONT_MEDIUM);int status;
+    status=scene_menu_sprite(sink,context,a,more?RF_MENU_BUTTON_MORE:RF_MENU_BUTTON,x,y,0xffffffffu,0);if(status)return status;
+    if(selected){status=scene_menu_sprite(sink,context,a,RF_MENU_BUTTON_SELECTED,x,y,0xffffffffu,1);if(status)return status;}
+    return scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,x,y+(61-height)*.5f,204,text,
         disabled?0xff606060u:selected?0xfff0f0f0u:0xffc0c0c0u,1);
+}
+static int scene_menu_main_rail(const rf_menu_assets *a,rf_scene_particle_sink sink,void *context,uint32_t selection)
+{
+    uint32_t i;int status;
+    for(i=0;i<4;i++){
+        const char *label=i==0?scene_text(42,"NEW GAME"):i==1?scene_text(43,"OPTIONS"):
+            i==2?scene_text(986,"LOAD GAME"):"EXIT";
+        status=scene_menu_button(a,sink,context,i,label,i==selection,i<3,0);if(status)return status;
+    }
+    return RF_OK;
+}
+static int scene_menu_popup_art(const rf_menu_assets *a,rf_scene_particle_sink sink,void *context)
+{
+    static const uint32_t order[4]={1,3,0,2};uint32_t n;int status;
+    status=combat_hud_rect(sink,context,130,158,380,163,0x80000000u);if(status)return status;
+    for(n=0;n<4;n++){
+        uint32_t part=order[n],i;rf_hud_sprite sp;rf_particle_draw_vertex v[4]={{0}};
+        float x=part>=2?502:120,y=part&1?148:120;
+        status=rf_menu_assets_popup_piece(a,part,&sp);if(status)return status;
+        for(i=0;i<4;i++){
+            uint32_t right=i==1||i==2,bottom=i>=2;
+            v[i].screen[0]=x+(right?sp.width:0);v[i].screen[1]=y+(bottom?sp.height:0);
+            v[i].uv[0]=sp.uv[right?2:0];v[i].uv[1]=sp.uv[bottom?3:1];
+            v[i].reciprocal_w=1;v[i].argb=0xffffffffu;
+        }
+        status=sink(context,v,4,sp.image,RF_PARTICLE_NORMAL_MODE&~(31u<<20));if(status)return status;
+    }
+    return RF_OK;
 }
 static int scene_menu_options_shell(const rf_menu_assets *a,rf_scene_particle_sink sink,void *context,uint32_t category)
 {
     static const char *const names[]={"GAME","VIDEO","AUDIO","CONTROLS","BACK"};
     uint32_t i;int status=scene_menu_background(a,sink,context);if(status)return status;
-    status=scene_menu_text(a,sink,context,RF_MENU_FONT_LARGE,265,12,320,scene_text(114,"Options"),0xff000000u,0);if(status)return status;
+    status=scene_menu_text(a,sink,context,RF_MENU_FONT_LARGE,265+rf_menu_assets_title_offset(a),12,320,scene_text(114,"Options"),0xff000000u,0);if(status)return status;
     for(i=0;i<5;i++){
         status=scene_menu_button(a,sink,context,i,scene_text(784+i,names[i]),i==category,i<4,i==1);if(status)return status;
     }
@@ -140,6 +197,7 @@ static int scene_menu_lit_button(const rf_menu_assets *a,rf_scene_particle_sink 
 int rf_scene_draw_options_page(rf_scene_particle_sink sink,void *context,const rf_menu_assets *a,
     uint32_t page,uint32_t selection,uint32_t flags,uint32_t sensitivity,uint32_t invert,uint32_t deadzone)
 {
+    scene_menu_motion_context motion={sink,context,(float)rf_menu_assets_body_offset(a)};
     static const uint32_t game[]={RF_SCENE_OPTIONS_LANGUAGE,RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_SAVE,RF_SCENE_OPTIONS_BACK};
     static const uint32_t controls[]={RF_SCENE_OPTIONS_SENSITIVITY,RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,
         RF_SCENE_OPTIONS_STICK_LAYOUT,RF_SCENE_OPTIONS_BUTTONS,RF_SCENE_OPTIONS_BACK};
@@ -152,6 +210,7 @@ int rf_scene_draw_options_page(rf_scene_particle_sink sink,void *context,const r
     status=scene_menu_options_shell(a,sink,context,page==RF_SCENE_OPTIONS_PAGE_ROOT?selection:
         page==RF_SCENE_OPTIONS_PAGE_GAME?RF_SCENE_OPTIONS_CATEGORY_GAME:RF_SCENE_OPTIONS_CATEGORY_CONTROLS);if(status)return status;
     if(flags&RF_SCENE_OPTIONS_DISCONNECTED)return scene_menu_options_footer(a,sink,context,flags);
+    sink=scene_menu_motion_present;context=&motion;
     if(page==RF_SCENE_OPTIONS_PAGE_ROOT){
         static const char *const descriptions[]={"TEXT LANGUAGE AND SAVED SETTINGS","CONSOLE VIDEO SETTINGS ARE FIXED",
             "MASTER, EFFECTS AND MUSIC VOLUME","CONTROLLER SETTINGS AND BUTTON MAPPING","RETURN TO THE PREVIOUS MENU"};
@@ -209,17 +268,19 @@ int rf_scene_draw_options_page(rf_scene_particle_sink sink,void *context,const r
     status=scene_menu_storage_notice(a,sink,context,flags);if(status)return status;
     if(flags&RF_SCENE_OPTIONS_AUDIO_ERROR){status=scene_menu_text(a,sink,context,RF_MENU_FONT_SMALL,235,391,390,
         "AUDIO APPLY FAILED   OPEN AUDIO TO RETRY",0xffffc060u,0);if(status)return status;}
-    return scene_menu_options_footer(a,sink,context,flags);
+    return scene_menu_options_footer(a,motion.sink,motion.context,flags);
 }
 int rf_scene_draw_authored_audio_options(rf_scene_particle_sink sink,void *context,const rf_menu_assets *a,
     uint32_t selection,uint32_t flags,uint32_t master,uint32_t effects,uint32_t music)
 {
+    scene_menu_motion_context motion={sink,context,(float)rf_menu_assets_body_offset(a)};
     static const char *const labels[]={"MASTER VOLUME","EFFECTS VOLUME","MUSIC VOLUME","RESET AUDIO","SAVE SETTINGS","BACK"};
     const uint32_t gains[]={master,effects,music};uint32_t i;int status;
     if(!a || !sink || particle_draw_stream || selection>=RF_SCENE_AUDIO_COUNT || master>100 || effects>100 || music>100 ||
        (flags&~(RF_SCENE_OPTIONS_PAUSED|RF_SCENE_OPTIONS_DISCONNECTED|RF_SCENE_OPTIONS_STORAGE_MASK|RF_SCENE_OPTIONS_AUDIO_ERROR)))return RF_RANGE;
     status=scene_menu_options_shell(a,sink,context,RF_SCENE_OPTIONS_CATEGORY_AUDIO);if(status)return status;
     if(flags&RF_SCENE_OPTIONS_DISCONNECTED)return scene_menu_options_footer(a,sink,context,flags);
+    sink=scene_menu_motion_present;context=&motion;
     for(i=0;i<3;i++){
         char text[64];float y=132+i*34;uint32_t color=i==selection?0xfff0f0f0u:0xff000000u;
         if(i==selection){status=scene_menu_sprite(sink,context,a,RF_MENU_INDICATOR_SELECTED,235,y-4,0xffffffffu,1);if(status)return status;}
@@ -237,7 +298,7 @@ int rf_scene_draw_authored_audio_options(rf_scene_particle_sink sink,void *conte
     status=scene_menu_storage_notice(a,sink,context,flags);if(status)return status;
     if(flags&RF_SCENE_OPTIONS_AUDIO_ERROR){status=scene_menu_text(a,sink,context,RF_MENU_FONT_SMALL,235,391,390,
         "AUDIO APPLY FAILED   ADJUST TO RETRY",0xffffc060u,0);if(status)return status;}
-    return scene_menu_options_footer(a,sink,context,flags);
+    return scene_menu_options_footer(a,motion.sink,motion.context,flags);
 }
 /* Compact only the fixed-width list column. The selected full source label
  * remains visible below it, including HOLD for the fine-aim binding. */
@@ -252,6 +313,7 @@ static const char *scene_menu_binding_short(const char *value)
 int rf_scene_draw_authored_button_mapping(rf_scene_particle_sink sink,void *context,const rf_menu_assets *a,
     uint32_t selection,uint32_t flags,const char *const *actions,const char *const *controls)
 {
+    scene_menu_motion_context motion={sink,context,(float)rf_menu_assets_body_offset(a)};
     static const uint32_t action_ids[RF_SCENE_BUTTON_ACTION_COUNT]={145,146,148,147,151,149,152,153,154,150};
     uint32_t i;int status;
     if(!a || !sink || particle_draw_stream || selection>=RF_SCENE_BUTTON_COUNT || !actions || !controls ||
@@ -259,6 +321,7 @@ int rf_scene_draw_authored_button_mapping(rf_scene_particle_sink sink,void *cont
     for(i=0;i<RF_SCENE_BUTTON_ACTION_COUNT;i++)if(!actions[i] || !controls[i])return RF_RANGE;
     status=scene_menu_options_shell(a,sink,context,RF_SCENE_OPTIONS_CATEGORY_CONTROLS);if(status)return status;
     if(flags&RF_SCENE_OPTIONS_DISCONNECTED)return scene_menu_options_footer(a,sink,context,flags);
+    sink=scene_menu_motion_present;context=&motion;
     /* Original450200 list: medium-font12px rows, action x135/binding x305,
      * inside panel-relative135,113,280,164. All ten Xbox bindings fit. */
     if(selection<RF_SCENE_BUTTON_ACTION_COUNT){
@@ -278,7 +341,7 @@ int rf_scene_draw_authored_button_mapping(rf_scene_particle_sink sink,void *cont
      * addition alongside it, within the panel; it is not Change Binding. */
     status=scene_menu_lit_button(a,sink,context,237,386,scene_text(138,"RESET DEFAULTS"),selection==RF_SCENE_BUTTON_DEFAULTS);if(status)return status;
     status=scene_menu_lit_button(a,sink,context,421,386,scene_text(788,"BACK"),selection==RF_SCENE_BUTTON_BACK);if(status)return status;
-    return scene_menu_options_footer(a,sink,context,flags);
+    return scene_menu_options_footer(a,motion.sink,motion.context,flags);
 }
 
 /* Original Load/confirmation widget coordinates. Manual/Autosave and dashboard
@@ -306,9 +369,11 @@ static int scene_menu_popup_choice(const rf_menu_assets *a,rf_scene_particle_sin
 static int scene_menu_load_page(const rf_menu_assets *a,rf_scene_particle_sink sink,
     void *context,uint32_t flags,int session_status,uint32_t selection,uint32_t outcome,int load_status)
 {
+    scene_menu_motion_context motion={sink,context,(float)rf_menu_assets_body_offset(a)};
     static const char *const saves[]={"MANUAL SAVE","AUTOSAVE"};
     uint32_t i;char code[48];int status=scene_menu_background(a,sink,context);if(status)return status;
-    status=scene_menu_text(a,sink,context,RF_MENU_FONT_LARGE,265,12,320,scene_text(986,"Load Game"),0xff000000u,0);if(status)return status;
+    status=scene_menu_text(a,sink,context,RF_MENU_FONT_LARGE,265+rf_menu_assets_title_offset(a),12,320,scene_text(986,"Load Game"),0xff000000u,0);if(status)return status;
+    sink=scene_menu_motion_present;context=&motion;
     /* Source440556 Name box starts at65,90, with its native one-pixel text inset.
      * Date/time/game-time columns are deliberately omitted: no such metadata
      * is provided by the existing two-source frontend. */
@@ -320,13 +385,13 @@ static int scene_menu_load_page(const rf_menu_assets *a,rf_scene_particle_sink s
         snprintf(code,sizeof(code),"ERROR %d - REBOOT REQUIRED",session_status);
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,64,175,489,code,0xc032c8c8u,0);if(status)return status;
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_SMALL,64,199,489,"REPORT THIS ERROR TO THE DEVELOPER",0xc032c8c8u,0);if(status)return status;
-        return scene_menu_borders(a,sink,context);
+        return scene_menu_borders(a,motion.sink,motion.context);
     }
     if(flags&RF_SCENE_FRONTEND_LOADING){
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,64,151,489,"LOADING SAVED GAME",0xc032c8c8u,0);if(status)return status;
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,64,175,489,saves[selection],0xc032c8c8u,0);if(status)return status;
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_SMALL,64,199,489,"VALIDATING SAVED WORLD",0xc032c8c8u,0);if(status)return status;
-        return scene_menu_borders(a,sink,context);
+        return scene_menu_borders(a,motion.sink,motion.context);
     }
     /* Source43f9f0 list: panel33,58 + viewport31,57; cyan493x12 selection
      * strip starts two pixels left of the489px viewport. */
@@ -350,14 +415,16 @@ static int scene_menu_load_page(const rf_menu_assets *a,rf_scene_particle_sink s
     }else{
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_SMALL,64,307,489,"CHOOSE WHICH SAVE TO LOAD",0xc032c8c8u,0);if(status)return status;
     }
-    return scene_menu_frontend_hint(a,sink,context,flags,"D-PAD UP/DOWN   A LOAD / SELECT","B OR START BACK");
+    return scene_menu_frontend_hint(a,motion.sink,motion.context,flags,"D-PAD UP/DOWN   A LOAD / SELECT","B OR START BACK");
 }
 static int scene_menu_exit_page(const rf_menu_assets *a,rf_scene_particle_sink sink,
     void *context,uint32_t flags,int session_status,uint32_t selection)
 {
     char code[48];int status=scene_menu_background(a,sink,context);if(status)return status;
+    status=scene_menu_main_rail(a,sink,context,UINT32_MAX);if(status)return status;
+    status=scene_menu_popup_art(a,sink,context);if(status)return status;
     /* Source455c00/4561b0: medium title/body text boxes have a1px left inset;
-     * two-button popup's top120,120 and bottom120,148 are precomposed. */
+     * two-button popup's top120,120 and bottom120,148 overlay the inactive rail. */
     status=scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,141,128,299,"EXIT TO DASHBOARD",0xff000000u,0);if(status)return status;
     if(session_status){
         status=scene_menu_text(a,sink,context,RF_MENU_FONT_MEDIUM,141,160,349,"DASHBOARD EXIT STOPPED",0xff000000u,0);if(status)return status;
@@ -400,7 +467,7 @@ int rf_scene_draw_authored_frontend(rf_scene_particle_sink sink,void *context,co
     status=scene_menu_background(a,sink,context);if(status)return status;
     if(page!=RF_SCENE_FRONTEND_MAIN){
         const char *title=scene_text(42,"NEW GAME");
-        status=scene_menu_text(a,sink,context,RF_MENU_FONT_LARGE,265,12,320,title,0xff000000u,0);if(status)return status;
+        status=scene_menu_text(a,sink,context,RF_MENU_FONT_LARGE,265+rf_menu_assets_title_offset(a),12,320,title,0xff000000u,0);if(status)return status;
         if(session_status || (flags&RF_SCENE_FRONTEND_LOADING)){
             status=scene_menu_borders(a,sink,context);if(status)return status;
         }
@@ -431,11 +498,7 @@ int rf_scene_draw_authored_frontend(rf_scene_particle_sink sink,void *context,co
         return scene_menu_frontend_hint(a,sink,context,flags,
             "D-PAD UP/DOWN   A START / SELECT","B OR START BACK");
     }
-    for(i=0;i<4;i++){
-        const char *label=i==0?scene_text(42,"NEW GAME"):i==1?scene_text(43,"OPTIONS"):
-            i==2?scene_text(986,"LOAD GAME"):"EXIT";
-        status=scene_menu_button(a,sink,context,i,label,i==selection,i<3,0);if(status)return status;
-    }
+    status=scene_menu_main_rail(a,sink,context,selection);if(status)return status;
     status=scene_menu_borders(a,sink,context);if(status)return status;
     if(flags&RF_SCENE_FRONTEND_DISCONNECTED)
         return scene_menu_centered(a,sink,context,445,"CONNECT A CONTROLLER",0xffffc060u);

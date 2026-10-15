@@ -36,7 +36,8 @@ enum rf_menu_sprite {
  * An absent optional overlay_path may be NULL. A supplied overlay is required
  * to open; malformed resolved overrides never silently select the stock asset.
  * Dimensions are taken from resolved data, not inferred from the stock names.
- * All archives are read-only and closed before returning. No savedata access.
+ * Archives are read-only, validated once and retained by this menu owner.
+ * Fixed page-entry caching never retains a temporary archive pointer. No savedata access.
  * Requires *out initially NULL; failure preserves NULL.
  * Pixel owners survive until explicit close. */
 int rf_menu_assets_open(rf_menu_assets **out,const char *stock_ui_path,
@@ -50,14 +51,33 @@ int rf_menu_assets_open(rf_menu_assets **out,const char *stock_ui_path,
  * opaque black. Stock panorama uses bounded original initial crop(0,0,640,480).
  * MAIN composites full main_title at(125,58); non-main pages use titlebar at
  * (125,0); GAME/CONTROLS/AUDIO/BUTTONS use their original panel at(125,58).
- * OPTIONS and the explicitly adapted DIFFICULTY have no body panel. LOAD uses
+ * OPTIONS and the explicitly adapted DIFFICULTY have no body panel; their
+ * titlebar is cached in two right-strip pieces and drawn as moving geometry. LOAD uses
  * source loadgame_panel at(33,58). EXIT uses main_title behind the source
- * two-choice popup(bottom120,148;top120,120); inactive main buttons are omitted
- * while modal. All page art streams into this same canvas; no cap increase. */
+ * two-choice popup uses four alpha-preserving crops in the unused canvas strip;
+ * scene draws the inactive main rail before bottom120,148/top120,120. No cap increase. */
 int rf_menu_assets_prepare_page(rf_menu_assets *assets,uint32_t page);
-void rf_menu_assets_close(rf_menu_assets *assets);
+/* Presentation-clock entry motion and panorama, fenced exactly like prepare_page.
+ * now_ms is a wrapping monotonic millisecond clock, not a simulation clock. */
+int rf_menu_assets_prepare_frame(rf_menu_assets *assets,uint32_t page,uint32_t now_ms);
+/* Begin departure from the currently presented positions. shell0 moves body;
+ * shell1 moves body/title/category rail. Caller drains only presentation. */
+int rf_menu_assets_begin_departure(rf_menu_assets *assets,uint32_t shell,uint32_t now_ms);
+int rf_menu_assets_departure_done(const rf_menu_assets *assets);
+int rf_menu_assets_page_ready(const rf_menu_assets *assets,uint32_t page);
+int rf_menu_assets_redraw_due(const rf_menu_assets *assets,uint32_t now_ms);
+int32_t rf_menu_assets_title_offset(const rf_menu_assets *assets);
+int32_t rf_menu_assets_body_offset(const rf_menu_assets *assets);
+int32_t rf_menu_assets_rail_offset(const rf_menu_assets *assets);
+/* GPU borrowers must be fenced. A failed checked close retains the owner as
+ * an admission barrier; do not free it or retry underlying FILE handles. */
+int rf_menu_assets_close(rf_menu_assets *assets);
 uint32_t rf_menu_assets_resident_bytes(const rf_menu_assets *assets);
 uint32_t rf_menu_assets_peak_bytes(const rf_menu_assets *assets);
+/* Popup pieces0/2 are top left/right;1/3 bottom left/right, same canvas owner. */
+/* Options/Difficulty titlebar pieces reuse the popup storage on mutually exclusive pages. */
+int rf_menu_assets_title_piece(const rf_menu_assets *assets,uint32_t part,rf_hud_sprite *out);
+int rf_menu_assets_popup_piece(const rf_menu_assets *assets,uint32_t part,rf_hud_sprite *out);
 int rf_menu_assets_sprite(const rf_menu_assets *assets,uint32_t id,rf_hud_sprite *out);
 int rf_menu_assets_glyph(const rf_menu_assets *assets,uint32_t font,uint32_t code,rf_hud_glyph *out);
 int rf_menu_assets_text_width(const rf_menu_assets *assets,uint32_t font,const char *text,uint32_t *out);
