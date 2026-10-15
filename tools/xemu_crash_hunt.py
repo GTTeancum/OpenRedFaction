@@ -16,7 +16,7 @@ import struct
 import subprocess
 import time
 
-from xemu_guest_snapshot import words, snapshot
+from xemu_guest_snapshot import words
 from xemu_host import SessionLock, stop_owned_process
 from xemu_session_guard import require_no_project_xemu
 from xemu_smoke import Monitor
@@ -240,7 +240,15 @@ dvd_path = '{iso.as_posix()}'
                 diagnostic=sample['rf_diagnostic']
                 if diagnostic[2]&0x80000000:
                     result['status']='GUEST_ERROR'
-                    (run/'failure-full.json').write_text(json.dumps(snapshot(monitor,mapping),indent=2))
+                    # Routine gameplay runs retain application-owned telemetry
+                    # already sampled above. Do not automatically expand a game
+                    # error into CPU/register/instruction/stack inspection.
+                    (run/'failure-report.json').write_text(json.dumps({
+                        'kind':'application_telemetry',
+                        'consistency':'Non-atomic sample; no additional failure-time reads.',
+                        'xbe_sha256':result['xbe_sha256'],
+                        'map_sha256':result['map_sha256'],
+                        'sample':sample},indent=2))
                     break
                 # Native terminal success validates the final scene's frame
                 # count. Presentation counts reset on ordinary level reload;

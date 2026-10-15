@@ -133,6 +133,49 @@ membership. No installed toolchain or original assets were edited.
 
 ## Harness
 
+### Workflow revision requested after recurring security interruptions
+
+Read-only comparison on October15:
+
+- C:/Programming/GitHub/OpenJKDF2ogx/tools/xbox_xemu_always_on_soak.ps1
+  prepares a declared MENU/LEVEL plan for one emulator session.
+- C:/Programming/GitHub/OpenJKDF2ogx/src/Main/jkMain.c consumes that plan
+  inside the game, with bounded scenario records and explicit transitions.
+- C:/Programming/GitHub/OpenJKDF2ogx/src/Platform/Xbox/stdControl_xbox.c
+  applies synthetic gamepad data before normal input gates and logs transitions.
+- C:/Programming/GitHub/OpenJKDF2ogx/src/Platform/Xbox/xbox_debug.c writes
+  application logs with important-event flushing and a bounded log mirror.
+- D:/Programming/GitHub/OpenXML1xbox/docs/ISSUE-1-PERFORMANCE.md documents
+  synthetic gameplay kept separate from optional physical input polling.
+
+Adopt the architecture, not these scripts verbatim: their platform assumptions,
+capture options and physical-input paths are outside this task's constraints.
+OpenJKDF2ogx's XEMU log transport also reads guest memory, so copying it is not
+evidence that a security rejection will disappear. No other repository was edited
+or built. No emulator was launched during this workflow review.
+
+Immediate implemented change: ordinary fatal results now save failure-report.json
+from the already-collected application telemetry, with binary/map hashes. Routine
+runs no longer invoke the broad CPU/register/instruction/stack snapshot. Existing
+failure evidence and the separate diagnostic tool remain intact. This change has
+Python syntax/source validation only; it has not been exercised by a new guest run.
+
+Next implementation: one game-owned, opt-in scenario runner with explicit input
+phases, gameplay-state transitions, finite loadouts and application-level event
+reports. Start with the already-established authored encounters, then add the
+remaining explosive/destruction cases. Require actual player/enemy activity and
+scenario-specific events independently of elapsed frames. Count live, dead and
+loading time separately; keep normal death/reload semantics. Host orchestration
+owns only staging, one emulator process, a bounded watchdog, report collection
+and cleanup. Application log transport remains an implementation decision; do not
+claim live file logging or the new scenario runner is implemented yet.
+
+Daybreak's triggering decision is not exposed here. Repository observations do
+not establish its cause. This redesign does not change access controls, use a
+different identity/model to avoid a rejection, disguise requests, or promise that
+security interruptions are resolved. Preserve the session evidence for product
+feedback if the legitimate gameplay work is being misclassified.
+
 Diagnostic loadout5 (rocket) and6 (grenade) extend the same ordinary finite-ammo
 acquisition used by the firearm starts. Their selected resource bit enters the
 existing optional weapon resource planner; normal stock64 admission and all
