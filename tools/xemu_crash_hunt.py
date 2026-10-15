@@ -39,9 +39,13 @@ def main():
     parser.add_argument('--input', choices=('neutral','exercise','combat'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
+    parser.add_argument('--poll-seconds', type=float, default=1.0,
+                        help='Application telemetry interval (0.3..5 seconds); larger intervals may miss short-lived states')
     args = parser.parse_args()
     if not 1 <= args.frames <= 60000 or not 1 <= args.seconds <= 600:
         parser.error('Require 1..60000 frames and 1..600 seconds')
+    if not .3 <= args.poll_seconds <= 5:
+        parser.error('Require 0.3..5 seconds between telemetry samples')
     if args.dev_room and (args.level != 'ctf06.rfl' or args.archive != 'levelsm.vpp'):
         parser.error('This crash-hunt developer profile uses ctf06.rfl from levelsm.vpp')
     if args.firearms and not args.dev_room:
@@ -272,7 +276,7 @@ dvd_path = '{iso.as_posix()}'
                 # replay consumption remains global across those reloads.
                 if diagnostic[1]==9 and diagnostic[2]==5 and sample['rf_player_replay_diagnostic'][2]>=args.frames:
                     result['status']='COMPLETED';break
-                time.sleep(.3)
+                time.sleep(args.poll_seconds)
         print(json.dumps({'run':str(run),'status':result['status'],'observed':result.get('observed'),'enemy_failure':result.get('last',{}).get('rf_scene_enemy_failure')}),flush=True)
     except Exception as exc:
         result['exception']=str(exc)

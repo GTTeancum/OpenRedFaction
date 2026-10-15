@@ -243,6 +243,46 @@ Owned emulator teardown completed. Remaining work includes completing a bounded
 explosive sequence, selecting supported destructive surfaces for combat stress,
 and evaluating action thresholds appropriate to finite explosive loadouts.
 
+Destruction coverage investigation: `scene_terrain_open` only connects terrain
+for the explicit developer paths and the L1S2 campaign Driller path; L1S1 has a
+separate bounded campaign cut. Other ordinary campaign levels, including L2S2a,
+load region hardness but return without connecting a terrain cutter. Thus this
+encounter cannot establish destruction/debris stress regardless of grenade count.
+Do not interpret its zero edits as proof of a projectile/collision failure or
+claim generic campaign destruction coverage. The L1S2 Driller path admits authored
+sources8123/8219; the original actor census has39 actors, including Driller8122
+and nearby guards9774/9767/9768. Candidate positions are retained in
+`artifacts/crash-hunt/l1s2-destruction-candidates.json`; distance alone does not
+establish hostility, sight lines, accessible firing position or coverage. Existing
+PC Driller scripts were read as setup evidence only and were not executed.
+
+`tools/summarize_crash_lifecycle.py` reads saved telemetry offline and reports
+observed dead intervals, frozen live ticks, and resumed live ticks in a subsequent
+scene. It does not connect to XEMU or issue a gameplay pass verdict. Checked against
+the earlier rifle run (no death intervals) and the360-second explosive run (two
+recovered intervals, zero sampled live-tick changes while in phase7). Reports retain
+the non-atomic sampling limitation; frame counts and these transitions do not
+verify visual/audio correctness.
+
+Longer-budget continuation `20261015-192343-L2S2a.rfl` retained the same2400-input
+target and unchanged XBE but reached the600-second watchdog after1328 inputs
+(1117 live,211 dead). The death live-tick boundaries532 and1115 matched the earlier
+run. The first sampled death interval lasted from140.266 to321.735 seconds before
+live gameplay resumed; the second began359.156 seconds and was still loading when
+the watchdog stopped the owned process. Load stages continued advancing, so this
+is not evidence of a fixed load-stage hang. It is TIMEOUT and unqualified; no fatal
+error was reported. Sampled per-scene maxima remained two releases/detonations,
+eleven bounces, twenty enemy shots and four simultaneously alerted actors. No
+destruction or debris was observed. Do not claim that the larger wall budget
+completed the scenario or improved useful live stress.
+
+Routine telemetry now defaults to a one-second interval rather than0.3 seconds,
+with explicit `--poll-seconds` bounds0.3..5. This reduces polling frequency and
+records the selected interval in the recipe. It may miss short-lived states, so
+observations remain conservative and are not exhaustive coverage. Python syntax
+validation passed; the changed polling interval has not yet been runtime-tested,
+and no performance improvement or cause of the slower loading is established.
+
 Daybreak's triggering decision is not exposed here. Repository observations do
 not establish its cause. This redesign does not change access controls, use a
 different identity/model to avoid a rejection, disguise requests, or promise that
