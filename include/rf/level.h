@@ -226,6 +226,9 @@ int rf_level_entity_ai_read(const rf_level_owned_entity *,rf_level_entity_ai *);
  * positive and at most1000000 (same supported authored weapon-range bound).
  * Errors preserve output. This immutable input does not own live AI state. */
 typedef struct rf_level_entity_combat_range {uint32_t enabled;float range;} rf_level_entity_combat_range;
+/* Retained v180 switches: bit0 Timeout permission, bit1 no Humming,
+ * bit2 ordinary Use/Timeout exclusion. No actor flags or gameplay mutation. */
+int rf_level_entity_chatter_flags_read(const rf_level_owned_entity *entity,uint32_t *flags);
 int rf_level_entity_combat_range_read(const rf_level_owned_entity *,rf_level_entity_combat_range *);
 
 /*464212/464225 ->46483c..464874: authored default waypoint name and mode.

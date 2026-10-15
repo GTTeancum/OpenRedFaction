@@ -52,6 +52,7 @@ struct rf_menu_assets {
     menu_font fonts[RF_MENU_FONT_COUNT];
     char stock_path[MENU_PATH_LIMIT],overlay_path[MENU_PATH_LIMIT];
     uint32_t resident,peak,budget,page,ready,title_cached;
+    uint32_t background_window_base,background_window_span,panel_cached;
     uint32_t background_width,clock_valid,last_ms,title_ms,rail_ms,body_ms;
     float panorama;
     int32_t crop_x,title_x,body_x,rail_x;
@@ -62,7 +63,7 @@ struct rf_menu_assets {
  * One-pixel gutters remain outside the visible640x480 background rectangle. */
 static const menu_rect popup_rects[4]={{641,1,382,119},{641,122,382,183},
     {641,308,18,119},{662,308,18,183}};
-static const menu_rect title_rects[2]={{641,1,382,64},{641,67,130,64}};
+static const menu_rect title_rects[3]={{770,1,253,64},{770,67,253,64},{770,133,6,64}};
 static const char *const sprite_names[RF_MENU_SPRITE_COUNT]={
     "mars_background.tga","button.tga","button_more.tga","button_selected.tga",
     "lit_button_selected.tga","lit_button_small_selected.tga",
@@ -165,7 +166,7 @@ static int image_info(const menu_source *s,menu_image_info *out)
 }
 /* The target is either a transparent atlas (replace) or an opaque page
  * (source-over). Source coordinates are never stretched or content-cropped;
- * only the fixed 640x480 viewport clips the authored source canvas. */
+ * bounded destination/crop rectangles clip the authored source canvas. */
 static void write_pixel(rf_image *image,uint32_t left,uint32_t top,
     uint32_t limit_width,uint32_t limit_height,uint32_t x,uint32_t y,
     const unsigned char rgba[4],int blend)
@@ -178,15 +179,13 @@ static void write_pixel(rf_image *image,uint32_t left,uint32_t top,
     for(c=0;c<3;c++)dst[c]=(unsigned char)((rgba[c]*alpha+dst[c]*(255-alpha)+127)/255);
     dst[3]=255;
 }
-static int image_crop_into(rf_image *image,uint32_t left,uint32_t top,
-    uint32_t limit_width,uint32_t limit_height,const menu_source *source,
-    uint32_t expected_width,uint32_t expected_height,int blend,uint32_t crop_x,uint32_t crop_y)
+typedef void (*menu_pixel_sink)(void *,uint32_t,uint32_t,const unsigned char *);
+static int image_decode_crop(const menu_source *source,uint32_t expected_width,uint32_t expected_height,
+    uint32_t crop_x,uint32_t crop_y,uint32_t limit_width,uint32_t limit_height,menu_pixel_sink emit,void *context)
 {
     menu_reader r;menu_image_info info;unsigned char h[32],p[4],rgba[4],id[255];
     uint32_t at=0,total,stride,alpha;int status;
-    if(!image || !image->rgba || image->bytes!=(uint64_t)image->width*image->height*4 ||
-       left>image->width || top>image->height || limit_width>image->width-left ||
-       limit_height>image->height-top)return RF_RANGE;
+    if(!emit)return RF_RANGE;
     status=image_info(source,&info);if(status)return status;
     if(info.width!=expected_width || info.height!=expected_height)return RF_FORMAT;
     if(crop_x>=info.width || crop_y>=info.height)return RF_OK;
@@ -212,7 +211,7 @@ static int image_crop_into(rf_image *image,uint32_t left,uint32_t top,
                     if(format==1){rgba[0]=((v>>8)&15)*17;rgba[1]=((v>>4)&15)*17;rgba[2]=(v&15)*17;rgba[3]=(v>>12)*17;}
                     else {rgba[0]=((v>>(format==2?11:10))&31)*255/31;rgba[1]=((v>>5)&(format==2?63:31))*255/(format==2?63:31);rgba[2]=(v&31)*255/31;rgba[3]=format==0?(v&32768?255:0):255;}
                 }else{rgba[0]=p[2];rgba[1]=p[1];rgba[2]=p[0];rgba[3]=(h[17]&15)==8?p[3]:255;if(h[17]&16)dx=w-1-xx;}
-                write_pixel(image,left,top,limit_width,limit_height,dx,yy,rgba,blend);
+                emit(context,crop_x+dx,crop_y+yy,rgba);
             }
         }
         return RF_OK;
@@ -232,11 +231,69 @@ static int image_crop_into(rf_image *image,uint32_t left,uint32_t top,
             if(!repeat || !i){status=read_bytes(&r,p,stride);if(status)return status;}
             if(h[17]&16)x=info.width-1-x;if(!(h[17]&32))y=info.height-1-y;
             rgba[0]=p[2];rgba[1]=p[1];rgba[2]=p[0];rgba[3]=alpha==8?p[3]:255;
-            if(x>=crop_x && y>=crop_y)write_pixel(image,left,top,limit_width,limit_height,x-crop_x,y-crop_y,rgba,blend);
+            if(x>=crop_x && y>=crop_y && x-crop_x<limit_width && y-crop_y<limit_height)emit(context,x,y,rgba);
         }
     }
     return RF_OK;
 }
+typedef struct menu_copy_sink {rf_image *image;uint32_t left,top,width,height,crop_x,crop_y;int blend;} menu_copy_sink;
+static void image_copy_pixel(void *context,uint32_t x,uint32_t y,const unsigned char *rgba)
+{
+    menu_copy_sink *s=context;
+    write_pixel(s->image,s->left,s->top,s->width,s->height,x-s->crop_x,y-s->crop_y,rgba,s->blend);
+}
+static int image_crop_into(rf_image *image,uint32_t left,uint32_t top,
+    uint32_t width,uint32_t height,const menu_source *source,uint32_t sw,uint32_t sh,int blend,uint32_t crop_x,uint32_t crop_y)
+{
+    menu_copy_sink sink={image,left,top,width,height,crop_x,crop_y,blend};
+    if(!image || !image->rgba || image->bytes!=(uint64_t)image->width*image->height*4 ||
+       left>image->width || top>image->height || width>image->width-left || height>image->height-top)return RF_RANGE;
+    return image_decode_crop(source,sw,sh,crop_x,crop_y,width,height,image_copy_pixel,&sink);
+}
+typedef struct menu_cache_piece {uint16_t sx,sy,sw,sh,x,y;uint32_t clockwise;} menu_cache_piece;
+static const menu_cache_piece main_pieces[2]={{0,0,382,366,641,1,0},{382,0,130,366,641,369,1}};
+static const menu_cache_piece audio_body_pieces[2]={{0,0,382,182,641,1,0},{382,0,130,182,641,185,0}};
+static const menu_cache_piece audio_title_pieces[2]={{0,0,382,64,641,369,0},{382,0,130,64,641,435,0}};
+static const menu_cache_piece settings_body_pieces[2]={{74,0,382,366,641,1,0},{456,0,56,366,641,369,1}};
+static const menu_cache_piece settings_title_pieces[2]={{104,0,382,39,641,427,0},{486,0,26,39,641,468,0}};
+typedef struct menu_cache_sink {rf_image *image;const menu_cache_piece *pieces;uint32_t count,width,height,omitted_alpha;} menu_cache_sink;
+static void image_cache_pixel(void *context,uint32_t x,uint32_t y,const unsigned char *rgba)
+{
+    menu_cache_sink *s=context;uint32_t covered=0;
+    for(uint32_t i=0;i<s->count;i++){
+        const menu_cache_piece *p=s->pieces+i;int32_t w=p->sw,h=p->sh;
+        int32_t left=(int32_t)x-p->sx,right=left,top=(int32_t)y-p->sy,bottom=top;
+        if(left>=0 && left<w && top>=0 && top<h)covered=1;
+        if(!x && !p->sx)left=-1;
+        if(x+1==s->width && (uint32_t)p->sx+p->sw==s->width)right=w;
+        if(!y && !p->sy)top=-1;
+        if(y+1==s->height && (uint32_t)p->sy+p->sh==s->height)bottom=h;
+        if(right < -1 || left>w || bottom < -1 || top>h)continue;
+        if(left < -1)left=-1;if(right>w)right=w;if(top < -1)top=-1;if(bottom>h)bottom=h;
+        for(int32_t yy=top;yy<=bottom;yy++)for(int32_t xx=left;xx<=right;xx++){
+            int32_t dx=p->clockwise?(int32_t)p->x+h-1-yy:(int32_t)p->x+xx;
+            int32_t dy=p->clockwise?(int32_t)p->y+xx:(int32_t)p->y+yy;
+            memcpy(rf_image_pixel(s->image,(uint32_t)dx,(uint32_t)dy),rgba,4);
+        }
+    }
+    if(!covered && rgba[3])s->omitted_alpha=1;
+}
+static int cache_source_into(rf_image *image,const menu_source *source,uint32_t sw,uint32_t sh,
+    const menu_cache_piece *pieces,uint32_t count)
+{
+    menu_cache_sink sink={image,pieces,count,sw,sh,0};int status;
+    if(!image || !image->rgba || !pieces || !count || count>2 ||
+       image->bytes!=(uint64_t)image->width*image->height*4)return RF_RANGE;
+    for(uint32_t i=0;i<count;i++){
+        const menu_cache_piece *p=pieces+i;uint32_t dw=p->clockwise?p->sh:p->sw,dh=p->clockwise?p->sw:p->sh;
+        if(!p->sw || !p->sh || p->clockwise>1 || p->sx>sw || p->sy>sh || p->sw>sw-p->sx || p->sh>sh-p->sy ||
+           !p->x || !p->y || (uint32_t)p->x+dw>=image->width || (uint32_t)p->y+dh>=image->height)return RF_RANGE;
+    }
+    status=image_decode_crop(source,sw,sh,0,0,sw,sh,image_cache_pixel,&sink);
+    if(status)return status;
+    return sink.omitted_alpha?RF_NOT_FOUND:RF_OK;
+}
+
 static int image_into(rf_image *image,uint32_t left,uint32_t top,
     uint32_t width,uint32_t height,const menu_source *source,uint32_t sw,uint32_t sh,int blend)
 {return image_crop_into(image,left,top,width,height,source,sw,sh,blend,0,0);}
@@ -373,11 +430,25 @@ static int prepare_title(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay)
     status=cached_page_source(a,stock,overlay,"titlebar.vbm","titlebar.tga",&source);if(status)return status;
     status=image_info(&source,&info);if(status)return status;
     if(info.width!=512 || info.height!=64)
-        return composite_named(a,stock,overlay,"titlebar.vbm","titlebar.tga",a->title_x,0);
-    for(part=0;part<2;part++){
+        return RF_NOT_FOUND;
+    for(part=0;part<3;part++){
         const menu_rect *r=title_rects+part;
-        status=image_crop_into(&a->canvas,r->x,r->y,r->w,r->h,&source,512,64,0,part?382:0,0);
+        status=image_crop_into(&a->canvas,r->x,r->y,r->w,r->h,&source,512,64,0,part*253,0);
         if(status)return status;gutter(&a->canvas,r);
+        /* Internal splits filter against the adjacent source texel, not a
+         * duplicate of this tile's edge. Outer source edges still clamp. */
+        if(part){
+            status=image_crop_into(&a->canvas,r->x-1,r->y,1,r->h,&source,512,64,0,part*253-1,0);
+            if(status)return status;
+        }
+        if(part*253+r->w<512){
+            status=image_crop_into(&a->canvas,r->x+r->w,r->y,1,r->h,&source,512,64,0,part*253+r->w,0);
+            if(status)return status;
+        }
+        memcpy(rf_image_pixel(&a->canvas,r->x-1,r->y-1),rf_image_pixel(&a->canvas,r->x-1,r->y),4);
+        memcpy(rf_image_pixel(&a->canvas,r->x+r->w,r->y-1),rf_image_pixel(&a->canvas,r->x+r->w,r->y),4);
+        memcpy(rf_image_pixel(&a->canvas,r->x-1,r->y+r->h),rf_image_pixel(&a->canvas,r->x-1,r->y+r->h-1),4);
+        memcpy(rf_image_pixel(&a->canvas,r->x+r->w,r->y+r->h),rf_image_pixel(&a->canvas,r->x+r->w,r->y+r->h-1),4);
     }
     a->title_cached=1;
     return RF_OK;
@@ -386,10 +457,57 @@ static int composited_body(uint32_t page)
 {return page==RF_MENU_PAGE_LOAD || page==RF_MENU_PAGE_GAME || page==RF_MENU_PAGE_CONTROLS || page==RF_MENU_PAGE_BUTTONS || page==RF_MENU_PAGE_AUDIO;}
 static int cached_title(uint32_t page)
 {return page==RF_MENU_PAGE_OPTIONS || page==RF_MENU_PAGE_DIFFICULTY;}
+static int prepare_full_panel_cache(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,uint32_t page)
+{
+    menu_source body,title;menu_image_info bi,ti;int status;const char *name,*alternate;
+    uint32_t settings=page==RF_MENU_PAGE_GAME || page==RF_MENU_PAGE_CONTROLS || page==RF_MENU_PAGE_BUTTONS;
+    if(page!=RF_MENU_PAGE_MAIN && page!=RF_MENU_PAGE_AUDIO && !settings)return RF_NOT_FOUND;
+    name=page==RF_MENU_PAGE_MAIN?"main_title.vbm":page==RF_MENU_PAGE_AUDIO?"audio_panel.vbm":
+        page==RF_MENU_PAGE_GAME?"gamesettings_panel.vbm":"controls_panel.vbm";
+    alternate=page==RF_MENU_PAGE_MAIN?"main_title.tga":page==RF_MENU_PAGE_AUDIO?"audio_panel.tga":
+        page==RF_MENU_PAGE_GAME?"gamesettings_panel.tga":"controls_panel.tga";
+    status=cached_page_source(a,stock,overlay,name,alternate,&body);if(status)return status;
+    status=image_info(&body,&bi);if(status)return status;
+    if(page==RF_MENU_PAGE_MAIN){
+        if(bi.width!=512 || bi.height!=366)return RF_NOT_FOUND;
+        return cache_source_into(&a->canvas,&body,512,366,main_pieces,2);
+    }
+    status=cached_page_source(a,stock,overlay,"titlebar.vbm","titlebar.tga",&title);if(status)return status;
+    status=image_info(&title,&ti);if(status)return status;
+    if(bi.width!=512 || bi.height!=(settings?366u:182u) || ti.width!=512 || ti.height!=64)return RF_NOT_FOUND;
+    status=cache_source_into(&a->canvas,&title,512,64,settings?settings_title_pieces:audio_title_pieces,2);if(status)return status;
+    return cache_source_into(&a->canvas,&body,512,bi.height,settings?settings_body_pieces:audio_body_pieces,2);
+}
+static int refresh_panel_background(rf_menu_assets *a)
+{
+    static const unsigned char black[4]={0,0,0,255};
+    for(uint32_t y=0;y<480;y++)for(uint32_t x=0;x<640;x++)memcpy(rf_image_pixel(&a->canvas,x,y),black,4);
+    return composite_named(a,&a->stock,&a->overlay,"mars_background.tga",NULL,-a->crop_x,0);
+}
 static int prepare_open_page(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,uint32_t page)
 {
     const char *panel=NULL,*alternate=NULL;int status;
-    a->ready=0;a->title_cached=0;opaque_black(&a->canvas);
+    a->ready=0;a->title_cached=0;a->panel_cached=0;a->background_window_span=0;opaque_black(&a->canvas);
+    status=prepare_full_panel_cache(a,stock,overlay,page);
+    if(status && status!=RF_NOT_FOUND)return status;
+    if(!status){
+        status=refresh_panel_background(a);if(status)return status;
+        a->panel_cached=1;return RF_OK;
+    }
+    if(cached_title(page)){
+        status=prepare_title(a,stock,overlay);if(status && status!=RF_NOT_FOUND)return status;
+        if(a->title_cached){
+            menu_source source;menu_image_info info;uint32_t span;
+            status=cached_page_source(a,stock,overlay,"mars_background.tga",NULL,&source);if(status)return status;
+            status=image_info(&source,&info);if(status)return status;
+            span=info.width>(uint32_t)a->crop_x?info.width-(uint32_t)a->crop_x:0;
+            if(span>768)span=768;if(span<640)span=640;
+            status=image_crop_into(&a->canvas,0,0,span,480,&source,info.width,info.height,1,(uint32_t)a->crop_x,0);
+            if(status)return status;
+            a->background_window_base=(uint32_t)a->crop_x;a->background_window_span=span;
+            return RF_OK;
+        }
+    }
     status=composite_named(a,stock,overlay,"mars_background.tga",NULL,-a->crop_x,0);if(status)return status;
     if(page==RF_MENU_PAGE_MAIN)return composite_named(a,stock,overlay,"main_title.vbm","main_title.tga",a->title_x,58);
     if(page==RF_MENU_PAGE_EXIT){
@@ -400,8 +518,7 @@ static int prepare_open_page(rf_menu_assets *a,rf_vpp *stock,rf_vpp *overlay,uin
     }
     /* Original44f065/44f707: titlebar y63c070 is zero, before body44f7ca..803.
      * Source title text at265,12 never overlaps the body beginning y58. */
-    status=cached_title(page)?prepare_title(a,stock,overlay):
-        composite_named(a,stock,overlay,"titlebar.vbm","titlebar.tga",a->title_x,0);if(status)return status;
+    status=composite_named(a,stock,overlay,"titlebar.vbm","titlebar.tga",a->title_x,0);if(status)return status;
     if(page==RF_MENU_PAGE_LOAD){
         /* Source44011f/440177 settles the599x366 panel at x33, not125. */
         black_slab(&a->canvas,a->body_x+10,68,599,346);
@@ -473,12 +590,22 @@ int rf_menu_assets_prepare_frame(rf_menu_assets *a,uint32_t page,uint32_t now)
         }
     }
     if(!changed && a->ready && crop==a->crop_x && title==a->title_x && body==a->body_x && rail==a->rail_x)return RF_OK;
+    if(!changed && a->ready && a->panel_cached){
+        int pixels_changed=crop!=a->crop_x;
+        a->crop_x=crop;a->title_x=title;a->body_x=body;a->rail_x=rail;
+        if(!pixels_changed)return RF_OK;
+        a->ready=0;status=refresh_panel_background(a);
+        if(!status)a->ready=1;return status;
+    }
     /* Cached titlebar and widgets move as geometry; absent body panels never
      * invalidate background pixels. Main title/body artwork still composes. */
-    if(!changed && a->ready && crop==a->crop_x &&
+    if(!changed && a->ready &&
+       (crop==a->crop_x || (a->title_cached && a->background_window_span &&
+        (uint32_t)crop>=a->background_window_base &&
+        (uint32_t)crop-a->background_window_base+640<=a->background_window_span)) &&
        (a->title_cached || title==a->title_x) &&
        (!composited_body(page) || body==a->body_x)){
-        a->title_x=title;a->body_x=body;a->rail_x=rail;return RF_OK;
+        a->crop_x=crop;a->title_x=title;a->body_x=body;a->rail_x=rail;return RF_OK;
     }
     a->crop_x=crop;a->title_x=title;a->body_x=body;a->rail_x=rail;a->ready=0;
     if(a->close_failed || rf_vpp_checked_idle_status())return RF_IO;
@@ -623,9 +750,40 @@ static void sprite(const rf_image *image,const menu_rect *r,rf_hud_sprite *out)
     out->uv[0]=(float)r->x/image->width;out->uv[1]=(float)r->y/image->height;
     out->uv[2]=(float)(r->x+r->w)/image->width;out->uv[3]=(float)(r->y+r->h)/image->height;
 }
+static void art_piece(const rf_menu_assets *a,const menu_cache_piece *p,int32_t x,int32_t y,rf_menu_art_piece *out)
+{
+    uint32_t dw=p->clockwise?p->sh:p->sw,dh=p->clockwise?p->sw:p->sh;
+    float u0=(float)p->x/a->canvas.width,v0=(float)p->y/a->canvas.height;
+    float u1=(float)(p->x+dw)/a->canvas.width,v1=(float)(p->y+dh)/a->canvas.height;
+    out->image=&a->canvas;out->x=x+p->sx;out->y=y+p->sy;out->width=p->sw;out->height=p->sh;out->argb=0xffffffffu;
+    for(uint32_t i=0;i<4;i++){
+        uint32_t right=i==1||i==2,bottom=i>=2;
+        out->uv[i*2]=p->clockwise?(bottom?u0:u1):(right?u1:u0);
+        out->uv[i*2+1]=p->clockwise?(right?v1:v0):(bottom?v1:v0);
+    }
+}
+int rf_menu_assets_art_piece(const rf_menu_assets *a,uint32_t part,rf_menu_art_piece *out)
+{
+    if(!a || !out || part>=5)return RF_RANGE;
+    if(!a->ready || !a->panel_cached)return RF_NOT_FOUND;
+    if(a->page==RF_MENU_PAGE_MAIN){
+        if(part>=2)return RF_NOT_FOUND;art_piece(a,main_pieces+part,a->title_x,58,out);return RF_OK;
+    }
+    {
+        uint32_t settings=a->page==RF_MENU_PAGE_GAME || a->page==RF_MENU_PAGE_CONTROLS || a->page==RF_MENU_PAGE_BUTTONS;
+        uint32_t backing=a->page!=RF_MENU_PAGE_GAME;
+        if(a->page!=RF_MENU_PAGE_AUDIO && !settings)return RF_NOT_FOUND;
+        if(part<2)art_piece(a,(settings?settings_title_pieces:audio_title_pieces)+part,a->title_x,0,out);
+        else if(part==2 && backing){memset(out,0,sizeof(*out));out->x=a->body_x+105;
+            out->y=settings?68:123;out->width=512;out->height=settings?346:107;out->argb=0x80000000u;}
+        else {uint32_t body_part=part-2-backing;if(body_part>=2)return RF_NOT_FOUND;
+            art_piece(a,(settings?settings_body_pieces:audio_body_pieces)+body_part,a->body_x,58,out);}
+    }
+    return RF_OK;
+}
 int rf_menu_assets_title_piece(const rf_menu_assets *a,uint32_t part,rf_hud_sprite *out)
 {
-    if(!a || !out || part>=2)return RF_RANGE;
+    if(!a || !out || part>=3)return RF_RANGE;
     if(!a->ready || !a->title_cached || !cached_title(a->page))return RF_NOT_FOUND;
     sprite(&a->canvas,title_rects+part,out);return RF_OK;
 }
@@ -639,7 +797,13 @@ int rf_menu_assets_sprite(const rf_menu_assets *a,uint32_t id,rf_hud_sprite *out
 {
     static const menu_rect background={0,0,MENU_WIDTH,MENU_HEIGHT};
     if(!a || !out || id>=RF_MENU_SPRITE_COUNT)return RF_RANGE;
-    if(id==RF_MENU_BACKGROUND){if(!a->ready)return RF_NOT_FOUND;sprite(&a->canvas,&background,out);}
+    if(id==RF_MENU_BACKGROUND){
+        if(!a->ready)return RF_NOT_FOUND;sprite(&a->canvas,&background,out);
+        if(a->title_cached && a->background_window_span){
+            float offset=(float)((uint32_t)a->crop_x-a->background_window_base)/a->canvas.width;
+            out->uv[0]+=offset;out->uv[2]+=offset;
+        }
+    }
     else if(id>=RF_MENU_BAR_LEFT)sprite(a->bars+id-RF_MENU_BAR_LEFT,a->sprites+id,out);
     else sprite(&a->atlas,a->sprites+id,out);
     return RF_OK;

@@ -96,10 +96,11 @@ introduced. Exhaustion does not detach the real child. The prerequisite calls
 
 ## Explicit first-pass policies and limitations
 
-1. Success persona speech selection is not implemented. Deadline uses the
-   retained real action43 clip duration plus750ms. For the actual clip,
-   start160/end24000 is about4.9666667s; timer conversion is rounded milliseconds,
-   not a hardcoded five seconds. Optional Foley failure never decides health.
+1. Historical first pass omitted persona speech. The October15 source extension
+   in MEDIC-PERSONA-DIALOGUE.md supplies three responses and the original
+   max(action43, speech) deadline plus750ms. It compiled in the passing Actual15 rollup.
+   Installed speech remains shorter than the4.9666667s action43; optional
+   Foley failure never decides health.
 2. The no-resurrection rule is an explicit port lifecycle policy: a dead or
    replaced healer/player cannot complete an old transaction. Original426fc0
    itself only proves full-handle/type resolution, not a positive-health check.

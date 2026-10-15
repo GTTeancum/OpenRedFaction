@@ -59,13 +59,24 @@ static int scene_menu_background(const rf_menu_assets *a,rf_scene_particle_sink 
 {
     uint32_t part,i;int status=scene_menu_sprite(sink,context,a,RF_MENU_BACKGROUND,0,0,0xffffffffu,0);
     if(status)return status;
-    for(part=0;part<2;part++){
+    for(part=0;part<5;part++){
+        rf_menu_art_piece piece;rf_particle_draw_vertex v[4]={{0}};
+        status=rf_menu_assets_art_piece(a,part,&piece);if(status==RF_NOT_FOUND)break;if(status)return status;
+        if(!piece.image){status=combat_hud_rect(sink,context,(float)piece.x,(float)piece.y,(float)piece.width,(float)piece.height,piece.argb);if(status)return status;continue;}
+        for(i=0;i<4;i++){
+            uint32_t right=i==1||i==2,bottom=i>=2;
+            v[i].screen[0]=(float)piece.x+(right?piece.width:0);v[i].screen[1]=(float)piece.y+(bottom?piece.height:0);
+            v[i].uv[0]=piece.uv[i*2];v[i].uv[1]=piece.uv[i*2+1];v[i].reciprocal_w=1;v[i].argb=piece.argb;
+        }
+        status=sink(context,v,4,piece.image,RF_PARTICLE_NORMAL_MODE&~(31u<<20));if(status)return status;
+    }
+    for(part=0;part<3;part++){
         rf_hud_sprite sp;rf_particle_draw_vertex v[4]={{0}};
         status=rf_menu_assets_title_piece(a,part,&sp);
         if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
         for(i=0;i<4;i++){
             uint32_t right=i==1||i==2,bottom=i>=2;
-            v[i].screen[0]=125+rf_menu_assets_title_offset(a)+(part?382:0)+(right?sp.width:0);
+            v[i].screen[0]=125+rf_menu_assets_title_offset(a)+part*253+(right?sp.width:0);
             v[i].screen[1]=bottom?sp.height:0;v[i].reciprocal_w=1;v[i].argb=0xffffffffu;
             v[i].uv[0]=sp.uv[right?2:0];v[i].uv[1]=sp.uv[bottom?3:1];
         }

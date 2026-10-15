@@ -52,7 +52,7 @@ int rf_menu_assets_open(rf_menu_assets **out,const char *stock_ui_path,
  * MAIN composites full main_title at(125,58); non-main pages use titlebar at
  * (125,0); GAME/CONTROLS/AUDIO/BUTTONS use their original panel at(125,58).
  * OPTIONS and the explicitly adapted DIFFICULTY have no body panel; their
- * titlebar is cached in two right-strip pieces and drawn as moving geometry. LOAD uses
+ * titlebar is cached in three right-strip pieces and drawn as moving geometry. LOAD uses
  * source loadgame_panel at(33,58). EXIT uses main_title behind the source
  * two-choice popup uses four alpha-preserving crops in the unused canvas strip;
  * scene draws the inactive main rail before bottom120,148/top120,120. No cap increase. */
@@ -74,6 +74,11 @@ int32_t rf_menu_assets_rail_offset(const rf_menu_assets *assets);
 int rf_menu_assets_close(rf_menu_assets *assets);
 uint32_t rf_menu_assets_resident_bytes(const rf_menu_assets *assets);
 uint32_t rf_menu_assets_peak_bytes(const rf_menu_assets *assets);
+typedef struct rf_menu_art_piece {
+    const rf_image *image; /* NULL is a solid backing rectangle. */
+    int32_t x,y;uint32_t width,height,argb;float uv[8];
+} rf_menu_art_piece;
+int rf_menu_assets_art_piece(const rf_menu_assets *assets,uint32_t part,rf_menu_art_piece *out);
 /* Popup pieces0/2 are top left/right;1/3 bottom left/right, same canvas owner. */
 /* Options/Difficulty titlebar pieces reuse the popup storage on mutually exclusive pages. */
 int rf_menu_assets_title_piece(const rf_menu_assets *assets,uint32_t part,rf_hud_sprite *out);

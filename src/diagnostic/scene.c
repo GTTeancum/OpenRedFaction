@@ -5192,6 +5192,13 @@ static void scene_crouch_body_retired(campaign_npc_body *o)
     o->view.flags_810&=~0x400u;o->damage.effects.flags_810&=~0x400u;
 }
 static campaign_npc_body *campaign_npc_bodies;
+/* Optional presentation-only sidecar, charged inside the existing NPC cap. */
+typedef struct scene_npc_chatter_state {int32_t humming,timeout,use_deadline;uint32_t flags,handle,use_target;} scene_npc_chatter_state;
+static scene_npc_chatter_state *scene_npc_chatter;
+static void scene_npc_chatter_initialize(uint32_t,int32_t);
+static void scene_npc_chatter_tick(uint32_t);
+static void scene_npc_chatter_reset_timers(void);
+
 static void scene_blind_sync(campaign_npc_body *,uint32_t);
 static void scene_blind_clear(campaign_npc_body *o)
 {
@@ -5724,6 +5731,7 @@ static void campaign_npc_bodies_close(void)
     }
     scene_burning_release_all();
     scene_npc_shields_close();
+    free(scene_npc_chatter);scene_npc_chatter=NULL;
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     scene_pursuit_execution_active=0;scene_pursuit_execution_fault=0;
     scene_tactical_cursor=0;scene_tactical_service_frame=UINT32_MAX;
@@ -6613,6 +6621,15 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         ++rf_scene_npc_pain_owners[0];
         rf_scene_npc_pain_sound_owners[2]=npc_hash_bytes(rf_scene_npc_pain_sound_owners[2],&owner->pain_sound,sizeof(owner->pain_sound));
         ++rf_scene_npc_pain_sound_owners[0];
+    }
+    /* Optional chatter is admitted only after all mandatory body/sphere work,
+     * so it cannot consume space needed by otherwise playable actors. */
+    if(bytes+(uint64_t)campaign_npc_body_count*sizeof(*scene_npc_chatter)<=budget){
+        scene_npc_chatter=calloc(campaign_npc_body_count,sizeof(*scene_npc_chatter));
+        if(scene_npc_chatter){
+            bytes+=(uint64_t)campaign_npc_body_count*sizeof(*scene_npc_chatter);
+            for(actor=0;actor<campaign_npc_body_count;actor++)scene_npc_chatter_initialize(actor,now);
+        }
     }
     rf_scene_npc_bodies[3]=(uint32_t)bytes;
     if(bytes>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes;
@@ -20241,6 +20258,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         }
         if(!o->script_move.active) {
             status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+            {uint32_t held;status=scene_npc_use_facing_service(o,i,elapsed,frame,&held);if(status)return status;if(held)continue;}
             scene_npc_rotating_fixture_tick(o,i,frame);
             continue;
         }
@@ -20255,6 +20273,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
          * route can be captured or translated; this performs no LOS work. */
         if(o->tactical.flags){status=scene_tactical_maintain(o,scene_patrol_now(frame));if(status)return status;}
         if(o->damage.effects.health<=0 || !o->script_move.active)continue;
+        {uint32_t held;status=scene_npc_use_facing_service(o,i,elapsed,frame,&held);if(status)return status;if(held)continue;}
         if(o->patrol.dwell_present){
             if(!scene_patrol_dwell_owner(o))scene_patrol_dwell_clear(o);
             else if(scene_patrol_remaining(o,frame)){
@@ -22281,6 +22300,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_cane_warmup_tick(stream,scene_step_seconds,frame);
                 scene_nano_hit_tick(stream,scene_step_seconds,frame);
                 scene_npc_footsteps_tick(frame);
+                scene_npc_chatter_tick(frame);
                 status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
                 status=scene_medic_syringe_tick();if(status)return status;
                 status=scene_masako_runtime_tick(stream);if(status)return status;

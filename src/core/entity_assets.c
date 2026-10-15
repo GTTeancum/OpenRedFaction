@@ -1801,14 +1801,14 @@ int rf_entity_pain_groups_read(const void *text,uint32_t bytes,const char *class
 int rf_entity_damage_sound_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_foley_owner *owner,int32_t groups[3])
 {return entity_damage_sound_groups_read(text,bytes,class_name,owner,groups,3);}
-int rf_entity_use_sound_group_read(const void *entity_text,uint32_t entity_bytes,
+int rf_entity_persona_groups_read(const void *entity_text,uint32_t entity_bytes,
     const char *class_name,const void *persona_text,uint32_t persona_bytes,
-    const rf_foley_owner *owner,int32_t *group)
+    const rf_foley_owner *owner,uint32_t medic,int32_t groups[3])
 {
     lexer l={entity_text,entity_bytes,0};char t[256],persona[64]={0},name[64];
-    int status,quoted,selected=0,seen=0;int32_t value=-1;
+    int status,quoted,selected=0,seen=0;int32_t value=-1,values[3]={-1,-1,-1};
     if(!entity_text || !entity_bytes || !class_name || !*class_name ||
-       !persona_text || !persona_bytes || !group)return RF_RANGE;
+       !persona_text || !persona_bytes || !groups || medic>1)return RF_RANGE;
     status=rf_foley_find(owner,"",&value);if(status)return status;
     for(;;) {
         status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
@@ -1823,7 +1823,7 @@ int rf_entity_use_sound_group_read(const void *entity_text,uint32_t entity_bytes
         }
     }
     if(!selected)return RF_NOT_FOUND;
-    if(!persona[0]){*group=-1;return RF_OK;}
+    if(!persona[0]){memcpy(groups,values,sizeof(values));return RF_OK;}
     l=(lexer){persona_text,persona_bytes,0};selected=seen=0;
     for(;;) {
         status=token(&l,t,&quoted);if(status==RF_NOT_FOUND)break;if(status)return status;
@@ -1833,15 +1833,28 @@ int rf_entity_use_sound_group_read(const void *entity_text,uint32_t entity_bytes
             if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
             selected=same(t,persona);
         } else if(same(t,"#End"))break;
-        else if(selected && same(t,"$Use")) {
-            if(seen++ || !metadata_tag(&l,"Key:") ||
+        else if(selected && (same(t,"$Use") || (medic && (same(t,"$Healing") || same(t,"$Heal"))) || (!medic && (same(t,"$Humming:") || same(t,"$Timeout:"))))) {
+            uint32_t lane=same(t,"$Use")?0:(same(t,"$Healing") || same(t,"$Humming:"))?1:2;
+            const char *tag=lane==0?"Key:":lane==1?"Gone:":"Ignore:";
+            if((seen&(1u<<lane)) || ((lane==0 || medic) && !metadata_tag(&l,tag)) ||
                metadata_string(&l,name,sizeof(name)))return RF_FORMAT;
+            seen|=1u<<lane;value=-1;
             status=rf_foley_find(owner,name,&value);if(status)return status;
+            values[lane]=value;
         }
     }
     /* Original invalid persona/group selection yields no sample. */
-    *group=value;return RF_OK;
+    memcpy(groups,values,sizeof(values));return RF_OK;
 }
+int rf_entity_use_sound_group_read(const void *entity_text,uint32_t entity_bytes,
+    const char *class_name,const void *persona_text,uint32_t persona_bytes,
+    const rf_foley_owner *owner,int32_t *group)
+{
+    int32_t groups[3];int status;if(!group)return RF_RANGE;
+    status=rf_entity_persona_groups_read(entity_text,entity_bytes,class_name,persona_text,persona_bytes,owner,0,groups);
+    if(!status)*group=groups[0];return status;
+}
+
 int rf_foley_bind_materials(const rf_foley_owner *owner,const char (*names)[32],
     uint32_t count,int32_t slots[10])
 {

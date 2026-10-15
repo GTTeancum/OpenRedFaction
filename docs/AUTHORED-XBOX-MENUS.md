@@ -1,10 +1,10 @@
 # Authored Xbox menus and optional PS2 menu overlay
 
-Current status October 15, 14:10 UTC: expanded menu presentation and the
-geometry-only title redraw correction compiled in Actual14. Difficulty entry,
-release readiness, accepted New Game notice and frontend retirement completed.
-Overall startup FAILED after loading at simulation1/presentation0. See
-HOURLY-20261015-1400.md. No fresh visual capture or full functional pass is claimed.
+Current status October15,15:08 UTC: all integrated menu cache/motion changes
+compiled and passed ordinary startup10 simulation/10 presentation frames in
+Actual15 on670bdf36. See HOURLY-20261015-1500.md. Prior failed batches remain
+historical failures. No fresh visual capture or full functional coverage is claimed;
+source-stage pending-build wording in earlier sections records integration history.
 
 Prior accepted milestone: authored menu integration passed stock64 native Xbox compile/link/package
 and ordinary startup on October 15 at 04:06 UTC, built commit
@@ -208,3 +208,51 @@ release readiness, accepted New Game notice and frontend retirement completed.
 Overall startup remains a preserved failure: QMP response timeout after loading,
 simulation1/presentation0. See HOURLY-20261015-1400.md. This result establishes
 those bounded frontend milestones, not full menu functionality or visual parity.
+
+### Wider panorama window, pending native compilation
+
+Options/Difficulty now cache up to768x480 background pixels in the existing
+canvas. The visible640x480 quad changes UV origin while contained in that window;
+only a window miss/page change recomposes it. At15px/s, stock scrolling can reuse
+128 additional source columns before refilling. Original strict reset and
+unscaled640x478 overlay behavior remain. Main/Exit/body pages retain composition.
+
+Three253/253/6 title crops occupy x770 at y1/67/133. Internal split gutters use
+neighboring source texels; actual source edges clamp. Two scalar window fields
+are included in sizeof-owner accounting; image, atlas and memory limits stay
+unchanged. Read/format failure leaves readiness invalid. The title-dimension
+fallback still uses ordinary composition. Source review is complete; no new
+native build, visual capture or runtime pass is claimed for this extension.
+
+### Full-source Main and Audio panel caching, pending native compilation
+
+Main512x366 artwork and Audio512x182 body plus512x64 title now fit in fixed
+pieces within the existing canvas right strip. Main's second piece is rotated
+clockwise in storage and presented using independent per-corner UVs. Audio
+retains background/title/backing/body order; its original translucent backing
+moves as geometry. All source pixels and alpha are retained, with neighboring
+source texels in internal gutters and clamping only at real source boundaries.
+
+A single shared crop decoder feeds either ordinary composition or cache writes;
+raw/RLE TGA and VBM orientation/validation remain shared. Valid other dimensions
+use the prior composition path. Source/I/O errors leave readiness invalid.
+Actual panel_cached ownership gates geometry-only motion. Stock panorama changes
+refresh only the visible640x480 background, preserving those cache pieces.
+Options/Difficulty retain their separate768-wide background window; Exit and
+other body panels retain their prior layouts. No source-sized staging allocation,
+new pixel owner, atlas enlargement, timer or resource cap change is introduced.
+
+### Validated transparent-margin settings caches, pending native compilation
+
+Game/Controls/Buttons use the same shared decoder and cache owner. Body source
+starts at x74 and title at x104 through y38, retaining the original transparent
+edge texel. Four guttered pieces fit within existing right-strip rows0..507;
+the narrow body piece is rotated. Source offsets remain part of screen placement.
+
+Admission decodes every source pixel and checks the union of retained interiors.
+Any nonzero alpha outside that union makes this valid artwork ineligible for the
+cache and retains ordinary composition. Gutter coverage does not count as retained
+content. Decode/I/O/format failures propagate before fallback admission. No source
+byte is edited and no opaque/partially transparent content is silently cropped.
+Game draws title/body as four contiguous records; Controls/Buttons add the original
+translucent backing before body. Other resource limits and independent tracks remain.

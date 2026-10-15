@@ -3,6 +3,8 @@
 /* RF.exe40a670/40a540,407ee0. Source references and bounded audio/input
  * qualifications are in docs/MEDIC-USE-ACTION.md. */
 static int scene_medic_syringe_present(const campaign_npc_body *owner);
+static int32_t scene_npc_persona_choose(campaign_npc_body *owner,uint32_t lane,float *duration);
+static void scene_npc_persona_play(campaign_npc_body *owner,int32_t sample);
 static uint32_t scene_medic_speech_active(const campaign_npc_body *owner);
 static void combat_sound(const char *name,const float position[3]);
 /* accepted,completed,range abort,missing/dead,full,refused,superseded,
@@ -141,15 +143,24 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     uint32_t index=(uint32_t)(owner-campaign_npc_bodies);rf_entity_pose *pose;
     rf_entity_playback_model *model;rf_motion_playback_resource *resources=NULL;
     rf_motion_playback_state playback;rf_entity_ai_transition_state ai;
-    int32_t motion,deadline,sound,sounds[45];int status;double duration,delay;
+    int32_t motion,deadline,sound,sounds[45],speech=-1;int status;double duration,delay;float speech_seconds=0;
     const float health=campaign_player_damage.state.effects.health;
     const float maximum=campaign_player_damage.state.effects.class_health;
     if(!frame||!scene_medic_qualified(owner)||!scene_medic_live(owner)||
        owner->ai_mode.action_280!=2||owner->view.action_520!=2||
        !isfinite(owner->damage.effects.health)||owner->damage.effects.health<=0||
-       !isfinite(owner->medic_reserve)||owner->medic_reserve<=0||owner->medic_reserve>200||
-       !scene_medic_syringe_present(owner)||scene_medic_speech_active(owner)||
-       (campaign_player_view.flags_810&1u)||!isfinite(health)||health<=0||!isfinite(maximum)||maximum<=0||health>=maximum){
+       !isfinite(owner->medic_reserve)||owner->medic_reserve>200||
+       scene_medic_speech_active(owner)||
+       (campaign_player_view.flags_810&1u)||!isfinite(health)||health<=0||!isfinite(maximum)||maximum<=0){
+        ++rf_scene_medic_action[5];return RF_OK;
+    }
+    /*40a670: depleted/syringe refusal precedes already-full response. */
+    if(owner->medic_reserve<=0 || !scene_medic_syringe_present(owner)){
+        scene_npc_persona_play(owner,scene_npc_persona_choose(owner,1,NULL));
+        ++rf_scene_medic_action[5];return RF_OK;
+    }
+    if(health>=maximum){
+        scene_npc_persona_play(owner,scene_npc_persona_choose(owner,2,NULL));
         ++rf_scene_medic_action[5];return RF_OK;
     }
     status=campaign_actor_pose(index,&pose);if(status||!pose)goto unavailable;
@@ -158,10 +169,12 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     if(motion<0||(uint32_t)motion>=model->count||owner->selection.mapping.skeleton!=pose->skeleton){status=RF_NOT_FOUND;goto unavailable;}
     status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)goto unavailable;
     if(model->resources[motion].looping){status=RF_FORMAT;goto unavailable;}
-    /* Real clip start/end; success persona selection is not implemented yet.
-     * Optional Foley/device success cannot alter this clip-only deadline. */
+    /*40a774..40a7aa: max(real action43, selected speech duration)+750ms.
+     * Missing/disabled PCM contributes zero; playback success is irrelevant. */
     duration=rf_motion_duration(model->resources[motion].comparison.start_tick,
         model->resources[motion].comparison.end_tick);
+    speech=scene_npc_persona_choose(owner,0,&speech_seconds);
+    if(isfinite(speech_seconds) && speech_seconds>duration)duration=speech_seconds;
     delay=750.0+floor(duration*1000.0+.5);
     if(!isfinite(duration)||duration<=0||delay>RF_TIMER_PERIOD){status=RF_RANGE;goto unavailable;}
     status=rf_timer_set(&deadline,scene_medic_now(frame),(int32_t)delay);if(status)goto unavailable;
@@ -194,6 +207,7 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     ++rf_scene_medic_action[0];rf_scene_medic_action[8]=(uint32_t)campaign_seeds.records.items[index].record.uid;
     rf_scene_medic_action[9]=owner->medic.target;
     if(owner->selection.action_sounds[43][0])combat_sound(owner->selection.action_sounds[43],owner->eye_position);
+    scene_npc_persona_play(owner,speech);
     return RF_OK;
 unavailable:
     free(resources);++rf_scene_medic_action[10];

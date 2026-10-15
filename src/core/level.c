@@ -431,6 +431,25 @@ int rf_level_entity_ai_read(const rf_level_owned_entity *entity,rf_level_entity_
     value.mode=raw[start];value.attack_style=raw[start+1];*result=value;return RF_OK;
 }
 
+int rf_level_entity_chatter_flags_read(const rf_level_owned_entity *entity,uint32_t *flags)
+{
+    rf_level_entity_spawn checked;const uint8_t *raw;uint32_t at=4,size,start;int status;
+    if(!flags)return RF_RANGE;
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,48);if(status)return status;
+    status=entity_raw_string(raw,size,&at);if(status)return status;
+    status=entity_raw_skip(size,&at,13);if(status)return status;
+    for(uint32_t i=0;i<2;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,29);if(status)return status;
+    for(uint32_t i=0;i<7;i++){status=entity_raw_string(raw,size,&at);if(status)return status;}
+    status=entity_raw_skip(size,&at,18);if(status)return status;
+    start=at;status=entity_raw_skip(size,&at,17);if(status)return status;
+    *flags=(raw[start+5]==1?1u:0u)|(raw[start+6]==1?2u:0u)|(raw[start+13]!=0?4u:0u);
+    return RF_OK;
+}
+
 int rf_level_entity_combat_range_read(const rf_level_owned_entity *entity,
     rf_level_entity_combat_range *result)
 {

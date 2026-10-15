@@ -216,6 +216,11 @@ int rf_entity_damage_sound_groups_read(const void *text,uint32_t bytes,const cha
  * Foley group (original409950/4305a0). Missing/empty/unknown optional names
  * yield -1; malformed/duplicate fields preserve output. No PCM, RNG or AI
  * mutation. The caller owns both bounded text buffers and the Foley table. */
+/* Optional persona lanes: Use/Humming/Timeout, or Use/Healing Gone/Heal Ignore for medics.
+ * Transactional outputs; caller retains the existing bounded metadata storage. */
+int rf_entity_persona_groups_read(const void *entity_text,uint32_t entity_bytes,
+    const char *class_name,const void *persona_text,uint32_t persona_bytes,
+    const rf_foley_owner *owner,uint32_t medic,int32_t groups[3]);
 int rf_entity_use_sound_group_read(const void *entity_text,uint32_t entity_bytes,
     const char *class_name,const void *persona_text,uint32_t persona_bytes,
     const rf_foley_owner *owner,int32_t *group);
