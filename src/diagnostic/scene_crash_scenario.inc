@@ -12,7 +12,7 @@ static void scene_crash_scenario_input(uint32_t frame,rf_scene_input *input)
     uint32_t tick,phase,local;
     if(!rf_scene_crash_scenario)return;
     memset(input,0,sizeof(*input));
-    rf_scene_crash_scenario_trace[0]=1;
+    rf_scene_crash_scenario_trace[0]=2;
     if(!frame || !campaign_spawn)return;
     if(campaign_player_damage.state.effects.health<=0) {
         tick=rf_scene_crash_scenario_trace[3]++;
@@ -28,6 +28,24 @@ static void scene_crash_scenario_input(uint32_t frame,rf_scene_input *input)
         else if(tick<330){phase=5;local=tick-240;input->jump=local==60;}
         else {phase=6;local=tick-330;input->cycle_weapon=local==0;}
         if(phase<=3 || phase==5)input->fire=tick%12<6;
+        /* Explosive focus uses ordinary cycle edges to recover from pickup
+         * auto-selection. Never select directly or replenish ammunition. */
+        if(rf_scene_crash_scenario==2 && rf_scene_crash_loadout>=5 && rf_scene_crash_loadout<=6) {
+            uint32_t slot=rf_scene_crash_loadout-1;
+            int32_t weapon=campaign_slot_weapon(slot);
+            if(weapon>=0 && weapon<64 && (uint32_t)weapon<campaign_weapon_supply.names.count &&
+               campaign_player_inventory.owned[weapon]) {
+                int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
+                if(ammo>=0 && ammo<32 && (campaign_player_inventory.reserve[ammo]>0 ||
+                   (slot!=5 && campaign_player_inventory.loaded[weapon]>0))) {
+                    input->cycle_weapon=0;
+                    if(campaign_equipped_slot!=slot) {
+                        input->fire=0;input->reload=0;
+                        input->cycle_weapon=tick%30==0;
+                    }
+                }
+            }
+        }
         if(tick==359)++rf_scene_crash_scenario_trace[5];
     }
     if(phase!=rf_scene_crash_scenario_trace[1])++rf_scene_crash_scenario_trace[4];

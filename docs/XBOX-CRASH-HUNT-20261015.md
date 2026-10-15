@@ -204,6 +204,45 @@ unverified. XBE SHA256:
 The process exited through owned teardown. This diagnostic-only build does not
 replace the preserved hardware delivery payload.
 
+Explosive sequence revision: run `20261015-191252-L2S2a.rfl` completed1800
+inputs with34 player shots, fourteen enemy shots and three simultaneously alerted
+actors, but only one grenade release. It correctly failed the repeated-explosive
+coverage gate. There were no deaths or reported fatal errors. The combat sequence
+does not keep a particular weapon selected after ordinary pickups/cycling.
+
+New `--scenario explosives` mode uses ordinary cycle-input edges every30 live
+ticks to return to the requested rocket/grenade while owned ammunition remains.
+It suppresses firing during that selection search, disables the phase's voluntary
+switch away while that explosive remains usable, and falls back to the combat
+sequence after depletion. It does not directly select a weapon, alter pickup
+policy, replenish ammo or modify health. Scenario trace version2 distinguishes
+this implementation; the empty flag keeps combat mode, byte `2` selects explosive
+focus, and other flag contents are rejected. Compact reports now also retain
+sampled per-scene maxima for grenade bounces/detonations, terrain edits and debris.
+
+Stock64 validation of explosive focus (`build-explosive-scenario.log`, run
+`20261015-191630-L2S2a.rfl`): the360-second watchdog expired with1463 of2400
+inputs consumed,1252 live and211 dead inputs. No fatal error was reported. Two
+deaths each returned through normal reload into live gameplay (scene starts at
+97.469,223.610 and351.891 seconds). The game-owned live clock remained532 across
+the first death/loading interval and1115 across the second, then resumed. Its
+final trace counted1249 live ticks,211 dead ticks, three cycles and four restart
+requests; the three initialization frames explain its difference from live input
+telemetry. Compact `lifecycle-summary.json` retains those transitions.
+
+Sampled per-scene maxima: two grenade releases, two detonations, eleven bounces,
+two blast kills, twenty enemy shots and four simultaneously alerted actors.
+Terrain edits and debris were zero. The run is TIMEOUT, scenario_qualified false:
+it did not complete the input budget and also failed the twelve-player-shot gate
+(only two counted player shots). Repeated-explosive and recovery behavior is
+observed, but this is not a completed sustained scenario or overall stability
+result. Do not inflate per-scene maxima into cumulative totals. Visuals/audio
+remain unverified. XBE SHA256:
+`1c607baa3e8c7587c369e90252219506f030ae13d29ac8614e4cd4038892691c`.
+Owned emulator teardown completed. Remaining work includes completing a bounded
+explosive sequence, selecting supported destructive surfaces for combat stress,
+and evaluating action thresholds appropriate to finite explosive loadouts.
+
 Daybreak's triggering decision is not exposed here. Repository observations do
 not establish its cause. This redesign does not change access controls, use a
 different identity/model to avoid a rejection, disguise requests, or promise that

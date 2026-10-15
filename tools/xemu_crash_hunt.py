@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6), help='Diagnostic pistol/rifle/shotgun/rocket/grenade start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
-    parser.add_argument('--scenario', choices=('combat',), help='Game-owned live-tick combat phases; neutral replay supplies only the bounded frame budget')
+    parser.add_argument('--scenario', choices=('combat','explosives'), help='Game-owned live-tick phases; explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
     parser.add_argument('--input', choices=('neutral','exercise','combat'), default='neutral')
@@ -50,6 +50,8 @@ def main():
         parser.error('--loadout is for authored campaign encounters')
     if args.scenario and (args.input != 'neutral' or args.dev_room):
         parser.error('--scenario requires neutral replay and an authored encounter')
+    if args.scenario=='explosives' and args.loadout not in (5,6):
+        parser.error('--scenario explosives requires rocket or grenade loadout')
     if args.distance is not None and (args.actor is None or not 3 <= args.distance <= 20):
         parser.error('--distance requires --actor and a distance from 3 to 20')
     if any(len(s.encode('ascii')) >= 64 or '/' in s or '\\' in s for s in (args.level, args.archive)):
@@ -58,12 +60,13 @@ def main():
     lock.acquire()
     process = monitor = None
     run = ROOT / 'artifacts/crash-hunt' / (datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + args.level)
-    result = {'recipe': vars(args), 'input_recipe_version': 5, 'status': 'NOT_RUN'}
+    result = {'recipe': vars(args), 'input_recipe_version': 6, 'status': 'NOT_RUN'}
     eyes = set(); max_shots = max_switches = 0
     max_enemy_shots = max_alerts = max_deaths = max_respawns = 0
     alive_samples = dead_samples = 0
     max_live_actors = max_alerted_actors = 0
     max_rockets = max_grenades = max_blast_kills = 0
+    max_grenade_bounces = max_grenade_detonations = max_terrain_edits = max_debris = 0
     try:
         require_no_project_xemu(ROOT)
         disc = ROOT / 'build/xbox/crash-disc'
@@ -159,7 +162,7 @@ def main():
         if args.aim:
             (disc / 'crash-aim.flag').write_bytes(b'')
         if args.scenario:
-            (disc / 'crash-scenario.flag').write_bytes(b'')
+            (disc / 'crash-scenario.flag').write_bytes(b'2' if args.scenario=='explosives' else b'')
         iso = ROOT / 'build/xbox/redfaction-crash.iso'
         iso.unlink(missing_ok=True)
         with (run / 'pack.log').open('wb') as log:
@@ -234,6 +237,11 @@ dvd_path = '{iso.as_posix()}'
                     max_alerted_actors=max(max_alerted_actors,population[2])
                     max_rockets=max(max_rockets,sample['rf_scene_rockets'][0])
                     max_grenades=max(max_grenades,sample.get('rf_scene_grenades',[0,0])[1])
+                    grenade=sample.get('rf_scene_grenades',[0]*8)
+                    max_grenade_bounces=max(max_grenade_bounces,grenade[2])
+                    max_grenade_detonations=max(max_grenade_detonations,grenade[3])
+                    max_terrain_edits=max(max_terrain_edits,sample.get('rf_scene_geomod',[0]*8)[7])
+                    max_debris=max(max_debris,sample.get('rf_scene_debris',[0]*8)[0])
                     max_blast_kills=max(max_blast_kills,sample.get('rf_scene_rocket_blast',[0,0,0,0])[3])
                 result['observed']={'distinct_eye_positions':len(eyes),'shots':max_shots,'weapon_switches':max_switches,
                     'enemy_shots':max_enemy_shots,'enemy_alerts':max_alerts,'deaths':max_deaths,'respawns':max_respawns,'alive_samples':alive_samples,'dead_samples':dead_samples,'max_live_actors':max_live_actors,'max_alerted_actors':max_alerted_actors}
@@ -241,6 +249,7 @@ dvd_path = '{iso.as_posix()}'
                 if activity:
                     result['observed'].update(live_input_frames=activity[0],dead_input_frames=activity[1],scene_starts=activity[2],total_deaths=activity[3])
                 result['observed'].update(rocket_launches=max_rockets,grenade_releases=max_grenades,blast_kills=max_blast_kills)
+                result['observed'].update(grenade_bounces=max_grenade_bounces,grenade_detonations=max_grenade_detonations,terrain_edits=max_terrain_edits,debris_spawned=max_debris)
                 if args.loadout in (5,6):
                     result['requested_weapon_observed'] = (max_rockets if args.loadout==5 else max_grenades)>0
                 result['combat_observed'] = max_enemy_shots > 0 and max_shots > 0
@@ -281,7 +290,7 @@ dvd_path = '{iso.as_posix()}'
         if args.scenario:
             trace=result.get('last',{}).get('rf_scene_crash_scenario_trace',[0]*8)
             result['scenario_coverage']={
-                'game_owned_phases_observed':trace[0]==1 and trace[4]>=6 and trace[5]>=2,
+                'game_owned_phases_observed':trace[0] in (1,2) and trace[4]>=6 and trace[5]>=2,
                 'repeated_player_fire':max_shots>=12,
                 'repeated_enemy_fire':max_enemy_shots>=6,
                 'simultaneous_enemy_alerts':max_alerted_actors>=2,
