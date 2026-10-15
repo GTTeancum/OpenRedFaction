@@ -31,7 +31,7 @@ def main():
     parser.add_argument('--archive', default='levels1.vpp')
     parser.add_argument('--actor', type=int)
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
-    parser.add_argument('--loadout', type=int, choices=(1,2,4), help='Diagnostic pistol/rifle/shotgun start; ordinary finite ammunition')
+    parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6), help='Diagnostic pistol/rifle/shotgun/rocket/grenade start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
@@ -60,6 +60,7 @@ def main():
     max_enemy_shots = max_alerts = max_deaths = max_respawns = 0
     alive_samples = dead_samples = 0
     max_live_actors = max_alerted_actors = 0
+    max_rockets = max_grenades = max_blast_kills = 0
     try:
         require_no_project_xemu(ROOT)
         disc = ROOT / 'build/xbox/crash-disc'
@@ -184,7 +185,7 @@ dvd_path = '{iso.as_posix()}'
             reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         command=[str(emu/'xemu.exe'),'-config_path',str(run/'xemu.toml'),'-m','64','-snapshot','-display','xemu','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
         startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
-        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
+        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
         symbols={}
         for name,count in counts.items():
             match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
@@ -223,11 +224,17 @@ dvd_path = '{iso.as_posix()}'
                     population=sample.get('rf_scene_combat_population',[0,0,0,0])
                     max_live_actors=max(max_live_actors,population[1])
                     max_alerted_actors=max(max_alerted_actors,population[2])
+                    max_rockets=max(max_rockets,sample['rf_scene_rockets'][0])
+                    max_grenades=max(max_grenades,sample.get('rf_scene_grenades',[0,0])[1])
+                    max_blast_kills=max(max_blast_kills,sample.get('rf_scene_rocket_blast',[0,0,0,0])[3])
                 result['observed']={'distinct_eye_positions':len(eyes),'shots':max_shots,'weapon_switches':max_switches,
                     'enemy_shots':max_enemy_shots,'enemy_alerts':max_alerts,'deaths':max_deaths,'respawns':max_respawns,'alive_samples':alive_samples,'dead_samples':dead_samples,'max_live_actors':max_live_actors,'max_alerted_actors':max_alerted_actors}
                 activity=sample.get('rf_scene_crash_activity')
                 if activity:
                     result['observed'].update(live_input_frames=activity[0],dead_input_frames=activity[1],scene_starts=activity[2],total_deaths=activity[3])
+                result['observed'].update(rocket_launches=max_rockets,grenade_releases=max_grenades,blast_kills=max_blast_kills)
+                if args.loadout in (5,6):
+                    result['requested_weapon_observed'] = (max_rockets if args.loadout==5 else max_grenades)>0
                 result['combat_observed'] = max_enemy_shots > 0 and max_shots > 0
                 result['multiple_enemy_alerts_observed'] = max_alerts >= 2
                 diagnostic=sample['rf_diagnostic']

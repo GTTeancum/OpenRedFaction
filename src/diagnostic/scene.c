@@ -17163,7 +17163,7 @@ static int campaign_inventory_initialize(void)
         for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
         campaign_item_pending_count=0;
         if(rf_scene_crash_loadout && !campaign_import_applied) {
-            if(rf_scene_crash_loadout>4 || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
+            if(rf_scene_crash_loadout>6 || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
             /* Explicit fixture only: ordinary acquisition, finite authored ammo,
              * no changes to health, damage, firing or enemy population. */
             for(i=0;i<4;i++)if(i!=2) {
@@ -17171,6 +17171,19 @@ static int campaign_inventory_initialize(void)
                 if(id<0 || (uint32_t)id>=campaign_weapon_supply.names.count)return RF_FORMAT;
                 status=rf_weapon_acquire_sp(&campaign_player_inventory,
                     campaign_weapon_supply.definitions+id,id,-1);if(status)return status;
+            }
+            if(rf_scene_crash_loadout>=5) {
+                uint32_t slot=rf_scene_crash_loadout-1;int32_t id=campaign_slot_weapon(slot);
+                if(!scene_weapon_available(slot) || id<0 || (uint32_t)id>=campaign_weapon_supply.names.count)return RF_FORMAT;
+                status=rf_weapon_acquire_sp(&campaign_player_inventory,
+                    campaign_weapon_supply.definitions+id,id,-1);if(status)return status;
+                /* Clipless grenades need reserve rounds; acquiring an empty
+                 * magazine alone supplies none. Use a finite capped pickup. */
+                if(slot==5) {
+                    rf_weapon_pickup_grant grant;
+                    status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,
+                        campaign_weapon_supply.definitions+id,id,4,0,&grant);if(status)return status;
+                }
             }
             campaign_select_primary(rf_scene_crash_loadout-1);
             campaign_ammo_publish();
@@ -23232,7 +23245,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
               scene_tankbot_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_TANKBOT);
               scene_drone_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_DRONE);
               saved_direct_resources=saved_npc_projectiles&(SCENE_AI_DIRECT_RESOURCE_LASER|SCENE_AI_DIRECT_RESOURCE_SONAR|SCENE_AI_DELAYED_RESOURCES);
-              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
+              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | (rf_scene_crash_loadout>=5 && rf_scene_crash_loadout<=6?1u<<(rf_scene_crash_loadout-1):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]));
                   /* NPC-only demand loads flights and effects without player views or ownership. */

@@ -133,6 +133,39 @@ membership. No installed toolchain or original assets were edited.
 
 ## Harness
 
+Diagnostic loadout5 (rocket) and6 (grenade) extend the same ordinary finite-ammo
+acquisition used by the firearm starts. Their selected resource bit enters the
+existing optional weapon resource planner; normal stock64 admission and all
+firing, collision and damage checks remain in force. The tester profile still
+ignores the diagnostic selector. Native compile/link succeeded.
+
+Rocket-start L2S2a run20261015-183817 completed1800 inputs in283 seconds with
+1547 live/253 dead input frames and two scene starts. Per-scene maxima were31
+player shots,12 enemy shots,4 weapon switches and4 simultaneous alerted actors.
+The first life launched3 rockets with3 impacts; the second life used other
+weapons after normal cycling. No fatal error occurred. Terrain-edit/debris
+counters stayed zero, so this is not destruction coverage. Blast-specific
+counters were added to the next run; do not infer blast kills from hitscan counts.
+
+Initial grenade-start run20261015-184328 completed1800 inputs but released no
+grenades: ordinary acquire(-1) owns a clipless weapon without reserve ammunition.
+The game correctly switched away from the empty grenade. Its result explicitly
+sets requested_weapon_observed=false; it is excluded from grenade coverage.
+The diagnostic fixture now supplies4 reserve rounds through the capped ordinary
+pickup API after acquisition. This is a fixture correction, not a game crash fix.
+The harness records rocket launches, grenade releases and blast kills and emits
+requested_weapon_observed for explosive starts independently of frame completion.
+
+Corrected grenade-start run20261015-184828 completed1800 inputs with1472 live
+and328 dead frames, two scene starts, and no fatal error. It released/detonated
+one grenade, launched one rocket, and recorded2 blast kills, with up to4
+simultaneously alerted actors and11 enemy shots in a scene. Selection changed
+from grenade to rocket while3 grenades remained; the cause of that selection
+change has not yet been traced. Do not count this as repeated grenade or bounce
+coverage (bounce count0). Terrain edits and debris remained0. Next work must
+exercise repeated explosives and destructible combat terrain while preserving
+ordinary ammo, collision, damage and authored actor populations.
+
 L2S2a recipe5 run20261015-160906 completed1800 inputs and native terminal
 success after374 seconds. It retained all57 original actors, reached55 live
 registered actors and4 simultaneously alerted actors, and recorded1346 live
