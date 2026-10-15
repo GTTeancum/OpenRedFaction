@@ -142,6 +142,8 @@ typedef struct rf_npc_checkpoint_record {
     uint32_t pursuit_delay_profile;
     rf_npc_checkpoint_pursuit_delay pursuit_delay;
     uint32_t pursuit_return_profile,pursuit_return_phase; /* Staged RFNC41: phase0..3; execution4 is never wire. */
+    /* RFNC42: fixed class-base action41/42 residual ownership, no audio replay. */
+    uint32_t speech_motion_mask;
     uint32_t animation_present;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     rf_motion_playback_state playback;
@@ -450,6 +452,15 @@ int rf_npc_checkpoint_encode_with_pursuit_return(const unsigned char identity[32
     const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,uint32_t cursor,
     void *,uint32_t capacity,uint32_t *written);
 int rf_npc_checkpoint_decode_with_pursuit_return(const void *,uint32_t bytes,const unsigned char identity[32],
+    const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count,
+    rf_npc_checkpoint_rng *,uint32_t *cursor);
+/* Staged speech-aware APIs: zero masks retain RFNC41, nonzero promotes42.
+ * Scene identity/resource/publication joins must precede live use. Older
+ * writers reject nonzero masks and older readers reject RFNC42. */
+int rf_npc_checkpoint_encode_with_speech_motion(const unsigned char identity[32],const rf_npc_checkpoint_catalog *,
+    const rf_npc_checkpoint_record *,uint32_t count,const rf_npc_checkpoint_rng *,uint32_t cursor,
+    void *,uint32_t capacity,uint32_t *written);
+int rf_npc_checkpoint_decode_with_speech_motion(const void *,uint32_t bytes,const unsigned char identity[32],
     const rf_npc_checkpoint_catalog *,rf_npc_checkpoint_record *,uint32_t capacity,uint32_t *count,
     rf_npc_checkpoint_rng *,uint32_t *cursor);
 int rf_npc_checkpoint_record_validate(const rf_npc_checkpoint_record *,const rf_npc_checkpoint_catalog *);

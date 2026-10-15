@@ -9,8 +9,15 @@ typedef struct scene_message_voice {
     uint32_t uid,key,route,handle,sample,duration;
     uint32_t actor_handle,origin; /* Full speaker generation; origin1 is Use speech, not an event. */
     int32_t voice;
+    int32_t speech_end,speech_next; /* Transient scheduling; never residual ownership. */
     campaign_spatial_voice spatial;
 } scene_message_voice;
+/* Complete reviewed save/publication/lifecycle slice; native build pending. */
+#define SCENE_NPC_SPEECH_RUNTIME_ENABLED 1
+static void scene_npc_speech_arm(scene_message_voice *,int32_t,uint32_t);
+static void scene_npc_speech_tick(int32_t);
+static int scene_npc_speech_checkpoint_binding(uint32_t,uint32_t,int32_t,
+    const rf_entity_motion_selection *,int32_t[2]);
 static scene_message_voice campaign_message_voices[RF_AUDIO_ORDINARY_SLOTS];
 uint32_t rf_scene_message_audio[4]; /* requests,starts,failures,last status */
 /* flat/radio/actor requests, duplicate suppressions, stops, active owners,
@@ -167,6 +174,7 @@ static uint32_t campaign_message_play(const rf_level_event *event,const char *na
             campaign_message_release(slot);status=RF_NOT_FOUND;goto done;
         }
     }
+    scene_npc_speech_arm(slot,campaign_blackout_now,1);
     campaign_message_voice=voice;++rf_scene_message_audio[1];
     printf("MESSAGE_VOICE uid%u route%u owner%u sample%u handle%u frames%u rate%u duration%u\n",
         event->uid,route,key,index,handle,pcm->frames,pcm->rate,duration);

@@ -38,6 +38,7 @@ static int campaign_set_physics_enabled(void *context,uint32_t handle,uint32_t e
         rf_scene_physics_state[4]=(uint32_t)campaign_seeds.records.items[i].record.uid;
         {rf_physics_body_state next=o->body.state;uint32_t flags=o->object_flags;
          status=rf_physics_set_enabled(&next,&flags,enabled);
+         if(!status&&!enabled)status=scene_npc_speech_remove_owned(i);
          if(!status)status=scene_guard_retreat_cancel(o,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
          if(!status){o->body.state=next;o->object_flags=flags;}}
         if(!status){

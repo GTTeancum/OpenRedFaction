@@ -74,6 +74,7 @@ static int scene_alarm_runner_tick(scene_stream *stream,campaign_npc_body *o,uin
         status=scene_alarm_runner_resources(slot,&o->selection,1);if(status)return status;
         status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_FORMAT;
         model=campaign_playback_resources.models+pose->skeleton;
+        status=scene_npc_speech_remove_owned(slot);if(status)return status;
         status=rf_motion_start(&pose->playback,model->resources,model->count,o->selection.mapping.actions[44],1.f,0);if(status)return status;
         o->script_animation.active=1;o->script_animation.loop=o->script_animation.freeze=0;
         o->script_animation.motion=o->selection.mapping.actions[44];

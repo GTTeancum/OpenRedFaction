@@ -2,6 +2,7 @@
 #define RF_SCENE_WORLD_LOAD_INCLUDED
 #include "scene_pursuit_return_late_selection.inc"
 #include "scene_pursuit_return_resource_binding.inc"
+#include "scene_npc_speech_late_publication.inc"
 #include "scene_pursuit_return_allocator.inc"
 #include "rf/prepare_stdio.h"
 _Static_assert(_Alignof(scene_world_environment_stage)<=8 &&
@@ -96,7 +97,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_npc_reload_player_receipt return_on_foot={0};
     scene_npc_reload_publication_receipt *reload_receipt=NULL;
     scene_crouch_late_receipt *crouch_late=NULL;
-    uint32_t late_resource_state=0;
+    uint32_t late_resource_state=0,speech_potential=0;
+    scene_npc_speech_late speech_late={0};
     scene_return_barriers *return_late=NULL;
     scene_return_resource_binding return_binding={0};
     scene_return_close_gate return_gate={0};
@@ -241,7 +243,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         rows=malloc(rows_bytes);if(!rows){status=RF_IO;goto done;}
     }
     /* Resource inspection validates but does not restore the singleton. */
-    status=rf_npc_checkpoint_decode_with_pursuit_return(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng,&inspected_tactical_cursor);if(status)goto done;
+    status=rf_npc_checkpoint_decode_with_speech_motion(v->data,v->bytes,identity.bytes,&catalog,rows,rows_count,&rows_count,&inspected_rng,&inspected_tactical_cursor);if(status)goto done;
+    phase="speech_pending";
+    status=scene_npc_speech_load_potential(rows,rows_count,&speech_potential);if(status)goto done;
     /* Validate outgoing and incoming return potential before resource demand. The following eligibility, memory, ownership and final-close checks govern the complete late transaction; return owners cannot use the legacy early-close lane. */
     {
      phase="return_late_pending";
@@ -327,8 +331,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
     /* Potential-only participants reserve the protected lane before demand,
      * but RFNS/player ownership must resolve before they require on-foot. */
-    if(reload_transaction||blind_potential||crouch_transaction||return_potential){
-        uint32_t extra=(uint32_t)(sizeof(reload_player)+sizeof(reload_receipt)+sizeof(crouch_late)+4*sizeof(uint32_t));
+    if(reload_transaction||blind_potential||crouch_transaction||return_potential||speech_potential){
+        uint32_t extra=(uint32_t)(sizeof(reload_player)+sizeof(reload_receipt)+sizeof(crouch_late)+4*sizeof(uint32_t)+sizeof(speech_late)+sizeof(speech_potential));
         if(cost>budget||extra>budget-cost||rows_bytes>budget-cost-extra){status=RF_RANGE;goto done;}
         cost+=extra;phase="reload_current_on_foot";
         if(reload_transaction){status=scene_npc_reload_player_admit(stream,&reload_player);if(status)goto done;}
@@ -678,7 +682,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_world_environment_validate(environment);if(status)goto done;
     status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
     status=scene_npc_airborne_restore_begin(world->npcs,&airborne_receipt);if(status)goto done;
-    if(reload_transaction||crouch_transaction||return_potential){
+    if(reload_transaction||crouch_transaction||return_potential||speech_potential){
         if(reload_transaction){
             phase="reload_two_sided_on_foot";
             status=scene_npc_reload_player_seal(stream,&reload_player);if(status)goto done;
@@ -696,9 +700,14 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
         if(status)goto done;
         cost+=scene_npc_reload_publication_bytes(reload_receipt);
+        if(speech_potential){
+            phase="speech_late_begin";
+            status=scene_npc_speech_late_begin(&speech_late,world->npcs,
+                reload_receipt,speech_potential);if(status)goto done;
+        }
         /* Tactical composed preparation authenticates return rows. Select only after potential Blind ownership resolves, while preserving reload early-close exclusions. */
         combined_late=return_contract_ready&&return_potential&&!reload_transaction;
-        if(crouch_transaction&&!reload_transaction&&!combined_late){
+        if(crouch_transaction&&(!reload_transaction||speech_potential)&&!combined_late){
             phase="crouch_late_begin";
 #ifdef RF_IMAGE_XBOX_NATIVE
             status=scene_crouch_late_begin_accounted(world->npcs,reload_receipt,budget-cost,&crouch_late,&world_memory);
@@ -731,7 +740,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_clutter_checkpoint_assign(world->clutter);
     if(airborne_receipt.active)phase="airborne_assignment_identity";
     status=scene_npc_airborne_restore_identity(world->npcs,&airborne_receipt,1);if(status)goto done;
-    if(reload_transaction||crouch_transaction||return_potential){
+    if(reload_transaction||crouch_transaction||return_potential||speech_potential){
         phase="reload_publication_seal";
         status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
         status=scene_alarm_runner_event_join(world->npcs,events);if(status)goto done;
@@ -747,7 +756,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         /* Actual native unmount can fail while leaving mounted set. Record
          * the attempt before calling; neither success nor failure retries it.
          * Fixture/portable paths cross the same logical publication barrier. */
-        if(reload_transaction){
+        if(reload_transaction&&!speech_potential){
             phase="reload_storage_close";storage_close_attempted=1;
 #ifdef RF_IMAGE_XBOX_NATIVE
             status=scene_world_storage_close(&storage);if(status)goto done;
@@ -810,9 +819,14 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     else if(crouch_late){phase="crouch_assigned_projection";
         status=scene_crouch_late_capture(world->npcs,crouch_late);if(status)goto done;}
     /* Capture every participating late target adapter before this barrier. Never admit a late adapter after an early storage close. */
+    if(speech_potential){
+        phase="speech_assigned_projection";
+        if(storage_close_attempted){status=RF_FORMAT;goto done;}
+        status=scene_npc_speech_late_capture(&speech_late);if(status)goto done;
+    }
     if(return_late){phase="return_resource_rebase";
         status=scene_return_barriers_rebase(return_late);if(status)goto done;}
-    else if(crouch_late){phase="late_resource_rebase";
+    else if(crouch_late||speech_potential){phase="late_resource_rebase";
         if(storage_close_attempted){status=RF_FORMAT;goto done;}
         status=scene_npc_late_resources(world->npcs,reload_receipt,&late_resource_state,1);
         if(status)goto done;}
@@ -881,12 +895,17 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(stream->driller_runtime||stream->driller||scene_vehicle_switch_has_parked()){
             status=RF_NOT_FOUND;goto done;}
         status=scene_npc_reload_player_seal(stream,&return_on_foot);if(status)goto done;}
+    if(speech_potential){
+        phase="speech_late_seal";
+        if(storage_close_attempted){status=RF_FORMAT;goto done;}
+        status=scene_npc_speech_late_seal(&speech_late);if(status)goto done;
+    }
     if(return_late){phase="return_late_seal";
         status=scene_return_barriers_seal(return_late);if(status)goto done;}
     else if(crouch_late){phase="crouch_late_seal";
         status=scene_crouch_late_seal(world->npcs,crouch_late);if(status)goto done;}
     /* Seal every participating late target adapter before the same final-close barrier. */
-    if(!return_late&&crouch_late){phase="late_resource_seal";
+    if(!return_late&&(crouch_late||speech_potential)){phase="late_resource_seal";
         status=scene_npc_late_resources(world->npcs,reload_receipt,&late_resource_state,0);
         if(status)goto done;}
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
@@ -894,6 +913,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_startup_snapshot_consumed=1;
     projectile_audio_resume=projectiles!=NULL;world_published=1;
  done:
+    if(speech_potential&&!status&&world_published){
+        phase="speech_storage_close";
+        if(storage_close_attempted)status=RF_FORMAT;
+        else status=scene_npc_speech_late_close_begin(&speech_late,late_resource_state);
+    }
     if(return_late&&!status&&world_published){
         phase="return_storage_close";
         if(storage_close_attempted)status=RF_FORMAT;
@@ -901,6 +925,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     }
     /* Includes create/context/arm/capture/seal failures and absent driver.
      * No late validation or resource callback may follow this boundary. */
+    if(speech_potential&&(status||!world_published))speech_late.state=SCENE_SPEECH_LATE_FAILED;
     return_gate.open=0;
     if(status){const unsigned char *name=(const unsigned char *)phase;uint32_t hash=2166136261u;
         while(*name)hash=(hash^*name++)*16777619u;
@@ -910,11 +935,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     rf_scene_world_checkpoint_state[2]=status?0:cost;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!storage_close_attempted){int closed;
-        if(return_late)storage_close_attempted=1;
+        storage_close_attempted=1;
         closed=scene_world_storage_close(&storage);if(!status)status=closed;
         rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
 #endif
-    if((reload_transaction||return_late)&&status){rf_scene_world_checkpoint_state[0]=(uint32_t)status;
+    if((reload_transaction||return_late||speech_potential)&&status){rf_scene_world_checkpoint_state[0]=(uint32_t)status;
         rf_scene_world_checkpoint_state[1]=rf_scene_world_checkpoint_state[2]=0;}
     if(status&&airborne_receipt.assigned&&world)
         (void)scene_npc_airborne_restore_abort(world->npcs,&airborne_receipt);

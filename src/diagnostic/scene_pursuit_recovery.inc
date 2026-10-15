@@ -142,6 +142,7 @@ static int scene_pursuit_recovery_playback(void *context,
             const char *label=u->owner->selection.action_sounds[i];
             if(!label)return RF_FORMAT;sounds[i]=label[0]?(int32_t)i:-1;
         }
+        status=scene_npc_speech_remove_owned(u->slot);if(status)return status;
         u->owner->death.action_824=40;
         status=rf_motion_start_action(&u->pose->playback,model->resources,model->count,
             u->owner->selection.mapping.actions,sounds,40,1,0,1,&sound);

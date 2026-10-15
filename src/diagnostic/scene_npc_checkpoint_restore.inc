@@ -53,8 +53,10 @@ typedef struct scene_npc_checkpoint_restore_stage {
 /* Previous Xbox32 entry11556/header80. Proposed return growth44 includes
  * two decoded-row additions16, owner_before allowance16 and prepared receipt12;
  * return retirement marker adds4 with conservative8-byte alignment allowance;
- * header grows4. Uncompiled source bounds; total overlap accounting is pending. */
-_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_entry)<=11608,"Pursuit return candidate restore growth exceeds proposed allowance");
+ * header grows4. RFNC42 adds another8 across the two decoded records; actual
+ * allocation charges sizeof(entry) inside the unchanged cumulative budget.
+ * owner_before adds4 for speech with up to4 bytes of ABI alignment padding. */
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_entry)<=11624,"Decoded speech field candidate growth exceeds reviewed allowance");
 _Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_stage)<=84,"Pursuit return restore header exceeds proposed allowance");
 /* Read-only native failure detail: phase FNV1a, row index, UID, status,
  * expected resident row count and supplied row count. UINT32_MAX identifies
@@ -560,7 +562,8 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
         }
         /* Return-only ownership also needs an old full-body/pose seal when
          * no patrol, medic or crouch owner happened to request one. */
-        if(o->pursuit_return.phase||e->pursuit_return_prepared.phase){
+        if(o->pursuit_return.phase||e->pursuit_return_prepared.phase||
+           o->speech_motion_mask||e->saved.speech_motion_mask){
             if(o->pursuit_return.phase){
                 status=scene_pursuit_return_tactical_admit(&o->pursuit_return,&o->tactical);if(status)goto fail;
                 status=scene_tactical_owner(j);if(status)goto fail;
@@ -684,6 +687,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
         status=scene_npc_pain_checkpoint_prepare(j,rows+i,&e->selection,now,e->pain_deadlines);if(status)goto fail;
         id=e->selection.mapping.states[0];
         detail="animation_restore";
+        if(rows[i].speech_motion_mask&&!rows[i].animation_present){status=RF_FORMAT;goto fail;}
         if(rows[i].animation_present){
             uint32_t k,skeleton=e->selection.mapping.skeleton;
             if(!campaign_playback_resources.models||skeleton>=campaign_playback_resources.model_count){status=RF_RANGE;goto fail;}
@@ -713,6 +717,8 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
                 detail="clip";status=scene_npc_checkpoint_restore_clip(skeleton,motion,count);if(status)goto fail;
                 if(!model->resources[motion].looping&&!rows[i].script_animation.active&&!rows[i].dead_pose&&
                    !scene_npc_pain_checkpoint_clip(&rows[i].pain,&e->selection,motion)&&
+                   !scene_npc_speech_checkpoint_residual(j,&e->selection,&rows[i].playback,
+                     rows+i,e->flags,rows[i].speech_motion_mask,motion)&&
                    !(!rows[i].reload_present&&(rows[i].combat_alert||rows[i].combat.active)&&
                      (motion==e->selection.mapping.actions[2]||motion==e->selection.mapping.actions[39]||
                       scene_crouch_action4(j,!!(rows[i].crouch.flags&1u),&e->selection,motion)))&&
@@ -725,6 +731,10 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
                      scene_npc_pain_checkpoint_residual(j,cls,rows[i].primary,
                          &e->selection,&rows[i].playback,motion,0)))
                     e->unowned_motion_mask|=1u<<k;
+            }
+            if(!scene_npc_speech_checkpoint_mask(j,&e->selection,&rows[i].playback,
+                rows+i,e->flags,rows[i].speech_motion_mask)){
+                detail="speech_owner";status=RF_FORMAT;goto fail;
             }
             /* RFNC lacks the independent RFAP burn-pain action. Resolve only
              * those exact remaining slots at the existing composed join;
@@ -890,6 +900,37 @@ static int scene_pursuit_delay_prepared(const scene_npc_checkpoint_restore_stage
 }
 /* All fallible work finishes before the first actor assignment. The caller
  * keeps scene/resource ownership stable between prepare and commit. */
+static int scene_npc_speech_prepared(
+    const scene_npc_checkpoint_restore_stage *stage,
+    const scene_npc_checkpoint_restore_entry *e)
+{
+    const campaign_npc_body *o;
+    uint32_t old,incoming;
+    if(!stage||!e||!campaign_npc_bodies||!campaign_poses.items||
+       e->slot>=campaign_npc_body_count||e->slot>=campaign_poses.count)
+        return RF_RANGE;
+    o=campaign_npc_bodies+e->slot;
+    old=e->owner_before.speech_motion_mask;
+    incoming=e->saved.speech_motion_mask;
+    if((old|incoming|o->speech_motion_mask)&~SCENE_NPC_SPEECH_ALL)
+        return RF_FORMAT;
+    if(o->speech_motion_mask!=old)return RF_FORMAT;
+    if(!(old|incoming))return RF_OK;
+    if(!e->registered||e->handle!=o->registration.handle||e->unowned_motion_mask)
+        return RF_FORMAT;
+    if(old&&!scene_npc_speech_checkpoint_mask(e->slot,&o->selection,
+        &campaign_poses.items[e->slot].playback,NULL,o->object_flags,old))
+        return RF_FORMAT;
+    if(incoming){
+        if(!e->saved.animation_present||!e->bone_count||e->bone_count>50||
+           e->bone_count!=campaign_poses.items[e->slot].bone_count||
+           !e->matrices||!e->generations||
+           memcmp(&e->playback,&e->saved.playback,sizeof(e->playback))||
+           !scene_npc_speech_checkpoint_mask(e->slot,&e->selection,&e->playback,
+               &e->saved,e->flags,incoming))return RF_FORMAT;
+    }
+    return RF_OK;
+}
 static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoint_restore_stage *stage)
 {
     uint32_t i;int status;rf_npc_checkpoint_record current;
@@ -905,6 +946,7 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
        rf_entity_lookup(&campaign_entities,(int32_t)stage->flight_player)!=&campaign_player_view))return RF_FORMAT;
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
+        status=scene_npc_speech_prepared(stage,e);if(status)return status;
         status=scene_blind_prepared(stage,e);if(status)return status;
         status=scene_pursuit_delay_prepared(stage,e);if(status)return status;
         status=scene_tactical_prepared(stage,e);if(status)return status;
@@ -935,7 +977,8 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
         if(memcmp(&rf_scene_defeated_actors.routes[campaign_npc_bodies[e->slot].persistence_slot],
             &e->route_before,sizeof(e->route_before)))return RF_FORMAT;
         if((e->medic_owner_snapshot||e->route_owner_snapshot||e->owner_before.pursuit_return.phase||
-            e->pursuit_return_prepared.phase)&&!stage->fresh_boot){
+            e->pursuit_return_prepared.phase||e->owner_before.speech_motion_mask||
+            e->saved.speech_motion_mask)&&!stage->fresh_boot){
             if(memcmp(campaign_npc_bodies+e->slot,&e->owner_before,sizeof(e->owner_before))||
                !campaign_poses.items||e->slot>=campaign_poses.count||
                memcmp(campaign_poses.items+e->slot,&e->pose_before,sizeof(e->pose_before)))return RF_FORMAT;
@@ -1286,6 +1329,7 @@ static inline void scene_npc_checkpoint_restore_finish(scene_npc_checkpoint_rest
          * boundary. The temporary nonempty-return save fence remains until
          * those callers are complete; this is not admission authority. */
         o->pursuit_return=e->pursuit_return_prepared;
+        o->speech_motion_mask=e->saved.speech_motion_mask;
     }
     scene_medic_flight_rng_publish(&stage->flight_rng);
 }
@@ -1306,6 +1350,13 @@ static inline void scene_npc_checkpoint_flight_abort(const scene_npc_checkpoint_
 }
 static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_restore_stage *stage)
 {
+    if(!stage||stage->count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_RANGE;
+    for(uint32_t i=0;i<stage->count;i++){
+        const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
+        if(!campaign_npc_bodies||e->slot>=campaign_npc_body_count)return RF_FORMAT;
+        if(e->saved.speech_motion_mask||e->owner_before.speech_motion_mask||
+           campaign_npc_bodies[e->slot].speech_motion_mask)return RF_NOT_FOUND;
+    }
     int status=scene_npc_checkpoint_restore_validate(stage);if(status)return status;
     scene_medic_flight_restore_scope(1);
     scene_npc_checkpoint_restore_assign(stage);

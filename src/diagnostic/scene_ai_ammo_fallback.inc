@@ -39,6 +39,7 @@ static int campaign_enemy_ammo_fallback(uint32_t slot,uint32_t *changed)
         campaign_seeds.items[slot].class_index,replacement,&selection);if(status)return status;
     /* Same retained reset as pain handling. Unsupported live effects prevent
      * switching rather than silently leaving stale sound/effect owners. */
+    status=scene_npc_speech_remove_owned((uint32_t)(owner-campaign_npc_bodies));if(status)return status;
     status=campaign_pain_reset_retained(NULL,owner->registration.handle,owner->view.weapons[0]);if(status)return status;
     scene_ai_drone_smash_cancel_source(owner->registration.handle);
     scene_ai_tribeam_cancel_source(owner->registration.handle);scene_ai_cane_cancel_source(owner->registration.handle);scene_ai_spit_cancel_source(owner->registration.handle);

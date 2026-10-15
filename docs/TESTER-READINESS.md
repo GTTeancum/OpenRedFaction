@@ -1,13 +1,56 @@
 # First-playable tester scope
 
-October 11, 2026. The target is useful gameplay for testers, not retail parity.
-Source coverage alone does not establish that a tester can play successfully.
-The next completion marker is an actual stock-64-MiB boot of the interactive
-package. The new launch and Rocket alternate changes have not yet been compiled
-or run. Historical rough estimates remain 90% overall / 95% weapon-handling
-implementation, with low confidence; these are not runtime readiness scores.
+Status: October 15, 2026, after the 15:00 UTC build.
 
-## Broad system sweep
+Commit `670bdf36dad6064d8d09a716f96f358f989aad1d` passed native stock64
+compile/link/package and limited XEMU startup reaching 10 simulation and
+10 presentation frames. Shutdown and neutral-input postchecks passed.
+See [the exact receipt](HOURLY-20261015-1500.md).
+
+The frontend, menu motion caches, medic persona responses, automatic
+Humming/Timeout and ordinary Use-facing/default-patrol pause are integrated
+and compiled. Main, Difficulty and New Game were traversed in the startup
+check. Every menu action and NPC behavior has not been functionally exercised.
+Speech gestures are source-integrated after this passing build; their native
+compile/startup result is pending.
+
+Actual hardware, broader gameplay, visual/audio correctness, performance and
+save-route coverage remain unverified and tester-owned. Historical estimates
+are not readiness or test-coverage scores.
+
+## Delivery steps
+
+1. Compile the reviewed speech-gesture integration and record its own build status.
+2. Preserve and publish reviewed source with an exact delivery manifest.
+3. Hand off private inputs and the NXDK build recipe for Codex local builds.
+4. Verify RXDK Neighborhood tools, console identity, deployment destination,
+   full-package D-drive launch mapping and effective 64-MiB RAM locally.
+5. Record actual-hardware observations separately from emulator startup.
+
+Verified Neighborhood deployment commands are not yet documented. A source-only
+checkout also needs the three private original-derived build/data templates.
+Original assets/templates must not be published with source. The protected
+emulator HDD is outside the handoff and must not be accessed. Persistence tests
+require an approved destination and protection of existing console data.
+
+## Deferred tester refinement
+
+- Rocket steering, lock feel and broad weapon behavior. Ordinary composed saves
+  support lock/guided-flight continuation; specific unsupported identities and
+  direct live-state replacement still refuse. See [the exact save scope](PLAYER-ROCKET-LOCK-SAVE.md).
+- Shared-ammunition auto-reload admission is fixed in source; weapon behavior
+  still needs tester exercise.
+- Controller feel, demanding-scene performance, event parity and full routes.
+
+Vehicles and GeoMod retain accepted first-playable scope. Reopen only for a
+concrete ordinary-play blocker or explicit direction.
+
+See [launch instructions](XBOX-TESTER-LAUNCH.md),
+[controller mapping](XBOX-CONTROLLER-BUTTON-MAPPING.md),
+[authored menus](AUTHORED-XBOX-MENUS.md), and
+[weapon inventory](TESTER-COMBAT-SWEEP.md).
+
+## Historical October 11 source sweep
 
 - **Getting into the game:** the ordinary diagnostic disc did not turn on live
   gameplay. The new opt-in `tools/build-xbox.sh --tester` package starts authored
@@ -26,35 +69,3 @@ implementation, with low confidence; these are not runtime readiness scores.
   remains outside this development batch.
 - **Vehicles and GeoMod:** retain the accepted first-playable scope closures.
   Reopen only if an actual blocker prevents ordinary play.
-
-## Actual blockers and next results
-
-1. Compile and package the combined interactive launch / Rocket alternate code
-   in the next single parent-owned hourly Xbox batch.
-2. Boot the tester image with the approved baseline disk in temporary snapshot
-   mode; establish real live scene/input-loop progress and clean shutdown.
-3. Fix a material failure if that run exposes one. Do not replace this outcome
-   with more source-proof paperwork or repeated tiny scenarios.
-4. Protected saved-game continuation remains separately blocked by compressed
-   backup approval, successful protection and capacity. Fresh snapshot startup
-   is specifically approved and does not depend on that saved-backup operation.
-
-No runnable tester build or successful new gameplay result is claimed yet.
-Private original assets must not be published with source downloads.
-
-## Leave to tester feedback / later refinement
-
-- Exact Rocket steering, target/HUD policy, lock beeps and predictive lead.
-  Saving/loading during active lock acquisition or guided flights is explicitly
-  refused until those transient owners end; existing saves are not silently
-  changed into ballistic flights.
-- Shared-12mm surplus can prevent automatic reload for the lower-capacity
-  handguns; manual reload remains available.
-- Ladder edge feel, optional persona/monitor interactions, unbound holster /
-  message log / fine aim, menus/remapping and presentation polish.
-- Isolated event parity and completion/credits presentation, broader action
-  coverage, demanding-scene performance and physical-controller feedback.
-
-Use [tester launch instructions](XBOX-TESTER-LAUNCH.md),
-[weapon inventory](TESTER-COMBAT-SWEEP.md) and
-[Rocket controls and limits](PLAYER-ROCKET-LOCK-FIRST-PASS.md).

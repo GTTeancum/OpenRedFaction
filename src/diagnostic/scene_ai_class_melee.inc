@@ -77,6 +77,7 @@ static int scene_ai_class_melee_switch(uint32_t slot,uint32_t frame,uint32_t *wa
     status=campaign_npc_motion_require(pose->skeleton,(uint32_t)selection.mapping.actions[2]);if(status)return status;
     /* Existing reset keeps its resource/error semantics. It cannot cancel a
      * strike here: the complete pending bank was checked above. */
+    status=scene_npc_speech_remove_owned((uint32_t)(o-campaign_npc_bodies));if(status)return status;
     status=campaign_pain_reset_retained(NULL,handle,old);if(status)return status;
     o->selection=selection;o->view.weapons[0]=replacement;
     o->combat_burst_remaining=0;o->combat_navigation_due=0;

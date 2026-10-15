@@ -27,6 +27,7 @@ static int campaign_enemy_reload_presentation(uint32_t slot)
     status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
     if(pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
     model=campaign_playback_resources.models+pose->skeleton;
+    status=scene_npc_speech_remove_owned(slot);if(status)return status;
     return campaign_enemy_reload_start(&pose->playback,model->resources,model->count,owner->selection.mapping.actions);
 }
 /* Preflight everything motion_control can reject before accepting ownership.

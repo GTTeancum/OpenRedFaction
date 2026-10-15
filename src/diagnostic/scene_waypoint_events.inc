@@ -204,6 +204,7 @@ static int scene_waypoint_animation_try(campaign_npc_body *o,const rf_level_even
     status=scene_waypoint_boundary();if(status)return status;
     status=scene_waypoint_action_resources(slot,pose,motion);if(status)return status;
     model=campaign_playback_resources.models+pose->skeleton;
+    status=scene_npc_speech_remove_owned(slot);if(status)return status;
     /* All fallible residency/slot admission precedes the first ownership edit. */
     if(o->script_animation.active&&o->script_animation.motion!=motion){
         status=rf_motion_stop_slot(&pose->playback,o->script_animation.motion);if(status)goto fault;

@@ -1,29 +1,23 @@
 # Xbox tester campaign launch
 
-Source implementation, 2026-10-11. Not compiled, packaged or run yet. The
-parent-owned hourly Xbox batch must establish launch and stock-memory behavior.
-No new campaign route, fixture, original-asset extraction or HDD operation was
-performed for this change.
+Status: October 15, 2026. Commit
+`670bdf36dad6064d8d09a716f96f358f989aad1d` passed native stock64
+compile/link/package and limited XEMU startup with 10 simulation and
+10 presentation frames. See [the receipt](HOURLY-20261015-1500.md).
+Actual hardware and broader functional coverage remain unverified.
+Speech gestures are source-integrated after that build; their native compilation
+and startup remain pending.
 
-## What this completes
+## Interactive package
 
-The normal build previously copied the assets and XBE but installed no gameplay
-switches. With that clean disc, `main.c` ran archive/animation checks and the
-static diagnostic preview. Playing required manually arranging several disc
-flags. That was a practical tester-entry gap even though the gameplay systems
-already had live consumers.
+The tester package opens the controller-driven frontend. New Game enters
+`levels1.vpp` / `L1S1.rfl` using authored player position, facing and ordinary
+starting state, with the selected difficulty. It enables live controller input,
+interactive pacing, APU audio, NPCs, authored startup events, level transitions
+and existing frontend/pause/session controls.
 
-The opt-in tester package now starts the existing ordinary campaign directly:
-
-- `levels1.vpp` / `L1S1.rfl`, using the level's authored player position/facing
-- Real controller input, existing interactive frame pacing and APU audio
-- The normal scene renderer, NPCs, inventory and authored startup events
-- Automatic authored level transitions and their existing state carry
-- Existing pause, save/load and death/restart controls
-
-It does not add equipment, stage an actor, activate an event, auto-load a save or
-change difficulty. L1S1 begins with its normal unarmed inventory. No title/menu
-or complete-campaign runtime claim is made.
+It grants no equipment, stages no actors, forces no events and installs no
+campaign replay. The build without `--tester` remains a diagnostic package.
 
 ## Build and start
 
@@ -48,19 +42,42 @@ make explicitly. At runtime, its marker also requires a successful memory
 query reporting exactly 16,384 physical pages. No additional resource budget
 or RAM allowance is introduced.
 
-## Controls
+## Default controls
 
 - Left stick: move; right stick: look
 - A: jump; B: crouch; X: use; Y: reload
 - RT: primary fire; LT: alternate fire
-- D-pad left/right or shoulders: cycle owned weapons
+- Black: next weapon; White: previous weapon
+- D-pad left/right: previous/next weapon
+- Hold right-stick click: Fine Aim; left-stick click: Holster
 - Start: pause/resume
 - Back+Y: quick-save; Back+X: quick-load
-- Back+Start: end the session
+- Back+Start: end session
 
-Release a save/load chord before another request. Saves can still be refused
-by existing unsupported-state/storage checks; the previous valid save remains
-owned by the existing storage code. This profile does not bypass those checks.
+Gameplay buttons can be remapped in Controls. Physical menu A/B, Start,
+D-pad navigation and Back+X/Y save/load chords retain their fixed meanings.
+Release held inputs before actions in a newly opened menu or session.
+The frontend includes New Game, Load Game, Options and a Dashboard Exit
+confirmation. End Session returns to the frontend. Save/load admission and
+storage checks remain in force.
+
+## Local input and hardware requirements
+
+A source-only checkout needs Installed_Game archives, bluebeard.bty and three
+private generated files: `build/data/geomod-template.bin`, `driller-single.bin`
+and `driller-double.bin`. Preserve verified existing copies. Regeneration needs
+additional private reconstruction evidence and tools, not only RF.exe.
+Prepare the pinned NXDK/APU prerequisites through the guarded build scripts.
+Set `RF_MENU_OVERLAY_VPP` to the verified overlay source when retaining it.
+Original assets and derived templates must not be committed to GitHub.
+
+RXDK Neighborhood deployment commands and actual console configuration still
+require local verification. Launch must expose the entire tester package as
+`D:\`; copying only the XBE is insufficient. Runtime requires exactly 64 MiB
+reported RAM, including on upgraded consoles. Checkpoint/settings owners use
+`R:`/`S:` on `\Device\Harddisk0\Partition1`. Verify deployment destination,
+existing-data protection and log collection before hardware testing.
+The protected emulator HDD is outside this handoff.
 
 ## Isolation and disk space
 
@@ -120,9 +137,11 @@ section transitions and final defuse/completion. Relevant owners are
 These systems should not remain described as entirely missing merely because
 all natural routes have not been played.
 
-The sweep did not establish full-route reachability, performance or every
-section's memory fit. Existing unsupported event parity, two legacy missing
-level names, save-admission restrictions and the placeholder completion/credits
-presentation remain separate limitations. Delayed Reverse_Mover admission was
-noticed but deliberately deferred as an isolated defect outside this broad
-entry-to-gameplay slice. No new runtime observations are claimed.
+The source sweep and limited startup do not establish full-route reachability,
+actual-hardware behavior, demanding-scene performance or every section's memory
+fit. Broader coverage belongs to testers. Existing event and save-admission
+limitations remain documented separately; older source-only statements about
+missing menus or credits are superseded by dated implementation records.
+
+Two authored destinations remain absent: L12S1/6289 targets L11S4 and
+L9S1/2446 targets L9S1A. See [transition limitations](LEVEL-TRANSITIONS.md).

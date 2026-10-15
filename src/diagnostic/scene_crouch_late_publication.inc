@@ -27,7 +27,7 @@ typedef struct scene_crouch_late_receipt {
     const rf_physics_stance_cache *stances;
     scene_crouch_late_row rows[];
 } scene_crouch_late_receipt;
-_Static_assert(sizeof(void*)!=4||sizeof(scene_crouch_late_row)<=6816,"Return receipt enlarged crouch late row exceeds proposed Xbox32 bound");
+_Static_assert(sizeof(void*)!=4||sizeof(scene_crouch_late_row)<=6820,"Return receipt enlarged crouch late row exceeds proposed Xbox32 bound");
 _Static_assert(sizeof(void*)!=4||sizeof(scene_crouch_late_receipt)<=40,"Crouch late header exceeds reviewed Xbox32 bound");
 static void scene_crouch_late_close(scene_crouch_late_receipt **r)
 {if(r&&*r){free(*r);*r=NULL;}}

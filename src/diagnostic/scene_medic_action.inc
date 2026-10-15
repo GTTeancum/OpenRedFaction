@@ -4,7 +4,7 @@
  * qualifications are in docs/MEDIC-USE-ACTION.md. */
 static int scene_medic_syringe_present(const campaign_npc_body *owner);
 static int32_t scene_npc_persona_choose(campaign_npc_body *owner,uint32_t lane,float *duration);
-static void scene_npc_persona_play(campaign_npc_body *owner,int32_t sample);
+static void scene_npc_persona_play(campaign_npc_body *owner,int32_t sample,uint32_t gestures);
 static uint32_t scene_medic_speech_active(const campaign_npc_body *owner);
 static void combat_sound(const char *name,const float position[3]);
 /* accepted,completed,range abort,missing/dead,full,refused,superseded,
@@ -156,11 +156,11 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     }
     /*40a670: depleted/syringe refusal precedes already-full response. */
     if(owner->medic_reserve<=0 || !scene_medic_syringe_present(owner)){
-        scene_npc_persona_play(owner,scene_npc_persona_choose(owner,1,NULL));
+        scene_npc_persona_play(owner,scene_npc_persona_choose(owner,1,NULL),1);
         ++rf_scene_medic_action[5];return RF_OK;
     }
     if(health>=maximum){
-        scene_npc_persona_play(owner,scene_npc_persona_choose(owner,2,NULL));
+        scene_npc_persona_play(owner,scene_npc_persona_choose(owner,2,NULL),1);
         ++rf_scene_medic_action[5];return RF_OK;
     }
     status=campaign_actor_pose(index,&pose);if(status||!pose)goto unavailable;
@@ -180,6 +180,8 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     status=rf_timer_set(&deadline,scene_medic_now(frame),(int32_t)delay);if(status)goto unavailable;
     if(model->count>1024){status=RF_RANGE;goto unavailable;}
     resources=malloc(model->count*sizeof(*resources));if(!resources){status=RF_IO;goto unavailable;}
+    status=scene_npc_speech_remove_owned((uint32_t)(owner-campaign_npc_bodies));
+    if(status){free(resources);return status;}
     memcpy(resources,model->resources,model->count*sizeof(*resources));playback=pose->playback;ai=owner->ai_mode;
     /* Stage fallible model changes so rejected Use leaves startup kneeling
      * and its script owner intact. Nothing borrows pain/death fields. */
@@ -207,7 +209,7 @@ static int scene_medic_accept(campaign_npc_body *owner,uint32_t frame)
     ++rf_scene_medic_action[0];rf_scene_medic_action[8]=(uint32_t)campaign_seeds.records.items[index].record.uid;
     rf_scene_medic_action[9]=owner->medic.target;
     if(owner->selection.action_sounds[43][0])combat_sound(owner->selection.action_sounds[43],owner->eye_position);
-    scene_npc_persona_play(owner,speech);
+    scene_npc_persona_play(owner,speech,1);
     return RF_OK;
 unavailable:
     free(resources);++rf_scene_medic_action[10];
@@ -240,6 +242,7 @@ static int scene_medic_tick(campaign_npc_body *owner,uint32_t index,uint32_t fra
     if(scene_use_approximate_length(delta)>range){
         rf_entity_pose *pose;status=campaign_actor_pose(index,&pose);if(status)return status;
         if(pose){rf_entity_playback_model *model=campaign_playback_resources.models+pose->skeleton;
+            status=scene_npc_speech_remove_owned(index);if(status)return status;
             status=rf_motion_stop_nonlooping(&pose->playback,model->resources,model->count);if(status)return status;}
         /* Stop only zeroes weights; retain ownership until the actual slot
          * is removed, including when ordinary playback is visibility-culled. */

@@ -301,7 +301,7 @@ static inline int scene_world_restore_prepare_with_passive_storage_accounted(con
         {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,&npc_rows,(size_t)temp,&allocation);
          if(status)goto fail;npc_rows=allocation;}
     }
-    phase="npc_decode";status=rf_npc_checkpoint_decode_with_pursuit_return(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng,&tactical_cursor);if(status)goto fail;
+    phase="npc_decode";status=rf_npc_checkpoint_decode_with_speech_motion(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng,&tactical_cursor);if(status)goto fail;
     s->placement_rows=npc_rows;s->placement_count=npc_count;
     phase="npc_stage";
     status=scene_npc_checkpoint_restore_prepare_mode_storage_accounted(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,

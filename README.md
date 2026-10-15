@@ -1,20 +1,28 @@
 # Red Faction reconstruction for Original Xbox and PC
 
-## Current first-playable work (October 11, 2026)
+## Current first-playable work (October 15, 2026)
 
-The opt-in stock-64-MiB Xbox tester package (`bash tools/build-xbox.sh --tester`)
-starts the authored campaign with live controls, audio and level transitions.
-Its first combined build/boot validation is pending. The ordinary build remains
-a diagnostic package. The broad source sweep covers all 17 player equipment
-slots, the player interaction loop and mission event/progression owners; the
-new Rocket hold-lock/release alternate is integrated but not yet runtime-tested.
-See [tester readiness and actual blockers](docs/TESTER-READINESS.md) and
-[launch/controls](docs/XBOX-TESTER-LAUNCH.md). Older progress below is historical.
+The stock-64-MiB Xbox tester package (`bash tools/build-xbox.sh --tester`)
+opens the controller-driven frontend and enters authored Live Mines through
+New Game. Commit `670bdf36dad6064d8d09a716f96f358f989aad1d` passed native
+compile/link/package and limited XEMU startup at 15:00 UTC: 10 simulation and
+10 presentation frames, followed by clean shutdown.
+See [the receipt](docs/HOURLY-20261015-1500.md).
+
+Menus and the integrated NPC responses, chatter and ordinary Use-facing are
+available for tester exercise. Speech gestures are now source-integrated after
+that passing build; their next native compile/startup is pending.
+Actual-hardware operation, broader gameplay, visual/audio correctness,
+performance and save-route coverage remain unverified and tester-owned.
+See [tester scope](docs/TESTER-READINESS.md),
+[launch requirements](docs/XBOX-TESTER-LAUNCH.md) and
+[authored menus](docs/AUTHORED-XBOX-MENUS.md).
+Older progress and image captions below are historical.
 
 
 Work in progress: shared C/C++ reconstruction targeting a stock 64 MiB Xbox
 through NXDK, with a maintained 32-bit PC build. Single-player comes first and
-visual quality must meet the PS2 version. **Full campaign play remains unfinished.**
+visual quality must meet the PS2 version. **Full campaign progression and actual-hardware behavior remain unverified.**
 
 ![Xbox reconstruction: Gryphon walking beyond the hangar](docs/images/xbox-gryphon-walking.png)
 

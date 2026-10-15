@@ -10,6 +10,7 @@
 #include "scene_pursuit_return_checkpoint.inc"
 #include "scene_medic_flight_checkpoint.inc"
 #include "scene_npc_pain_checkpoint.inc"
+#include "scene_npc_speech_checkpoint.inc"
 #include "scene_npc_reload_checkpoint.inc"
 #include "scene_npc_drone_checkpoint.inc"
 #include "scene_npc_airborne_checkpoint.inc"
@@ -191,6 +192,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         o->unholster.deadline_518,o->death.deadline_4b8};
     /* Pending clipless deaths have a mandatory RFAP owner and no executable
      * body/animation continuation. Preserve terminal vitals, drops and history. */
+    if(o->speech_motion_mask&&(!o->registration.view||o->robot_death.state==1))
+        return scene_npc_checkpoint_reject(index,"speech_identity",0,o->speech_motion_mask,RF_FORMAT);
     if(o->robot_death.state==1)return scene_robot_death_checkpoint_npc_row(index,row);
     status=scene_noise_live(index);if(status)return scene_npc_checkpoint_reject(index,"noise_owner",0,o->ai_mode.action_280,status);
     if(o->guard_retreat_fault)return scene_npc_checkpoint_reject(index,"guard_transition_fault",0,1,RF_FORMAT);
@@ -329,6 +332,10 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
             return scene_npc_checkpoint_reject(index,"controller_without_playback",0,pose->controller.current,RF_RANGE);
         if(pose->playback.completion.frozen&&!o->script_animation.active&&!terminal_dead)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
 
+        if(!scene_npc_speech_checkpoint_mask(index,&o->selection,&pose->playback,
+            NULL,o->object_flags,o->speech_motion_mask))
+            return scene_npc_checkpoint_reject(index,"speech_owner",0,o->speech_motion_mask,RF_FORMAT);
+
         /* A resident looping clip can be restored from its serialized playback
          * even when it is not one of this NPC's controller state mappings.
          * One-shots still need their saved gameplay owner, except the exact
@@ -343,6 +350,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
                 !(restoring&&scene_medic_capture_transient(o,motion))&&
                 !campaign_playback_resources.models[pose->skeleton].resources[motion].looping&&
                 !scene_npc_pain_checkpoint_clip(&pain,&o->selection,motion)&&
+                !scene_npc_speech_checkpoint_residual(index,&o->selection,&pose->playback,
+                    NULL,o->object_flags,o->speech_motion_mask,motion)&&
                 !(burning_profile&&o->damage.effects.burn&&o->pain.selected_action>=0&&o->pain.selected_action<45&&
                   motion==o->selection.mapping.actions[o->pain.selected_action])&&
                 !(!o->combat_reload_pending&&(o->combat_alert==1||o->combat_scripted==3||o->combat_scripted==1||o->combat_scripted==2)&&
@@ -418,6 +427,7 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
         row->reload_present=1;row->reload_weapon=(uint32_t)o->combat_reload_weapon;
         row->reload_remaining=o->combat_reload_due>reload_frame?o->combat_reload_due-reload_frame:0;
     }
+    row->speech_motion_mask=o->speech_motion_mask;
     row->pain=pain;row->pain_residual_profile=pain_residual_profile;row->ai_suppressed=campaign_npc_ai_suppressed(o);
     status=scene_medic_state_capture(o,&row->medic);
     if(status)return scene_npc_checkpoint_reject(index,"medic_state",0,slot,status);

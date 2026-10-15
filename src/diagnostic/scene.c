@@ -1732,6 +1732,8 @@ static uint32_t campaign_model_owned_bytes,campaign_model_owned_count;
 uint32_t rf_scene_npc_models[4]; /* published, peak owner bytes, retired, errors */
 /* Retire one model without releasing the registry table or shared textures.
  * Empty slots are repeatable; failed preflight preserves the loaded owner. */
+static int scene_npc_speech_retire_model(uint32_t slot);
+static void scene_npc_speech_model_retired(uint32_t slot);
 int rf_scene_model_retire(uint32_t slot)
 {
     campaign_model_owner *owner;rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t bytes=0;int status;
@@ -1753,6 +1755,9 @@ int rf_scene_model_retire(uint32_t slot)
     model=campaign_playback_resources.models+pose->skeleton;
     status=rf_model_skeletal_retire(&owner->registration,&campaign_model_head,campaign_model_owner_count,model->resources,model->count);
     if(status)return status;
+    /* Whole-model retirement released actual slots, including an abandoned
+     * load's replaced playback. Discharge the old receipt only now. */
+    scene_npc_speech_model_retired(slot);
     if(owner->owned) {
         status=rf_entity_owned_pose_close(owner->owned,&campaign_playback_resources);if(status)return status;
         free(owner->owned);owner->owned=NULL;campaign_model_owned_bytes-=bytes;--campaign_model_owned_count;
@@ -1890,6 +1895,7 @@ int rf_scene_model_stop_nonlooping(uint32_t slot)
     status=campaign_model_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
     model=campaign_playback_resources.models+pose->skeleton;
+    status=scene_npc_speech_retire_model(slot);if(status)return status;
     return rf_motion_stop_nonlooping(&pose->playback,model->resources,model->count);
 }
 
@@ -1919,6 +1925,7 @@ int rf_scene_model_detach(uint32_t slot,const float position[3],const float basi
     for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_RANGE;
     for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_RANGE;
     owned=calloc(1,sizeof(*owned));if(!owned)return RF_RANGE;
+    status=scene_npc_speech_retire_model(slot);if(status){free(owned);return status;}
     status=rf_entity_registered_pose_take(&owner->registration,&owner->pose,&campaign_playback_resources,
         96*1024-campaign_model_owned_bytes,owned);
     if(status){free(owned);return status;}
@@ -5132,6 +5139,7 @@ typedef struct campaign_npc_body {
     scene_medic_syringe syringe;
     /* Independent Missile wait; RFAP9 rebases it, full handle prevents slot reuse. */
     uint32_t tankbot_secondary_source;int32_t tankbot_secondary_deadline;
+    uint32_t speech_motion_mask; /* Explicit fixed class-base41/42 residual owner. */
     uint32_t scripted_physics,scripted_physics_seen;
     uint32_t combat_reload_pending,combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
@@ -5179,8 +5187,8 @@ _Static_assert(sizeof(((campaign_npc_body *)0)->blind)==12,"Independent blind re
 _Static_assert(sizeof(scene_tactical_receipt)==24,"Independent tactical receipt payload");
 _Static_assert(sizeof(scene_pursuit_delay_receipt)==20,"Independent pursuit delay payload");
 _Static_assert(sizeof(scene_pursuit_sight_clock)==12,"Independent sight clock payload");
-/* Xbox32 allowance: previous bound3224 plus at most16 for the12B return receipt and alignment. Actual allocations charge sizeof under the unchanged cap; see docs/NPC-PURSUIT-RETURN.md for scoped stack and storage assessment. */
-_Static_assert(sizeof(void*)!=4||sizeof(campaign_npc_body)<=3240,"Pursuit return NPC source allowance exceeded");
+/* Xbox32 allowance: previous return bound3240 plus4 for explicit speech ownership. Actual allocations charge sizeof under the unchanged cap; see docs/NPC-PURSUIT-RETURN.md for scoped stack and storage assessment. */
+_Static_assert(sizeof(void*)!=4||sizeof(campaign_npc_body)<=3244,"Speech residual NPC source allowance exceeded");
 /* Only after the physical allocation has been terminally retired. Death,
  * Disarm, target loss and temporary stronger owners must not call this. */
 static void scene_crouch_body_retired(campaign_npc_body *o)
@@ -5192,6 +5200,8 @@ static void scene_crouch_body_retired(campaign_npc_body *o)
     o->view.flags_810&=~0x400u;o->damage.effects.flags_810&=~0x400u;
 }
 static campaign_npc_body *campaign_npc_bodies;
+static int scene_npc_speech_remove_owned(uint32_t index);
+
 /* Optional presentation-only sidecar, charged inside the existing NPC cap. */
 typedef struct scene_npc_chatter_state {int32_t humming,timeout,use_deadline;uint32_t flags,handle,use_target;} scene_npc_chatter_state;
 static scene_npc_chatter_state *scene_npc_chatter;
@@ -5223,6 +5233,17 @@ static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+/* Called only after successful complete skeletal retirement, never a stop. */
+static void scene_npc_speech_model_retired(uint32_t slot)
+{
+    if(campaign_npc_bodies&&slot<campaign_npc_body_count)
+        campaign_npc_bodies[slot].speech_motion_mask=0;
+}
+static int scene_npc_speech_retire_model(uint32_t slot)
+{
+    if(!campaign_npc_bodies||slot>=campaign_npc_body_count)return RF_OK;
+    return scene_npc_speech_remove_owned(slot);
+}
 /* Reject malformed, in-flight phase4 or poisoned return state before capture. Qualified phase1/2/3 receipts proceed through the full capture and late restore joins. */
 static int scene_pursuit_save_boundary(void)
 {
@@ -5825,6 +5846,7 @@ static int campaign_animation_catalog(const rf_level *level,rf_vpp *motions)
 static int campaign_animation_cancel(campaign_npc_body *owner)
 {
     rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t index=(uint32_t)(owner-campaign_npc_bodies);int status;
+    status=scene_npc_speech_remove_owned(index);if(status)return status;
     if(!owner->script_animation.active)return RF_OK;
     status=campaign_actor_pose(index,&pose);if(status)return status;
     if(pose) {
@@ -6122,6 +6144,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(owner->script_once.count>16)return RF_FORMAT;
+        status=scene_npc_speech_remove_owned(i);if(status)return status;
         scene_pursuit_token_invalidate_owner(owner); /* accepted removal before identity loss */
         status=scene_npc_seat_unbind(handle,0);if(status)return status;
         status=scene_medic_syringe_unavailable(owner);if(status)return status;
@@ -6216,6 +6239,7 @@ static int campaign_actors_restore(void)
             campaign_seeds.items[i].class_index,owner->capek_shield_broken);
         if(rf_scene_defeated_actors.items[owner->persistence_slot].retired) {
             /* First-pass revisit retirement, not corpse-pose serialization. */
+            status=scene_npc_speech_remove_owned(i);if(status)return status;
             scene_pursuit_token_invalidate_owner(owner); /* admitted saved retirement */
             status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);
             if(status){rf_scene_actor_retirement[3]=(uint32_t)status;return status;}
@@ -7841,6 +7865,7 @@ int rf_scene_npc_weapon_reset(uint32_t handle,int32_t weapon,
     status=campaign_npc_motion_owner(handle,&c.owner,&cls,&pose);if(status)return status;
     if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
     model=campaign_playback_resources.models+pose->skeleton;c.ops=ops;c.user=user;
+    status=scene_npc_speech_remove_owned((uint32_t)(c.owner-campaign_npc_bodies));if(status)return status;
     campaign_weapon_reset_reload(&c);c.owner->firing.character_present=1;c.owner->firing.player_present=0;
     status=rf_weapon_reset(&c.owner->firing,weapon,descriptors,context,&pose->playback,
         model->resources,model->count,&bridge,&c);
@@ -7883,6 +7908,7 @@ static void campaign_pain_effect(void *context,uint32_t effect,uint32_t first,ui
             c->ops->reset_weapon(c->ops->context,first,(int32_t)second):RF_NOT_FOUND;
         break;
     case RF_PAIN_START:
+        c->status=scene_npc_speech_remove_owned((uint32_t)(c->owner-campaign_npc_bodies));if(c->status)break;
         c->owner->pain.selected_action=c->state.selected_action;
         c->status=campaign_npc_motion_require(c->pose->skeleton,(uint32_t)c->state.motions[first]);if(c->status)break;
         for(i=0;i<45;++i)sounds[i]=c->sounds[i][0]?(int32_t)i:-1;
@@ -8039,6 +8065,7 @@ int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
     mapping=&owner->selection.mapping;labels=owner->selection.action_sounds;
     if(mapping->skeleton!=pose->skeleton)return RF_NOT_FOUND;
     if(mapping->actions[action]<0)return RF_NOT_FOUND;
+    status=scene_npc_speech_remove_owned(i);if(status)return status;
     owner->death.action_824=action;
     status=campaign_npc_motion_require(pose->skeleton,(uint32_t)mapping->actions[action]);if(status)return status;
     model=campaign_playback_resources.models+pose->skeleton;
@@ -12498,6 +12525,7 @@ static int campaign_enemy_fire_presentation(uint32_t slot,uint32_t animate,
     if(pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
     model=campaign_playback_resources.models+pose->skeleton;
     for(i=0;i<45;i++)sounds[i]=-1;
+    status=scene_npc_speech_remove_owned(slot);if(status)return status;
     warmup_query=rf_motion_action_active(&pose->playback,model->resources,model->count,owner->selection.mapping.actions,action,&was_active);
     status=rf_motion_start_action(&pose->playback,model->resources,model->count,
         owner->selection.mapping.actions,sounds,action,1,0,0,&sound);if(status)return status;
@@ -14859,6 +14887,7 @@ static void scene_turret_generated_attack_record(const campaign_npc_body *,const
 #include "scene_corpse_unsettled_checkpoint.inc"
 #include "scene_npc_physics_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
+#include "scene_npc_speech_runtime.inc"
 #include "scene_npc_checkpoint_resources.inc"
 #include "scene_crouch_shape_candidate.inc"
 #include "scene_crouch_shape_seal.inc"
@@ -14929,7 +14958,10 @@ static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int
     status=scene_npc_checkpoint_capture_mode(&catalog,now,rows,limit,&count,burning_profile);
     if(!status){
         scene_medic_flight_rng_capture(&flight_rng);rng.present=flight_rng.present;rng.value=flight_rng.value;
-        status=rf_npc_checkpoint_encode_with_pursuit_return(identity,&catalog,rows,count,&rng,scene_tactical_cursor,output,capacity,written);
+        if(projectile_profile)
+            status=rf_npc_checkpoint_encode_with_speech_motion(identity,&catalog,rows,count,&rng,scene_tactical_cursor,output,capacity,written);
+        else
+            status=rf_npc_checkpoint_encode_with_pursuit_return(identity,&catalog,rows,count,&rng,scene_tactical_cursor,output,capacity,written);
     }
     free(rows);return status;
 }
@@ -20585,7 +20617,10 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
                 status=scene_medic_clip_culled(campaign_npc_bodies+i,pose,model,elapsed);if(status)return status;
             }
             if(advance) {
-                status=rf_entity_pose_advance_shared(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement,rf_scene_pose_sharing_disabled?NULL:&campaign_pose_batch);if(status)return status;
+                status=rf_entity_pose_advance_shared(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement,rf_scene_pose_sharing_disabled?NULL:&campaign_pose_batch);
+                /* Advancement may remove slots before later pose evaluation fails. */
+                {int retired=scene_npc_speech_reconcile(i);
+                 if(status)return status;if(retired)return retired;}
                 npc_playback_elapsed(timing,4,&clock);
                 status=campaign_model_collision_refresh(i);if(status)return status;
                 npc_playback_elapsed(timing,5,&clock);
@@ -20599,6 +20634,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             }
             rf_scene_combat_death[6]=pose->playback.completion.frozen;rf_scene_combat_death[7]=pose->playback.generation;
         }
+        status=scene_npc_speech_reconcile(i);if(status)return status;
         status=scene_medic_clip_reconcile(campaign_npc_bodies+i,i);if(status)return status;
         status=campaign_npc_eye_update(i);if(status)return status;
         ++actors;bones+=pose->bone_count;
@@ -22295,6 +22331,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_scripted_disarm_sample();
                 scene_script_physics_sample(frame);
                 npc_step_profile_mark(0,&npc_clock);
+                scene_npc_speech_tick(campaign_blackout_now);
                 status=campaign_npc_playback_tick(stream,scene_step_seconds,frame);if(status)return status;
                 scene_nano_visual_tick(stream,scene_step_seconds,frame);
                 scene_cane_warmup_tick(stream,scene_step_seconds,frame);

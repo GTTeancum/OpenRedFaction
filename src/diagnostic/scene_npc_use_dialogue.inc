@@ -3,8 +3,9 @@
 /* Ordinary Use9 speech, original4a179b ->409950 ->4305a0 ->4299b0.
  * Include after scene_message_audio.inc / scene_medic_speech.inc. Reuses
  * per-actor speech slots, actual class/persona/Foley metadata and bounded
- * lazy PCM. Speech-only first pass: no facing, animation reset, wandering
- * pause or target change. Optional automatic chatter has transient timers. */
+ * lazy PCM. Ordinary Use has qualified facing/default-patrol pause; optional
+ * chatter has transient timers. Speech gestures have an independent explicit
+ * residual owner and are enabled only with their complete save joins. */
 static uint32_t *scene_npc_use_groups;
 static uint32_t scene_npc_use_group_count;
 static rf_random_state scene_npc_use_random;
@@ -73,6 +74,8 @@ static void scene_npc_use_dialogue_stop(void)
 {
     for(uint32_t i=0;i<RF_AUDIO_ORDINARY_SLOTS;i++)
         if(campaign_message_voices[i].origin)campaign_message_release(campaign_message_voices+i);
+    for(uint32_t i=0;i<RF_AUDIO_ORDINARY_SLOTS;i++)
+        campaign_message_voices[i].speech_end=campaign_message_voices[i].speech_next=-1;
     scene_npc_chatter_reset_timers();
 }
 static int32_t scene_npc_persona_choose(campaign_npc_body *owner,uint32_t lane,float *duration)
@@ -101,7 +104,7 @@ static int32_t scene_npc_persona_choose(campaign_npc_body *owner,uint32_t lane,f
     }
     return sample;
 }
-static void scene_npc_persona_play(campaign_npc_body *owner,int32_t sample)
+static void scene_npc_persona_play(campaign_npc_body *owner,int32_t sample,uint32_t gestures)
 {
     scene_message_voice *slot=NULL;const rf_sound_metadata *metadata;const rf_wave_pcm *pcm;
     uint32_t i,index=(uint32_t)(owner-campaign_npc_bodies),uid,handle,voice_handle,before_bytes;
@@ -146,6 +149,7 @@ static void scene_npc_persona_play(campaign_npc_body *owner,int32_t sample)
         uint64_t ms=((uint64_t)pcm->frames*1000+pcm->rate-1)/pcm->rate;
         slot->duration=ms<=RF_TIMER_PERIOD?(uint32_t)ms:0;
     }
+    scene_npc_speech_arm(slot,campaign_blackout_now,gestures);
     ++rf_scene_npc_use_dialogue[5];rf_scene_npc_use_dialogue[14]=(uint32_t)voice;
     ++rf_scene_npc_use_audio[2];
     if(campaign_audio_bank.bytes>before_bytes){++rf_scene_npc_use_audio[3];
@@ -235,7 +239,7 @@ static void scene_npc_use_dialogue(uint32_t handle)
     sample=scene_npc_persona_choose(owner,0,&duration);
     scene_npc_use_facing_begin(owner,duration);
     if(sample<0){++rf_scene_npc_use_dialogue[8];return;}
-    scene_npc_persona_play(owner,sample);return;
+    scene_npc_persona_play(owner,sample,1);return;
 ineligible:
     ++rf_scene_npc_use_dialogue[7];
 }
@@ -295,14 +299,14 @@ static void scene_npc_chatter_tick(uint32_t frame)
             if(c->timeout==-1){if(isfinite(d2)&&d2<4.f)scene_npc_chatter_arm(&c->timeout,now,6000,4000,0);}
             else if(!rf_timer_expired(c->timeout,now,&due)&&due){
                 c->timeout=-1;
-                if(isfinite(d2)&&d2<4.f){sample=scene_npc_persona_choose(o,2,NULL);scene_npc_persona_play(o,sample);}
+                if(isfinite(d2)&&d2<4.f){sample=scene_npc_persona_choose(o,2,NULL);scene_npc_persona_play(o,sample,1);}
             }
         }
         if(scene_medic_speech_active(o))continue;
         if((c->flags&2u) || ((o->view.flags_814|o->damage.effects.flags_814)&1u) ||
            (o->view.flags_810&0x02000000u) || c->humming==-1)continue;
         due=0;if(rf_timer_expired(c->humming,now,&due)||!due)continue;
-        sample=scene_npc_persona_choose(o,1,&seconds);scene_npc_persona_play(o,sample);
+        sample=scene_npc_persona_choose(o,1,&seconds);scene_npc_persona_play(o,sample,0);
         /* Optional failures still rearm, avoiding per-frame PCM retries. */
         scene_npc_chatter_arm(&c->humming,now,60000,30000,
             isfinite(seconds)&&seconds>0&&seconds<(float)(RF_TIMER_PERIOD/1000)?(uint32_t)floor(seconds*1000.f+.5f):0);
