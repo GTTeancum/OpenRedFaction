@@ -444,6 +444,7 @@ void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_li
 {player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
 static int campaign_life_input(uint32_t frame,rf_scene_input *input);
 static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input);
+static void scene_crash_scenario_input(uint32_t frame,rf_scene_input *input);
 static uint32_t scene_turret_player_active(void);
 static uint32_t scene_turret_player_controls(uint32_t host);
 static uint32_t scene_turret_player_source(uint32_t host);
@@ -468,6 +469,7 @@ static int player_begin_frame(void *context,uint32_t frame)
         memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
     status=player_poll(player_context,frame,&value);if(status)return status;
+    scene_crash_scenario_input(frame,&value);
     scene_crash_aim_input(frame,&value);
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
@@ -715,6 +717,7 @@ enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
 uint32_t rf_scene_crash_loadout;
 uint32_t rf_scene_crash_aim;
+uint32_t rf_scene_crash_scenario;
 static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_ai_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
@@ -11833,6 +11836,7 @@ static int scene_player_kill_fixture(uint32_t frame)
 uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
 float rf_scene_gameplay_eye[3]; /* Last gameplay camera, read-only harness telemetry. */
 uint32_t rf_scene_crash_aim_trace[4]; /* input frames,target UID,target changes,aligned fire inputs */
+#include "scene_crash_scenario.inc"
 static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
 {
     campaign_npc_body *target=NULL;float nearest=30.f*30.f,delta[3],yaw,pitch,horizontal;

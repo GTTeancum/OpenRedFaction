@@ -160,7 +160,7 @@ runs no longer invoke the broad CPU/register/instruction/stack snapshot. Existin
 failure evidence and the separate diagnostic tool remain intact. This change has
 Python syntax/source validation only; it has not been exercised by a new guest run.
 
-Next implementation: one game-owned, opt-in scenario runner with explicit input
+Target architecture: one game-owned, opt-in scenario runner with explicit input
 phases, gameplay-state transitions, finite loadouts and application-level event
 reports. Start with the already-established authored encounters, then add the
 remaining explosive/destruction cases. Require actual player/enemy activity and
@@ -168,7 +168,41 @@ scenario-specific events independently of elapsed frames. Count live, dead and
 loading time separately; keep normal death/reload semantics. Host orchestration
 owns only staging, one emulator process, a bounded watchdog, report collection
 and cleanup. Application log transport remains an implementation decision; do not
-claim live file logging or the new scenario runner is implemented yet.
+claim live file logging or a complete multi-scenario runner is implemented yet.
+
+First implementation slice: `--scenario combat` opts into a game-owned encounter
+sequence in `scene_crash_scenario.inc`, disabled in the tester profile. A neutral
+RFI6 replay supplies the bounded input budget; the game supplies engage, strafe,
+reload, engage/jump and weapon-cycle inputs. Its live clock stops during death;
+separate dead ticks issue released Use edges through normal restart handling.
+No health, damage, ammunition or actor state is overwritten by this sequence.
+The eight-word trace records version, phase, live/dead input ticks, transitions,
+completed cycles, phase-local tick and restart requests. Loading never calls this
+input hook and is not counted as live gameplay. The frame budget still includes
+dead inputs; it is not a guarantee of a particular live duration.
+
+Routine results now qualify this bounded encounter separately from completion:
+at least two live phase cycles, twelve player shots, six enemy shots, two
+simultaneously alerted actors, and repeated requested explosive use when applicable.
+Shot counts are sampled per-scene maxima, so these gates can conservatively miss
+activity spread across reloads. They do not prove multiple distinct enemies fired,
+visual/audio correctness, sustained performance or overall stability. The previous
+multiple-enemy flag incorrectly used accumulated alert events; it now uses the
+simultaneously alerted population. Multi-encounter sequencing, app log transport,
+and the remaining explosive/destruction coverage are still open.
+
+Validation: stock64 NXDK cross-build passed (`build-scenario-phases.log`).
+Run `20261015-190926-L2S2a.rfl` completed1200 inputs in149.188 seconds with
+the rifle start, aim enabled and game-owned combat phases. It observed32 player
+shots, six enemy shots, three simultaneously alerted actors and three completed
+live phase cycles. The sequence counted1199 live ticks (frame zero is initialization),
+zero dead ticks and twenty phase transitions. It passed the bounded encounter's
+activity gates; no fatal result was reported. Death recovery was not exercised,
+and this firearm run does not validate explosive coverage. Visuals/audio remain
+unverified. XBE SHA256:
+`6180a6c823fd52367929dd1d3d440510c21805872531034c53088ed5c08142ad`.
+The process exited through owned teardown. This diagnostic-only build does not
+replace the preserved hardware delivery payload.
 
 Daybreak's triggering decision is not exposed here. Repository observations do
 not establish its cause. This redesign does not change access controls, use a

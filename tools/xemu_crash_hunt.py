@@ -33,6 +33,7 @@ def main():
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6), help='Diagnostic pistol/rifle/shotgun/rocket/grenade start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
+    parser.add_argument('--scenario', choices=('combat',), help='Game-owned live-tick combat phases; neutral replay supplies only the bounded frame budget')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
     parser.add_argument('--input', choices=('neutral','exercise','combat'), default='neutral')
@@ -47,6 +48,8 @@ def main():
         parser.error('--firearms requires --dev-room')
     if args.loadout and args.dev_room:
         parser.error('--loadout is for authored campaign encounters')
+    if args.scenario and (args.input != 'neutral' or args.dev_room):
+        parser.error('--scenario requires neutral replay and an authored encounter')
     if args.distance is not None and (args.actor is None or not 3 <= args.distance <= 20):
         parser.error('--distance requires --actor and a distance from 3 to 20')
     if any(len(s.encode('ascii')) >= 64 or '/' in s or '\\' in s for s in (args.level, args.archive)):
@@ -89,7 +92,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-scenario.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -155,6 +158,8 @@ def main():
             (disc / 'crash-loadout.bin').write_bytes(struct.pack('<I',args.loadout))
         if args.aim:
             (disc / 'crash-aim.flag').write_bytes(b'')
+        if args.scenario:
+            (disc / 'crash-scenario.flag').write_bytes(b'')
         iso = ROOT / 'build/xbox/redfaction-crash.iso'
         iso.unlink(missing_ok=True)
         with (run / 'pack.log').open('wb') as log:
@@ -187,9 +192,12 @@ dvd_path = '{iso.as_posix()}'
         startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
         counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
         symbols={}
+        counts['rf_scene_crash_scenario_trace']=8
         for name,count in counts.items():
             match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
             if match:symbols[name]=(int(match[1],16),count)
+        if args.scenario and 'rf_scene_crash_scenario_trace' not in symbols:
+            raise RuntimeError('Scenario runner requires an updated Xbox binary/map')
         require_no_project_xemu(ROOT)
         (run/'temp').mkdir()
         with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
@@ -236,7 +244,7 @@ dvd_path = '{iso.as_posix()}'
                 if args.loadout in (5,6):
                     result['requested_weapon_observed'] = (max_rockets if args.loadout==5 else max_grenades)>0
                 result['combat_observed'] = max_enemy_shots > 0 and max_shots > 0
-                result['multiple_enemy_alerts_observed'] = max_alerts >= 2
+                result['multiple_enemy_alerts_observed'] = max_alerted_actors >= 2
                 diagnostic=sample['rf_diagnostic']
                 if diagnostic[2]&0x80000000:
                     result['status']='GUEST_ERROR'
@@ -270,6 +278,17 @@ dvd_path = '{iso.as_posix()}'
         if process:
             stop_owned_process(process)
             result['exit_code']=process.poll()
+        if args.scenario:
+            trace=result.get('last',{}).get('rf_scene_crash_scenario_trace',[0]*8)
+            result['scenario_coverage']={
+                'game_owned_phases_observed':trace[0]==1 and trace[4]>=6 and trace[5]>=2,
+                'repeated_player_fire':max_shots>=12,
+                'repeated_enemy_fire':max_enemy_shots>=6,
+                'simultaneous_enemy_alerts':max_alerted_actors>=2,
+                'requested_explosive_repeated':args.loadout not in (5,6) or (max_rockets if args.loadout==5 else max_grenades)>=2,
+            }
+            # Coverage gates qualify this bounded encounter only, not stability.
+            result['scenario_qualified']=result['status']=='COMPLETED' and all(result['scenario_coverage'].values())
         if run.exists():(run/'result.json').write_text(json.dumps(result,indent=2))
         lock.close()
 

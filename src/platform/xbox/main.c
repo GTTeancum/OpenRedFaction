@@ -1338,6 +1338,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         rf_scene_crash_loadout=0;
         FILE *aim_file=tester_profile?NULL:fopen("D:\\crash-aim.flag","rb");
         rf_scene_crash_aim=aim_file!=NULL;if(aim_file)fclose(aim_file);
+        FILE *scenario_file=tester_profile?NULL:fopen("D:\\crash-scenario.flag","rb");
+        rf_scene_crash_scenario=scenario_file!=NULL;if(scenario_file)fclose(scenario_file);
         FILE *loadout_file=tester_profile?NULL:fopen("D:\\crash-loadout.bin","rb");
         if(loadout_file){int invalid=fread(&rf_scene_crash_loadout,4,1,loadout_file)!=1 ||
             fgetc(loadout_file)!=EOF || !rf_scene_crash_loadout || rf_scene_crash_loadout==3 || rf_scene_crash_loadout>6;
