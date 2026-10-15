@@ -443,6 +443,7 @@ uint32_t rf_scene_player_input_frames[64][7];
 void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit)
 {player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
 static int campaign_life_input(uint32_t frame,rf_scene_input *input);
+static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input);
 static uint32_t scene_turret_player_active(void);
 static uint32_t scene_turret_player_controls(uint32_t host);
 static uint32_t scene_turret_player_source(uint32_t host);
@@ -467,6 +468,7 @@ static int player_begin_frame(void *context,uint32_t frame)
         memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
     status=player_poll(player_context,frame,&value);if(status)return status;
+    scene_crash_aim_input(frame,&value);
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
     if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>2 || value.alt_fire>1 || value.holster>1)return RF_FORMAT;
@@ -712,6 +714,7 @@ enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 #include "scene_player_rocket_lock_types.inc"
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
 uint32_t rf_scene_crash_loadout;
+uint32_t rf_scene_crash_aim;
 static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_ai_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
@@ -11267,6 +11270,9 @@ uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,no
 uint32_t rf_scene_enemy_combat[8]; /* ticks,alerts,shots,hits,blocked,health bits,down,status */
 static float combat_initial_health;
 uint32_t rf_scene_player_life[8]; /* deaths,respawns,dead,death frame,respawn frame,snapshot bytes,blocked inputs,status */
+/* Process-lifetime input counts survive normal section reloads. Loading time
+ * never enters this callback and therefore cannot count as live gameplay. */
+uint32_t rf_scene_crash_activity[4]; /* live inputs, dead inputs, scene starts, deaths */
 static uint32_t life_valid,life_use,life_restart_held;
 static struct {
     rf_physics_body_state body;rf_group_attached_pose pose;rf_look_pose look;
@@ -11624,6 +11630,8 @@ int rf_scene_session_restart(void)
 static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 {
     uint32_t pressed=input->use && !life_use,restart=input->crouch && !life_restart_held,i,has_weapon=0;int status;
+    ++rf_scene_crash_activity[campaign_player_damage.state.effects.health>0?0:1];
+    if(!frame)++rf_scene_crash_activity[2];
     if(!frame){memset(rf_scene_player_life,0,sizeof(rf_scene_player_life));life_valid=0;
         life_use=input->use;life_restart_held=input->crouch;return RF_OK;}
     life_use=input->use;life_restart_held=input->crouch;
@@ -11632,7 +11640,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
         scene_player_riot_cancel();scene_ai_drone_smash_cancel_handle(campaign_player_object.handle);
         scene_player_outside_audio_forget();
         scene_machine_pistol_audio_close();scene_hmg_audio_close();scene_rifle_audio_close();scene_weapon_loop_audio_close();
-        ++rf_scene_player_life[0];rf_scene_player_life[2]=1;rf_scene_player_life[3]=frame;
+        ++rf_scene_player_life[0];++rf_scene_crash_activity[3];rf_scene_player_life[2]=1;rf_scene_player_life[3]=frame;
         for(i=0;i<campaign_npc_body_count;i++)campaign_pursuit_stop(campaign_npc_bodies+i);
         memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
     }
@@ -11824,6 +11832,37 @@ static int scene_player_kill_fixture(uint32_t frame)
 /* Nearest segment/AABB entry; the legacy segment predicate returns an endpoint. */
 uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
 float rf_scene_gameplay_eye[3]; /* Last gameplay camera, read-only harness telemetry. */
+uint32_t rf_scene_crash_aim_trace[4]; /* input frames,target UID,target changes,aligned fire inputs */
+static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
+{
+    campaign_npc_body *target=NULL;float nearest=30.f*30.f,delta[3],yaw,pitch,horizontal;
+    if(!rf_scene_crash_aim)return;
+    if(!frame){memset(rf_scene_crash_aim_trace,0,sizeof(rf_scene_crash_aim_trace));return;}
+    if(!campaign_spawn || campaign_player_damage.state.effects.health<=0)return;
+    ++rf_scene_crash_aim_trace[0];
+    for(uint32_t i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *o=campaign_npc_bodies+i;float distance=0;
+        if(!o->registration.view || !o->body.allocated_bytes || o->damage.effects.health<=0 ||
+           o->damage.effects.affiliation!=0 || (o->object_flags&(2u|0x4000u)))continue;
+        for(uint32_t k=0;k<3;k++){float d=o->eye_position[k]-rf_scene_gameplay_eye[k];distance+=d*d;}
+        if(isfinite(distance) && distance>.01f && distance<nearest){nearest=distance;target=o;}
+    }
+    if(!target){input->fire=0;return;}
+    uint32_t uid=(uint32_t)campaign_seeds.records.items[target-campaign_npc_bodies].record.uid;
+    if(uid!=rf_scene_crash_aim_trace[1])++rf_scene_crash_aim_trace[2];
+    rf_scene_crash_aim_trace[1]=uid;
+    for(uint32_t k=0;k<3;k++)delta[k]=target->eye_position[k]-rf_scene_gameplay_eye[k];
+    horizontal=sqrtf(delta[0]*delta[0]+delta[2]*delta[2]);
+    yaw=atan2f(delta[0],delta[2])-actor_look.state.body_angles[1];
+    while(yaw>3.14159265f)yaw-=6.28318531f;
+    while(yaw< -3.14159265f)yaw+=6.28318531f;
+    /* rf_look_update's basis uses sin(pitch)/(1-abs(sin(pitch))). */
+    pitch=asinf(delta[1]/(horizontal+fabsf(delta[1])))-actor_look.state.eye_angles[0];
+    input->look[0]=fmaxf(-.8f,fminf(.8f,pitch*6.f));
+    input->look[1]=fmaxf(-.8f,fminf(.8f,yaw*6.f));
+    if(fabsf(yaw)>.12f || fabsf(pitch)>.12f)input->fire=0;
+    if(input->fire)++rf_scene_crash_aim_trace[3];
+}
 static int combat_box(const float start[3],const float delta[3],const rf_physics_bounds *box,float limit,float *fraction)
 {
     double lo=0,hi=limit;uint32_t j;

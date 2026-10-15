@@ -32,14 +32,15 @@ def main():
     parser.add_argument('--actor', type=int)
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--loadout', type=int, choices=(1,2,4), help='Diagnostic pistol/rifle/shotgun start; ordinary finite ammunition')
+    parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
     parser.add_argument('--input', choices=('neutral','exercise','combat'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     args = parser.parse_args()
-    if not 1 <= args.frames <= 60000 or not 1 <= args.seconds <= 180:
-        parser.error('Require 1..60000 frames and 1..180 seconds')
+    if not 1 <= args.frames <= 60000 or not 1 <= args.seconds <= 600:
+        parser.error('Require 1..60000 frames and 1..600 seconds')
     if args.dev_room and (args.level != 'ctf06.rfl' or args.archive != 'levelsm.vpp'):
         parser.error('This crash-hunt developer profile uses ctf06.rfl from levelsm.vpp')
     if args.firearms and not args.dev_room:
@@ -54,7 +55,7 @@ def main():
     lock.acquire()
     process = monitor = None
     run = ROOT / 'artifacts/crash-hunt' / (datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + args.level)
-    result = {'recipe': vars(args), 'input_recipe_version': 4, 'status': 'NOT_RUN'}
+    result = {'recipe': vars(args), 'input_recipe_version': 5, 'status': 'NOT_RUN'}
     eyes = set(); max_shots = max_switches = 0
     max_enemy_shots = max_alerts = max_deaths = max_respawns = 0
     alive_samples = dead_samples = 0
@@ -87,7 +88,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-start.vpp', 'scene-fixture.vpp'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -121,7 +122,7 @@ def main():
                 # One-second releases separate edges. All input stays inside
                 # player_poll_paced; no OS/device injection is involved.
                 if phase < 120: move[2] = .65
-                elif phase < 240: move[0] = .5; look[0] = .2
+                elif phase < 240: move[0] = .5; look[1] = .2
                 elif phase < 360: buttons[3] = 1  # fire
                 elif phase < 420: buttons[6] = 1  # alternate fire
                 elif phase == 420: buttons[5] = 1  # next weapon, before reload lock
@@ -151,6 +152,8 @@ def main():
             (disc / 'campaign-actor.bin').write_bytes(struct.pack('<I',args.actor))
         if args.loadout:
             (disc / 'crash-loadout.bin').write_bytes(struct.pack('<I',args.loadout))
+        if args.aim:
+            (disc / 'crash-aim.flag').write_bytes(b'')
         iso = ROOT / 'build/xbox/redfaction-crash.iso'
         iso.unlink(missing_ok=True)
         with (run / 'pack.log').open('wb') as log:
@@ -181,7 +184,7 @@ dvd_path = '{iso.as_posix()}'
             reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         command=[str(emu/'xemu.exe'),'-config_path',str(run/'xemu.toml'),'-m','64','-snapshot','-display','xemu','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
         startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
-        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
+        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
         symbols={}
         for name,count in counts.items():
             match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
@@ -205,6 +208,7 @@ dvd_path = '{iso.as_posix()}'
                 try:sample={name:words(monitor,addr,count) for name,(addr,count) in symbols.items()}
                 except RuntimeError as exc:
                     result['last_read_error']=str(exc);time.sleep(.2);continue
+                sample['elapsed_seconds']=round(args.seconds-(deadline-time.monotonic()),3)
                 log.write(json.dumps(sample)+'\n');result['last']=sample
                 if sample['rf_player_replay_diagnostic'][2]:
                     if sample['rf_scene_player_life'][2]: dead_samples += 1
@@ -221,6 +225,9 @@ dvd_path = '{iso.as_posix()}'
                     max_alerted_actors=max(max_alerted_actors,population[2])
                 result['observed']={'distinct_eye_positions':len(eyes),'shots':max_shots,'weapon_switches':max_switches,
                     'enemy_shots':max_enemy_shots,'enemy_alerts':max_alerts,'deaths':max_deaths,'respawns':max_respawns,'alive_samples':alive_samples,'dead_samples':dead_samples,'max_live_actors':max_live_actors,'max_alerted_actors':max_alerted_actors}
+                activity=sample.get('rf_scene_crash_activity')
+                if activity:
+                    result['observed'].update(live_input_frames=activity[0],dead_input_frames=activity[1],scene_starts=activity[2],total_deaths=activity[3])
                 result['combat_observed'] = max_enemy_shots > 0 and max_shots > 0
                 result['multiple_enemy_alerts_observed'] = max_alerts >= 2
                 diagnostic=sample['rf_diagnostic']

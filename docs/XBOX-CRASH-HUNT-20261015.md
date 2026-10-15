@@ -24,7 +24,7 @@ actor index0 patrol resource admission, scene_authored_patrol.inc line121.
 The patrol initializer demands campaign_npc_motion_data/count at load stage24,
 but campaign_npc_motion_residency creates those at stage30. Move initial patrol
 activation after motion residency for registered actors; preserve all admission
-checks and the original actors/routes. Runtime validation pending.
+checks and the original actors/routes. Runtime results follow below.
 
 The ordering fix reaches gameplay in both environments:
 20261015-153115-L3S2.rfl recorded two alerts, four enemy shots and player death;
@@ -133,11 +133,55 @@ membership. No installed toolchain or original assets were edited.
 
 ## Harness
 
+L2S2a recipe5 run20261015-160906 completed1800 inputs and native terminal
+success after374 seconds. It retained all57 original actors, reached55 live
+registered actors and4 simultaneously alerted actors, and recorded1346 live
+input frames,454 dead input frames,3 scene starts and2 deaths. Both subsequent
+reloads returned to gameplay. Per-scene maxima were18 player shots,11 enemy
+shots and4 weapon switches; the first life recorded2 hits/1 kill and the second
+5 hits/2 kills. This is a completed telemetry scenario, not overall stability,
+visual/audio verification or proof that all actors were fighting simultaneously.
+
+L20S1 run20261015-161555 completed1800 live input frames with54 player shots
+and7 weapon switches, but no enemy alerts, enemy fire or player hits. Its staged
+start was8 units ahead of actor12542. Exclude this from combat stress coverage;
+the cause of the inactive encounter is not established. The next placement is
+5 units ahead of actor11975, identified as a live hostile by the first run's aim
+telemetry, retaining the same55 authored actors and their original states.
+
+The closer L20S1 run20261015-161858 also completed1800 live inputs without a
+fatal error. It recorded57 player shots,3 hits,7 switches and2 simultaneously
+alerted actors but zero enemy shots. This remains a combat-coverage gap: inspect
+ordinary AI admission/visibility and authored activation around these actors
+before claiming this mercenary mix has been stressed. Do not force enemy firing,
+disable AI admission checks or treat this as an established engine defect yet.
+
+Recipe5 adds an opt-in `--aim` controller inside the Xbox process. It computes
+bounded look commands toward the nearest live hostile within30 units and permits
+the replay's ordinary trigger edges once aligned. It does not force hits, change
+actor placement, health or damage, or supply infinite ammunition. The hardware
+tester profile ignores the aim flag. Native compile/link succeeded; L2S2a runtime
+telemetry confirms normal shots, hits, kills and target changes. Aim telemetry records input frames, target UID,
+target changes and aligned fire inputs.
+
+Process-lifetime `rf_scene_crash_activity` counters distinguish live input frames,
+dead input frames, scene starts and deaths across reloads. Loading does not call
+the input callback. Earlier `alive_samples`/`dead_samples` are host polling counts
+and must not be interpreted as gameplay duration. Shot maxima are per-scene
+maxima, not cumulative shots across reloads.
+
+The600-second L3S2 run20261015-155842 reached repeated ordinary death/reload
+cycles without a new fatal error but timed out before3600 input frames. Its
+per-scene maxima were6 player shots,12 enemy shots and3 simultaneously alerted
+actors. It does not establish sustained live-action stability.
+
 `tools/xemu_crash_hunt.py` owns build/xbox/crash-disc and redfaction-crash.iso.
 It never edits tester-disc. Immutable assets are hardlinked into the diagnostic
 stage. All scenarios use the existing standalone local/xemu-harness/pacing-base.qcow2
 with XEMU -snapshot, a private EEPROM copy, disabled host controller bindings,
-localhost QMP, and at most180 seconds per run. It closes only its own emulator.
+localhost QMP, and a default180-second watchdog, explicitly bounded to at most600
+seconds when requested to cover ordinary death/reload cycles. It closes only its
+own emulator. The180-second LEGO project limit does not apply to this repository.
 
 RFI6 samples are consumed by the game's player_poll_paced callback. The exercise
 profile directly supplies movement/look and crouch, jump, Use, fire, reload,
