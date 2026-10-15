@@ -28,6 +28,7 @@ extern uint32_t rf_scene_firearms_enabled;
 /* Diagnostic campaign combat start: zero disabled, otherwise primary slot+1. */
 extern uint32_t rf_scene_crash_loadout;
 extern uint32_t rf_scene_crash_aim;
+extern float rf_scene_crash_aim_point[3];
 extern uint32_t rf_scene_crash_scenario;
 extern uint32_t rf_scene_vehicle_enabled;
 extern uint32_t rf_scene_vehicle_state[16];

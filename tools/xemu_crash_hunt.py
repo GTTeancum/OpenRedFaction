@@ -6,7 +6,9 @@ Build crash-disc/default.xbe separately before running this script.
 import argparse
 import datetime
 import hashlib
+import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -33,12 +35,16 @@ def main():
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6), help='Diagnostic pistol/rifle/shotgun/rocket/grenade start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
+    parser.add_argument('--aim-point', type=float, nargs=3, metavar=('X','Y','Z'),
+                        help='Process-local bounded look input toward an explicit world point')
     parser.add_argument('--scenario', choices=('combat','explosives'), help='Game-owned live-tick phases; explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
     parser.add_argument('--input', choices=('neutral','exercise','combat'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
+    parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
+                        help='Default uses the unchanged OpenJKDF2 RAM log reader over HMP')
     parser.add_argument('--poll-seconds', type=float, default=1.0,
                         help='Application telemetry interval (0.3..5 seconds); larger intervals may miss short-lived states')
     args = parser.parse_args()
@@ -56,6 +62,8 @@ def main():
         parser.error('--scenario requires neutral replay and an authored encounter')
     if args.scenario=='explosives' and args.loadout not in (5,6):
         parser.error('--scenario explosives requires rocket or grenade loadout')
+    if args.aim_point and (args.aim or any(not math.isfinite(x) or abs(x)>100000 for x in args.aim_point)):
+        parser.error('--aim-point requires finite bounded coordinates and cannot be combined with --aim')
     if args.distance is not None and (args.actor is None or not 3 <= args.distance <= 20):
         parser.error('--distance requires --actor and a distance from 3 to 20')
     if any(len(s.encode('ascii')) >= 64 or '/' in s or '\\' in s for s in (args.level, args.archive)):
@@ -63,6 +71,10 @@ def main():
     lock = SessionLock(ROOT)
     lock.acquire()
     process = monitor = None
+    ram_reader = None
+    pending_samples = []
+    seen_samples = set()
+    ram_poll_index = 0
     run = ROOT / 'artifacts/crash-hunt' / (datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + args.level)
     result = {'recipe': vars(args), 'input_recipe_version': 6, 'status': 'NOT_RUN'}
     eyes = set(); max_shots = max_switches = 0
@@ -99,7 +111,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-scenario.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -165,8 +177,12 @@ def main():
             (disc / 'crash-loadout.bin').write_bytes(struct.pack('<I',args.loadout))
         if args.aim:
             (disc / 'crash-aim.flag').write_bytes(b'')
+        if args.aim_point:
+            (disc / 'crash-aim-point.bin').write_bytes(struct.pack('<3f',*args.aim_point))
         if args.scenario:
             (disc / 'crash-scenario.flag').write_bytes(b'2' if args.scenario=='explosives' else b'')
+        if args.log_protocol=='jkdf2-hmp':
+            (disc / 'crash-ram-log.flag').write_bytes(b'')
         iso = ROOT / 'build/xbox/redfaction-crash.iso'
         iso.unlink(missing_ok=True)
         with (run / 'pack.log').open('wb') as log:
@@ -196,34 +212,74 @@ dvd_path = '{iso.as_posix()}'
         with socket.socket() as reserve:
             reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         command=[str(emu/'xemu.exe'),'-config_path',str(run/'xemu.toml'),'-m','64','-snapshot','-display','xemu','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
+        if args.log_protocol=='jkdf2-hmp':
+            command[-2:]=['-monitor',f'tcp:127.0.0.1:{port},server,nowait']
+            reader_path=ROOT/'tools/vendor/openjkdf2/poll_xemu_ram_log.py'
+            spec=importlib.util.spec_from_file_location('jkdf2_ram_log',reader_path)
+            ram_reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(ram_reader)
+            # LLD prints 32-bit VAs padded to sixteen digits; the unchanged
+            # upstream reader expects eight. Strip only redundant zero padding.
+            poll_map=run/'poll-build.map'
+            poll_map.write_text(re.sub(r'\b00000000([0-9a-fA-F]{8})\b',r'\1',mapping))
+            ram_symbols=ram_reader.resolve_symbols(str(poll_map),str(disc/'default.xbe'))
+            ram_args=argparse.Namespace(timeout=3,phys_delta='auto',header_only=False)
+            result['ram_reader_sha256']=hashlib.sha256(reader_path.read_bytes()).hexdigest()
+            result['ram_poll_interval_seconds']=15
         startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
         counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
         symbols={}
         counts['rf_scene_crash_scenario_trace']=8
+        counts['rf_scene_crash_aim_point']=3
+        counts['rf_scene_crash_aim']=1
+        counts['rf_scene_crash_terrain']=8
         for name,count in counts.items():
             match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
             if match:symbols[name]=(int(match[1],16),count)
         if args.scenario and 'rf_scene_crash_scenario_trace' not in symbols:
             raise RuntimeError('Scenario runner requires an updated Xbox binary/map')
+        if args.aim_point and 'rf_scene_crash_aim_point' not in symbols:
+            raise RuntimeError('Aim point requires an updated Xbox binary/map')
         require_no_project_xemu(ROOT)
         (run/'temp').mkdir()
         with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
             process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,env=dict(os.environ,SDL_AUDIODRIVER='dummy',SDL_AUDIO_DRIVER='dummy',TEMP=str(run/'temp'),TMP=str(run/'temp'),TMPDIR=str(run/'temp')))
         result['pid']=process.pid
         deadline=time.monotonic()+args.seconds
-        while time.monotonic()<deadline and process.poll() is None:
+        while not ram_reader and time.monotonic()<deadline and process.poll() is None:
             try:
                 monitor=Monitor(port);monitor.sock.settimeout(3);break
             except OSError:time.sleep(.2)
-        if monitor is None:raise RuntimeError('No QMP connection')
-        memory=monitor.command('query-memory-size-summary');result['memory']=memory
-        if memory['base-memory']!=64*1024*1024 or memory.get('plugged-memory',0):raise RuntimeError('Not stock64')
+        if not ram_reader:
+            if monitor is None:raise RuntimeError('No QMP connection')
+            memory=monitor.command('query-memory-size-summary');result['memory']=memory
+            if memory['base-memory']!=64*1024*1024 or memory.get('plugged-memory',0):raise RuntimeError('Not stock64')
         result['status']='TIMEOUT'
+        if ram_reader:time.sleep(15)  # Reference smoke runner waits before its first poll.
         with (run/'telemetry.jsonl').open('w',buffering=1) as log:
             while time.monotonic()<deadline and process.poll() is None:
-                try:sample={name:words(monitor,addr,count) for name,(addr,count) in symbols.items()}
-                except RuntimeError as exc:
-                    result['last_read_error']=str(exc);time.sleep(.2);continue
+                try:
+                    if ram_reader:
+                        if not pending_samples:
+                            delta,header,ram_text=ram_reader.poll_port(port,ram_symbols,ram_args)
+                            ram_poll_index+=1
+                            (run/f'ram_poll_{ram_poll_index:04d}.txt').write_text(ram_text)
+                            result['ram_header']=header;result['ram_physical_delta']=delta
+                            for line in ram_text.splitlines():
+                                if not line.startswith('RFLOG '):continue
+                                try:value=json.loads(line[6:])
+                                except json.JSONDecodeError:continue
+                                key=(value['rf_player_replay_diagnostic'][2],value['rf_diagnostic'][2])
+                                if key not in seen_samples:
+                                    seen_samples.add(key);pending_samples.append(value)
+                        if not pending_samples:
+                            time.sleep(15);continue
+                        sample=pending_samples.pop(0)
+                        pages=sample['rf_diagnostic'][3]
+                        result['memory']={'source':'game MmQueryStatistics','base-memory':pages*4096}
+                        if pages!=16384:raise ValueError('Game log did not confirm stock64')
+                    else:sample={name:words(monitor,addr,count) for name,(addr,count) in symbols.items()}
+                except (RuntimeError,OSError) as exc:
+                    result['last_read_error']=str(exc);time.sleep(15 if ram_reader else .2);continue
                 sample['elapsed_seconds']=round(args.seconds-(deadline-time.monotonic()),3)
                 log.write(json.dumps(sample)+'\n');result['last']=sample
                 if sample['rf_player_replay_diagnostic'][2]:
@@ -276,7 +332,11 @@ dvd_path = '{iso.as_posix()}'
                 # replay consumption remains global across those reloads.
                 if diagnostic[1]==9 and diagnostic[2]==5 and sample['rf_player_replay_diagnostic'][2]>=args.frames:
                     result['status']='COMPLETED';break
-                time.sleep(args.poll_seconds)
+                if ram_reader:
+                    if not pending_samples:time.sleep(15)
+                else:time.sleep(args.poll_seconds)
+        if result['status']=='TIMEOUT' and process.poll() is not None:
+            result['status']='PROCESS_EXITED'
         print(json.dumps({'run':str(run),'status':result['status'],'observed':result.get('observed'),'enemy_failure':result.get('last',{}).get('rf_scene_enemy_failure')}),flush=True)
     except Exception as exc:
         result['exception']=str(exc)

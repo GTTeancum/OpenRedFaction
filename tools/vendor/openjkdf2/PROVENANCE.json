@@ -1,0 +1,10 @@
+{
+  "repository": "C:\\Programming\\GitHub\\OpenJKDF2ogx",
+  "commit": "150cb1132729cfc0c37748c232df36c88182fae7",
+  "sources": {
+    "scripts/xbox/poll_xemu_ram_log.py": "092dc553be9eee98ee566e1189f6d3511e4b0e5cfc272876c4035ccbe76f4b95",
+    "src/Platform/Xbox/xbox_debug.c": "6bb9496b973498aadc4944579d8e26af75ce38784a56824f73dce30ef08a14db",
+    "LICENSE.md": "6e0c2b804aae9e3a3f51bc983aefc5857901eb517d36f0078ae6973f77de6e49"
+  },
+  "adaptation": "Reader copied byte-for-byte. RAM header, 64 KiB mirror and writer adapted from xbox_debug.c. OpenRedFaction emits its own frame-boundary JSON records; HMP reader protocol and 15-second interval match the reference. No screenshot or host-input paths reused."
+}

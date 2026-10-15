@@ -1,4 +1,5 @@
 - Active crash hunt: exercise authored combat environments under representative enemy, weapon and effect loads; two fixes and small passing probes do not establish stability.
+- User-selected logging path: unchanged OpenJKDF2ogx HMP RAM-log reader is now the default and completed a stock64 transport check; continue through game-written logs, with broad gameplay and destruction coverage still open.
 - October 15 follow-up: the600-second explosive run still timed out in reload; measure the prepared lower telemetry polling rate and use the supported L1S2 terrain path for destruction stress instead of L2S2a's unconnected cutter.
 - Current workflow revision: game-owned combat phases passed one stock64 encounter and explosive focus exercised two normal death/reloads; next complete sustained explosive scenarios and extend to declared encounter sequencing and application logs.
 - October 15 explosive stress: grenade focus produced repeated releases/detonations and eleven bounces with active enemies, but timed out during repeated death/reloads; completed sustained explosive scenarios and destruction/debris under combat load remain open.

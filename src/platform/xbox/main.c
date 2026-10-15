@@ -24,6 +24,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <hal/debug.h>
 #include <hal/video.h>
 #include <hal/xbox.h>
@@ -836,8 +837,10 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
     ++rf_xbox_pause_diagnostic[5];
     memset(input,0,sizeof(*input));return RF_OK;
 }
+#include "ram_log.inc"
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    rf_ram_log_sample(0);
     if(campaign_single_fire_uid && campaign_total_frames==30){
         int status=rf_scene_npc_fixture_single_fire(campaign_single_fire_uid);if(status)return status;
         campaign_single_fire_uid=0;
@@ -1338,6 +1341,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         rf_scene_crash_loadout=0;
         FILE *aim_file=tester_profile?NULL:fopen("D:\\crash-aim.flag","rb");
         rf_scene_crash_aim=aim_file!=NULL;if(aim_file)fclose(aim_file);
+        FILE *point_file=tester_profile?NULL:fopen("D:\\crash-aim-point.bin","rb");
+        if(point_file){int invalid=fread(rf_scene_crash_aim_point,4,3,point_file)!=3 || fgetc(point_file)!=EOF;
+            fclose(point_file);
+            for(uint32_t i=0;i<3;i++)if(!isfinite(rf_scene_crash_aim_point[i]) || fabsf(rf_scene_crash_aim_point[i])>100000.f)invalid=1;
+            if(invalid)return RF_FORMAT;rf_scene_crash_aim=2;}
         FILE *scenario_file=tester_profile?NULL:fopen("D:\\crash-scenario.flag","rb");
         rf_scene_crash_scenario=0;
         if(scenario_file){int mode=fgetc(scenario_file);
@@ -2169,6 +2177,7 @@ int main(void)
         debugPrint("Unable to verify tester memory configuration.\n");for(;;)Sleep(1000);
     }
     OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
+    rf_ram_log_sample(1);
     record_fp_control(2);
     if(!tester_profile)particle_resource_check();
     record_fp_control(3);
@@ -2228,6 +2237,7 @@ int main(void)
             printf("SESSION_RETURN status%d pages%u\n",result,rf_xbox_frontend_diagnostic[4]);
         }
     }else if(result==RF_OK)result=player_campaign_run(NULL);
+    rf_ram_log_sample(1);
     for (;;) Sleep(1000);
     return 0;
 }

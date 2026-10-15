@@ -133,6 +133,61 @@ membership. No installed toolchain or original assets were edited.
 
 ## Harness
 
+### User-requested OpenJKDF2ogx logging path
+
+The user requested the OpenJKDF2ogx workflow directly after recurring Daybreak
+interruptions. The default runner now uses `--log-protocol jkdf2-hmp`: the unchanged
+`scripts/xbox/poll_xemu_ram_log.py` reader is vendored under
+`tools/vendor/openjkdf2`, with its license and source hashes/commit in
+`PROVENANCE.json`. The application mirrors its64KiB RAM buffer, header symbols,
+magic words and circular writer. OpenRedFaction supplies its own JSON gameplay
+records at frame boundaries (every60 consumed inputs, plus startup and return).
+The reader uses an HMP TCP monitor, including the reference15-second initial wait
+and polling interval. This mode does not connect QMP or read individual gameplay
+structures from the host. Stock64 confirmation comes from the game's logged
+MmQueryStatistics result. Raw RAM-log text and decoded records are retained.
+
+Integration differences are explicit: LLD's redundant address padding is removed
+in a separate poll-build.map for the unchanged reader; Red Faction has different
+gameplay records; tester mode ignores the opt-in log flag; images and host input
+are not copied from other upstream smoke-script branches. The adapter uses the
+RAM mirror/debug-output path, not OpenJKDF2's hardware file-path fallback logic.
+This is a protocol/workflow match, not a claim that the two games or full launch
+scripts are identical. Map/XBE and reader hashes pin the run. Host poll timestamps
+are collection times, not exact event times; partial JSON lines are discarded.
+
+The first attempt stopped before launch because the upstream parser rejected
+sixteen-digit LLD address formatting. After normalization, a first emulator attempt
+exited before log collection (`20261015-195035-L2S2a.rfl`, exit0, cause unknown).
+Its mistaken TIMEOUT label was corrected to PROCESS_EXITED. The harness now
+distinguishes an early process exit from its watchdog. The next attempt includes
+the upstream initial wait. None of these outcomes establishes a Daybreak cause.
+
+The same build also compiles the previously prepared opt-in world aim-point
+input and compact terrain-stage receipt. These are not selected as part of the
+RAM-log transport check and have not yet received their targeted runtime test.
+
+Validation: NXDK build passed (`build-jkdf2-ram-log.log`). Run
+`20261015-195140-L2S2a.rfl` completed900 inputs using only the HMP RAM-log reader.
+The game log confirmed67108864 physical bytes, sixteen complete log writes and
+terminal boot_phase5. It recorded20 player shots and six enemy shots. The reader
+used virtual addresses (no physical fallback), and its byte-identical SHA256 is
+`092dc553be9eee98ee566e1189f6d3511e4b0e5cfc272876c4035ccbe76f4b95`.
+Only one simultaneously alerted actor was sampled, so scenario_qualified remains
+false even though the transport/input run completed. The optional OpenJKDF2 clock
+probe is not implemented here; its missing-probe field is not a gameplay failure.
+The host terminated only its owned emulator after completion (host exit1); no
+project XEMU remained. No tool security rejection appeared during this run, but
+that does not establish the cause or resolution of earlier Daybreak UI messages.
+Visuals/audio and sustained stability remain unverified.
+
+The prior enemy-directed L1S2 run (`20261015-193524-L1S2.rfl`) completed1800
+inputs with1709 live and91 dead inputs, six rocket launches, twelve enemy shots,
+two simultaneously alerted actors and one death/reload. Its loaded terrain owner
+received an edit attempt but reported RF_RANGE without a committed cut. The new
+terrain-stage receipt and aim-point path are prepared to investigate that result;
+do not count it as destruction coverage or a fatal crash.
+
 ### Workflow revision requested after recurring security interruptions
 
 Read-only comparison on October15:
