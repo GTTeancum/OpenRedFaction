@@ -684,7 +684,7 @@ enum {
 enum {
     RF_SCENE_SESSION_CONFIRM=1u,RF_SCENE_SESSION_DISCONNECTED=2u,
     RF_SCENE_SESSION_ENDED=4u,RF_SCENE_SESSION_UNAVAILABLE=8u,
-    RF_SCENE_SESSION_FRONTEND_EXIT=16u
+    RF_SCENE_SESSION_FRONTEND_EXIT=16u,RF_SCENE_SESSION_OPTIONS_UNAVAILABLE=32u
 };
 int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags);
@@ -720,6 +720,21 @@ enum {
     RF_SCENE_OPTIONS_STORAGE_ERROR=24u,RF_SCENE_OPTIONS_STORAGE_LOCKED=28u,
     RF_SCENE_OPTIONS_STORAGE_MASK=28u
 };
+/* Authored menus use an explicit transient owner, separate from scene HUD. */
+typedef struct rf_menu_assets rf_menu_assets;
+enum {RF_SCENE_OPTIONS_PAGE_ROOT,RF_SCENE_OPTIONS_PAGE_GAME,RF_SCENE_OPTIONS_PAGE_CONTROLS};
+enum {RF_SCENE_OPTIONS_CATEGORY_GAME,RF_SCENE_OPTIONS_CATEGORY_VIDEO,
+    RF_SCENE_OPTIONS_CATEGORY_AUDIO,RF_SCENE_OPTIONS_CATEGORY_CONTROLS,
+    RF_SCENE_OPTIONS_CATEGORY_BACK,RF_SCENE_OPTIONS_CATEGORY_COUNT};
+int rf_scene_draw_authored_frontend(rf_scene_particle_sink sink,void *context,const rf_menu_assets *assets,
+    uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
+    uint32_t load_outcome,int load_status);
+int rf_scene_draw_options_page(rf_scene_particle_sink sink,void *context,const rf_menu_assets *assets,
+    uint32_t page,uint32_t selection,uint32_t flags,uint32_t sensitivity,uint32_t invert,uint32_t deadzone);
+int rf_scene_draw_authored_audio_options(rf_scene_particle_sink sink,void *context,const rf_menu_assets *assets,
+    uint32_t selection,uint32_t flags,uint32_t master,uint32_t effects,uint32_t music);
+int rf_scene_draw_authored_button_mapping(rf_scene_particle_sink sink,void *context,const rf_menu_assets *assets,
+    uint32_t selection,uint32_t flags,const char *const *actions,const char *const *controls);
 /* Cold tester frontend has no world/image/storage owner. Selection is local
  * to the page; difficulty is the last accepted New Game index, 0..3.
  * A nonzero previous status is terminal and must not advertise a retry. */

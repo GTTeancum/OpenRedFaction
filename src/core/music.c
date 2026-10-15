@@ -19,15 +19,24 @@ static int music_header(rf_music_stream *s)
         length=u32(chunk+4);padded=length+(length&1u);
         if(length==UINT32_MAX||padded> s->entry.size-at-8)return RF_FORMAT;
         if(!memcmp(chunk,"fmt ",4)) {
-            if(seen_fmt++||length!=50)return RF_FORMAT;
-            status=rf_vpp_read(s->archive,&s->entry,at+8,fmt,50);if(status)return status;
-            if(u16(fmt)!=2||u16(fmt+2)!=2||u32(fmt+4)!=22050||
-               u16(fmt+12)!=1024||u16(fmt+14)!=4||u16(fmt+16)!=32||
-               u16(fmt+18)!=1012||u16(fmt+20)!=7)return RF_FORMAT;
-            for(i=0;i<7;i++){
-                s->coefficients[i][0]=s16(fmt+22+i*4);
-                s->coefficients[i][1]=s16(fmt+24+i*4);
-            }
+            if(seen_fmt++ || (length!=16 && length!=18 && length!=50))return RF_FORMAT;
+            status=rf_vpp_read(s->archive,&s->entry,at+8,fmt,length);if(status)return status;
+            s->format=u16(fmt);s->source_rate=u32(fmt+4);
+            if(s->format==2){
+                /* Keep the installed ADPCM format and coefficient rules exact. */
+                if(length!=50||u16(fmt+2)!=2||s->source_rate!=22050||
+                   u16(fmt+12)!=1024||u16(fmt+14)!=4||u16(fmt+16)!=32||
+                   u16(fmt+18)!=1012||u16(fmt+20)!=7)return RF_FORMAT;
+                for(i=0;i<7;i++){
+                    s->coefficients[i][0]=s16(fmt+22+i*4);
+                    s->coefficients[i][1]=s16(fmt+24+i*4);
+                }
+            }else if(s->format==1){
+                if((length!=16 && length!=18) || (length==18 && u16(fmt+16)) ||
+                   u16(fmt+2)!=2 || (s->source_rate!=44100 && s->source_rate!=48000) ||
+                   u16(fmt+12)!=4 || u16(fmt+14)!=16 ||
+                   u32(fmt+8)!=s->source_rate*4)return RF_FORMAT;
+            }else return RF_FORMAT;
         } else if(!memcmp(chunk,"fact",4)) {
             if(seen_fact++||length!=4)return RF_FORMAT;
             status=rf_vpp_read(s->archive,&s->entry,at+8,fact,4);if(status)return status;
@@ -38,11 +47,35 @@ static int music_header(rf_music_stream *s)
         }
         at+=8+padded;
     }
-    if(!seen_fmt||!seen_fact||!seen_data||!s->total_frames||
+    if(!seen_fmt || !seen_data || !s->data_bytes)return RF_FORMAT;
+    if(s->format==1){
+        if(s->data_bytes%4 || (seen_fact && s->total_frames!=s->data_bytes/4))return RF_FORMAT;
+        s->total_frames=s->data_bytes/4;return RF_OK;
+    }
+    if(!seen_fact||!s->total_frames||
        !s->data_bytes||s->data_bytes%1024||
        (uint64_t)s->total_frames>(uint64_t)(s->data_bytes/1024)*1012||
        s->total_frames<=((s->data_bytes/1024)-1)*1012)return RF_FORMAT;
     return RF_OK;
+}
+
+static uint32_t music_blocks(const rf_music_stream *s)
+{
+    return s->format==1?s->total_frames/1012u+!!(s->total_frames%1012u):s->data_bytes/1024u;
+}
+
+static int music_pcm_block(rf_music_stream *s)
+{
+    uint32_t base,frames,i;unsigned char *raw=(unsigned char *)s->decoded;int status;
+    if(s->block_index>=music_blocks(s))return RF_NOT_FOUND;
+    base=s->block_index*1012u;frames=s->total_frames-base;
+    if(frames>1012u)frames=1012u;
+    /* Entry validation bounds total_frames*4 by data_bytes. Decode in place:
+     * writing one int16 never overwrites the following unread source pair. */
+    status=rf_vpp_read(s->archive,&s->entry,s->data_offset+base*4u,raw,frames*4u);
+    if(status)return status;
+    for(i=0;i<frames*2u;i++)s->decoded[i]=s16(raw+i*2u);
+    ++s->block_index;s->decoded_frames=frames;s->decoded_at=0;return RF_OK;
 }
 
 static int music_block(rf_music_stream *s)
@@ -50,6 +83,7 @@ static int music_block(rf_music_stream *s)
     static const uint16_t adaptation[16]={230,230,230,230,307,409,512,614,768,614,512,409,307,230,230,230};
     unsigned char raw[1024];int32_t delta[2],one[2],two[2];uint32_t pred[2],i,c,frames,base;
     int status;
+    if(s->format==1)return music_pcm_block(s);
     if(s->block_index>=s->data_bytes/1024)return RF_NOT_FOUND;
     status=rf_vpp_read(s->archive,&s->entry,s->data_offset+s->block_index*1024,raw,1024);if(status)return status;
     ++s->block_index;
@@ -76,7 +110,7 @@ static int music_next(rf_music_stream *s,int16_t out[2])
 {
     int status;
     if(s->decoded_at>=s->decoded_frames){
-        if(s->looping && s->block_index==s->data_bytes/1024){s->block_index=0;++s->loops;}
+        if(s->looping && s->block_index==music_blocks(s)){s->block_index=0;++s->loops;}
         status=music_block(s);if(status)return status;
     }
     out[0]=s->decoded[s->decoded_at*2];out[1]=s->decoded[s->decoded_at*2+1];++s->decoded_at;
@@ -88,7 +122,7 @@ int rf_music_start(rf_music_stream *stream,rf_vpp *archive,const char *name)
     rf_music_stream next={0};int status;
     if(!stream||!archive||!archive->stream||!name||!name[0])return RF_RANGE;
     next.archive=archive;status=rf_vpp_find(archive,name,&next.entry);if(status)return status;
-    if(next.entry.size<90)return RF_FORMAT;
+    if(next.entry.size<44)return RF_FORMAT;
     status=music_header(&next);if(status)return status;
     status=music_next(&next,next.current);if(status)return status;
     status=music_next(&next,next.next);
@@ -120,7 +154,7 @@ int rf_music_mix(rf_music_stream *stream,int16_t *stereo,uint32_t frames)
             stereo[i*2+c]=clamp16((int32_t)stereo[i*2+c]+sample);
         }
         if(stream->fade_total&&!--stream->fade_remaining){stream->active=0;break;}
-        stream->phase+=22050;
+        stream->phase+=stream->source_rate;
         if(stream->phase>=48000){
             stream->phase-=48000;
             if(stream->end_pending){stream->active=0;break;}

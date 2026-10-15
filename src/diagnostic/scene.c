@@ -18113,6 +18113,7 @@ static int combat_hud_centered(rf_scene_particle_sink sink,void *context,float y
     return combat_hud_text(sink,context,(640.f-(float)strlen(text)*12)*.5f,y,text,color);
 }
 #include "scene_session_menu.inc"
+#include "scene_menu_authored.inc"
 #include "scene_hud_control_text.inc"
 static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
 {

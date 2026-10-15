@@ -4,13 +4,16 @@
 #include "rf/vpp.h"
 #include <stdint.h>
 
-/* One bounded, streamed stereo MS ADPCM music voice. The installed music.vpp
- * uses 1024-byte blocks at 22050 Hz; no whole-track allocation is made. */
+/* One bounded, streamed stereo music voice. Installed MS ADPCM retains its
+ * exact 22050 Hz/1024-byte/1012-frame decoder. PCM16 at 44100 or 48000 Hz uses
+ * the same 1012-frame decoded buffer, including a short final block. Neither
+ * path allocates or retains the whole track. Output remains stereo 48000 Hz. */
 typedef struct rf_music_stream {
     rf_vpp *archive;
     rf_vpp_entry entry;
     uint32_t data_offset,data_bytes,total_frames,block_index,decoded_frames,decoded_at;
     uint32_t phase,active,fade_remaining,fade_total;
+    uint32_t format,source_rate;
     /* Whole-track looping follows Bluebeard loop metadata, not event flags.
      * Installed music loop starts are zero. Configure looping after start. */
     uint32_t looping,loops,end_pending;

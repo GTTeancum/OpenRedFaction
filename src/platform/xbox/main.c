@@ -15,6 +15,7 @@
 #include "rf/scene_preview.h"
 #include "rf/frontend_load.h"
 #include "audio.h"
+#include "menu_audio.h"
 #include "rf/frame_clock.h"
 #include "rf/particle_pool.h"
 #include "renderer.h"
@@ -85,6 +86,45 @@ volatile uint32_t rf_xbox_frontend_trace[8];
 volatile uint32_t rf_xbox_frontend_menu[3];
 /* Explicit source attempts, source enum, outcome enum, RF status. Not restore proof. */
 volatile uint32_t rf_xbox_frontend_load[4];
+/* Menu audio is an independent cold owner. Admission is read-only: never
+ * reset or replace a live/paused scene to make this backend available. */
+static int player_menu_audio_idle_status(void)
+{
+    int status=rf_xbox_menu_audio_idle_status();if(status)return status;
+    status=rf_xbox_audio_idle_status();if(status)return status;
+    return rf_vpp_checked_idle_status();
+}
+static int player_frontend_audio_admit(void)
+{
+    int status;
+    if(!tester_profile || player_replay || rf_xbox_pause_diagnostic[6])return RF_RANGE;
+    status=rf_scene_session_exit_status();if(status)return status;
+    status=rf_xbox_input_idle_status();if(status)return status;
+    return player_menu_audio_idle_status();
+}
+static int player_frontend_audio_begin(uint32_t *owned)
+{
+    const char *overlay="D:\\ps2mainmenu.vpp";DWORD attributes,error;int status,idle;
+    rf_xbox_menu_audio_config config={"D:\\audio.vpp","D:\\music.vpp",NULL,"music1.wav",1};
+    if(!owned)return RF_RANGE;*owned=0;
+    /* Same presence rule as the visual owner. An I/O error or present invalid
+     * override is never reinterpreted as an absent optional package. */
+    attributes=GetFileAttributesA(overlay);
+    if(attributes==INVALID_FILE_ATTRIBUTES){
+        error=GetLastError();
+        if(error==ERROR_FILE_NOT_FOUND || error==ERROR_PATH_NOT_FOUND)overlay=NULL;
+        else return RF_IO;
+    }else if(attributes&FILE_ATTRIBUTE_DIRECTORY)return RF_FORMAT;
+    config.overlay_path=overlay;
+    /* Supplied game.tbl selects music1.wav; supplied Bluebeard metadata loops
+     * it from frame0. This bounded menu adapter does not replace those parsers. */
+    status=rf_xbox_menu_audio_begin(&config);
+    if(!status){*owned=1;return RF_OK;}
+    printf("MENU_AUDIO begin status%d\n",status);
+    /* Optional sound failure may leave a silent visual menu only after its
+     * own unwind and every underlying ownership barrier have succeeded. */
+    idle=player_menu_audio_idle_status();return idle?idle:RF_OK;
+}
 static uint32_t player_options_storage_notice=RF_SCENE_OPTIONS_SESSION;
 static rf_xbox_input_options player_options_stored;
 static int player_audio_options_status;
@@ -170,6 +210,7 @@ static int player_audio_options_menu(void *context,uint32_t frame,uint32_t pause
     for(;;){
         uint32_t flags=(paused?RF_SCENE_OPTIONS_PAUSED:0)|
             (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right;
+        if(!paused)rf_xbox_menu_audio_poll();
         rf_xbox_input_get_options(&options);flags|=player_options_storage_flags(&options);
         if(player_audio_options_status)flags|=RF_SCENE_OPTIONS_AUDIO_ERROR;
         if(selection!=drawn_selection || flags!=drawn_flags ||
@@ -183,23 +224,41 @@ static int player_audio_options_menu(void *context,uint32_t frame,uint32_t pause
         Sleep(10);status=rf_xbox_input_poll(context,frame,&input);
         if(status){if(status==RF_NOT_FOUND&&!paused)continue;return status;}
         if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
-        if(rf_xbox_input_pause_pressed()){*resume=paused;return RF_OK;}
+        if(rf_xbox_input_pause_pressed()){
+            if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+            *resume=paused;return RF_OK;
+        }
         pressed=rf_xbox_input_menu_pressed();
-        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&RF_XBOX_MENU_CANCEL){
+            if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+            return RF_OK;
+        }
         if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
             uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
-            if(up!=down)selection=(selection+(down?1:RF_SCENE_AUDIO_COUNT-1))%RF_SCENE_AUDIO_COUNT;
+            if(up!=down){
+                selection=(selection+(down?1:RF_SCENE_AUDIO_COUNT-1))%RF_SCENE_AUDIO_COUNT;
+                if(!paused)rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_PANEL);
+            }
             continue;
         }
         left=!!(pressed&RF_XBOX_MENU_LEFT);right=!!(pressed&RF_XBOX_MENU_RIGHT);
         if(left&&right)continue;
-        if(selection==RF_SCENE_AUDIO_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_AUDIO_BACK){
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+                return RF_OK;
+            }continue;
+        }
         if(selection==RF_SCENE_AUDIO_SAVE){
-            if(pressed&RF_XBOX_MENU_ACCEPT){player_options_save(&options);drawn_flags=UINT32_MAX;}
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+                player_options_save(&options);drawn_flags=UINT32_MAX;
+            }
             continue;
         }
         if(selection==RF_SCENE_AUDIO_DEFAULTS){
             if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
                 options.master_volume_percent=options.effects_volume_percent=options.music_volume_percent=RF_XBOX_VOLUME_DEFAULT;
                 player_options_apply(&options);
             }
@@ -221,6 +280,7 @@ static int player_button_mapping_menu(void *context,uint32_t frame,uint32_t paus
     for(;;){
         uint32_t flags=(paused?RF_SCENE_OPTIONS_PAUSED:0)|
             (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right,i;
+        if(!paused)rf_xbox_menu_audio_poll();
         rf_xbox_input_get_options(&options);
         if(selection!=drawn_selection || flags!=drawn_flags || options.button_map!=drawn_map){
             const char *actions[RF_XBOX_BIND_COUNT],*controls[RF_XBOX_BIND_COUNT];
@@ -233,17 +293,34 @@ static int player_button_mapping_menu(void *context,uint32_t frame,uint32_t paus
         Sleep(10);status=rf_xbox_input_poll(context,frame,&input);
         if(status){if(status==RF_NOT_FOUND&&!paused)continue;return status;}
         if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
-        if(rf_xbox_input_pause_pressed()){*resume=paused;return RF_OK;}
+        if(rf_xbox_input_pause_pressed()){
+            if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+            *resume=paused;return RF_OK;
+        }
         pressed=rf_xbox_input_menu_pressed();
-        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&RF_XBOX_MENU_CANCEL){
+            if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+            return RF_OK;
+        }
         if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
             uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
-            if(up!=down)selection=(selection+(down?1:RF_SCENE_BUTTON_COUNT-1))%RF_SCENE_BUTTON_COUNT;
+            if(up!=down){
+                selection=(selection+(down?1:RF_SCENE_BUTTON_COUNT-1))%RF_SCENE_BUTTON_COUNT;
+                if(!paused)rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_PANEL);
+            }
             continue;
         }
-        if(selection==RF_SCENE_BUTTON_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
+        if(selection==RF_SCENE_BUTTON_BACK){
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+                return RF_OK;
+            }continue;
+        }
         if(selection==RF_SCENE_BUTTON_DEFAULTS){
-            if(pressed&RF_XBOX_MENU_ACCEPT){options.button_map=0;player_options_apply(&options);}
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+                options.button_map=0;player_options_apply(&options);
+            }
             continue;
         }
         left=!!(pressed&RF_XBOX_MENU_LEFT);right=!!(pressed&RF_XBOX_MENU_RIGHT);
@@ -252,57 +329,107 @@ static int player_button_mapping_menu(void *context,uint32_t frame,uint32_t paus
             uint32_t control=rf_xbox_input_binding_control(selection);
             control=(control+(left?RF_XBOX_BUTTON_COUNT-1:1))%RF_XBOX_BUTTON_COUNT;
             status=rf_xbox_input_rebind(selection,control);if(status)return status;
+            /* Accepted Xbox rebinding uses the panel-action class. */
+            if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
         }
     }
 }
 static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint32_t *resume)
 {
+    static const uint32_t game_rows[]={RF_SCENE_OPTIONS_LANGUAGE,
+        RF_SCENE_OPTIONS_DEFAULTS,RF_SCENE_OPTIONS_SAVE,RF_SCENE_OPTIONS_BACK};
+    static const uint32_t control_rows[]={RF_SCENE_OPTIONS_SENSITIVITY,
+        RF_SCENE_OPTIONS_INVERT,RF_SCENE_OPTIONS_DEADZONE,RF_SCENE_OPTIONS_STICK_LAYOUT,
+        RF_SCENE_OPTIONS_BUTTONS,RF_SCENE_OPTIONS_BACK};
     rf_scene_input input;rf_xbox_input_options options,drawn_options={0};
-    uint32_t selection=0,drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
+    uint32_t page=RF_SCENE_OPTIONS_PAGE_ROOT,category=RF_SCENE_OPTIONS_CATEGORY_GAME,row=0;
+    uint32_t drawn_page=UINT32_MAX,drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
     int status;
     *resume=0;
     for(;;){
+        const uint32_t *rows=page==RF_SCENE_OPTIONS_PAGE_CONTROLS?control_rows:game_rows;
+        uint32_t row_count=page==RF_SCENE_OPTIONS_PAGE_CONTROLS?
+            (uint32_t)(sizeof(control_rows)/sizeof(control_rows[0])):
+            (uint32_t)(sizeof(game_rows)/sizeof(game_rows[0]));
+        uint32_t selection=page==RF_SCENE_OPTIONS_PAGE_ROOT?category:rows[row];
         uint32_t flags=(paused?RF_SCENE_OPTIONS_PAUSED:0)|
             (!rf_xbox_input_connected()?RF_SCENE_OPTIONS_DISCONNECTED:0),pressed,left,right;
         int direction;
+        if(!paused)rf_xbox_menu_audio_poll();
         rf_xbox_input_get_options(&options);
         flags|=player_options_storage_flags(&options);
         if(player_audio_options_status)flags|=RF_SCENE_OPTIONS_AUDIO_ERROR;
         if(options.stick_layout==RF_XBOX_STICK_LAYOUT_SOUTHPAW)flags|=RF_SCENE_OPTIONS_SOUTHPAW;
-        if(selection!=drawn_selection || flags!=drawn_flags ||
+        if(page!=drawn_page || selection!=drawn_selection || flags!=drawn_flags ||
            options.look_sensitivity_percent!=drawn_options.look_sensitivity_percent ||
            options.invert_y!=drawn_options.invert_y || options.deadzone_percent!=drawn_options.deadzone_percent ||
            options.text_language!=drawn_options.text_language){
-            status=rf_xbox_options_menu_draw(selection,flags,options.look_sensitivity_percent,
+            status=rf_xbox_options_page_draw(page,selection,flags,options.look_sensitivity_percent,
                 options.invert_y,options.deadzone_percent);if(status)return status;
-            drawn_selection=selection;drawn_flags=flags;drawn_options=options;
+            drawn_page=page;drawn_selection=selection;drawn_flags=flags;drawn_options=options;
         }
         Sleep(10);status=rf_xbox_input_poll(context,frame,&input);
         if(status){if(status==RF_NOT_FOUND&&!paused)continue;return status;}
         if(!rf_xbox_input_connected() || rf_xbox_input_connection_lost())continue;
-        if(rf_xbox_input_pause_pressed()){*resume=paused;return RF_OK;}
+        /* Start retains the existing cold-options Back / paused Resume policy. */
+        if(rf_xbox_input_pause_pressed()){
+            if(!paused)rf_xbox_menu_audio_select(page==RF_SCENE_OPTIONS_PAGE_ROOT?
+                RF_XBOX_MENU_AUDIO_CATEGORY:RF_XBOX_MENU_AUDIO_PANEL);
+            *resume=paused;return RF_OK;
+        }
         pressed=rf_xbox_input_menu_pressed();
-        if(pressed&RF_XBOX_MENU_CANCEL)return RF_OK;
+        if(pressed&RF_XBOX_MENU_CANCEL){
+            if(!paused)rf_xbox_menu_audio_select(page==RF_SCENE_OPTIONS_PAGE_ROOT?
+                RF_XBOX_MENU_AUDIO_CATEGORY:RF_XBOX_MENU_AUDIO_PANEL);
+            if(page==RF_SCENE_OPTIONS_PAGE_ROOT)return RF_OK;
+            page=RF_SCENE_OPTIONS_PAGE_ROOT;row=0;continue;
+        }
         if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
             uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
-            if(up!=down)selection=(selection+(down?1:RF_SCENE_OPTIONS_COUNT-1))%RF_SCENE_OPTIONS_COUNT;
+            if(up!=down){
+                if(page==RF_SCENE_OPTIONS_PAGE_ROOT)
+                    category=(category+(down?1:RF_SCENE_OPTIONS_CATEGORY_COUNT-1))%RF_SCENE_OPTIONS_CATEGORY_COUNT;
+                else row=(row+(down?1:row_count-1))%row_count;
+                if(!paused)rf_xbox_menu_audio_highlight(page==RF_SCENE_OPTIONS_PAGE_ROOT?
+                    RF_XBOX_MENU_AUDIO_CATEGORY:RF_XBOX_MENU_AUDIO_PANEL);
+            }
             continue;
+        }
+        if(page==RF_SCENE_OPTIONS_PAGE_ROOT){
+            if(!(pressed&RF_XBOX_MENU_ACCEPT))continue;
+            if(category==RF_SCENE_OPTIONS_CATEGORY_VIDEO){
+                /* Focus exposes the renderer's fixed-console explanation.
+                 * No unsupported setting, mutation or persistence is implied. */
+                continue;
+            }
+            if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
+            if(category==RF_SCENE_OPTIONS_CATEGORY_BACK)return RF_OK;
+            if(category==RF_SCENE_OPTIONS_CATEGORY_AUDIO){
+                status=player_audio_options_menu(context,frame,paused,resume);
+                if(status || *resume)return status;
+                drawn_page=drawn_selection=drawn_flags=UINT32_MAX;
+                continue;
+            }
+            page=category==RF_SCENE_OPTIONS_CATEGORY_CONTROLS?
+                RF_SCENE_OPTIONS_PAGE_CONTROLS:RF_SCENE_OPTIONS_PAGE_GAME;
+            row=0;continue;
         }
         left=!!(pressed&RF_XBOX_MENU_LEFT);right=!!(pressed&RF_XBOX_MENU_RIGHT);
         if(left&&right)continue;
         direction=right?1:left?-1:0;
-        if(selection==RF_SCENE_OPTIONS_BACK){if(pressed&RF_XBOX_MENU_ACCEPT)return RF_OK;continue;}
-        if(selection==RF_SCENE_OPTIONS_BUTTONS){
+        if(selection==RF_SCENE_OPTIONS_BACK){
             if(pressed&RF_XBOX_MENU_ACCEPT){
-                status=player_button_mapping_menu(context,frame,paused,resume);if(status || *resume)return status;
-                drawn_selection=drawn_flags=UINT32_MAX;
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+                page=RF_SCENE_OPTIONS_PAGE_ROOT;row=0;
             }
             continue;
         }
-        if(selection==RF_SCENE_OPTIONS_AUDIO){
+        if(selection==RF_SCENE_OPTIONS_BUTTONS){
             if(pressed&RF_XBOX_MENU_ACCEPT){
-                status=player_audio_options_menu(context,frame,paused,resume);if(status || *resume)return status;
-                drawn_selection=drawn_flags=UINT32_MAX;
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
+                status=player_button_mapping_menu(context,frame,paused,resume);
+                if(status || *resume)return status;
+                drawn_page=drawn_selection=drawn_flags=UINT32_MAX;
             }
             continue;
         }
@@ -310,6 +437,7 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
             /* One released A edge is the only write request. Left/right, Back,
              * Start, default-reset, hotplug and session transitions never save. */
             if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
                 player_options_save(&options);
                 drawn_flags=UINT32_MAX;
             }
@@ -317,6 +445,7 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
         }
         if(selection==RF_SCENE_OPTIONS_DEFAULTS){
             if(pressed&RF_XBOX_MENU_ACCEPT){
+                if(!paused)rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_PANEL);
                 options=(rf_xbox_input_options){RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,
                     RF_XBOX_STICK_DEADZONE_DEFAULT,RF_XBOX_STICK_LAYOUT_STANDARD,0,RF_TEXT_ENGLISH,
                     RF_XBOX_VOLUME_DEFAULT,RF_XBOX_VOLUME_DEFAULT,RF_XBOX_VOLUME_DEFAULT};
@@ -338,12 +467,12 @@ static int player_options_menu(void *context,uint32_t frame,uint32_t paused,uint
                     options.look_sensitivity_percent+=RF_XBOX_LOOK_SENSITIVITY_STEP;
             }else if(options.look_sensitivity_percent>RF_XBOX_LOOK_SENSITIVITY_MIN)
                 options.look_sensitivity_percent-=RF_XBOX_LOOK_SENSITIVITY_STEP;
-        }else {
+        }else if(selection==RF_SCENE_OPTIONS_DEADZONE){
             if(direction>0){if(options.deadzone_percent<RF_XBOX_STICK_DEADZONE_MAX)
                 options.deadzone_percent+=RF_XBOX_STICK_DEADZONE_STEP;}
             else if(options.deadzone_percent>RF_XBOX_STICK_DEADZONE_MIN)
                 options.deadzone_percent-=RF_XBOX_STICK_DEADZONE_STEP;
-        }
+        }else continue;
         player_options_apply(&options);
     }
 }
@@ -395,6 +524,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
 {
     rf_scene_input input;uint32_t drawn=UINT32_MAX,i,page=RF_SCENE_FRONTEND_MAIN,selection=0;
     uint32_t difficulty=rf_scene_session_get_difficulty(),load_notice=0,load_outcome=RF_SCENE_FRONTEND_LOAD_READY;
+    uint32_t input_owned=0,audio_owned=0,visual_owned=0;
     int status,load_status=RF_OK;
     if(!saved_level || !dashboard_exit)return RF_RANGE;saved_level[0]=0;*dashboard_exit=0;
     memset((void *)rf_xbox_frontend_load,0,sizeof(rf_xbox_frontend_load));
@@ -402,11 +532,17 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
     rf_xbox_frontend_trace[7]=1;
     rf_xbox_frontend_diagnostic[0]=session_status?4:1;
     rf_xbox_frontend_diagnostic[3]=(uint32_t)session_status;
-    status=rf_xbox_input_open();if(status)return status;
+    if(!session_status){
+        status=player_frontend_audio_admit();if(status)return status;
+        status=rf_xbox_menu_open();if(status)return status;visual_owned=1;
+        status=player_frontend_audio_begin(&audio_owned);if(status)goto frontend_close;
+    }
+    status=rf_xbox_input_open();if(status)goto frontend_close;input_owned=1;
     rf_xbox_input_set_paused(1);
     for(;;){
         uint32_t flags=(ended?RF_SCENE_FRONTEND_ENDED:0)|
             (load_notice?RF_SCENE_FRONTEND_LOAD_NOTICE:0),pressed,start;
+        if(audio_owned)rf_xbox_menu_audio_poll();
         rf_xbox_frontend_menu[0]=page;rf_xbox_frontend_menu[1]=selection;rf_xbox_frontend_menu[2]=difficulty;
         rf_xbox_frontend_trace[7]=2;
         status=rf_xbox_input_poll(NULL,0,&input);
@@ -433,14 +569,19 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
         if(!status && !session_status && rf_xbox_input_connected() && !rf_xbox_input_connection_lost()){
             pressed=rf_xbox_input_menu_pressed();start=rf_xbox_input_pause_pressed();
             if(page!=RF_SCENE_FRONTEND_MAIN && (start || (pressed&RF_XBOX_MENU_CANCEL))){
+                rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
                 selection=page==RF_SCENE_FRONTEND_LOAD?2:page==RF_SCENE_FRONTEND_EXIT?3:0;
                 page=RF_SCENE_FRONTEND_MAIN;load_notice=0;drawn=UINT32_MAX;
             }else if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
                 uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
                 uint32_t count=page==RF_SCENE_FRONTEND_DIFFICULTY?5:
                     page==RF_SCENE_FRONTEND_MAIN?4:page==RF_SCENE_FRONTEND_EXIT?2:3;
-                if(up!=down){selection=(selection+(down?1:count-1))%count;load_notice=0;drawn=UINT32_MAX;}
+                if(up!=down){
+                    selection=(selection+(down?1:count-1))%count;load_notice=0;drawn=UINT32_MAX;
+                    rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);
+                }
             }else if((pressed&RF_XBOX_MENU_ACCEPT) || (start&&page==RF_SCENE_FRONTEND_MAIN)){
+                rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
                 if(page==RF_SCENE_FRONTEND_MAIN){
                     if(!selection){page=RF_SCENE_FRONTEND_DIFFICULTY;selection=difficulty;drawn=UINT32_MAX;}
                     else if(selection==1){
@@ -503,7 +644,15 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
     }
     /* Gameplay opens its own controller; its first attached sample rearms
      * all buttons/triggers held through New Game instead of firing them. */
-    rf_xbox_frontend_trace[7]=6;player_input_close();
+frontend_close:
+    rf_xbox_frontend_trace[7]=6;if(input_owned)player_input_close();
+    {
+        int audio_closed=audio_owned?rf_xbox_menu_audio_end():RF_OK;
+        int visual_closed=visual_owned?rf_xbox_menu_close():RF_OK;
+        /* Preserve every failed owner. Cleanup failure always blocks the next
+         * game/dashboard; no optional-audio fallback applies to retirement. */
+        if(audio_closed)status=audio_closed;else if(visual_closed)status=visual_closed;
+    }
     rf_xbox_frontend_trace[7]=7;return status;
 }
 static int player_session_ended_draw(void)
@@ -517,7 +666,7 @@ static int player_session_ended_draw(void)
  * gameplay tick occurs while this menu owns the input-provider call. */
 static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
 {
-    uint32_t selection=RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0;
+    uint32_t selection=RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0,options_unavailable=0;
     uint32_t drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
     int status;
     ++rf_xbox_pause_diagnostic[0];rf_xbox_pause_diagnostic[4]=frame;
@@ -528,6 +677,7 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
     for(;;){
         uint32_t flags=(confirm?RF_SCENE_SESSION_CONFIRM:0)|
             (unavailable?RF_SCENE_SESSION_UNAVAILABLE:0)|
+            (options_unavailable?RF_SCENE_SESSION_OPTIONS_UNAVAILABLE:0)|
             (tester_profile?RF_SCENE_SESSION_FRONTEND_EXIT:0)|
             (!rf_xbox_input_connected()?RF_SCENE_SESSION_DISCONNECTED:0);
         uint32_t pressed;
@@ -563,7 +713,20 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
         if(selection==RF_SCENE_SESSION_RESUME)break;
         if(selection==RF_SCENE_SESSION_OPTIONS){
             uint32_t resume=0;
-            status=player_options_menu(context,frame,1,&resume);
+            uint32_t art_failure;int closed;
+            options_unavailable=0;
+            status=rf_xbox_menu_open();
+            if(!status)status=player_options_menu(context,frame,1,&resume);
+            art_failure=status && rf_xbox_menu_art_failed();
+            closed=rf_xbox_menu_close();if(closed)status=closed;
+            if(art_failure && !closed){
+                /* The current world/settings remain owned and paused. Only
+                 * a fenced image-source failure returns to this menu; native
+                 * close, input, settings and renderer errors still propagate. */
+                rf_xbox_pause_diagnostic[3]=(uint32_t)status;
+                options_unavailable=1;unavailable=0;
+                drawn_selection=drawn_flags=UINT32_MAX;continue;
+            }
             rf_xbox_pause_diagnostic[3]=(uint32_t)status;
             if(status){
                 if(status==RF_NOT_FOUND){int shown=player_session_ended_draw();if(shown)return shown;}
@@ -1659,7 +1822,7 @@ static int player_dashboard_exit(uint32_t *present_error)
         return RF_RANGE;
     status=rf_scene_session_exit_status();if(status)return status;
     status=rf_xbox_settings_storage_idle_status();if(status)return status;
-    status=rf_xbox_audio_idle_status();if(status)return status;
+    status=player_menu_audio_idle_status();if(status)return status;
     status=rf_xbox_input_idle_status();if(status)return status;
     *present_error=0;
     status=rf_xbox_frontend_exit_status();if(status)return status;
@@ -1678,6 +1841,9 @@ static int player_campaign_run(const char *saved_level)
     int result=RF_OK,live_mines_door_fixture=1;
     uint32_t cold_load=saved_level && saved_level[0];
     if(cold_load && (!tester_profile || !memchr(saved_level,0,64) || !rf_scene_quickload_pending()))return RF_RANGE;
+    /* A cold menu must retire its PCM/archive owner as well as native audio.
+     * No backend open may erase a failed menu or checked-close admission. */
+    result=player_menu_audio_idle_status();if(result)return result;
     memory.Length=sizeof(memory);
     if (result == RF_OK) {
         char selection[128]={0},archive_path[80];int selected=0;

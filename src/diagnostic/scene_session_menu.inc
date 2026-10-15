@@ -14,7 +14,7 @@ int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
     uint32_t i;int status;
     if(!sink || particle_draw_stream || selection>=RF_SCENE_SESSION_COUNT ||
        (flags&~(RF_SCENE_SESSION_CONFIRM|RF_SCENE_SESSION_DISCONNECTED|
-          RF_SCENE_SESSION_ENDED|RF_SCENE_SESSION_UNAVAILABLE|RF_SCENE_SESSION_FRONTEND_EXIT)))return RF_RANGE;
+          RF_SCENE_SESSION_ENDED|RF_SCENE_SESSION_UNAVAILABLE|RF_SCENE_SESSION_FRONTEND_EXIT|RF_SCENE_SESSION_OPTIONS_UNAVAILABLE)))return RF_RANGE;
     if(flags&RF_SCENE_SESSION_ENDED){
         status=combat_hud_centered(sink,context,192,"SESSION ENDED",0xffeeeeee);if(status)return status;
         return combat_hud_centered(sink,context,248,
@@ -44,6 +44,9 @@ int rf_scene_draw_session_menu(rf_scene_particle_sink sink,void *context,
             status=combat_hud_rect(sink,context,140,116+i*32,360,28,0xff30485c);if(status)return status;
         }
         status=combat_hud_centered(sink,context,122+i*32,scene_text(ids[i],items[i]),i==selection?0xff80ffb0:0xffd0d8e0);if(status)return status;
+    }
+    if(flags&RF_SCENE_SESSION_OPTIONS_UNAVAILABLE){
+        status=combat_hud_centered(sink,context,352,"OPTIONS ART COULD NOT BE LOADED",0xffffc060);if(status)return status;
     }
     if(flags&RF_SCENE_SESSION_UNAVAILABLE){
         status=combat_hud_centered(sink,context,352,"RESTART UNAVAILABLE IN THIS SCENE",0xffffc060);if(status)return status;

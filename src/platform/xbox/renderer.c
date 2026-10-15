@@ -3,6 +3,7 @@
 #include "../../../tests/corona_pixel_fixture.h"
 #include "../../../tests/particle_stretch_fixture.h"
 #include "rf/resource_budget.h"
+#include "rf/menu_assets.h"
 #include "renderer.h"
 #include "rf/model_bounds.h"
 #include "rf/scene_preview.h"
@@ -179,6 +180,15 @@ static int scene_hud_present(void *context,const rf_particle_draw_vertex *vertic
     if(mode!=0x18000u && mode!=RF_PARTICLE_NORMAL_MODE && mode!=normal)return RF_NOT_FOUND;
     return rf_xbox_particle_draw(vertices,count,image,mode&~(31u<<20),1,0,0,0);
 }
+/* Original457870/50bc60 selected menu artwork uses additive blending.
+ * The ordinary gameplay HUD callback retains its normal-alpha-only contract. */
+static int scene_menu_present(void *context,const rf_particle_draw_vertex *vertices,
+    uint32_t count,const rf_image *image,uint32_t mode)
+{
+    if(mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20)))
+        return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
+    return scene_hud_present(context,vertices,count,image,mode);
+}
 /* Only world particles/coronas use this sink. HUD has its separate screen-space
  * adapter above; standalone effects retain scene_particle_present semantics. */
 static int scene_world_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
@@ -196,6 +206,63 @@ static gpu_texture *stream_textures;
 static const rf_materials *stream_materials;
 static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
+/* Explicit menu-root owner; never retained during ordinary gameplay.
+ * Resident world/HUD ownership is independent even for suspended Options. */
+static rf_menu_assets *menu_assets;
+uint32_t rf_xbox_menu_resources[8]; /* opens,status,active,resident,peak,page,prepares,draws */
+int rf_xbox_menu_open(void)
+{
+    int status;DWORD attributes,error;const char *overlay="D:\\ps2mainmenu.vpp";
+    rf_xbox_menu_resources[1]=RF_OK;
+    if(menu_assets || hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    while(pb_busy()) {}
+    ++rf_xbox_menu_resources[0];
+    attributes=GetFileAttributesA(overlay);
+    if(attributes==INVALID_FILE_ATTRIBUTES){
+        error=GetLastError();
+        if(error==ERROR_FILE_NOT_FOUND || error==ERROR_PATH_NOT_FOUND)overlay=NULL;
+        else {rf_xbox_menu_resources[1]=(uint32_t)RF_IO;return RF_IO;}
+    }else if(attributes&FILE_ATTRIBUTE_DIRECTORY){
+        rf_xbox_menu_resources[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;
+    }
+    /* Absence is the only stock-only case. A present malformed/unreadable
+     * override remains a visible error from the checked source loader. */
+    status=rf_menu_assets_open(&menu_assets,"D:\\ui.vpp",overlay,RF_MENU_ASSETS_BUDGET);
+    rf_xbox_menu_resources[1]=(uint32_t)status;rf_xbox_menu_resources[2]=menu_assets!=NULL;
+    rf_xbox_menu_resources[3]=rf_menu_assets_resident_bytes(menu_assets);
+    rf_xbox_menu_resources[4]=rf_menu_assets_peak_bytes(menu_assets);
+    rf_xbox_menu_resources[5]=UINT32_MAX;
+    return status;
+}
+int rf_xbox_menu_art_failed(void)
+{
+    /* Only loader/prepare errors are visual failures. A checked archive-close
+     * uncertainty remains fatal; input/storage/GPU errors never set this row. */
+    return rf_xbox_menu_resources[1]!=0 && rf_vpp_checked_idle_status()==RF_OK;
+}
+int rf_xbox_menu_close(void)
+{
+    if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+    if(!menu_assets)return RF_OK;
+    while(pb_busy()) {}
+    rf_menu_assets_close(menu_assets);menu_assets=NULL;
+    rf_xbox_menu_resources[2]=rf_xbox_menu_resources[3]=0;
+    rf_xbox_menu_resources[5]=UINT32_MAX;return RF_OK;
+}
+static int menu_prepare(uint32_t page)
+{
+    int status;rf_xbox_menu_resources[1]=RF_OK;if(!menu_assets)return RF_RANGE;
+    /* Every prior HUD call fenced before return. Never mutate a GPU borrower. */
+    if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+    while(pb_busy()) {}
+    status=rf_menu_assets_prepare_page(menu_assets,page);
+    rf_xbox_menu_resources[1]=(uint32_t)status;
+    rf_xbox_menu_resources[3]=rf_menu_assets_resident_bytes(menu_assets);
+    rf_xbox_menu_resources[4]=rf_menu_assets_peak_bytes(menu_assets);
+    if(!status && rf_xbox_menu_resources[5]!=page){rf_xbox_menu_resources[5]=page;++rf_xbox_menu_resources[6];}
+    return status;
+}
 static uint32_t retained_draw_count;
 /* Actual/former pb_end blocks: retained world, shader uploads, model parts. */
 uint32_t rf_xbox_command_blocks[6],rf_xbox_command_batching_disabled;
@@ -456,7 +523,7 @@ void rf_xbox_scene_stream_close(void)
 int rf_xbox_frontend_exit_status(void)
 {
     uint32_t i,begin;
-    if(stream_gpu || stream_textures || stream_materials || stream_lightmaps ||
+    if(menu_assets || stream_gpu || stream_textures || stream_materials || stream_lightmaps ||
        retained_world.source || retained_world.visibility || retained_world.vertices || retained_world.faces ||
        retained_indices.items || retained_indices.groups || retained_indices.rooms ||
        retained_model_count || retained_draws || retained_draw_count ||
@@ -512,60 +579,62 @@ int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uin
 int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
     uint32_t load_outcome,int load_status)
 {
-    int status;
-    /* World borrowers must have retired before this cold screen. pbkit's
-     * framebuffer/DMA device remains process-owned across every session. */
+    int status;uint32_t art_page=page==RF_SCENE_FRONTEND_MAIN?RF_MENU_PAGE_MAIN:
+        page==RF_SCENE_FRONTEND_DIFFICULTY?RF_MENU_PAGE_DIFFICULTY:
+        page==RF_SCENE_FRONTEND_LOAD?RF_MENU_PAGE_LOAD:RF_MENU_PAGE_EXIT;
     if(stream_gpu || stream_textures || stream_materials || stream_lightmaps)return RF_RANGE;
+    /* After terminal cleanup/Dashboard failure the owner is already retired.
+     * Keep the original allocation-free error screen available on that path. */
+    if(!menu_assets && !session_status)return RF_RANGE;
     if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    if(menu_assets){status=menu_prepare(art_page);if(status)return status;}
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_fill(0,0,640,480,0xff101018);
-    hud_batch_begin();status=rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status,page,selection,difficulty,load_outcome,load_status);hud_batch_end();
-    if(status)return status;
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
+    hud_batch_begin();
+    status=menu_assets?rf_scene_draw_authored_frontend(scene_menu_present,NULL,menu_assets,
+        flags,session_status,page,selection,difficulty,load_outcome,load_status):
+        rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status,page,selection,difficulty,load_outcome,load_status);
+    hud_batch_end();if(status)return status;
+    if(menu_assets)++rf_xbox_menu_resources[7];
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
-int rf_xbox_options_menu_draw(uint32_t selection,uint32_t flags,
+int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
     uint32_t sensitivity_percent,uint32_t invert_y,uint32_t deadzone_percent)
 {
-    int status;
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
-    while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_fill(0,0,640,480,0xff101018);
+    int status;uint32_t art_page;
+    if(page>RF_SCENE_OPTIONS_PAGE_CONTROLS)return RF_RANGE;
+    art_page=page==RF_SCENE_OPTIONS_PAGE_ROOT?RF_MENU_PAGE_OPTIONS:
+        page==RF_SCENE_OPTIONS_PAGE_GAME?RF_MENU_PAGE_GAME:RF_MENU_PAGE_CONTROLS;
+    status=menu_prepare(art_page);if(status)return status;
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
     hud_batch_begin();
-    status=rf_scene_draw_options(scene_hud_present,NULL,selection,flags,
+    status=rf_scene_draw_options_page(scene_menu_present,NULL,menu_assets,page,selection,flags,
         sensitivity_percent,invert_y,deadzone_percent);
-    hud_batch_end();if(status)return status;
+    hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
     uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent)
 {
-    int status;
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
-    while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_fill(0,0,640,480,0xff101018);
+    int status=menu_prepare(RF_MENU_PAGE_AUDIO);if(status)return status;
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
     hud_batch_begin();
-    status=rf_scene_draw_audio_options(scene_hud_present,NULL,selection,flags,
+    status=rf_scene_draw_authored_audio_options(scene_menu_present,NULL,menu_assets,selection,flags,
         master_percent,effects_percent,music_percent);
-    hud_batch_end();if(status)return status;
+    hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
     const char *const *actions,const char *const *controls)
 {
-    int status;
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
-    while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_fill(0,0,640,480,0xff101018);
+    int status=menu_prepare(RF_MENU_PAGE_BUTTONS);if(status)return status;
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
     hud_batch_begin();
-    status=rf_scene_draw_button_mapping(scene_hud_present,NULL,selection,flags,actions,controls);
-    hud_batch_end();if(status)return status;
+    status=rf_scene_draw_authored_button_mapping(scene_menu_present,NULL,menu_assets,selection,flags,actions,controls);
+    hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
     pb_show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
@@ -590,6 +659,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     const uint32_t program[] = {
 #include "preview_vertex.inl"
     };
+    if(menu_assets)return RF_RANGE;
     if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > RF_CAMPAIGN_TEXTURE_SLOTS || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
     if(streaming){int status=rf_scene_prepare_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;}
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
@@ -933,9 +1003,10 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
             !rf_finite_float(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
     }
     if(hud_batch_active && !solid) {
-        /* Private HUD textures use ordinary source-alpha blending without Z.
-         * Native storage is owned by the scene until this entire pass drains. */
-        if(base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) || depth_mode ||
+        /* Menus may explicitly select additive artwork; both modes remain
+         * depth-free and retain their native pixels until this pass drains. */
+        if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) &&
+            base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20))) || depth_mode ||
            (fog_enabled&255u))return RF_FORMAT;
         if(image->width>4096 || image->height>4096 ||
            (uint64_t)image->width*image->height*(rf_image_is_packed_1555(image)?2u:4u)!=image->bytes)return RF_RANGE;

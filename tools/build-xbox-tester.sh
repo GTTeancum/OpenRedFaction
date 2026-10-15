@@ -32,7 +32,7 @@ for path in "$disc"/*; do
     fi
     case "${path##*/}" in
         default.xbe|tester-profile.flag|bluebeard.bty|geomod-template.bin|driller-single.bin|driller-double.bin) ;;
-        tables.vpp|levels1.vpp|levels2.vpp|levels3.vpp|levelsm.vpp|maps1.vpp|maps2.vpp|maps3.vpp|maps4.vpp|maps_en.vpp|meshes.vpp|motions.vpp|audio.vpp|music.vpp|ui.vpp) ;;
+        tables.vpp|levels1.vpp|levels2.vpp|levels3.vpp|levelsm.vpp|maps1.vpp|maps2.vpp|maps3.vpp|maps4.vpp|maps_en.vpp|meshes.vpp|motions.vpp|audio.vpp|music.vpp|ui.vpp|ps2mainmenu.vpp) ;;
         *) echo "Refusing unexpected tester package file: $path" >&2; exit 1 ;;
     esac
 done
@@ -53,6 +53,23 @@ borrow_asset() {
 for archive in tables levels1 levels2 levels3 levelsm maps1 maps2 maps3 maps4 maps_en meshes motions audio music ui; do
     borrow_asset "$root/Installed_Game/$archive.vpp" "$archive.vpp"
 done
+# Optional user-supplied PS2 Main Menu overlay, kept outside original inputs.
+# Never download assets during a build or publish them with project source.
+if [[ -n "${RF_MENU_OVERLAY_VPP:-}" ]]; then
+    if [[ ! -f "$RF_MENU_OVERLAY_VPP" || -L "$RF_MENU_OVERLAY_VPP" ]]; then
+        echo "RF_MENU_OVERLAY_VPP must name a regular supplied VPP." >&2
+        exit 1
+    fi
+    menu_digest="$(sha256sum "$RF_MENU_OVERLAY_VPP" | cut -d ' ' -f1)"
+    if [[ "$menu_digest" != 2905b36544373c156e2671f2edb936cce25d8071bb4196811ff40e8374e2e05a ]]; then
+        echo "Menu overlay differs from the requested PS2 Main Menu release." >&2
+        exit 1
+    fi
+    borrow_asset "$RF_MENU_OVERLAY_VPP" ps2mainmenu.vpp
+elif [[ -e "$disc/ps2mainmenu.vpp" ]]; then
+    echo "Existing menu overlay requires explicit RF_MENU_OVERLAY_VPP admission." >&2
+    exit 1
+fi
 borrow_asset "$root/Installed_Game/bluebeard.bty" bluebeard.bty
 for shape in geomod-template driller-single driller-double; do
     borrow_asset "$root/build/data/$shape.bin" "$shape.bin"
