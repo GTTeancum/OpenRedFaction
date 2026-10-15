@@ -1412,6 +1412,7 @@ rf_campaign_actors rf_scene_defeated_actors;
 uint32_t rf_scene_actor_revisit[8]; /* compared living actors; health/armor/allegiance/flag differences; first UID and health bits */
 uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured deaths, status */
 uint32_t rf_scene_campaign_load_stage;
+uint32_t rf_scene_campaign_load_detail; /* source line of current resource operation */
 uint32_t rf_scene_follow_level_exits;
 static int campaign_switch_checkpoint(uint32_t save)
 {
@@ -6358,6 +6359,7 @@ static int scene_turret_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
 #include "scene_guard_retreat_metadata.inc"
 #include "scene_blind_pursuit_metadata.inc"
 #include "scene_noise_investigation_metadata.inc"
+uint32_t rf_scene_npc_body_admission[4]; /* body/class bytes, scratch, budget, actors */
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
     const uint32_t budget=640*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
@@ -6375,6 +6377,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     scratch=entity_table.size>materials.size?entity_table.size:materials.size;
     bytes=sizeof(scene_tactical_cursor)+sizeof(scene_tactical_service_frame)+sizeof(scene_guard_retreat_class)+sizeof(scene_noise_classes)+sizeof(scene_blind_classes)+(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies)+
         (uint64_t)campaign_seeds.class_count*(sizeof(*campaign_npc_movement_configs)+sizeof(*campaign_npc_stances)+sizeof(*campaign_npc_eyes)+sizeof(*scene_npc_hit_location_classes));
+    rf_scene_npc_body_admission[0]=(uint32_t)bytes;rf_scene_npc_body_admission[1]=scratch;
+    rf_scene_npc_body_admission[2]=budget;rf_scene_npc_body_admission[3]=campaign_poses.count;
     if(bytes+scratch>budget){status=RF_RANGE;goto done;}
     status=scene_guard_retreat_class_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status)goto done;
     status=scene_noise_classes_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status)goto done;
@@ -12726,27 +12730,42 @@ static void campaign_script_single_release_target(uint32_t slot)
     owner->combat_target=owner->combat_scripted=owner->combat_alert=0;scene_blind_clear(owner);
     owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
 }
+/* Preserve the first failing enemy operation for live QMP diagnostics.
+ * Observation only: retain the original status and never retry mutations. */
+uint32_t rf_scene_enemy_failure[6]; /* status,line,frame,slot,UID,weapon */
+static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t slot)
+{
+    if(status && !rf_scene_enemy_failure[0]){
+        rf_scene_enemy_failure[0]=(uint32_t)status;rf_scene_enemy_failure[1]=line;
+        rf_scene_enemy_failure[2]=frame;rf_scene_enemy_failure[3]=slot;
+        rf_scene_enemy_failure[4]=slot<campaign_npc_body_count?
+            (uint32_t)campaign_seeds.records.items[slot].record.uid:UINT32_MAX;
+        rf_scene_enemy_failure[5]=slot<campaign_npc_body_count?
+            (uint32_t)campaign_npc_bodies[slot].view.weapons[0]:UINT32_MAX;
+    }
+    return status;
+}
 static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const float player_eye[3],
     scene_pursuit_work_dispatch_result *work)
 {
-    uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
+    uint32_t i=UINT32_MAX,j,blocked,clock_bits;float seconds=(float)frame/60;
     const uint64_t tick_epoch=scene_robot_death_epoch;
     const int32_t pursuit_now=scene_patrol_now(frame);
     /* Impact timing is independent of the next fire deadline, acquisition,
      * pain lock and all per-owner suppression early-outs. Invalid owners are
      * cancelled by the service even while the movement fixture is quiet. */
-    {int status=scene_ai_drone_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-     if(status)return status;
-     status=scene_ai_tankbot_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-     if(status)return status;
-     status=scene_ai_drone_smash_service(stream,frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-     if(status)return status;
-     status=scene_ai_tribeam_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-     if(status)return status;
-     status=scene_ai_cane_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-     if(status)return status;
-     status=scene_ai_spit_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-     if(status)return status;}
+    {int status=scene_ai_drone_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+     if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+     status=scene_ai_tankbot_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+     if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+     status=scene_ai_drone_smash_service(stream,frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+     if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+     status=scene_ai_tribeam_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+     if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+     status=scene_ai_cane_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+     if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+     status=scene_ai_spit_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+     if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
     /* Explicit movement fixture: quiet authored pool, no enemy combat. */
     if(rf_scene_swim_test_enabled)return RF_OK;
     uint32_t tactical_chosen=UINT32_MAX;
@@ -12755,16 +12774,16 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         sound_context.random=&combat_sound_random;
         status=scene_pursuit_work_dispatch(stream,frame,pursuit_now,seconds,
             rf_scene_npc_death_sound,&sound_context,work);
-        if(tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        if(tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
         /* Only an unentered refusal with a clear boundary is a consumed defer.
          * Preserve work->service_status; never reselect or invoke legacy here. */
         if(status==RF_NOT_FOUND){
             boundary=scene_pursuit_execution_boundary();if(boundary)return boundary;
             status=RF_OK;
         }
-        if(status)return status;
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
     }else{
-        int status=scene_tactical_schedule(frame,pursuit_now,&tactical_chosen);if(status)return status;
+        int status=scene_tactical_schedule(frame,pursuit_now,&tactical_chosen);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
     }
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
@@ -12787,31 +12806,31 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         /* prepare_view combat precedes scene_frame translation. Paid delayed
          * services above have run; one sight/expiry service precedes new fire. */
         status=scene_blind_age(owner,frame);
-        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-        if(status)return status;
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         status=scene_pursuit_delay_age(owner,pursuit_now);
-        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-        if(status)return status;
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         status=scene_blind_tick(stream,i,frame);
-        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-        if(status)return status;
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         status=scene_tactical_maintain(owner,pursuit_now);
-        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-        if(status)return status;
-        if(owner->guard_retreat_fault||owner->alarm_fault)return RF_FORMAT;
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+        if(owner->guard_retreat_fault||owner->alarm_fault)return scene_enemy_failure(RF_FORMAT,__LINE__,frame,i);
         if(SCENE_PURSUIT_RUNTIME_ENABLED){
             uint32_t handled=0;
             status=scene_pursuit_return_pending_service(owner,frame,&handled);
-            if(tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-            if(status)return status;if(handled)continue;
+            if(tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(handled)continue;
             status=scene_pursuit_cancelled_service(work,i,frame,&handled);
-            if(tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-            if(status)return status;if(handled)continue;
+            if(tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(handled)continue;
         }
         if(owner->alarm.present)continue;
         status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon,&reload_qualified,!retreat_owned_iteration);
-        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-        if(status)return status;
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         /* Receipt survives completion/callback return. Suppress before even
          * forced-shot queue handling, then resume at the NEXT owner service. */
         if(retreat_owned_iteration||scene_guard_retreat_active(owner))continue;
@@ -12825,11 +12844,11 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(campaign_npc_holster_blocks_fire(owner))continue;
             status=scene_ai_tankbot_secondary_launch(i,single->point,frame,1);
             if(status==RF_NOT_FOUND)continue;
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             ++rf_scene_enemy_combat[2];campaign_script_single_pop(owner,1);
             continue;
         }
-        status=campaign_enemy_opposed_acquire(stream,i,frame,player_eye);if(status)return status;
+        status=campaign_enemy_opposed_acquire(stream,i,frame,player_eye);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
          if(!once && !campaign_enemy_mode_admits(owner,speed2>.0001f,0)){
              if(!scene_tactical_route_owned(owner))campaign_pursuit_stop(owner);
@@ -12844,9 +12863,9 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             /* Ordinary acquisition tries the authored alarm before weapon
              * presence (RF.exe408b34..408b4b). Explicit/opposed targets retain
              * their owners; unarmed authored runners use the same sight gate. */
-            status=scene_alarm_runner_sight(stream,i,frame,player_eye,&alarm_started);if(status)return status;
+            status=scene_alarm_runner_sight(stream,i,frame,player_eye,&alarm_started);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(alarm_started)continue;
-            status=scene_ai_class_melee_switch(i,frame,&class_melee_waiting);if(status)return status;
+            status=scene_ai_class_melee_switch(i,frame,&class_melee_waiting);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         }
         const uint32_t point_target=once || (owner->combat_scripted==3 && owner->script_shoot.active);
         const int32_t weapon=owner->view.weapons[0];
@@ -12867,7 +12886,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(status==RF_NOT_FOUND)status=campaign_enemy_spit_select(owner,&campaign_weapon_supply,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_flame_select(owner,&campaign_weapon_supply,&selected);
         if(status==RF_NOT_FOUND)status=campaign_enemy_fusion_select(owner,&campaign_weapon_supply,&selected);
-        if(status && status!=RF_NOT_FOUND)return status;
+        if(status && status!=RF_NOT_FOUND)return scene_enemy_failure(status,__LINE__,frame,i);
         if(weapon==campaign_grenade_id){
             if(!scene_grenade_resources)continue;
             selected.primary=campaign_primary+5;selected.slot=5;selected.ammo=NULL;
@@ -12932,10 +12951,10 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             for(j=0;j<3;j++)forward+=owner->look.orientation[6+j]*delta[j];
             if(forward<=0 || forward*forward<distance*.25f){++rf_scene_enemy_awareness[4];continue;}
             status=combat_obstructed(stream,owner->eye_position,delta,&blocked);
-            rf_scene_enemy_awareness[7]=(uint32_t)status;if(status)return status;
+            rf_scene_enemy_awareness[7]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(blocked){++rf_scene_enemy_awareness[2];continue;}
             scene_pursuit_token_invalidate_owner(owner); /* accepted player sight acquisition */
-            status=campaign_animation_cancel(owner);if(status)return status;
+            status=campaign_animation_cancel(owner);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(!campaign_script_movement_owns(owner))scene_patrol_combat_begin(owner,0);
             scene_noise_cancel(owner);
             owner->combat_target=campaign_player_object.handle;
@@ -12963,26 +12982,26 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
            (scene_pursuit_delay_use(owner,&selected,intended_handle)||
             (!selected.melee&&selected.primary&&scene_stand_ground_combat(stream,i)))){
             rf_level_entity_combat_range authored;
-            if(!campaign_seeds.records.items||i>=campaign_seeds.records.count)return RF_FORMAT;
+            if(!campaign_seeds.records.items||i>=campaign_seeds.records.count)return scene_enemy_failure(RF_FORMAT,__LINE__,frame,i);
             status=rf_level_entity_combat_range_read(campaign_seeds.records.items+i,&authored);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(authored.enabled)attack_range=pursue_range=authored.range;
         }
         if(owner->combat_alert&&!point_target&&!vehicle_victim){
             const float *tactical_target=victim?victim->body.state.position:scene_actor_body.state.position;
             uint32_t ordinary_chosen=tactical_chosen;
             status=scene_tactical_admit_phase(i,&selected,pursuit_now);
-            if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-            if(status)return status;
+            if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(SCENE_PURSUIT_RUNTIME_ENABLED){
                 ordinary_chosen=UINT32_MAX;
                 status=scene_pursuit_ordinary_consume(work,i,frame,pursuit_now,&ordinary_chosen);
-                if(status)return status;
+                if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             }
             status=scene_tactical_try_route(stream,i,ordinary_chosen,&selected,frame,
                 distance,tactical_range,tactical_target,delta);
-            if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
-            if(status)return status;
+            if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         }
         if(owner->combat_alert && !point_target && !campaign_script_movement_owns(owner)) {
             const float *target_position=victim?victim->body.state.position:
@@ -12995,7 +13014,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 if(scene_pursuit_delay_use(owner,&selected,intended_handle)){
                     const uint32_t flags=owner->pursuit_delay.sight.flags;
                     blocked=!(flags&SCENE_PURSUIT_SEEN)&&(flags&SCENE_PURSUIT_EXPIRED);
-                }else{status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;}
+                }else{status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
                 owner->combat_navigation_due=frame+15;
                 if(distance>range*range || blocked){campaign_pursuit_target(owner,target_position);if(melee)++rf_scene_enemy_melee[2];}
                 else campaign_pursuit_stop(owner);
@@ -13006,9 +13025,9 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(!point_target) {
             uint32_t secondary_fired;
             status=scene_ai_drone_secondary_tick(stream,i,intended_handle,frame,player_eye,&secondary_fired);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             status=scene_ai_tankbot_secondary_tick(stream,i,intended_handle,frame,player_eye,&secondary_fired);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         }
         if(scene_ai_tribeam_source_pending(owner->registration.handle) || scene_ai_cane_source_pending(owner->registration.handle) || scene_ai_spit_source_pending(owner->registration.handle))continue;
         if(selected.ammo) {
@@ -13054,13 +13073,13 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             }
             else status=campaign_enemy_ammo_ready(&owner->inventory,selected.ammo,
                 definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(event==1){owner->combat_burst_remaining=0;
-                status=campaign_enemy_reload_presentation(i);if(status && status!=RF_NOT_FOUND)return status;}
+                status=campaign_enemy_reload_presentation(i);if(status && status!=RF_NOT_FOUND)return scene_enemy_failure(status,__LINE__,frame,i);}
             if(rf_scene_combat_trace && (event==1 || event==2))printf("ENEMY_RELOAD_TRACE %u %u %u %d\n",frame,campaign_seeds.records.items[i].record.uid,event,owner->inventory.loaded[weapon]);
             if(event==3){
                 uint32_t changed;status=campaign_enemy_ammo_fallback(i,&changed);
-                if(status && status!=RF_NOT_FOUND)return status;
+                if(status && status!=RF_NOT_FOUND)return scene_enemy_failure(status,__LINE__,frame,i);
                 if(changed && rf_scene_combat_trace)printf("ENEMY_WEAPON_FALLBACK %u %u %d %d\n",frame,campaign_seeds.records.items[i].record.uid,weapon,owner->view.weapons[0]);
                 continue; /* Selected definition belongs to the old weapon until next tick. */
             }
@@ -13071,7 +13090,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(class_melee_waiting)continue;
         if(campaign_npc_holster_blocks_fire(owner))continue;
         if(!once){uint32_t tactical_blocked;
-            status=scene_tactical_primary_blocked(owner,pursuit_now,&tactical_blocked);if(status)return status;
+            status=scene_tactical_primary_blocked(owner,pursuit_now,&tactical_blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(tactical_blocked)continue;
         }
         if(!once && frame<owner->combat_due){scene_npc_loop_audio_tick(i);continue;}
@@ -13081,7 +13100,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             int pending;int32_t now=(int32_t)((uint64_t)frame*1000/60);
             ++rf_scene_pain_attack_gate[0];
             status=rf_timer_pending(owner->pain.animation_lock,now,&pending);
-            rf_scene_pain_attack_gate[5]=(uint32_t)status;if(status)return status;
+            rf_scene_pain_attack_gate[5]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(pending && !once) {
                 ++rf_scene_pain_attack_gate[1];rf_scene_pain_attack_gate[2]=campaign_seeds.records.items[i].record.uid;
                 rf_scene_pain_attack_gate[3]=(uint32_t)owner->pain.animation_lock;rf_scene_pain_attack_gate[4]=(uint32_t)now;continue;
@@ -13090,37 +13109,37 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(!once && !campaign_enemy_aim_aligned(owner,delta)){++rf_scene_enemy_aim[1];continue;}
         if(!once)owner->combat_due=frame+6; /* Brief retry if no valid shot follows. */
         if((!point_target && distance>attack_range*attack_range) || distance<.0001f){if(melee)++rf_scene_enemy_melee[1];continue;}
-        if(!point_target){status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
+        if(!point_target){status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(blocked && !selected.penetrates_world){++rf_scene_enemy_combat[4];continue;}}
         if(weapon==campaign_fusion_id&&selected.slot==12){
             status=scene_ai_fusion_fire(i,frame,target_eye,once,once?single->mode:0);
-            rf_scene_ai_fusion[5]=(uint32_t)status;if(status)return status;
+            rf_scene_ai_fusion[5]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue; /* Real shared Fusion flight owns debit; never generic hitscan. */
         }
         if(weapon==campaign_flame_id&&selected.slot==10){
             status=scene_ai_flame_fire(stream,i,frame,target_eye,once,once?single->mode:0);
-            rf_scene_ai_flame[7]=(uint32_t)status;if(status)return status;
+            rf_scene_ai_flame[7]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue; /* Dedicated volume and fuel owner; never generic ray/debit. */
         }
         if(campaign_enemy_spit_weapon(weapon)){
             uint32_t started;
             if(point_target || vehicle_victim)continue;
             status=scene_ai_spit_begin(i,intended_handle,frame,player_eye,&started);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue;
         }
         if(campaign_enemy_cane_weapon(weapon)){
             uint32_t started;
             if(point_target || vehicle_victim)continue; /* Bounded actor-directed onset only. */
             status=scene_ai_cane_begin(i,intended_handle,frame,player_eye,&started);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue;
         }
         if(campaign_enemy_tribeam_weapon(weapon)){
             uint32_t started;
             if(point_target || vehicle_victim)continue; /* Await original non-actor dispatch evidence. */
             status=scene_ai_tribeam_begin(i,intended_handle,frame,player_eye,&started);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue;
         }
         if(weapon==campaign_grenade_id){
@@ -13128,21 +13147,21 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(status==RF_NOT_FOUND){
                 int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
                 if(ammo>=0 && ammo<32 && owner->inventory.reserve[ammo]<=0){uint32_t changed;
-                    status=campaign_enemy_ammo_fallback(i,&changed);if(status && status!=RF_NOT_FOUND)return status;}
+                    status=campaign_enemy_ammo_fallback(i,&changed);if(status && status!=RF_NOT_FOUND)return scene_enemy_failure(status,__LINE__,frame,i);}
                 continue;
             }
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         }
         if(weapon==campaign_rocket_id){
             status=scene_ai_rocket_launch(owner,target_eye);
             if(status==RF_NOT_FOUND)continue;
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         }
         if(campaign_enemy_laser_weapon(weapon)||campaign_enemy_sonar_weapon(weapon)){
             /* RFAP7 persists paid flights. Publish cadence and consume a once
              * request before any presentation callback can save this endpoint. */
             status=scene_ai_direct_fire(i,frame,target_eye,once,once?single->mode:0);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue;
         }
         if(campaign_enemy_drone_smash_weapon(weapon) ||
@@ -13153,7 +13172,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
              * Drone still has no point/vehicle approximation. */
             if(point_target || vehicle_victim)continue;
             status=scene_ai_drone_smash_begin(stream,i,intended_handle,frame,player_eye,&started);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             continue;
         }
         if(melee && !point_target && !vehicle_victim) {
@@ -13164,15 +13183,15 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             melee_guarded=1;
         }
         uint32_t burst_before=owner->combat_burst_remaining;
-        if(!once){status=campaign_enemy_cadence(definition,frame,&owner->combat_burst_remaining,&owner->combat_due);if(status)return status;}
+        if(!once){status=campaign_enemy_cadence(definition,frame,&owner->combat_burst_remaining,&owner->combat_due);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
         if(selected.ammo && weapon!=campaign_rocket_id && !campaign_enemy_laser_weapon(weapon) && !campaign_enemy_sonar_weapon(weapon)){
             if(selected.reserve_fed){
                 status=rf_weapon_consume_shot(&owner->inventory,campaign_weapon_supply.definitions,
-                    campaign_weapon_supply.names.count,weapon);if(status)return status;
+                    campaign_weapon_supply.names.count,weapon);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             }else --owner->inventory.loaded[weapon];
         }
         status=scene_ai_pistol_capture(i,weapon,&selected,shot_damage,intended_handle,
-            victim_slot,once,&pistol_shot);if(status)return status;
+            victim_slot,once,&pistol_shot);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         if(pistol_shot.active && once){
             /* Accepted finite shot: consume this captured request before any
              * callback can replace the FIFO. Presentation uses its local copy. */
@@ -13184,7 +13203,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
            definition->piercing_enabled) {
             /* Preserve ordinary source registry admission once; subsequent
              * contacts retain the accepted generation across callbacks. */
-            if(!scene_ai_actor_penetration_npc_identity(i,owner->registration.handle))return RF_NOT_FOUND;
+            if(!scene_ai_actor_penetration_npc_identity(i,owner->registration.handle))return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
             actor_shot.source=owner->registration.handle;
             actor_shot.intended=intended_handle;actor_shot.weapon=weapon;
             actor_shot.kind=definition->damage_kind;actor_shot.enabled=definition->piercing_enabled;
@@ -13198,7 +13217,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
         status=campaign_enemy_fire_presentation(i,!(once && single->mode==2),definition,burst_before,once);rf_scene_enemy_fire[5]=(uint32_t)status;
-        if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
+        if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return scene_enemy_failure(status,__LINE__,frame,i);
         if(pistol_shot.active && !scene_ai_pistol_source(&pistol_shot))goto enemy_shot_done;
         if(melee_guarded && !scene_ai_melee_guard_valid(&melee_guard))continue;
         if(weapon==campaign_grenade_id || weapon==campaign_rocket_id || campaign_enemy_laser_weapon(weapon) || campaign_enemy_sonar_weapon(weapon))goto enemy_shot_done;
@@ -13210,7 +13229,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             float ray[3],reach=fmaxf(attack_range,sqrtf(distance)+1.0f);
             for(j=0;j<3;j++)ray[j]=delta[j]*(reach/sqrtf(distance));
             status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,
-                &campaign_enemy_spread_random,point_spread_ray);if(status)return status;
+                &campaign_enemy_spread_random,point_spread_ray);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             point_spread_ready=1;
         }
         if(weapon==campaign_shotgun_id){
@@ -13219,7 +13238,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 point_target?fmaxf(shot_range,sqrtf(distance)+1.0f):shot_range,
                 vehicle_victim,vehicle_health,
                 clock_bits,&effects,&feedback,&amount,&player_amount);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             goto enemy_shot_done;
         }
         if(melee) {
@@ -13229,10 +13248,10 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             status=campaign_enemy_melee_actor_contact(stream,&melee_guard.pair,
                 melee_start,melee_delta,attack_range,player_eye,melee_damage,melee_kind,
                 scene_ai_melee_guard_valid,&melee_guard,&contact,nano_point);
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             if(!contact || !scene_ai_melee_guard_valid(&melee_guard))goto enemy_shot_done;
             if(!definition)++rf_scene_enemy_damage_kinds[9];
-            if(melee_kind<0 || melee_kind>8)return RF_FORMAT;
+            if(melee_kind<0 || melee_kind>8)return scene_enemy_failure(RF_FORMAT,__LINE__,frame,i);
             ++rf_scene_enemy_damage_kinds[melee_kind];
             {
                 rf_damage_request request={melee_damage,melee_guard.pair.source,
@@ -13243,22 +13262,22 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                     if(!victim)goto enemy_shot_done;
                     /* The retained primary amount already includes AI scaling. */
                     status=scene_nano_weapon_contact(victim,melee_guard.weapon,request.amount,nano_point,&consumed);
-                    if(status)return status;if(consumed)goto enemy_shot_done;
+                    if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(consumed)goto enemy_shot_done;
                     status=rf_scene_npc_damage(melee_guard.pair.target,&request,1,
                         clock_bits,&effects,&amount);
-                    if(!status)status=feedback.status;if(status)return status;
+                    if(!status)status=feedback.status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                     victim=scene_ai_melee_npc_identity(melee_guard.pair.target_slot,melee_guard.pair.target);
                     if(victim && victim->damage.effects.health<=0) {
-                        status=rf_scene_npc_death_entry(melee_guard.pair.target,&entered);if(status)return status;
+                        status=rf_scene_npc_death_entry(melee_guard.pair.target,&entered);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                         victim=scene_ai_melee_npc_identity(melee_guard.pair.target_slot,melee_guard.pair.target);
                         if(entered && victim) {
                             victim->script_move.active=0;
-                            status=combat_death_start(melee_guard.pair.target_slot);if(status)return status;
+                            status=combat_death_start(melee_guard.pair.target_slot);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                         }
                     }
                 } else {
                     status=rf_scene_player_damage(melee_guard.pair.target,&request,1,
-                        clock_bits,&effects,&amount);if(status)return status;
+                        clock_bits,&effects,&amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 }
             }
             goto enemy_shot_done;
@@ -13271,7 +13290,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             else {
                 for(j=0;j<3;j++)ray[j]=delta[j]*(attack_range/(float)sqrt(distance));
                 status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,&campaign_enemy_spread_random,spread_ray);
-                rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
+                rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             }
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
@@ -13281,33 +13300,33 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                         actor_eye,spread_ray,player_eye,clock_bits,&effects,&feedback,&actor_result);
                 else status=scene_ai_tankbot_penetration_fire(stream,frame,owner,i,&actor_shot,
                     actor_eye,spread_ray,player_eye,clock_bits,&effects,&feedback,&actor_result);
-                if(status)return status;
+                if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 actor_penetrated=1;amount=actor_result.total_applied;
                 player_amount=actor_result.player_applied;
                 vehicle_damage_applied=actor_result.vehicle_applied>0;
                 goto enemy_shot_done;
             }
             memcpy(impact_start,pistol_shot.active?pistol_shot.start:owner->eye_position,12);
-            if(pistol_shot.active){status=scene_ai_pistol_ray(&pistol_shot,spread_ray);if(status)return status;}
+            if(pistol_shot.active){status=scene_ai_pistol_ray(&pistol_shot,spread_ray);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
             /* Every fired ray resolves actual intervening bodies/shields, independently
              * of the AI order's intended target. Cover arbitration follows below. */
             scene_ai_actor_ray_selection actor;
             status=pistol_shot.active?scene_ai_pistol_actor_select(stream,&pistol_shot,spread_ray,player_eye,&actor,&pistol_contact):
                 scene_ai_actor_ray_select(stream,owner,impact_start,spread_ray,player_eye,&actor);
             if(pistol_shot.active && status==RF_NOT_FOUND)goto enemy_shot_done;
-            if(status)return status;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             victim=actor.victim;victim_slot=actor.victim_slot;
             uint32_t target_hit=actor.body_hit,shield_hit=actor.shield_hit;
             scene_player_shield_candidate player_shield=actor.player_shield;
             npc_shield=actor.npc_shield;fraction=actor.fraction;body_fraction=actor.body_fraction;
             for(j=0;j<3;j++)end[j]=impact_start[j]+spread_ray[j];
-            status=scene_driller_firearm_select(owner->registration.handle,impact_start,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
+            status=scene_driller_firearm_select(owner->registration.handle,impact_start,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
 
             if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
             if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
             {uint32_t consumed;float contact_fraction;
                 status=campaign_clutter_enemy_fire_contact(stream,impact_start,spread_ray,fraction,
-                    shot_damage,definition?definition->damage_kind:0,selected.penetrates_world,&consumed,&contact_fraction);if(status)return status;
+                    shot_damage,definition?definition->damage_kind:0,selected.penetrates_world,&consumed,&contact_fraction);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
                 if(contact_fraction>=0)scene_npc_bullet_impact_ray(weapon,-1,impact_start,spread_ray,contact_fraction);
                 if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
@@ -13315,17 +13334,17 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             }
             blocked=0;
             if(!selected.penetrates_world){scene_npc_bullet_contact contact;
-                status=combat_enemy_fragment_shot_contact(stream,impact_start,spread_ray,fraction,shot_damage,&blocked,&contact);if(status)return status;
+                status=combat_enemy_fragment_shot_contact(stream,impact_start,spread_ray,fraction,shot_damage,&blocked,&contact);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
                 scene_npc_bullet_impact_stop(stream,weapon,impact_start,spread_ray,&contact);
                 if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
             if(vehicle_hit){uint32_t handled=0;float applied=0;
-                if(!selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,fraction,&blocked);if(status)return status;}
+                if(!selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
                 if(!blocked){uint32_t impact_live=scene_npc_bullet_impact_ready(weapon) &&
                         scene_driller_projectile_contact_live(&vehicle_contact,owner->registration.handle);
                     status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
-                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return status;
+                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                     if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
                     if(handled && impact_live)scene_npc_bullet_impact_contact(weapon,-1,vehicle_contact.hit.point);
                     if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
@@ -13333,17 +13352,17 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 goto enemy_shot_done;
             }
             if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
-                status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
+                status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
                 if(accepted)goto enemy_shot_done;
-                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return status;if(blocked)goto enemy_shot_done;}
+                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(blocked)goto enemy_shot_done;}
             }
             if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
                 uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition?definition->damage_kind:0,0,UINT32_MAX,0};
-                status=scene_ai_shield_ray_commit(&npc_shield,impact_start,end,&request,&accepted,&broken);if(status)return status;
+                status=scene_ai_shield_ray_commit(&npc_shield,impact_start,end,&request,&accepted,&broken);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
                 if(accepted)goto enemy_shot_done;
-                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return status;if(blocked)goto enemy_shot_done;}
+                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(blocked)goto enemy_shot_done;}
             }
 
             if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
@@ -13359,18 +13378,18 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         {int32_t kind=definition?definition->damage_kind:0;
          /* Unsupported weapon classes retain the provisional fallback. */
          if(!definition)++rf_scene_enemy_damage_kinds[9];
-         if(kind<0 || kind>8)return RF_FORMAT;
+         if(kind<0 || kind>8)return scene_enemy_failure(RF_FORMAT,__LINE__,frame,i);
          ++rf_scene_enemy_damage_kinds[kind];
          if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
          rf_damage_request request={shot_damage,pistol_shot.active?pistol_shot.source:owner->registration.handle,kind,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
              if(!melee){uint32_t consumed;status=scene_nano_weapon_contact(victim,weapon,request.amount,bullet_point,&consumed);
-                 if(status)return status;if(consumed)goto enemy_shot_done;}
+                 if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(consumed)goto enemy_shot_done;}
              if(pistol_shot.active){
                  if(!scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
                  if(pistol_contact.body.outcome==SCENE_BODY_CONTACT_HIT){
-                     status=scene_npc_body_contact_amount(&pistol_contact.body,pistol_shot.base,&request.amount);if(status)return status;
+                     status=scene_npc_body_contact_amount(&pistol_contact.body,pistol_shot.base,&request.amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                      /* Original828 precedes generic damage, even if damage is
                       * suppressed or lethal. No callback separates this guard,
                       * same-owner hint publication and the damage entry below. */
@@ -13379,7 +13398,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                         pistol_contact.body.pain_action<=27)victim->pain.selected_action=pistol_contact.body.pain_action;
                  }
              }
-             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
+             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
              if(pistol_shot.active){
                  if(pistol_shot.epoch!=scene_robot_death_epoch)return RF_OK;
                  owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto enemy_shot_done;
@@ -13387,19 +13406,19 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                  if(!victim)goto enemy_shot_done;
              }
              if(victim->damage.effects.health<=0) {
-                 status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return status;
+                 status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                  if(pistol_shot.active){
                      if(pistol_shot.epoch!=scene_robot_death_epoch)return RF_OK;
                      owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto enemy_shot_done;
                      victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);
                      if(!victim)goto enemy_shot_done;
                  }
-                 if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return status;}
+                 if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
              }
          } else {
              uint32_t target=campaign_player_object.handle;float difficulty;
-             status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return status;
-             status=rf_scene_player_damage(target,&request,difficulty,clock_bits,&effects,&amount);if(status)return status;
+             status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+             status=rf_scene_player_damage(target,&request,difficulty,clock_bits,&effects,&amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
              if(pistol_shot.active)player_amount=amount;
          }
             if(pistol_shot.active){
@@ -13471,6 +13490,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
 {
     scene_pursuit_work_dispatch_result result;uint64_t epoch;
     int status,cleanup;
+    if(!frame){memset(rf_scene_enemy_failure,0,sizeof(rf_scene_enemy_failure));
+        memset(rf_scene_tactical_failure,0,sizeof(rf_scene_tactical_failure));}
     status=scene_pursuit_token_scope_begin(&result);if(status)return status;
     epoch=scene_robot_death_epoch;
     status=campaign_enemy_tick_body(stream,frame,player_eye,&result);
@@ -23111,55 +23132,55 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 &campaign_playback_resources,&campaign_poses,campaign_modes,1.0f/30.0f);if(status)goto done;
             rf_scene_campaign_load_stage=23;status=campaign_models_open();if(status)goto done;
             /* This diagnostic begins the simulation clock at zero. */
-            rf_scene_campaign_load_stage=24;status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
-            for(i=0;i<campaign_npc_body_count;i++){status=scene_medic_syringe_open(campaign_npc_bodies+i);if(status)goto done;}
-            status=campaign_live_corpses_open();if(status)goto done;
-            status=scene_turret_models_open(&archive,maps,map_count,materials);if(status)goto done;
+            rf_scene_campaign_load_stage=24;status=(rf_scene_campaign_load_detail=__LINE__,campaign_npc_bodies_open(tables_path,collision,0));if(status)goto done;
+            for(i=0;i<campaign_npc_body_count;i++){status=(rf_scene_campaign_load_detail=__LINE__,scene_medic_syringe_open(campaign_npc_bodies+i));if(status)goto done;}
+            status=(rf_scene_campaign_load_detail=__LINE__,campaign_live_corpses_open());if(status)goto done;
+            status=(rf_scene_campaign_load_detail=__LINE__,scene_turret_models_open(&archive,maps,map_count,materials));if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              scene_driller_damage passive_damage[6]={{0}};uint32_t passive_ready[6]={0};
-             status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+             status=(rf_scene_campaign_load_detail=__LINE__,rf_vpp_open(&tables,tables_path));if(status)goto done;
              scene_turret_generated_activation_reset();
              memset(rf_scene_turret_generated_death_probe,0,sizeof(rf_scene_turret_generated_death_probe));
              memset(rf_scene_turret_generated_damage_probe,0,sizeof(rf_scene_turret_generated_damage_probe));
              memset(rf_scene_turret_generated_attack_restore,0,sizeof(rf_scene_turret_generated_attack_restore));
-             status=scene_turret_generated_retirement_reset();
+             status=(rf_scene_campaign_load_detail=__LINE__,scene_turret_generated_retirement_reset());
              if(status){rf_vpp_close(&tables);goto done;}
-             status=scene_turrets_open(&tables);
-             if(!status)status=scene_turret_generated_open(rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss"));
+             status=(rf_scene_campaign_load_detail=__LINE__,scene_turrets_open(&tables));
+             if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_turret_generated_open(rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss")));
              if(!status)for(uint32_t g=0;g<scene_turret_generated_count;g++){
-                 status=scene_turret_generated_activation_initialize(scene_turret_generated[g].head_handle);if(status)break;}
-             if(!status)status=scene_turret_combat_open(&tables,rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss"));
+                 status=(rf_scene_campaign_load_detail=__LINE__,scene_turret_generated_activation_initialize(scene_turret_generated[g].head_handle));if(status)break;}
+             if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_turret_combat_open(&tables,rf_weapon_name_find(&campaign_weapon_supply.names,"Vauss")));
              if(status){rf_vpp_close(&tables);goto done;}
              {scene_weapon_resource_demand demand;uint32_t saved_weapons=0,saved_npc_projectiles=0;
               uint32_t npc_projectiles=scene_ai_projectile_resource_mask(&scene_tankbot_missile_resources,&scene_drone_missile_resources);
-              status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons,&saved_npc_projectiles);
-              if(!status&&(saved_npc_projectiles&SCENE_TURRET_HEAP_RESOURCE))status=scene_turret_heap_resources_open(&tables);
+              status=(rf_scene_campaign_load_detail=__LINE__,scene_world_boot_weapon_mask(level,tables_path,&saved_weapons,&saved_npc_projectiles));
+              if(!status&&(saved_npc_projectiles&SCENE_TURRET_HEAP_RESOURCE))status=(rf_scene_campaign_load_detail=__LINE__,scene_turret_heap_resources_open(&tables));
               npc_projectiles|=saved_npc_projectiles;
               scene_tankbot_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_TANKBOT);
               scene_drone_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_DRONE);
               saved_direct_resources=saved_npc_projectiles&(SCENE_AI_DIRECT_RESOURCE_LASER|SCENE_AI_DIRECT_RESOURCE_SONAR|SCENE_AI_DELAYED_RESOURCES);
-              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
+              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
-                  if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
+                  if(rf_scene_player_shield_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]));
                   /* NPC-only demand loads flights and effects without player views or ownership. */
                   scene_rocket_resources=!!((demand.mask|npc_projectiles)&(1u<<4));
                   scene_grenade_resources=!!((demand.mask|npc_projectiles)&(1u<<5));
-                  if(!status && (npc_projectiles&(1u<<4)) && !(demand.mask&(1u<<4)))status=rf_weapon_primary_load(&tables,"Rocket Launcher",128*1024,&campaign_primary[4]);
-                  if(!status && (npc_projectiles&(1u<<5)) && !(demand.mask&(1u<<5)))status=rf_weapon_primary_load(&tables,"Grenade",128*1024,&campaign_primary[5]);
+                  if(!status && (npc_projectiles&(1u<<4)) && !(demand.mask&(1u<<4)))status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"Rocket Launcher",128*1024,&campaign_primary[4]));
+                  if(!status && (npc_projectiles&(1u<<5)) && !(demand.mask&(1u<<5)))status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"Grenade",128*1024,&campaign_primary[5]));
                   scene_remote_resources=!!(demand.mask&((1u<<8)|(1u<<9)));
                   scene_flame_resources=!!(demand.mask&(1u<<10));
                   scene_ai_flame_resources=!!(npc_projectiles&(1u<<10));
-                  if(!status && scene_ai_flame_resources && !scene_flame_resources)status=rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&campaign_primary[10]);
-                  if(!status && (scene_flame_resources || scene_ai_flame_resources || scene_script_ignite_required()))status=scene_flame_visual_open(&tables);
-                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_ai_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()))status=scene_rocket_definitions_open(&tables);
-                  if(!status && scene_tankbot_missile_resources)status=rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile);
-                  if(!status && scene_tankbot_missile_resources)status=rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary);
-                  if(!status && scene_drone_missile_resources)status=scene_ai_drone_missile_resources_open(&tables);
-                  if(!status && scene_remote_resources)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
-                  if(!status && scene_grenade_resources)status=rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade);
+                  if(!status && scene_ai_flame_resources && !scene_flame_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&campaign_primary[10]));
+                  if(!status && (scene_flame_resources || scene_ai_flame_resources || scene_script_ignite_required()))status=(rf_scene_campaign_load_detail=__LINE__,scene_flame_visual_open(&tables));
+                  if(!status && (scene_rocket_resources || scene_grenade_resources || scene_remote_resources || scene_flame_resources || scene_ai_flame_resources || scene_turret_heap_id>=0 || scene_script_ignite_required()))status=(rf_scene_campaign_load_detail=__LINE__,scene_rocket_definitions_open(&tables));
+                  if(!status && scene_tankbot_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile));
+                  if(!status && scene_tankbot_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary));
+                  if(!status && scene_drone_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,scene_ai_drone_missile_resources_open(&tables));
+                  if(!status && scene_remote_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote));
+                  if(!status && scene_grenade_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade));
                   scene_fusion_resources=!!((demand.mask|npc_projectiles)&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
-                  if(!status && scene_fusion_resources)status=rf_weapon_primary_load(&tables,"shoulder_cannon",128*1024,&campaign_primary[12]);
-                  if(!status && scene_fusion_resources)status=rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion);}}
+                  if(!status && scene_fusion_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"shoulder_cannon",128*1024,&campaign_primary[12]));
+                  if(!status && scene_fusion_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion));}}
              if(!status){rf_scene_campaign_load_stage=25;status=campaign_weapon_models_open(tables_path,&archive,!!(saved_direct_resources&SCENE_AI_DELAYED_RESOURCE_CANE_MUZZLE));}
              if(!status){rf_scene_campaign_load_stage=26;status=campaign_weapon_materials_open(maps,map_count);}
              if(!status)status=scene_continuous_charge_resources_open(&tables,&archive,&motions);

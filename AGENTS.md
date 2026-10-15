@@ -66,3 +66,7 @@
 - User update (2026-10-12, 18:07 UTC): Testing is outside the assistant's work scope and belongs to testers. Focus remaining-work lists and ongoing development on unfinished implementation. Continue parent-owned hourly compile/package rollups of all ready changes, without automated gameplay/runtime test routes. Vehicles/GeoMod and tester-only verification are removed from the remaining implementation list.
 
 - User clarification (2026-10-12, 18:07:56 UTC): The assistant is the software engineer. Build and implement continuously; the only runtime tests are short smoke checks that the game still starts and runs. Functional coverage belongs to testers. This supersedes earlier detailed changed-system and save/load test plans.
+
+- User update (2026-10-15): Do not report completion or implementation percentages unless the user directly asks. This supersedes all earlier per-turn percentage reporting requirements.
+
+- User update (2026-10-15): Actively hunt Xbox crashes/fatal session errors, including targeted environment and gameplay scenarios through process-contained harnesses. This supersedes smoke-only/tester-only runtime limits for this crash hunt. Preserve stock64 limits, no host input and no image capture.

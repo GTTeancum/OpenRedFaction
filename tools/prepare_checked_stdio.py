@@ -18,9 +18,12 @@ def main():
     args = parser.parse_args()
     source = args.nxdk_dir / "lib/pdclib/functions/stdio/fclose.c"
     original = source.read_bytes()
-    if hashlib.sha256(original).hexdigest() != SOURCE_SHA256:
+    # Windows checkouts may use CRLF. Authenticate normalized source bytes;
+    # never edit the installed SDK or relax the expected source content.
+    normalized = original.replace(b"\r\n", b"\n")
+    if hashlib.sha256(normalized).hexdigest() != SOURCE_SHA256:
         raise SystemExit("Refusing unreviewed PDCLib fclose source")
-    text = original.decode("utf-8")
+    text = normalized.decode("utf-8")
     edits = [
         ("    _PDCLIB_LOCK( stream->mtx );", "    int native_close_status;\n    _PDCLIB_LOCK( stream->mtx );"),
         ("    _PDCLIB_close( stream->handle );", "    native_close_status = _PDCLIB_close( stream->handle );"),

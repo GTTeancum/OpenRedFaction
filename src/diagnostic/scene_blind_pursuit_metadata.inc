@@ -9,7 +9,9 @@ static int scene_blind_classes_read(const void *text,uint32_t bytes)
 {
     uint32_t i;int status;float value;
     memset(&scene_blind_classes,0,sizeof(scene_blind_classes));
-    if(!text||!bytes||campaign_seeds.class_count>640||!campaign_seeds.classes)return RF_RANGE;
+    /* Empty environments legitimately have no allocated class array. */
+    if(!text||!bytes||campaign_seeds.class_count>640||
+       (campaign_seeds.class_count&&!campaign_seeds.classes))return RF_RANGE;
     for(i=0;i<640;i++)scene_blind_classes.seconds[i]=-1;
     for(i=0;i<campaign_seeds.class_count;i++){
         const rf_entity_seed_class *c=campaign_seeds.classes+i;const char *name;

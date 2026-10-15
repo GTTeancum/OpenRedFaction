@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_TACTICAL_ROUTE_PUBLISH_INCLUDED
 #define RF_SCENE_TACTICAL_ROUTE_PUBLISH_INCLUDED
+#include "scene_tactical_failure.inc"
 /* Callback-free final local-route publication. The combat caller must first
  * qualify the selected ranged weapon, ground contact, range and sight; this
  * function rechecks identity and shared geometry after navigation callbacks.
@@ -15,7 +16,7 @@ static int scene_tactical_route_publish_impl(uint32_t slot,uint32_t handle,uint3
     if(!candidate||!random||!campaign_npc_bodies||slot>=campaign_npc_body_count||
        !refs||!count||(candidate->count!=2&&candidate->count!=4)||
        candidate->first>=count||candidate->selected>=count)return RF_RANGE;
-    status=scene_tactical_owner(slot);if(status)return status;
+    status=scene_tactical_owner(slot);if(status)return scene_tactical_failure(status,3,__LINE__);
     o=campaign_npc_bodies+slot;
     if(o->registration.handle!=handle||!scene_tactical_service_allowed(o)||
        !(o->tactical.flags&SCENE_TACTICAL_PRESENT)||
@@ -25,38 +26,40 @@ static int scene_tactical_route_publish_impl(uint32_t slot,uint32_t handle,uint3
        o->script_move.origin!=SCENE_MOVE_ORIGIN_NONE||o->script_move.event||
        o->script_move.path.count||
        (o->script_move.active&&o->script_move.follow!=2)||
-       memcmp(o->published,candidate->start,sizeof(candidate->start)))return RF_FORMAT;
+       memcmp(o->published,candidate->start,sizeof(candidate->start)))return scene_tactical_failure(RF_FORMAT,3,__LINE__);
+    /* These are authored references (level.c navigation_pass: key=i), not
+     * workspace search references (workspace_open: key=i+1). */
     if(!refs[candidate->first].candidate||!refs[candidate->selected].candidate||
-       refs[candidate->first].order_key!=candidate->first+1u||
-       refs[candidate->selected].order_key!=candidate->selected+1u)return RF_FORMAT;
+       refs[candidate->first].order_key!=candidate->first||
+       refs[candidate->selected].order_key!=candidate->selected)return scene_tactical_failure(RF_FORMAT,3,__LINE__);
     for(uint32_t i=0;i<3;i++)if(!isfinite(candidate->start[i])||!isfinite(candidate->goal[i])||
         !isfinite(refs[candidate->first].candidate->position[i])||
-        !isfinite(refs[candidate->selected].candidate->position[i]))return RF_FORMAT;
+        !isfinite(refs[candidate->selected].candidate->position[i]))return scene_tactical_failure(RF_FORMAT,3,__LINE__);
     if(!isfinite(refs[candidate->first].candidate->radius)||
        !isfinite(refs[candidate->first].candidate->height)||
        !rf_entity_navigation_candidate_allowed(o->navigation_radius,o->death_item_extent_7c4,1,
            refs[candidate->first].candidate->radius,refs[candidate->first].candidate->height,
-           refs[candidate->first].candidate->word_040))return RF_FORMAT;
-    if(candidate->count==2){if(candidate->first!=candidate->selected)return RF_FORMAT;}
+           refs[candidate->first].candidate->word_040))return scene_tactical_failure(RF_FORMAT,3,__LINE__);
+    if(candidate->count==2){if(candidate->first!=candidate->selected)return scene_tactical_failure(RF_FORMAT,3,__LINE__);}
     else {
         const rf_entity_navigation_reference *first=refs+candidate->first;
-        if((first->neighbor_count&&!first->neighbors)||first->neighbor_count>65536u)return RF_FORMAT;
+        if((first->neighbor_count&&!first->neighbors)||first->neighbor_count>65536u)return scene_tactical_failure(RF_FORMAT,3,__LINE__);
         for(uint32_t i=0;i<first->neighbor_count;i++)if(first->neighbors[i]==candidate->selected){adjacent=1;break;}
-        if(!adjacent)return RF_FORMAT;
+        if(!adjacent)return scene_tactical_failure(RF_FORMAT,3,__LINE__);
     }
     status=scene_tactical_saved_goal_in_region(refs[candidate->selected].candidate,
         o->navigation_radius,o->death_item_extent_7c4,candidate->goal,&inside);
-    if(status)return status;if(!inside)return RF_FORMAT;
+    if(status)return scene_tactical_failure(status,3,__LINE__);if(!inside)return scene_tactical_failure(RF_FORMAT,3,__LINE__);
     if(prepared){
-        status=scene_tactical_receipt_admit(prepared);if(status)return status;
+        status=scene_tactical_receipt_admit(prepared);if(status)return scene_tactical_failure(status,3,__LINE__);
         if(prepared->phase!=SCENE_TACTICAL_RELOCATING||
            prepared->flags!=o->tactical.flags||prepared->target!=o->tactical.target||
            prepared->recovery_due!=o->tactical.recovery_due||
-           prepared->random.value!=random->value)return RF_FORMAT;
+           prepared->random.value!=random->value)return scene_tactical_failure(RF_FORMAT,3,__LINE__);
         next=*prepared;
     }else {
         next=o->tactical;next.random=*random;
-        status=scene_tactical_receipt_relocate(&next,now);if(status)return status;
+        status=scene_tactical_receipt_relocate(&next,now);if(status)return scene_tactical_failure(status,3,__LINE__);
     }
     start=o->navigation.start;goal=o->navigation.goal;
     memcpy(start.position,candidate->start,sizeof(start.position));

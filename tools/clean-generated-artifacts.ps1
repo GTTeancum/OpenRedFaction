@@ -1,4 +1,4 @@
-param([switch]$Apply)
+param([switch]$Apply, [switch]$PreserveDelivery)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -39,6 +39,13 @@ while ($pending.Count) {
     foreach ($entry in Get-ChildItem -LiteralPath $directory.FullName -Force) {
         if ($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
             $skippedLinks++
+            continue
+        }
+        # Explicitly retain the requested ready-to-test hardware package and ISO.
+        # Default cleanup behavior remains unchanged for existing callers.
+        if ($PreserveDelivery -and (
+            [string]::Equals($entry.FullName, (Join-Path $buildRoot 'xbox\tester-disc'), [System.StringComparison]::OrdinalIgnoreCase) -or
+            [string]::Equals($entry.FullName, (Join-Path $buildRoot 'xbox\redfaction-tester.iso'), [System.StringComparison]::OrdinalIgnoreCase))) {
             continue
         }
         if ($entry -is [System.IO.DirectoryInfo]) {

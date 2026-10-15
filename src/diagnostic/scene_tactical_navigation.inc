@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_TACTICAL_NAVIGATION_INCLUDED
 #define RF_SCENE_TACTICAL_NAVIGATION_INCLUDED
+#include "scene_tactical_failure.inc"
 #include "scene_tactical_local_region.inc"
 #include "scene_tactical_clearance.inc"
 #include "scene_tactical_local_route_candidate.inc"
@@ -13,7 +14,7 @@ typedef struct scene_tactical_nav_context {
 static int scene_tactical_nav_edge(void *context,uint32_t token,const float a[3],const float b[3],float threshold,uint32_t *result)
 {
     (void)context;(void)a;(void)b;(void)threshold;
-    if(token||!result)return RF_FORMAT;*result=1;return RF_OK;
+    if(token||!result)return scene_tactical_failure(RF_FORMAT,2,__LINE__);*result=1;return RF_OK;
 }
 static int scene_tactical_nav_visible(void *context,rf_entity_navigation_candidate *node,
     const float point[3],float radius,float height,uint32_t *result)
@@ -25,7 +26,7 @@ static int scene_tactical_nav_nearest(void *context,const float point[3],uint32_
 {
     scene_tactical_nav_context *c=context;
     rf_entity_navigation_nearest_backend b={scene_tactical_nav_edge,scene_tactical_nav_visible,c};
-    if(alternate)return RF_FORMAT;
+    if(alternate)return scene_tactical_failure(RF_FORMAT,2,__LINE__);
     return rf_entity_navigation_nearest(c->references,c->count,point,c->radius,c->height,0,0,&b,token);
 }
 /* Successful query outcomes are separate from refusal/error statuses.
@@ -45,20 +46,20 @@ static int scene_tactical_navigation_impl(scene_stream *stream,uint32_t slot,con
     uint32_t handle,tokens[2]={0},connected=0;rf_entity_navigation_token_list list={tokens,0,2};
     float start[3];int status;
     if(!stream||!stream->collision||!target||!random||!candidate||!found||!owners||slot>=campaign_npc_body_count)return RF_RANGE;
-    status=scene_tactical_owner(slot);if(status)return status;
+    status=scene_tactical_owner(slot);if(status)return scene_tactical_failure(status,2,__LINE__);
     o=owners+slot;handle=o->registration.handle;
     if(caller_leased>1)return RF_RANGE;
     if(caller_leased?!scene_flight_search_busy:scene_flight_search_busy)return RF_NOT_FOUND;
     if(w->count!=campaign_navigation.count||w->count>65534u||
-       (w->count&&(!w->storage||!w->references||!campaign_navigation.references)))return RF_FORMAT;
+       (w->count&&(!w->storage||!w->references||!campaign_navigation.references)))return scene_tactical_failure(RF_FORMAT,2,__LINE__);
     if(!isfinite(o->navigation_radius)||o->navigation_radius<0||
-       !isfinite(o->death_item_extent_7c4)||o->death_item_extent_7c4<0)return RF_FORMAT;
+       !isfinite(o->death_item_extent_7c4)||o->death_item_extent_7c4<0)return scene_tactical_failure(RF_FORMAT,2,__LINE__);
     memcpy(start,o->published,sizeof(start));
-    for(uint32_t i=0;i<3;i++)if(!isfinite(start[i])||!isfinite(target[i]))return RF_FORMAT;
+    for(uint32_t i=0;i<3;i++)if(!isfinite(start[i])||!isfinite(target[i]))return scene_tactical_failure(RF_FORMAT,2,__LINE__);
     if(!w->count){memset(candidate,0,sizeof(*candidate));*found=0;
         if(query_outcome)*query_outcome=SCENE_TACTICAL_QUERY_EMPTY_GRAPH;return RF_OK;}
     for(uint32_t i=0;i<w->count;i++)if(!w->references[i].candidate||
-        w->references[i].candidate!=campaign_navigation.references[i].candidate||w->references[i].order_key!=i+1u)return RF_FORMAT;
+        w->references[i].candidate!=campaign_navigation.references[i].candidate||w->references[i].order_key!=i+1u)return scene_tactical_failure(RF_FORMAT,2,__LINE__);
     c.references=w->references;c.count=w->count;c.radius=o->navigation_radius;c.height=o->death_item_extent_7c4;
     c.solid.rooms=stream->collision->views;c.solid.room_count=stream->collision->room_count;
     c.solid.primary=stream->collision->primary;c.solid.primary_count=stream->collision->primary_count;
@@ -74,7 +75,7 @@ static int scene_tactical_navigation_impl(scene_stream *stream,uint32_t slot,con
     status=scene_tactical_local_candidate(c.references,c.count,tokens[0]-1,c.radius,start,target,random,candidate,found);
     if(!status&&query_outcome)*query_outcome=*found?SCENE_TACTICAL_QUERY_FOUND:SCENE_TACTICAL_QUERY_EXHAUSTED;
 done:
-    if(!caller_leased)scene_flight_search_busy=0;return status;
+    if(!caller_leased)scene_flight_search_busy=0;return scene_tactical_failure(status,2,__LINE__);
 }
 /* The caller owns the full exclusive graph/collision-scratch lease, stable
  * live disjoint storage, and identity seals through final route publication.
