@@ -4,19 +4,19 @@
 
 The stock-64-MiB Xbox tester package (`bash tools/build-xbox.sh --tester`)
 opens the controller-driven frontend and enters authored Live Mines through
-New Game. Commit `670bdf36dad6064d8d09a716f96f358f989aad1d` passed native
-compile/link/package and limited XEMU startup at 15:00 UTC: 10 simulation and
+New Game. Commit `0d5149c14d2a0ffc33b6c4859f8313ec7d7c1985` passed native
+compile/link/package and limited XEMU startup at 16:00 UTC: 12 simulation and
 10 presentation frames, followed by clean shutdown.
-See [the receipt](docs/HOURLY-20261015-1500.md).
+See [the receipt](docs/HOURLY-20261015-1600.md).
 
-Menus and the integrated NPC responses, chatter and ordinary Use-facing are
-available for tester exercise. Speech gestures are now source-integrated after
-that passing build; their next native compile/startup is pending.
-Actual-hardware operation, broader gameplay, visual/audio correctness,
-performance and save-route coverage remain unverified and tester-owned.
+Menus, medic responses, chatter, ordinary Use-facing and owned speech gestures
+are integrated and compiled for the first tester delivery. Actual-hardware
+operation, broader gameplay, visual/audio correctness, performance and save-route
+coverage remain unverified and tester-owned. FMV integration is assigned to
+local Codex using the user's existing Xbox Bink library.
 See [tester scope](docs/TESTER-READINESS.md),
 [launch requirements](docs/XBOX-TESTER-LAUNCH.md) and
-[authored menus](docs/AUTHORED-XBOX-MENUS.md).
+[Codex handoff](docs/CODEX-DELIVERY-HANDOFF.md).
 Older progress and image captions below are historical.
 
 

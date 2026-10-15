@@ -1,27 +1,33 @@
 # OpenRedFaction: local build and actual-hardware handoff
 
-Preparation status: October 15, 2026, 15:54 UTC. Speech gestures are fully
-source-integrated and reviewed in 2464f8b9, but native compilation/startup and
-the final delivery manifest are still pending. This remains a draft handoff.
-Delivery goal is midnight Eastern ending October 15 (October 16, 04:00 UTC).
+Delivery status: October 15, 2026, 12:08 p.m. EDT. Menus and the remaining
+NPC speech integration are built and ready for local Codex build/hardware
+handoff. This does not establish actual-hardware or broad functional correctness.
+The user's delivery goal was midnight Eastern ending October 15.
 
-## Evidence and final manifest
+## Evidence and manifest
 
-Last passing native stock64 build is `670bdf36dad6064d8d09a716f96f358f989aad1d`,
-tree `836248cf20c1ed08a7862750246396fe9b2e451f`.
-See [Actual15](HOURLY-20261015-1500.md): limited XEMU startup reached ten
-simulation and ten presentation frames and shut down cleanly. It does not
-establish hardware operation, broad gameplay, visual/audio correctness or saves.
+Passing native stock64 source: `0d5149c14d2a0ffc33b6c4859f8313ec7d7c1985`,
+tree `f855fd404b651a37d55c47324c556823de2a4424`.
+The matching published source is commit `773ba6024dc90f7f9e1a721d3e42b669d437f672`.
+Later delivery documentation commits do not change executable source.
 
-Existing artifact SHA-256 identities from that build:
+See [Actual16](HOURLY-20261015-1600.md): native compile/link/package and ordinary
+XEMU startup passed, reaching 12 simulation and 10 presentation frames with
+clean QMP shutdown. Postcheck confirmed unchanged neutral input and no XEMU.
+This does not establish hardware operation, full gameplay, functional speech,
+visual/audio correctness or save/load coverage.
 
-- XBE: `b237117648efb2a4f6ab6b66260b6cbdee5ed34e93a020c0a2dfbf242599d5e8`
-- Map: `8a9155836f5e12dae057afe0f451d8b43076c35469f54e0f6edda50d50bec34d`
-- ISO: `09d961294ac4117e43eeb6c0e93946426c03b3d0c18bd02a9ba0118e823cd33e`
+Artifact SHA-256 identities:
 
-Before delivery, record the final source commit/tree, source archive or bundle
-identity, XBE/map hashes, private-input manifest and accessible artifact IDs.
-Do not reuse Actual15 evidence for later code. Cloud paths are not Windows paths.
+- XBE: `f227d57227ef5702310d17b6464369d1837d013d743a0c937ded2e2054849fd9`
+- Map: `eb35711f3b8fa6d7311f649dc95d307798a04d0d389a5974bc0dff26852c6cc8`
+- ISO: `ea54151ef4d7e00790b2cd7a48643fc823005304909fc5380244534059e42538`
+- Proof ZIP: `26e0664b55d2019d1888baf24918aa815b5801ef356c314f6d64bf50be76af63`
+
+Use the private delivery manifest for current source archive/bundle and input
+Library identities. Cloud paths are not Windows paths. Verify every transferred
+file's hash before using it; metadata-only Library checks do not prove bytes.
 
 ## Local setup
 
@@ -144,3 +150,11 @@ also absent. Codex must locate the user's original video assets locally; no
 asset download or redistribution is authorized by this handoff. The current
 port has no FMV playback and opens the frontend directly. In-engine cutscene
 cameras/timelines are a separate implemented system.
+
+## Tester feedback record
+
+Record source commit, deployed XBE/package/map hashes, console revision, verified
+64-MiB report, kernel, dashboard, Neighborhood version and launch method.
+For each issue include starting state, exact reproduction steps, observed and
+expected results, frequency, severity, save-data impact (unknown if not checked),
+and available logs. State coverage actually exercised and coverage not run.

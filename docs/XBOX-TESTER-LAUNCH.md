@@ -1,12 +1,12 @@
 # Xbox tester campaign launch
 
 Status: October 15, 2026. Commit
-`670bdf36dad6064d8d09a716f96f358f989aad1d` passed native stock64
-compile/link/package and limited XEMU startup with 10 simulation and
-10 presentation frames. See [the receipt](HOURLY-20261015-1500.md).
+`0d5149c14d2a0ffc33b6c4859f8313ec7d7c1985` passed native stock64
+compile/link/package and limited XEMU startup with 12 simulation and
+10 presentation frames. See [the receipt](HOURLY-20261015-1600.md).
 Actual hardware and broader functional coverage remain unverified.
-Speech gestures are source-integrated after that build; their native compilation
-and startup remain pending.
+Owned speech gestures are included in that passing build. Actual gestures and
+save/load behavior still require tester coverage.
 
 ## Interactive package
 

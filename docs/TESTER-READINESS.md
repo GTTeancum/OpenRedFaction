@@ -1,18 +1,18 @@
 # First-playable tester scope
 
-Status: October 15, 2026, after the 15:00 UTC build.
+Status: October 15, 2026, after the 16:00 UTC build.
 
-Commit `670bdf36dad6064d8d09a716f96f358f989aad1d` passed native stock64
-compile/link/package and limited XEMU startup reaching 10 simulation and
+Commit `0d5149c14d2a0ffc33b6c4859f8313ec7d7c1985` passed native stock64
+compile/link/package and limited XEMU startup reaching 12 simulation and
 10 presentation frames. Shutdown and neutral-input postchecks passed.
-See [the exact receipt](HOURLY-20261015-1500.md).
+See [the exact receipt](HOURLY-20261015-1600.md).
 
 The frontend, menu motion caches, medic persona responses, automatic
 Humming/Timeout and ordinary Use-facing/default-patrol pause are integrated
 and compiled. Main, Difficulty and New Game were traversed in the startup
-check. Every menu action and NPC behavior has not been functionally exercised.
-Speech gestures are source-integrated after this passing build; their native
-compile/startup result is pending.
+check. Not every menu action or NPC behavior was functionally exercised.
+Owned speech gestures and their RFNC42 save integration are also compiled in
+this passing build; functional coverage remains tester-owned.
 
 Actual hardware, broader gameplay, visual/audio correctness, performance and
 save-route coverage remain unverified and tester-owned. Historical estimates
@@ -20,7 +20,7 @@ are not readiness or test-coverage scores.
 
 ## Delivery steps
 
-1. Compile the reviewed speech-gesture integration and record its own build status.
+1. Preserve the passing build artifacts and exact evidence manifest.
 2. Preserve and publish reviewed source with an exact delivery manifest.
 3. Hand off private inputs and the NXDK build recipe for Codex local builds.
 4. Verify RXDK Neighborhood tools, console identity, deployment destination,

@@ -1,8 +1,10 @@
-# NPC speech gestures: source integration complete, build pending
+# NPC speech gestures: integrated and compiled
 
-Current status: October 15 at 15:52 UTC, full reviewed speech integration is
-enabled in source and awaits native compilation/startup. Earlier entries below
-record development stages and are superseded by the final dated section.
+Current status: October 15 at 16:07 UTC. Full enabled speech integration passed
+native stock64 compile/link/package and bounded ordinary startup (12 simulation,
+10 presentation frames) on0d5149c1. See [Actual16](HOURLY-20261015-1600.md).
+Functional gestures and save/load coverage remain tester-owned. Earlier entries
+below record historical development stages.
 
 Historical October 15, 2026, 15:35 UTC: staged RFNC42 codec is source-written and independently
 reviewed, not compiled. No speech gesture is enabled and existing scene callers
@@ -30,7 +32,7 @@ because they contain two records. Allocation accounting uses actual sizeof
 inside unchanged count, row, whole-save and cumulative load limits. Native
 size confirmation is pending the next authorized hourly build.
 
-## Remaining integration
+## Historical remaining integration
 
 - Explicit live residual mask bound to exact actor/pose and immutable class IDs;
   canonicalize aliases, never take over an unowned matching motion ID.
