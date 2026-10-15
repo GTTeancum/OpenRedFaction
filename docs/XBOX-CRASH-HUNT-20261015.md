@@ -156,6 +156,25 @@ ordinary AI admission/visibility and authored activation around these actors
 before claiming this mercenary mix has been stressed. Do not force enemy firing,
 disable AI admission checks or treat this as an established engine defect yet.
 
+Admission trace run20261015-162430 (900 inputs, native terminal success) identifies
+target11975 in ordinary waiting mode2, weapon15, hostile affiliation0, alerted,
+with no alarm/medic/script-move ownership or AI suppression. Enemy aim was not
+holding shots; the combat loop recorded284 world-obstructed firing attempts and
+zero enemy shots. This explains the immediate coverage failure without proving
+whether the obstruction itself is correct. Preserve ordinary collision checks.
+The next sustained mercenary probe uses L17S1 actor20026 at10 units, where an
+earlier run already observed enemy return fire.
+
+L17S1 run20261015-162654 was interrupted after the user reported another
+Daybreak block and get_goal confirmed blocked status. The emulator and harness
+were still live and advancing. QMP quit through a second connection timed out;
+only the verified owned XEMU process was terminated. Result status is explicitly
+STOPPED_AFTER_GOAL_BLOCK, preserving the harness's original terminal label.
+At interruption:1661 consumed inputs,957 live/704 dead,4 scene starts/4 deaths;
+per-scene maxima11 player shots and9 enemy shots,2 simultaneous alerts. No guest
+fatal error was observed. The3600-input target was not completed. Do not relaunch
+to work around Daybreak; its internal reason is not available to this session.
+
 Recipe5 adds an opt-in `--aim` controller inside the Xbox process. It computes
 bounded look commands toward the nearest live hostile within30 units and permits
 the replay's ordinary trigger edges once aligned. It does not force hits, change

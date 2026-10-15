@@ -12777,6 +12777,8 @@ static void campaign_script_single_release_target(uint32_t slot)
  * Observation only: retain the original status and never retry mutations. */
 uint32_t rf_scene_enemy_failure[6]; /* status,line,frame,slot,UID,weapon */
 uint32_t rf_scene_combat_population[4]; /* owners, live registered, alerted, scripted */
+/* Read-only admission evidence for the process-local controller's target. */
+uint32_t rf_scene_crash_enemy_state[12]; /* UID,frame,mode,flags,weapon,affiliation,alarm,medic,move,origin,alert,suppressed */
 static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t slot)
 {
     if(status && !rf_scene_enemy_failure[0]){
@@ -12836,6 +12838,13 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
     rf_scene_combat_population[0]=campaign_npc_body_count;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_trace[1]) {
+            uint32_t state[12]={(uint32_t)campaign_seeds.records.items[i].record.uid,frame,
+                (uint32_t)owner->ai_mode.action_280,owner->object_flags,(uint32_t)owner->view.weapons[0],
+                owner->damage.effects.affiliation,owner->alarm.present,owner->medic.pending,
+                owner->script_move.active,owner->script_move.origin,owner->combat_alert,campaign_npc_ai_suppressed(owner)};
+            memcpy(rf_scene_crash_enemy_state,state,sizeof(state));
+        }
         if(owner->registration.view && owner->damage.effects.health>0) {
             ++rf_scene_combat_population[1];
             rf_scene_combat_population[2]+=!!owner->combat_alert;
