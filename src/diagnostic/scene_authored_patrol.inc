@@ -1,5 +1,13 @@
 #ifndef RF_SCENE_AUTHORED_PATROL_INCLUDED
 #define RF_SCENE_AUTHORED_PATROL_INCLUDED
+uint32_t rf_scene_patrol_failure[3]; /* status,line,actor index */
+static int scene_patrol_failure(int status,uint32_t line)
+{
+    if(status && status!=RF_NOT_FOUND && !rf_scene_patrol_failure[0]) {
+        rf_scene_patrol_failure[0]=(uint32_t)status;rf_scene_patrol_failure[1]=line;
+    }
+    return status;
+}
 /*46483c..464874 binds actor748/74c before407ee0 enters authored default4.
  * Ordinary grounded humanoids borrow existing nonempty One way or Loop/Ping Pong paths.
  *407a50 advances once, then40b6d0 consumes reached-node dwell/facing.
@@ -24,7 +32,7 @@ static uint32_t scene_patrol_remaining(const campaign_npc_body *o,uint32_t frame
 static int scene_patrol_node_tags(const rf_level_navigation_node *n)
 {
     const scene_waypoint_tag_row *row;
-    if(!n||(n->tag_count&&!n->tags))return RF_FORMAT;if(!n->tag_count)return RF_OK;
+    if(!n||(n->tag_count&&!n->tags))return scene_patrol_failure(RF_FORMAT,__LINE__);if(!n->tag_count)return RF_OK;
     if(!scene_waypoint_events.ready||n<campaign_navigation.nodes||n>=campaign_navigation.nodes+campaign_navigation.count)return RF_NOT_FOUND;
     row=scene_waypoint_row((uint32_t)(n-campaign_navigation.nodes));
     return !row||row->count==UINT32_MAX?RF_NOT_FOUND:RF_OK;
@@ -35,13 +43,13 @@ static int scene_patrol_node_tags(const rf_level_navigation_node *n)
 static int scene_patrol_node_facing(const rf_level_navigation_node *n,float point[3])
 {
     uint32_t i,j;
-    if(!n||!point||n->oriented>1)return RF_FORMAT;
+    if(!n||!point||n->oriented>1)return scene_patrol_failure(RF_FORMAT,__LINE__);
     if(!n->oriented)return RF_NOT_FOUND;
-    for(i=0;i<3;i++)for(j=0;j<3;j++)if(!isfinite(n->orientation[i][j]))return RF_FORMAT;
+    for(i=0;i<3;i++)for(j=0;j<3;j++)if(!isfinite(n->orientation[i][j]))return scene_patrol_failure(RF_FORMAT,__LINE__);
     for(i=0;i<3;i++){
-        if(!isfinite(n->candidate.position[i]))return RF_FORMAT;
+        if(!isfinite(n->candidate.position[i]))return scene_patrol_failure(RF_FORMAT,__LINE__);
         point[i]=n->candidate.position[i]+100.f*n->orientation[0][i];
-        if(!isfinite(point[i]))return RF_FORMAT;
+        if(!isfinite(point[i]))return scene_patrol_failure(RF_FORMAT,__LINE__);
     }
     /*40b730..40b742 treats a zero absolute facing point as absent. */
     return point[0]||point[1]||point[2]?RF_OK:RF_NOT_FOUND;
@@ -49,11 +57,11 @@ static int scene_patrol_node_facing(const rf_level_navigation_node *n,float poin
 static int scene_patrol_node_wait(uint32_t node,uint32_t *frames)
 {
     float wait,point[3];const rf_level_navigation_node *n;int status;
-    if(!frames||!campaign_navigation.nodes||node>=campaign_navigation.count)return RF_FORMAT;
+    if(!frames||!campaign_navigation.nodes||node>=campaign_navigation.count)return scene_patrol_failure(RF_FORMAT,__LINE__);
     n=campaign_navigation.nodes+node;memcpy(&wait,n->candidate.retained_024,4);
-    if(!isfinite(wait)||wait<0)return RF_FORMAT;
+    if(!isfinite(wait)||wait<0)return scene_patrol_failure(RF_FORMAT,__LINE__);
     if(wait>(float)RF_CAMPAIGN_PATROL_DWELL_MAX_FRAMES/60.f)return RF_NOT_FOUND;
-    status=scene_patrol_node_tags(n);if(status)return status;
+    status=scene_patrol_node_tags(n);if(status)return scene_patrol_failure(status,__LINE__);
     status=scene_patrol_node_facing(n,point);if(status!=RF_OK&&status!=RF_NOT_FOUND)return status;
     *frames=(uint32_t)ceilf(wait*60.f);return RF_OK;
 }
@@ -63,15 +71,15 @@ static int scene_patrol_reached(const rf_level_waypoint_path *path,uint32_t curs
     uint32_t mode,uint32_t reverse,uint32_t *node)
 {
     uint32_t previous;
-    if(!path||!node||path->count<2||cursor>=path->count||mode>2||reverse>1)return RF_FORMAT;
+    if(!path||!node||path->count<2||cursor>=path->count||mode>2||reverse>1)return scene_patrol_failure(RF_FORMAT,__LINE__);
     if(reverse){
         if(cursor+1<path->count)previous=cursor+1;
         else if(mode==1)previous=0;
-        else return RF_FORMAT;
+        else return scene_patrol_failure(RF_FORMAT,__LINE__);
     }else{
         if(cursor)previous=cursor-1;
         else if(mode==1)previous=path->count-1;
-        else return RF_FORMAT;
+        else return scene_patrol_failure(RF_FORMAT,__LINE__);
     }
     *node=rf_level_waypoint_node(path,previous);
     return *node<campaign_navigation.count?RF_OK:RF_FORMAT;
@@ -86,13 +94,13 @@ static int scene_patrol_resources(uint32_t slot,const rf_entity_motion_selection
        skeleton>=campaign_playback_resources.model_count||skeleton>=campaign_motion_catalog.model_count)return RF_NOT_FOUND;
     m=campaign_playback_resources.models+skeleton;pose=campaign_poses.items+slot;
     ids[0]=selection->mapping.states[0];ids[1]=selection->mapping.states[2];
-    if(!m->resources||!m->cache_ids||!campaign_motion_catalog.models[skeleton].items)return RF_FORMAT;
+    if(!m->resources||!m->cache_ids||!campaign_motion_catalog.models[skeleton].items)return scene_patrol_failure(RF_FORMAT,__LINE__);
     if(demand){
         if(pose->skeleton!=skeleton||pose->playback.completion.active.count>16||pose->playback.completion.frozen||pose->playback.completion.active.freeze_slot!=-1)return RF_NOT_FOUND;
         for(uint32_t j=0;j<3;j++){
             int32_t state=j==0?pose->controller.current:j==1?pose->controller.next:
                 pose->controller.override_enabled?pose->controller.override_state:-1;
-            if(state< -1||state>=23)return RF_FORMAT;
+            if(state< -1||state>=23)return scene_patrol_failure(RF_FORMAT,__LINE__);
             if(state>=0)ids[count++]=selection->mapping.states[state];
         }
         for(uint32_t j=0;j<pose->playback.completion.active.count;j++)ids[count++]=pose->playback.completion.active.slots[j].motion;
@@ -110,13 +118,13 @@ static int scene_patrol_resources(uint32_t slot,const rf_entity_motion_selection
         if(c>=campaign_npc_motion_count||!campaign_npc_motion_data||!campaign_npc_motion_sizes||!file->archive||!file->entry.size||m->resources[id].references<0||
            m->resources[id].looping!=campaign_motion_catalog.models[skeleton].items[id].looping||
            memcmp(&m->resources[id].comparison,&campaign_motion_catalog.models[skeleton].items[id].comparison,sizeof(m->resources[id].comparison))||
-           (campaign_npc_motion_data[c]&&campaign_npc_motion_sizes[c]!=file->entry.size))return RF_FORMAT;
+           (campaign_npc_motion_data[c]&&campaign_npc_motion_sizes[c]!=file->entry.size))return scene_patrol_failure(RF_FORMAT,__LINE__);
         for(k=0;k<unique;k++)if(cache[k]==c)break;
         if(k==unique){cache[unique++]=c;if(!campaign_npc_motion_data[c])missing+=file->entry.size;}
     }
     if(!demand)return RF_OK;
     if((uint64_t)campaign_npc_motion_bytes+missing>SCENE_NPC_MOTION_BUDGET)return RF_NOT_FOUND;
-    for(uint32_t j=0;j<count;j++){status=campaign_npc_motion_require(skeleton,(uint32_t)ids[j]);if(status)return status;}
+    for(uint32_t j=0;j<count;j++){status=campaign_npc_motion_require(skeleton,(uint32_t)ids[j]);if(status)return scene_patrol_failure(status,__LINE__);}
     return RF_OK;
 }
 static int scene_patrol_path_source(uint32_t index,rf_level_waypoint_path *path,uint32_t *mode)
@@ -127,36 +135,36 @@ static int scene_patrol_path_source(uint32_t index,rf_level_waypoint_path *path,
     if(!path||!mode||index>=campaign_seeds.records.count||!campaign_seeds.records.items)return RF_RANGE;
     record=campaign_seeds.records.items+index;
     if(!campaign_seeds.items||!campaign_seeds.classes)return RF_RANGE;
-    cls=campaign_seeds.items[index].class_index;if(cls>=campaign_seeds.class_count)return RF_FORMAT;
+    cls=campaign_seeds.items[index].class_index;if(cls>=campaign_seeds.class_count)return scene_patrol_failure(RF_FORMAT,__LINE__);
     {const rf_entity_seed_class *c=campaign_seeds.classes+cls;
      if((c->physics.flags&0x20011u)!=0x20011u||(c->physics.flags&(0x200u|0x400000u))||
         c->physics.use_kind==1||c->model_kind!=2||c->physics.movement_index>=16||
         (campaign_modes[c->physics.movement_index].index!=1&&campaign_modes[c->physics.movement_index].index!=3))return RF_NOT_FOUND;}
     /* A real authored seat or attachment is not an ordinary walking owner. */
     if(campaign_seeds.items[index].spawn.seat_host_uid!=-1)return RF_NOT_FOUND;
-    status=rf_level_entity_ai_read(record,&ai);if(status)return status;
+    status=rf_level_entity_ai_read(record,&ai);if(status)return scene_patrol_failure(status,__LINE__);
     if(ai.mode!=2)return RF_NOT_FOUND;
-    status=rf_level_entity_waypoint_read(record,names);if(status)return status;
+    status=rf_level_entity_waypoint_read(record,names);if(status)return scene_patrol_failure(status,__LINE__);
     if(!names[0][0]||!campaign_waypoints||!campaign_navigation.nodes)return RF_NOT_FOUND;
     if(!strcmp(names[1],"Loop"))m=1;
     else if(!strcmp(names[1],"Ping Pong"))m=2;
     else if(!strcmp(names[1],"One way"))m=0;
     else return RF_NOT_FOUND;
     status=rf_level_waypoint_find(campaign_waypoints,campaign_waypoint_bytes,
-        campaign_navigation.count,names[0],&found);if(status)return status;
+        campaign_navigation.count,names[0],&found);if(status)return scene_patrol_failure(status,__LINE__);
     if(found.count<(m?2u:1u))return RF_NOT_FOUND;
     *path=found;*mode=m;return RF_OK;
 }
 static int scene_patrol_binding(uint32_t index,rf_level_waypoint_path *path,uint32_t *mode)
 {
     rf_level_waypoint_path found;uint32_t m,i,j;int status;
-    status=scene_patrol_path_source(index,&found,&m);if(status)return status;
+    status=scene_patrol_path_source(index,&found,&m);if(status)return scene_patrol_failure(status,__LINE__);
     for(i=0;i<found.count;i++){
         uint32_t n=rf_level_waypoint_node(&found,i),wait;const rf_level_navigation_node *node;
-        if(n>=campaign_navigation.count){return RF_FORMAT;}
+        if(n>=campaign_navigation.count){return scene_patrol_failure(RF_FORMAT,__LINE__);}
         node=campaign_navigation.nodes+n;
-        status=scene_patrol_node_wait(n,&wait);if(status)return status;
-        for(j=0;j<3;j++)if(!isfinite(node->candidate.position[j]))return RF_FORMAT;
+        status=scene_patrol_node_wait(n,&wait);if(status)return scene_patrol_failure(status,__LINE__);
+        for(j=0;j<3;j++)if(!isfinite(node->candidate.position[j]))return scene_patrol_failure(RF_FORMAT,__LINE__);
     }
     *path=found;*mode=m;return RF_OK;
 }
@@ -167,7 +175,7 @@ static int scene_patrol_one_way_source(uint32_t slot,uint32_t *present)
 {
     rf_level_waypoint_path path;uint32_t mode;int status;
     if(!present)return RF_RANGE;*present=0;
-    status=scene_patrol_binding(slot,&path,&mode);if(status)return status;
+    status=scene_patrol_binding(slot,&path,&mode);if(status)return scene_patrol_failure(status,__LINE__);
     *present=mode==0;return RF_OK;
 }
 static int scene_patrol_one_way_live_present(uint32_t *present)
@@ -178,9 +186,9 @@ static int scene_patrol_one_way_live_present(uint32_t *present)
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;i++){
-        if(campaign_npc_bodies[i].patrol.enabled>1)return RF_FORMAT;
+        if(campaign_npc_bodies[i].patrol.enabled>1)return scene_patrol_failure(RF_FORMAT,__LINE__);
         if(!campaign_npc_bodies[i].patrol.enabled)continue;
-        status=scene_patrol_one_way_source(i,&selected);if(status)return status;
+        status=scene_patrol_one_way_source(i,&selected);if(status)return scene_patrol_failure(status,__LINE__);
         *present|=selected;
     }
     return RF_OK;
@@ -196,10 +204,10 @@ static int scene_patrol_one_way_incoming_present(const rf_npc_checkpoint_record 
     for(i=0;i<count;i++)if(rows[i].route.patrol&1){
         slot=0;found=0;
         for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==rows[i].uid){
-            slot=j;if(++found!=1)return RF_FORMAT;
+            slot=j;if(++found!=1)return scene_patrol_failure(RF_FORMAT,__LINE__);
         }
-        if(found!=1)return RF_FORMAT;
-        status=scene_patrol_one_way_source(slot,&selected);if(status)return status;
+        if(found!=1)return scene_patrol_failure(RF_FORMAT,__LINE__);
+        status=scene_patrol_one_way_source(slot,&selected);if(status)return scene_patrol_failure(status,__LINE__);
         *present|=selected;
     }
     return RF_OK;
@@ -235,9 +243,9 @@ static int scene_patrol_dwell_route(const rf_campaign_actor_route *a,
 {
     uint32_t wait;int status;
     if(!(a->flags&64))return a->dwell_remaining?RF_FORMAT:RF_OK;
-    status=rf_campaign_actor_route_validate(a);if(status)return status;
-    status=scene_patrol_reached(path,a->cursor,(a->flags>>2)&3,(a->flags>>4)&1,reached);if(status)return status;
-    status=scene_patrol_node_wait(*reached,&wait);if(status)return status;
+    status=rf_campaign_actor_route_validate(a);if(status)return scene_patrol_failure(status,__LINE__);
+    status=scene_patrol_reached(path,a->cursor,(a->flags>>2)&3,(a->flags>>4)&1,reached);if(status)return scene_patrol_failure(status,__LINE__);
+    status=scene_patrol_node_wait(*reached,&wait);if(status)return scene_patrol_failure(status,__LINE__);
     return wait&&a->dwell_remaining<=wait?RF_OK:RF_FORMAT;
 }
 static int scene_patrol_candidate(uint32_t slot,const rf_npc_checkpoint_record *r,
@@ -247,8 +255,8 @@ static int scene_patrol_candidate(uint32_t slot,const rf_npc_checkpoint_record *
     if(!r||!selection)return RF_RANGE;
     if(r->retired||r->dead_pose||r->health<=0)return r->route.flags&64?RF_FORMAT:RF_OK;
     if(!(r->route.patrol&1))return r->route.flags&64?RF_FORMAT:RF_OK;
-    status=scene_patrol_binding(slot,&path,&mode);if(status)return status;
-    status=scene_patrol_resources(slot,selection,0);if(status)return status;
+    status=scene_patrol_binding(slot,&path,&mode);if(status)return scene_patrol_failure(status,__LINE__);
+    status=scene_patrol_resources(slot,selection,0);if(status)return scene_patrol_failure(status,__LINE__);
     if(r->script_animation.active&&r->route.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT){
         if(r->script_animation.active!=1||r->script_animation.loop||r->script_animation.freeze||
            !r->animation_present||r->playback.completion.frozen||r->playback.completion.active.freeze_slot!=-1||
@@ -256,11 +264,11 @@ static int scene_patrol_candidate(uint32_t slot,const rf_npc_checkpoint_record *
            (campaign_modes[r->movement_slot].index!=1&&campaign_modes[r->movement_slot].index!=3)||
            r->ai_mode!=4||r->combat_alert||r->combat.active||r->look.active||r->shot_count||
            r->controller_uid||r->physics.present||r->ai_suppressed||r->alarm.present||
-           r->flight.entered||r->guard_retreat.present||!r->move.active||r->move.follow)return RF_FORMAT;
-        status=scene_waypoint_action_source(slot,&path,selection->mapping.skeleton,r->script_animation.motion,NULL);if(status)return status;
+           r->flight.entered||r->guard_retreat.present||!r->move.active||r->move.follow)return scene_patrol_failure(RF_FORMAT,__LINE__);
+        status=scene_waypoint_action_source(slot,&path,selection->mapping.skeleton,r->script_animation.motion,NULL);if(status)return scene_patrol_failure(status,__LINE__);
     }
     if(!(r->route.flags&64))return RF_OK;
-    status=scene_patrol_dwell_route(&r->route,&path,&node);if(status)return status;
+    status=scene_patrol_dwell_route(&r->route,&path,&node);if(status)return scene_patrol_failure(status,__LINE__);
     if(r->retired||r->dead_pose||r->health<=0||r->flags&(2u|0x4000u)||r->ai_mode!=4||
        !r->movement_present||r->movement_slot>=16||
        (campaign_modes[r->movement_slot].index!=1&&campaign_modes[r->movement_slot].index!=3)||
@@ -269,7 +277,7 @@ static int scene_patrol_candidate(uint32_t slot,const rf_npc_checkpoint_record *
        r->flight.entered||r->guard_retreat.present||!r->move.active||r->move.follow||
        r->move.retained_count||r->move.retry||r->move.route_index!=1||
        r->move.path_index!=r->route.cursor||r->move.path_mode!=mode||r->move.path_count!=path.count||
-       memcmp(r->move.target,campaign_navigation.nodes[rf_level_waypoint_node(&path,r->route.cursor)].candidate.position,12))return RF_FORMAT;
+       memcmp(r->move.target,campaign_navigation.nodes[rf_level_waypoint_node(&path,r->route.cursor)].candidate.position,12))return scene_patrol_failure(RF_FORMAT,__LINE__);
     /* The composed placement owner validates the exact body. Do not require
      * proximity here: a supported platform may carry it, and section history
      * deliberately resumes the finite hold at reconstructed spawn placement. */
@@ -280,7 +288,7 @@ static int scene_patrol_dwell_live_present(uint32_t *present)
     if(!present)return RF_RANGE;*present=0;
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
-        if(o->patrol.dwell_present>1||(!o->patrol.dwell_present&&o->patrol.dwell_deadline))return RF_FORMAT;
+        if(o->patrol.dwell_present>1||(!o->patrol.dwell_present&&o->patrol.dwell_deadline))return scene_patrol_failure(RF_FORMAT,__LINE__);
         if(o->patrol.dwell_present){if(!scene_patrol_dwell_owner(o))return RF_NOT_FOUND;*present=1;}
     }
     return RF_OK;
@@ -337,12 +345,12 @@ static int scene_patrol_complete_prepare(campaign_npc_body *owner,int32_t now,
     if(!path||!next||!scene_patrol_dwell_owner(owner)||
        owner<campaign_npc_bodies||owner>=campaign_npc_bodies+campaign_npc_body_count||
        owner->script_move.path_mode||owner->script_move.path_reverse!=owner->patrol.reverse||
-       owner->script_move.path_index>=owner->script_move.path.count)return RF_FORMAT;
+       owner->script_move.path_index>=owner->script_move.path.count)return scene_patrol_failure(RF_FORMAT,__LINE__);
     index=(uint32_t)(owner-campaign_npc_bodies);
-    status=scene_patrol_binding(index,path,&mode);if(status)return status;
-    if(mode||path->indices!=owner->script_move.path.indices||path->count!=owner->script_move.path.count)return RF_FORMAT;
+    status=scene_patrol_binding(index,path,&mode);if(status)return scene_patrol_failure(status,__LINE__);
+    if(mode||path->indices!=owner->script_move.path.indices||path->count!=owner->script_move.path.count)return scene_patrol_failure(RF_FORMAT,__LINE__);
     *next=owner->ai_mode;
-    status=rf_entity_ai_set_action(next,4,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+    status=rf_entity_ai_set_action(next,4,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return scene_patrol_failure(status,__LINE__);
     return scene_patrol_resources(index,&owner->selection,1);
 }
 static void scene_patrol_default_assign(campaign_npc_body *owner,
@@ -368,23 +376,24 @@ static int scene_patrol_return(campaign_npc_body *owner,int32_t now)
        owner->script_look.active||owner->script_animation.active||owner->script_move.active)return RF_OK;
     if(owner<campaign_npc_bodies||owner>=campaign_npc_bodies+campaign_npc_body_count)return RF_RANGE;
     index=(uint32_t)(owner-campaign_npc_bodies);
-    status=scene_patrol_binding(index,&path,&mode);if(status)return status;
+    status=scene_patrol_binding(index,&path,&mode);if(status)return scene_patrol_failure(status,__LINE__);
     next=owner->ai_mode;
-    status=rf_entity_ai_set_action(&next,4,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+    status=rf_entity_ai_set_action(&next,4,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return scene_patrol_failure(status,__LINE__);
     scene_pursuit_token_invalidate_owner(owner); /* accepted default movement return */
     scene_patrol_default_assign(owner,&path,mode,&next);return RF_OK;
 }
 static int scene_patrol_initialize(campaign_npc_body *owner,uint32_t index,int32_t now)
 {
     rf_level_waypoint_path path;uint32_t mode;int status;
+    memset(rf_scene_patrol_failure,0,sizeof(rf_scene_patrol_failure));rf_scene_patrol_failure[2]=index;
     owner->patrol.enabled=owner->patrol.reverse=0;scene_patrol_dwell_clear(owner);
     status=scene_patrol_binding(index,&path,&mode);
     if(status==RF_NOT_FOUND){return RF_OK;}
-    if(status){return status;}
+    if(status){return scene_patrol_failure(status,__LINE__);}
     if(!owner->body.allocated_bytes||owner->view.linked_handle!=-1||owner->attachment_75c!=-1||
        owner->movement_slot>=16||(campaign_modes[owner->movement_slot].index!=1&&campaign_modes[owner->movement_slot].index!=3)||
        !isfinite(owner->movement.speed)||owner->movement.speed<=0)return RF_OK;
-    status=scene_patrol_resources(index,&owner->selection,1);if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
+    status=scene_patrol_resources(index,&owner->selection,1);if(status==RF_NOT_FOUND)return RF_OK;if(status)return scene_patrol_failure(status,__LINE__);
     owner->patrol.enabled=1;
     /*402de8 ->40a950 initializes the shared direction to forward0. */
     return scene_patrol_return(owner,now);

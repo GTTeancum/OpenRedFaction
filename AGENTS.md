@@ -70,3 +70,5 @@
 - User update (2026-10-15): Do not report completion or implementation percentages unless the user directly asks. This supersedes all earlier per-turn percentage reporting requirements.
 
 - User update (2026-10-15): Actively hunt Xbox crashes/fatal session errors, including targeted environment and gameplay scenarios through process-contained harnesses. This supersedes smoke-only/tester-only runtime limits for this crash hunt. Preserve stock64 limits, no host input and no image capture.
+
+- User correction (2026-10-15): The crash hunt remains active after the first two fixes. Load action-heavy environments at their normal authored stress levels; a small passing batch does not complete the goal. Record actual enemy/player action and do not count idle or dead frames as sustained combat coverage.

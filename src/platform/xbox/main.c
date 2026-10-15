@@ -1335,6 +1335,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp maps[5];uint32_t opened=0,world;int status,player_controls=0;FILE *stream_flag;
     if(!campaign_total_frames) {
+        rf_scene_crash_loadout=0;
+        FILE *loadout_file=tester_profile?NULL:fopen("D:\\crash-loadout.bin","rb");
+        if(loadout_file){int invalid=fread(&rf_scene_crash_loadout,4,1,loadout_file)!=1 ||
+            fgetc(loadout_file)!=EOF || !rf_scene_crash_loadout || rf_scene_crash_loadout>4;
+            fclose(loadout_file);if(invalid)return RF_FORMAT;}
         FILE *exit_file=fopen("D:\\campaign-exit.bin","rb");
         if(exit_file){int invalid=fread(&campaign_exit_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-return.bin","rb");

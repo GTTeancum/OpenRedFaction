@@ -4,6 +4,67 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Reopened: representative action loads
+
+The user explicitly rejected treating two fixes and short probes as completion.
+The goal is active again. Force player placement into original authored action
+areas, retain original enemy populations and measure actual enemy/player activity.
+Recipe3 adds repeated strafing/fire/reload/weapon cycling and ordinary Use edges
+for diagnostic death recovery. It does not alter health, damage or enemy state.
+Frame completion alone is not a combat stress pass.
+
+L3S2 (27 original actors, player staged near guard941) and L3S4 (25 original
+actors, player staged near env_guard2049 beside riot_guard8038 and Drone844)
+both fail before gameplay at NPC initialization. Evidence:
+artifacts/crash-hunt/20261015-152345-L3S2.rfl and
+artifacts/crash-hunt/20261015-152539-L3S4.rfl. Neither counts as combat coverage.
+
+The traced L3S2 run artifacts/crash-hunt/20261015-152917-L3S2.rfl identifies
+actor index0 patrol resource admission, scene_authored_patrol.inc line121.
+The patrol initializer demands campaign_npc_motion_data/count at load stage24,
+but campaign_npc_motion_residency creates those at stage30. Move initial patrol
+activation after motion residency for registered actors; preserve all admission
+checks and the original actors/routes. Runtime validation pending.
+
+The ordering fix reaches gameplay in both environments:
+20261015-153115-L3S2.rfl recorded two alerts, four enemy shots and player death;
+20261015-153502-L3S4.rfl recorded five player shots, two enemy shots and player
+death. Both hit the180-second watchdog during the subsequent ordinary reload.
+They validate removal of the startup blocker, not sustained combat stability.
+
+The diagnostic-only crash-loadout.bin supplies pistol/rifle/shotgun through
+ordinary finite-ammo acquisition and selects one. Tester-profile code ignores
+this selector. Damage, health and actor population are unchanged. The harness
+can additionally stage the player3..20 units ahead of an authored actor by
+altering only the48-byte player-start transform in a private scene-fixture.vpp;
+original archives are read-only. The result records the changed level hash and
+start transform, alongside an original actor census. A first L17S1 attempt used
+an unsupported archive name and was rejected before loading; it is classified
+as a harness staging error, not a game crash.
+
+L17S1 ten-unit staging (20261015-153833-L17S1.rfl) reached10 live registered
+actors and2 simultaneously alerted actors,7 player shots,9 enemy shots and
+one observed death. It timed out after a normal reload resumed gameplay;
+the1800-frame target was not reached. Recipe4 changes held rifle fire into
+repeated trigger edges with a stationary opening, because the old held input
+only produced a single burst. The harness now recognizes native terminal
+success plus global replay consumption, since per-scene draw counts reset on
+ordinary reload. No aggregate stress pass is established by these results.
+
+The desktop later reported Goal stalled; get_goal confirmed status blocked.
+This is not a repository/emulator blocker, and the next run was started manually.
+The available goal tools cannot resume a blocked goal; automatic continuation
+requires the user-controlled resume action. Do not mark this hunt complete.
+
+Recipe4 L3S2 at8 units (20261015-155348-L3S2.rfl) observed22 live registered
+actors and3 simultaneously alerted actors,6 player shots with2 kills,12 enemy
+shots and one observed death. It again reached the180-second watchdog during
+the death/reload cycle. No new fatal error was observed; sustained combat and
+complete repeated reload coverage remain open. Next work must increase useful
+live-action coverage rather than counting dead/loading samples as stress time.
+The tester package now includes the patrol-order fix; its current hashes are in
+artifacts/delivery-prep/crash-action-result.json. Earlier receipts are historical.
+
 ## First failure
 
 The user-driven tester session stopped with RF_FORMAT (-2) at simulation frame

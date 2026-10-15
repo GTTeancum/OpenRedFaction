@@ -25,6 +25,8 @@ extern uint32_t rf_scene_dev_npc_enabled;
 extern uint32_t rf_scene_player_shield_resources;
 extern uint32_t rf_scene_fusion_enabled;
 extern uint32_t rf_scene_firearms_enabled;
+/* Diagnostic campaign combat start: zero disabled, otherwise primary slot+1. */
+extern uint32_t rf_scene_crash_loadout;
 extern uint32_t rf_scene_vehicle_enabled;
 extern uint32_t rf_scene_vehicle_state[16];
 extern uint32_t rf_scene_drill_state[8];

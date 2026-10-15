@@ -711,6 +711,7 @@ typedef struct scene_particle_workspace {
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 #include "scene_player_rocket_lock_types.inc"
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
+uint32_t rf_scene_crash_loadout;
 static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_ai_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
@@ -6360,8 +6361,10 @@ static int scene_turret_uid_life(uint32_t uid,uint32_t *present,uint32_t *alive)
 #include "scene_blind_pursuit_metadata.inc"
 #include "scene_noise_investigation_metadata.inc"
 uint32_t rf_scene_npc_body_admission[4]; /* body/class bytes, scratch, budget, actors */
+uint32_t rf_scene_npc_body_failure[2]; /* status, source line */
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
+    memset(rf_scene_npc_body_failure,0,sizeof(rf_scene_npc_body_failure));
     const uint32_t budget=640*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
     uint32_t cls,actor,first,scratch,hash=2166136261u,flight_ordinal=0;uint64_t bytes;int status;
     if(campaign_npc_bodies || campaign_npc_body_count || campaign_npc_movement_configs || campaign_npc_stances || campaign_npc_eyes || scene_npc_hit_location_classes ||
@@ -6372,26 +6375,26 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     memset(&scene_noise_classes,0,sizeof(scene_noise_classes));
     memset(&scene_blind_classes,0,sizeof(scene_blind_classes));
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
-    status=rf_vpp_find(&tables,"entity.tbl",&entity_table);if(status)goto done;
-    status=rf_vpp_find(&tables,"materials.tbl",&materials);if(status)goto done;
+    status=rf_vpp_find(&tables,"entity.tbl",&entity_table);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+    status=rf_vpp_find(&tables,"materials.tbl",&materials);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
     scratch=entity_table.size>materials.size?entity_table.size:materials.size;
     bytes=sizeof(scene_tactical_cursor)+sizeof(scene_tactical_service_frame)+sizeof(scene_guard_retreat_class)+sizeof(scene_noise_classes)+sizeof(scene_blind_classes)+(uint64_t)campaign_poses.count*sizeof(*campaign_npc_bodies)+
         (uint64_t)campaign_seeds.class_count*(sizeof(*campaign_npc_movement_configs)+sizeof(*campaign_npc_stances)+sizeof(*campaign_npc_eyes)+sizeof(*scene_npc_hit_location_classes));
     rf_scene_npc_body_admission[0]=(uint32_t)bytes;rf_scene_npc_body_admission[1]=scratch;
     rf_scene_npc_body_admission[2]=budget;rf_scene_npc_body_admission[3]=campaign_poses.count;
-    if(bytes+scratch>budget){status=RF_RANGE;goto done;}
-    status=scene_guard_retreat_class_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status)goto done;
-    status=scene_noise_classes_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status)goto done;
+    if(bytes+scratch>budget){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
+    status=scene_guard_retreat_class_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+    status=scene_noise_classes_load(&tables,&entity_table,budget-(uint32_t)bytes);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
     campaign_npc_bodies=calloc(campaign_poses.count,sizeof(*campaign_npc_bodies));
-    if(campaign_poses.count && !campaign_npc_bodies){status=RF_RANGE;goto done;}
+    if(campaign_poses.count && !campaign_npc_bodies){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
     campaign_npc_movement_configs=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_movement_configs));
-    if(campaign_seeds.class_count && !campaign_npc_movement_configs){status=RF_RANGE;goto done;}
+    if(campaign_seeds.class_count && !campaign_npc_movement_configs){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
     campaign_npc_stances=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_stances));
-    if(campaign_seeds.class_count && !campaign_npc_stances){status=RF_RANGE;goto done;}
+    if(campaign_seeds.class_count && !campaign_npc_stances){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
     campaign_npc_eyes=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_eyes));
-    if(campaign_seeds.class_count && !campaign_npc_eyes){status=RF_RANGE;goto done;}
+    if(campaign_seeds.class_count && !campaign_npc_eyes){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
     scene_npc_hit_location_classes=calloc(campaign_seeds.class_count,sizeof(*scene_npc_hit_location_classes));
-    if(campaign_seeds.class_count && !scene_npc_hit_location_classes){status=RF_RANGE;goto done;}
+    if(campaign_seeds.class_count && !scene_npc_hit_location_classes){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
     memset(rf_scene_npc_eyes,0,sizeof(rf_scene_npc_eyes));
     memset(rf_scene_npc_unholster,0,sizeof(rf_scene_npc_unholster));rf_scene_npc_unholster[3]=2166136261u;
     rf_scene_npc_eyes[1]=campaign_poses.count*12+campaign_seeds.class_count*sizeof(*campaign_npc_eyes);
@@ -6419,57 +6422,57 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         const rf_entity_pose *pose;const rf_entity_render_model *model;
         if(scene_turret_class_is_dependent(&campaign_seeds,cls)) {eye_class->tag=eye_class->parent=-1;continue;}
         for(first=0;first<campaign_poses.count;++first)if(campaign_seeds.items[first].class_index==cls)break;
-        if(first==campaign_poses.count){status=RF_FORMAT;goto done;}
+        if(first==campaign_poses.count){status=RF_FORMAT;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
         eye_class->tag=eye_class->parent=-1;
         pose=campaign_poses.items+first;if(pose->skeleton==UINT32_MAX) {
-            if(scene_hit_location_class_named(campaign_seeds.records.items[first].record.class_name)){status=RF_FORMAT;goto done;}
+            if(scene_hit_location_class_named(campaign_seeds.records.items[first].record.class_name)){status=RF_FORMAT;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
             continue;
         }
-        if(pose->skeleton>=campaign_render_models.count){status=RF_RANGE;goto done;}
+        if(pose->skeleton>=campaign_render_models.count){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
         model=campaign_render_models.items+pose->skeleton;
-        status=rf_model_file_bound_sphere(&model->file,model_sphere);if(status)goto done;
-        status=rf_model_origin_radius(model_sphere,&model_radius);if(status)goto done;
+        status=rf_model_file_bound_sphere(&model->file,model_sphere);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+        status=rf_model_origin_radius(model_sphere,&model_radius);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         /*503310 animated branch reads the first source SUBM, not the union or
          * sampled stance bounds. Retain it now; death performs no archive I/O. */
-        status=rf_model_file_part_metadata(&model->file,0,&death_item_part);if(status)goto done;
+        status=rf_model_file_part_metadata(&model->file,0,&death_item_part);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         death_item_extent=(float)((double)death_item_part.maximum[1]-death_item_part.minimum[1]);
-        if(!isfinite(death_item_extent)||death_item_extent<0){status=RF_FORMAT;goto done;}
-        if(bytes+scratch>budget){status=RF_RANGE;goto done;}
+        if(!isfinite(death_item_extent)||death_item_extent<0){status=RF_FORMAT;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
+        if(bytes+scratch>budget){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
         if(bytes+scratch>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)bytes+scratch;
         status=rf_entity_physics_config_load(&tables,campaign_seeds.records.items[first].record.class_name,
-            budget-(uint32_t)bytes,&config);if(status)goto done;
+            budget-(uint32_t)bytes,&config);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         status=rf_entity_movement_load(&tables,campaign_seeds.records.items[first].record.class_name,
-            budget-(uint32_t)bytes,&movement_values);if(status)goto done;
+            budget-(uint32_t)bytes,&movement_values);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         movement->flags=config.authored.flags;movement->base_speed=movement_values.speed;
         movement->slow_factor=movement_values.slow_factor;movement->alternate_factor=movement_values.fast_factor;
         movement->response=movement_values.acceleration; /* SP ignores network overrides. */
         /* Shared class geometry comes from the first authored startup actor. */
-        status=rf_entity_class_spheres_build(&model->file,pose->matrices,pose->bone_count,&config,spheres,&count);if(status)goto done;
+        status=rf_entity_class_spheres_build(&model->file,pose->matrices,pose->bone_count,&config,spheres,&count);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         if(scene_hit_location_class_named(campaign_seeds.records.items[first].record.class_name)) {
             scene_npc_hit_location_class value={0};rf_entity_class_sphere resolved[8];uint32_t resolved_count;
             status=rf_entity_class_spheres_resolve(&model->file,pose->matrices,pose->bone_count,
-                &config,resolved,&resolved_count);if(status)goto done;
+                &config,resolved,&resolved_count);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
             if(!(config.authored.flags&0x20000u) || !resolved_count || resolved_count>8 ||
-               resolved_count!=count || resolved_count!=model->collision_sphere_count){status=RF_FORMAT;goto done;}
+               resolved_count!=count || resolved_count!=model->collision_sphere_count){status=RF_FORMAT;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
             value.enabled=1;value.skeleton=pose->skeleton;value.count=resolved_count;
             for(uint32_t n=0;n<resolved_count;n++) {
                 if(resolved[n].model_index<0 || (uint32_t)resolved[n].model_index>=model->collision_sphere_count ||
                    !isfinite(resolved[n].radius) || resolved[n].radius<=0 ||
-                   !isfinite(resolved[n].selected_scalar) || resolved[n].selected_scalar<0){status=RF_FORMAT;goto done;}
+                   !isfinite(resolved[n].selected_scalar) || resolved[n].selected_scalar<0){status=RF_FORMAT;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
                 value.spheres[n].index=(uint32_t)resolved[n].model_index;
                 value.spheres[n].radius=resolved[n].radius;value.spheres[n].scalar=resolved[n].selected_scalar;
             }
             scene_npc_hit_location_classes[cls]=value;
         }
         for(tag_index=0;tag_index<model->file.lods[0].attachment_count;++tag_index) {
-            status=rf_model_file_attachment(&model->file,0,tag_index,&eye);if(status)goto done;
+            status=rf_model_file_attachment(&model->file,0,tag_index,&eye);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
             if((eye.name[0]=='e' || eye.name[0]=='E') && (eye.name[1]=='y' || eye.name[1]=='Y') &&
                (eye.name[2]=='e' || eye.name[2]=='E') && !eye.name[3]) {
                 float tag[12];
-                if(eye.parent<0 || (uint32_t)eye.parent>=pose->bone_count){status=RF_RANGE;goto done;}
+                if(eye.parent<0 || (uint32_t)eye.parent>=pose->bone_count){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
                 eye_class->tag=(int32_t)tag_index;eye_class->parent=eye.parent;
-                status=rf_model_attachment_transform(eye.rotation,eye.position,eye_class->local);if(status)goto done;
-                status=rf_model_compose_transform(eye_class->local,pose->matrices[eye.parent],tag);if(status)goto done;
+                status=rf_model_attachment_transform(eye.rotation,eye.position,eye_class->local);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+                status=rf_model_compose_transform(eye_class->local,pose->matrices[eye.parent],tag);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
                 memcpy(eye_class->offsets,tag+9,12);
                 if(config.authored.flags&0x20000u)eye_class->offsets[0]=eye_class->offsets[2]=0;
                 break;
@@ -6482,10 +6485,10 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             const rf_motion_file **handles;uint32_t i;
             uint64_t temporary=(uint64_t)motions->count*(sizeof(*handles)+sizeof(*playback->resources))+
                 (uint64_t)pose->bone_count*48;
-            if(motions->count!=playback->count || bytes+temporary>budget){status=RF_RANGE;goto done;}
+            if(motions->count!=playback->count || bytes+temporary>budget){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
             if(bytes+temporary>rf_scene_npc_bodies[4])rf_scene_npc_bodies[4]=(uint32_t)(bytes+temporary);
             handles=motions->count?malloc(motions->count*sizeof(*handles)):NULL;
-            if(motions->count && !handles){status=RF_IO;goto done;}
+            if(motions->count && !handles){status=RF_IO;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
             for(i=0;i<motions->count;++i)handles[i]=&motions->items[i].file;
             /* Sample once per class on private playback; never advance a live NPC. */
             status=rf_entity_class_stance_build(&model->file,campaign_skeletons.items[pose->skeleton].bones,
@@ -6493,15 +6496,15 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 campaign_motion_catalog.mappings[cls].states[8],&config,spheres,count,campaign_npc_stances+cls,
                 eye_class->tag==-1?NULL:&eye,eye_class->local,eye_class->tag==-1?NULL:eye_class->offsets,
                 budget-(uint32_t)bytes-motions->count*(uint32_t)sizeof(*handles));
-            free(handles);if(status)goto done;
+            free(handles);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         }
         for(actor=first;actor<campaign_poses.count;++actor)if(campaign_seeds.items[actor].class_index==cls) {
             const rf_level_entity *record=&campaign_seeds.records.items[actor].record;
             rf_physics_body *body=&campaign_npc_bodies[actor].body;
-            if(bytes+(uint64_t)count*sizeof(*spheres)>budget){status=RF_RANGE;goto done;}
+            if(bytes+(uint64_t)count*sizeof(*spheres)>budget){status=RF_RANGE;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
             status=rf_entity_body_open(&config,spheres,count,record->position,record->orientation[0],
                 campaign_seeds.items[actor].spawn.creation_flags,
-                budget-(uint32_t)bytes+(uint32_t)sizeof(*body),body);if(status)goto done;
+                budget-(uint32_t)bytes+(uint32_t)sizeof(*body),body);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
             {
                 campaign_npc_body *owner=campaign_npc_bodies+actor;
                 owner->model_radius_78=model_radius;owner->death_item_extent_7c4=death_item_extent;
@@ -6515,8 +6518,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 rf_entity_creation_vitals_state vitals={0};vitals.object_flags=flags;
                 rf_entity_creation_vitals(&vitals,&definition->vitals,0);
                 {rf_level_entity_vitals authored;
-                 status=scene_masako_instance_vitals(campaign_seeds.records.items+actor,&authored);if(status)goto done;
-                 status=scene_npc_vitals_apply(&authored,&vitals,&definition->vitals);if(status)goto done;}
+                 status=scene_masako_instance_vitals(campaign_seeds.records.items+actor,&authored);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+                 status=scene_npc_vitals_apply(&authored,&vitals,&definition->vitals);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
                 owner->object_flags=vitals.object_flags;owner->field_840=vitals.field_840;
                 owner->damage.effects.health=vitals.health;owner->damage.effects.armor=vitals.armor;
                 owner->damage.effects.class_health=definition->vitals.health;
@@ -6535,7 +6538,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 {
                     rf_spawn_look_angles angles;
                     status=rf_look_spawn_angles(record->orientation[0],body->state.orientation,
-                        campaign_modes[owner->movement_slot].rotation,&angles);if(status)goto done;
+                        campaign_modes[owner->movement_slot].rotation,&angles);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
                     memcpy(owner->look.body_angles,angles.body,12);memcpy(owner->look.angles.angles_87c,angles.eye,12);
                     memcpy(owner->look.angles.minimum_1434,definition->eye_limits.minimum,12);
                     memcpy(owner->look.angles.maximum_1440,definition->eye_limits.maximum,12);
@@ -6544,11 +6547,11 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->previous_region_13ec=NULL;owner->attachment_75c=-1;owner->stance_clock_7b4=0; /* Original402c20 embedded AI initialization. */
                 owner->movement.response=body->state.coefficients[1];
                 /* Constructor422e19 requests normal speed via427450. */
-                status=scene_npc_resolve_speed(owner,cls,owner->capek_shield_broken,1,owner->attachment_75c,&owner->movement);if(status)goto done;
+                status=scene_npc_resolve_speed(owner,cls,owner->capek_shield_broken,1,owner->attachment_75c,&owner->movement);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
                 body->state.coefficients[1]=owner->movement.response;
                 memcpy(owner->published,record->position,12);memcpy(owner->previous,record->position,12);
                 memcpy(campaign_model_owners[actor].basis,record->orientation,36);
-                status=campaign_npc_eye_update(actor);if(status)goto done;
+                status=campaign_npc_eye_update(actor);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
             }
             campaign_npc_support_probe(world,campaign_npc_bodies+actor,&config,
                 scene_npc_effective_base_speed(campaign_npc_bodies+actor,cls,0),(uint32_t)record->uid);
@@ -6574,21 +6577,21 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         owner->firing.sound_81c=owner->firing.sound_820=owner->firing.effect_13d4=-1;
         owner->firing.character_present=1;
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,
-            campaign_seeds.items[actor].class_index,&owner->selection);if(status)goto done;
+            campaign_seeds.items[actor].class_index,&owner->selection);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         ++rf_scene_npc_inventory_owners[0];
         /*423367..423385, constructor40e380 timer, and SP423af2. */
         owner->death.item_82c=owner->death.requested_83c=owner->death.action_824=-1;
-        status=scene_death_item_authored(actor,&owner->death.item_82c);if(status)goto done;
+        status=scene_death_item_authored(actor,&owner->death.item_82c);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         owner->death.linked_146c=owner->death.deadline_4b8=-1;owner->death.model_148c=0;
         /* Original402c33..402d68 and423318..4233a8: expired at creation,
          * not disabled. Later AI/pain code owns changes to these deadlines. */
-        status=rf_timer_set(&owner->pain.ai_timer,now,0);if(status)goto done;
+        status=rf_timer_set(&owner->pain.ai_timer,now,0);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         owner->unholster.deadline_518=-1;owner->unholster.stance_7bc=0; /*402cbe/4fa3e0;422360*/
-        status=rf_timer_set(&owner->pain.animation_lock,now,0);if(status)goto done;
-        status=rf_timer_set(&owner->pain.cooldown,now,0);if(status)goto done;
+        status=rf_timer_set(&owner->pain.animation_lock,now,0);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+        status=rf_timer_set(&owner->pain.cooldown,now,0);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         owner->pain.selected_action=-1;
         owner->ai_override.action_1364=owner->ai_override.motion_1368=owner->ai_override.word_834=-1; /*422360*/
-        status=rf_timer_set(&owner->pain_sound.deadline,now,0);if(status)goto done;
+        status=rf_timer_set(&owner->pain_sound.deadline,now,0);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         owner->pain_sound.voice=-1;owner->contact_sound_voice=-1;
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
         view->flags_7c=owner->object_flags;view->linked_handle=-1;
@@ -6599,14 +6602,14 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             int32_t grants[3]={defaults->primary,defaults->secondary,defaults->melee};
             rf_weapon_startup_state weapons={-1,-1};uint32_t k;
             status=rf_entity_startup_weapon_bindings_sp(&owner->inventory,&weapons,grants,&campaign_weapon_supply,
-                &campaign_motion_catalog,&campaign_base_motions,campaign_seeds.items[actor].class_index,&owner->selection);if(status)goto done;
+                &campaign_motion_catalog,&campaign_base_motions,campaign_seeds.items[actor].class_index,&owner->selection);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
             {int32_t startup_primary=weapons.primary;uint32_t class_index=campaign_seeds.items[actor].class_index;
-             status=scene_npc_loadout_apply(&campaign_seeds.records.items[actor].record,&owner->inventory,&weapons,&campaign_weapon_supply);if(status)goto done;
+             status=scene_npc_loadout_apply(&campaign_seeds.records.items[actor].record,&owner->inventory,&weapons,&campaign_weapon_supply);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
              /* Model-less entities retain the same startup binding policy. */
              if(weapons.primary!=startup_primary && campaign_motion_catalog.mappings[class_index].skeleton!=UINT32_MAX){
                  if(weapons.primary>=0)status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,class_index,weapons.primary,&owner->selection);
                  else status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,class_index,&owner->selection);
-                 if(status)goto done;}}
+                 if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}}
             view->weapons[0]=weapons.primary;view->weapons[1]=weapons.secondary;
             rf_scene_npc_startup_weapons[0]+=weapons.primary>=0;rf_scene_npc_startup_weapons[1]+=weapons.secondary>=0;
             for(k=0;k<64;++k)rf_scene_npc_startup_weapons[2]+=owner->inventory.owned[k]!=0;
@@ -6616,16 +6619,17 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->firing,sizeof(owner->firing));
         rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],&owner->selection.mapping,sizeof(owner->selection.mapping));
         rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],owner->selection.action_declarations,sizeof(owner->selection.action_declarations));
-        status=rf_entity_view_register(&campaign_registry,&campaign_entities,view,&owner->registration);if(status)goto done;
+        status=rf_entity_view_register(&campaign_registry,&campaign_entities,view,&owner->registration);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
         owner->damage.effects.handle=owner->registration.handle;
-        status=scene_medic_initialize(owner,actor,now);if(status)goto done;
-        status=scene_medic_flight_initialize(owner,actor,now,flight_ordinal++);if(status)goto done;
-        status=scene_patrol_initialize(owner,actor,now);if(status)goto done;
+        status=scene_medic_initialize(owner,actor,now);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+        status=scene_medic_flight_initialize(owner,actor,now,flight_ordinal++);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+        /* Patrol activation requires the motion residency cache, which is
+         * opened later in campaign loading after all bodies are registered. */
         if(!rf_scene_npc_registration[0])rf_scene_npc_registration[3]=owner->registration.handle;
         rf_scene_npc_registration[4]=owner->registration.handle;++rf_scene_npc_registration[0];
         if(rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration ||
            rf_entity_lookup(&campaign_entities,view->handle)!=view ||
-           rf_entity_lookup(&campaign_entities,(int32_t)(owner->registration.handle^0x10000u))){status=RF_FORMAT;goto done;}
+           rf_entity_lookup(&campaign_entities,(int32_t)(owner->registration.handle^0x10000u))){status=RF_FORMAT;{rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}}
         ++rf_scene_npc_registration[5];
         rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],&campaign_seeds.records.items[actor].record.uid,4);
         rf_scene_npc_registration[2]=npc_hash_bytes(rf_scene_npc_registration[2],view,44);
@@ -12733,6 +12737,7 @@ static void campaign_script_single_release_target(uint32_t slot)
 /* Preserve the first failing enemy operation for live QMP diagnostics.
  * Observation only: retain the original status and never retry mutations. */
 uint32_t rf_scene_enemy_failure[6]; /* status,line,frame,slot,UID,weapon */
+uint32_t rf_scene_combat_population[4]; /* owners, live registered, alerted, scripted */
 static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t slot)
 {
     if(status && !rf_scene_enemy_failure[0]){
@@ -12788,8 +12793,15 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
+    memset(rf_scene_combat_population,0,sizeof(rf_scene_combat_population));
+    rf_scene_combat_population[0]=campaign_npc_body_count;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(owner->registration.view && owner->damage.effects.health>0) {
+            ++rf_scene_combat_population[1];
+            rf_scene_combat_population[2]+=!!owner->combat_alert;
+            rf_scene_combat_population[3]+=!!owner->combat_scripted;
+        }
         scene_ai_melee_guard melee_guard={0};
         scene_ai_pistol_shot pistol_shot={0};scene_ai_pistol_contact pistol_contact={0};
         uint32_t melee_guarded=0,class_melee_waiting=0;
@@ -17102,6 +17114,19 @@ static int campaign_inventory_initialize(void)
         campaign_inventory_ready=1;
         for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
         campaign_item_pending_count=0;
+        if(rf_scene_crash_loadout && !campaign_import_applied) {
+            if(rf_scene_crash_loadout>4 || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
+            /* Explicit fixture only: ordinary acquisition, finite authored ammo,
+             * no changes to health, damage, firing or enemy population. */
+            for(i=0;i<4;i++)if(i!=2) {
+                int32_t id=campaign_slot_weapon(i);
+                if(id<0 || (uint32_t)id>=campaign_weapon_supply.names.count)return RF_FORMAT;
+                status=rf_weapon_acquire_sp(&campaign_player_inventory,
+                    campaign_weapon_supply.definitions+id,id,-1);if(status)return status;
+            }
+            campaign_select_primary(rf_scene_crash_loadout-1);
+            campaign_ammo_publish();
+        }
         if(rf_scene_dev_room_enabled && !campaign_import_applied) {
             if(rf_scene_vehicle_enabled==4){
                 if(strcmp(campaign_current_level,"L5S3.rfl"))return RF_FORMAT;
@@ -23274,6 +23299,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=29;status=campaign_resolve_trigger_links();if(status)goto done;
             status=scene_airlock_open();if(status)goto done;
             rf_scene_campaign_load_stage=30;status=campaign_npc_motion_residency();if(status)goto done;
+            for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view) {
+                status=scene_patrol_initialize(campaign_npc_bodies+i,i,0);if(status)goto done;
+            }
             status=campaign_npc_damage_fixture();if(status)goto done;
             status=campaign_player_pain_fixture();if(status)goto done;
             memset(rf_scene_npc_playback,0,sizeof(rf_scene_npc_playback));
