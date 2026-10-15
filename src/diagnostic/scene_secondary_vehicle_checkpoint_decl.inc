@@ -1,9 +1,12 @@
 #ifndef RF_SCENE_SECONDARY_VEHICLE_CHECKPOINT_DECL_INCLUDED
 #define RF_SCENE_SECONDARY_VEHICLE_CHECKPOINT_DECL_INCLUDED
+#include "rf/prepare_memory.h"
 typedef struct scene_secondary_vehicle_checkpoint_stage scene_secondary_vehicle_checkpoint_stage;
 static uint32_t scene_secondary_vehicle_checkpoint_bytes(const scene_secondary_vehicle_checkpoint_stage *);
 static void scene_secondary_vehicle_checkpoint_close(scene_secondary_vehicle_checkpoint_stage **);
 static int scene_secondary_vehicle_checkpoint_capture(const scene_stream *,unsigned char *,uint32_t,uint32_t,uint32_t *);
+static int scene_secondary_vehicle_checkpoint_prepare_accounted(scene_stream *,const unsigned char *,uint32_t,uint32_t,
+    scene_secondary_vehicle_checkpoint_stage **,const unsigned char **,uint32_t *,const rf_prepare_memory *);
 static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *,const unsigned char *,uint32_t,uint32_t,
     scene_secondary_vehicle_checkpoint_stage **,const unsigned char **,uint32_t *);
 static int scene_secondary_vehicle_checkpoint_admit(const scene_stream *,scene_secondary_vehicle_checkpoint_stage *,

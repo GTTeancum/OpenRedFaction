@@ -1,3 +1,4 @@
+#include "rf/prepare_memory.h"
 /* Typed RFCP3 dispatch. All physical candidates are admitted before publication. */
 static int scene_vehicle_checkpoint_capture_record(const scene_stream *s,scene_vehicle_checkpoint_record *out)
 {
@@ -30,17 +31,19 @@ static int scene_vehicle_checkpoint_capture(scene_stream *s,void *blob,uint32_t 
     if(!status)*bytes=(record.profile==3 || record.profile==5)?160:128;
     return status;
 }
-static int scene_vehicle_checkpoint_physics(const scene_stream *s,const rf_vehicle_checkpoint *r,scene_driller_physics *out)
+static int scene_vehicle_checkpoint_physics_accounted(const scene_stream *s,const rf_vehicle_checkpoint *r,scene_driller_physics *out,const rf_prepare_memory *memory)
 {
-    if(rf_scene_vehicle_enabled==1)return scene_driller_physics_initialize(s->driller,r->position,r->orientation,scene_gravity.acceleration,out);
-    if(rf_scene_vehicle_enabled==5)return scene_vehicle_body_physics_initialize("Fighter01",
-        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out);
-    if(rf_scene_vehicle_enabled==4)return scene_vehicle_body_physics_initialize("sub",
-        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out);
-    return scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==2?"APC":"Jeep01",
-        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,scene_gravity.acceleration,out);
+    if(rf_scene_vehicle_enabled==1)return scene_driller_physics_initialize_accounted(s->driller,r->position,r->orientation,scene_gravity.acceleration,out,memory);
+    if(rf_scene_vehicle_enabled==5)return scene_vehicle_body_physics_initialize_accounted("Fighter01",
+        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out,memory);
+    if(rf_scene_vehicle_enabled==4)return scene_vehicle_body_physics_initialize_accounted("sub",
+        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out,memory);
+    return scene_ground_vehicle_physics_initialize_accounted(rf_scene_vehicle_enabled==2?"APC":"Jeep01",
+        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,scene_gravity.acceleration,out,memory);
 }
-static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32_t bytes,scene_vehicle_checkpoint_record *out)
+static int scene_vehicle_checkpoint_physics(const scene_stream *s,const rf_vehicle_checkpoint *r,scene_driller_physics *out)
+{return scene_vehicle_checkpoint_physics_accounted(s,r,out,NULL);}
+static int scene_vehicle_checkpoint_read_accounted(scene_stream *s,const void *blob,uint32_t bytes,scene_vehicle_checkpoint_record *out,const rf_prepare_memory *memory)
 {
     scene_driller_physics physics;scene_driller_checkpoint_candidate staged;scene_vehicle_combat_candidate combat;
     scene_vehicle_checkpoint_record record={0};int status;
@@ -67,7 +70,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     else return RF_FORMAT;
     if(status)return status;
     if(record.value.vehicle.player_occupied && !record.value.vehicle.alive)return RF_FORMAT;
-    status=scene_vehicle_checkpoint_physics(s,&record.value.vehicle,&physics);if(status)return status;
+    status=scene_vehicle_checkpoint_physics_accounted(s,&record.value.vehicle,&physics,memory);if(status)return status;
     if(record.profile==1)status=scene_driller_checkpoint_stage_rigid(&physics.state,&record.value.vehicle,&staged);
     else if(record.profile==2)status=scene_apc_checkpoint_stage_rigid(&physics.state,&record.value.apc,&combat);
     else if(record.profile==4)status=scene_vehicle_combat_stage_validated(&physics.state,&record.value.vehicle,&staged);
@@ -85,6 +88,8 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     }
     *out=record;return RF_OK;
 }
+static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32_t bytes,scene_vehicle_checkpoint_record *out)
+{return scene_vehicle_checkpoint_read_accounted(s,blob,bytes,out,NULL);}
 static int scene_vehicle_checkpoint_fit(scene_stream *s,scene_authored_collection_stage *stage,scene_authored_checkpoint_stage *single,
     const scene_vehicle_checkpoint_record *saved,const rf_checkpoint_placement *player)
 {
@@ -123,16 +128,19 @@ static int scene_vehicle_checkpoint_fit(scene_stream *s,scene_authored_collectio
     }
     return RF_OK;
 }
-static int scene_vehicle_checkpoint_player_placement(const scene_stream *s,const scene_vehicle_checkpoint_record *r,
-    const rf_player_checkpoint *player,rf_checkpoint_placement *out,rf_physics_sphere *scratch)
+static int scene_vehicle_checkpoint_player_placement_accounted(const scene_stream *s,const scene_vehicle_checkpoint_record *r,
+    const rf_player_checkpoint *player,rf_checkpoint_placement *out,rf_physics_sphere *scratch,const rf_prepare_memory *memory)
 {
-    if(r->profile==1)return scene_driller_checkpoint_seat_prepare(s,&r->value.vehicle,player,out);
+    if(r->profile==1)return scene_driller_checkpoint_seat_prepare_accounted(s,&r->value.vehicle,player,out,memory);
     if(r->profile==2)return scene_apc_checkpoint_seat_prepare(s,&r->value.apc,player,out,scratch);
     if(r->profile==3)return scene_jeep_checkpoint_seat_prepare(s,&r->value.jeep,player,out,scratch);
     if(r->profile==4)return scene_vehicle_combat_seat_prepare(s,&r->value.submarine.vehicle,player,"Sub_Mini01.v3m","interface_1",NULL,0,out,scratch);
     if(r->profile==5)return scene_vehicle_combat_seat_prepare(s,&r->value.fighter.vehicle,player,"Fighter01.v3m","interface_1",NULL,0,out,scratch);
     return RF_FORMAT;
 }
+static int scene_vehicle_checkpoint_player_placement(const scene_stream *s,const scene_vehicle_checkpoint_record *r,
+    const rf_player_checkpoint *player,rf_checkpoint_placement *out,rf_physics_sphere *scratch)
+{return scene_vehicle_checkpoint_player_placement_accounted(s,r,player,out,scratch,NULL);}
 static int scene_vehicle_checkpoint_publish(scene_stream *s)
 {
     const scene_vehicle_checkpoint_record *saved=&s->vehicle_record;

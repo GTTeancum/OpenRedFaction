@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_WORLD_EVENT_RESTORE_INCLUDED
 #define RF_SCENE_WORLD_EVENT_RESTORE_INCLUDED
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 /* Include after scene_event_checkpoint, scene_world_restore and UID-map helper.
  * Structural/event staging is distinct from external gameplay publication.
  * The snapshot does not contain gravity/force state or transition requests yet.
@@ -21,10 +23,12 @@ typedef struct scene_world_event_stage {
     const scene_world_restore_stage *world;
     uint32_t flags,bytes,failed_uid,failed_type;
 } scene_world_event_stage;
-static inline void scene_world_event_close(scene_world_event_stage **out)
+static inline void scene_world_event_close_storage(scene_world_event_stage **out,const rf_prepare_storage *provider)
 {
-    if(out&&*out){scene_event_checkpoint_close(&(*out)->events);free(*out);*out=NULL;}
+    if(out&&*out){scene_event_checkpoint_close(&(*out)->events);(void)rf_prepare_storage_release(provider,NULL,NULL,*out,RF_OK);*out=NULL;}
 }
+static inline void scene_world_event_close(scene_world_event_stage **out)
+{scene_world_event_close_storage(out,NULL);}
 static int scene_world_event_admit(void *context,const rf_runtime_event *event)
 {
     scene_world_event_stage *s=context;uint32_t requirements;
@@ -43,8 +47,8 @@ static int scene_world_event_admit(void *context,const rf_runtime_event *event)
      * event to reconstruct its effects, or restart the staged animation. */
     return RF_OK;
 }
-static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_checkpoint *envelope,int32_t now,
-    const scene_world_restore_stage *world,uint32_t budget,scene_world_event_stage **out,uint32_t *diagnostics)
+static inline int scene_world_event_prepare_storage_accounted(scene_stream *stream,const rf_world_checkpoint *envelope,int32_t now,
+    const scene_world_restore_stage *world,uint32_t budget,scene_world_event_stage **out,uint32_t *diagnostics,const rf_prepare_memory *memory,const rf_prepare_storage *provider)
 {
     scene_world_event_stage *s=NULL;rf_level_uid_object *objects=NULL;scene_event_checkpoint_map map;
     const rf_world_checkpoint_slice *v;uint32_t count=0,i,j;uint64_t used;int status;
@@ -52,7 +56,8 @@ static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_
     if(memcmp(envelope->identity,world->envelope.identity,32)||strcmp(envelope->level,world->envelope.level))return RF_FORMAT;
     if(!(world->semantic_mask&RF_WORLD_CHECKPOINT_MASK(RF_WORLD_NPC)))return RF_RANGE;
     if(budget<sizeof(*s))return RF_RANGE;
-    s=calloc(1,sizeof(*s));if(!s)return RF_IO;s->world=world;s->failed_uid=UINT32_MAX;
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(provider,memory,NULL,sizeof(*s),&allocation);
+     if(status)return status;s=allocation;}s->world=world;s->failed_uid=UINT32_MAX;
     /* These exact globals need a composed sidecar before full publication:
      * scene_gravity; campaign_forces.items[].active; rf_scene_level_transition.
      * Gravity is flagged even at its default: no historical value is on disk. */
@@ -65,13 +70,13 @@ static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_
     if(campaign_subtitle_deadline>=0||campaign_message_audio_pending())s->flags|=SCENE_WORLD_EVENT_PRESENTATION_MESSAGE;
     if(campaign_alarm_deadline>=0||campaign_alarm_voice>=0||rf_scene_alarm[4])s->flags|=SCENE_WORLD_EVENT_PRESENTATION_ALARM;
     if(stream->particles.state)s->flags|=SCENE_WORLD_EVENT_PARTICLE_PRESENTATION;
-    status=scene_world_checkpoint_uid_map_open(stream,&objects,&count,budget-(uint32_t)sizeof(*s));if(status)goto done;
+    status=scene_world_checkpoint_uid_map_open_accounted(stream,&objects,&count,budget-(uint32_t)sizeof(*s),memory);if(status)goto done;
     used=sizeof(*s)+((uint64_t)campaign_events.count+campaign_triggers.count+campaign_group_registration.count+
         campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+stream->pickups.count+
         (campaign_authored_vehicle_uid?1u:0u)+1u)*sizeof(*objects);if(used>budget){status=RF_RANGE;goto done;}
     map=(scene_event_checkpoint_map){objects,count,&campaign_registry};v=envelope->sections+RF_WORLD_EVENT-1;
-    status=scene_event_checkpoint_prepare(&campaign_events,&map,envelope->identity,v->data,v->bytes,now,
-        scene_world_event_admit,s,budget-(uint32_t)used,&s->events);if(status)goto done;
+    status=scene_event_checkpoint_prepare_accounted(&campaign_events,&map,envelope->identity,v->data,v->bytes,now,
+        scene_world_event_admit,s,budget-(uint32_t)used,&s->events,memory);if(status)goto done;
     for(i=0;i<s->events.count;i++){
         const scene_event_checkpoint_entry *e=s->events.entries+i;
         status=scene_world_event_admit(s,&e->next);if(status)goto done;
@@ -85,14 +90,23 @@ static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_
     }
     s->bytes=(uint32_t)sizeof(*s)+s->events.bytes;status=RF_OK;
 done:
-    free(objects);*diagnostics=s->flags;
+    /* Failed map preparation frees/releases internally and leaves objects
+     * NULL. Successful preparation transfers the same &objects identity here. */
+    if(objects){free(objects);objects=NULL;status=rf_prepare_memory_finish(memory,&objects,status);}
+    *diagnostics=s->flags;
 #ifndef RF_IMAGE_XBOX_NATIVE
     {const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
      if(enabled&&!strcmp(enabled,"1"))printf("WORLD_RESTORE_EVENTS status%d flags%u bytes%u count%u uid%u type%u no_publication1\n",
         status,s->flags,s->bytes,s->events.count,s->failed_uid,s->failed_type);}
 #endif
-    if(status)scene_world_event_close(&s);else *out=s;return status;
+    if(status)scene_world_event_close_storage(&s,provider);else *out=s;return status;
 }
+static inline int scene_world_event_prepare_accounted(scene_stream *stream,const rf_world_checkpoint *envelope,int32_t now,
+    const scene_world_restore_stage *world,uint32_t budget,scene_world_event_stage **out,uint32_t *diagnostics,const rf_prepare_memory *memory)
+{return scene_world_event_prepare_storage_accounted(stream,envelope,now,world,budget,out,diagnostics,memory,NULL);}
+static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_checkpoint *envelope,int32_t now,
+    const scene_world_restore_stage *world,uint32_t budget,scene_world_event_stage **out,uint32_t *diagnostics)
+{return scene_world_event_prepare_accounted(stream,envelope,now,world,budget,out,diagnostics,NULL);}
 static inline int scene_world_event_probe(scene_stream *stream,const scene_world_restore_stage *world,int32_t now)
 {
     scene_world_player_stage player;scene_world_event_stage *events=NULL;scene_world_environment_stage *environment=NULL;uint32_t flags=0,support_uid=0;int status;

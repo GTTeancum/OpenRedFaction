@@ -77,15 +77,18 @@ int rf_xbox_checkpoint_storage_open_world_auto(rf_xbox_checkpoint_storage *s,uin
     int status=rf_xbox_checkpoint_storage_open(s,writable);
     if(!status)s->base=RF_XBOX_WORLD_AUTOSAVE_BASE;return status;
 }
-int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *s,void *buffer,uint32_t capacity,
-    uint32_t *bytes,rf_checkpoint_file_validate validate,void *context)
+int rf_xbox_checkpoint_storage_load_accounted(rf_xbox_checkpoint_storage *s,void *buffer,uint32_t capacity,
+    uint32_t *bytes,rf_checkpoint_file_validate validate,void *context,const rf_checkpoint_file_admission *admission)
 {
     int status=storage_admit(s);if(status)return storage_result(s,3,status,ERROR_INVALID_PARAMETER,0);
     rf_xbox_checkpoint_storage_state[7]&=~4u;
-    status=rf_checkpoint_file_load(s->base?s->base:RF_XBOX_CHECKPOINT_BASE,buffer,capacity,bytes,validate,context,&s->selection);
+    status=rf_checkpoint_file_load_accounted(s->base?s->base:RF_XBOX_CHECKPOINT_BASE,buffer,capacity,bytes,validate,context,&s->selection,admission);
     /* Portable I/O uses errno, not a reliable last Win32 error. */
     return storage_result(s,3,status,0,0);
 }
+int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *s,void *buffer,uint32_t capacity,
+    uint32_t *bytes,rf_checkpoint_file_validate validate,void *context)
+{return rf_xbox_checkpoint_storage_load_accounted(s,buffer,capacity,bytes,validate,context,NULL);}
 int rf_xbox_checkpoint_storage_store(rf_xbox_checkpoint_storage *s,const void *data,uint32_t bytes,
     rf_checkpoint_file_validate validate,void *context)
 {

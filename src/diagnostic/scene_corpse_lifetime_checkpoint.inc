@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_CORPSE_LIFETIME_CHECKPOINT_INCLUDED
 #define RF_SCENE_CORPSE_LIFETIME_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFCL1 is an outer companion of the vehicle component. RFNC10 still owns
  * death pose, inventory and actor identity. Include after scene_history_word/
  * put and NPC checkpoint types. No death callback is invoked by this file. */
@@ -125,8 +126,8 @@ static int scene_corpse_lifetime_checkpoint_capture(unsigned char *p,uint32_t ca
 }
 static void scene_corpse_lifetime_checkpoint_close(scene_corpse_lifetime_stage **s)
 {if(s&&*s){free(*s);*s=NULL;}}
-static int scene_corpse_lifetime_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
-    uint32_t budget,scene_corpse_lifetime_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_corpse_lifetime_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_corpse_lifetime_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_corpse_lifetime_stage *s;uint32_t count,size,i,j;int status;
     if(!out||*out||!inner||!inner_bytes||(bytes&&!p))return RF_RANGE;
@@ -134,7 +135,9 @@ static int scene_corpse_lifetime_checkpoint_prepare(const unsigned char *p,uint3
     if(bytes<16||scene_history_word(p+4)!=1)return RF_FORMAT;
     size=scene_history_word(p+8);count=scene_history_word(p+12);
     if(!count||count>RF_CORPSE_CAPACITY||16u+(uint64_t)size+(uint64_t)count*48u!=bytes)return RF_FORMAT;
-    if(sizeof(*s)>budget)return RF_RANGE;s=calloc(1,sizeof(*s));if(!s)return RF_IO;
+    if(sizeof(*s)>budget)return RF_RANGE;
+    status=rf_prepare_memory_admit(memory,NULL,sizeof(*s));if(status)return status;
+    s=calloc(1,sizeof(*s));if(!s)return RF_IO;
     s->count=count;s->allocated_bytes=sizeof(*s);
     for(i=0;i<count;i++) {
         const unsigned char *q=p+16+size+i*48;scene_corpse_lifetime_saved *r=s->rows+i;
@@ -149,6 +152,9 @@ static int scene_corpse_lifetime_checkpoint_prepare(const unsigned char *p,uint3
     *inner=p+16;*inner_bytes=size;*out=s;return RF_OK;
 malformed:free(s);return RF_FORMAT;
 }
+static inline int scene_corpse_lifetime_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_corpse_lifetime_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_corpse_lifetime_checkpoint_prepare_accounted(p,bytes,budget,out,inner,inner_bytes,NULL);}
 /* Join against decoded RFNC before freeing those rows. No registered handles
  * or live mutations are needed. Every serialized body must have its one real
  * dead actor and every serialized dead pose must have a body companion. */

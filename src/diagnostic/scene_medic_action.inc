@@ -76,6 +76,7 @@ static void scene_medic_default(campaign_npc_body *owner,int32_t now)
 static void scene_medic_supersede(campaign_npc_body *owner)
 {
     if(!owner->medic.pending)return;
+    scene_pursuit_token_invalidate_owner(owner); /* accepted medic replacement */
     scene_medic_default(owner,scene_medic_now(rf_scene_profile_stage[0]));
     owner->medic.pending=0;++rf_scene_medic_action[6];
     /* AI default does not stop model43. A new animation naturally replaces
@@ -266,6 +267,9 @@ static uint32_t scene_medic_capture_transient(const campaign_npc_body *owner,int
 static int scene_medic_save_guard(const char **reason)
 {
     if(reason)*reason=NULL;
+    {int status=scene_pursuit_save_boundary();if(status){
+        if(reason)*reason="pursuit_execution";return status;}}
+
     for(uint32_t i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
         if(o->medic.pending||o->medic.clip_owned){if(reason)*reason=o->medic.pending?"medic_action_pending":"medic_clip_pending";return RF_NOT_FOUND;}

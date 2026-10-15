@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_WORLD_MISSION_RESTORE_INCLUDED
 #define RF_SCENE_WORLD_MISSION_RESTORE_INCLUDED
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 /* Paused-scene staging for mission stores and live trigger/pickup bindings.
  * Caller validates the entire world before assignment-only publication. */
 typedef struct scene_world_mission_trigger {rf_runtime_trigger before,next;uint32_t removed;} scene_world_mission_trigger;
@@ -13,8 +15,10 @@ typedef struct scene_world_mission_stage {
     uint32_t trigger_count,pickup_count,bytes;uint8_t *taken_owner,*state_owner;uint32_t *slot_owner;
     scene_world_mission_trigger *live_triggers;scene_world_mission_pickup *live_pickups;
 } scene_world_mission_stage;
+static inline void scene_world_mission_close_storage(scene_world_mission_stage **out,const rf_prepare_storage *provider)
+{if(out){(void)rf_prepare_storage_release(provider,NULL,NULL,*out,RF_OK);*out=NULL;}}
 static inline void scene_world_mission_close(scene_world_mission_stage **out)
-{if(out){free(*out);*out=NULL;}}
+{scene_world_mission_close_storage(out,NULL);}
 static int scene_world_mission_key(const char (*levels)[64],uint32_t nl,const rf_campaign_object_record *items,
     uint32_t count,uint32_t uid,uint32_t *slot)
 {
@@ -27,9 +31,9 @@ static int scene_world_mission_key(const char (*levels)[64],uint32_t nl,const rf
     }
     if(found==UINT32_MAX)return RF_NOT_FOUND;*slot=found;return RF_OK;
 }
-static inline int scene_world_mission_prepare_with_movers(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
+static inline int scene_world_mission_prepare_with_movers_storage_accounted(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
     uint32_t budget,const rf_group_runtime_entry *airlock_entries,uint32_t airlock_entry_count,
-    const rf_geometry_collision_world *airlock_world,scene_world_mission_stage **out)
+    const rf_geometry_collision_world *airlock_world,scene_world_mission_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *provider)
 {
     scene_world_mission_stage *s=NULL;const rf_world_checkpoint_slice *v;uint32_t i,j,slot;uint64_t cost;int status;
     if(!out||*out||!stream||!world||now<0||now>RF_TIMER_PERIOD||
@@ -38,7 +42,8 @@ static inline int scene_world_mission_prepare_with_movers(scene_stream *stream,c
        (stream->pickups.count&&(!stream->pickups.items||!stream->pickup_slots||!stream->pickup_taken)))return RF_RANGE;
     cost=sizeof(*s)+(uint64_t)campaign_triggers.count*sizeof(*s->live_triggers)+(uint64_t)stream->pickups.count*sizeof(*s->live_pickups);
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
-    s=calloc(1,(size_t)cost);if(!s)return RF_IO;s->bytes=(uint32_t)cost;
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(provider,memory,NULL,(size_t)cost,&allocation);
+     if(status)return status;s=allocation;}s->bytes=(uint32_t)cost;
     s->stream=stream;s->trigger_owner=campaign_triggers.items;s->trigger_count=campaign_triggers.count;s->pickup_count=stream->pickups.count;
     memcpy(s->pickup_states_before,campaign_pickup_states,sizeof(s->pickup_states_before));
     s->taken_owner=stream->pickup_taken;s->state_owner=stream->pickup_state;s->slot_owner=stream->pickup_slots;
@@ -90,8 +95,16 @@ static inline int scene_world_mission_prepare_with_movers(scene_stream *stream,c
         if(r->next_state&&!s->state_owner){status=RF_NOT_FOUND;goto fail;}
     }
     *out=s;return RF_OK;
-fail:free(s);return status;
+fail:(void)rf_prepare_storage_release(provider,NULL,NULL,s,RF_OK);return status;
 }
+static inline int scene_world_mission_prepare_with_movers_accounted(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
+    uint32_t budget,const rf_group_runtime_entry *airlock_entries,uint32_t airlock_entry_count,
+    const rf_geometry_collision_world *airlock_world,scene_world_mission_stage **out,const rf_prepare_memory *memory)
+{return scene_world_mission_prepare_with_movers_storage_accounted(stream,world,now,budget,airlock_entries,airlock_entry_count,airlock_world,out,memory,NULL);}
+static inline int scene_world_mission_prepare_with_movers(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
+    uint32_t budget,const rf_group_runtime_entry *airlock_entries,uint32_t airlock_entry_count,
+    const rf_geometry_collision_world *airlock_world,scene_world_mission_stage **out)
+{return scene_world_mission_prepare_with_movers_accounted(stream,world,now,budget,airlock_entries,airlock_entry_count,airlock_world,out,NULL);}
 /* Preserve the existing paused-current-world API for read-only probes. Actual
  * saved-world loads must use prepare_with_movers with staged controller poses. */
 static inline int scene_world_mission_prepare(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,

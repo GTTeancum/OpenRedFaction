@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_TURRET_GENERATED_RETIREMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_TURRET_GENERATED_RETIREMENT_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFTU3 is an alternative to RFTU2, never nested inside it. Include after
  * generated checkpoint primitives and NPC checkpoint capture. Runtime removal
  * remains defined later in scene.c and supplies these bounded sidecar APIs. */
@@ -93,15 +94,15 @@ static int scene_turret_retirement_checkpoint_capture(unsigned char *p,uint32_t 
     free(rows);*written=(uint32_t)required;return RF_OK;
 }
 
-static int scene_turret_retirement_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+static int scene_turret_retirement_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,
     uint32_t frame,uint32_t budget,scene_turret_generated_checkpoint_stage **out,
-    const unsigned char **inner,uint32_t *inner_bytes)
+    const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_turret_generated_checkpoint_stage *stage;uint32_t n,size,i,j,handle,removed=0;
     uint64_t required,allocated;int status;
     if(!out||*out||!inner||!inner_bytes||frame==UINT32_MAX||(bytes&&!p))return RF_RANGE;
     if(bytes<8||memcmp(p,"RFTU",4)||scene_history_word(p+4)!=3)
-        return scene_turret_generated_checkpoint_prepare(p,bytes,frame,budget,out,inner,inner_bytes);
+        return scene_turret_generated_checkpoint_prepare_accounted(p,bytes,frame,budget,out,inner,inner_bytes,memory);
     if(bytes<16)return RF_FORMAT;
     n=scene_history_word(p+12);size=scene_history_word(p+8);
     required=16+(uint64_t)size+(uint64_t)n*SCENE_TURRET_RETIREMENT_ROW;
@@ -109,6 +110,7 @@ static int scene_turret_retirement_checkpoint_prepare(const unsigned char *p,uin
     if(size>=8&&!memcmp(p+16,"RFTU",4)&&scene_history_word(p+20)!=1)return RF_FORMAT;
     allocated=sizeof(*stage)+(uint64_t)n*sizeof(*stage->rows);
     if(n!=scene_turret_generated_count||allocated>budget||allocated>UINT32_MAX)return RF_RANGE;
+    status=rf_prepare_memory_admit(memory,NULL,(size_t)allocated);if(status)return status;
     stage=calloc(1,(size_t)allocated);if(!stage)return RF_IO;
     stage->count=n;stage->frame=frame;stage->allocated_bytes=(uint32_t)allocated;
     for(i=0;i<n;i++) {
@@ -130,6 +132,10 @@ static int scene_turret_retirement_checkpoint_prepare(const unsigned char *p,uin
     *out=stage;*inner=p+16;*inner_bytes=size;return RF_OK;
 fail:scene_turret_generated_checkpoint_close(&stage);return status;
 }
+static inline int scene_turret_retirement_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+    uint32_t frame,uint32_t budget,scene_turret_generated_checkpoint_stage **out,
+    const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_turret_retirement_checkpoint_prepare_accounted(p,bytes,frame,budget,out,inner,inner_bytes,NULL);}
 
 static int scene_turret_retirement_checkpoint_admit(const scene_turret_generated_checkpoint_stage *stage,
     scene_turret_generated_base_reader read_base,scene_turret_generated_target_reader read_target,void *context)

@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_EVENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_EVENT_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 #include "rf/event_checkpoint.h"
 #include <stdlib.h>
 #include <string.h>
@@ -87,9 +88,9 @@ static inline int scene_event_checkpoint_capture(const rf_runtime_events *events
     }
     *out=b;return RF_OK;
 }
-static inline int scene_event_checkpoint_prepare(rf_runtime_events *events,const scene_event_checkpoint_map *map,
+static inline int scene_event_checkpoint_prepare_accounted(rf_runtime_events *events,const scene_event_checkpoint_map *map,
     const unsigned char identity[32],const void *data,uint32_t bytes,int32_t now,
-    scene_event_checkpoint_admit admit,void *context,uint32_t budget,scene_event_checkpoint_stage *out)
+    scene_event_checkpoint_admit admit,void *context,uint32_t budget,scene_event_checkpoint_stage *out,const rf_prepare_memory *memory)
 {
     scene_event_checkpoint_stage s={0};rf_event_checkpoint_refs refs;const unsigned char *p=data;
     uint32_t i,j,uid;uint64_t cost;int status;
@@ -99,7 +100,10 @@ static inline int scene_event_checkpoint_prepare(rf_runtime_events *events,const
     status=scene_event_checkpoint_owners(events,map,admit,context);if(status)return status;
     if(bytes!=events->count*RF_EVENT_CHECKPOINT_BYTES)return RF_FORMAT;
     cost=(uint64_t)events->count*sizeof(*s.entries);if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
-    if(cost){s.entries=calloc(events->count,sizeof(*s.entries));if(!s.entries)return RF_IO;}
+    if(cost){
+        status=rf_prepare_memory_admit(memory,NULL,(size_t)cost);if(status)return status;
+        s.entries=calloc(events->count,sizeof(*s.entries));if(!s.entries)return RF_IO;
+    }
     s.count=events->count;s.bytes=(uint32_t)cost;s.owner=events;s.items=events->items;s.registry=events->registry;s.admit=admit;s.admission_context=context;
     refs=(rf_event_checkpoint_refs){scene_event_checkpoint_export,scene_event_checkpoint_import,(void *)map};
     for(i=0;i<s.count;i++){
@@ -123,6 +127,10 @@ static inline int scene_event_checkpoint_prepare(rf_runtime_events *events,const
     *out=s;return RF_OK;
 failed:scene_event_checkpoint_close(&s);return status;
 }
+static inline int scene_event_checkpoint_prepare(rf_runtime_events *events,const scene_event_checkpoint_map *map,
+    const unsigned char identity[32],const void *data,uint32_t bytes,int32_t now,
+    scene_event_checkpoint_admit admit,void *context,uint32_t budget,scene_event_checkpoint_stage *out)
+{return scene_event_checkpoint_prepare_accounted(events,map,identity,data,bytes,now,admit,context,budget,out,NULL);}
 static inline int scene_event_checkpoint_validate(scene_event_checkpoint_stage *s)
 {
     uint32_t i,retiring=0;int status;

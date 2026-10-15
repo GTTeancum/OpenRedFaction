@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_VEHICLE_SWITCH_CHECKPOINT_INCLUDED
 #define RF_SCENE_VEHICLE_SWITCH_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFSW1/2/3/4/5 is the outermost vehicle envelope. Version2 uses reserved row+60
  * for a valid parked owner's ground profile; all other offsets are unchanged.
  * Version3 admits profile4; its row+16/+160 hold torpedo reserve/cooldown,
@@ -234,15 +235,18 @@ static int scene_vehicle_switch_checkpoint_capture(const scene_stream *s,unsigne
  for(uint32_t i=0;i<scene_vehicle_parked_count;i++){scene_vehicle_switch_checkpoint_live(s,i,&v);scene_vehicle_switch_checkpoint_encode(p+SCENE_VEHICLE_SWITCH_HEADER+inner+i*SCENE_VEHICLE_SWITCH_ROW,&v,version);}
  *written=(uint32_t)size;return RF_OK;
 }
-static int scene_vehicle_switch_checkpoint_prepare(const scene_stream *s,const unsigned char *p,uint32_t n,uint32_t budget,
- scene_vehicle_switch_checkpoint_stage **out,const unsigned char **inner,uint32_t *innerbytes)
+static int scene_vehicle_switch_checkpoint_prepare_accounted(const scene_stream *s,const unsigned char *p,uint32_t n,uint32_t budget,
+ scene_vehicle_switch_checkpoint_stage **out,const unsigned char **inner,uint32_t *innerbytes,const rf_prepare_memory *memory)
 {
  uint32_t a,k,c;uint64_t cost;int st;scene_vehicle_switch_checkpoint_stage *v;
  if(!s||!out||*out||!inner||!innerbytes)return RF_RANGE;*inner=p;*innerbytes=n;
  st=scene_vehicle_switch_checkpoint_peek(p,n,&a,&k,&c);if(st||!a)return st;
  if(!s->driller_runtime||a!=(uint32_t)campaign_authored_vehicle_uid||k!=rf_scene_vehicle_enabled||c!=campaign_passive_vehicle_count)return RF_NOT_FOUND;
  cost=sizeof(*v)+(uint64_t)c*sizeof(*v->rows);if(cost>budget||(uint64_t)c*sizeof(*v->rows)>256u*1024u)return RF_RANGE;
- v=calloc(1,sizeof(*v));if(!v)return RF_IO;v->rows=calloc(c,sizeof(*v->rows));if(!v->rows){free(v);return RF_IO;}
+ st=rf_prepare_memory_admit(memory,NULL,sizeof(*v));if(st)return st;
+ v=calloc(1,sizeof(*v));if(!v)return RF_IO;
+ st=rf_prepare_memory_admit(memory,NULL,(size_t)c*sizeof(*v->rows));if(st){free(v);return st;}
+ v->rows=calloc(c,sizeof(*v->rows));if(!v->rows){free(v);return RF_IO;}
  v->active=a;v->profile=k;v->count=c;v->bytes=(uint32_t)cost;
  for(uint32_t i=0;i<c;i++){
   const scene_passive_vehicle *owner=campaign_passive_vehicles+i;
@@ -253,6 +257,9 @@ static int scene_vehicle_switch_checkpoint_prepare(const scene_stream *s,const u
  }
  *out=v;*inner=p+SCENE_VEHICLE_SWITCH_HEADER;*innerbytes=scene_history_word(p+8);return RF_OK;
 }
+static inline int scene_vehicle_switch_checkpoint_prepare(const scene_stream *s,const unsigned char *p,uint32_t n,uint32_t budget,
+ scene_vehicle_switch_checkpoint_stage **out,const unsigned char **inner,uint32_t *innerbytes)
+{return scene_vehicle_switch_checkpoint_prepare_accounted(s,p,n,budget,out,inner,innerbytes,NULL);}
 static int scene_vehicle_switch_checkpoint_admit(const scene_stream *s,scene_vehicle_switch_checkpoint_stage *stage,
  const scene_vehicle_checkpoint_record *vehicle,const scene_passive_vehicle_checkpoint_stage *passive,const scene_vehicle_physics_checkpoint_stage *physics,
  const scene_secondary_vehicle_checkpoint_stage *secondary)

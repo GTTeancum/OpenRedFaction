@@ -37,7 +37,7 @@ static int scene_tactical_live_present(uint32_t *present)
 /* Prepared generation-aware target only. Candidate player/seat/attachment
  * ownership must still join the complete RFNS/player transaction before any
  * irreversible close. Do not mark the stage joined merely from this result. */
-static int scene_tactical_candidate_target(const rf_npc_checkpoint_record *row,
+static int scene_combat_candidate_target(const rf_npc_checkpoint_record *row,
     const rf_npc_checkpoint_record *rows,uint32_t count,uint32_t *target,uint32_t *mode)
 {
     uint32_t uid,i,j;
@@ -45,7 +45,6 @@ static int scene_tactical_candidate_target(const rf_npc_checkpoint_record *row,
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items))||
        campaign_npc_body_count>campaign_seeds.records.count)return RF_RANGE;
     *target=*mode=0;
-    if(!row->tactical.present||!row->tactical.phase)return RF_OK;
     if(!row->combat_alert||(row->combat.active!=0&&row->combat.active!=2&&row->combat.active!=4))return RF_FORMAT;
     uid=row->combat.active?row->combat.event:0;
     *mode=row->combat.active==2?1u:row->combat.active==4?2u:0u;
@@ -62,6 +61,18 @@ static int scene_tactical_candidate_target(const rf_npc_checkpoint_record *row,
     for(j=0;j<campaign_npc_body_count;j++)if((uint32_t)campaign_seeds.records.items[j].record.uid==uid)break;
     if(j==campaign_npc_body_count||scene_npc_reload_identity(j,campaign_npc_bodies+j))return RF_FORMAT;
     *target=campaign_npc_bodies[j].registration.handle;return RF_OK;
+}
+/* Preserve tactical absence semantics while allowing a queued return prelude
+ * to resolve the incoming combat relation without inventing tactical state. */
+static int scene_tactical_candidate_target(const rf_npc_checkpoint_record *row,
+    const rf_npc_checkpoint_record *rows,uint32_t count,uint32_t *target,uint32_t *mode)
+{
+    if(!row||!target||!mode||(count&&!rows)||
+       (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items))||
+       campaign_npc_body_count>campaign_seeds.records.count)return RF_RANGE;
+    *target=*mode=0;
+    if(!row->tactical.present||!row->tactical.phase)return RF_OK;
+    return scene_combat_candidate_target(row,rows,count,target,mode);
 }
 static int scene_tactical_candidate(uint32_t slot,const rf_npc_checkpoint_record *row,
     const rf_npc_checkpoint_record *rows,uint32_t count,int32_t now,scene_tactical_receipt *prepared)

@@ -1,5 +1,7 @@
 #include "rf/clutter_checkpoint.h"
 /* Prepared rows contain live immunity, after decoding the disk bit4 override. */
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 typedef struct scene_clutter_restore_entry {rf_clutter_checkpoint_record row;uint32_t slot,handle;int32_t deadline;} scene_clutter_restore_entry;
 typedef struct scene_clutter_restore_stage {uint32_t count;scene_clutter_restore_entry entries[];} scene_clutter_restore_stage;
 /* Unknown classes and known non-model classes have no ordinary static body.
@@ -83,8 +85,8 @@ static int scene_clutter_checkpoint_capture(const unsigned char source[32],int32
 }
 /* Caller selects fresh-only for actual restore. Validation-only staging can
  * inspect saves while damaged gameplay is running without mutating that state. */
-static int scene_clutter_checkpoint_prepare(const unsigned char source[32],const void *data,uint32_t bytes,
-    int32_t now,uint32_t fresh_only,scene_clutter_restore_stage **out)
+static int scene_clutter_checkpoint_prepare_storage_accounted(const unsigned char source[32],const void *data,uint32_t bytes,
+    int32_t now,uint32_t fresh_only,scene_clutter_restore_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *storage)
 {
     unsigned char identity[32];rf_clutter_checkpoint_record *rows=NULL;scene_clutter_restore_stage *stage=NULL;
     uint32_t count,i,j,resident=0;int status;
@@ -93,8 +95,12 @@ static int scene_clutter_checkpoint_prepare(const unsigned char source[32],const
     status=rf_clutter_checkpoint_preflight(data,bytes,identity,&count);if(status)return status;
     for(i=0;i<campaign_clutter_records.count;i++)resident+=campaign_clutter_bodies[i]!=NULL;
     if(count!=resident)return RF_FORMAT;
-    rows=count?malloc(count*sizeof(*rows)):NULL;stage=calloc(1,sizeof(*stage)+count*sizeof(*stage->entries));
-    if((count&&!rows)||!stage){status=RF_IO;goto fail;}
+    if(count){
+        {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,&rows,(size_t)count*sizeof(*rows),&allocation);
+         if(status)goto fail;rows=allocation;}
+    }
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,NULL,sizeof(*stage)+(size_t)count*sizeof(*stage->entries),&allocation);
+     if(status)goto fail;stage=allocation;}
     status=rf_clutter_checkpoint_decode(data,bytes,identity,rows,count,&count);if(status)goto fail;stage->count=count;
     for(i=0;i<count;i++){
         rf_clutter_base_owner *owner;float initial;int32_t deadline=-1;
@@ -109,9 +115,17 @@ static int scene_clutter_checkpoint_prepare(const unsigned char source[32],const
         rows[i].flags^=campaign_clutter_damage_profiles[owner->state.class_index].life<0?4u:0u;
         stage->entries[i]=(scene_clutter_restore_entry){rows[i],j,owner->state.handle,deadline};
     }
-    free(rows);*out=stage;return RF_OK;
- fail:free(rows);free(stage);return status;
+    status=rf_prepare_storage_release(storage,memory,&rows,rows,RF_OK);rows=NULL;if(status)goto fail;
+    *out=stage;return RF_OK;
+ fail:status=rf_prepare_storage_release(storage,memory,&rows,rows,status);
+    (void)rf_prepare_storage_release(storage,NULL,NULL,stage,RF_OK);return status;
 }
+static int scene_clutter_checkpoint_prepare_accounted(const unsigned char source[32],const void *data,uint32_t bytes,
+    int32_t now,uint32_t fresh_only,scene_clutter_restore_stage **out,const rf_prepare_memory *memory)
+{return scene_clutter_checkpoint_prepare_storage_accounted(source,data,bytes,now,fresh_only,out,memory,NULL);}
+static int scene_clutter_checkpoint_prepare(const unsigned char source[32],const void *data,uint32_t bytes,
+    int32_t now,uint32_t fresh_only,scene_clutter_restore_stage **out)
+{return scene_clutter_checkpoint_prepare_accounted(source,data,bytes,now,fresh_only,out,NULL);}
 static int scene_clutter_checkpoint_targets_valid(const scene_clutter_restore_stage *stage)
 {
     uint32_t i;

@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_WORLD_VEHICLE_RESTORE_INCLUDED
 #define RF_SCENE_WORLD_VEHICLE_RESTORE_INCLUDED
+#include "rf/prepare_memory.h"
 /* Static-world vehicle admission. The world and player/NPC candidates
  * are already staged; no live owner is changed by this check. */
 uint32_t rf_scene_vehicle_restore_trace[8]; /* stage,status,room,spheres,other UID,seat,corpse,other pair */
@@ -38,9 +39,9 @@ static int scene_world_vehicle_other_pair(void *context,uint32_t i,uint32_t j,
      rf_scene_vehicle_restore_trace[7]=j;
      return seat||corpse;}
 }
-static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_restore_stage *world,
+static int scene_world_vehicle_prepare_accounted(scene_stream *stream,const scene_world_restore_stage *world,
     const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record,
-    const scene_npc_seat_checkpoint_stage *seats,uint32_t hidden)
+    const scene_npc_seat_checkpoint_stage *seats,uint32_t hidden,const rf_prepare_memory *memory)
 {
     scene_driller_physics physics;scene_checkpoint_world_context context;
     scene_world_vehicle_pair_context pairs={0};rf_collision_room_location location;
@@ -52,7 +53,7 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     memset(rf_scene_vehicle_restore_trace,0,sizeof(rf_scene_vehicle_restore_trace));
     rf_scene_vehicle_restore_trace[0]=1;
     dev_submarine=rf_scene_dev_room_enabled&&record->profile==4&&!campaign_authored_vehicle_uid;
-    status=scene_vehicle_checkpoint_physics(stream,&record->value.vehicle,&physics);
+    status=scene_vehicle_checkpoint_physics_accounted(stream,&record->value.vehicle,&physics,memory);
     rf_scene_vehicle_restore_trace[0]=2;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
     if(status)return status;rf_scene_vehicle_restore_trace[3]=physics.sphere_count;
     /* Hidden owners have no live hull. Identity, finite rigid state and
@@ -119,4 +120,8 @@ static int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_re
     rf_scene_vehicle_restore_trace[0]=5;rf_scene_vehicle_restore_trace[1]=(uint32_t)status;
     return status;
 }
+static inline int scene_world_vehicle_prepare(scene_stream *stream,const scene_world_restore_stage *world,
+    const scene_world_player_stage *player,const scene_vehicle_checkpoint_record *record,
+    const scene_npc_seat_checkpoint_stage *seats,uint32_t hidden)
+{return scene_world_vehicle_prepare_accounted(stream,world,player,record,seats,hidden,NULL);}
 #endif

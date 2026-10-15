@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_VEHICLE_ATTACK_CHECKPOINT_INCLUDED
 #define RF_SCENE_VEHICLE_ATTACK_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* Optional RFAK1 wraps RFAL/RFPV/RFSV/RFVA inside RFNS. Header16 stores
  * version, inner bytes, owner count. Owner44 plus each active flight48 bytes.
  * No pointers, registry handles, sampled targets or native struct padding.
@@ -89,8 +90,8 @@ static int scene_vehicle_attack_capture(unsigned char *p,uint32_t capacity,uint3
     }
     *written=(uint32_t)required;return RF_OK;
 }
-static int scene_vehicle_attack_prepare(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
-    scene_vehicle_attack_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_vehicle_attack_prepare_accounted(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_attack_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     uint32_t count,nested,at;uint64_t cost;scene_vehicle_attack_stage *stage=NULL;scene_vehicle_attack_state **tail;int status=RF_FORMAT;
     if(!s||!out||*out||!inner||!inner_bytes||(!p&&bytes))return RF_RANGE;*inner=p;*inner_bytes=bytes;
@@ -102,11 +103,13 @@ static int scene_vehicle_attack_prepare(scene_stream *s,const unsigned char *p,u
        count>scene_vehicle_allegiance_count()||cost>budget||!scene_vehicle_attack_ready)return RF_FORMAT;
     at=SCENE_VEHICLE_ATTACK_HEADER+nested;
     if(count>(bytes-at)/SCENE_VEHICLE_ATTACK_ROW)return RF_FORMAT;
+    status=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(status)return status;
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
     stage->bytes=(uint32_t)cost;stage->count=count;tail=&stage->head;
     for(uint32_t i=0;i<count;i++){
         scene_vehicle_attack_owner owner;const unsigned char *row=p+at;uint32_t flights;
         if(bytes-at<SCENE_VEHICLE_ATTACK_ROW){status=RF_FORMAT;goto fail;}
+        status=rf_prepare_memory_admit(memory,NULL,sizeof(scene_vehicle_attack_state));if(status)goto fail;
         scene_vehicle_attack_state *a=calloc(1,sizeof(*a));if(!a){status=RF_IO;goto fail;}*tail=a;tail=&a->next;
         a->uid=scene_history_word(row);a->event=scene_history_word(row+4);a->active=scene_history_word(row+8);
         a->target_kind=scene_history_word(row+12);a->target_uid=scene_history_word(row+16);a->reserve=(int32_t)scene_history_word(row+20);
@@ -136,6 +139,9 @@ static int scene_vehicle_attack_prepare(scene_stream *s,const unsigned char *p,u
     *out=stage;*inner=p+SCENE_VEHICLE_ATTACK_HEADER;*inner_bytes=nested;return RF_OK;
 fail:scene_vehicle_attack_stage_close(&stage);return status;
 }
+static inline int scene_vehicle_attack_prepare(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_attack_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_vehicle_attack_prepare_accounted(s,p,bytes,budget,out,inner,inner_bytes,NULL);}
 /* RFSV owns rigid flight; RFAK owns combat. A live attack must have its exact
  * matching motion order. Conversely a new attack-kind motion order cannot
  * be silently loaded without its combat owner. Legacy point/player saves pass. */

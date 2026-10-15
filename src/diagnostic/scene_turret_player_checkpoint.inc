@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_TURRET_PLAYER_CHECKPOINT_INCLUDED
 #define RF_SCENE_TURRET_PLAYER_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* After world_player_restore. RFTP1 wraps existing vehicle/turret bytes,
  * inside RFCL. RFPL retains the real standing body; RFTU retains turret aim.
  * No mount/use/death callback, teleport, resource load or allocation at commit. */
@@ -64,15 +65,17 @@ static int scene_turret_player_checkpoint_capture(unsigned char *p,uint32_t capa
 }
 static void scene_turret_player_checkpoint_close(scene_turret_player_checkpoint_stage **s)
 {if(s&&*s){free(*s);*s=NULL;}}
-static int scene_turret_player_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
-    uint32_t budget,scene_turret_player_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_turret_player_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_turret_player_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
-    scene_turret_player_checkpoint_stage *s;const unsigned char *q;uint32_t size,i;
+    scene_turret_player_checkpoint_stage *s;const unsigned char *q;uint32_t size,i;int status;
     if(!out||*out||!inner||!inner_bytes||(bytes&&!p))return RF_RANGE;
     if(bytes<4||memcmp(p,"RFTP",4)){*inner=p;*inner_bytes=bytes;return RF_OK;}
     if(bytes<16||scene_history_word(p+4)!=1||scene_history_word(p+12)!=64)return RF_FORMAT;
     size=scene_history_word(p+8);if(80u+(uint64_t)size!=bytes)return RF_FORMAT;
-    if(sizeof(*s)>budget)return RF_RANGE;s=calloc(1,sizeof(*s));if(!s)return RF_IO;
+    if(sizeof(*s)>budget)return RF_RANGE;
+    status=rf_prepare_memory_admit(memory,NULL,sizeof(*s));if(status)return status;
+    s=calloc(1,sizeof(*s));if(!s)return RF_IO;
     q=p+16+size;s->allocated_bytes=sizeof(*s);s->uid=scene_history_word(q);s->class_id=scene_history_word(q+4);
     s->remaining=scene_history_word(q+8);s->burst=scene_history_word(q+12);s->rng=scene_history_word(q+16);
     memcpy(s->desired,q+20,12);memcpy(s->anchor,q+32,12);memcpy(s->eye_offset,q+44,12);
@@ -81,6 +84,9 @@ static int scene_turret_player_checkpoint_prepare(const unsigned char *p,uint32_
     *out=s;*inner=p+16;*inner_bytes=size;return RF_OK;
 malformed:free(s);return RF_FORMAT;
 }
+static inline int scene_turret_player_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_turret_player_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_turret_player_checkpoint_prepare_accounted(p,bytes,budget,out,inner,inner_bytes,NULL);}
 /* After RFTU and ordinary standing-player/world placement admission, before
  * any assignment. Shared RNG must agree with every saved NPC combat owner. */
 static int scene_turret_player_checkpoint_admit(scene_turret_player_checkpoint_stage *s,

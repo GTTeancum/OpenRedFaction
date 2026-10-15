@@ -154,15 +154,18 @@ int rf_physics_grid_spheres(const uint8_t cells[64],float spacing,const float or
     memcpy(spheres,output,n*sizeof(*spheres));*count=n;*radius=bound;return RF_OK;
 }
 
-int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float elasticity,float friction,
-    float density,uint32_t budget,rf_physics_body *result)
+int rf_physics_creation_body_open_accounted(const rf_physics_creation_seed *seed,float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory)
 {
     const float zero[3]={0};
-    return rf_physics_creation_body_open_moving(seed,zero,zero,elasticity,friction,density,budget,result);
+    return rf_physics_creation_body_open_moving_accounted(seed,zero,zero,elasticity,friction,density,budget,result,memory);
 }
-int rf_physics_creation_body_open_moving(const rf_physics_creation_seed *seed,
-    const float velocity[3],const float angular[3],float elasticity,float friction,
+int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float elasticity,float friction,
     float density,uint32_t budget,rf_physics_body *result)
+{return rf_physics_creation_body_open_accounted(seed,elasticity,friction,density,budget,result,NULL);}
+int rf_physics_creation_body_open_moving_accounted(const rf_physics_creation_seed *seed,
+    const float velocity[3],const float angular[3],float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory)
 {
     rf_physics_body_parameters parameters={0};rf_physics_mass_tensor initial={0},prepared;
     rf_physics_sphere fallback={0};rf_physics_fallback values;
@@ -187,8 +190,12 @@ int rf_physics_creation_body_open_moving(const rf_physics_creation_seed *seed,
         status=rf_physics_spheres_prepare(spheres,count,density,&initial,&prepared);if(status)return status;
         parameters.mass=prepared.mass;memcpy(parameters.local_tensor,prepared.tensor,36);
     }
-    return rf_physics_body_open(&parameters,spheres,count,budget,result);
+    return rf_physics_body_open_accounted(&parameters,spheres,count,budget,result,memory);
 }
+int rf_physics_creation_body_open_moving(const rf_physics_creation_seed *seed,
+    const float velocity[3],const float angular[3],float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result)
+{return rf_physics_creation_body_open_moving_accounted(seed,velocity,angular,elasticity,friction,density,budget,result,NULL);}
 int rf_physics_body_prepare_contact(rf_physics_body_state *state)
 {
     if(!state)return RF_RANGE;
@@ -1137,8 +1144,8 @@ void rf_physics_body_close(rf_physics_body *body)
 {
     if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
 }
-int rf_physics_body_replace_spheres(rf_physics_body *body,
-    const rf_physics_sphere *source,uint32_t count,uint32_t budget)
+int rf_physics_body_replace_spheres_accounted(rf_physics_body *body,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,const rf_prepare_memory *memory)
 {
     rf_physics_spheres replacement={0};rf_physics_bounds bounds;
     uint64_t old_bytes,new_bytes,peak;uint32_t flags,i;int status;
@@ -1151,14 +1158,17 @@ int rf_physics_body_replace_spheres(rf_physics_body *body,
     status=rf_physics_spheres_bounds(source,count,body->state.position,&bounds);if(status)return status;
     flags=body->state.flags&~0x2000u;
     for(i=0;i<count;++i)if(source[i].parameter_10>0)flags|=0x2000;
-    status=rf_physics_spheres_open(source,count,(uint32_t)(sizeof(replacement)+new_bytes),&replacement);
+    status=rf_physics_spheres_open_accounted(source,count,(uint32_t)(sizeof(replacement)+new_bytes),&replacement,memory);
     if(status)return status;
     rf_physics_spheres_close(&body->spheres);body->spheres=replacement;
     body->state.bounds=bounds;body->state.flags=flags;
     body->allocated_bytes=(uint32_t)(sizeof(*body)+new_bytes);return RF_OK;
 }
-int rf_physics_body_open(const rf_physics_body_parameters *parameters,
-    const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result)
+int rf_physics_body_replace_spheres(rf_physics_body *body,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget)
+{return rf_physics_body_replace_spheres_accounted(body,source,count,budget,NULL);}
+int rf_physics_body_open_accounted(const rf_physics_body_parameters *parameters,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory)
 {
     rf_physics_body value={0};rf_physics_body_state *state=&value.state;uint32_t i;uint64_t bytes;int status;
     if(!parameters || !result || result->allocated_bytes || result->spheres.items || result->spheres.count || result->spheres.allocated_bytes)return RF_RANGE;
@@ -1180,9 +1190,12 @@ int rf_physics_body_open(const rf_physics_body_parameters *parameters,
     memcpy(state->orientation,parameters->orientation,sizeof(state->orientation));memcpy(state->next_orientation,state->orientation,sizeof(state->orientation));
     for(i=0;i<count;++i)if(source[i].parameter_10>0)state->flags|=0x2000;
     state->vector_138[1]=1;state->scalar_144=1;state->reference_15c=-1;
-    status=rf_physics_spheres_open(source,count,(uint32_t)(budget-sizeof(value)+sizeof(value.spheres)),&value.spheres);if(status)return status;
+    status=rf_physics_spheres_open_accounted(source,count,(uint32_t)(budget-sizeof(value)+sizeof(value.spheres)),&value.spheres,memory);if(status)return status;
     value.allocated_bytes=(uint32_t)bytes;*result=value;return RF_OK;
 }
+int rf_physics_body_open(const rf_physics_body_parameters *parameters,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result)
+{return rf_physics_body_open_accounted(parameters,source,count,budget,result,NULL);}
 int rf_physics_spheres_bounds(const rf_physics_sphere *source,uint32_t count,
     const float position[3],rf_physics_bounds *result)
 {
@@ -1391,7 +1404,7 @@ void rf_physics_spheres_close(rf_physics_spheres *spheres)
 {
     if(spheres) {free(spheres->items);memset(spheres,0,sizeof(*spheres));}
 }
-int rf_physics_spheres_open(const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_spheres *result)
+int rf_physics_spheres_open_accounted(const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_spheres *result,const rf_prepare_memory *memory)
 {
     rf_physics_spheres value={0};uint32_t i,j;uint64_t bytes=sizeof(value)+(uint64_t)count*sizeof(*source);
     if(!result || result->items || result->count || result->allocated_bytes || (count && !source) || bytes>budget)return RF_RANGE;
@@ -1400,11 +1413,14 @@ int rf_physics_spheres_open(const rf_physics_sphere *source,uint32_t count,uint3
         for(j=0;j<3;++j)if(!isfinite(source[i].center[j]))return RF_RANGE;
     }
     if(count) {
+        int status=rf_prepare_memory_admit(memory,NULL,(size_t)count*sizeof(*source));if(status)return status;
         value.items=malloc((size_t)count*sizeof(*source));if(!value.items)return RF_RANGE;
         memcpy(value.items,source,(size_t)count*sizeof(*source));
     }
     value.count=count;value.allocated_bytes=(uint32_t)bytes;*result=value;return RF_OK;
 }
+int rf_physics_spheres_open(const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_spheres *result)
+{return rf_physics_spheres_open_accounted(source,count,budget,result,NULL);}
 int rf_physics_ground_prepare(const rf_physics_sphere *spheres,uint32_t count,
     const float next_position[3],uint32_t collision_flags,int falling,float dt,
     float class_speed,float support_y,rf_physics_ground_probe *result)

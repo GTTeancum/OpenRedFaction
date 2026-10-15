@@ -107,6 +107,7 @@ static int scene_alarm_runner_cancel(campaign_npc_body *o,int32_t now,uint32_t p
     if(scene_medic_flight_restoring||!o->alarm.present)return RF_OK;
     if(o->alarm_fault)return RF_FORMAT;
     preserve=preserve&&o->ai_mode.action_280!=16;
+    scene_pursuit_token_invalidate_owner(o); /* accepted active Alarm cancellation */
     ++scene_alarm_runner_epoch;
     if(!preserve){
         /* Incoming Play_Animation clears its old script marker before starting

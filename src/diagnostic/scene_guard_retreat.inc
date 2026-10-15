@@ -193,6 +193,7 @@ static int scene_guard_retreat_cancel(campaign_npc_body *o,int32_t now,uint32_t 
     scene_noise_cancel(o);
     scene_patrol_dwell_clear(o); /* Accepted command supersedes the finite node hold. */
     if(!scene_guard_retreat_active(o))return scene_civilian_flight_cancel(o,now,disposition);
+    scene_pursuit_token_invalidate_owner(o); /* accepted active cancellation */
     o->guard_retreat_fault=1;
     if(!o->flight.entered||(o->guard_resume_action!=0&&o->guard_resume_action!=2)||
        o->ai_mode.action_280!=o->view.action_520)return RF_FORMAT;
@@ -320,6 +321,7 @@ static int scene_guard_retreat_damage(campaign_npc_body *o,uint32_t source,int32
     status=scene_npc_reload_playback(index);if(status)return status;
     status=scene_guard_retreat_save_owners(index,o,now,frame);if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
     handle=o->registration.handle;epoch=scene_continuous_charge_runtime.epoch;lifetime=scene_medic_flight_lifetime;
+    scene_pursuit_token_invalidate_owner(o); /* accepted reset/lottery episode */
     *handled=1;o->guard_retreat_fault=1;
     /*40805c primary,408068 secondary (which itself ends in primary), then
      * speech stop. Every actual synchronous callback retains lifetime checks. */

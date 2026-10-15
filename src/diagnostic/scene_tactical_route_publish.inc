@@ -4,8 +4,9 @@
  * qualify the selected ranged weapon, ground contact, range and sight; this
  * function rechecks identity and shared geometry after navigation callbacks.
  * It is staged only until all movement/cancellation/fire hooks are present. */
-static int scene_tactical_route_publish(uint32_t slot,uint32_t handle,uint32_t target,
-    const scene_tactical_route_candidate *candidate,const rf_random_state *random,int32_t now)
+static int scene_tactical_route_publish_impl(uint32_t slot,uint32_t handle,uint32_t target,
+    const scene_tactical_route_candidate *candidate,const rf_random_state *random,int32_t now,
+    const scene_tactical_receipt *prepared)
 {
     campaign_npc_body *o;scene_tactical_receipt next;
     rf_entity_navigation_candidate start,goal;
@@ -46,8 +47,17 @@ static int scene_tactical_route_publish(uint32_t slot,uint32_t handle,uint32_t t
     status=scene_tactical_saved_goal_in_region(refs[candidate->selected].candidate,
         o->navigation_radius,o->death_item_extent_7c4,candidate->goal,&inside);
     if(status)return status;if(!inside)return RF_FORMAT;
-    next=o->tactical;next.random=*random;
-    status=scene_tactical_receipt_relocate(&next,now);if(status)return status;
+    if(prepared){
+        status=scene_tactical_receipt_admit(prepared);if(status)return status;
+        if(prepared->phase!=SCENE_TACTICAL_RELOCATING||
+           prepared->flags!=o->tactical.flags||prepared->target!=o->tactical.target||
+           prepared->recovery_due!=o->tactical.recovery_due||
+           prepared->random.value!=random->value)return RF_FORMAT;
+        next=*prepared;
+    }else {
+        next=o->tactical;next.random=*random;
+        status=scene_tactical_receipt_relocate(&next,now);if(status)return status;
+    }
     start=o->navigation.start;goal=o->navigation.goal;
     memcpy(start.position,candidate->start,sizeof(start.position));
     memcpy(start.query_point,candidate->start,sizeof(start.query_point));
@@ -55,6 +65,7 @@ static int scene_tactical_route_publish(uint32_t slot,uint32_t handle,uint32_t t
     memcpy(goal.query_point,candidate->goal,sizeof(goal.query_point));
     /* All fallible work is finished. Use embedded endpoint addresses, never
      * addresses of these local endpoint copies. No allocation or callbacks. */
+    scene_pursuit_return_receipt_clear(&o->pursuit_return);
     o->navigation.start=start;o->navigation.goal=goal;
     memset(o->navigation.retained.nodes,0,sizeof(o->navigation.retained.nodes));
     o->navigation.retained.nodes[0]=&o->navigation.start;
@@ -71,5 +82,23 @@ static int scene_tactical_route_publish(uint32_t slot,uint32_t handle,uint32_t t
     o->script_move.origin=SCENE_MOVE_ORIGIN_NONE;
     memcpy(o->script_move.target,candidate->goal,sizeof(o->script_move.target));
     o->tactical=next;return RF_OK;
+}
+/* Existing ordinary call retains its one relocation timer draw. */
+static int scene_tactical_route_publish(uint32_t slot,uint32_t handle,uint32_t target,
+    const scene_tactical_route_candidate *candidate,const rf_random_state *random,int32_t now)
+{
+    return scene_tactical_route_publish_impl(slot,handle,target,candidate,random,now,NULL);
+}
+/* Uncalled return suffix: prepared came from successful private fallback
+ * preparation under the same sealed owner/target/command and query result.
+ * Caller retains exclusive graph/collision ownership through this operation
+ * and its assignment-only AI/return suffix. This validates structure, not the
+ * provenance of the prepared timer. Never redraw it here. All inputs remain
+ * authenticated, immutable, live and disjoint from destinations. */
+static int scene_tactical_route_publish_prepared(uint32_t slot,uint32_t handle,uint32_t target,
+    const scene_tactical_route_candidate *candidate,const scene_tactical_receipt *prepared)
+{
+    if(!prepared)return RF_RANGE;
+    return scene_tactical_route_publish_impl(slot,handle,target,candidate,&prepared->random,0,prepared);
 }
 #endif

@@ -175,6 +175,7 @@ static int scene_civilian_flight_cancel(campaign_npc_body *o,int32_t now,uint32_
     if(!scene_civilian_flight_owner(o))return RF_OK;
     /* Accepted commands also fence callbacks during first onset, before the
      * episode has published entered. Never resume over their replacement. */
+    scene_pursuit_token_invalidate_owner(o);
     ++scene_medic_flight_lifetime;
     if(!o->flight.entered)return RF_OK;
     next=o->ai_mode;
@@ -253,6 +254,7 @@ static int scene_medic_flight_event_default(campaign_npc_body *o,int32_t now)
      * current states; retained flight metadata and residual43 remain owned. */
     status=rf_entity_ai_set_action(&o->ai_mode,2,UINT32_MAX,UINT32_MAX,(float)now,0,0);
     if(status)return status;
+    scene_pursuit_token_invalidate_owner(o); /* accepted event default publication */
     status=rf_entity_ai_set_state(&o->ai_mode,0,(float)now);if(status)return status;
     if(o->medic.pending){o->medic.pending=0;++rf_scene_medic_action[6];}
     o->view.action_520=2;++rf_scene_medic_flight[4];return RF_OK;
@@ -261,6 +263,7 @@ static void scene_medic_flight_target_clear(campaign_npc_body *o,int32_t now)
 {
     if(scene_medic_flight_restoring||o->flight.qualified!=1||!o->flight.entered)return;
     if(o->flight.target_kind==SCENE_FLIGHT_TARGET_NONE)return;
+    scene_pursuit_token_invalidate_owner(o); /* admitted flight target clear */
     o->flight.target_kind=SCENE_FLIGHT_TARGET_NONE;o->flight.target_handle=0;
     o->flight.sight_deadline_294=now;
 }

@@ -114,7 +114,7 @@ static int scene_turret_generated_world_capture(unsigned char *p,uint32_t capaci
     if(allocated>budget){status=RF_RANGE;goto done;}
     if(count){rows=malloc(count*sizeof(*rows));if(!rows){status=RF_IO;goto done;}}
     /* Read-only vitals inspection intentionally does not restore shared RNG. */
-    status=rf_npc_checkpoint_decode_with_pursuit_delay(npc_data,npc_bytes,identity,catalog,rows,count,&count,&inspected_rng,&inspected_tactical_cursor);if(status)goto done;
+    status=rf_npc_checkpoint_decode_with_pursuit_return(npc_data,npc_bytes,identity,catalog,rows,count,&count,&inspected_rng,&inspected_tactical_cursor);if(status)goto done;
     for(i=0;i<scene_turret_generated_count;i++) {
         const scene_turret_generated_binding *b=scene_turret_generated+i;
         scene_turret_generated_base_saved live={0};

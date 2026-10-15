@@ -153,9 +153,9 @@ int rf_entity_class_stance_build(const rf_model_file *model,const rf_model_bone 
     }
     free(matrices);free(copied);if(!status) {*result=value;if(eye_offsets)memcpy(eye_offsets,offsets,sizeof(offsets));}return status;
 }
-int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
+int rf_entity_body_open_accounted(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
     uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
-    uint32_t budget,rf_physics_body *result)
+    uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory)
 {
     rf_physics_body body={0};rf_physics_body_parameters parameters={0};int status;
     if(!config || !position || !orientation || !result || count>8 || (count && !spheres) ||
@@ -168,11 +168,15 @@ int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_
     if(count==0)parameters.local_tensor[0]=parameters.local_tensor[4]=parameters.local_tensor[8]=1;
     parameters.flags=rf_entity_creation_physics_flags(creation_flags,config->authored.flags,
         config->authored.flags2,config->authored.use_kind,0);
-    status=rf_physics_body_open(&parameters,NULL,0,budget,&body);
-    if(!status)status=rf_physics_body_replace_spheres(&body,spheres,count,budget);
+    status=rf_physics_body_open_accounted(&parameters,NULL,0,budget,&body,memory);
+    if(!status)status=rf_physics_body_replace_spheres_accounted(&body,spheres,count,budget,memory);
     if(status){rf_physics_body_close(&body);return status;}
     *result=body;return RF_OK;
 }
+int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
+    uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
+    uint32_t budget,rf_physics_body *result)
+{return rf_entity_body_open_accounted(config,spheres,count,position,orientation,creation_flags,budget,result,NULL);}
 typedef struct lexer {const unsigned char *text;uint32_t size,at;} lexer;
 static int same(const char *a,const char *b)
 {

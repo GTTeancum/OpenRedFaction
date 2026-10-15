@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_SECONDARY_VEHICLE_CHECKPOINT_INCLUDED
 #define RF_SCENE_SECONDARY_VEHICLE_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFSV1 preserves the original single-APC bytes. RFSV2 stores a bounded
  * collection of APC/submarine/Fighter/Masako owners around RFVA2, beneath optional RFPV.
  * Distinct profile6 identifies masako_fighter; all row offsets stay unchanged.
@@ -250,12 +251,12 @@ static int scene_secondary_vehicle_checkpoint_capture(const scene_stream *s,unsi
     }
     ++rf_scene_secondary_vehicle_checkpoint[0];*written=(uint32_t)required;return RF_OK;
 }
-static int scene_secondary_vehicle_checkpoint_decode(scene_stream *s,const unsigned char *row,uint32_t version,
-    scene_secondary_vehicle_checkpoint_entry *entry)
+static int scene_secondary_vehicle_checkpoint_decode_accounted(scene_stream *s,const unsigned char *row,uint32_t version,
+    scene_secondary_vehicle_checkpoint_entry *entry,const rf_prepare_memory *memory)
 {
     scene_secondary_vehicle_runtime *r=entry->runtime;scene_passive_vehicle_saved *v=&entry->passive;int status;
     uint32_t slot=r->slot;
-    status=scene_secondary_vehicle_prepare(s,slot,1,r);if(status)return status;
+    status=scene_secondary_vehicle_prepare_accounted(s,slot,1,r,memory);if(status)return status;
     if(r->profile!=scene_history_word(row+4)||r->uid!=scene_history_word(row))return RF_FORMAT;
     status=scene_secondary_vehicle_checkpoint_owner(r,1);if(status)return status;
     r->retired=scene_history_word(row+8);r->scripted_physics=scene_history_word(row+12);
@@ -303,8 +304,11 @@ static int scene_secondary_vehicle_checkpoint_decode(scene_stream *s,const unsig
     status=scene_secondary_vehicle_checkpoint_valid(r,v,version);if(status)return status;
     return scene_secondary_vehicle_bind(s,r);
 }
-static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
-    scene_secondary_vehicle_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static inline int scene_secondary_vehicle_checkpoint_decode(scene_stream *s,const unsigned char *row,uint32_t version,
+    scene_secondary_vehicle_checkpoint_entry *entry)
+{return scene_secondary_vehicle_checkpoint_decode_accounted(s,row,version,entry,NULL);}
+static int scene_secondary_vehicle_checkpoint_prepare_accounted(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_secondary_vehicle_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_secondary_vehicle_checkpoint_stage *stage=NULL;
     uint32_t nested,count,version,capacity=campaign_passive_vehicle_count;int status=RF_FORMAT;uint64_t required,cost;
@@ -319,9 +323,18 @@ static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *s,const unsi
     cost=sizeof(*stage)+(uint64_t)capacity*sizeof(*stage->pool)+
         (uint64_t)count*(sizeof(*stage->entries)+sizeof(scene_secondary_vehicle_runtime));
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(admitted)return admitted;}
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
     stage->count=count;stage->capacity=capacity;stage->version=version;stage->bytes=(uint32_t)cost;
-    stage->pool=calloc(capacity,sizeof(*stage->pool));stage->entries=calloc(count,sizeof(*stage->entries));
+    /* Successful admissions must not replace RF_FORMAT: malformed rows below
+     * use bare goto fail before decode assigns a new status. */
+    {int admitted=rf_prepare_memory_admit(memory,NULL,(size_t)capacity*sizeof(*stage->pool));
+     if(admitted){status=admitted;goto fail;}}
+    stage->pool=calloc(capacity,sizeof(*stage->pool));
+    if(memory&&!stage->pool){status=RF_IO;goto fail;}
+    {int admitted=rf_prepare_memory_admit(memory,NULL,(size_t)count*sizeof(*stage->entries));
+     if(admitted){status=stage->pool?admitted:RF_IO;goto fail;}}
+    stage->entries=calloc(count,sizeof(*stage->entries));
     if(!stage->pool||!stage->entries){status=RF_IO;goto fail;}
     /* Establish all distinct final-address slots before decoding any embedded
      * route or collision pointers. No live state, callbacks or event replay. */
@@ -334,12 +347,14 @@ static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *s,const unsi
         if(matches!=1){status=RF_NOT_FOUND;goto fail;}
         if(stage->pool[slot])goto fail;
         for(uint32_t j=0;j<i;j++)if(stage->entries[j].runtime->uid==uid)goto fail;
+        {int admitted=rf_prepare_memory_admit(memory,NULL,sizeof(scene_secondary_vehicle_runtime));
+         if(admitted){status=admitted;goto fail;}}
         scene_secondary_vehicle_runtime *r=calloc(1,sizeof(*r));if(!r){status=RF_IO;goto fail;}
         stage->pool[slot]=r;stage->entries[i].runtime=r;r->slot=slot;r->uid=uid;
     }
     for(uint32_t i=0;i<count;i++){
-        status=scene_secondary_vehicle_checkpoint_decode(s,p+SCENE_SECONDARY_VEHICLE_HEADER+nested+
-            i*SCENE_SECONDARY_VEHICLE_ROW,version,stage->entries+i);
+        status=scene_secondary_vehicle_checkpoint_decode_accounted(s,p+SCENE_SECONDARY_VEHICLE_HEADER+nested+
+            i*SCENE_SECONDARY_VEHICLE_ROW,version,stage->entries+i,memory);
         if(status)goto fail;
     }
     *out=stage;*inner=p+SCENE_SECONDARY_VEHICLE_HEADER;*inner_bytes=nested;
@@ -347,6 +362,9 @@ static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *s,const unsi
 fail:
     scene_secondary_vehicle_checkpoint_close(&stage);return status;
 }
+static int scene_secondary_vehicle_checkpoint_prepare(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_secondary_vehicle_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_secondary_vehicle_checkpoint_prepare_accounted(s,p,bytes,budget,out,inner,inner_bytes,NULL);}
 static int scene_secondary_vehicle_checkpoint_admit(const scene_stream *s,scene_secondary_vehicle_checkpoint_stage *stage,
     const scene_passive_vehicle_checkpoint_stage *passive,const scene_vehicle_physics_checkpoint_stage *physics)
 {

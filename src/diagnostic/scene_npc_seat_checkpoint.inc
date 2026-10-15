@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_NPC_SEAT_CHECKPOINT_INCLUDED
 #define RF_SCENE_NPC_SEAT_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFNS1/2/3 live beneath RFTU wrappers and outside RFVA/vehicle bytes.
  * Include after seat runtime, turret/NPC stages and checkpoint world placement.
  * Explicit stages only: no temporary mutation of live links during admission.
@@ -72,10 +73,10 @@ static int scene_npc_seat_checkpoint_capture(unsigned char *p,uint32_t capacity,
     }
     *written=(uint32_t)required;++rf_scene_npc_seat_checkpoint[0];return RF_OK;
 }
-static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
-    uint32_t budget,scene_npc_seat_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_npc_seat_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_npc_seat_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
-    scene_npc_seat_checkpoint_stage *s;uint32_t n,size,i,j,version;uint64_t allocated;
+    scene_npc_seat_checkpoint_stage *s;uint32_t n,size,i,j,version;uint64_t allocated;int status;
     if(!out||*out||!inner||!inner_bytes||(bytes&&!p))return RF_RANGE;
     if(bytes<4||memcmp(p,"RFNS",4)) {
         /* Legacy occupied-level saves lack an ownership contract. Keep them
@@ -88,6 +89,7 @@ static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t byt
     size=scene_history_word(p+8);n=scene_history_word(p+12);
     if(!n||n!=scene_npc_seat_count||n>SCENE_NPC_SEAT_LIMIT||16u+(uint64_t)size+(uint64_t)n*24u!=bytes)return RF_FORMAT;
     allocated=sizeof(*s)+(uint64_t)n*sizeof(*s->rows);if(allocated>budget)return RF_RANGE;
+    status=rf_prepare_memory_admit(memory,NULL,(size_t)allocated);if(status)return status;
     s=calloc(1,(size_t)allocated);if(!s)return RF_IO;s->count=n;s->allocated_bytes=(uint32_t)allocated;
     for(i=0;i<n;i++) {
         const unsigned char *q=p+16+size+i*24;scene_npc_seat_saved *v=s->rows+i;
@@ -106,6 +108,9 @@ static int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t byt
     *out=s;*inner=p+16;*inner_bytes=size;return RF_OK;
 malformed:free(s);return RF_FORMAT;
 }
+static inline int scene_npc_seat_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_npc_seat_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_npc_seat_checkpoint_prepare_accounted(p,bytes,budget,out,inner,inner_bytes,NULL);}
 static const scene_npc_seat_saved *scene_npc_seat_checkpoint_find(const scene_npc_seat_checkpoint_stage *s,uint32_t uid)
 {
     uint32_t i;if(s)for(i=0;i<s->count;i++)if(s->rows[i].actor_uid==uid)return s->rows+i;

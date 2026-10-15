@@ -24,6 +24,8 @@ static int scene_tactical_cancel(campaign_npc_body *o,int32_t now)
     if(!o)return RF_RANGE;
     next=o->tactical;status=scene_tactical_receipt_cancel(&next,now);if(status)return status;
     status=scene_tactical_route_retire(o);if(status)return status;
+    scene_pursuit_token_invalidate_owner(o); /* successful relation cancellation */
+    scene_pursuit_return_receipt_clear(&o->pursuit_return);
     o->tactical=next;return RF_OK;
 }
 static int scene_tactical_finish(campaign_npc_body *o,int32_t now)
@@ -65,7 +67,22 @@ static int scene_tactical_maintain(campaign_npc_body *o,int32_t now)
     if(!o->body.allocated_bytes||!isfinite(o->damage.effects.health)||
        o->damage.effects.health<=0||(o->view.flags_810&1u)){
         /* Death/source retirement owns its movement cleanup separately. */
+        scene_pursuit_token_invalidate_owner(o);
+        scene_pursuit_return_receipt_clear(&o->pursuit_return);
         memset(&o->tactical,0,sizeof(o->tactical));return RF_OK;
+    }
+    /* Queue-only return work can exist without tactical PRESENT. Retire a
+     * stale combat relation before the tactical-absence early exit; do not
+     * treat hidden/suppressed/scheduled-later owners as stale. Phase4 remains
+     * an error, never an automatically cleared/requeued execution attempt. */
+    status=scene_pursuit_return_receipt_admit(&o->pursuit_return);if(status)return status;
+    if(o->pursuit_return.phase){
+        target=scene_blind_target_handle(o);
+        if(target!=o->pursuit_return.target||!scene_blind_target_live(target)||
+           o->combat_scripted!=o->pursuit_return.combat_mode){
+            scene_pursuit_token_invalidate_owner(o); /* stale return relation */
+            scene_pursuit_return_receipt_clear(&o->pursuit_return);
+        }
     }
     status=scene_tactical_receipt_age(&o->tactical,now);if(status)return status;
     if(!(o->tactical.flags&SCENE_TACTICAL_PRESENT))return RF_OK;

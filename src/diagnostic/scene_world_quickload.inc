@@ -2,6 +2,7 @@
  * Full component/resource admission remains in the fresh-scene loader. */
 static int scene_world_quickload_request(scene_stream *stream,uint32_t death_recovery)
 {
+    {int boundary=scene_pursuit_save_boundary();if(boundary)return boundary;}
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};
     unsigned char *data=NULL;uint32_t bytes=0,i,prefix=0;int status=RF_OK;
     rf_world_checkpoint world;rf_level target;rf_vpp target_archive={0};char directory[1024];

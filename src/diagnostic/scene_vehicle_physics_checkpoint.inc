@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_VEHICLE_PHYSICS_CHECKPOINT_INCLUDED
 #define RF_SCENE_VEHICLE_PHYSICS_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFPV1..4 wrap RFVA/ordinary vehicle bytes, beneath RFNS. Version2 adds the
  * hidden object bit; version3 adds selected-host invulnerability in the same
  * row. Version4 uses the formerly zero final word for headlamp810 bit4000.
@@ -136,8 +137,8 @@ static int scene_vehicle_physics_checkpoint_capture(const scene_stream *s,unsign
     ++rf_scene_vehicle_physics_checkpoint[0];rf_scene_vehicle_physics_checkpoint[1]=count;
     *written=(uint32_t)required;return RF_OK;
 }
-static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
-    scene_vehicle_physics_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_vehicle_physics_checkpoint_prepare_accounted(const scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_physics_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_vehicle_physics_checkpoint_stage *stage=NULL;uint32_t count,nested,version;uint64_t required,cost;
     if(!s||!out||*out||!inner||!inner_bytes||(!p&&bytes))return RF_RANGE;
@@ -150,7 +151,10 @@ static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *s,const 
     cost=sizeof(*stage)+(uint64_t)count*sizeof(*stage->rows);
     if(!count||count!=scene_vehicle_physics_checkpoint_count(s)||required!=bytes||required>RF_CHECKPOINT_FILE_MAX)return RF_FORMAT;
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(admitted)return admitted;}
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,(size_t)count*sizeof(*stage->rows));
+     if(admitted){free(stage);return admitted;}}
     stage->rows=calloc(count,sizeof(*stage->rows));if(!stage->rows){free(stage);return RF_IO;}
     stage->count=count;stage->bytes=(uint32_t)cost;stage->version=version;
     for(uint32_t i=0;i<count;i++){
@@ -171,6 +175,9 @@ static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *s,const 
     }
     *out=stage;*inner=p+SCENE_VEHICLE_PHYSICS_HEADER;*inner_bytes=nested;return RF_OK;
 }
+static int scene_vehicle_physics_checkpoint_prepare(const scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_physics_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_vehicle_physics_checkpoint_prepare_accounted(s,p,bytes,budget,out,inner,inner_bytes,NULL);}
 static int scene_vehicle_physics_checkpoint_admit(const scene_stream *s,scene_vehicle_physics_checkpoint_stage *stage,
     const scene_vehicle_checkpoint_record *vehicle,const scene_passive_vehicle_checkpoint_stage *passive)
 {

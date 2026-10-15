@@ -36,7 +36,7 @@ static int scene_crouch_prepared(const scene_npc_checkpoint_restore_stage *stage
     status=scene_tactical_source(e->slot);if(status)return status;
     status=scene_crouch_shape_seal_check(&o->body.spheres,campaign_npc_stances+e->saved.class_id,
         &e->crouch_shape.prepared,&e->crouch_shape);if(status)return status;
-    status=scene_crouch_shape_prepare(&o->body.spheres,campaign_npc_stances+e->saved.class_id,
+    status=scene_crouch_shape_prepare_private(&o->body.spheres,campaign_npc_stances+e->saved.class_id,
         e->published,e->owner_before.view.flags_810,physical,&shape);if(status)return status;
     if(memcmp(&shape,&e->crouch_shape.prepared,sizeof(shape)))return RF_FORMAT;
     return RF_OK;

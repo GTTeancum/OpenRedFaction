@@ -21,6 +21,16 @@ typedef int (*rf_vpp_visitor)(const rf_vpp_entry *entry, void *context);
 /* Open validates every directory entry. Close before reopening the same handle. */
 int rf_vpp_open(rf_vpp *archive, const char *path);
 void rf_vpp_close(rf_vpp *archive);
+/* Opt-in checked ownership; legacy open/close and rf_vpp layout are unchanged.
+ * Checked open requires a zero-initialized empty destination. Any failed close
+ * permanently blocks later checked opens, including after scene/menu teardown.
+ * Checked open also checks closes on validation failure. Close clears ownership
+ * before its single fclose attempt: never retry or retain the old FILE pointer.
+ * Cleanup of another owned archive remains allowed after uncertainty; it still
+ * reports RF_IO while the process latch is set. No reset API is provided. */
+int rf_vpp_checked_idle_status(void);
+int rf_vpp_open_checked(rf_vpp *archive, const char *path);
+int rf_vpp_close_checked(rf_vpp *archive);
 int rf_vpp_visit(rf_vpp *archive, rf_vpp_visitor visitor, void *context);
 int rf_vpp_find(rf_vpp *archive, const char *name, rf_vpp_entry *entry);
 /* Entry must originate from this archive; offsets and lengths are bounds checked. */

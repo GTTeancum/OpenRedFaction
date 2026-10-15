@@ -2,6 +2,7 @@
  * checkpoint helpers. Not wired by this include. RFTU2 wraps an unchanged
  * authored-only RFTU1 (or vehicle payload); version1 readers remain unchanged.
  * Parent supplies pending NPC facts during admission, before any assignment. */
+#include "rf/prepare_memory.h"
 enum {SCENE_TURRET_GENERATED_CHECKPOINT_HEADER=16,
       SCENE_TURRET_GENERATED_CHECKPOINT_ROW=216};
 typedef struct scene_turret_generated_base_saved {
@@ -227,9 +228,9 @@ static int scene_turret_generated_checkpoint_decode(const unsigned char *p,scene
 /* Parse/resolve only. No live owner or pose changes. Dead generated owners must
  * already have a parent-reserved restore owner; live-only factory cannot create
  * them after dead NPC checkpoint publication. */
-static int scene_turret_generated_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+static int scene_turret_generated_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,
     uint32_t frame,uint32_t budget,scene_turret_generated_checkpoint_stage **out,
-    const unsigned char **inner,uint32_t *inner_bytes)
+    const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_turret_generated_checkpoint_stage *stage;const unsigned char *body;
     uint32_t n,size,i,j,handle;uint64_t allocated;int status;
@@ -243,6 +244,7 @@ static int scene_turret_generated_checkpoint_prepare(const unsigned char *p,uint
     }
     allocated=sizeof(*stage)+(uint64_t)n*sizeof(*stage->rows);
     if(n!=scene_turret_generated_count || allocated>budget || allocated>UINT32_MAX)return RF_RANGE;
+    status=rf_prepare_memory_admit(memory,NULL,(size_t)allocated);if(status)return status;
     stage=calloc(1,(size_t)allocated);if(!stage)return RF_IO;
     stage->count=n;stage->frame=frame;stage->allocated_bytes=(uint32_t)allocated;
     for(i=0;i<n;i++) {
@@ -261,6 +263,10 @@ static int scene_turret_generated_checkpoint_prepare(const unsigned char *p,uint
 fail:
     scene_turret_generated_checkpoint_close(&stage);return status;
 }
+static inline int scene_turret_generated_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+    uint32_t frame,uint32_t budget,scene_turret_generated_checkpoint_stage **out,
+    const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_turret_generated_checkpoint_prepare_accounted(p,bytes,frame,budget,out,inner,inner_bytes,NULL);}
 /* Admit alongside pending NPC + authored turret stages, before any assigns.
  * This compares saved base health/death with the pending NPC source, not with
  * whatever damage/AI happened in the running scene after the save. */

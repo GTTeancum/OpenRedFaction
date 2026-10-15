@@ -1,5 +1,7 @@
+#include "rf/checkpoint_file.h"
 #ifndef RF_SCENE_WORLD_CHECKPOINT_IDENTITY_INCLUDED
 #define RF_SCENE_WORLD_CHECKPOINT_IDENTITY_INCLUDED
+#include "rf/prepare_memory.h"
 /* Include after checkpoint_sha helpers and campaign registry declarations.
  * Versioned player pseudo-UID is reserved globally in this save profile;
  * authored objects/items may not use it. Keys are aliases to controller UIDs,
@@ -16,7 +18,7 @@ static int scene_world_checkpoint_uid_add(rf_level_uid_object *rows,uint32_t *co
     for(i=0;i<*count;i++)if(rows[i].uid==uid||(handle!=UINT32_MAX&&rows[i].handle==handle))return RF_FORMAT;
     rows[*count]=(rf_level_uid_object){uid,handle,flags};(*count)++;return RF_OK;
 }
-static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_level_uid_object **out,uint32_t *count,uint32_t budget)
+static int scene_world_checkpoint_uid_map_open_accounted(const scene_stream *scene,rf_level_uid_object **out,uint32_t *count,uint32_t budget,const rf_prepare_memory *memory)
 {
     rf_level_uid_object *rows;uint64_t capacity;uint32_t n=0,i,j;int status;
     if(!scene||!out||*out||!count)return RF_RANGE;
@@ -29,7 +31,11 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
        (campaign_mover_count&&(!campaign_mover_objects||!campaign_mover_wrappers))||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||campaign_seeds.records.count<campaign_npc_body_count))||
        (campaign_clutter_records.count&&!campaign_clutter_records.items)||(scene->pickups.count&&!scene->pickups.items))return RF_RANGE;
-    rows=malloc((size_t)capacity*sizeof(*rows));if(!rows)return RF_IO;
+    /* out is the caller's pinned pointer-variable identity, not local rows.
+     * Keep its reservation on success until the caller actually frees *out.
+     * Charge allocated capacity; the populated/filter count can be smaller. */
+    status=rf_prepare_memory_admit(memory,out,(size_t)capacity*sizeof(*rows));if(status)return status;
+    rows=malloc((size_t)capacity*sizeof(*rows));if(!rows){status=RF_IO;goto fail;}
 #define WORLD_UID(uid,handle,flags,owner,absent) do{status=scene_world_checkpoint_uid_add(rows,&n,uid,handle,flags,owner,absent);if(status)goto fail;}while(0)
     for(i=0;i<campaign_events.count;i++){
         const rf_runtime_event *e=campaign_events.items+i;if(!e->authored||e->retired>1){status=RF_FORMAT;goto fail;}
@@ -108,22 +114,28 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
     rows[n++]=(rf_level_uid_object){SCENE_WORLD_CHECKPOINT_PLAYER_UID,campaign_player_object.handle,campaign_player_view.flags_7c};
     for(i=0,j=0;i<n;i++)if(rows[i].handle!=UINT32_MAX)rows[j++]=rows[i];
     if(j>RF_OBJECT_CAPACITY){status=RF_RANGE;goto fail;}*out=rows;*count=j;return RF_OK;
-fail:free(rows);return status;
+fail:free(rows);return rf_prepare_memory_finish(memory,out,status);
 }
+static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_level_uid_object **out,uint32_t *count,uint32_t budget)
+{return scene_world_checkpoint_uid_map_open_accounted(scene,out,count,budget,NULL);}
 /* Boot-only identity. Full original RFL entry and full validated tables.vpp
  * bytes bind sections, class/weapon definitions and catalog order; the runtime
  * weapon catalog hash additionally binds its loader policy. This does NOT hash
  * external model/motion/texture/audio payloads. A new resource manifest/version
  * is required before claiming cross-install asset compatibility. No DEV data. */
-static int scene_world_checkpoint_source_identity(const rf_level *level,const char *tables_path,
-    uint32_t weapon_catalog_hash,unsigned char out[32])
+static int scene_world_checkpoint_source_identity_accounted(const rf_level *level,const char *tables_path,
+    uint32_t weapon_catalog_hash,unsigned char out[32],const rf_checkpoint_file_admission *admission)
 {
     checkpoint_sha hash;rf_vpp tables={0};unsigned char scratch[4096],result[32];
     uint32_t offset,n;long position;int status=RF_OK;
     if(!level||!level->archive||!level->archive->stream||!tables_path||!out||
        !memchr(level->entry.name,0,sizeof(level->entry.name)))return RF_RANGE;
+    if(admission){if(!admission->before_open)return RF_RANGE;
+        status=rf_vpp_checked_idle_status();if(status)return status;}
     position=ftell(level->archive->stream);if(position<0)return RF_IO;
-    status=rf_vpp_open(&tables,tables_path);if(status)return status;
+    if(admission){status=admission->before_open(admission->context,tables_path);if(status)return status;}
+    status=admission?rf_vpp_open_checked(&tables,tables_path):rf_vpp_open(&tables,tables_path);
+    if(status)return status;
     checkpoint_sha_init(&hash);checkpoint_sha_add(&hash,"RF ordinary source v1",22);
     checkpoint_sha_word(&hash,weapon_catalog_hash);
     checkpoint_sha_add(&hash,level->entry.name,(uint32_t)strlen(level->entry.name)+1);checkpoint_sha_word(&hash,level->entry.size);
@@ -138,7 +150,13 @@ static int scene_world_checkpoint_source_identity(const rf_level *level,const ch
         if(fread(scratch,1,n,tables.stream)!=n){status=RF_IO;goto done;}checkpoint_sha_add(&hash,scratch,n);
     }
     checkpoint_sha_end(&hash,result);
-done:rf_vpp_close(&tables);if(fseek(level->archive->stream,position,SEEK_SET))status=RF_IO;
+done:
+    if(admission){if(rf_vpp_close_checked(&tables))status=RF_IO;}
+    else rf_vpp_close(&tables);
+    if(fseek(level->archive->stream,position,SEEK_SET))status=RF_IO;
     if(!status)memcpy(out,result,32);return status;
 }
+static int scene_world_checkpoint_source_identity(const rf_level *level,const char *tables_path,
+    uint32_t weapon_catalog_hash,unsigned char out[32])
+{return scene_world_checkpoint_source_identity_accounted(level,tables_path,weapon_catalog_hash,out,NULL);}
 #endif

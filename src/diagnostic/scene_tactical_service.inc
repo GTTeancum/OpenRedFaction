@@ -22,6 +22,9 @@ static int scene_tactical_admit_phase(uint32_t slot,
     campaign_npc_body *o;scene_tactical_receipt next;uint32_t target,seed;int status;
     if(!campaign_npc_bodies||slot>=campaign_npc_body_count)return RF_RANGE;
     o=campaign_npc_bodies+slot;
+    /* A queued return owns its once-only tactical begin; ordinary admission
+     * must not draw or arm a second episode while that continuation waits. */
+    if(o->pursuit_return.phase)return RF_OK;
     if(o->tactical.flags&SCENE_TACTICAL_PRESENT)return RF_OK;
     if(!scene_tactical_service_allowed(o))return RF_OK;
     status=scene_tactical_weapon(o,selected);if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;

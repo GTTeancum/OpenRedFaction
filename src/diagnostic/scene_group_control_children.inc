@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_GROUP_CONTROL_CHILDREN_INC
 #define RF_SCENE_GROUP_CONTROL_CHILDREN_INC
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 /* Bounded scene adapter for the first-list children of 46bbe0. Registry
  * ownership stays with the ordinary static-clutter and trigger factories.
  * Include after campaign_clutter_registered / rf_scene_clutter_pose_set.
@@ -356,12 +358,14 @@ typedef struct scene_group_control_restore_stage {
     scene_group_control_restore_entry entries[];
 } scene_group_control_restore_stage;
 
-static void campaign_group_control_children_close_stage(scene_group_control_restore_stage **out)
-{if(out&&*out){free(*out);*out=NULL;}}
+static void campaign_group_control_children_close_stage_storage(scene_group_control_restore_stage **out,const rf_prepare_storage *storage)
+{if(out&&*out){(void)rf_prepare_storage_release(storage,NULL,NULL,*out,RF_OK);*out=NULL;}}
+static inline void campaign_group_control_children_close_stage(scene_group_control_restore_stage **out)
+{campaign_group_control_children_close_stage_storage(out,NULL);}
 
-static int campaign_group_control_children_prepare(const rf_group_controller_view *staged,
+static int campaign_group_control_children_prepare_storage_accounted(const rf_group_controller_view *staged,
     uint32_t count,const rf_geometry_collision_world *world,uint32_t budget,
-    scene_group_control_restore_stage **out)
+    scene_group_control_restore_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *storage)
 {
     scene_group_control_restore_stage *stage=NULL;rf_group_controller_view *views=NULL;
     uint64_t retained,peak;uint32_t i;int status=RF_OK;
@@ -370,8 +374,12 @@ static int campaign_group_control_children_prepare(const rf_group_controller_vie
     retained=sizeof(*stage)+(uint64_t)campaign_group_control_child_count*sizeof(*stage->entries);
     peak=retained+(uint64_t)count*sizeof(*views);
     if(peak>budget || peak>UINT32_MAX)return RF_RANGE;
-    stage=calloc(1,(size_t)retained);if(!stage)return RF_IO;
-    if(count){views=malloc(count*sizeof(*views));if(!views){status=RF_IO;goto fail;}}
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,NULL,(size_t)retained,&allocation);
+     if(status)return status;stage=allocation;}
+    if(count){
+        {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,&views,(size_t)count*sizeof(*views),&allocation);
+         if(status)goto fail;views=allocation;}
+    }
     stage->count=campaign_group_control_child_count;stage->controller_count=count;
     stage->allocated_bytes=(uint32_t)retained;stage->peak_bytes=(uint32_t)peak;
     stage->original_children=campaign_group_control_children;
@@ -406,9 +414,19 @@ static int campaign_group_control_children_prepare(const rf_group_controller_vie
         }
         next->present=1;
     }
-    free(views);*out=stage;return RF_OK;
- fail:free(views);free(stage);return status;
+    status=rf_prepare_storage_release(storage,memory,&views,views,RF_OK);views=NULL;if(status)goto fail;
+    *out=stage;return RF_OK;
+ fail:status=rf_prepare_storage_release(storage,memory,&views,views,status);
+    (void)rf_prepare_storage_release(storage,NULL,NULL,stage,RF_OK);return status;
 }
+static int campaign_group_control_children_prepare_accounted(const rf_group_controller_view *staged,
+    uint32_t count,const rf_geometry_collision_world *world,uint32_t budget,
+    scene_group_control_restore_stage **out,const rf_prepare_memory *memory)
+{return campaign_group_control_children_prepare_storage_accounted(staged,count,world,budget,out,memory,NULL);}
+static inline int campaign_group_control_children_prepare(const rf_group_controller_view *staged,
+    uint32_t count,const rf_geometry_collision_world *world,uint32_t budget,
+    scene_group_control_restore_stage **out)
+{return campaign_group_control_children_prepare_accounted(staged,count,world,budget,out,NULL);}
 
 static int campaign_group_control_children_validate(const scene_group_control_restore_stage *stage)
 {

@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_CAMPAIGN_HISTORY_CHECKPOINT_INCLUDED
 #define RF_SCENE_CAMPAIGN_HISTORY_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -411,14 +413,18 @@ static int scene_campaign_history_checkpoint_encode(const scene_stream *stream,c
     if(!status){memcpy(out,p,bytes);*written=bytes;}
  done:free(p);free(s);return status;
 }
+static inline void scene_campaign_history_checkpoint_close_storage(scene_campaign_history_checkpoint_stage **s,const rf_prepare_storage *provider)
+{if(s){(void)rf_prepare_storage_release(provider,NULL,NULL,*s,RF_OK);*s=NULL;}}
 static inline void scene_campaign_history_checkpoint_close(scene_campaign_history_checkpoint_stage **s)
-{if(s){free(*s);*s=NULL;}}
-static inline int scene_campaign_history_checkpoint_prepare(const unsigned char identity[32],const void *data,uint32_t bytes,
-    uint32_t budget,scene_campaign_history_checkpoint_stage **out)
+{scene_campaign_history_checkpoint_close_storage(s,NULL);}
+static inline int scene_campaign_history_checkpoint_prepare_storage_accounted(const unsigned char identity[32],const void *data,uint32_t bytes,
+    uint32_t budget,scene_campaign_history_checkpoint_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *provider)
 {
     scene_campaign_history_checkpoint_stage *s;const unsigned char *p=data,*r;uint32_t i,k,j,at=96;int status;
     if(!out||*out)return RF_RANGE;status=scene_campaign_history_checkpoint_preflight(identity,data,bytes);if(status)return status;
-    if(sizeof(*s)>budget)return RF_RANGE;s=calloc(1,sizeof(*s));if(!s)return RF_IO;
+    if(sizeof(*s)>budget)return RF_RANGE;
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(provider,memory,NULL,sizeof(*s),&allocation);
+     if(status)return status;s=allocation;}
     s->countdown.difficulty=1;
     if(scene_history_word(p+4)>=3){s->countdown.remaining=scene_history_float(p+80);
         s->countdown.expiry_pending=scene_history_word(p+84);s->countdown.difficulty=scene_history_word(p+88);}
@@ -449,10 +455,16 @@ static inline int scene_campaign_history_checkpoint_prepare(const unsigned char 
     if(scene_history_word(p+4)>=10)for(i=0;i<s->actors.count;i++)if(s->actors.routes[i].flags&64){
         s->actors.routes[i].dwell_remaining=scene_history_word(p+at);at+=4;
     }
-    if(scene_history_word(p+4)>=2){status=scene_history_carry_read(p+at,scene_history_word(p+72),s);if(status){free(s);return status;}}
-    status=scene_history_route_sections(&s->actors);if(status){free(s);return status;}
+    if(scene_history_word(p+4)>=2){status=scene_history_carry_read(p+at,scene_history_word(p+72),s);if(status){(void)rf_prepare_storage_release(provider,NULL,NULL,s,RF_OK);return status;}}
+    status=scene_history_route_sections(&s->actors);if(status){(void)rf_prepare_storage_release(provider,NULL,NULL,s,RF_OK);return status;}
     *out=s;return RF_OK;
 }
+static inline int scene_campaign_history_checkpoint_prepare_accounted(const unsigned char identity[32],const void *data,uint32_t bytes,
+    uint32_t budget,scene_campaign_history_checkpoint_stage **out,const rf_prepare_memory *memory)
+{return scene_campaign_history_checkpoint_prepare_storage_accounted(identity,data,bytes,budget,out,memory,NULL);}
+static inline int scene_campaign_history_checkpoint_prepare(const unsigned char identity[32],const void *data,uint32_t bytes,
+    uint32_t budget,scene_campaign_history_checkpoint_stage **out)
+{return scene_campaign_history_checkpoint_prepare_accounted(identity,data,bytes,budget,out,NULL);}
 /* Assignment-only publication after ALL composed components have preflighted.
  * Caller holds scene stable; this does not touch current runtime owners. */
 static inline void scene_campaign_history_checkpoint_publish(const scene_campaign_history_checkpoint_stage *s)
@@ -478,8 +490,10 @@ typedef struct scene_campaign_history_rebind_stage {
     uint32_t body_count,event_count,bytes;
     scene_history_npc_rebind entries[];
 } scene_campaign_history_rebind_stage;
+static inline void scene_campaign_history_checkpoint_rebind_close_storage(scene_campaign_history_rebind_stage **s,const rf_prepare_storage *provider)
+{if(s){(void)rf_prepare_storage_release(provider,NULL,NULL,*s,RF_OK);*s=NULL;}}
 static inline void scene_campaign_history_checkpoint_rebind_close(scene_campaign_history_rebind_stage **s)
-{if(s){free(*s);*s=NULL;}}
+{scene_campaign_history_checkpoint_rebind_close_storage(s,NULL);}
 static int scene_history_find(const char (*levels)[64],uint32_t nl,
     const rf_campaign_object_record *items,uint32_t count,const char *level,uint32_t uid,uint32_t *slot)
 {
@@ -514,8 +528,8 @@ static int scene_history_event_bindings(const scene_campaign_history_checkpoint_
     }
     return RF_OK;
 }
-static inline int scene_campaign_history_checkpoint_rebind_prepare(const scene_campaign_history_checkpoint_stage *history,
-    uint32_t budget,scene_campaign_history_rebind_stage **out)
+static inline int scene_campaign_history_checkpoint_rebind_prepare_storage_accounted(const scene_campaign_history_checkpoint_stage *history,
+    uint32_t budget,scene_campaign_history_rebind_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *provider)
 {
     scene_campaign_history_rebind_stage *s;uint64_t bytes;uint32_t i,slot,old_slot;int status;
     if(!history||!out||*out||campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
@@ -523,7 +537,8 @@ static inline int scene_campaign_history_checkpoint_rebind_prepare(const scene_c
     if(scene_campaign_history_checkpoint_omissions()&(SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES|SCENE_CAMPAIGN_HISTORY_OMIT_NPC_SHIELDS))return RF_NOT_FOUND;
     status=scene_history_event_bindings(history);if(status)return status;
     bytes=sizeof(*s)+(uint64_t)campaign_npc_body_count*sizeof(*s->entries);if(bytes>budget||bytes>UINT32_MAX)return RF_RANGE;
-    s=calloc(1,(size_t)bytes);if(!s)return RF_IO;
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(provider,memory,NULL,(size_t)bytes,&allocation);
+     if(status)return status;s=allocation;}
     s->history=history;s->bodies=campaign_npc_bodies;s->events=campaign_events.items;
     s->body_count=campaign_npc_body_count;s->event_count=campaign_events.count;s->bytes=(uint32_t)bytes;
     for(i=0;i<s->body_count;i++){
@@ -541,8 +556,14 @@ static inline int scene_campaign_history_checkpoint_rebind_prepare(const scene_c
         {rf_level_waypoint_path path;status=scene_actor_route_admit(o,history->actors.routes+slot,&path);if(status)goto fail;}
     }
     *out=s;return RF_OK;
- fail:free(s);return status;
+ fail:(void)rf_prepare_storage_release(provider,NULL,NULL,s,RF_OK);return status;
 }
+static inline int scene_campaign_history_checkpoint_rebind_prepare_accounted(const scene_campaign_history_checkpoint_stage *history,
+    uint32_t budget,scene_campaign_history_rebind_stage **out,const rf_prepare_memory *memory)
+{return scene_campaign_history_checkpoint_rebind_prepare_storage_accounted(history,budget,out,memory,NULL);}
+static inline int scene_campaign_history_checkpoint_rebind_prepare(const scene_campaign_history_checkpoint_stage *history,
+    uint32_t budget,scene_campaign_history_rebind_stage **out)
+{return scene_campaign_history_checkpoint_rebind_prepare_accounted(history,budget,out,NULL);}
 static inline int scene_campaign_history_checkpoint_rebind_validate(const scene_campaign_history_rebind_stage *s)
 {
     uint32_t i,slot;int status;

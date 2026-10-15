@@ -307,6 +307,7 @@ static void scene_patrol_direction(campaign_npc_body *owner)
 }
 static void scene_patrol_clear_move(campaign_npc_body *owner)
 {
+    scene_pursuit_return_receipt_clear(&owner->pursuit_return);
     /* This publisher actually replaces the route. Keep independent recovery,
      * but never leave a relocating discriminator pointing at a cleared path. */
     if((owner->tactical.flags&SCENE_TACTICAL_PRESENT)&&
@@ -370,6 +371,7 @@ static int scene_patrol_return(campaign_npc_body *owner,int32_t now)
     status=scene_patrol_binding(index,&path,&mode);if(status)return status;
     next=owner->ai_mode;
     status=rf_entity_ai_set_action(&next,4,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
+    scene_pursuit_token_invalidate_owner(owner); /* accepted default movement return */
     scene_patrol_default_assign(owner,&path,mode,&next);return RF_OK;
 }
 static int scene_patrol_initialize(campaign_npc_body *owner,uint32_t index,int32_t now)

@@ -1,5 +1,6 @@
 #ifndef RF_PHYSICS_H
 #define RF_PHYSICS_H
+#include "rf/prepare_memory.h"
 #include "rf/vpp.h"
 #include "rf/random.h"
 /* Original4a0406..4a046e entry decision: negative/unordered orientation up-Y10c
@@ -178,6 +179,8 @@ int rf_physics_creation_body_open_moving(const rf_physics_creation_seed *seed,
  * Open body required. Source may alias old records; errors preserve body. */
 int rf_physics_body_replace_spheres(rf_physics_body *body,
     const rf_physics_sphere *source,uint32_t count,uint32_t budget);
+int rf_physics_body_replace_spheres_accounted(rf_physics_body *body,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,const rf_prepare_memory *memory);
 typedef struct rf_physics_stance_cache {
     uint32_t count;
     float centers[2][8][3]; /* standing, crouching */
@@ -556,4 +559,13 @@ int rf_physics_landing_velocity(const float velocity[3],const float previous_sup
 /* This branch is not selected for descriptor 1; use run_propose for run. */
 int rf_physics_ground_propose(rf_physics_body_state *state,float dt,float drag,
     const float steering_acceleration[3],const float support_velocity[3]);
+/* Optional preparation accounting; existing entry points remain wrappers. */
+int rf_physics_spheres_open_accounted(const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_spheres *result,const rf_prepare_memory *memory);
+int rf_physics_body_open_accounted(const rf_physics_body_parameters *parameters,
+    const rf_physics_sphere *source,uint32_t count,uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory);
+int rf_physics_creation_body_open_moving_accounted(const rf_physics_creation_seed *seed,
+    const float velocity[3],const float angular[3],float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory);
+int rf_physics_creation_body_open_accounted(const rf_physics_creation_seed *seed,float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory);
 #endif

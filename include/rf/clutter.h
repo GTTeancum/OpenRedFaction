@@ -1,5 +1,6 @@
 #ifndef RF_CLUTTER_H
 #define RF_CLUTTER_H
+#include "rf/prepare_memory.h"
 #include "rf/object_registry.h"
 #include "rf/model_file.h"
 /*4686c0: ten fixed material names, ASCII-insensitive, unknown -> default0.
@@ -250,4 +251,13 @@ int rf_clutter_create(rf_clutter_class *classes,uint32_t count,int32_t index,
     int32_t shield_class,const char *name,int32_t identifier,const float position[3],
     const float matrix[9],uint32_t persistent,int32_t now_ms,int32_t *next_slot,
     rf_object_list *list,const rf_clutter_create_backend *backend,rf_clutter_state **out);
+/* Optional preparation accounting; existing entry points remain wrappers. */
+int rf_clutter_base_open_accounted(const rf_clutter_create_descriptor *d,
+    rf_object_registry *registry,rf_object_list *objects,uint32_t *uid_cursor,
+    uint32_t room,uint32_t parent_byte,uint32_t parent_group,const float material[3],
+    const rf_clutter_base_backend *backend,uint32_t budget,rf_clutter_base_owner **out,const rf_prepare_memory *memory);
+int rf_clutter_shared_static_base_open_accounted(rf_clutter_shared_static_model *model,
+    const rf_clutter_create_descriptor *descriptor,rf_object_registry *registry,
+    rf_object_list *objects,uint32_t *uid_cursor,uint32_t room,uint32_t parent_byte,
+    uint32_t parent_group,const float material[3],uint32_t budget,rf_clutter_base_owner **out,const rf_prepare_memory *memory);
 #endif

@@ -40,6 +40,7 @@ static int campaign_ai_mode_apply(campaign_npc_body *owner,int32_t action,int32_
     next=owner->ai_mode;
     status=rf_entity_ai_set_action(&next,action,UINT32_MAX,UINT32_MAX,(float)now,0,0);if(status)return status;
     status=scene_guard_retreat_cancel(owner,now,SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
+    scene_pursuit_token_invalidate_owner(owner); /* accepted mode publication suffix */
     scene_ai_drone_smash_cancel_source(owner->registration.handle);
     campaign_pursuit_stop(owner);
     owner->combat_scripted=owner->combat_target=owner->combat_alert=0;scene_blind_clear(owner);

@@ -1,4 +1,5 @@
 #include "rf/resource_budget.h"
+#include "rf/prepare_memory.h"
 #include "rf/geomod_piece_bank.h"
 #include "rf/composed_checkpoint.h"
 #include "rf/vehicle_checkpoint.h"
@@ -1217,6 +1218,15 @@ static unsigned char *campaign_waypoints;static uint32_t campaign_waypoint_bytes
 static rf_level_navigation_workspace campaign_navigation_workspace;
 /* Shared non-reentrant graph and synchronous collision-search lease. */
 static uint32_t scene_flight_search_busy;
+/* Broader pursuit execution is staged but not called. Capture/restore must
+ * never observe its partial prelude; a failed entered transaction stays
+ * faulted until the old actor section has actually been destroyed. */
+static uint32_t scene_pursuit_execution_active;
+static int scene_pursuit_execution_fault;
+static int scene_pursuit_execution_boundary(void)
+{return scene_pursuit_execution_fault?scene_pursuit_execution_fault:
+    scene_pursuit_execution_active?RF_NOT_FOUND:RF_OK;}
+
 uint32_t rf_scene_navigation_workspace[4]; /* globals, bytes, edges, layout hash */
 uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content hash */
 uint32_t rf_scene_navpoint[8]; /* bound,missing,on writes,off writes,last index,last UID,old radius bits,new radius bits */
@@ -2159,7 +2169,7 @@ static int campaign_npc_motion_reserve(uint32_t bytes)
     }
     return RF_OK;
 }
-static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
+static int campaign_npc_motion_require_accounted(uint32_t skeleton,uint32_t id,const rf_prepare_memory *memory)
 {
     uint32_t cache;rf_motion_file *file;void *data;int status;
     if(skeleton>=campaign_playback_resources.model_count || skeleton>=campaign_motion_catalog.model_count ||
@@ -2173,6 +2183,7 @@ static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
         return rf_motion_file_bind_memory(file,campaign_npc_motion_data[cache],campaign_npc_motion_sizes[cache]);
     }
     status=campaign_npc_motion_reserve(file->entry.size);if(status)return status;
+    status=rf_prepare_memory_admit(memory,NULL,file->entry.size);if(status)return status;
     data=malloc(file->entry.size);if(!data)return RF_IO;
     status=rf_vpp_read(file->archive,&file->entry,0,data,file->entry.size);
     if(!status)status=rf_motion_file_bind_memory(file,data,file->entry.size);
@@ -2180,6 +2191,11 @@ static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
     campaign_npc_motion_data[cache]=data;campaign_npc_motion_sizes[cache]=file->entry.size;
     campaign_npc_motion_bytes+=file->entry.size;return RF_OK;
 }
+/* Legacy live consumers retain their existing allocation policy. Restore
+ * callers preflight the complete missing set against the cache ceiling before
+ * invoking the accounted variant, so its reserve call cannot evict payloads. */
+static int campaign_npc_motion_require(uint32_t skeleton,uint32_t id)
+{return campaign_npc_motion_require_accounted(skeleton,id,NULL);}
 /* Corpse5033b0/5033e0 use model-local motion IDs, not actor action slots. */
 int rf_scene_corpse_play(const rf_corpse *corpse,int32_t motion)
 {
@@ -5081,6 +5097,7 @@ typedef struct campaign_single_fire_request {
 #include "scene_robot_death_types.inc"
 #include "scene_medic_syringe_types.inc"
 #include "scene_tactical_receipt.inc"
+#include "scene_pursuit_return_receipt.inc"
 #include "scene_crouch_receipt.inc"
 #include "scene_pursuit_delay_receipt.inc"
 #include "scene_crouch_fire_action.inc"
@@ -5109,6 +5126,7 @@ typedef struct campaign_npc_body {
     struct {uint32_t present,target,last_seen;} blind; /* Independent12B RFNC37 sight-age owner. */
     scene_pursuit_delay_receipt pursuit_delay;
     scene_tactical_receipt tactical; /* Independent finite local-route/recovery owner. */
+    scene_pursuit_return_receipt pursuit_return; /* Qualified return continuation; serialized through the complete late transaction. */
     scene_crouch_receipt crouch; /* Independent retained stance/attention policy. */
     scene_robot_death_receipt robot_death;
     scene_medic_syringe syringe;
@@ -5147,18 +5165,29 @@ typedef struct campaign_npc_body {
     float eye_position[3]; /* Original entity+7d4. */
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
+#include "scene_pursuit_work_types.inc"
+#include "scene_pursuit_token_scope.inc"
+/* Single reviewed runtime dispatch authority; complete return/save slice enabled. */
+#define SCENE_PURSUIT_RUNTIME_ENABLED 1
+static int scene_pursuit_work_dispatch(scene_stream *,uint32_t,int32_t,float,
+    int (*)(void *,uint32_t,const char *),void *,scene_pursuit_work_dispatch_result *);
+static int scene_pursuit_return_pending_service(campaign_npc_body *,uint32_t,uint32_t *);
+static int scene_pursuit_cancelled_service(scene_pursuit_work_dispatch_result *,uint32_t,uint32_t,uint32_t *);
+static int scene_pursuit_ordinary_consume(scene_pursuit_work_dispatch_result *,uint32_t,uint32_t,int32_t,uint32_t *);
+static int scene_pursuit_return_attack_enqueue(uint32_t,const rf_level_event *,uint32_t,uint32_t *);
 _Static_assert(sizeof(((campaign_npc_body *)0)->blind)==12,"Independent blind receipt payload");
 _Static_assert(sizeof(scene_tactical_receipt)==24,"Independent tactical receipt payload");
 _Static_assert(sizeof(scene_pursuit_delay_receipt)==20,"Independent pursuit delay payload");
 _Static_assert(sizeof(scene_pursuit_sight_clock)==12,"Independent sight clock payload");
-/* Xbox32 allowance: previous body3192 + at most32 bytes.
- * Actual allocation continues to charge sizeof, without raising its cap. */
-_Static_assert(sizeof(void*)!=4||sizeof(campaign_npc_body)<=3224,"Pursuit delay NPC growth exceeds reviewed allowance");
+/* Xbox32 allowance: previous bound3224 plus at most16 for the12B return receipt and alignment. Actual allocations charge sizeof under the unchanged cap; see docs/NPC-PURSUIT-RETURN.md for scoped stack and storage assessment. */
+_Static_assert(sizeof(void*)!=4||sizeof(campaign_npc_body)<=3240,"Pursuit return NPC source allowance exceeded");
 /* Only after the physical allocation has been terminally retired. Death,
  * Disarm, target loss and temporary stronger owners must not call this. */
 static void scene_crouch_body_retired(campaign_npc_body *o)
 {
-    if(!o||!(o->crouch.flags&SCENE_CROUCH_PRESENT))return;
+    if(!o)return;
+    scene_pursuit_return_receipt_clear(&o->pursuit_return);
+    if(!(o->crouch.flags&SCENE_CROUCH_PRESENT))return;
     memset(&o->crouch,0,sizeof(o->crouch));o->unholster.stance_7bc=0;o->stance_clock_7b4=0;
     o->view.flags_810&=~0x400u;o->damage.effects.flags_810&=~0x400u;
 }
@@ -5172,8 +5201,10 @@ static void scene_blind_clear(campaign_npc_body *o)
     /* A blind-profile refusal alone must not restart tactical timing. Only a
      * real combat release/point order retires its phase here; its caller owns
      * movement cleanup. Preserve the independent primary recovery deadline. */
-    if(!o->combat_alert||o->combat_scripted>2||o->script_shoot.active)
+    if(!o->combat_alert||o->combat_scripted>2||o->script_shoot.active){
         scene_tactical_receipt_release(&o->tactical);
+        scene_pursuit_return_receipt_clear(&o->pursuit_return);
+    }
 }
 
 uint32_t rf_scene_npc_startup_weapons[4]; /* primary,secondary,owned slots,selection hash */
@@ -5185,6 +5216,17 @@ static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+/* Reject malformed, in-flight phase4 or poisoned return state before capture. Qualified phase1/2/3 receipts proceed through the full capture and late restore joins. */
+static int scene_pursuit_save_boundary(void)
+{
+    int status=scene_pursuit_execution_boundary();if(status)return status;
+    if(campaign_npc_body_count&&!campaign_npc_bodies)return RF_FORMAT;
+    for(uint32_t i=0;i<campaign_npc_body_count;i++){
+        const scene_pursuit_return_receipt *r=&campaign_npc_bodies[i].pursuit_return;
+        status=scene_pursuit_return_receipt_admit(r);if(status)return status;
+    }
+    return RF_OK;
+}
 static uint32_t scene_medic_flight_rng_seen,scene_medic_flight_restoring;
 static uint64_t scene_medic_flight_lifetime;
 static uint32_t scene_noise_active(const campaign_npc_body *o)
@@ -5268,6 +5310,7 @@ static uint32_t scene_medic_capture_transient(const campaign_npc_body *,int32_t)
 static void scene_medic_load_committed(void);
 #include "scene_npc_ai_suppression.inc"
 #include "scene_robot_death_owner.inc"
+#include "scene_pursuit_token_owner.inc"
 #include "scene_capek_shield_movement.inc"
 static void campaign_navpoint_changed(const rf_entity_navigation_candidate *candidate,uint32_t on)
 {
@@ -5682,6 +5725,7 @@ static void campaign_npc_bodies_close(void)
     scene_burning_release_all();
     scene_npc_shields_close();
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
+    scene_pursuit_execution_active=0;scene_pursuit_execution_fault=0;
     scene_tactical_cursor=0;scene_tactical_service_frame=UINT32_MAX;
     scene_alarm_runner_reset();
     free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
@@ -5797,6 +5841,7 @@ static int campaign_play_animation(void *context,uint32_t handle,const rf_level_
         {uint32_t composed;status=scene_waypoint_animation_try(owner,event,pose,motion,&composed);
          if(status)return status;if(composed)goto animation_started;}
         status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
+        scene_pursuit_token_invalidate_owner(owner); /* accepted ordinary Play_Animation replacement */
         status=campaign_animation_cancel(owner);if(status)return status;
         model=campaign_playback_resources.models+pose->skeleton;
         if(loop || event->flags[0]==1){status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status){if(scene_guard_retreat_active(owner))owner->guard_retreat_fault=1;return status;}}
@@ -5830,6 +5875,8 @@ static uint32_t campaign_script_movement_owns(const campaign_npc_body *owner)
 /* follow2 owns a combat pursuit; follow1 remains authored Goto_Player. */
 static void campaign_pursuit_stop(campaign_npc_body *owner)
 {
+    /* Also cancel queued/in-progress work which owns no route yet. */
+    scene_pursuit_return_receipt_clear(&owner->pursuit_return);
     scene_noise_cancel(owner);
     if(owner->script_move.follow!=2)return;
     /* Genuine pursuit cancellation owns this route, including typed local
@@ -5891,6 +5938,8 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
             /*4bab45 clears409050 before40cfc0 route admission, even if that
              * admission subsequently refuses. Let AI14's missing-target
              * path default naturally without a stale player transfer. */
+            if(owner->medic.target!=UINT32_MAX||owner->medic.target_view!=NULL)
+                scene_pursuit_token_invalidate_owner(owner); /* destructive Goto medic target clear */
             owner->medic.target=UINT32_MAX;owner->medic.target_view=NULL;break;
         }
     }
@@ -5952,15 +6001,19 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         /* One-way replacement/default completion is outside this bounded patrol slice. */
         if(on&&owner->patrol.enabled&&path.count&&!mode)return RF_NOT_FOUND;
         for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
-        if(on){int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;
+        if(on){int cancel;
+            scene_pursuit_token_invalidate_owner(owner); /* accepted movement ON */
+            cancel=campaign_animation_cancel(owner);if(cancel)return cancel;
             cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;
             scene_medic_supersede(owner);
             owner->combat_scripted=owner->combat_target=owner->combat_alert=0;scene_blind_clear(owner);
             owner->combat_navigation_due=owner->combat_due=owner->combat_burst_remaining=owner->combat_reload_due=0;
             owner->combat_reload_pending=0;owner->combat_reload_weapon=-1;}
-        else {int cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;}
+        else {int cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;
+            scene_pursuit_token_invalidate_owner(owner); /* accepted movement OFF */}
         scene_ai_drone_smash_cancel_source(handle);
         scene_tactical_receipt_release(&owner->tactical);
+        scene_pursuit_return_receipt_clear(&owner->pursuit_return);
         scene_patrol_direction(owner);
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
         owner->script_move.origin=SCENE_MOVE_ORIGIN_EVENT;
@@ -6028,8 +6081,10 @@ static int campaign_script_look_at(void *context,const rf_level_event *event,
                 /* Existing Look owner supersedes only the idle default patrol;
                  * never cancel a distinct combat/explicit movement owner here.
                  * No new8 serialization is claimed for this absent overlap. */
-                if(owner->patrol.enabled&&owner->script_move.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT)
+                if(owner->patrol.enabled&&owner->script_move.origin==SCENE_MOVE_ORIGIN_ACTOR_DEFAULT){
+                    scene_pursuit_token_invalidate_owner(owner); /* Look_At replaces default movement */
                     scene_patrol_clear_move(owner);
+                }
                 owner->script_look.active=1;owner->script_look.event=event->uid;
                 owner->script_look.target_uid=event->words[0];
                 memcpy(owner->script_look.position,event->position,12);++rf_scene_script_look_at[0];
@@ -6059,6 +6114,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(owner->script_once.count>16)return RF_FORMAT;
+        scene_pursuit_token_invalidate_owner(owner); /* accepted removal before identity loss */
         status=scene_npc_seat_unbind(handle,0);if(status)return status;
         status=scene_medic_syringe_unavailable(owner);if(status)return status;
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);if(status)return status;
@@ -6132,6 +6188,7 @@ static int campaign_remove_item(void *context,uint32_t uid)
 #include "scene_medic_persistence.inc"
 static int campaign_actors_restore(void)
 {
+    {int boundary=scene_pursuit_save_boundary();if(boundary)return boundary;}
     uint32_t i;int status;
     memset(rf_scene_actor_retirement,0,sizeof(rf_scene_actor_retirement));
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view) {
@@ -6142,6 +6199,7 @@ static int campaign_actors_restore(void)
         owner->persistence_registered=1;
         ++rf_scene_actor_retirement[0];
         if(rf_scene_defeated_actors.ai_suppressed[owner->persistence_slot]>1)return RF_FORMAT;
+        scene_pursuit_token_invalidate_owner(owner); /* admitted history owner publication */
         campaign_npc_ai_suppression_assign(owner,rf_scene_defeated_actors.ai_suppressed[owner->persistence_slot]);
         owner->capek_shield_broken=rf_scene_defeated_actors.capek_shield_broken[owner->persistence_slot];
         if(owner->capek_shield_broken>1 || (owner->capek_shield_broken &&
@@ -6150,6 +6208,7 @@ static int campaign_actors_restore(void)
             campaign_seeds.items[i].class_index,owner->capek_shield_broken);
         if(rf_scene_defeated_actors.items[owner->persistence_slot].retired) {
             /* First-pass revisit retirement, not corpse-pose serialization. */
+            scene_pursuit_token_invalidate_owner(owner); /* admitted saved retirement */
             status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);
             if(status){rf_scene_actor_retirement[3]=(uint32_t)status;return status;}
             owner->damage.effects.health=0;owner->view.flags_810|=1;
@@ -6212,6 +6271,7 @@ static void campaign_actors_revisit_snapshot(void)
 }
 static int campaign_actors_capture(void)
 {
+    {int boundary=scene_pursuit_save_boundary();if(boundary)return boundary;}
     uint32_t i;int status;
     status=campaign_ai_modes_handoff_admit();if(status)return status;
     /* Preflight every medic lane before committing any actor history. Section
@@ -7142,11 +7202,17 @@ static void player_damage_notify(void *context,uint32_t kind,uint32_t target,flo
 static float player_damage_effect(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra)
 {
     campaign_player_damage_context *c=context;float result=0;int status;
+    rf_damage_effect_input prepared;
     rf_damage_effect_backend effects={player_damage_query,player_damage_uid,player_damage_source,player_damage_burn,
         player_damage_random,player_damage_notify,player_damage_playing,player_damage_play,c};
     campaign_player_damage.object_flags=object->flags;campaign_player_view.flags_7c=object->flags;
-    status=rf_entity_damage_sp(&campaign_player_damage.state,amount,kind,source,(int32_t)extra,
-        kind==-1?1:campaign_player_damage.factors[kind],c->clock_bits,&effects,&result);
+    status=rf_entity_damage_sp_prepare(&campaign_player_damage.state,amount,kind,source,(int32_t)extra,
+        kind==-1?1:campaign_player_damage.factors[kind],c->clock_bits,&effects,&result,&prepared);
+    if(!status) {
+        if(campaign_player_damage.state.effects.health<=0)
+            scene_pursuit_token_invalidate_target(campaign_player_damage.state.effects.handle);
+        status=rf_entity_damage_sp_finish(&campaign_player_damage.state,&prepared,&effects,&result);
+    }
     if(status && !c->status)c->status=status;
     object->health=campaign_player_damage.state.effects.health;object->flags=campaign_player_view.flags_7c;
     campaign_player_view.flags_810=campaign_player_damage.state.effects.flags_810;return result;
@@ -7539,6 +7605,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     memcpy(state.vector_714,owner->command_714,12);
     /* Embedded physics starts at actor88: bc/c8 map to actor144/150. */
     memcpy(state.vector_144,owner->body.state.velocity,12);memcpy(state.vector_150,owner->body.state.vector_c8,12);
+    scene_pursuit_token_invalidate_owner(owner); /* accepted destructive death entry */
     status=campaign_animation_cancel(owner);if(status)return status;
     status=scene_npc_seat_unbind(handle,0);if(status)return status;
     *entered=rf_entity_death_entry_sp(&state,falling);
@@ -7550,7 +7617,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
             owner->ai_mode.action_280==7?SCENE_GUARD_CANCEL_RESTORE_ORDINARY:SCENE_GUARD_CANCEL_PRESERVE_INCOMING);
         if(status)return status;
     }
-    if(*entered){memset(&owner->tactical,0,sizeof(owner->tactical));scene_blind_clear(owner);if(owner->combat_reload_pending){owner->combat_reload_pending=owner->combat_reload_due=0;owner->combat_reload_weapon=-1;}scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle);scene_npc_loop_audio_remove(handle);status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
+    if(*entered){scene_pursuit_return_receipt_clear(&owner->pursuit_return);memset(&owner->tactical,0,sizeof(owner->tactical));scene_blind_clear(owner);if(owner->combat_reload_pending){owner->combat_reload_pending=owner->combat_reload_due=0;owner->combat_reload_weapon=-1;}scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle);scene_npc_loop_audio_remove(handle);status=scene_turret_generated_death_join(handle,rf_scene_profile_stage[0]);if(status)return status;}
     return RF_OK;
 }
 
@@ -7614,10 +7681,17 @@ static uint32_t campaign_damage_predicate(void *context,uint32_t stage,uint32_t 
 }
 static float campaign_damage_effect(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra)
 {
-    campaign_damage_context *c=context;float result=0;
+    campaign_damage_context *c=context;float result=0;rf_damage_effect_input prepared;
     campaign_damage_flags(c);
-    c->status=rf_entity_damage_sp(&c->owner->damage,amount,kind,source,(int32_t)extra,
-        kind==-1?1:c->definition->damage_factors[kind],c->clock_bits,c->effects,&result);
+    c->status=rf_entity_damage_sp_prepare(&c->owner->damage,amount,kind,source,(int32_t)extra,
+        kind==-1?1:c->definition->damage_factors[kind],c->clock_bits,c->effects,&result,&prepared);
+    if(!c->status) {
+        if(c->owner->damage.effects.health<=0) {
+            scene_pursuit_token_invalidate_owner(c->owner);
+            scene_pursuit_token_invalidate_target(c->owner->registration.handle);
+        }
+        c->status=rf_entity_damage_sp_finish(&c->owner->damage,&prepared,c->effects,&result);
+    }
     object->health=c->owner->damage.effects.health;object->flags=c->owner->object_flags;
     c->owner->view.flags_7c=object->flags;c->owner->view.flags_810=c->owner->damage.effects.flags_810;
     return result;
@@ -11284,6 +11358,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
             status=campaign_set_visible(NULL,links[i].value,1);if(status)return status;
             ++rf_scene_alarm[6];
             if(owner->damage.effects.affiliation==0 && owner->view.weapons[0]>=0) {
+                scene_pursuit_token_invalidate_owner(owner); /* accepted linked Alarm target */
                 status=campaign_animation_cancel(owner);if(status)return status;
                 status=scene_guard_retreat_cancel(owner,now,SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
                 scene_ai_drone_smash_cancel_source(owner->registration.handle);
@@ -11327,6 +11402,7 @@ static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t valu
         campaign_npc_body *owner=campaign_npc_bodies+i;
         {int guard_status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
          if(guard_status)return guard_status;}
+        scene_pursuit_token_invalidate_owner(owner); /* accepted allegiance replacement */
         scene_ai_drone_smash_cancel_source(handle);
         owner->damage.effects.affiliation=value;
         /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
@@ -11517,6 +11593,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     }
     if(scene_actor_body.spheres.count!=life_start.count)return RF_RANGE;
     status=scene_guard_retreat_cancel_player(scene_medic_now(frame));if(status)return status;
+    scene_pursuit_token_restart(); /* admitted replacement, including later partial failure */
     scene_player_outside_audio_forget();
     scene_player_impact_relocated();
     scene_actor_body.state=life_start.body;rf_scene_actor_pose=life_start.pose;actor_look=life_start.look;
@@ -11581,6 +11658,7 @@ static void campaign_enemy_reaction(campaign_npc_body *owner,uint32_t s)
     if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
     if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
        (!owner->combat_scripted && s==campaign_player_object.handle && owner->combat_target==s)))return;
+    scene_pursuit_token_invalidate_owner(owner); /* accepted reactive target change */
     if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
     scene_ai_drone_smash_cancel_source(owner->registration.handle);
     owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
@@ -12129,7 +12207,10 @@ static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,u
     if(!isfinite(limit) || limit<0)limit=100;
     value=(armor?vitals->armor:vitals->health)+(float)amount;
     if(value<0)value=0;if(value>limit)value=limit;
-    if(armor)vitals->armor=value;else vitals->health=value;
+    if(armor)vitals->armor=value;else {
+        vitals->health=value;
+        if(value<=0)scene_pursuit_token_invalidate_target(vitals->handle);
+    }
     if(turret&&!turret->dead&&vitals->health<=0){
         turret->dead=1;turret->model=turret->dead_model;turret->view.flags_810|=1u;
         turret->damage.effects.flags_810=turret->view.flags_810;turret->target=UINT32_MAX;turret->fire_due=0;
@@ -12150,11 +12231,16 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(!event || (event->link_count && !links)||on>1)return RF_RANGE;
     status=scene_vehicle_attack_order(context?context:scene_actor_collision_owner,event,links,on,&handled);
     if(handled||status!=RF_NOT_FOUND)return status;
+    if(SCENE_PURSUIT_RUNTIME_ENABLED){status=scene_pursuit_execution_boundary();if(status)return status;}
     for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==event->words[0]) {
         owner=campaign_npc_bodies+i;break;
     }
     if(!owner || !owner->registration.view || owner->damage.effects.health<=0)return RF_NOT_FOUND;
     if(on&&scene_npc_seat_attached(owner->registration.handle))return RF_NOT_FOUND;
+    if(SCENE_PURSUIT_RUNTIME_ENABLED){
+        status=scene_pursuit_return_attack_enqueue(i,event,on,&handled);
+        if(handled||status!=RF_NOT_FOUND)return status;
+    }
     if(scene_medic_flight_command_overlap(owner)){
         if(on)return RF_NOT_FOUND;
         scene_medic_flight_target_clear(owner,scene_medic_now(rf_scene_profile_stage[0]));
@@ -12166,6 +12252,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
      * the existing route/order intact and still permits ordinary event links. */
     if(on&&campaign_npc_ai_suppressed(owner))return RF_NOT_FOUND;
     if(!on){status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
+        scene_pursuit_token_invalidate_owner(owner); /* accepted Attack OFF */
         scene_medic_supersede(owner);scene_ai_drone_smash_cancel_source(owner->registration.handle);if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;scene_blind_clear(owner);return scene_patrol_return(owner,scene_patrol_now(rf_scene_profile_stage[0]));}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
@@ -12187,6 +12274,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
         return target==owner->medic.target?RF_OK:RF_NOT_FOUND;
     }
     memset(rf_scene_attack_recovery,0,sizeof(rf_scene_attack_recovery));memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
+    scene_pursuit_token_invalidate_owner(owner); /* accepted destructive Attack ON */
     {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;
      cancel=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(cancel)return cancel;}
     status=scene_tactical_attack_prepare((uint32_t)(owner-campaign_npc_bodies),target,
@@ -12239,6 +12327,8 @@ static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mo
         if(mode==0&&owner->medic.pending&&owner->ai_mode.action_280==14){
             /*Shoot_Once4badbf invalidates target before fire admission.
              * Its next14 tick defaults; do not manufacture action3 here. */
+            if(owner->medic.target!=UINT32_MAX||owner->medic.target_view!=NULL)
+                scene_pursuit_token_invalidate_owner(owner); /* destructive Shoot_Once target clear */
             owner->medic.target=UINT32_MAX;owner->medic.target_view=NULL;
         }
         if((mode!=1 && owner->view.weapons[0]<0) ||
@@ -12253,6 +12343,7 @@ static int campaign_script_single_fire(void *context,uint32_t handle,uint32_t mo
         if(owner->script_once.count>=16)return RF_RANGE;
         {int guard_status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);
          if(guard_status)return guard_status;}
+        scene_pursuit_token_invalidate_owner(owner); /* accepted queued fire */
         scene_ai_drone_smash_cancel_source(handle);
         campaign_single_fire_request *request=owner->script_once.requests+owner->script_once.count;
         for(j=0;j<3;j++)request->point[j]=owner->eye_position[j]+
@@ -12319,6 +12410,7 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
                 /*4ba2fa defaults even without a matching prior Shoot_At. */
                 scene_medic_supersede(owner);
                 if(owner->script_shoot.active && owner->script_shoot.event==event->uid) {
+                    scene_pursuit_token_invalidate_owner(owner); /* accepted Shoot_At OFF */
                     scene_ai_drone_smash_cancel_source(owner->registration.handle);
                     owner->script_shoot.active=0;campaign_pursuit_stop(owner);
                     owner->combat_scripted=owner->combat_target=owner->combat_alert=0;scene_blind_clear(owner);
@@ -12326,6 +12418,7 @@ static int campaign_script_shoot_at(void *context,const rf_level_event *event,
                     status=scene_patrol_return(owner,scene_patrol_now(rf_scene_profile_stage[0]));if(status)return status;
                 }
             } else {
+                scene_pursuit_token_invalidate_owner(owner); /* accepted Shoot_At ON */
                 status=campaign_animation_cancel(owner);if(status)return status;
                 status=scene_guard_retreat_cancel(owner,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)return status;
                 scene_medic_supersede(owner);
@@ -12588,22 +12681,46 @@ static void campaign_script_single_release_target(uint32_t slot)
     owner->combat_target=owner->combat_scripted=owner->combat_alert=0;scene_blind_clear(owner);
     owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
 }
-static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
+static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const float player_eye[3],
+    scene_pursuit_work_dispatch_result *work)
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
+    const uint64_t tick_epoch=scene_robot_death_epoch;
+    const int32_t pursuit_now=scene_patrol_now(frame);
     /* Impact timing is independent of the next fire deadline, acquisition,
      * pain lock and all per-owner suppression early-outs. Invalid owners are
      * cancelled by the service even while the movement fixture is quiet. */
-    {int status=scene_ai_drone_secondary_service(frame);if(status)return status;
-     status=scene_ai_tankbot_secondary_service(frame);if(status)return status;
-     status=scene_ai_drone_smash_service(stream,frame,player_eye);if(status)return status;
-     status=scene_ai_tribeam_service(frame,player_eye);if(status)return status;
-     status=scene_ai_cane_service(frame,player_eye);if(status)return status;
-     status=scene_ai_spit_service(frame,player_eye);if(status)return status;}
+    {int status=scene_ai_drone_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+     if(status)return status;
+     status=scene_ai_tankbot_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+     if(status)return status;
+     status=scene_ai_drone_smash_service(stream,frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+     if(status)return status;
+     status=scene_ai_tribeam_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+     if(status)return status;
+     status=scene_ai_cane_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+     if(status)return status;
+     status=scene_ai_spit_service(frame,player_eye);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+     if(status)return status;}
     /* Explicit movement fixture: quiet authored pool, no enemy combat. */
     if(rf_scene_swim_test_enabled)return RF_OK;
     uint32_t tactical_chosen=UINT32_MAX;
-    {int status=scene_tactical_schedule(frame,scene_patrol_now(frame),&tactical_chosen);if(status)return status;}
+    if(SCENE_PURSUIT_RUNTIME_ENABLED){
+        rf_scene_death_selection_context sound_context={0};int status,boundary;
+        sound_context.random=&combat_sound_random;
+        status=scene_pursuit_work_dispatch(stream,frame,pursuit_now,seconds,
+            rf_scene_npc_death_sound,&sound_context,work);
+        if(tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        /* Only an unentered refusal with a clear boundary is a consumed defer.
+         * Preserve work->service_status; never reselect or invoke legacy here. */
+        if(status==RF_NOT_FOUND){
+            boundary=scene_pursuit_execution_boundary();if(boundary)return boundary;
+            status=RF_OK;
+        }
+        if(status)return status;
+    }else{
+        int status=scene_tactical_schedule(frame,pursuit_now,&tactical_chosen);if(status)return status;
+    }
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
@@ -12624,13 +12741,32 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         const uint32_t retreat_owned_iteration=scene_guard_retreat_active(owner);
         /* prepare_view combat precedes scene_frame translation. Paid delayed
          * services above have run; one sight/expiry service precedes new fire. */
-        status=scene_blind_age(owner,frame);if(status)return status;
-        status=scene_pursuit_delay_age(owner,scene_patrol_now(frame));if(status)return status;
-        status=scene_blind_tick(stream,i,frame);if(status)return status;
-        status=scene_tactical_maintain(owner,scene_patrol_now(frame));if(status)return status;
+        status=scene_blind_age(owner,frame);
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        if(status)return status;
+        status=scene_pursuit_delay_age(owner,pursuit_now);
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        if(status)return status;
+        status=scene_blind_tick(stream,i,frame);
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        if(status)return status;
+        status=scene_tactical_maintain(owner,pursuit_now);
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        if(status)return status;
         if(owner->guard_retreat_fault||owner->alarm_fault)return RF_FORMAT;
+        if(SCENE_PURSUIT_RUNTIME_ENABLED){
+            uint32_t handled=0;
+            status=scene_pursuit_return_pending_service(owner,frame,&handled);
+            if(tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+            if(status)return status;if(handled)continue;
+            status=scene_pursuit_cancelled_service(work,i,frame,&handled);
+            if(tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+            if(status)return status;if(handled)continue;
+        }
         if(owner->alarm.present)continue;
-        status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon,&reload_qualified,!retreat_owned_iteration);if(status)return status;
+        status=campaign_enemy_reload_service(owner,frame,&reload_completed_weapon,&reload_qualified,!retreat_owned_iteration);
+        if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+        if(status)return status;
         /* Receipt survives completion/callback return. Suppress before even
          * forced-shot queue handling, then resume at the NEXT owner service. */
         if(retreat_owned_iteration||scene_guard_retreat_active(owner))continue;
@@ -12721,6 +12857,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                     rf_scene_script_attack[4]=0;memcpy(rf_scene_script_attack+8,&health,4);
                     ++rf_scene_attack_recovery[0];
                 }
+                scene_pursuit_token_invalidate_owner(owner); /* finished or missing scripted target */
                 campaign_pursuit_stop(owner);
                 owner->combat_scripted=owner->combat_target=owner->combat_alert=0;scene_blind_clear(owner);
                 owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
@@ -12752,6 +12889,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             status=combat_obstructed(stream,owner->eye_position,delta,&blocked);
             rf_scene_enemy_awareness[7]=(uint32_t)status;if(status)return status;
             if(blocked){++rf_scene_enemy_awareness[2];continue;}
+            scene_pursuit_token_invalidate_owner(owner); /* accepted player sight acquisition */
             status=campaign_animation_cancel(owner);if(status)return status;
             if(!campaign_script_movement_owns(owner))scene_patrol_combat_begin(owner,0);
             scene_noise_cancel(owner);
@@ -12787,9 +12925,19 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         }
         if(owner->combat_alert&&!point_target&&!vehicle_victim){
             const float *tactical_target=victim?victim->body.state.position:scene_actor_body.state.position;
-            status=scene_tactical_admit_phase(i,&selected,scene_patrol_now(frame));if(status)return status;
-            status=scene_tactical_try_route(stream,i,tactical_chosen,&selected,frame,
-                distance,tactical_range,tactical_target,delta);if(status)return status;
+            uint32_t ordinary_chosen=tactical_chosen;
+            status=scene_tactical_admit_phase(i,&selected,pursuit_now);
+            if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+            if(status)return status;
+            if(SCENE_PURSUIT_RUNTIME_ENABLED){
+                ordinary_chosen=UINT32_MAX;
+                status=scene_pursuit_ordinary_consume(work,i,frame,pursuit_now,&ordinary_chosen);
+                if(status)return status;
+            }
+            status=scene_tactical_try_route(stream,i,ordinary_chosen,&selected,frame,
+                distance,tactical_range,tactical_target,delta);
+            if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+            if(status)return status;
         }
         if(owner->combat_alert && !point_target && !campaign_script_movement_owns(owner)) {
             const float *target_position=victim?victim->body.state.position:
@@ -12878,7 +13026,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(class_melee_waiting)continue;
         if(campaign_npc_holster_blocks_fire(owner))continue;
         if(!once){uint32_t tactical_blocked;
-            status=scene_tactical_primary_blocked(owner,scene_patrol_now(frame),&tactical_blocked);if(status)return status;
+            status=scene_tactical_primary_blocked(owner,pursuit_now,&tactical_blocked);if(status)return status;
             if(tactical_blocked)continue;
         }
         if(!once && frame<owner->combat_due){scene_npc_loop_audio_tick(i);continue;}
@@ -13270,6 +13418,23 @@ enemy_shot_done:
     memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
     return RF_OK;
+}
+/* Register before paid services. The literal-zero runtime gate retains the
+ * legacy scheduler; the composed return caller path is staged only.
+ * All body returns unwind through exact private-scope cleanup. */
+static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
+{
+    scene_pursuit_work_dispatch_result result;uint64_t epoch;
+    int status,cleanup;
+    status=scene_pursuit_token_scope_begin(&result);if(status)return status;
+    epoch=scene_robot_death_epoch;
+    status=campaign_enemy_tick_body(stream,frame,player_eye,&result);
+    if(epoch!=scene_robot_death_epoch){
+        result.ordinary_valid=result.cancelled_valid=0;
+        status=RF_NOT_FOUND;
+    }
+    cleanup=scene_pursuit_token_scope_end(&result);
+    return status?status:cleanup;
 }
 uint32_t rf_scene_pickups[8]; /* supported,checks,blocked,collected,rounds,last UID,draw vertices,status */
 uint32_t rf_scene_pickup_vitals[4]; /* health bits,armor bits,health restored bits,armor restored bits */
@@ -14532,6 +14697,7 @@ static int scene_checkpoint_validate_audit(scene_stream *s,const void *data,uint
 #endif
 static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t bytes)
 {
+    {int boundary=scene_pursuit_save_boundary();if(boundary)return boundary;}
     if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
     uint32_t admission,maps,faces,core,i,j,k,at,x=0,y=0,row=0;uint64_t expected;rf_random_state chain={1};
     rf_geomod_terrain_view view;scene_terrain_noise_owner *owner=s->terrain_noise;int status;
@@ -14621,7 +14787,9 @@ static int scene_vehicle_checkpoint_capture(scene_stream *,void *,uint32_t *);
 static int scene_vehicle_checkpoint_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
 static int scene_world_vehicle_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
 static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const scene_vehicle_checkpoint_record *,const rf_player_checkpoint *,rf_checkpoint_placement *,rf_physics_sphere *);
+static int scene_vehicle_checkpoint_player_placement_accounted(const scene_stream *,const scene_vehicle_checkpoint_record *,const rf_player_checkpoint *,rf_checkpoint_placement *,rf_physics_sphere *,const rf_prepare_memory *);
 static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,scene_vehicle_checkpoint_record *);
+static int scene_vehicle_checkpoint_read_accounted(scene_stream *,const void *,uint32_t,scene_vehicle_checkpoint_record *,const rf_prepare_memory *);
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
 static int scene_vehicle_checkpoint_publish(scene_stream *);
 #include "scene_continuous_charge_checkpoint_types.inc"
@@ -14636,6 +14804,8 @@ static uint32_t scene_player_grenade_save_blocked(void);
 static int scene_ai_projectile_checkpoint_capture(const scene_stream *,void *,uint32_t,uint32_t *);
 static int scene_ai_projectile_checkpoint_prepare(const scene_stream *,const void *,uint32_t,uint32_t,
     scene_ai_projectile_checkpoint_stage **);
+static int scene_ai_projectile_checkpoint_prepare_accounted(const scene_stream *,const void *,uint32_t,uint32_t,
+    scene_ai_projectile_checkpoint_stage **,const rf_prepare_memory *);
 static uint32_t scene_ai_projectile_checkpoint_stage_bytes(void);
 static int scene_ai_projectile_checkpoint_weapon_mask(const void *,uint32_t,uint32_t *,uint32_t *);
 static int scene_ai_projectile_checkpoint_fusion_admit(const scene_ai_projectile_checkpoint_stage *,const rf_campaign_player_state *);
@@ -14742,7 +14912,7 @@ static int scene_npc_checkpoint_export_mode(const unsigned char identity[32],int
     status=scene_npc_checkpoint_capture_mode(&catalog,now,rows,limit,&count,burning_profile);
     if(!status){
         scene_medic_flight_rng_capture(&flight_rng);rng.present=flight_rng.present;rng.value=flight_rng.value;
-        status=rf_npc_checkpoint_encode_with_pursuit_delay(identity,&catalog,rows,count,&rng,scene_tactical_cursor,output,capacity,written);
+        status=rf_npc_checkpoint_encode_with_pursuit_return(identity,&catalog,rows,count,&rng,scene_tactical_cursor,output,capacity,written);
     }
     free(rows);return status;
 }
@@ -14781,6 +14951,8 @@ static int scene_remote_checkpoint_world_preflight(scene_stream *,const void *,u
 #include "scene_world_vehicle_route_checkpoint.inc"
 static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
     const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *,uint32_t);
+static int scene_world_vehicle_prepare_accounted(scene_stream *,const scene_world_restore_stage *,
+    const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *,uint32_t,const rf_prepare_memory *);
 static int scene_passive_jeep_seat_restore_admit(scene_stream *,const scene_world_restore_stage *,
     const scene_world_player_stage *,const scene_vehicle_checkpoint_record *,const scene_npc_seat_checkpoint_stage *,
     const scene_vehicle_switch_checkpoint_stage *,const scene_passive_vehicle_checkpoint_stage *,uint32_t);
@@ -14925,6 +15097,7 @@ static uint32_t scene_vehicle_visibility_legacy_save_allowed(const scene_stream 
 static uint32_t scene_vehicle_invulnerability_legacy_save_allowed(void);
 static int scene_checkpoint_capture(scene_stream *s)
 {
+    {int boundary=scene_pursuit_save_boundary();if(boundary)return boundary;}
     FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
     uint32_t core,bytes,at,i,j,k,prefix=rf_scene_player_checkpoint_enabled?SCENE_PLAYER_CHECKPOINT_PREFIX:0;unsigned char *p;int status=RF_OK;
     rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
@@ -17103,10 +17276,13 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     /* Reset before any NPC can accept a frame-zero Fusion shot. The player
      * input owner still resets at its original service below. */
     if(!frame)scene_fusion_projectile_reset();
+    {uint64_t enemy_epoch=scene_robot_death_epoch;
     scene_npc_loop_audio_begin();
     status=(rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
+    if(enemy_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
+    }
     scene_npc_loop_audio_end();
     rf_scene_enemy_combat[7]=(uint32_t)status;if(status){scene_npc_loop_audio_close();return status;}
     scene_npc_opposed_probe();
@@ -23799,4 +23975,4 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
         mesh,materials,mesh_budget,material_budget,sink,context,1,collision,geometry);
 }
 
-
+#include "scene_pursuit_runtime_assembly.inc"

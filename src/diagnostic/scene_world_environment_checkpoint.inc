@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 /* RFEN9: identity-bound gravity, force-volume state, changed navigation radii,
  * blackout timer, player support mover UID and portable cutscene clock/camera. Navigation rows use authored UIDs and
  * raw radius bits, never indices. Monitor rows bind authored UIDs; the RFEN6 tail preserves the
@@ -273,10 +275,12 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
     scene_environment_skybox_encode(p+bytes-SCENE_ENV_SKYBOX_BYTES,&skybox);
     scene_history_put(p+12,scene_history_hash(p,bytes));*written=bytes;return RF_OK;
 }
+static inline void scene_world_environment_close_storage(scene_world_environment_stage **s,const rf_prepare_storage *provider)
+{if(s){(void)rf_prepare_storage_release(provider,NULL,NULL,*s,RF_OK);*s=NULL;}}
 static inline void scene_world_environment_close(scene_world_environment_stage **s)
-{if(s){free(*s);*s=NULL;}}
-static inline int scene_world_environment_prepare(const unsigned char identity[32],int32_t now,const void *data,uint32_t bytes,
-    uint32_t budget,scene_world_environment_stage **out)
+{scene_world_environment_close_storage(s,NULL);}
+static inline int scene_world_environment_prepare_storage_accounted(const unsigned char identity[32],int32_t now,const void *data,uint32_t bytes,
+    uint32_t budget,scene_world_environment_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *provider)
 {
     const unsigned char *p=data;scene_world_environment_stage *s;uint32_t count,nav_count,version,i,j,k,tail_bytes,tail_offset;
     uint32_t saved_monitor_count=0;
@@ -312,7 +316,8 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     cost=sizeof(*s)+(uint64_t)count*sizeof(*s->rows)+(uint64_t)nav_count*sizeof(scene_environment_nav_entry)+
         (uint64_t)(campaign_monitor_count+(version>=8?saved_monitor_count:0))*sizeof(scene_monitor_cameras);
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
-    s=calloc(1,(size_t)cost);if(!s)return RF_IO;s->count=count;s->bytes=(uint32_t)cost;s->owner=campaign_forces.items;
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(provider,memory,NULL,(size_t)cost,&allocation);
+     if(status)return status;s=allocation;}s->count=count;s->bytes=(uint32_t)cost;s->owner=campaign_forces.items;
     s->navigation=campaign_navigation.nodes;s->navigation_count=campaign_navigation.count;s->nav_count=nav_count;s->before=scene_gravity;
     s->cutscene_before=campaign_cutscene_runtime;
     s->form_before=campaign_player_form;
@@ -418,8 +423,14 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
         if(e->after!=0&&e->after!=e->baseline){status=RF_FORMAT;goto fail;}
     }
     *out=s;return RF_OK;
-fail:free(s);return status;
+fail:(void)rf_prepare_storage_release(provider,NULL,NULL,s,RF_OK);return status;
 }
+static inline int scene_world_environment_prepare_accounted(const unsigned char identity[32],int32_t now,const void *data,uint32_t bytes,
+    uint32_t budget,scene_world_environment_stage **out,const rf_prepare_memory *memory)
+{return scene_world_environment_prepare_storage_accounted(identity,now,data,bytes,budget,out,memory,NULL);}
+static inline int scene_world_environment_prepare(const unsigned char identity[32],int32_t now,const void *data,uint32_t bytes,
+    uint32_t budget,scene_world_environment_stage **out)
+{return scene_world_environment_prepare_accounted(identity,now,data,bytes,budget,out,NULL);}
 static inline int scene_world_environment_validate(const scene_world_environment_stage *s)
 {
     rf_scene_skybox_state skybox;int status;

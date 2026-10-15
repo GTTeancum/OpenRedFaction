@@ -35,13 +35,17 @@ static int header_read(FILE *f,rf_checkpoint_file_selection *s)
 static int same(const rf_checkpoint_file_selection *a,const rf_checkpoint_file_selection *b)
 {return a->slot==b->slot && a->generation==b->generation && a->bytes==b->bytes && a->checksum==b->checksum;}
 /* With buffer=NULL, verify streaming against expected metadata/data. */
-static int read_slot(const char *base,uint32_t slot,void *buffer,uint32_t capacity,
+static int read_slot_accounted(const char *base,uint32_t slot,void *buffer,uint32_t capacity,
  rf_checkpoint_file_validate validate,void *context,const rf_checkpoint_file_selection *expected,
- const unsigned char *compare,rf_checkpoint_file_selection *out)
+ const unsigned char *compare,rf_checkpoint_file_selection *out,
+ const rf_checkpoint_file_admission *admission,uint32_t *abort_selection)
 {
  char path[PATH_BYTES];unsigned char scratch[512];FILE *f;uint32_t at=0,hash=2166136261u;int status,tail;
- memset(out,0,sizeof(*out));out->slot=slot;
+ *abort_selection=0;memset(out,0,sizeof(*out));out->slot=slot;
+ if(admission&&!admission->before_open){*abort_selection=1;return RF_RANGE;}
  status=path_for(base,slot,path);if(status)return status;
+ if(admission){status=admission->before_open(admission->context,path);
+  if(status){*abort_selection=1;return status;}}
  errno=0;f=fopen(path,"rb");if(!f)return errno==ENOENT?RF_NOT_FOUND:RF_IO;
  status=header_read(f,out);
  if(!status && expected && !same(out,expected))status=RF_FORMAT;
@@ -55,15 +59,26 @@ static int read_slot(const char *base,uint32_t slot,void *buffer,uint32_t capaci
  if(!status && validate)status=validate(buffer,out->bytes,context);
  if(!status)out->ready=TOKEN_READY;return status;
 }
-int rf_checkpoint_file_load(const char *base,void *buffer,uint32_t capacity,uint32_t *bytes,
- rf_checkpoint_file_validate validate,void *context,rf_checkpoint_file_selection *selection)
+/* Store/readback keeps the exact legacy transport policy. */
+static int read_slot(const char *base,uint32_t slot,void *buffer,uint32_t capacity,
+ rf_checkpoint_file_validate validate,void *context,const rf_checkpoint_file_selection *expected,
+ const unsigned char *compare,rf_checkpoint_file_selection *out)
 {
- rf_checkpoint_file_selection found[2],selected,again;int status[2],result;uint32_t i;
+ uint32_t abort_selection;
+ return read_slot_accounted(base,slot,buffer,capacity,validate,context,expected,compare,out,NULL,&abort_selection);
+}
+int rf_checkpoint_file_load_accounted(const char *base,void *buffer,uint32_t capacity,uint32_t *bytes,
+ rf_checkpoint_file_validate validate,void *context,rf_checkpoint_file_selection *selection,
+ const rf_checkpoint_file_admission *admission)
+{
+ rf_checkpoint_file_selection found[2],selected,again;int status[2],result;uint32_t i,abort_selection;
  if(selection)memset(selection,0,sizeof(*selection));if(bytes)*bytes=0;
- if(!buffer || capacity<RF_CHECKPOINT_FILE_MAX || !bytes || !validate || !selection)return RF_RANGE;
+ if((admission&&!admission->before_open) || !buffer || capacity<RF_CHECKPOINT_FILE_MAX || !bytes || !validate || !selection)return RF_RANGE;
  if(rf_checkpoint_file_idle_status())return RF_IO;
  for(i=0;i<2;i++){
-  status[i]=read_slot(base,i,buffer,capacity,validate,context,NULL,NULL,&found[i]);
+  status[i]=read_slot_accounted(base,i,buffer,capacity,validate,context,NULL,NULL,&found[i],admission,&abort_selection);
+  /* Admission failures are terminal, not invalid-candidate fallback codes. */
+  if(abort_selection)return status[i];
   if(status[i] && status[i]!=RF_NOT_FOUND && status[i]!=RF_FORMAT && status[i]!=RF_RANGE)return status[i];
  }
  if(status[0] && status[1]){
@@ -74,9 +89,13 @@ int rf_checkpoint_file_load(const char *base,void *buffer,uint32_t capacity,uint
   if(found[0].generation==found[1].generation)return RF_FORMAT;
   selected=found[found[1].generation>found[0].generation?1:0];
  }else selected=found[status[0]?1:0];
- result=read_slot(base,selected.slot,buffer,capacity,validate,context,&selected,NULL,&again);
+ result=read_slot_accounted(base,selected.slot,buffer,capacity,validate,context,&selected,NULL,&again,admission,&abort_selection);
+ if(abort_selection)return result;
  if(result)return result;*selection=again;*bytes=again.bytes;return RF_OK;
 }
+int rf_checkpoint_file_load(const char *base,void *buffer,uint32_t capacity,uint32_t *bytes,
+ rf_checkpoint_file_validate validate,void *context,rf_checkpoint_file_selection *selection)
+{return rf_checkpoint_file_load_accounted(base,buffer,capacity,bytes,validate,context,selection,NULL);}
 int rf_checkpoint_file_store(const char *base,const void *data,uint32_t bytes,
  rf_checkpoint_file_validate validate,void *context,rf_checkpoint_file_selection *selection)
 {

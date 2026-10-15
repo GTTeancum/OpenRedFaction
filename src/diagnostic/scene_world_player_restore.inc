@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_WORLD_PLAYER_RESTORE_INCLUDED
 #define RF_SCENE_WORLD_PLAYER_RESTORE_INCLUDED
+#include "rf/prepare_memory.h"
 /* Player candidate with static or exact authored-mover support; no gameplay
  * publication. Boot integration restores inventory/equipment before input. */
 typedef struct scene_world_player_stage {
@@ -77,9 +78,9 @@ static int scene_world_player_point_host_valid_with_secondary(const scene_passiv
 static int scene_world_player_point_host_valid(const scene_passive_vehicle_checkpoint_stage *stage,
     uint32_t index,uint32_t uid,const float velocity[3])
 {return scene_world_player_point_host_valid_with_secondary(stage,NULL,index,uid,velocity);}
-static inline int scene_world_player_prepare(scene_stream *stream,const scene_world_restore_stage *world,
+static inline int scene_world_player_prepare_accounted(scene_stream *stream,const scene_world_restore_stage *world,
     uint32_t support_uid,const float *support_point_velocity,const scene_vehicle_checkpoint_record *vehicle,
-    const scene_passive_vehicle_checkpoint_stage *passive,scene_world_player_stage *out)
+    const scene_passive_vehicle_checkpoint_stage *passive,scene_world_player_stage *out,const rf_prepare_memory *memory)
 {
     scene_world_player_stage s={0};rf_player_checkpoint_catalog catalog;scene_checkpoint_world_context context;
     scene_checkpoint_clutter_support prop_support={world,scene_actor_body.state.flags};
@@ -102,7 +103,7 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     status=scene_weapon_modes_checkpoint_prepare(stream,&s.player.player,&s.modes);if(status)return status;
     if(vehicle && vehicle->value.vehicle.player_occupied){
         if(support_uid)return RF_FORMAT;
-        status=scene_vehicle_checkpoint_player_placement(stream,vehicle,&s.player,&s.placement,&s.seat_scratch);if(status)return status;
+        status=scene_vehicle_checkpoint_player_placement_accounted(stream,vehicle,&s.player,&s.placement,&s.seat_scratch,memory);if(status)return status;
         memcpy(s.basis,s.placement.basis,36);memcpy(s.eye,s.placement.basis,36);
     }else scene_checkpoint_placement(stream,&s.player,s.basis,&s.placement);
     context=world->world;context.allow_no_contact=0;context.authored_position=NULL;context.authored_basis=NULL;
@@ -186,5 +187,9 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         out->placement.spheres=&out->seat_scratch;
     return RF_OK;
 }
+static inline int scene_world_player_prepare(scene_stream *stream,const scene_world_restore_stage *world,
+    uint32_t support_uid,const float *support_point_velocity,const scene_vehicle_checkpoint_record *vehicle,
+    const scene_passive_vehicle_checkpoint_stage *passive,scene_world_player_stage *out)
+{return scene_world_player_prepare_accounted(stream,world,support_uid,support_point_velocity,vehicle,passive,out,NULL);}
 #include "scene_medic_flight_player_checkpoint.inc"
 #endif

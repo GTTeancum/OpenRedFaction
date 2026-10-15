@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_SECONDARY_VEHICLE_RUNTIME_INCLUDED
 #define RF_SCENE_SECONDARY_VEHICLE_RUNTIME_INCLUDED
+#include "rf/prepare_memory.h"
 #include "scene_vehicle_static_edges.inc"
 #include "scene_secondary_vehicle_order.inc"
 /* Independent authored APC/submarine/Fighter/Masako owners keep their kind11 handle, damage
@@ -223,8 +224,8 @@ static void scene_secondary_vehicle_route_rebase(scene_secondary_vehicle_runtime
             to->navigation.retained.nodes[i]=&to->navigation.goal;
     }
 }
-static int scene_secondary_vehicle_prepare(scene_stream *stream,uint32_t slot,uint32_t restoring,
-    scene_secondary_vehicle_runtime *out)
+static int scene_secondary_vehicle_prepare_accounted(scene_stream *stream,uint32_t slot,uint32_t restoring,
+    scene_secondary_vehicle_runtime *out,const rf_prepare_memory *memory)
 {
     scene_secondary_vehicle_runtime value={0};scene_passive_vehicle *owner;
     const scene_driller_resources *resource;int status;
@@ -244,8 +245,8 @@ static int scene_secondary_vehicle_prepare(scene_stream *stream,uint32_t slot,ui
     value.uid=owner->uid;value.handle=owner->handle;value.slot=slot;
     value.profile=scene_secondary_vehicle_profile(owner->resource_kind);value.last_frame=UINT32_MAX;
     resource=scene_secondary_vehicle_resource(stream,value.profile);if(!resource)return RF_NOT_FOUND;
-    status=scene_vehicle_profile_physics_prepare(value.profile,resource,owner->pose.position,
-        owner->pose.input_matrix,scene_gravity.acceleration,&value.physics);if(status)return status;
+    status=scene_vehicle_profile_physics_prepare_accounted(value.profile,resource,owner->pose.position,
+        owner->pose.input_matrix,scene_gravity.acceleration,&value.physics,memory);if(status)return status;
     if(scene_secondary_vehicle_flight_profile(value.profile))value.flight_parameters=(rf_vehicle_submersible_parameters){resource->physics.authored.mass,
         resource->movement.speed,resource->movement.acceleration,resource->rotation.maximum_velocity,
         resource->rotation.acceleration,2};
@@ -255,6 +256,9 @@ static int scene_secondary_vehicle_prepare(scene_stream *stream,uint32_t slot,ui
     value.support.material=-1;value.support.support_handle=UINT32_MAX;
     *out=value;return scene_secondary_vehicle_bind(stream,out);
 }
+static int scene_secondary_vehicle_prepare(scene_stream *stream,uint32_t slot,uint32_t restoring,
+    scene_secondary_vehicle_runtime *out)
+{return scene_secondary_vehicle_prepare_accounted(stream,slot,restoring,out,NULL);}
 /* Require the original parsed record, including its original target UID link.
  * A fabricated event with the same number cannot admit a second simulation. */
 static uint32_t scene_secondary_vehicle_event(const rf_level_event *event,const scene_passive_vehicle *owner)

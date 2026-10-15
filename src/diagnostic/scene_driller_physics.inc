@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_DRILLER_PHYSICS_INCLUDED
 #define RF_SCENE_DRILLER_PHYSICS_INCLUDED
+#include "rf/prepare_memory.h"
 #include "rf/vehicle_rigid.h"
 #include "rf/vehicle_suspension.h"
 #include "rf/collision.h"
@@ -16,8 +17,8 @@ typedef struct scene_driller_physics {
     rf_vehicle_spring springs[RF_VEHICLE_SUSPENSION_CAPACITY];
     uint32_t sphere_count,spring_count,body_flags;float radius;
 } scene_driller_physics;
-static int scene_driller_physics_initialize(const scene_driller_resources *resource,
-    const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+static int scene_driller_physics_initialize_accounted(const scene_driller_resources *resource,
+    const float position[3],const float basis[9],float gravity,scene_driller_physics *out,const rf_prepare_memory *memory)
 {
     scene_driller_physics value={0};rf_entity_class_sphere resolved[8]={0};
     rf_physics_mass_tensor initial={0},generated;rf_entity_physics_config config;
@@ -67,7 +68,7 @@ static int scene_driller_physics_initialize(const scene_driller_resources *resou
     {const float *m=generated.tensor;double determinant=(double)m[0]*(m[4]*m[8]-m[5]*m[7])-(double)m[1]*(m[3]*m[8]-m[5]*m[6])+(double)m[2]*(m[3]*m[7]-m[4]*m[6]);
      if(!isfinite(determinant)||determinant<=0)return RF_FORMAT;}
     status=rf_physics_tensor_inverse(generated.tensor,value.state.inverse_inertia);if(status)return status;
-    status=rf_entity_body_open(&config,value.spheres,value.sphere_count,position,basis,0,4096,&body);if(status)return status;
+    status=rf_entity_body_open_accounted(&config,value.spheres,value.sphere_count,position,basis,0,4096,&body,memory);if(status)return status;
     value.body_flags=body.state.flags;rf_physics_body_close(&body);
     memcpy(value.state.position,position,12);memcpy(value.state.orientation,basis,36);
     value.parameters.mass=config.authored.mass;value.parameters.gravity=gravity;
@@ -76,4 +77,7 @@ static int scene_driller_physics_initialize(const scene_driller_resources *resou
     status=rf_vehicle_rigid_propose(&value.state,&value.parameters,&command,&support,0,&probe);if(status)return status;
     *out=value;return RF_OK;
 }
+static inline int scene_driller_physics_initialize(const scene_driller_resources *resource,
+    const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+{return scene_driller_physics_initialize_accounted(resource,position,basis,gravity,out,NULL);}
 #endif

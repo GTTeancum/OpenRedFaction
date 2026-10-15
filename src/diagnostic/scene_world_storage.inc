@@ -1,3 +1,4 @@
+#include "rf/checkpoint_file.h"
 #ifndef RF_SCENE_WORLD_STORAGE_INCLUDED
 #define RF_SCENE_WORLD_STORAGE_INCLUDED
 /* Read-only optical flags opt in. Native saves use their own protected HDD
@@ -32,12 +33,26 @@ void rf_scene_save_button(uint32_t held)
 /* Read-only optical fixture for native restore admission. It never writes the
  * private HDD and is absent from ordinary game discs. */
 #define SCENE_WORLD_FIXTURE_BASE "D:\\world-fixture"
-static int scene_world_storage_flag(const char *path,uint32_t *found)
+/* Accounted early probes retain close uncertainty for the process lifetime.
+ * No FILE is retained or retried after fclose, even when it reports failure. */
+static uint32_t scene_world_flag_close_uncertain;
+static int scene_world_flag_checked_idle_status(void)
+{return scene_world_flag_close_uncertain?RF_IO:RF_OK;}
+static int scene_world_storage_flag_accounted(const char *path,uint32_t *found,
+    const rf_checkpoint_file_admission *admission)
 {
-    FILE *file;*found=0;errno=0;file=fopen(path,"rb");
+    FILE *file;int status;*found=0;
+    if(admission){if(!admission->before_open)return RF_RANGE;
+        status=scene_world_flag_checked_idle_status();if(status)return status;
+        status=admission->before_open(admission->context,path);if(status)return status;}
+    errno=0;file=fopen(path,"rb");
     if(!file)return errno==ENOENT?RF_OK:RF_IO;
-    *found=1;return fclose(file)?RF_IO:RF_OK;
+    *found=1;status=fclose(file);
+    if(status&&admission)scene_world_flag_close_uncertain=1;
+    return status?RF_IO:RF_OK;
 }
+static int scene_world_storage_flag(const char *path,uint32_t *found)
+{return scene_world_storage_flag_accounted(path,found,NULL);}
 static int scene_world_storage_close(rf_xbox_checkpoint_storage *storage)
 {
     uint32_t state[8];int status;if(!storage->mounted)return RF_OK;

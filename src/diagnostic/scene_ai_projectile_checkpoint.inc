@@ -1,5 +1,6 @@
 #ifndef SCENE_AI_PROJECTILE_CHECKPOINT_INC
 #define SCENE_AI_PROJECTILE_CHECKPOINT_INC
+#include "rf/prepare_memory.h"
 /* RFWC3's optional flight component. Enemy rows name an authored NPC UID,
  * never a registry handle or resource pointer. Player/controller identity
  * words are reserved zeros; their row kind selects the local-player role.
@@ -387,8 +388,8 @@ static int scene_ai_projectile_checkpoint_capture(const scene_stream *stream,voi
         *written=size;return RF_OK;
     }
 }
-static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,const void *data,uint32_t bytes,uint32_t budget,
-    scene_ai_projectile_checkpoint_stage **out)
+static int scene_ai_projectile_checkpoint_prepare_accounted(const scene_stream *stream,const void *data,uint32_t bytes,uint32_t budget,
+    scene_ai_projectile_checkpoint_stage **out,const rf_prepare_memory *memory)
 {
     const unsigned char *p=data;scene_ai_projectile_checkpoint_stage *stage;
     uint32_t count,i,seen_grenade=0,seen_rocket=0,seen_player_grenade=0,controller_only=0;
@@ -398,6 +399,7 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
     version=checkpoint_u32(p+4);count=checkpoint_u32(p+8);
     if(!count||count>SCENE_AI_PROJECTILE_MAX||bytes!=SCENE_AI_PROJECTILE_HEADER+count*SCENE_AI_PROJECTILE_ROW)return RF_FORMAT;
     preflight=scene_continuous_charge_checkpoint_preflight(data,bytes);if(preflight)return preflight;
+    preflight=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(preflight)return preflight;
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
     stage->delayed.present=version>=8;stage->melee.present=version>=12;
     for(i=0;i<count;i++){
@@ -594,6 +596,10 @@ static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,con
 invalid:
     free(stage);return RF_FORMAT;
 }
+/* Legacy save-side validation and other callers retain their original contract. */
+static int scene_ai_projectile_checkpoint_prepare(const scene_stream *stream,const void *data,uint32_t bytes,uint32_t budget,
+    scene_ai_projectile_checkpoint_stage **out)
+{return scene_ai_projectile_checkpoint_prepare_accounted(stream,data,bytes,budget,out,NULL);}
 /* The Flame controller and its newly explicit admission receipt publish
  * together only after final storage success. No load restarts ignition audio. */
 static void scene_ai_projectile_checkpoint_flame_finish(const scene_ai_projectile_checkpoint_stage *stage)

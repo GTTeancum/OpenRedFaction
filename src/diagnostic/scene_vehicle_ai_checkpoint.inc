@@ -1,5 +1,6 @@
 #ifndef SCENE_VEHICLE_AI_CHECKPOINT_INCLUDED
 #define SCENE_VEHICLE_AI_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* RFAI1/2: UID-bound default combat, independent ammunition and emitted rounds.
  * Header16, owner64, each active flight52. Ordinary RFNS nesting only; no
  * pointers/handles or sampled target positions on wire. V2 uses reserved row60
@@ -79,8 +80,8 @@ static int scene_vehicle_ai_capture(unsigned char *p,uint32_t capacity,uint32_t 
     }
     *written=(uint32_t)bytes;return RF_OK;
 }
-static int scene_vehicle_ai_prepare(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
-    scene_vehicle_ai_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_vehicle_ai_prepare_accounted(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_ai_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_vehicle_ai_stage *stage=NULL;scene_vehicle_ai_state **tail;uint32_t nested,count,at,version;int status=RF_FORMAT;
     if(!s||!out||*out||!inner||!inner_bytes||(!p&&bytes))return RF_RANGE;
@@ -89,12 +90,14 @@ static int scene_vehicle_ai_prepare(scene_stream *s,const unsigned char *p,uint3
     nested=scene_history_word(p+8);count=scene_history_word(p+12);
     if(!nested||nested>bytes-16||!count||count>RF_OBJECT_CAPACITY||
        (uint64_t)sizeof(*stage)+(uint64_t)count*sizeof(scene_vehicle_ai_state)>budget)return RF_FORMAT;
+    status=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(status)return status;
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;tail=&stage->head;at=16+nested;
     stage->count=count;stage->bytes=sizeof(*stage)+count*sizeof(scene_vehicle_ai_state);
     for(uint32_t i=0;i<count;i++){
         if(at>bytes||bytes-at<64)goto fail;
         const unsigned char *row=p+at;scene_vehicle_ai_owner owner;uint32_t bullets=scene_history_word(row+52),missiles=scene_history_word(row+56),previous=UINT32_MAX;
         if(bullets>48||missiles>4||(version==1&&scene_history_word(row+60))||(uint64_t)64+(uint64_t)(bullets+missiles)*52>bytes-at)goto fail;
+        status=rf_prepare_memory_admit(memory,NULL,sizeof(scene_vehicle_ai_state));if(status)goto fail;
         scene_vehicle_ai_state *a=calloc(1,sizeof(*a));if(!a){status=RF_IO;goto fail;}*tail=a;tail=&a->next;
         a->uid=scene_history_word(row);a->profile=scene_history_word(row+4);
         for(scene_vehicle_ai_state *b=stage->head;b!=a;b=b->next)if(b->uid==a->uid)goto fail;
@@ -120,6 +123,9 @@ static int scene_vehicle_ai_prepare(scene_stream *s,const unsigned char *p,uint3
     *out=stage;*inner=p+16;*inner_bytes=nested;return RF_OK;
 fail:scene_vehicle_ai_stage_close(&stage);return status?status:RF_FORMAT;
 }
+static inline int scene_vehicle_ai_prepare(scene_stream *s,const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_ai_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_vehicle_ai_prepare_accounted(s,p,bytes,budget,out,inner,inner_bytes,NULL);}
 static int scene_vehicle_ai_admit(const scene_vehicle_ai_stage *stage,const scene_secondary_vehicle_checkpoint_stage *secondary,
     const scene_vehicle_attack_stage *attack)
 {

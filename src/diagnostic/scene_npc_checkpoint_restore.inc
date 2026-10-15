@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_NPC_CHECKPOINT_RESTORE_INCLUDED
 #define RF_SCENE_NPC_CHECKPOINT_RESTORE_INCLUDED
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 #include "rf/npc_checkpoint.h"
 #include "scene_npc_checkpoint_pair_fit.inc"
 /* Read-only candidate-world placement/support and room resolver. Must fill a
@@ -15,6 +17,8 @@ typedef struct scene_npc_checkpoint_restore_entry {
     uint32_t reload_deadline,dwell_deadline;
     uint32_t blind_target,blind_last_seen; /* Prepared actual-generation receipt; final-close only. */
     scene_pursuit_delay_receipt pursuit_delay_prepared;
+    scene_pursuit_return_receipt pursuit_return_prepared;
+    uint32_t pursuit_return_retire_pending;
     uint32_t tactical_target;int32_t tactical_phase_due,tactical_recovery_due;
     uint32_t crouch_shape_present,crouch_intent,crouch_stamp,crouch_retire_pending;
     scene_crouch_receipt crouch_prepared;
@@ -43,13 +47,15 @@ typedef struct scene_npc_checkpoint_restore_stage {
     uint32_t flight_profile,flight_joined,flight_player,alarm_joined;
     uint32_t patrol_events_joined,patrol_binding_generation;
     uint32_t blind_joined; /* No publication of unresolved on-foot candidates. */
-    uint32_t tactical_cursor,tactical_joined,crouch_joined;
+    uint32_t tactical_cursor,tactical_joined,crouch_joined,pursuit_return_joined;
     scene_npc_checkpoint_restore_entry entries[];
 } scene_npc_checkpoint_restore_stage;
-/* Previous Xbox32 entry11456/header80; additional allowance100 includes
- * both saved-row copies, owner_before and the prepared delay receipt. */
-_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_entry)<=11556,"Pursuit delay candidate restore growth exceeds reviewed allowance");
-_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_stage)<=80,"Crouch restore header exceeds reviewed allowance");
+/* Previous Xbox32 entry11556/header80. Proposed return growth44 includes
+ * two decoded-row additions16, owner_before allowance16 and prepared receipt12;
+ * return retirement marker adds4 with conservative8-byte alignment allowance;
+ * header grows4. Uncompiled source bounds; total overlap accounting is pending. */
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_entry)<=11608,"Pursuit return candidate restore growth exceeds proposed allowance");
+_Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_stage)<=84,"Pursuit return restore header exceeds proposed allowance");
 /* Read-only native failure detail: phase FNV1a, row index, UID, status,
  * expected resident row count and supplied row count. UINT32_MAX identifies
  * a non-row failure. This is separate from capture admission diagnostics. */
@@ -230,14 +236,16 @@ static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t 
     }
     return distance2<radius*radius&&sqrt(candidate_distance2)+.01>=sqrt(distance2);
 }
-static inline void scene_npc_checkpoint_restore_discard(scene_npc_checkpoint_restore_stage **stage)
+static inline void scene_npc_checkpoint_restore_discard_storage(scene_npc_checkpoint_restore_stage **stage,const rf_prepare_storage *storage)
 {
     uint32_t i;
     if(stage&&*stage){
         for(i=0;i<(*stage)->count;i++)scene_medic_syringe_restore_discard(&(*stage)->entries[i].medic_child);
-        free(*stage);*stage=NULL;
+        (void)rf_prepare_storage_release(storage,NULL,NULL,*stage,RF_OK);*stage=NULL;
     }
 }
+static inline void scene_npc_checkpoint_restore_discard(scene_npc_checkpoint_restore_stage **stage)
+{scene_npc_checkpoint_restore_discard_storage(stage,NULL);}
 static int scene_npc_checkpoint_restore_eye(uint32_t slot,const scene_npc_checkpoint_restore_entry *e,float result[3])
 {
     rf_eye_input input={0};const campaign_npc_eye_class *eye;const rf_entity_pose *pose;
@@ -269,10 +277,10 @@ static int scene_npc_checkpoint_restore_clip(uint32_t skeleton,int32_t id,uint32
        model->resources[id].references<0||model->resources[id].references>INT32_MAX-(int32_t)(owners*16u))return RF_RANGE;
     return RF_OK;
 }
-static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpoint_record *rows,uint32_t count,
+static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(const rf_npc_checkpoint_record *rows,uint32_t count,
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
     uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out,
-    const scene_npc_seat_checkpoint_stage *seats,const rf_npc_checkpoint_rng *rng,uint32_t flight_profile)
+    const scene_npc_seat_checkpoint_stage *seats,const rf_npc_checkpoint_rng *rng,uint32_t flight_profile,const rf_prepare_memory *memory,const rf_prepare_storage *storage)
 {
     scene_npc_checkpoint_restore_stage *stage=NULL;rf_npc_checkpoint_record current;
     unsigned char identity[32]={0},wire[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX];
@@ -372,8 +380,9 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         bytes+=(uint64_t)campaign_poses.items[j].bone_count*48+((campaign_poses.items[j].bone_count*2+3u)&~3u);
     }
     if(bytes>budget||bytes>UINT32_MAX)return scene_npc_checkpoint_restore_failure("budget",UINT32_MAX,UINT32_MAX,RF_RANGE);
-    stage=calloc(1,(size_t)bytes);if(!stage)return scene_npc_checkpoint_restore_failure("allocation",UINT32_MAX,UINT32_MAX,RF_IO);stage->count=count;stage->bytes=(uint32_t)bytes;stage->now=now;stage->fresh_boot=fresh_boot;
-    stage->flight_profile=flight_profile;stage->flight_joined=!flight_profile;stage->alarm_joined=1;stage->blind_joined=!fresh_boot;stage->tactical_joined=1;
+    {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,NULL,(size_t)bytes,&allocation);
+     if(status)return scene_npc_checkpoint_restore_failure("allocation",UINT32_MAX,UINT32_MAX,status);stage=allocation;}stage->count=count;stage->bytes=(uint32_t)bytes;stage->now=now;stage->fresh_boot=fresh_boot;
+    stage->flight_profile=flight_profile;stage->flight_joined=!flight_profile;stage->alarm_joined=1;stage->blind_joined=!fresh_boot;stage->tactical_joined=1;stage->pursuit_return_joined=1;
     stage->crouch_joined=1;
     stage->patrol_events_joined=!scene_waypoint_events.handle_count;
     stage->patrol_binding_generation=scene_waypoint_events.generation;
@@ -441,8 +450,8 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
             if(!campaign_poses.items||j>=campaign_poses.count){status=RF_FORMAT;goto fail;}
             e->pose_before=campaign_poses.items[j];
             if(stage->bytes>budget){status=RF_RANGE;goto fail;}
-            status=scene_medic_syringe_restore_prepare(o,rows[i].medic.child_state,
-                rows[i].medic.child_health,rows[i].retired,budget-stage->bytes,&e->medic_child);
+            status=scene_medic_syringe_restore_prepare_accounted(o,rows[i].medic.child_state,
+                rows[i].medic.child_health,rows[i].retired,budget-stage->bytes,&e->medic_child,memory);
             if(status)goto fail;
             if(e->medic_child.allocated_bytes>budget-stage->bytes){status=RF_RANGE;goto fail;}
             stage->bytes+=e->medic_child.allocated_bytes;
@@ -545,6 +554,20 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
          status=scene_tactical_candidate(j,rows+i,rows,count,now,&prepared);if(status)goto fail;
          e->tactical_target=prepared.target;e->tactical_phase_due=prepared.phase_due;e->tactical_recovery_due=prepared.recovery_due;
          if(rows[i].tactical.present)stage->tactical_joined=0; /* Complete player/seat joins remain mandatory. */
+         detail="pursuit_return";
+         status=scene_pursuit_return_candidate(j,rows+i,rows,count,&prepared,&e->pursuit_return_prepared);if(status)goto fail;
+         if(e->pursuit_return_prepared.phase)stage->pursuit_return_joined=0;
+        }
+        /* Return-only ownership also needs an old full-body/pose seal when
+         * no patrol, medic or crouch owner happened to request one. */
+        if(o->pursuit_return.phase||e->pursuit_return_prepared.phase){
+            if(o->pursuit_return.phase){
+                status=scene_pursuit_return_tactical_admit(&o->pursuit_return,&o->tactical);if(status)goto fail;
+                status=scene_tactical_owner(j);if(status)goto fail;
+                e->pursuit_return_retire_pending=!!e->saved.retired;
+            }
+            if(!campaign_poses.items||j>=campaign_poses.count){status=RF_FORMAT;goto fail;}
+            e->owner_before=*o;e->pose_before=campaign_poses.items[j];
         }
         detail="fresh_identity";
         if(fresh_boot){
@@ -779,8 +802,18 @@ fail:
 #else
     (void)detail;
 #endif
-    scene_npc_checkpoint_restore_discard(&stage);return status;
+    scene_npc_checkpoint_restore_discard_storage(&stage,storage);return status;
 }
+static inline int scene_npc_checkpoint_restore_prepare_mode_accounted(const rf_npc_checkpoint_record *rows,uint32_t count,
+    const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
+    uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out,
+    const scene_npc_seat_checkpoint_stage *seats,const rf_npc_checkpoint_rng *rng,uint32_t flight_profile,const rf_prepare_memory *memory)
+{return scene_npc_checkpoint_restore_prepare_mode_storage_accounted(rows,count,catalog,now,place,context,budget,fresh_boot,out,seats,rng,flight_profile,memory,NULL);}
+static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpoint_record *rows,uint32_t count,
+    const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
+    uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out,
+    const scene_npc_seat_checkpoint_stage *seats,const rf_npc_checkpoint_rng *rng,uint32_t flight_profile)
+{return scene_npc_checkpoint_restore_prepare_mode_accounted(rows,count,catalog,now,place,context,budget,fresh_boot,out,seats,rng,flight_profile,NULL);}
 static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_record *rows,uint32_t count,
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
     uint32_t budget,scene_npc_checkpoint_restore_stage **out)
@@ -860,7 +893,7 @@ static int scene_pursuit_delay_prepared(const scene_npc_checkpoint_restore_stage
 static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoint_restore_stage *stage)
 {
     uint32_t i;int status;rf_npc_checkpoint_record current;
-    if(!stage||stage->blind_joined!=1||stage->tactical_joined!=1||stage->crouch_joined!=1)return RF_RANGE;
+    if(!stage||stage->blind_joined!=1||stage->tactical_joined!=1||stage->crouch_joined!=1||stage->pursuit_return_joined!=1)return RF_RANGE;
     status=scene_waypoint_boundary();if(status)return status;
     if(!stage->alarm_joined||!stage->patrol_events_joined||
        stage->patrol_binding_generation!=scene_waypoint_events.generation)return RF_FORMAT;
@@ -875,6 +908,7 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
         status=scene_blind_prepared(stage,e);if(status)return status;
         status=scene_pursuit_delay_prepared(stage,e);if(status)return status;
         status=scene_tactical_prepared(stage,e);if(status)return status;
+        status=scene_pursuit_return_prepared(stage,e);if(status)return status;
         status=scene_crouch_prepared(stage,e);if(status)return status;
         status=scene_guard_retreat_checkpoint_validate(&e->guard_retreat);if(status)return status;
         status=scene_noise_candidate(e->slot,&e->saved,&e->selection);if(status)return status;
@@ -900,7 +934,8 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
         }
         if(memcmp(&rf_scene_defeated_actors.routes[campaign_npc_bodies[e->slot].persistence_slot],
             &e->route_before,sizeof(e->route_before)))return RF_FORMAT;
-        if((e->medic_owner_snapshot||e->route_owner_snapshot)&&!stage->fresh_boot){
+        if((e->medic_owner_snapshot||e->route_owner_snapshot||e->owner_before.pursuit_return.phase||
+            e->pursuit_return_prepared.phase)&&!stage->fresh_boot){
             if(memcmp(campaign_npc_bodies+e->slot,&e->owner_before,sizeof(e->owner_before))||
                !campaign_poses.items||e->slot>=campaign_poses.count||
                memcmp(campaign_poses.items+e->slot,&e->pose_before,sizeof(e->pose_before)))return RF_FORMAT;
@@ -996,6 +1031,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o=campaign_npc_bodies+e->slot;
         uint32_t persistence=o->persistence_slot;rf_entity_pose *pose=NULL;
+        scene_pursuit_token_invalidate_owner(o); /* accepted saved timeline before pose/owner stores */
         if(e->registered){
             pose=campaign_poses.items+e->slot;
             for(j=0;j<pose->playback.completion.active.count;j++){
@@ -1145,7 +1181,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         rf_scene_defeated_actors.item_drops[persistence]=e->saved.item_drop;
         rf_scene_defeated_actors.capek_shield_broken[persistence]=(uint8_t)e->saved.capek_shield_broken;
         if(e->saved.retired){
-            if(!e->crouch_retire_pending){
+            if(!e->crouch_retire_pending&&!e->pursuit_return_retire_pending){
                 if(e->registered)(void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&o->registration);
                 rf_physics_body_close(&o->body);
             }
@@ -1183,7 +1219,7 @@ static inline void scene_npc_checkpoint_restore_finish(scene_npc_checkpoint_rest
         /* Geometry and policy change only after the complete transaction has
          * passed its final close. All shape/identity checks were performed
          * against the sealed old owner, never during these assignments. */
-        if(e->crouch_retire_pending){
+        if(e->crouch_retire_pending||e->pursuit_return_retire_pending){
             /* Registry identity and allocation were sealed before close.
              * These ordinary retirement stores/free operations have no
              * gameplay callback, resource demand or recoverable failure. */
@@ -1244,6 +1280,12 @@ static inline void scene_npc_checkpoint_restore_finish(scene_npc_checkpoint_rest
             o->ai_mode.flags_530=(o->ai_mode.flags_530&~0x200000u)|(o->alarm.started?0x200000u:0);
         }
         o->death_item_attempted=e->saved.retired||e->saved.dead_pose;o->death_item_fault=0;
+        /* Final-success continuation publication follows every publisher that
+         * may clear the outgoing return owner (Blind, route, flight, guard).
+         * All relation/late-close proofs must precede this assignment-only
+         * boundary. The temporary nonempty-return save fence remains until
+         * those callers are complete; this is not admission authority. */
+        o->pursuit_return=e->pursuit_return_prepared;
     }
     scene_medic_flight_rng_publish(&stage->flight_rng);
 }

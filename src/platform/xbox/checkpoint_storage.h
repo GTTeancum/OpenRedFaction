@@ -1,8 +1,9 @@
 #ifndef RF_XBOX_CHECKPOINT_STORAGE_H
 #define RF_XBOX_CHECKPOINT_STORAGE_H
 #include "rf/checkpoint_file.h"
-/* Explicit checkpoint storage, single-threaded. Zero-initialize session. No heap
- * allocation here; load requires the caller's one110524-byte payload buffer.
+/* Explicit checkpoint storage, single-threaded. Zero-initialize session. Load
+ * requires the caller's one110524-byte payload buffer; portable stdio opens
+ * may separately admit their allocations through the optional load interface.
  * R: must be unowned at open. Never formats, replaces mounts or deletes slots. */
 typedef struct rf_xbox_checkpoint_storage {
     rf_checkpoint_file_selection selection;
@@ -21,6 +22,8 @@ int rf_xbox_checkpoint_storage_open_world(rf_xbox_checkpoint_storage *,uint32_t 
 int rf_xbox_checkpoint_storage_open_world_auto(rf_xbox_checkpoint_storage *,uint32_t writable);
 int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *,void *,uint32_t,
     uint32_t *,rf_checkpoint_file_validate,void *);
+int rf_xbox_checkpoint_storage_load_accounted(rf_xbox_checkpoint_storage *,void *,uint32_t,
+    uint32_t *,rf_checkpoint_file_validate,void *,const rf_checkpoint_file_admission *);
 /* After any store error, call load before retry. Older selected slot remains
  * untouched; newer bytes may exist even when native flush/close fails. */
 int rf_xbox_checkpoint_storage_store(rf_xbox_checkpoint_storage *,const void *,uint32_t,

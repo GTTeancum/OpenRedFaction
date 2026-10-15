@@ -1,6 +1,7 @@
 #ifndef RF_SCENE_NPC_SEAT_CHECKPOINT_DECL_INCLUDED
 #define RF_SCENE_NPC_SEAT_CHECKPOINT_DECL_INCLUDED
 #include "rf/npc_checkpoint.h"
+#include "rf/prepare_memory.h"
 #include "rf/checkpoint_placement.h"
 /* Early declarations only, before NPC/world checkpoint includes. Runtime
  * definitions stay after the driller and actual seat binding include. */
@@ -16,6 +17,8 @@ static uint32_t scene_npc_seat_checkpoint_host(uint32_t);
 static uint32_t scene_npc_seat_checkpoint_owns(const scene_npc_seat_checkpoint_stage *,uint32_t,uint32_t);
 static void scene_npc_seat_checkpoint_close(scene_npc_seat_checkpoint_stage **);
 static int scene_npc_seat_checkpoint_capture(unsigned char *,uint32_t,uint32_t,uint32_t *);
+static int scene_npc_seat_checkpoint_prepare_accounted(const unsigned char *,uint32_t,uint32_t,
+    scene_npc_seat_checkpoint_stage **,const unsigned char **,uint32_t *,const rf_prepare_memory *);
 static int scene_npc_seat_checkpoint_prepare(const unsigned char *,uint32_t,uint32_t,
     scene_npc_seat_checkpoint_stage **,const unsigned char **,uint32_t *);
 static int scene_npc_seat_checkpoint_hosts(scene_npc_seat_checkpoint_stage *,

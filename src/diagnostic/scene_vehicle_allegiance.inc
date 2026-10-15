@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_VEHICLE_ALLEGIANCE_INCLUDED
 #define RF_SCENE_VEHICLE_ALLEGIANCE_INCLUDED
+#include "rf/prepare_memory.h"
 /* Original Set_Friendliness4bc280 ->489f70/4895f0 writes the complete word
  * at object+1f8. OFF4b9f80 does nothing. L1S3 events9619/9636 both write0
  * to APC26, initially1. No occupancy, hostility or route policy is inferred.
@@ -106,8 +107,8 @@ static int scene_vehicle_allegiance_capture(unsigned char *p,uint32_t capacity,u
     }
     *written=(uint32_t)bytes;return RF_OK;
 }
-static int scene_vehicle_allegiance_prepare(const unsigned char *p,uint32_t bytes,uint32_t budget,
-    scene_vehicle_allegiance_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_vehicle_allegiance_prepare_accounted(const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_allegiance_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     uint32_t count=scene_vehicle_allegiance_count(),overrides,nested;uint64_t cost,required;
     scene_vehicle_allegiance_stage *stage=NULL;int status=RF_FORMAT;
@@ -120,7 +121,10 @@ static int scene_vehicle_allegiance_prepare(const unsigned char *p,uint32_t byte
     cost=sizeof(*stage)+(uint64_t)count*sizeof(*stage->rows);
     if(!nested||!overrides||overrides>count||count>RF_OBJECT_CAPACITY||required!=bytes||
        required>RF_CHECKPOINT_FILE_MAX||cost>budget)return RF_FORMAT;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(admitted)return admitted;}
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,(size_t)count*sizeof(*stage->rows));
+     if(admitted){free(stage);return admitted;}}
     stage->rows=calloc(count,sizeof(*stage->rows));if(!stage->rows){free(stage);return RF_IO;}
     stage->count=count;stage->bytes=(uint32_t)cost;
     for(uint32_t i=0;i<count;i++){
@@ -139,6 +143,9 @@ static int scene_vehicle_allegiance_prepare(const unsigned char *p,uint32_t byte
     *out=stage;*inner=p+SCENE_VEHICLE_ALLEGIANCE_HEADER;*inner_bytes=nested;return RF_OK;
 fail:scene_vehicle_allegiance_close(&stage);return status;
 }
+static inline int scene_vehicle_allegiance_prepare(const unsigned char *p,uint32_t bytes,uint32_t budget,
+    scene_vehicle_allegiance_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_vehicle_allegiance_prepare_accounted(p,bytes,budget,out,inner,inner_bytes,NULL);}
 /* After all fallible admission and selected/passive/secondary publication.
  * Addresses are fresh, generation-checked live owners, never wire pointers. */
 static void scene_vehicle_allegiance_assign(const scene_vehicle_allegiance_stage *stage)

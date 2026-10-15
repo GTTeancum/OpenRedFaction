@@ -125,9 +125,9 @@ static void scene_jeep_gunner_checkpoint_close(scene_jeep_gunner_checkpoint_stag
  * pass admits fresh on-foot runtime plus its real authored NPC driver; an
  * already-seated live player remains rejected, including in-session gunner.
  * world_player_prepare and RFNS admit must have completed before this call. */
-static int scene_jeep_gunner_checkpoint_prepare(scene_stream *stream,
+static int scene_jeep_gunner_checkpoint_prepare_accounted(scene_stream *stream,
     const scene_npc_seat_checkpoint_stage *seats,const scene_vehicle_checkpoint_record *vehicle,
-    const scene_world_player_stage *player,uint32_t budget,scene_jeep_gunner_checkpoint_stage **out)
+    const scene_world_player_stage *player,uint32_t budget,scene_jeep_gunner_checkpoint_stage **out,const rf_prepare_memory *memory)
 {
     scene_jeep_gunner_checkpoint_stage *s=NULL;const scene_npc_seat_saved *seat=NULL;
     scene_driller_runtime *r;const scene_npc_checkpoint_restore_entry *npc=NULL;
@@ -151,6 +151,7 @@ static int scene_jeep_gunner_checkpoint_prepare(scene_stream *stream,
         for(i=0;i<3;i++)if(fabsf(npc->published[i]-seat->pose[9+i])>.001f)return RF_FORMAT;
     }
     if(sizeof(*s)>budget)return RF_RANGE;
+    status=rf_prepare_memory_admit(memory,NULL,sizeof(*s));if(status)return status;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;
     status=scene_jeep_checkpoint_stage_rigid(&r->physics.state,&vehicle->value.jeep,&s->combat);if(status)goto fail;
     s->combat.vehicle.player_occupied=0;
@@ -177,6 +178,10 @@ static int scene_jeep_gunner_checkpoint_prepare(scene_stream *stream,
     s->admitted=1;*out=s;return RF_OK;
 fail:free(s);return status;
 }
+static inline int scene_jeep_gunner_checkpoint_prepare(scene_stream *stream,
+    const scene_npc_seat_checkpoint_stage *seats,const scene_vehicle_checkpoint_record *vehicle,
+    const scene_world_player_stage *player,uint32_t budget,scene_jeep_gunner_checkpoint_stage **out)
+{return scene_jeep_gunner_checkpoint_prepare_accounted(stream,seats,vehicle,player,budget,out,NULL);}
 /* Assignment-only host half immediately AFTER RFNS detach, BEFORE RFNS assign
  * and route mode publication. Reuses the extracted existing combat commit. */
 static void scene_jeep_gunner_checkpoint_host_assign(scene_stream *stream,const scene_jeep_gunner_checkpoint_stage *s)

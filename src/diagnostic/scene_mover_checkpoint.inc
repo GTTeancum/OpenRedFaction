@@ -1,5 +1,7 @@
 #ifndef RF_SCENE_MOVER_CHECKPOINT_INC
 #define RF_SCENE_MOVER_CHECKPOINT_INC
+#include "rf/prepare_memory.h"
+#include "rf/prepare_storage.h"
 #include "rf/mover_checkpoint.h"
 #include "rf/geometry.h"
 #include <stdlib.h>
@@ -18,11 +20,13 @@ typedef struct scene_mover_checkpoint_stage {
     const rf_object_registry *original_registry;
     uint32_t controller_count,mover_count,allocated_bytes;
 } scene_mover_checkpoint_stage;
-static void scene_mover_checkpoint_close(scene_mover_checkpoint_stage *s)
+static void scene_mover_checkpoint_close_storage(scene_mover_checkpoint_stage *s,const rf_prepare_storage *storage)
 {
-    if(!s)return;free(s->entries);free(s->bindings);free(s->poses);free(s->views);free(s->slots);
-    free(s->member_handles);free(s->controller_handles);free(s->controller_uids);free(s->controller_key_counts);memset(s,0,sizeof(*s));
+    if(!s)return;(void)rf_prepare_storage_release(storage,NULL,NULL,s->entries,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->bindings,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->poses,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->views,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->slots,RF_OK);
+    (void)rf_prepare_storage_release(storage,NULL,NULL,s->member_handles,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->controller_handles,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->controller_uids,RF_OK);(void)rf_prepare_storage_release(storage,NULL,NULL,s->controller_key_counts,RF_OK);memset(s,0,sizeof(*s));
 }
+static inline void scene_mover_checkpoint_close(scene_mover_checkpoint_stage *s)
+{scene_mover_checkpoint_close_storage(s,NULL);}
 /* Pure preparation: output must be empty, every live controller needs one row.
  * Call at a settled boundary; records with pending != position are rejected.
  * This service validates UID/registration/attachment identity and reconstructs
@@ -30,10 +34,10 @@ static void scene_mover_checkpoint_close(scene_mover_checkpoint_stage *s)
  * General-object attachments are staged by their own owner. Keep live member
  * identities unchanged while reconstructing only mover geometry here.
  * Failure leaves output and all live state unchanged. No registry mutations. */
-static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collection *runtime,
+static inline int scene_mover_checkpoint_prepare_storage_accounted(const rf_group_runtime_collection *runtime,
     const rf_group_registration *registration,const rf_group_controller_view *bindings,
     const rf_geometry_collision_movers *movers,const rf_mover_checkpoint_record *rows,
-    uint32_t count,int32_t now,uint32_t budget,scene_mover_checkpoint_stage *out)
+    uint32_t count,int32_t now,uint32_t budget,scene_mover_checkpoint_stage *out,const rf_prepare_memory *memory,const rf_prepare_storage *storage)
 {
     scene_mover_checkpoint_stage s={0};rf_geometry_collision_movers geometry;uint64_t bytes;
     uint32_t i,j,k,active=0,members=0,at=0;int status=RF_FORMAT;
@@ -55,11 +59,51 @@ static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collecti
         (uint64_t)movers->count*(sizeof(*s.poses)+sizeof(*s.views))+RF_OBJECT_CAPACITY*sizeof(*s.slots)+(uint64_t)members*4;
     if(bytes>budget||bytes>UINT32_MAX)return RF_RANGE;
     s.controller_count=runtime->count;s.mover_count=movers->count;s.allocated_bytes=(uint32_t)bytes;
-    if(runtime->count){s.entries=malloc(runtime->count*sizeof(*s.entries));s.bindings=malloc(runtime->count*sizeof(*s.bindings));s.controller_handles=calloc(runtime->count,4);s.controller_uids=calloc(runtime->count,4);s.controller_key_counts=calloc(runtime->count,4);}
-    if(members)s.member_handles=malloc(members*4);
-    if(movers->count){s.poses=malloc(movers->count*sizeof(*s.poses));s.views=malloc(movers->count*sizeof(*s.views));}
-    s.slots=calloc(RF_OBJECT_CAPACITY,sizeof(*s.slots));
-    if((runtime->count&&(!s.entries||!s.bindings||!s.controller_handles||!s.controller_uids||!s.controller_key_counts))||(members&&!s.member_handles)||(movers->count&&(!s.poses||!s.views))||!s.slots){status=RF_RANGE;goto fail;}
+    if(runtime->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,runtime->count*sizeof(*s.entries),&allocation);if(status)goto fail;
+         s.entries=allocation;}
+    }
+    if(runtime->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,runtime->count*sizeof(*s.bindings),&allocation);if(status)goto fail;
+         s.bindings=allocation;}
+    }
+    if(runtime->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,runtime->count*4,&allocation);if(status)goto fail;
+         s.controller_handles=allocation;}
+    }
+    if(runtime->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,runtime->count*4,&allocation);if(status)goto fail;
+         s.controller_uids=allocation;}
+    }
+    if(runtime->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,runtime->count*4,&allocation);if(status)goto fail;
+         s.controller_key_counts=allocation;}
+    }
+    if(members){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,members*4,&allocation);if(status)goto fail;
+         s.member_handles=allocation;}
+    }
+    if(movers->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,movers->count*sizeof(*s.poses),&allocation);if(status)goto fail;
+         s.poses=allocation;}
+    }
+    if(movers->count){
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,movers->count*sizeof(*s.views),&allocation);if(status)goto fail;
+         s.views=allocation;}
+    }
+    {
+        {void *allocation=NULL;
+         status=rf_prepare_storage_allocate(storage,memory,NULL,RF_OBJECT_CAPACITY*sizeof(*s.slots),&allocation);if(status)goto fail;
+         s.slots=allocation;}
+    }
     s.original_entries=runtime->items;s.original_poses=movers->poses;s.original_views=movers->views;
     s.original_controllers=registration->controllers;s.original_registry=registration->registry;
     if(runtime->count){memcpy(s.entries,runtime->items,runtime->count*sizeof(*s.entries));memcpy(s.bindings,bindings,runtime->count*sizeof(*s.bindings));}
@@ -112,8 +156,18 @@ static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collecti
     }
     status=rf_geometry_collision_movers_sync(&geometry);if(status)goto fail;
     *out=s;return RF_OK;
-fail:scene_mover_checkpoint_close(&s);return status;
+fail:scene_mover_checkpoint_close_storage(&s,storage);return status;
 }
+static inline int scene_mover_checkpoint_prepare_accounted(const rf_group_runtime_collection *runtime,
+    const rf_group_registration *registration,const rf_group_controller_view *bindings,
+    const rf_geometry_collision_movers *movers,const rf_mover_checkpoint_record *rows,
+    uint32_t count,int32_t now,uint32_t budget,scene_mover_checkpoint_stage *out,const rf_prepare_memory *memory)
+{return scene_mover_checkpoint_prepare_storage_accounted(runtime,registration,bindings,movers,rows,count,now,budget,out,memory,NULL);}
+static inline int scene_mover_checkpoint_prepare(const rf_group_runtime_collection *runtime,
+    const rf_group_registration *registration,const rf_group_controller_view *bindings,
+    const rf_geometry_collision_movers *movers,const rf_mover_checkpoint_record *rows,
+    uint32_t count,int32_t now,uint32_t budget,scene_mover_checkpoint_stage *out)
+{return scene_mover_checkpoint_prepare_accounted(runtime,registration,bindings,movers,rows,count,now,budget,out,NULL);}
 /* Preflight every original identity before the first write. Caller must keep
  * simulation paused between preparation and commit; this checks identity and
  * topology, not an optimistic concurrency version of mutable gameplay state.

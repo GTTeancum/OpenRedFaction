@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_PASSIVE_VEHICLE_CHECKPOINT_INC
 #define RF_SCENE_PASSIVE_VEHICLE_CHECKPOINT_INC
+#include "rf/prepare_memory.h"
 /* RFVA2 adds per-instance vitals/death to the pose rows. RFVA1 remains
  * readable, including older saves that listed only group-owned children.
  * The outer RFWC envelope supplies source identity and checksum; runtime
@@ -65,8 +66,8 @@ static int scene_passive_vehicle_checkpoint_capture(unsigned char *p,uint32_t ca
     }
     *written=(uint32_t)required;return RF_OK;
 }
-static int scene_passive_vehicle_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
-    uint32_t budget,scene_passive_vehicle_checkpoint_stage **out)
+static int scene_passive_vehicle_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_passive_vehicle_checkpoint_stage **out,const rf_prepare_memory *memory)
 {
     scene_passive_vehicle_checkpoint_stage *stage;uint32_t count,host_bytes,version,row_bytes,i,j,slot;
     const unsigned char *row;uint64_t required;
@@ -79,7 +80,10 @@ static int scene_passive_vehicle_checkpoint_prepare(const unsigned char *p,uint3
        (version==2&&count!=campaign_passive_vehicle_count)||required!=bytes||
        required>RF_CHECKPOINT_FILE_MAX||
        (uint64_t)sizeof(*stage)+(uint64_t)campaign_passive_vehicle_count*sizeof(*stage->rows)>budget)return RF_FORMAT;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,sizeof(*stage));if(admitted)return admitted;}
     stage=calloc(1,sizeof(*stage));if(!stage)return RF_IO;
+    {int admitted=rf_prepare_memory_admit(memory,NULL,(size_t)campaign_passive_vehicle_count*sizeof(*stage->rows));
+     if(admitted){free(stage);return admitted;}}
     stage->rows=calloc(campaign_passive_vehicle_count,sizeof(*stage->rows));
     if(!stage->rows){free(stage);return RF_IO;}
     stage->count=campaign_passive_vehicle_count;stage->host_bytes=host_bytes;stage->version=version;
@@ -125,6 +129,9 @@ static int scene_passive_vehicle_checkpoint_prepare(const unsigned char *p,uint3
     }
     *out=stage;return RF_OK;
 }
+static int scene_passive_vehicle_checkpoint_prepare(const unsigned char *p,uint32_t bytes,
+    uint32_t budget,scene_passive_vehicle_checkpoint_stage **out)
+{return scene_passive_vehicle_checkpoint_prepare_accounted(p,bytes,budget,out,NULL);}
 static int scene_passive_vehicle_checkpoint_validate(const scene_passive_vehicle_checkpoint_stage *stage)
 {
     uint32_t group,i,capacity=0;

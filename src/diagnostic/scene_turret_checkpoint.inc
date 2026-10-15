@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_TURRET_CHECKPOINT_INCLUDED
 #define RF_SCENE_TURRET_CHECKPOINT_INCLUDED
+#include "rf/prepare_memory.h"
 /* Optional RFTU1 wrapper within RF_WORLD_VEHICLE. Its inner payload remains
  * an unchanged RFVA/vehicle/RFVR record, or empty for a turret-only level.
  * Include after turret combat and scene_history scalar codecs. RFWC supplies
@@ -165,8 +166,8 @@ static int scene_turret_checkpoint_capture(unsigned char *p,uint32_t capacity,
     ++rf_scene_turret_checkpoint[0];*written=(uint32_t)required;return RF_OK;
 }
 
-static int scene_turret_checkpoint_prepare(const unsigned char *p,uint32_t bytes,uint32_t frame,
-    uint32_t budget,scene_turret_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+static int scene_turret_checkpoint_prepare_accounted(const unsigned char *p,uint32_t bytes,uint32_t frame,
+    uint32_t budget,scene_turret_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes,const rf_prepare_memory *memory)
 {
     scene_turret_checkpoint_stage *stage;const unsigned char *body;uint32_t count,size,i,j;uint64_t allocated;int status;
     if(!out||*out||!inner||!inner_bytes||frame==UINT32_MAX)return RF_RANGE;
@@ -175,6 +176,7 @@ static int scene_turret_checkpoint_prepare(const unsigned char *p,uint32_t bytes
     allocated=sizeof(*stage)+(uint64_t)count*sizeof(*stage->rows);
     if(count!=scene_turret_authored_count||scene_turret_authored_count>scene_turret_count||
        scene_turret_count>SCENE_TURRET_OWNER_LIMIT||allocated>budget||allocated>UINT32_MAX)return RF_FORMAT;
+    status=rf_prepare_memory_admit(memory,NULL,(size_t)allocated);if(status)return status;
     stage=calloc(1,(size_t)allocated);if(!stage)return RF_IO;
     stage->count=count;stage->inner_bytes=size;stage->allocated_bytes=(uint32_t)allocated;stage->frame=frame;
     for(i=0;i<count;i++) {
@@ -200,6 +202,9 @@ static int scene_turret_checkpoint_prepare(const unsigned char *p,uint32_t bytes
 fail:
     rf_scene_turret_checkpoint[5]=(uint32_t)status;scene_turret_checkpoint_close(&stage);return status;
 }
+static inline int scene_turret_checkpoint_prepare(const unsigned char *p,uint32_t bytes,uint32_t frame,
+    uint32_t budget,scene_turret_checkpoint_stage **out,const unsigned char **inner,uint32_t *inner_bytes)
+{return scene_turret_checkpoint_prepare_accounted(p,bytes,frame,budget,out,inner,inner_bytes,NULL);}
 
 static int scene_turret_checkpoint_validate(const scene_turret_checkpoint_stage *stage)
 {

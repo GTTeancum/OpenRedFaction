@@ -77,16 +77,33 @@ static void scene_npc_reactive_restore_probe(void)
     }
     rf_scene_enemy_reactive_restore[0]=count;scene_npc_opposed_probe();
 }
+/* Split the bounded range gate from facing so a future admitted notice
+ * consumer can clear its one-use bit precisely between them. Existing callers
+ * continue through the combined wrapper; no notice consumption is enabled. */
+static uint32_t campaign_enemy_opposed_range(const campaign_npc_body *o,
+    const float point[3],float delta[3],float *distance)
+{
+    float d=0;
+    for(uint32_t k=0;k<3;k++){
+        delta[k]=point[k]-o->eye_position[k];d+=delta[k]*delta[k];
+    }
+    if(!isfinite(d)||d<.0001f||d>400.f)return 0;
+    *distance=d;return 1;
+}
+/* Requires the successful finite, positive range result above. */
+static uint32_t campaign_enemy_opposed_facing(const campaign_npc_body *o,
+    const float delta[3],float distance)
+{
+    float forward=0;
+    for(uint32_t k=0;k<3;k++)forward+=o->look.orientation[6+k]*delta[k];
+    return isfinite(forward)&&forward>0&&forward*forward>=distance*.25f;
+}
 static uint32_t campaign_enemy_opposed_cone(const campaign_npc_body *o,
     const float point[3],float delta[3],float *distance)
 {
-    float d=0,forward=0;
-    for(uint32_t k=0;k<3;k++){
-        delta[k]=point[k]-o->eye_position[k];d+=delta[k]*delta[k];
-        forward+=o->look.orientation[6+k]*delta[k];
-    }
-    if(!isfinite(d)||!isfinite(forward)||d<.0001f||d>400.f||
-       forward<=0||forward*forward<d*.25f)return 0;
+    float d;
+    if(!campaign_enemy_opposed_range(o,point,delta,&d)||
+       !campaign_enemy_opposed_facing(o,delta,d))return 0;
     *distance=d;return 1;
 }
 static uint32_t campaign_enemy_opposed_moving(const float velocity[3])
@@ -167,6 +184,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     }
     if(!target)return RF_OK;
     if(frame>UINT32_MAX-30){status=RF_RANGE;goto fail;}
+    scene_pursuit_token_invalidate_owner(owner); /* accepted opposed target takeover */
     status=campaign_animation_cancel(owner);if(status)goto fail;
     if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
     scene_noise_cancel(owner);

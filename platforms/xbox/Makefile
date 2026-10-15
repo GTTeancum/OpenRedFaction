@@ -101,6 +101,9 @@ SRCS += $(PROJECT_ROOT)/src/core/campaign_goals_checkpoint.c $(PROJECT_ROOT)/src
 SRCS += $(PROJECT_ROOT)/src/core/world_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/mover_checkpoint.c $(PROJECT_ROOT)/src/core/campaign_pickups_checkpoint.c $(PROJECT_ROOT)/src/core/campaign_triggers_checkpoint.c $(PROJECT_ROOT)/src/core/event_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/flame_stream.c
+# Repository-owned, source-pinned PDCLib close-status correction.
+RF_CHECKED_STDIO := $(PROJECT_ROOT)/build/checked-stdio/fclose.c
+SRCS += $(RF_CHECKED_STDIO)
 # Snapshot only this project's sources, including its adapted APU backend,
 # before NXDK adds its separate library dependency graph.
 RF_PROJECT_OBJS := $(addsuffix .obj, $(basename $(SRCS)))
@@ -130,3 +133,11 @@ $(PROJECT_ROOT)/src/diagnostic/scene.obj: $(wildcard $(PROJECT_ROOT)/src/diagnos
 $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/build/xbox/geomod-profile.stamp
 
 
+
+# Always validate the SDK source, even with an existing generated object.
+# The generator preserves output mtime when its authenticated bytes match.
+.PHONY: rf_checked_stdio_validate
+rf_checked_stdio_validate:
+	python3 $(PROJECT_ROOT)/tools/prepare_checked_stdio.py --nxdk-dir "$(NXDK_DIR)" --output "$(RF_CHECKED_STDIO)"
+$(RF_CHECKED_STDIO): rf_checked_stdio_validate
+$(RF_CHECKED_STDIO:.c=.obj): $(RF_CHECKED_STDIO)

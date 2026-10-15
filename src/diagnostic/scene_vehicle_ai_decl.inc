@@ -1,3 +1,4 @@
+#include "rf/prepare_memory.h"
 #ifndef SCENE_VEHICLE_AI_DECL_INCLUDED
 #define SCENE_VEHICLE_AI_DECL_INCLUDED
 typedef struct scene_vehicle_ai_stage scene_vehicle_ai_stage;
@@ -20,6 +21,8 @@ static void scene_vehicle_ai_stage_close(scene_vehicle_ai_stage **);
 static int scene_vehicle_ai_capture(unsigned char *,uint32_t,uint32_t,uint32_t *);
 static int scene_vehicle_ai_prepare(scene_stream *,const unsigned char *,uint32_t,uint32_t,
     scene_vehicle_ai_stage **,const unsigned char **,uint32_t *);
+static int scene_vehicle_ai_prepare_accounted(scene_stream *,const unsigned char *,uint32_t,uint32_t,
+    scene_vehicle_ai_stage **,const unsigned char **,uint32_t *,const rf_prepare_memory *);
 static int scene_vehicle_ai_admit(const scene_vehicle_ai_stage *,const struct scene_secondary_vehicle_checkpoint_stage *,const scene_vehicle_attack_stage *);
 static void scene_vehicle_ai_assign(scene_vehicle_ai_stage *);
 #endif

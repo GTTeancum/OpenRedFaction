@@ -1,12 +1,13 @@
 #ifndef SCENE_DRILLER_CHECKPOINT_SEAT_INC
 #define SCENE_DRILLER_CHECKPOINT_SEAT_INC
+#include "rf/prepare_memory.h"
 /* Pure precommit preparation. Include after Driller runtime. Inventory and
  * RFPL3 validation remain the caller's responsibility; no registration, pose
  * publication, ground support or host-self collision is performed here. */
 #include "rf/player_checkpoint.h"
-static int scene_driller_checkpoint_seat_prepare(const scene_stream *s,
+static int scene_driller_checkpoint_seat_prepare_accounted(const scene_stream *s,
     const rf_vehicle_checkpoint *vehicle,const rf_player_checkpoint *player,
-    rf_checkpoint_placement *out)
+    rf_checkpoint_placement *out,const rf_prepare_memory *memory)
 {
     scene_driller_physics physics;rf_checkpoint_placement value={0};scene_vehicle_pose pose;
     float tag[12],offset[3],distance=0;const float *eye;uint32_t i;int status;
@@ -14,8 +15,8 @@ static int scene_driller_checkpoint_seat_prepare(const scene_stream *s,
        !scene_actor_body.spheres.items || !scene_actor_body.spheres.count || scene_actor_body.spheres.count>8)return RF_RANGE;
     status=rf_vehicle_checkpoint_validate(vehicle);if(status)return status;
     if(!vehicle->player_occupied)return RF_FORMAT;
-    status=scene_driller_physics_initialize(s->driller,vehicle->position,vehicle->orientation,
-        scene_gravity.acceleration,&physics);if(status)return status;
+    status=scene_driller_physics_initialize_accounted(s->driller,vehicle->position,vehicle->orientation,
+        scene_gravity.acceleration,&physics,memory);if(status)return status;
     status=scene_driller_seat_pose(s->driller,physics.state.position,physics.state.orientation,tag);if(status)return status;
     memcpy(pose.basis,tag,36);memcpy(pose.position,tag+9,12);eye=scene_driller_player_eye_offset();
     for(i=0;i<3;i++)if(!isfinite(eye[i]) || !isfinite(player->position[i]))return RF_FORMAT;
@@ -30,4 +31,8 @@ static int scene_driller_checkpoint_seat_prepare(const scene_stream *s,
     memcpy(value.position,pose.position,12);memcpy(value.basis,pose.basis,36);
     *out=value;return RF_OK;
 }
+static inline int scene_driller_checkpoint_seat_prepare(const scene_stream *s,
+    const rf_vehicle_checkpoint *vehicle,const rf_player_checkpoint *player,
+    rf_checkpoint_placement *out)
+{return scene_driller_checkpoint_seat_prepare_accounted(s,vehicle,player,out,NULL);}
 #endif

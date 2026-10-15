@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_MEDIC_SYRINGE_OWNER_INCLUDED
 #define RF_SCENE_MEDIC_SYRINGE_OWNER_INCLUDED
+#include "rf/prepare_memory.h"
 /* Original423a85..423ad7 creates syringe type4 for medic1;420f90 poses hand1.
  * This resource owner is deliberately separate from authored clutter rows.
  * No free-world drop, pickup UID, reserve inference, or death-time deletion. */
@@ -119,8 +120,8 @@ static int scene_medic_syringe_parent_pose(campaign_npc_body *owner,int32_t tag,
     status=campaign_file_tag_pose(&source,tag,transform);if(status)return status;
     *room=render->room==UINT32_MAX?0:render->room+1;return RF_OK;
 }
-static int scene_medic_syringe_child_create(campaign_npc_body *owner,float health,
-    uint32_t budget,scene_medic_syringe_candidate *candidate)
+static int scene_medic_syringe_child_create_accounted(campaign_npc_body *owner,float health,
+    uint32_t budget,scene_medic_syringe_candidate *candidate,const rf_prepare_memory *memory)
 {
     rf_clutter_create_descriptor d={0};const rf_clutter_class *cls;const rf_entity_material *material;
     float transform[12],coefficients[3];uint32_t room,flags;uint64_t predicted;int status;
@@ -137,9 +138,9 @@ static int scene_medic_syringe_child_create(campaign_npc_body *owner,float healt
     d.model=cls->model;d.kind=cls->model_kind;d.material=cls->material;d.identifier=-1;d.radius=cls->radius;
     d.flags=(cls->flags&6u)?0x20u:0u; /* Original410560: can_carry alone supplies no collision. */
     memcpy(d.position,transform+9,12);memcpy(d.matrix,transform,36);
-    status=rf_clutter_shared_static_base_open(&scene_medic_syringe_resource.shared,&d,
+    status=rf_clutter_shared_static_base_open_accounted(&scene_medic_syringe_resource.shared,&d,
         &campaign_registry,&scene_medic_syringe_candidates,&campaign_clutter_uid_cursor,room,0,1,coefficients,
-        budget,&candidate->child);if(status)return status;if(!candidate->child)return RF_NOT_FOUND;
+        budget,&candidate->child,memory);if(status)return status;if(!candidate->child)return RF_NOT_FOUND;
     scene_medic_syringe_resource.body_bytes+=candidate->child->allocated_bytes;
     /* Keep the generic runtime UID from the allocator. It is never used as an
      * authored key, trigger target, RFNC UID, or substitute pickup identity. */
@@ -154,6 +155,9 @@ static int scene_medic_syringe_child_create(campaign_npc_body *owner,float healt
     candidate->allocated_bytes=candidate->child->allocated_bytes;candidate->peak_bytes=candidate->child->peak_bytes;
     ++rf_scene_medic_syringe[0];return RF_OK;
 }
+static inline int scene_medic_syringe_child_create(campaign_npc_body *owner,float health,
+    uint32_t budget,scene_medic_syringe_candidate *candidate)
+{return scene_medic_syringe_child_create_accounted(owner,health,budget,candidate,NULL);}
 static int scene_medic_syringe_capture(const campaign_npc_body *owner,uint32_t *state,float *health)
 {
     const scene_medic_syringe *s;int status;
@@ -178,8 +182,8 @@ static void scene_medic_syringe_restore_discard(scene_medic_syringe_candidate *c
     if(status){rf_scene_medic_syringe[8]=(uint32_t)status;return;}
     memset(candidate,0,sizeof(*candidate));
 }
-static int scene_medic_syringe_restore_prepare(campaign_npc_body *owner,uint32_t state,float health,
-    uint32_t retired,uint32_t budget,scene_medic_syringe_candidate *out)
+static int scene_medic_syringe_restore_prepare_accounted(campaign_npc_body *owner,uint32_t state,float health,
+    uint32_t retired,uint32_t budget,scene_medic_syringe_candidate *out,const rf_prepare_memory *memory)
 {
     scene_medic_syringe_candidate value={0};int status;
     if(!owner||!out||out->prepared||out->child||retired>1)return RF_RANGE;
@@ -191,10 +195,13 @@ static int scene_medic_syringe_restore_prepare(campaign_npc_body *owner,uint32_t
     value.retired=retired;value.hand_tag=-1;
     if(!retired){
         if(!scene_medic_syringe_parent_live(owner))return RF_NOT_FOUND;
-        if(state!=2){status=scene_medic_syringe_child_create(owner,state==1?health:50,budget,&value);if(status)return status;}
+        if(state!=2){status=scene_medic_syringe_child_create_accounted(owner,state==1?health:50,budget,&value,memory);if(status)return status;}
     }
     value.prepared=1;*out=value;return RF_OK;
 }
+static int scene_medic_syringe_restore_prepare(campaign_npc_body *owner,uint32_t state,float health,
+    uint32_t retired,uint32_t budget,scene_medic_syringe_candidate *out)
+{return scene_medic_syringe_restore_prepare_accounted(owner,state,health,retired,budget,out,NULL);}
 /* RFNC calls this on its private candidate BEFORE assigning any parent rows.
  * Parent retirement may unregister the source afterwards; final publication
  * relies on this preflight and permits that deliberate transition. */

@@ -102,11 +102,17 @@ static void scene_blind_sync(campaign_npc_body *o,uint32_t frame)
     uint32_t target,slot;float seconds;
     if(!o||!campaign_npc_bodies||o<campaign_npc_bodies||o>=campaign_npc_bodies+campaign_npc_body_count)return;
     target=scene_blind_target_handle(o);
+    if(o->pursuit_return.phase&&(o->pursuit_return.target!=target||
+       o->pursuit_return.combat_mode!=o->combat_scripted)){
+        scene_pursuit_token_invalidate_owner(o); /* actual return relation replacement */
+        scene_pursuit_return_receipt_clear(&o->pursuit_return);
+    }
     /* Close target/order replacement immediately, before capture can observe
      * a new combat relation paired with the old tactical discriminator. */
     if((o->tactical.flags&SCENE_TACTICAL_PRESENT)&&
        (o->tactical.target!=target||
         (o->tactical.flags>>SCENE_TACTICAL_MODE_SHIFT)!=o->combat_scripted)){
+        scene_pursuit_token_invalidate_owner(o); /* actual tactical relation replacement */
         if(o->tactical.phase==SCENE_TACTICAL_RELOCATING)campaign_pursuit_stop(o);
         scene_tactical_receipt_release(&o->tactical);
     }
@@ -211,6 +217,7 @@ static int scene_blind_tick(scene_stream *s,uint32_t slot,uint32_t frame)
     status=rf_entity_ai_blind_pursuit_expired((float)((double)(frame-o->blind.last_seen)/60.0),0,seconds,0,0,&expired);
     if(status||!expired)return status;
     if(!scene_blind_release_admits(o)||scene_blind_paid(o->registration.handle))return RF_OK;
+    scene_pursuit_token_invalidate_owner(o); /* admitted Blind target expiry */
     if(o->script_move.active&&o->script_move.follow==2&&o->script_move.origin==SCENE_MOVE_ORIGIN_NONE)
         campaign_pursuit_stop(o);
     o->combat_target=o->combat_alert=o->combat_scripted=0;

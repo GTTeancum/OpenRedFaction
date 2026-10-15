@@ -61,6 +61,7 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
     if(weapon==-1 && o->view.weapons[1]==-1 && !owned && !o->combat_burst_remaining &&
        !o->combat_reload_due && !o->combat_reload_pending && !o->script_once.count && !o->script_shoot.active){
         status=scene_medic_syringe_delete(o);if(status)goto fail;
+        scene_pursuit_return_receipt_clear(&o->pursuit_return);
         ++rf_scene_scripted_disarm[3];scene_scripted_disarm_sample();return RF_OK;
     }
     status=scene_medic_syringe_delete_validate(o);if(status)goto fail;
@@ -96,6 +97,7 @@ static int campaign_drop_npc_weapon(void *context,uint32_t handle)
     memcpy(before+13,&o->damage.effects.health,4);before[15]=o->script_move.active;
     before[17]=o->combat_burst_remaining;before[19]=o->combat_reload_due;before[21]=o->script_once.count;
     status=scene_guard_retreat_cancel(o,scene_medic_now(rf_scene_profile_stage[0]),SCENE_GUARD_CANCEL_RESTORE_ORDINARY);if(status)goto fail;
+    scene_pursuit_return_receipt_clear(&o->pursuit_return);
     o->selection=selection;o->firing=firing;pose->playback=playback;
     o->view.flags_7d0=firing.flags_7d0;o->view.flags_810=o->damage.effects.flags_810=firing.flags_810;
     memset(&o->inventory,0,sizeof(o->inventory));memset(o->firing.active,0,sizeof(o->firing.active));

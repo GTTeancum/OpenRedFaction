@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_GROUND_VEHICLE_PHYSICS_INCLUDED
 #define RF_SCENE_GROUND_VEHICLE_PHYSICS_INCLUDED
+#include "rf/prepare_memory.h"
 #include "rf/vehicle_rigid.h"
 #include "rf/vehicle_suspension.h"
 #include "rf/collision.h"
@@ -17,10 +18,10 @@
  * include solid-sphere self-inertia to avoid singular point-mass tensors;
  * this explicit first-pass policy does not alter the ground vehicle tensor. */
 #include "scene_driller_physics.inc"
-static int scene_vehicle_body_physics_initialize(const char *class_name,const rf_entity_physics_config *physics,
+static int scene_vehicle_body_physics_initialize_accounted(const char *class_name,const rf_entity_physics_config *physics,
     const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
     const rf_static_render_resource *render,
-    const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+    const float position[3],const float basis[9],float gravity,scene_driller_physics *out,const rf_prepare_memory *memory)
 {
     scene_driller_physics value={0};rf_entity_class_sphere resolved[8]={0};
     rf_physics_mass_tensor initial={0},generated;rf_entity_physics_config config;
@@ -86,7 +87,7 @@ static int scene_vehicle_body_physics_initialize(const char *class_name,const rf
     {const float *m=generated.tensor;double determinant=(double)m[0]*(m[4]*m[8]-m[5]*m[7])-(double)m[1]*(m[3]*m[8]-m[5]*m[6])+(double)m[2]*(m[3]*m[7]-m[4]*m[6]);
      if(!isfinite(determinant)||determinant<=0)return RF_FORMAT;}
     status=rf_physics_tensor_inverse(generated.tensor,value.state.inverse_inertia);if(status)return status;
-    status=rf_entity_body_open(&config,value.spheres,value.sphere_count,position,basis,0,4096,&body);if(status)return status;
+    status=rf_entity_body_open_accounted(&config,value.spheres,value.sphere_count,position,basis,0,4096,&body,memory);if(status)return status;
     value.body_flags=body.state.flags;rf_physics_body_close(&body);
     memcpy(value.state.position,position,12);memcpy(value.state.orientation,basis,36);
     value.parameters.mass=config.authored.mass;value.parameters.gravity=gravity;
@@ -95,13 +96,22 @@ static int scene_vehicle_body_physics_initialize(const char *class_name,const rf
     status=rf_vehicle_rigid_propose(&value.state,&value.parameters,&command,&support,0,&probe);if(status)return status;
     *out=value;return RF_OK;
 }
+static inline int scene_vehicle_body_physics_initialize(const char *class_name,const rf_entity_physics_config *physics,
+    const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
+    const rf_static_render_resource *render,
+    const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+{return scene_vehicle_body_physics_initialize_accounted(class_name,physics,movement,rotation,render,position,basis,gravity,out,NULL);}
 /* Ground compatibility wrapper; the shared initializer also supplies authored
  * submarine/fighter hull/inertia but never selects its movement solver. */
-static int scene_ground_vehicle_physics_initialize(const char *name,const rf_entity_physics_config *physics,
+static int scene_ground_vehicle_physics_initialize_accounted(const char *name,const rf_entity_physics_config *physics,
     const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
-    const rf_static_render_resource *render,const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+    const rf_static_render_resource *render,const float position[3],const float basis[9],float gravity,scene_driller_physics *out,const rf_prepare_memory *memory)
 {
     if(!name || !strcmp(name,"sub") || !strcmp(name,"Fighter01") || !strcmp(name,"masako_fighter"))return RF_FORMAT;
-    return scene_vehicle_body_physics_initialize(name,physics,movement,rotation,render,position,basis,gravity,out);
+    return scene_vehicle_body_physics_initialize_accounted(name,physics,movement,rotation,render,position,basis,gravity,out,memory);
 }
+static inline int scene_ground_vehicle_physics_initialize(const char *name,const rf_entity_physics_config *physics,
+    const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
+    const rf_static_render_resource *render,const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+{return scene_ground_vehicle_physics_initialize_accounted(name,physics,movement,rotation,render,position,basis,gravity,out,NULL);}
 #endif

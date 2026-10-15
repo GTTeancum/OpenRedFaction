@@ -692,6 +692,18 @@ typedef struct rf_entity_damage_state {
 int rf_entity_damage_sp(rf_entity_damage_state *state,float amount,int32_t kind,
     uint32_t source,int32_t auxiliary_uid,float multiplier,uint32_t clock_bits,
     const rf_damage_effect_backend *backend,float *result);
+/* Synchronous split of the same SP operation. Prepare commits vitals but
+ * makes no callbacks and leaves result untouched. Its private output must be
+ * live and disjoint from state/backend/result. On success, call finish exactly
+ * once immediately with the same live state/backend/result and unchanged input.
+ * Only callback-free owner/target-token invalidation may intervene: no damage-state
+ * writes, reentry or deferred continuation. Errors do not roll back vitals.
+ * The ordinary wrapper above preserves the original entrypoint and ordering. */
+int rf_entity_damage_sp_prepare(rf_entity_damage_state *state,float amount,int32_t kind,
+    uint32_t source,int32_t auxiliary_uid,float multiplier,uint32_t clock_bits,
+    const rf_damage_effect_backend *backend,float *result,rf_damage_effect_input *prepared);
+int rf_entity_damage_sp_finish(rf_entity_damage_state *state,const rf_damage_effect_input *prepared,
+    const rf_damage_effect_backend *backend,float *result);
 typedef struct rf_entity_pain_state {
     uint32_t handle;int32_t primary_weapon;uint32_t model;
     int32_t selected_action,motions[45];

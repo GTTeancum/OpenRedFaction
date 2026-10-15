@@ -417,6 +417,9 @@ int rf_entity_class_stance_build(const rf_model_file *model,const rf_model_bone 
 int rf_entity_body_open(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
     uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
     uint32_t budget,rf_physics_body *result);
+int rf_entity_body_open_accounted(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
+    uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
+    uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory);
 
 typedef struct rf_entity_lod_distances {
     uint32_t count;float distances[4];

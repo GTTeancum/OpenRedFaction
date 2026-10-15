@@ -35,7 +35,14 @@ static int scene_waypoint_profile(const rf_level_event *e)
     return RF_NOT_FOUND;
 }
 static int scene_waypoint_boundary(void)
-{return scene_waypoint_events.fault?(int)scene_waypoint_events.fault:scene_waypoint_events.servicing?RF_NOT_FOUND:RF_OK;}
+{
+    /* This existing boundary is shared by NPC capture/prepare, route history,
+     * world save/load and publication seals. Preserve waypoint semantics
+     * while excluding a partially executing ordinary return transaction. */
+    int status=scene_pursuit_save_boundary();if(status)return status;
+    return scene_waypoint_events.fault?(int)scene_waypoint_events.fault:
+        scene_waypoint_events.servicing?RF_NOT_FOUND:RF_OK;
+}
 static void scene_waypoint_close(void)
 {
     uint32_t generation=scene_waypoint_events.generation+1u;

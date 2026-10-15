@@ -4,6 +4,10 @@
 #include "scene_blind_pursuit_checkpoint.inc"
 #include "scene_pursuit_delay_checkpoint.inc"
 #include "scene_tactical_checkpoint.inc"
+#include "scene_pursuit_return_weapon_gate.inc"
+#include "scene_pursuit_source.inc"
+#include "scene_pursuit_return_tactical_join.inc"
+#include "scene_pursuit_return_checkpoint.inc"
 #include "scene_medic_flight_checkpoint.inc"
 #include "scene_npc_pain_checkpoint.inc"
 #include "scene_npc_reload_checkpoint.inc"
@@ -531,6 +535,8 @@ static int scene_npc_checkpoint_row_profile(uint32_t index,int32_t now,rf_npc_ch
     if(status)return scene_npc_checkpoint_reject(index,"pursuit_delay",0,o->pursuit_delay.flags,status);
     status=scene_tactical_capture(index,now,row);
     if(status)return scene_npc_checkpoint_reject(index,"tactical",0,o->tactical.phase,status);
+    status=scene_pursuit_return_capture(index,row);
+    if(status)return scene_npc_checkpoint_reject(index,"pursuit_return",0,o->pursuit_return.phase,status);
     return RF_OK;
 }
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
