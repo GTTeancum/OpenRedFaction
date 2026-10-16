@@ -4,6 +4,37 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## L11S2 noise investigation invalidated by a navpoint change
+
+Run222430 reproduces RF_FORMAT at input836 and locates campaign_script_step.
+Run222846 narrows it to scene_noise_live for slot16. Focused run223300 records
+UID10373,owner validation success,active1/follow2,no authored route/event owner,
+retry0,retained count0,route index1,AI state12,and matching fixed noise target.
+The live invariant requires state1 when retry is zero. All three runs retain
+25 player shots and18 enemy attacks at the failure.
+
+Source cause:campaign_navpoint_changed clears script_move.retry on every active
+actor when any node opens. For noise investigation that field is the30-tick
+listening delay paired with state12,not a failed navigation-search backoff.
+The callback erased the delay but left the state waiting; next simulation
+validation correctly rejected the inconsistent pair.
+
+Fix:preserve a positive delay for an active noise investigation when a node opens.
+Its normal countdown owns the state12-to1 transition. Ordinary failed-route
+retries and retained-route invalidation keep their existing behavior. A compact
+counter records preserved delay,UID and state. Broad temporary call-site tracing
+has been removed; focused noise telemetry remains. Xbox build passed. The
+identical1800-input authored combat sequence is the runtime validation.
+
+Validation223634 completed all1800 live inputs in171.36seconds on stock64MiB,
+with57 player shots,18 enemy attacks,seven weapon switches,two simultaneously
+alerted actors and no death or reported guest error. The delay-preservation
+receipt[3,10373,24,12] confirms the navpoint callback was exercised three times
+while the guard was waiting. Final noise receipt has retry0/state1,owner status0,
+and matching fixed target. This validates the repaired transition and passes
+the former input836 failure point under the same authored encounter. It does not
+prove general campaign stability or resolve the separate Drone visual issues.
+
 ## L11S2 authored-cluster startup failure
 
 Selected levels2.vpp/L11S2.rfl near guard10362,distance8,finite rifle loadout2,

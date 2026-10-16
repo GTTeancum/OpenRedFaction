@@ -5040,6 +5040,7 @@ static int campaign_navigation_open(const rf_level *level)
     }
     rf_scene_navigation_workspace[3]=hash;return RF_OK;
 }
+uint32_t rf_scene_noise_nav_delay[4]; /* preserved waits,last UID,retry,state */
 static void campaign_navpoint_changed(const rf_entity_navigation_candidate *candidate,uint32_t on);
 static int campaign_navpoint_set(void *context,uint32_t index,uint32_t on)
 {
@@ -5373,7 +5374,14 @@ static void campaign_navpoint_changed(const rf_entity_navigation_candidate *cand
         campaign_npc_body *owner=campaign_npc_bodies+i;
         rf_entity_navigation_retained_route *route=&owner->navigation.retained;
         /* A newly opened node can satisfy a failed scripted request now. */
-        if(on&&owner->script_move.active)owner->script_move.retry=0;
+        if(on&&owner->script_move.active) {
+            /* Noise retry owns the authored listening delay, not a failed
+             * route search. Keep its timer/state pair until normal expiry. */
+            if(scene_noise_active(owner)&&owner->script_move.retry) {
+                ++rf_scene_noise_nav_delay[0];rf_scene_noise_nav_delay[1]=campaign_seeds.records.items[i].record.uid;
+                rf_scene_noise_nav_delay[2]=owner->script_move.retry;rf_scene_noise_nav_delay[3]=owner->ai_mode.state_2b4;
+            } else owner->script_move.retry=0;
+        }
         for(j=owner->script_move.route_index;j<route->count&&j<4;j++)if(route->nodes[j]==candidate){
             route->count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
             break;

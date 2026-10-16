@@ -95,12 +95,24 @@ static int scene_noise_owner(uint32_t slot,uint32_t active)
        campaign_poses.items[slot].playback.completion.active.freeze_slot!=-1)return RF_NOT_FOUND;
     return scene_noise_binding(slot,o->view.weapons[0],&o->inventory,&o->selection);
 }
+uint32_t rf_scene_noise_live_trace[20]; /* calls,slot,owner status,move fields,route fields,state,target mismatch */
 static int scene_noise_live(uint32_t slot)
 {
     const campaign_npc_body *o;int status;
     if(slot>=campaign_npc_body_count||!campaign_npc_bodies)return RF_RANGE;o=campaign_npc_bodies+slot;
     if(!scene_noise_active(o))return RF_OK;
-    status=scene_noise_owner(slot,1);if(status)return status;
+    status=scene_noise_owner(slot,1);
+    ++rf_scene_noise_live_trace[0];rf_scene_noise_live_trace[1]=slot;rf_scene_noise_live_trace[2]=(uint32_t)status;
+    rf_scene_noise_live_trace[3]=o->script_move.active;rf_scene_noise_live_trace[4]=o->script_move.follow;
+    rf_scene_noise_live_trace[5]=o->script_move.event;rf_scene_noise_live_trace[6]=o->script_move.origin;
+    rf_scene_noise_live_trace[7]=o->script_move.path.count;rf_scene_noise_live_trace[8]=o->script_move.path.indices!=NULL;
+    rf_scene_noise_live_trace[9]=o->script_move.path_index;rf_scene_noise_live_trace[10]=o->script_move.path_mode;
+    rf_scene_noise_live_trace[11]=o->script_move.path_reverse;rf_scene_noise_live_trace[12]=o->script_move.stop;
+    rf_scene_noise_live_trace[13]=o->script_move.retry;rf_scene_noise_live_trace[14]=o->navigation.retained.count;
+    rf_scene_noise_live_trace[15]=o->script_move.route_index;rf_scene_noise_live_trace[16]=o->ai_mode.state_2b4;
+    rf_scene_noise_live_trace[17]=memcmp(o->script_move.target,o->navigation.goal.position,12)!=0;
+    rf_scene_noise_live_trace[18]=rf_scene_profile_stage[0];rf_scene_noise_live_trace[19]=campaign_seeds.records.items[slot].record.uid;
+    if(status)return status;
     if(o->script_move.active!=1||o->script_move.follow!=2||o->script_move.event||o->script_move.origin||
        o->script_move.path.count||o->script_move.path.indices||o->script_move.path_index||o->script_move.path_mode||
        o->script_move.path_reverse||o->script_move.stop||o->script_move.retry>30||o->navigation.retained.count>4||
