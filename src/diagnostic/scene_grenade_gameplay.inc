@@ -16,9 +16,10 @@ static rf_grenade_throw scene_grenade_throw;
 /* starts, releases, bounces, detonations, live, pool exhaustion, limited, status */
 uint32_t rf_scene_grenades[8];
 /* Sweep calls, matches, zero fractions, non-incoming matches; last capped
- * step: frame, slot, fraction, normal xyz, velocity xyz, room, face, resting.
+ * step: frame, slot, fraction, normal xyz, velocity xyz, room, face, resting;
+ * then settled ticks, new settlements, detonations while resting, last settle frame.
  * Floats are stored as raw words; diagnosis only, no flight-policy changes. */
-uint32_t rf_scene_grenade_contact_trace[16];
+uint32_t rf_scene_grenade_contact_trace[20];
 static int scene_grenade_sweep(void *context,const float start[3],const float delta[3],
     float radius,rf_weapon_flight_contact *contact,uint32_t *matched)
 {
@@ -90,6 +91,11 @@ static int scene_grenades_tick(scene_stream *s,uint32_t frame,const float positi
             rf_scene_grenade_contact_trace[13]=event.contact.room;
             rf_scene_grenade_contact_trace[14]=event.contact.face;
             rf_scene_grenade_contact_trace[15]=scene_grenades[i].flight.resting;
+        }
+        if(scene_grenades[i].flight.resting){
+            ++rf_scene_grenade_contact_trace[16];
+            if(event.contacts && !event.object_contact){++rf_scene_grenade_contact_trace[17];rf_scene_grenade_contact_trace[19]=frame;}
+            if(event.detonate)++rf_scene_grenade_contact_trace[18];
         }
         if(event.detonate){status=scene_grenade_detonate(s,frame,scene_grenades+i,&event);if(status){rf_scene_grenades[7]=(uint32_t)status;return status;}}
         if(scene_grenades[i].flight.lifecycle.active)++rf_scene_grenades[4];

@@ -23,7 +23,8 @@ int rf_grenade_flight_launch(rf_grenade_flight *,const float position[3],
 /* At most4 contact sweeps, dt in[0,.25], restitution in[0,1]. Full tick fuse
  * update continues when resting; movement stops at fuse expiry. Alternate
  * contact marks life=-1, freezes motion, detonates on NEXT lifecycle step.
- * Ordinary floor impacts settle below speed0.5; tangent speed is damped by.8.
+ * Ordinary contacts settle below incoming speed0.5 (zero-spin first pass);
+ * tangent speed is damped by.8. No angular/elasticity-decay parity is claimed.
  * Contact-cap exhaustion retains the safe last pose and reports limited.
  * No host input/allocation. Sweep uses existing center-path fraction contract;
  * normals are normalized here. Callback must not mutate state/output.

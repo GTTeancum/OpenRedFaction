@@ -62,11 +62,16 @@ int rf_grenade_flight_step_objects(rf_grenade_flight *g,float dt,const float gra
                 /* A fuse due this tick takes precedence over deferred contact. */
                 if(!event.detonate){status=rf_grenade_lifecycle_contact(&next.lifecycle,&response);if(status)return status;}
                 if(response==1){next.resting=1;memset(next.velocity,0,12);remaining=0;break;}
-                if(dot<0)for(i=0;i<3;++i)next.velocity[i]=
-                    .8f*(next.velocity[i]-dot*normal[i])-restitution*dot*normal[i];
+                /* Original49d4e3 tests incoming speed before impulse, without
+                 * a floor-normal gate (weapons-grenade-settle.md). This first
+                 * pass has no angular state: its zero-spin approximation can
+                 * settle low-speed contacts on steep faces as well as floors.
+                 * Keep lifecycle active so the fuse still owns detonation. */
                 for(i=0;i<3;++i)speed2+=next.velocity[i]*next.velocity[i];
                 if(!isfinite(speed2))return RF_RANGE;
-                if(normal[1]>.5f && speed2<.25f){next.resting=1;memset(next.velocity,0,12);remaining=0;}
+                if(speed2<.25f){next.resting=1;memset(next.velocity,0,12);remaining=0;break;}
+                if(dot<0)for(i=0;i<3;++i)next.velocity[i]=
+                    .8f*(next.velocity[i]-dot*normal[i])-restitution*dot*normal[i];
             }
             if(remaining>0)event.limited=1;
         }

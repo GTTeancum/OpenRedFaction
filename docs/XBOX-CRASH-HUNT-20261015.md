@@ -947,3 +947,42 @@ last capped frame,slot,fraction bits,normal xyz bits,velocity xyz bits,
 room,face,resting. Cleared at scene frame0, emitted through existing RAM logging.
 Previous question response restated findings; this continuation adds runtime
 evidence. Full crash hunt remains active.
+
+
+## Extended L11S2 combat and grenade settlement correction
+
+Run20261015-225654-L11S2.rfl completed3600 live inputs,97 player shots,
+17 weapon switches,18 enemy attacks,two simultaneously alerted actors and no
+death or guest error. All encounter coverage gates passed. The noise/navpoint
+fix preserved three waits again. This extends the earlier1800-input check; enemy
+attacks did not increase after the first half, so it does not establish sustained
+new enemy pressure for every tick or general campaign stability.
+
+Source review: collision_sweep_face uses rf_collision_sphere_plane, whose plane
+admission rejects outward movement. The observed zero-fraction hits were all
+incoming. More specific retained evidence in
+research/secondary-re/weapons-grenade-settle.md identifies original49d4e3:
+low incoming linear speed plus low angular speed settles, without a floor-normal
+gate. The earlier response report explicitly excluded settling. The first-pass
+flight has no angular state; it now applies its zero-spin approximation at
+incoming speed<0.5 before bounce, on all admitted ordinary contacts. Previously
+it checked post-bounce speed and required normal.y>0.5. Fuse ownership, object
+contact precedence, alternate contact and four-sweep cap remain in place.
+This is not full original physics parity: spin, elasticity decay, force wake,
+rotating attachment and support removal remain outside this correction.
+
+RAM contact trace extends16 to20 words: settled ticks,new settlements,
+detonations while resting,last settle frame. Native Xbox build passed;
+no PC build or host input used. Validation result follows below.
+
+The identical recipe20261015-230214-L9S4.rfl completed1800 inputs:
+1709 live/91 dead,two scene starts,one normal death/recovery,three releases,
+three detonations,six enemy attacks,four alerted actors,one blast kill.
+Contacts1445->41,capped ticks354->2,zero fractions962->0. Two grenades settled,
+accumulating353 resting ticks,and both later detonated; the separately consumed
+object contact remains present. No guest error; generic12-shot gate still false
+for this finite grenade loadout. No terrain/debris or visual/audio claim.
+Compact before/after: artifacts/crash-hunt/grenade-settle-comparison.json.
+This is a validated bounded contact-work correction, not a global stability
+claim. Original spin/material/wake fidelity remains deferred. Existing delivery
+artifacts were preserved and were not refreshed with this private test build.
