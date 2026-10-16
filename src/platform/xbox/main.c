@@ -1346,6 +1346,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             fclose(point_file);
             for(uint32_t i=0;i<3;i++)if(!isfinite(rf_scene_crash_aim_point[i]) || fabsf(rf_scene_crash_aim_point[i])>100000.f)invalid=1;
             if(invalid)return RF_FORMAT;rf_scene_crash_aim=2;}
+        FILE *actor_file=tester_profile?NULL:fopen("D:\\crash-aim-actor.bin","rb");
+        if(actor_file){extern uint32_t rf_scene_crash_aim_uid;
+            int invalid=rf_scene_crash_aim || fread(&rf_scene_crash_aim_uid,4,1,actor_file)!=1 ||
+                fgetc(actor_file)!=EOF || rf_scene_crash_aim_uid>INT32_MAX;
+            fclose(actor_file);if(invalid)return RF_FORMAT;rf_scene_crash_aim=3;}
         FILE *scenario_file=tester_profile?NULL:fopen("D:\\crash-scenario.flag","rb");
         rf_scene_crash_scenario=0;
         if(scenario_file){int mode=fgetc(scenario_file);
@@ -1354,7 +1359,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             fclose(scenario_file);if(invalid)return RF_FORMAT;}
         FILE *loadout_file=tester_profile?NULL:fopen("D:\\crash-loadout.bin","rb");
         if(loadout_file){int invalid=fread(&rf_scene_crash_loadout,4,1,loadout_file)!=1 ||
-            fgetc(loadout_file)!=EOF || !rf_scene_crash_loadout || rf_scene_crash_loadout==3 || rf_scene_crash_loadout>6;
+            fgetc(loadout_file)!=EOF || !rf_scene_crash_loadout || rf_scene_crash_loadout==3 || (rf_scene_crash_loadout>6 && rf_scene_crash_loadout!=8);
             fclose(loadout_file);if(invalid)return RF_FORMAT;}
         FILE *exit_file=fopen("D:\\campaign-exit.bin","rb");
         if(exit_file){int invalid=fread(&campaign_exit_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}

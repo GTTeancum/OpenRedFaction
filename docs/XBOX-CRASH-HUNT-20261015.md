@@ -1111,3 +1111,50 @@ instead:at12 units,the heavy is6.13 units away versus commander12.07.
 Use a deliberate bounded aim point or ordinary target-selection harness support;
 do not weaken enemies,inflate health or count a short attribution replay as
 sustained combat. Broader crash hunt and prior Drone/effect issues remain open.
+
+
+## Finite railgun loadout and process-contained priority aiming
+
+The private diagnostic profile now accepts loadout8(railgun) using existing
+resource demand and rf_weapon_acquire_sp. It supplies the normal loaded round,
+not infinite ammunition or extra health. Existing loadouts remain accepted;
+unsupported7 and values above8 remain rejected. Tester-profile flag admission
+remains disabled. No damage or authored encounter membership changes.
+
+New --aim-actor UID validates membership in the authored level and excludes
+--aim/--aim-point. Native mode3 tracks that living hostile's current eye position
+within the existing30-unit range,then uses nearest-hostile fallback when it is
+no longer eligible. It uses existing bounded look axes,with a0.02-radian fire
+alignment threshold for this precision mode; existing modes retain0.12.
+No orientation write,host input or guaranteed hit is introduced. RAM logs now
+include the existing four-word aim trace. Invalid negative UID and conflicting
+CLI aim modes were rejected before launch. Both native builds passed.
+
+Fixed-point attempts from commander10439,distance12,aim point
+(-25.949854,-2.365121,-453.611115):
+- 20261015-234433-L14S2.rfl,rockets:33 live/87 dead inputs,one impact,no kill.
+- 20261015-234804-L14S2.rfl,railgun:33 live/87 dead inputs,one shot,no hit.
+Both were intentionally terminated by exact owned emulator PID after the
+unqualified outcome; operator-stop.json explains PROCESS_EXITED. Neither is
+classified as a guest crash or a completed stress pass.
+
+20261015-235337-L14S2.rfl uses loadout8,--aim-actor10439,normal combat,
+1800-input/360-second bounds. TIMEOUT223 live/317 dead,three scene starts/
+three deaths(two completed reloads). Individual live intervals74/79/70.
+Per-scene maxima:one player shot/kill,one weapon switch,13 enemy attacks,two
+simultaneous alerted actors. All23 authored actors are retained; sampled live
+population22 follows the first kill. No guest error,terrain edits or debris.
+
+First cycle:frame13 rail hit killed handle26608021(amount3825,health-3175).
+That exact handle delivered the prior lethal669.375 hit. The requested priority,
+source selection code and target-change count correlate it with commander10439;
+no separate runtime UID/handle mapping array was added. Aim trace subsequently
+selected UID10437. HMG-valued19.6875 hits began at43 and killed the player at73.
+The first rail round is consumed normally; fallback weapons and normal cadence
+remain in force. All three cycles recorded the priority kill and fallback.
+Decoded event evidence:run/priority-combat-events.json.
+
+This validates a more capable input harness and actual target damage,not
+sustained gameplay stability. Next vary ordinary movement/follow-up fire instead
+of repeating stationary reloads. Existing visual/audio and Drone/effect limits
+remain. No PC builds,captures,hardware deployment or delivery replacement.

@@ -716,7 +716,7 @@ enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 #include "scene_player_rocket_lock_types.inc"
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
 uint32_t rf_scene_crash_loadout;
-uint32_t rf_scene_crash_aim;
+uint32_t rf_scene_crash_aim,rf_scene_crash_aim_uid;
 float rf_scene_crash_aim_point[3];
 uint32_t rf_scene_crash_scenario;
 static uint32_t scene_fusion_resources,scene_rocket_resources,scene_grenade_resources,scene_remote_resources,scene_flame_resources,scene_ai_flame_resources,scene_tankbot_missile_resources,scene_drone_missile_resources;
@@ -11889,6 +11889,8 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
         if(!o->registration.view || !o->body.allocated_bytes || o->damage.effects.health<=0 ||
            o->damage.effects.affiliation!=0 || (o->object_flags&(2u|0x4000u)))continue;
         for(uint32_t k=0;k<3;k++){float d=o->eye_position[k]-rf_scene_gameplay_eye[k];distance+=d*d;}
+        if(isfinite(distance) && distance>.01f && distance<30.f*30.f &&
+           rf_scene_crash_aim==3 && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid){target=o;break;}
         if(isfinite(distance) && distance>.01f && distance<nearest){nearest=distance;target=o;}
     }
     if(!target){input->fire=0;return;}
@@ -11905,7 +11907,9 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     pitch=asinf(delta[1]/(horizontal+fabsf(delta[1])))-actor_look.state.eye_angles[0];
     input->look[0]=fmaxf(-.8f,fminf(.8f,pitch*6.f));
     input->look[1]=fmaxf(-.8f,fminf(.8f,yaw*6.f));
-    if(fabsf(yaw)>.12f || fabsf(pitch)>.12f)input->fire=0;
+    /* A precision priority shot waits for look input to converge; no aim snap. */
+    float tolerance=rf_scene_crash_aim==3?.02f:.12f;
+    if(fabsf(yaw)>tolerance || fabsf(pitch)>tolerance)input->fire=0;
     if(input->fire)++rf_scene_crash_aim_trace[3];
 }
 static int combat_box(const float start[3],const float delta[3],const rf_physics_bounds *box,float limit,float *fraction)
@@ -17215,7 +17219,7 @@ static int campaign_inventory_initialize(void)
         for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
         campaign_item_pending_count=0;
         if(rf_scene_crash_loadout && !campaign_import_applied) {
-            if(rf_scene_crash_loadout>6 || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
+            if((rf_scene_crash_loadout>6 && rf_scene_crash_loadout!=8) || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
             /* Explicit fixture only: ordinary acquisition, finite authored ammo,
              * no changes to health, damage, firing or enemy population. */
             for(i=0;i<4;i++)if(i!=2) {
@@ -23297,7 +23301,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
               scene_tankbot_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_TANKBOT);
               scene_drone_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_DRONE);
               saved_direct_resources=saved_npc_projectiles&(SCENE_AI_DIRECT_RESOURCE_LASER|SCENE_AI_DIRECT_RESOURCE_SONAR|SCENE_AI_DELAYED_RESOURCES);
-              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | (rf_scene_crash_loadout>=5 && rf_scene_crash_loadout<=6?1u<<(rf_scene_crash_loadout-1):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
+              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | (rf_scene_crash_loadout>=5 && rf_scene_crash_loadout<=8?1u<<(rf_scene_crash_loadout-1):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]));
                   /* NPC-only demand loads flights and effects without player views or ownership. */

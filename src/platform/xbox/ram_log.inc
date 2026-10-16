@@ -59,7 +59,7 @@ extern uint32_t rf_scene_drone_smash[12],rf_scene_drone_secondary[12];
 extern uint32_t rf_scene_grenade_contact_trace[20];
 extern uint32_t rf_scene_ai_fusion[6],rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
-extern uint32_t rf_scene_enemy_damage_kinds[10];
+extern uint32_t rf_scene_enemy_damage_kinds[10],rf_scene_crash_aim_trace[4];
 extern uint32_t rf_scene_crash_flash[6],rf_scene_noise_live_trace[20],rf_scene_noise_nav_delay[4];
 extern uint32_t rf_scene_contact_admission[12];
 extern uint32_t rf_scene_drone_owner_admission[16];
@@ -102,6 +102,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(&rf_scene_combat_event_count,1);
     RAM_ARRAY(rf_scene_combat_events,160);
     RAM_ARRAY(rf_scene_enemy_damage_kinds,10);
+    RAM_ARRAY(rf_scene_crash_aim_trace,4);
     RAM_ARRAY(rf_scene_combat_population,4);
     RAM_ARRAY(rf_scene_crash_activity,4);
     RAM_ARRAY(rf_scene_rockets,8);

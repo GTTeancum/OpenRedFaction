@@ -37,8 +37,9 @@ def main():
     parser.add_argument('--actor', type=int)
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
-    parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6), help='Diagnostic pistol/rifle/shotgun/rocket/grenade start; ordinary finite ammunition')
+    parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/railgun start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
+    parser.add_argument('--aim-actor', type=int, help='Prioritize this authored UID through bounded look input; nearest-hostile fallback after loss')
     parser.add_argument('--aim-point', type=float, nargs=3, metavar=('X','Y','Z'),
                         help='Process-local bounded look input toward an explicit world point')
     parser.add_argument('--scenario', choices=('combat','explosives'), help='Game-owned live-tick phases; explosives recovers the requested weapon through ordinary cycle inputs')
@@ -66,6 +67,8 @@ def main():
         parser.error('--scenario requires neutral replay and an authored encounter')
     if args.scenario=='explosives' and args.loadout not in (5,6):
         parser.error('--scenario explosives requires rocket or grenade loadout')
+    if args.aim_actor is not None and (args.aim or args.aim_point or not 0 <= args.aim_actor < 2147483648):
+        parser.error('--aim-actor requires a nonnegative UID and excludes other aim modes')
     if args.aim_point and (args.aim or any(not math.isfinite(x) or abs(x)>100000 for x in args.aim_point)):
         parser.error('--aim-point requires finite bounded coordinates and cannot be combined with --aim')
     if args.distance is not None and (args.actor is None or not 3 <= args.distance <= 20):
@@ -107,6 +110,8 @@ def main():
         from xemu_turret_combat import entity_rows
         level_bytes = read_entry(ROOT/'Installed_Game'/args.archive,args.level)
         actors = entity_rows(level_bytes)
+        if args.aim_actor is not None and not any(r['uid']==args.aim_actor for r in actors):
+            raise ValueError('Priority aim UID is not authored in this level')
         census = {'level_sha256':hashlib.sha256(level_bytes).hexdigest(),
             'actors':[{'uid':r['uid'],'class':r['name'],
                 'position':struct.unpack_from('<3f',r['raw'],r['transform'])} for r in actors]}
@@ -117,7 +122,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -189,6 +194,8 @@ def main():
             (disc / 'crash-loadout.bin').write_bytes(struct.pack('<I',args.loadout))
         if args.aim:
             (disc / 'crash-aim.flag').write_bytes(b'')
+        if args.aim_actor is not None:
+            (disc / 'crash-aim-actor.bin').write_bytes(struct.pack('<I',args.aim_actor))
         if args.aim_point:
             (disc / 'crash-aim-point.bin').write_bytes(struct.pack('<3f',*args.aim_point))
         if args.scenario:
