@@ -30,10 +30,13 @@ def summarize(path):
                 live = activity[0] - old_activity[0]
                 npc = row.get('rf_scene_enemy_combat', [0]*8)[2] - prior_row.get('rf_scene_enemy_combat', [0]*8)[2]
                 turret = row.get('rf_scene_turret_combat', [0]*10)[3] - prior_row.get('rf_scene_turret_combat', [0]*10)[3]
-                if live > 0 and npc >= 0 and turret >= 0:
+                player = row.get('rf_scene_combat', [0]*8)[0] - prior_row.get('rf_scene_combat', [0]*8)[0]
+                if live > 0 and npc >= 0 and turret >= 0 and player >= 0:
                     action_intervals.append(dict(start_seconds=prior_row['elapsed_seconds'],
                         end_seconds=row['elapsed_seconds'], live_inputs=live,
-                        npc_attacks=npc, turret_shots=turret,
+                        scene_start=activity[2], start_live_input=old_activity[0],
+                        end_live_input=activity[0],
+                        npc_attacks=npc, turret_shots=turret, player_shots=player,
                         enemy_action_observed=bool(npc or turret)))
         prior_row = row
         key = (activity[2], activity[3])
@@ -64,7 +67,7 @@ def summarize(path):
                 live_inputs_in_intervals_with_enemy_action=sum(i['live_inputs'] for i in action_intervals if i['enemy_action_observed']),
                 live_inputs_in_intervals_without_enemy_action=sum(i['live_inputs'] for i in action_intervals if not i['enemy_action_observed']),
                 recovered_intervals=sum(i.get('resumed_seconds') is not None for i in intervals),
-                limitation='Sampled, non-atomic application telemetry; action within an interval does not prove continuous or simultaneous attacks. Reload/death intervals are excluded from action totals. No visual/audio or stability verdict.')
+                limitation='Sampled, non-atomic application telemetry; seconds are host collection times, not game durations. Action within an interval does not prove continuous or simultaneous attacks. Reload/death intervals are excluded from action totals. No visual/audio or stability verdict.')
 
 
 if __name__ == '__main__':

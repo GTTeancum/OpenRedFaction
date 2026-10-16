@@ -1232,3 +1232,32 @@ the initial60 inputs lack a preceding live sample and are not attributed.
 An interval containing attacks does not prove continuous/simultaneous fire.
 Both runs retain action-intervals.json. No new images, host input, PC build,
 hardware deployment or delivery refresh. Crash-hunt goal remains active.
+
+## October16: active L6S3 elite cluster
+
+Added tools/inspect_crash_encounters.py: read-only v180 actor activation,
+weapon and proximity selection across Installed_Game archives. Uses level.c
+spawn field layout; fingerprints level bytes and retains nearby records.
+Checks matched known active guard8230/turret8253 and inactive merc8234.
+270 candidate clusters are hints only, not proof of line of sight, room sharing,
+runtime activation or combat. No authored actor flags are changed.
+
+20261016-065437-L6S3.rfl stages8 units from3840 with rifle2,mobile,nearest
+hostile aim,2400 requested inputs/360-second watchdog,stock64. Nine initially
+active elites within15 units carry machine pistols. Result TIMEOUT,1375 live
+inputs,425 dead inputs,four scene starts/four deaths,three observed recoveries.
+No reported guest failure. Maximum per-life counters:9 player shots,93 enemy
+attacks,7 alerted actors; these are not cumulative across reloads. First life
+lasted286 live inputs with9 shots/74 enemy attacks. Later life snapshots retained
+loaded ammo but few aligned fire inputs; mobile aiming is limiting repeated
+player fire. Do not reduce enemy count/damage or count this timeout as a pass.
+
+Offline intervals exclude deaths/reloads:720 live inputs in intervals with
+enemy action,360 without; remaining live inputs cross excluded or unsampled
+boundaries. Five intervals contain both player shots and enemy attacks. Reports
+now include player shot deltas and live-input endpoints because buffered samples
+may share a host collection timestamp. Checks confirm interval input arithmetic
+and combined action on this real log. Action in an interval does not prove
+continuous fire. Native logs/result/selection/action-intervals retained; next
+improve normal input aim/fire opportunities against this active group. No new
+Xbox source build required for these offline tools. Goal remains active.
