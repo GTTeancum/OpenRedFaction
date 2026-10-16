@@ -1045,3 +1045,34 @@ merely to turn these rifle probes green. Compact lifecycle reports and the
 per-run coverage-index.json retain failures and build hashes. Index review finds
 terrain+debris only in the earlier L1S2 run; repeated cuts within one scene remain
 unproven. No images,host input,PC builds or deployment. Goal remains active.
+
+
+## L14S2 rocket follow-up and rejected cannon hypothesis
+
+20261015-232705-L14S2.rfl:actor10437,distance8,finite rocket loadout5,
+aimed explosives1800-input/360-second recipe. TIMEOUT with106 live/314 dead
+inputs,three starts/three deaths,two completed reloads. Per-scene maxima:
+one rocket launch/impact,three enemy attacks,three alerted actors,no blast
+kills. No guest error. This repeats the short rifle lifecycle and does not
+qualify as sustained/repeated rocket use. No terrain edits/debris.
+
+Existing source documentation identified shoulder_cannon on nearby10441 as a
+possible lethal weapon. Added existing rf_scene_ai_fusion[6] and
+rf_scene_fusion_projectiles[5] to application-owned RAM logging; no gameplay
+policy changed. Xbox compile/link/XBE passed. Focused replay
+20261015-233401-L14S2.rfl uses the same recipe with90 inputs/180-second
+watchdog solely for attribution. COMPLETED32 live/58 dead inputs,one death,
+one rocket,three enemy attacks/positive damage dispatches. Both new arrays
+were entirely zero: no accepted NPC cannon shot and no shared Fusion launch.
+The cannon hypothesis is rejected for this reproduction. This does not identify
+the exact lethal ordinary shooter, or establish broader inactivity of10441.
+
+Read-only entity records, using src/core/level.c's v180 field order:
+10437/10438/10440 primary heavy_machine_gun,10439 Rail_Gun,10441
+shoulder_cannon; all secondary none. Compact l14s2-group-weapons.json retained.
+An initial local extraction read the editor strings as weapon fields; it was
+corrected against the runtime parser before using the values above.
+Next diagnosis should use existing campaign_combat_event records for actual
+source/amount/remaining-health attribution, rather than infer from inventory.
+The previous L3S4 Drone/white-yellow report remains separate and unresolved.
+No capture,host input,PC build,hardware deployment or delivery replacement.
