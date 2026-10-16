@@ -4,6 +4,28 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## L17S1 completed combat/reload follow-up
+
+Run `artifacts/crash-hunt/20261015-201206-L17S1.rfl` completed1800 inputs
+using the unchanged OpenJKDF2 HMP reader, game-owned combat phases and bounded
+aim. Recipe: levels3.vpp/L17S1.rfl, actor20026, distance10, finite rifle loadout2,
+600-second watchdog. All ten original actors were retained; only the private
+player-start transform was staged. Runtime memory receipt confirms67108864 bytes.
+XBE SHA256: de045fc298d6d67585f9fe4bfa6d13727de92b912ea1eac86ab48754008500cc.
+
+Observed1229 live and571 dead input frames, six scene starts and five deaths.
+The offline lifecycle receipt confirms all five deaths recovered, with no live
+phase progression during sampled dead intervals. Per-scene sampled maxima were
+12 player shots,10 enemy shots and two simultaneously alerted actors; these are
+not cumulative shot totals. All bounded combat qualification gates passed.
+Native terminal success was observed before the harness stopped its owned XEMU;
+process exit1 reflects that teardown, not a guest crash. No fatal game error or
+tool-level security rejection appeared. Visual/audio correctness is unverified.
+
+This closes the interrupted L17S1 encounter check, not the overall crash hunt.
+Next prioritize a completed grenade encounter and the concrete terrain-publication
+limitation; do not count this rifle-only case as destruction/debris coverage.
+
 ## Reopened: representative action loads
 
 The user explicitly rejected treating two fixes and short probes as completion.
