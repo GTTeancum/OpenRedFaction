@@ -1076,3 +1076,38 @@ Next diagnosis should use existing campaign_combat_event records for actual
 source/amount/remaining-health attribution, rather than infer from inventory.
 The previous L3S4 Drone/white-yellow report remains separate and unresolved.
 No capture,host input,PC build,hardware deployment or delivery replacement.
+
+
+## L14S2 ordinary damage sequence (233853)
+
+Application log now emits existing32x5 combat-event ring,event count and ten
+damage-kind counters; no gameplay changes. Native Xbox build passed.
+20261015-233853-L14S2.rfl repeats the90-input diagnostic:32 live/58 dead,
+one player rocket,three enemy attacks,one death,no guest error. JSON lines
+remained parseable(maximum observed3602 bytes,within8192-byte writer buffer).
+Decoded compact evidence:run/combat-events-decoded.json.
+
+Frame25:type0 damages handle26476947 by329.81723,leaving49.687725 health.
+Frame31:type1 source26476947 amount19.6875,player health90.550003;
+source26542484 amount19.6875,health81.100006;
+source26608021 amount669.375,health-508.75. Damage-kind counters show three
+armor-piercing-bullet requests and no unsupported fallback. Cannon/Fusion
+counters remain zero. Amount is the damage service's returned amount,not
+necessarily equal to health lost after armor handling.
+
+Read-only installed weapons.tbl:heavy_machine_gun damage75,SP AI scale0.7;
+Rail_Gun damage2550,SP AI scale0.7. Observed amounts equal those AI-scaled
+values times an effective0.375 downstream multiplier. The actual difficulty
+helper supplies .1/.25/.4/.55 and target factors are separate;0.375 must not be
+misreported as the difficulty setting. Exact downstream-factor attribution was
+not separately logged. Lethal source's identification as nearby railgun commander
+10439 is an inference from the exact amount and authored local inventory;
+the trace contains runtime handles,not an explicit UID mapping. This explains
+the rapid death pattern without evidence for a new damage bug or cannon blast.
+
+Candidate next recipe should prioritize commander10439 with ordinary aiming.
+Nearest-hostile auto-aim from its staged starts can select nearby heavy10437
+instead:at12 units,the heavy is6.13 units away versus commander12.07.
+Use a deliberate bounded aim point or ordinary target-selection harness support;
+do not weaken enemies,inflate health or count a short attribution replay as
+sustained combat. Broader crash hunt and prior Drone/effect issues remain open.

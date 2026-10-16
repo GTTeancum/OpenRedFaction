@@ -1,3 +1,4 @@
+- L14S2 lethal-event trace shows two19.6875 hits then669.375 at input31, matching HMG/railgun authored damage ratios; no cannon fire. Next prioritize the railgun target through ordinary bounded aiming, retaining all enemies and damage.
 - L14S2 close rocket run also timed out after three rapid deaths/two reloads; focused90-input trace rules out shoulder-cannon fire. Trace ordinary HMG/railgun damage attribution before further repetitions; sustained combat coverage remains open.
 - L14S2 heavy-mercenary rifle probes at8/20 units hit360-second watchdogs after three deaths/two reloads each, with106/402 live inputs; no guest error, but sustained/multiple-enemy gates remain unmet. Next use finite rockets against the close authored group.
 - L11S2 rocket stress completed1800 inputs with repeated rockets,19 enemy attacks,three alerted enemies and one death/reload recovery; all encounter gates passed. Broader destruction coverage and Drone/effect issues remain open.
