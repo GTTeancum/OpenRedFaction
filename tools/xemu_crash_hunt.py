@@ -1,4 +1,7 @@
-"""Bounded Xbox crash probes using isolated disc flags and read-only QMP telemetry.
+"""Bounded Xbox crash probes using isolated disc flags and game-written RAM logs.
+
+The default is OpenJKDF2ogx's unchanged reader over HMP. Legacy QMP telemetry
+requires explicit selection; neither transport supplies gameplay inputs.
 
 No host input, capture, save/load scenarios, original HDD or tester-disc edits.
 Build crash-disc/default.xbe separately before running this script.

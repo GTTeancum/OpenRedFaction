@@ -1,3 +1,4 @@
+- Prioritize user-observed L3S4 drone/player interpenetration: existing bidirectional contact eligibility excludes Drone fly11; implement and validate full-body flying contact. Trace bright magenta surface material separately; fallback identity unconfirmed.
 - L1S2 completed1800 inputs with committed terrain cuts/debris under enemy fire across reload; deeper cuts reject authored-brush overlap, so repeated-cut coverage remains open. User still reports security interruption with the verified OpenJKDF2 HMP reader.
 - L2S2a grenade run completed2400 inputs with2069 live inputs and three normal recoveries; repeated grenades, blast kills and four alerted enemies observed, but generic12-shot gate and destruction coverage remain unmet.
 - L17S1 combat follow-up completed1800 inputs on stock64 using OpenJKDF2 HMP logs, with1229 live inputs and five normal death/reload recoveries; continue completed explosive scenarios and unresolved destruction coverage.

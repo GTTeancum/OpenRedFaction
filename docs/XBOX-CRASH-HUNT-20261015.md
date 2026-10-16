@@ -4,6 +4,35 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## User-observed L3S4 drone/player collision bug
+
+Run `artifacts/crash-hunt/20261015-205144-L3S4.rfl` used actor2049 at distance8,
+finite shotgun loadout4, bounded aim and game-owned combat with the HMP reader.
+The user directly observed the floating robot move into the player and supplied
+a screenshot of the resulting death view. Treat that behavior as observed, not
+an inference from the screenshot. The screenshot also shows a bright magenta
+patterned surface; the user suspects a default texture, but its identity remains
+unconfirmed. Built-in rf_image_missing uses muted gray-purple, while the renderer
+fallback is white; trace the actual material/decoding rather than assume either.
+No new captures were taken.
+
+Source finding: scene_player_npc_owner in scene_player_npc_contact.inc requires
+movement index1; both player-first and NPC-first contact use it, excluding Drone
+fly11. campaign_script_movement uses scene_npc_live_body_sweep even for xyz
+pursuit, but the contact compose filter returns before considering the drone.
+The existing contact shape is lateral-only and grounded; simply allowing mode11
+would not provide correct full3D flying-body contact. Implement a scoped drone
+contact path with actual body geometry and preserved world-hit precedence, then
+validate relative positions/contact under this same encounter. No fix yet.
+
+Parent stopped only verified owned XEMU PID30728 after this concrete report.
+Result preserves PROCESS_EXITED as harness_terminal_status and explicitly labels
+STOPPED_FOR_OBSERVED_COLLISION_BUG. Last captured activity:720 inputs,418 live,
+302 dead, three starts/three deaths; shotgun slot3 observed with firing/hits/kill.
+No fatal game error was logged, but this is not a completed or qualified combat
+check. Rapid deaths and missing collision make repeated runs poor sustained-load
+coverage until the contact defect is addressed. Existing local work is preserved.
+
 ## Terrain admission rejection localized
 
 Added a ten-word application-log receipt for rejected owner UID, cut index,
