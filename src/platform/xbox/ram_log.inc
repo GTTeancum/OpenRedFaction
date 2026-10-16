@@ -56,6 +56,7 @@ extern uint32_t rf_scene_crash_terrain_admission[10];
 extern uint32_t rf_scene_drone_player_contact[10];
 extern uint32_t rf_scene_drone_separation[20];
 extern uint32_t rf_scene_drone_smash[12],rf_scene_drone_secondary[12];
+extern uint32_t rf_scene_grenade_contact_trace[16];
 extern uint32_t rf_scene_crash_flash[6],rf_scene_noise_live_trace[20],rf_scene_noise_nav_delay[4];
 extern uint32_t rf_scene_contact_admission[12];
 extern uint32_t rf_scene_drone_owner_admission[16];
@@ -99,6 +100,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_crash_activity,4);
     RAM_ARRAY(rf_scene_rockets,8);
     RAM_ARRAY(rf_scene_grenades,8);
+    RAM_ARRAY(rf_scene_grenade_contact_trace,16);
     RAM_ARRAY(rf_scene_rocket_blast,8);
     RAM_ARRAY(rf_scene_geomod,8);
     RAM_ARRAY(rf_scene_debris,8);

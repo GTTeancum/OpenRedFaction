@@ -15,12 +15,24 @@ static scene_grenade_projectile scene_grenades[SCENE_GRENADE_CAPACITY];
 static rf_grenade_throw scene_grenade_throw;
 /* starts, releases, bounces, detonations, live, pool exhaustion, limited, status */
 uint32_t rf_scene_grenades[8];
+/* Sweep calls, matches, zero fractions, non-incoming matches; last capped
+ * step: frame, slot, fraction, normal xyz, velocity xyz, room, face, resting.
+ * Floats are stored as raw words; diagnosis only, no flight-policy changes. */
+uint32_t rf_scene_grenade_contact_trace[16];
 static int scene_grenade_sweep(void *context,const float start[3],const float delta[3],
     float radius,rf_weapon_flight_contact *contact,uint32_t *matched)
 {
     uint32_t liquid=0;
     /* No liquid entry query bit: grenades retain gravity and cross water for now. */
-    return scene_rocket_sweep(context,start,delta,radius,4u|(radius<.05f?0x100u:0),contact,&liquid,matched);
+    int status=scene_rocket_sweep(context,start,delta,radius,4u|(radius<.05f?0x100u:0),contact,&liquid,matched);
+    ++rf_scene_grenade_contact_trace[0];
+    if(!status && *matched){
+        float dot=delta[0]*contact->hit.normal[0]+delta[1]*contact->hit.normal[1]+delta[2]*contact->hit.normal[2];
+        ++rf_scene_grenade_contact_trace[1];
+        if(contact->hit.fraction==0)++rf_scene_grenade_contact_trace[2];
+        if(dot>=0)++rf_scene_grenade_contact_trace[3];
+    }
+    return status;
 }
 static int scene_grenade_detonate(scene_stream *s,uint32_t frame,
     const scene_grenade_projectile *grenade,const rf_grenade_flight_event *event)
@@ -53,6 +65,7 @@ static int scene_grenades_tick(scene_stream *s,uint32_t frame,const float positi
     rf_grenade_throw_event action;int status;uint32_t i,k;int32_t ammo,*reserve;
     if(released)*released=0;
     if(!frame){scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_PLAYER_GRENADE);memset(scene_grenades,0,sizeof(scene_grenades));memset(&scene_grenade_throw,0,sizeof(scene_grenade_throw));memset(rf_scene_grenades,0,sizeof(rf_scene_grenades));}
+    if(!frame)memset(rf_scene_grenade_contact_trace,0,sizeof(rf_scene_grenade_contact_trace));
     rf_scene_grenades[4]=0;
     for(i=0;i<SCENE_GRENADE_CAPACITY;i++)if(scene_grenades[i].flight.lifecycle.active){
         rf_grenade_flight_event event;
@@ -69,6 +82,15 @@ static int scene_grenades_tick(scene_stream *s,uint32_t frame,const float positi
         if(event.contacts){scene_grenades[i].last_contact=event.contact;scene_grenades[i].has_contact=1;
             rf_scene_grenades[2]+=event.contacts;combat_sound("Grenade Bounce",event.position);}
         rf_scene_grenades[6]+=event.limited;
+        if(event.limited){
+            rf_scene_grenade_contact_trace[4]=frame;rf_scene_grenade_contact_trace[5]=i;
+            memcpy(rf_scene_grenade_contact_trace+6,&event.contact.hit.fraction,4);
+            memcpy(rf_scene_grenade_contact_trace+7,event.contact.hit.normal,12);
+            memcpy(rf_scene_grenade_contact_trace+10,scene_grenades[i].flight.velocity,12);
+            rf_scene_grenade_contact_trace[13]=event.contact.room;
+            rf_scene_grenade_contact_trace[14]=event.contact.face;
+            rf_scene_grenade_contact_trace[15]=scene_grenades[i].flight.resting;
+        }
         if(event.detonate){status=scene_grenade_detonate(s,frame,scene_grenades+i,&event);if(status){rf_scene_grenades[7]=(uint32_t)status;return status;}}
         if(scene_grenades[i].flight.lifecycle.active)++rf_scene_grenades[4];
     }

@@ -916,3 +916,34 @@ Use tools/clean-generated-artifacts.ps1 -Apply -PreserveDelivery after all owned
 processes exit. The opt-in preserves tester-disc and redfaction-tester.iso while
 removing regenerable run payloads. Compact evidence remains. The diagnostic
 harness restores missing immutable stage assets when next run.
+
+
+## L9S4 grenade contact diagnosis (225133)
+
+Added a16-word application RAM-log trace without changing flight/collision
+policy. Xbox cross-build passed. Identical L9S4 actor1197/distance8/loadout6,
+aimed explosives1800-input recipe completed on stock64 with1709 live/91 dead
+inputs,two scene starts,one death/recovery,three grenade releases/detonations,
+six enemy attacks,four alerted actors and one blast kill. No guest failure;
+no terrain/debris coverage or visual/audio verification.
+Run: artifacts/crash-hunt/20261015-225133-L9S4.rfl.
+
+Before reload:1696 sweeps,1446 matched contacts,962 zero fractions,zero
+non-incoming contacts. Gameplay counter1445 excludes the separately consumed
+object contact.354 ticks exhausted the four-contact limit. Last capped step1279:
+room3,face151,fraction0,normal(0.342668,0.122442,0.931443),velocity
+(0.0164275,-0.0775609,0.0286357),resting0. At1259:face155,
+normal(-0.794496,0.0370486,-0.606138),velocity
+(-0.0114624,-0.0767134,-0.0263833). These steep low-speed contacts fail the
+existing settling gate normal.y>0.5. Evidence points to repeated incoming
+contacts among surfaces, rather than outward-hit reacceptance or ordinary floor
+settling. Multi-surface resolution remains open; no arbitrary sleep threshold or
+weakened sweep was introduced. One bounce sound is requested per contacting tick,
+which warrants review. The loop is bounded; this is a work/effect amplification
+lead, not a demonstrated crash or measured performance regression.
+
+Trace layout: sweep calls,matches,zero fractions,non-incoming matches;
+last capped frame,slot,fraction bits,normal xyz bits,velocity xyz bits,
+room,face,resting. Cleared at scene frame0, emitted through existing RAM logging.
+Previous question response restated findings; this continuation adds runtime
+evidence. Full crash hunt remains active.
