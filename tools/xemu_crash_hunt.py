@@ -36,6 +36,7 @@ def main():
     parser.add_argument('--archive', default='levels1.vpp')
     parser.add_argument('--actor', type=int)
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
+    parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6), help='Diagnostic pistol/rifle/shotgun/rocket/grenade start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
     parser.add_argument('--aim-point', type=float, nargs=3, metavar=('X','Y','Z'),
@@ -69,6 +70,8 @@ def main():
         parser.error('--aim-point requires finite bounded coordinates and cannot be combined with --aim')
     if args.distance is not None and (args.actor is None or not 3 <= args.distance <= 20):
         parser.error('--distance requires --actor and a distance from 3 to 20')
+    if args.spawn_y is not None and (args.distance is None or not math.isfinite(args.spawn_y) or abs(args.spawn_y)>100000):
+        parser.error('--spawn-y requires --distance and a finite bounded height')
     if any(len(s.encode('ascii')) >= 64 or '/' in s or '\\' in s for s in (args.level, args.archive)):
         parser.error('Require simple archive and level names')
     lock = SessionLock(ROOT)
@@ -129,6 +132,7 @@ def main():
             pose = struct.unpack_from('<12f',target['raw'],target['transform'])
             position = [pose[i]+pose[3+i]*args.distance for i in range(3)]
             position[1] += .625
+            if args.spawn_y is not None:position[1]=args.spawn_y
             forward = [-x for x in pose[3:6]]
             right = [forward[2],0.,-forward[0]]
             meta = inspect(io.BytesIO(level_bytes),dict(offset=0,size=len(level_bytes),name=args.level))

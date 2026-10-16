@@ -107,7 +107,7 @@ static int scene_skybox_open(scene_stream *stream,const rf_level *level,const rf
     for(i=0;i<g->faces;i++){
         rf_geometry_face face;uint32_t slot;char name[256];const rf_material *m;
         status=rf_geometry_get_face(g,i,&face);if(status)return status;
-        if(face.room!=room||face.portal||(face.flags&1)||face.texture==UINT32_MAX)continue;
+        if(face.room!=room||face.portal||(face.flags&0x2001u)||face.texture==UINT32_MAX)continue;
         if(scene_skybox.count==SCENE_SKYBOX_FACES||face.texture>=g->textures||face.corners<3||face.corners>128)return RF_RANGE;
         slot=world->slots[world->offsets[0]+face.texture];
         if(slot>=world->material_count||slot>=stream->materials->count||!stream->materials->items)return RF_FORMAT;

@@ -175,7 +175,8 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
         if(visibility && !origin && face.room<g->rooms &&
            !g->data[g->room_offsets[face.room]+34] &&
            !visibility->rooms[face.room].visible)continue;
-        if (face.portal || (face.flags & 1) || face.texture == UINT32_MAX) continue;
+        /* Authored invisible collision surfaces must never enter draw batches. */
+        if (face.portal || (face.flags & 0x2001u) || face.texture == UINT32_MAX) continue;
         if(face.texture>=g->textures)return RF_FORMAT;
         if (mapped!=2 && face.lightmap_mapping != UINT32_MAX && rf_geometry_lightmap(mapped?authored:g, face.lightmap_mapping, UINT32_MAX, &lightmap)) return RF_FORMAT;
         if(face.texture>=UINT32_MAX-material_base)return RF_RANGE;

@@ -341,7 +341,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
         memset(rf_xbox_retained_world,0,sizeof(rf_xbox_retained_world));
         for(f=0;f<g->faces;f++) {
             rf_geometry_face face;status=rf_geometry_get_face(g,f,&face);if(status)return status;
-            if(face.portal || (face.flags&1) || face.texture==UINT32_MAX || face.corners<3)continue;
+            if(face.portal || (face.flags&0x2001u) || face.texture==UINT32_MAX || face.corners<3)continue;
             if(face.corners-2>(UINT32_MAX-count)/3)return RF_RANGE;
             count+=(face.corners-2)*3;
         }
@@ -361,7 +361,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
         for(f=0;f<g->faces;f++) {
             rf_geometry_face face;retained_face *out=retained_world.faces+f;uint32_t lightmap=UINT32_MAX;
             status=rf_geometry_get_face(g,f,&face);if(status)return status;
-            if(face.portal || (face.flags&1) || face.texture==UINT32_MAX || face.corners<3)continue;
+            if(face.portal || (face.flags&0x2001u) || face.texture==UINT32_MAX || face.corners<3)continue;
             if(face.texture>=g->textures || !scene->slots)return RF_FORMAT;
             if(face.lightmap_mapping!=UINT32_MAX){status=rf_geometry_lightmap(g,face.lightmap_mapping,UINT32_MAX,&lightmap);if(status)return status;}
             out->start=f;out->count=(face.corners-2)*3;out->material=scene->slots[face.texture];out->lightmap=lightmap;

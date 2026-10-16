@@ -4,6 +4,42 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Pink floor material identified and invisible rendering corrected
+
+Original L3S4 geometry at the reported player's eye(49.22456,13.69607,-22.43431)
+places grate faces5030/5031 atY12.02999, texture mtl_grate01_A.vbm, flags0xc8.
+Collision/detail surfaces6117/6118 occupy the same footprint atY11.875/12.125,
+texture cem_invisible03.tga, flags0x2108. The original maps2.vpp texture is32x32,
+24-bit TGA with bright red/pink pixels (common RGB223,0,74), SHA256
+1d8a6176ecc1b52a1814631a76e565843d7871ab59599e415588bb01ab7a0db2.
+This is authored texture data, not rf_image_missing or the renderer's white fallback.
+The user's screenshot plus source geometry strongly identify the unwanted surface;
+no new image was captured or generated. Compact source evidence is retained in
+artifacts/crash-hunt/l3s4-invisible-surface-review.json and l3s4-floor-materials.json.
+
+Existing original-code research identifies facebit0x2000 as invisible. Rendering
+only checked show-skybit1 and missed it. Added the invisible bit to both retained
+Xbox world preparation loops, shared preview face admission, and sky geometry.
+Collision inputs remain unchanged. All116 authored invisible faces in L3S4 are
+now excluded by those render filters; the grate's flags remain admitted.
+Native build passed;20261015-212646 completed600 inputs,509 live/91 dead, five
+sampled player shots and one normal recovery without fatal error. This establishes
+integration, not rendered visual verification; the pink disappearance remains
+USER visual confirmation while images are prohibited.
+
+The former near-drone placement wasY11.01576 over a floor atY6.52999. Added bounded
+--spawn-y, valid only with --distance, to stage only the private player-start
+height. Original actors/assets are unchanged and the recipe/start receipt records
+the value. Next contact probe uses7.53 to avoid the prior long initial fall.
+
+The height-adjusted near-drone run20261015-213023 also timed out during reload
+with58 live/62 dead inputs and no admitted pair query/contact. It ended at the
+same eye position(42.34972,8.19691,-26.97119) as the prior near-drone run. Thus
+initial height was not established as the coverage failure's cause. The earlier
+height hypothesis is not a resolved diagnosis. Next record live admission state
+(player mode/life/identity and Drone flags/pair eligibility) rather than repeat
+placement variations. No fatal error logged; collision bug remains unverified.
+
 ## Drone collision implementation and incomplete validation
 
 Implemented a bounded live Drone fly11 contact path for both movement directions.
