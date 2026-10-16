@@ -1,3 +1,4 @@
+- L9S4 creature stress completed rifle and grenade1800-input runs:44 rifle shots/eight enemy attacks; three grenade detonations/six enemy attacks/one recovery. High grenade-contact count, Drone/effect issues and broader destruction coverage remain open.
 - L11S2 startup and noise-investigation crashes fixed: identical1800-live-input run completed with57 player shots/18 enemy attacks/two alerted actors; navpoint wait preservation was exercised three times. Continue broader authored stress and unresolved Drone/effect issues.
 - Airborne Drone contact now admits normal player mode3: identical jump replay changed from zero to two accepted contacts and stopped the player1.77m earlier; 600-input mixed-combat regression completed; NPC-first contact and white/yellow effect diagnosis remain open.
 - Pink L3S4 floor traced to authored invisible surfaces6117/6118; render filters now exclude0x2000 and Xbox600-input check passed. USER visual confirmation remains.

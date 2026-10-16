@@ -4,6 +4,31 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## L9S4 creature-cluster stress
+
+Read-only authored census selected levels2.vpp/L9S4.rfl,Reeper1197 at distance8,
+near Reeper6837,baby Reepers1198/1199,and several bats. Selection evidence is
+artifacts/crash-hunt/l9s4-encounter-selection.json; original32 actors are retained.
+Run20261015-224043-L9S4.rfl uses finite rifle loadout2,ordinary bounded aim and
+game-owned combat phases. It completed1800 live inputs with44 player shots,
+eight enemy attacks,five recorded kills,six weapon switches and up to four
+simultaneously alerted actors. No deaths or reported guest error. All applicable
+combat qualification counters passed. This extends bounded coverage to a
+creature-heavy authored encounter; no visual/audio or overall-stability claim.
+A grenade-loadout follow-up uses the same actors and placement for blast/effect
+coverage without changing health or replenishing ammunition.
+
+Grenade follow-up20261015-224331-L9S4.rfl completed1800 inputs:1709 live,
+91 dead,two scene starts and one ordinary death/reload recovery. Sampled
+per-scene maxima:four priming actions,three releases,three detonations,one blast
+kill,six enemy attacks and four simultaneously alerted actors. The generic
+12-shot firearm gate is false; repeated explosive release/detonation and enemy
+activity are directly observed. No reported guest error. The1445 grenade
+collision contacts are unusually high and retained as an unverified behavior
+lead,not assumed to be a stability failure. No terrain edits/debris were observed;
+this level has not established destruction coverage. Compact telemetry and
+lifecycle-summary.json are retained. No new code or visual/audio claim this batch.
+
 ## L11S2 noise investigation invalidated by a navpoint change
 
 Run222430 reproduces RF_FORMAT at input836 and locates campaign_script_step.
