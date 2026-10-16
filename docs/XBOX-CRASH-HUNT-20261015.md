@@ -1009,3 +1009,39 @@ rendered-output proof or cause for the user's report. No captures,host input,
 PC builds or hardware deployment occurred. Compact lifecycle-summary.json and
 result/telemetry remain in the run directory. Earlier local work and delivery
 artifacts are preserved; the overall hunt remains active.
+
+
+## L14S2 authored heavy-mercenary stress: incomplete rifle coverage
+
+Read-only census:levels3.vpp/L14S2.rfl has23 actors(13 merc_heavy,six
+merc_com,four merc_grunt). Selected heavy10437 near heavies10438/10440/10441
+and commander10439. Selection positions retained in
+artifacts/crash-hunt/l14s2-encounter-selection.json. No enemy transforms,
+flags,health or ammunition were altered. Same current Xbox binary,loadout2,
+aimed combat1800 inputs,360-second watchdog,unchanged HMP reader.
+
+20261015-231237-L14S2.rfl,distance8:TIMEOUT with106 live/314 dead inputs,
+three scene starts/three deaths,implying two completed reloads. Individual
+live intervals32/37/37. Per-scene sampled maxima:three player shots,three
+enemy attacks,three alerted actors. No guest error; requested duration and
+sustained combat coverage not achieved.
+
+20261015-231919-L14S2.rfl,distance20:TIMEOUT with402 live/318 dead inputs,
+three starts/three deaths(two completed reloads),134 live inputs each cycle.
+Per-scene sampled maxima:nine player shots,18 enemy attacks,one alerted actor,
+one weapon switch. Player movement and exchanged fire were observed numerically;
+no visual placement verification. Authored pitch makes staged height change with
+distance; the farther start is about20-26 units from the five nearby actors.
+This increases combat exposure but fails simultaneous-enemy and sustained-fire
+coverage. Both cases have zero terrain edits/debris; neither is a passing
+stability test. Timeouts bound repeated death/reload runs; they do not by
+themselves prove a crash or a stuck reload. The last reload was not observed
+complete before shutdown. Sparse telemetry can miss entire short live intervals,
+so offline recovered_intervals may undercount the explicit scene-start changes.
+
+Next meaningful variation:finite rockets against the close authored group,
+keeping normal damage and existing enemy membership. Do not lengthen watchdogs
+merely to turn these rifle probes green. Compact lifecycle reports and the
+per-run coverage-index.json retain failures and build hashes. Index review finds
+terrain+debris only in the earlier L1S2 run; repeated cuts within one scene remain
+unproven. No images,host input,PC builds or deployment. Goal remains active.
