@@ -12,6 +12,8 @@ static uint32_t scene_npc_player_pair(const campaign_npc_body *owner,uint32_t sl
 {
     rf_collision_actor_pair_view a={0},b={0};
     rf_collision_pair_actor_state first={0},second={0};uint32_t flags=0;
+    /* Grounded humanoid contact stays lateral-only; Drone uses full3D. */
+    if(campaign_modes[rf_scene_actor_landing[1]].index!=1 && !scene_contact_drone(slot))return 0;
     a.object_flags=owner->object_flags;a.body_flags=state->flags;a.extent_180=state->bounds.radius;
     a.use_kind=campaign_seeds.classes[campaign_seeds.items[slot].class_index].physics.use_kind;
     b.object_flags=campaign_player_view.flags_7c;b.body_flags=scene_actor_body.state.flags;

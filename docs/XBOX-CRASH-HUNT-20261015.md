@@ -4,6 +4,40 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Airborne Drone contact gap fixed
+
+A normal forward-and-jump replay adds one jump edge at input12,with no shooting,
+health changes or host input. Before the fix,run20261015-215707-L3S4.rfl completed90
+inputs but only four player-first Drone queries. Last-live player mode3/index3
+was rejected. rf_movement_fall selects descriptor3 for an ordinary player; the
+shared contact admission incorrectly required grounded index1 even for the Drone
+full3D path. Airborne movement therefore bypassed both contact directions.
+
+The scoped fix admits player index3 in common identity/life admission,then keeps
+non-Drone pairs grounded-only in each directional pair filter. No class,health,
+registry,hidden/linked or original pair-rejection gates were removed. Drone uses
+the same oriented sphere sweep and existing response; other NPCs retain lateral
+contact. Xbox compile/link passed(build-drone-airborne-contact.log).
+
+Identical post-fix replay20261015-220005-L3S4.rfl completed90 inputs without a guest
+failure. It recorded59 player-first queries,two accepted contacts and last-live
+player admission1 in mode3. Final eye X44.373631 versus pre-fix46.139339 at the same
+Y8.196915,Z-26.971186. Three raw ray hits,two selected contacts; nearest proposed
+segment gap-0.0572317 signals an intersecting proposal,not committed penetration.
+The player ended1.765708m farther back. This is direct scoped contact evidence,
+not full animated-mesh parity or a claim that every reported overlap is solved.
+Melee still damages at57 and kills at58; melee reach remains distinct from body
+contact. The white/yellow effect remains unresolved. The renderer source review
+found ordinary source-alpha/inverse-source-alpha blending for the solid flash,
+with explicit RGB/alpha submission; no speculative rendering patch was made.
+
+Post-fix mixed-combat regression20261015-220211-L3S4.rfl completed600 inputs:
+509 alive,91 dead,two scene starts and one death/reload recovery,with five player
+shots and two enemy attacks as sampled per-scene maxima. At input480 the log
+includes one Drone missile launch and one positive Smash contact. No reported
+guest error. This exercises combat and reload after the airborne change but is
+not simultaneous multi-enemy stress qualification or visual confirmation.
+
 ## Sustained guard/drone run and reported flashing
 
 Run20261015-214653-L3S4.rfl completed1800 inputs on stock64MiB with1589 live

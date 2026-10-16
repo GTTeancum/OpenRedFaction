@@ -1,6 +1,6 @@
-- Investigate user-observed L3S4 white/yellow flashing and drone interpenetration: close approach confirms Smash damage at57/death58 with zero missiles and a red submitted overlay; flash cause and actual body-contact response remain unverified.
+- Airborne Drone contact now admits normal player mode3: identical jump replay changed from zero to two accepted contacts and stopped the player1.77m earlier; 600-input mixed-combat regression completed; NPC-first contact and white/yellow effect diagnosis remain open.
 - Pink L3S4 floor traced to authored invisible surfaces6117/6118; render filters now exclude0x2000 and Xbox600-input check passed. USER visual confirmation remains.
-- Drone radius2 body and bounded3D contact path compile and run queries in the guard encounter, but no accepted pair contact has been demonstrated; do not report the overlap fixed.
+- Drone authored radius2 proxy has scoped airborne player-contact evidence; retain animated-shape, NPC-first response and original user-observed visual overlap as unverified limitations.
 - L1S2 completed1800 inputs with committed terrain cuts/debris under enemy fire across reload; deeper cuts reject authored-brush overlap, so repeated-cut coverage remains open. User still reports security interruption with the verified OpenJKDF2 HMP reader.
 - L2S2a grenade run completed2400 inputs with2069 live inputs and three normal recoveries; repeated grenades, blast kills and four alerted enemies observed, but generic12-shot gate and destruction coverage remain unmet.
 - L17S1 combat follow-up completed1800 inputs on stock64 using OpenJKDF2 HMP logs, with1229 live inputs and five normal death/reload recoveries; continue completed explosive scenarios and unresolved destruction coverage.

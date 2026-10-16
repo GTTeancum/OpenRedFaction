@@ -1,6 +1,7 @@
 #ifndef RF_SCENE_PLAYER_NPC_CONTACT_INC
 #define RF_SCENE_PLAYER_NPC_CONTACT_INC
-/* Live actor_tick only: bounded one-way grounded player/humanoid contact.
+/* Live actor_tick only: grounded player/humanoid contact plus full3D Drone
+ * contact for grounded and ordinary falling/jumping player modes.
  * Original48be00 eligibility and49ab00 horizontal max-radius shape, with a
  * deliberate port-local normalized sweep fraction for nearest composition.
  * Original49ab00's additional divide-by-length remains untouched in core.
@@ -16,7 +17,7 @@ static uint32_t scene_player_npc_player(const rf_physics_body_state *state,uint3
 {
     uint32_t mode=rf_scene_actor_landing[1];
     uint32_t accepted=state && campaign_spawn && !campaign_cutscene_runtime.active &&
-        mode<16 && campaign_modes[mode].index==1 &&
+        mode<16 && (campaign_modes[mode].index==1 || campaign_modes[mode].index==3) &&
         campaign_player_object.handle==handle && campaign_player_object.object_kind==0 &&
         campaign_player_object.view==&campaign_player_view && campaign_player_view.type==0 &&
         (uint32_t)campaign_player_view.handle==handle && (campaign_player_view.flags_7c&8u) &&
@@ -107,6 +108,8 @@ static int scene_player_npc_radius(const rf_physics_spheres *spheres,float *maxi
 static uint32_t scene_player_npc_pair(const rf_physics_body_state *state,const campaign_npc_body *owner,uint32_t slot)
 {
     rf_collision_actor_pair_view a={0},b={0};rf_collision_pair_actor_state first={0},second={0};uint32_t flags=0;
+    /* Only the full3D Drone path admits ordinary airborne player mode3. */
+    if(campaign_modes[rf_scene_actor_landing[1]].index!=1 && !scene_contact_drone(slot))return 0;
     a.object_flags=campaign_player_view.flags_7c;a.body_flags=state->flags;a.extent_180=state->bounds.radius;
     b.object_flags=owner->object_flags;b.body_flags=owner->body.state.flags;
     b.extent_180=owner->body.state.bounds.radius;b.use_kind=campaign_seeds.classes[campaign_seeds.items[slot].class_index].physics.use_kind;
