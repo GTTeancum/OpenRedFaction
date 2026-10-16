@@ -1261,3 +1261,29 @@ and combined action on this real log. Action in an interval does not prove
 continuous fire. Native logs/result/selection/action-intervals retained; next
 improve normal input aim/fire opportunities against this active group. No new
 Xbox source build required for these offline tools. Goal remains active.
+
+## October16: mobile aiming stops under elite pressure
+
+Mobile profile now stops lateral input for the first24 of each60 live ticks
+in fire-capable phases, then resumes ordinary strafing. Reload movement,
+bounded look input, fire pulses, cadence, ammo and authored enemies/damage are
+unchanged. Trace version4 distinguishes this recipe; host phase/cycle coverage
+accepts4 with existing thresholds. Xbox native build passed in
+build-mobile-aim-stops.log; no PC build.
+
+20261016-070258-L6S3.rfl repeats3840/distance8/rifle2/mobile/nearest aim,
+2400 requested inputs/360-second watchdog. TIMEOUT:1513 live/407 dead inputs,
+four starts/four deaths,three recoveries, no reported guest failure.
+Per-life player shots9/18/1/7 versus baseline9/1/1/2; enemy attacks73/115/39/70
+versus74/48/69/93. Max simultaneous alerted population7; nine alert events is
+not nine simultaneous enemies. Same-scene sampled intervals with enemy action
+cover780 live inputs versus720 before; quiet intervals420 versus360. Seven
+intervals contain both player shots and enemy action versus five before.
+These interval counts do not prove continuous combat. Third-life shooting is
+still sparse and the requested input budget was not reached. Generic activity
+gates cannot turn this watchdog result into a completed stress pass.
+
+Saved mobile-stop-comparison.json and action-intervals.json beside result/logs.
+Next examine phase continuation across recovery and aiming under movement;
+do not weaken the encounter to obtain a green result. No visual/audio claims,
+images, host input, deployment or delivery refresh. Crash hunt remains active.

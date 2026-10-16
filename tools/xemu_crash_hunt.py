@@ -373,7 +373,7 @@ dvd_path = '{iso.as_posix()}'
         if args.scenario:
             trace=result.get('last',{}).get('rf_scene_crash_scenario_trace',[0]*8)
             result['scenario_coverage']={
-                'game_owned_phases_observed':trace[0] in (1,2,3) and trace[4]>=6 and trace[5]>=2,
+                'game_owned_phases_observed':trace[0] in (1,2,3,4) and trace[4]>=6 and trace[5]>=2,
                 'repeated_player_fire':max_shots>=12,
                 'repeated_enemy_fire':max_enemy_shots>=6,
                 'simultaneous_enemy_alerts':max_alerted_actors>=2,
