@@ -122,6 +122,7 @@ $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
 $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS) $(PROJECT_ROOT)/src/platform/xbox/retained_models.h
 
 $(PROJECT_ROOT)/src/platform/xbox/main.obj: $(wildcard $(PROJECT_ROOT)/tests/*_fixture.h)
+$(PROJECT_ROOT)/src/platform/xbox/main.obj: $(PROJECT_ROOT)/src/platform/xbox/ram_log.inc
 $(PROJECT_ROOT)/src/platform/xbox/main.obj $(PROJECT_ROOT)/src/platform/xbox/settings_storage.obj: $(PROJECT_ROOT)/src/platform/xbox/settings_storage.h $(PROJECT_ROOT)/src/platform/xbox/input.h
 
 # Scene implementation includes share the Windows dependency-path mismatch above.

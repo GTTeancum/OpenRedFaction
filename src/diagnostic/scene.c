@@ -13728,6 +13728,7 @@ static void scene_terrain_edit_mark(uint32_t row,uint32_t column,uint32_t *previ
     now=profile_clock();rf_scene_terrain_edit_times[row][column]=now-*previous;*previous=now;
 }
 uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,attempts,successful edits */
+uint32_t rf_scene_crash_terrain_owner[8]; /* affected,mutated UID,mutation status,publish status,group status,active hardness,mismatch UID,reserved */
 uint32_t rf_scene_geo_regions[4]; /* authored count, resident bytes, default hardness, section present */
 /* Half a float32 coordinate step, computed in double so subnormals retain
  * a nonzero rounding interval. Inputs are finite terrain coordinates. */

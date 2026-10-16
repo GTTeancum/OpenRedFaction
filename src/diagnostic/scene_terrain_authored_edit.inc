@@ -23,6 +23,8 @@ static int scene_authored_edit_mutate(void *opaque,rf_geomod_terrain *candidate)
     {
         int status=rf_geomod_terrain_cut_template_limits(candidate,s->terrain_template,c->center,c->basis,
             c->scale,s->terrain_material,c->limits,c->count);
+        rf_scene_crash_terrain_owner[1]=(c->authored?c->authored:s->terrain_authored)->asset_view.source_uid;
+        rf_scene_crash_terrain_owner[2]=(uint32_t)status;
         if(status){uint32_t i;printf("DETACHED_CUT_REJECT %d %.9g",status,c->scale);for(i=0;i<3;i++)printf(" %.9g",c->center[i]);for(i=0;i<9;i++)printf(" %.9g",c->basis[i]);printf(" %u\n",c->count);}
         return status;
     }
@@ -68,6 +70,7 @@ static int scene_authored_group_publish(void *opaque,rf_geomod_terrain *const *c
         if(owner->authored==s->terrain_authored)s->terrain=candidate[i];
     }
     s->terrain_publication_serial=serial;status=scene_terrain_authored_bind(s);
+    rf_scene_crash_terrain_owner[3]=(uint32_t)status;
     for(i=0;i<count;i++)s->terrain_sources[p->indices[i]].terrain=old[i];
     s->terrain=active;s->terrain_publication_serial=previous;return status;
 }
@@ -121,6 +124,7 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
     }
     budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,clone_budget};
     status=scene_terrain_edit_transaction_group(sources,count,&s->terrain_publication_serial,&budget,&publication,&context,result);
+    rf_scene_crash_terrain_owner[4]=(uint32_t)status;
     if(status && rf_scene_combat_trace) {
         uint64_t reserved=external+(uint64_t)count*clone_budget+SCENE_TERRAIN_EDIT_HISTORY_BYTES;
         for(i=0;i<count;i++){rf_geomod_terrain_view v;if(!rf_geomod_terrain_get(*sources[i].live,&v))reserved+=v.resident_bytes;}
@@ -184,14 +188,18 @@ static int scene_terrain_authored_template_edit(scene_stream *s,const float cent
     float scale,const rf_geomod_shallow_limit *limits,uint32_t count)
 {
     scene_authored_edit_context context={s,center,basis,scale,limits,count,0,NULL};
+    memset(rf_scene_crash_terrain_owner,0,sizeof(rf_scene_crash_terrain_owner));
+    rf_scene_crash_terrain_owner[5]=s->terrain_authored->asset_view.settings.hardness;
     if(s->terrain_source_count>1) {
         scene_authored_edit_context requests[4];uint32_t indices[4],n,i;int status;
         status=scene_terrain_authored_affected(s,center,basis,scale,limits,count,indices,&n);if(status)return status;
+        rf_scene_crash_terrain_owner[0]=n;
         if(!n)return RF_NOT_FOUND;
         for(i=0;i<n;i++) {
             /* Admission was prepared with the selected source's settings.
              * Mixed default hardness needs independent admission, not reuse. */
-            if(s->terrain_sources[indices[i]].authored->asset_view.settings.hardness!=s->terrain_authored->asset_view.settings.hardness)return RF_NOT_FOUND;
+            if(s->terrain_sources[indices[i]].authored->asset_view.settings.hardness!=s->terrain_authored->asset_view.settings.hardness){
+                rf_scene_crash_terrain_owner[6]=s->terrain_sources[indices[i]].authored->asset_view.source_uid;return RF_NOT_FOUND;}
             requests[i]=context;
         }
         return scene_terrain_authored_edit_group(s,indices,requests,n);

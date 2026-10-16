@@ -184,9 +184,46 @@ Visuals/audio and sustained stability remain unverified.
 The prior enemy-directed L1S2 run (`20261015-193524-L1S2.rfl`) completed1800
 inputs with1709 live and91 dead inputs, six rocket launches, twelve enemy shots,
 two simultaneously alerted actors and one death/reload. Its loaded terrain owner
-received an edit attempt but reported RF_RANGE without a committed cut. The new
+received an edit attempt but reported RF_NOT_FOUND (-3) without a committed cut. The new
 terrain-stage receipt and aim-point path are prepared to investigate that result;
 do not count it as destruction coverage or a fatal crash.
+
+### L1S2 wall stress and publication rejection
+
+`20261015-195551-L1S2.rfl` aimed ordinary virtual look/fire input at the recorded
+wall contact124.314514,-2.12633848,-17 while retaining the39 original actors.
+It completed1800 inputs (1709 live,91 dead), six rocket launches,54 enemy shots,
+two simultaneously alerted actors, and one normal death/reload. No fatal error
+was reported. The stage receipt showed initial terrain requests reaching stage9
+(template edit) and returning -3; subsequent near-duplicate impacts were also
+rejected at the existing history check. Correction: -3 is RF_NOT_FOUND, not
+RF_RANGE (-4); the earlier description of this status was wrong.
+
+An application-owned terrain-owner receipt now records affected source count,
+last mutated UID/status, publication status, transaction status, active hardness
+and any mismatching owner. It is serialized through the same HMP RAM log; no
+host structure polling was added. Native rebuild validation also exposed a
+missing Makefile dependency for ram_log.inc, now fixed so changes rebuild main.obj.
+
+Focused600-input run `20261015-200229-L1S2.rfl` observed two affected owners,
+successful mutation through UID8219, then RF_NOT_FOUND from publication and the
+transaction. The transaction calls publication only after every mutation succeeds,
+and rejection discards the private candidates. Compact terrain-review.json retains
+the application records. This is a publication rejection, not a solver failure or
+evidence of memory exhaustion. The exact inner publication branch is not traced.
+Existing cavity-obstacle/surface admission and the special recorded second-Driller
+cut restriction remain intact; no validation gate was removed to obtain a pass.
+
+Run `20261015-200500-L1S2.rfl` targeted a different face at124,-1,4 and also
+completed1800 inputs (1709 live,91 dead), with six rocket launches,55 enemy shots,
+two simultaneously alerted actors and one death/reload. Its receipt showed only
+source8123 affected: mutation succeeded, publication and transaction declined
+with RF_NOT_FOUND. Thus paired-owner admission alone does not explain the failure.
+Both full wall runs committed zero terrain edits and spawned zero terrain debris;
+neither proves joint destruction/combat stress or overall stability. Visuals/audio
+remain unverified. Continue crash coverage while retaining this concrete
+publication limitation for a targeted integration fix, rather than changing guards
+or repeatedly selecting arbitrary wall positions.
 
 ### Workflow revision requested after recurring security interruptions
 
