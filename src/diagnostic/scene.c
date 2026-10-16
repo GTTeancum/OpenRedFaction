@@ -6455,6 +6455,15 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         movement->response=movement_values.acceleration; /* SP ignores network overrides. */
         /* Shared class geometry comes from the first authored startup actor. */
         status=rf_entity_class_spheres_build(&model->file,pose->matrices,pose->bone_count,&config,spheres,&count);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+        /* First-playable Drone contact proxy when the compiled model supplies
+         * no CSPH records. Use its authored collision radius, not a render
+         * bound or guessed humanoid shape. Preserve models with real spheres. */
+        if(!count && config.authored.movement_index==11 &&
+           !strcmp(campaign_seeds.records.items[first].record.class_name,"Drone")) {
+            if(!isfinite(config.authored.collision_radius)||config.authored.collision_radius<=0){status=RF_FORMAT;goto done;}
+            memset(spheres,0,sizeof(spheres));spheres[0].radius=config.authored.collision_radius;
+            spheres[0].parameter_10=-1;count=1;
+        }
         if(scene_hit_location_class_named(campaign_seeds.records.items[first].record.class_name)) {
             scene_npc_hit_location_class value={0};rf_entity_class_sphere resolved[8];uint32_t resolved_count;
             status=rf_entity_class_spheres_resolve(&model->file,pose->matrices,pose->bone_count,
@@ -10672,6 +10681,7 @@ static int campaign_force_tick(rf_physics_body_state *body,rf_level_particles *p
     }
     return RF_OK;
 }
+#include "scene_drone_player_sweep.inc"
 #include "scene_player_npc_contact.inc"
 #include "scene_npc_player_contact.inc"
 static int actor_trace_contacts=1;

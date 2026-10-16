@@ -18,7 +18,8 @@ static uint32_t scene_npc_player_pair(const campaign_npc_body *owner,uint32_t sl
     b.extent_180=scene_actor_body.state.bounds.radius;
     /* Do not reuse the player-first predicate:48bf64/48bf71 deliberately
      * compare twice the PLAYER extent in both NPC-first size comparisons. */
-    if(rf_collision_actor_pair_reject(&a,&b,0,0,&flags)||flags!=0x20u)return 0;
+    if(rf_collision_actor_pair_reject(&a,&b,0,0,&flags)||
+       (flags!=0x20u && !(scene_contact_drone(slot)&&flags==2u)))return 0;
     first.handle=owner->registration.handle;first.parent_handle=(uint32_t)owner->view.linked_handle;
     first.object_flags=owner->object_flags;
     second.handle=campaign_player_object.handle;second.parent_handle=(uint32_t)campaign_player_view.linked_handle;
@@ -44,11 +45,33 @@ static int scene_npc_player_compose(const campaign_npc_body *owner,
     slot=(uint32_t)(owner-campaign_npc_bodies);
     if(scene_player_npc_owner(slot)!=owner||!scene_player_npc_player(player,campaign_player_object.handle))return RF_OK;
     if(memcmp(state->position,owner->body.state.position,12))return RF_NOT_FOUND;
+    if(scene_contact_drone(slot)) {
+        rf_scene_drone_player_contact[4]=2;rf_scene_drone_player_contact[5]=slot;
+        rf_scene_drone_player_contact[6]=owner->body.spheres.count;
+        rf_scene_drone_player_contact[7]=campaign_player_material;
+        memcpy(rf_scene_drone_player_contact+8,&state->mass,4);
+        memcpy(rf_scene_drone_player_contact+9,&state->bounds.radius,4);
+    }
     if(!isfinite(state->bounds.radius)||state->bounds.radius<=0||
        !isfinite(player->bounds.radius)||player->bounds.radius<=0||campaign_player_material>=10)return RF_FORMAT;
     limit=*matched?hit->contact.fraction:1.f;
     if(!isfinite(limit)||limit<0||limit>1)return RF_FORMAT;
     if(!limit||!scene_npc_player_pair(owner,slot,state))return RF_OK;
+    if(scene_contact_drone(slot)) {
+        uint32_t found=0;++rf_scene_drone_player_contact[0];
+        status=scene_drone_sphere_sweep(state,&owner->body.spheres,player,
+            &scene_actor_body.spheres,limit,&result,&found);if(status)return status;
+        if(found) {
+            ++rf_scene_drone_player_contact[1];result.contact.material=campaign_player_material;
+            result.contact.object_id=campaign_player_object.handle;
+            for(k=0;k<3;k++) {
+                result.contact.velocity[k]=player->velocity[k]+campaign_support_velocity[k];
+                if(!isfinite(result.contact.velocity[k]))return RF_FORMAT;
+            }
+            *hit=result;*matched=1;
+        }
+        return RF_OK;
+    }
     for(k=0;k<3;k++){
         float low,high,other_low,other_high;
         if(!isfinite(state->position[k])||!isfinite(state->next_position[k])||!isfinite(player->position[k]))return RF_FORMAT;

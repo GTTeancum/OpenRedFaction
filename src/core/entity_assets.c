@@ -2242,9 +2242,14 @@ int rf_entity_class_physics_read(const void *text,uint32_t bytes,const char *nam
             if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;
             found=same(t,name);
         } else if(found) {
-            bit=same(t,"$Mass:")?1:same(t,"$Material:")?2:same(t,"$Flags:")?4:same(t,"$Flags2:")?8:same(t,"$Movemode:")?16:same(t,"$Use:")?32:0;
+            if(same(t,"$Collision")) {
+                if(token(&l,t,&quoted)||quoted)return RF_FORMAT;
+                if(!same(t,"Radius:"))continue;
+                bit=64;
+            } else bit=same(t,"$Mass:")?1:same(t,"$Material:")?2:same(t,"$Flags:")?4:same(t,"$Flags2:")?8:same(t,"$Movemode:")?16:same(t,"$Use:")?32:0;
             if(!bit)continue;if(mask&bit)return RF_FORMAT;mask|=bit;
             if(bit==1) {if(sphere_number(&l,&value.mass))return RF_FORMAT;}
+            else if(bit==64) {if(sphere_number(&l,&value.collision_radius))return RF_FORMAT;}
             else if(bit==2) {if(token(&l,t,&quoted) || !quoted || asset(value.material,t))return RF_FORMAT;}
             else if(bit==16) {
                 if(token(&l,t,&quoted) || !quoted)return RF_FORMAT;

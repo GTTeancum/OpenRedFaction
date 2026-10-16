@@ -4,6 +4,42 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Drone collision implementation and incomplete validation
+
+Implemented a bounded live Drone fly11 contact path for both movement directions.
+It sweeps oriented source spheres against the other body's committed spheres in
+full3D, preserves earlier world hits and uses ordinary contact/stop consumers.
+Only exact authored/current Drone fly11 extends the old grounded owner filter.
+Original pair rejection remains; admitted flags2/4 model-contact branches use
+this explicit first-pass sphere adaptation rather than a full animated mesh.
+Player admission remains grounded. Angular-only motion, preexisting overlaps,
+dead-body contact and general flying actors are not covered.
+
+The first native run20261015-210750 and traced repeat211054 both failed RF_FORMAT
+at input27. New admission tracing identified slot3 Drone with mass1000 but zero
+body spheres/radius. Class sphere declarations are name-based overrides; they
+do not create absent compiled model CSPH geometry. The original Drone table
+explicitly enables collide_player/collide_entity and authors Collision Radius2.
+
+Added that optional authored radius to class physics parsing, with a Makefile
+header dependency to invalidate all ABI consumers. When the exact Drone fly11
+model produces no spheres, initialize one centered sphere using its positive
+finite authored radius. Existing model spheres are preserved. This is a bounded
+first-playable collision proxy, not recovered exact mesh geometry. The ten-word
+rf_scene_drone_player_contact log records NPC queries/hits, player queries/hits,
+last admission side/slot/count/material/mass/radius. Radius values use float bits.
+
+Corrected native build passed. Run20261015-211602 (guard2049,distance8,shotgun,
+aim,combat) completed600 inputs with509 live,91 dead and one normal recovery.
+The log confirms count1/radius2 and active queries; no fatal error. Contact hits
+remained zero, so this is initialization/integration evidence, not proof that
+the observed overlap is fixed. Near-drone run211944 (Drone844,distance4) timed
+out during reload after58 live/62 dead inputs; no admitted pair query or hit.
+The closer placement therefore failed to provide contact coverage. Next use a
+grounded approach with measured relative positions and accepted pair contacts.
+Do not report the collision bug resolved or refresh tester delivery yet.
+The pink surface's material remains unconfirmed. No images or host input used.
+
 ## User-observed L3S4 drone/player collision bug
 
 Run `artifacts/crash-hunt/20261015-205144-L3S4.rfl` used actor2049 at distance8,

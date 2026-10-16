@@ -130,6 +130,9 @@ $(PROJECT_ROOT)/src/platform/xbox/main.obj $(PROJECT_ROOT)/src/platform/xbox/set
 # silently link stale gameplay code despite a successful incremental build.
 $(PROJECT_ROOT)/src/diagnostic/scene.obj: $(wildcard $(PROJECT_ROOT)/src/diagnostic/*.inc)
 
+# Shared class-physics layout must invalidate every potential ABI consumer.
+$(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/include/rf/entity_assets.h
+
 # Profile switches invalidate all project objects, including shared ABI users.
 $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/build/xbox/geomod-profile.stamp
 

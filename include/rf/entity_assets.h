@@ -332,6 +332,7 @@ typedef struct rf_entity_class_physics {
     uint32_t flags,flags2;
     uint32_t movement_index,use_kind;
     float use_radius;
+    float collision_radius; /* Optional authored $Collision Radius; zero if absent. */
 } rf_entity_class_physics;
 /* Authored mass/material/flag/use metadata only; movement_index identifies the
  * original 16-name table, not a resolved active movement descriptor. Missing

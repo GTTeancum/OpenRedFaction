@@ -43,9 +43,9 @@ static const campaign_npc_body *scene_player_npc_owner(uint32_t slot)
        ((owner->object_flags|owner->view.flags_7c)&(2u|8u|0x4000u|0x40000u|0x20000u)) ||
        owner->view.linked_handle!=-1 || scene_npc_seat_attached(handle) ||
        !owner->body.allocated_bytes || owner->movement_slot>=16 ||
-       campaign_modes[owner->movement_slot].index!=1 || (owner->body.state.flags&(0x4000u|0x400u)))return NULL;
+       (campaign_modes[owner->movement_slot].index!=1 && !scene_contact_drone(slot)) || (owner->body.state.flags&(0x4000u|0x400u)))return NULL;
     cls=campaign_seeds.items[slot].class_index;
-    if(cls>=campaign_seeds.class_count || !(campaign_seeds.classes[cls].physics.flags&0x20000u) ||
+    if(cls>=campaign_seeds.class_count || (!(campaign_seeds.classes[cls].physics.flags&0x20000u) && !scene_contact_drone(slot)) ||
        campaign_seeds.classes[cls].physics.use_kind==1)return NULL;
     if(campaign_actor_pose(slot,&pose) || !pose)return NULL;
     return owner;
@@ -70,7 +70,8 @@ static uint32_t scene_player_npc_pair(const rf_physics_body_state *state,const c
     /* Proven player-first branch returns before weapon/name fields are used
      * on the admitted flags20 path. Do not approximate extent with model78,
      * class navigation radius, or maximum individual sphere radius. */
-    if(rf_collision_actor_pair_reject(&a,&b,0,0,&flags) || flags!=0x20u)return 0;
+    if(rf_collision_actor_pair_reject(&a,&b,0,0,&flags) ||
+       (flags!=0x20u && !(scene_contact_drone(slot)&&flags==4u)))return 0;
     first.handle=campaign_player_object.handle;first.parent_handle=(uint32_t)campaign_player_view.linked_handle;
     first.object_flags=campaign_player_view.flags_7c;
     second.handle=owner->registration.handle;second.parent_handle=(uint32_t)owner->view.linked_handle;
@@ -98,16 +99,36 @@ static int scene_player_npc_compose(const rf_physics_body_state *state,float nor
         if(!isfinite(state->position[k]) || !isfinite(state->next_position[k]))return RF_FORMAT;
         delta[k]=state->next_position[k]-state->position[k];if(!isfinite(delta[k]))return RF_FORMAT;
     }
-    if((delta[0]==0 && delta[2]==0) || *fraction==0)return RF_OK;
+    if((delta[0]==0 && delta[1]==0 && delta[2]==0) || *fraction==0)return RF_OK;
     limit=*fraction;
     for(i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *owner=scene_player_npc_owner(i);float target_radius,ray[6],point[3],length,t,combined_radius;
         double magnitude,inverse,norm;uint32_t separated=0;static const float zero[3]={0};
         if(!owner)continue;
+        if(scene_contact_drone(i)) {
+            rf_scene_drone_player_contact[4]=1;rf_scene_drone_player_contact[5]=i;
+            rf_scene_drone_player_contact[6]=owner->body.spheres.count;
+            rf_scene_drone_player_contact[7]=owner->collision_material;
+            memcpy(rf_scene_drone_player_contact+8,&owner->body.state.mass,4);
+            memcpy(rf_scene_drone_player_contact+9,&owner->body.state.bounds.radius,4);
+        }
         if(!isfinite(owner->body.state.bounds.radius) || owner->body.state.bounds.radius<=0 ||
            !isfinite(owner->body.state.mass) || owner->body.state.mass<=0 || owner->collision_material>=10)return RF_FORMAT;
         if(!scene_player_npc_pair(state,owner,i))continue;
         status=scene_player_npc_radius(&owner->body.spheres,&target_radius);if(status)return status;
+        if(scene_contact_drone(i)) {
+            uint32_t found=0;++rf_scene_drone_player_contact[2];
+            status=scene_drone_sphere_sweep(state,&scene_actor_body.spheres,&owner->body.state,
+                &owner->body.spheres,limit,&result,&found);if(status)return status;
+            if(!found)continue;
+            ++rf_scene_drone_player_contact[3];t=result.contact.fraction;
+            result.contact.material=owner->collision_material;result.contact.object_id=owner->registration.handle;
+            for(k=0;k<3;k++) {
+                result.contact.velocity[k]=owner->body.state.velocity[k]+owner->support_velocity[k];
+                if(!isfinite(result.contact.velocity[k]))return RF_FORMAT;
+            }
+            goto publish_actor_contact;
+        }
         for(k=0;k<3;k++){
             float low,high,other_low,other_high;
             if(!isfinite(owner->body.state.position[k]) || !isfinite(owner->body.state.velocity[k]) ||
@@ -150,6 +171,7 @@ static int scene_player_npc_compose(const rf_physics_body_state *state,float nor
             result.contact.velocity[k]=(float)((double)owner->body.state.velocity[k]+owner->support_velocity[k]);
             if(!isfinite(result.contact.point[k]) || !isfinite(result.contact.velocity[k]))return RF_FORMAT;
         }
+publish_actor_contact:
         next.present=1;next.player=campaign_player_object.handle;next.handle=owner->registration.handle;next.slot=i;
         next.material=owner->collision_material;next.radius=target_radius;
         next.inverse_mass=(float)(1.0/owner->body.state.mass);

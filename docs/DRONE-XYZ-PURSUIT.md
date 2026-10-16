@@ -11,8 +11,11 @@ scheduled Xbox batch.
 Original `levels1.vpp/L3S4.rfl` UID 844 is the exact `Drone` class, already
 supported by the separate Drone Smash and Drone Missile owners. The original
 `tables.vpp/entity.tbl:4086–4138` class authors `robot fly`, `fly` and `sentient`,
-maximum speed 6, acceleration 4, mass 1000 and two body spheres of radii 1.3
-and 1.4. The movement parser's original sixteen-name table resolves
+maximum speed 6, acceleration 4, mass 1000 and two named sphere overrides of radii 1.3
+and 1.4. These override declarations do not establish that the compiled model
+supplies physical spheres: October15 runtime tracing found zero spheres. The
+contact integration now uses the separately authored Collision Radius2 as a
+first-pass fallback body when compiled spheres are absent; see the crash-hunt report. The movement parser's original sixteen-name table resolves
 `robot fly` to descriptor index 11. These are source evidence, not new movement
 constants or changes to an original asset.
 
