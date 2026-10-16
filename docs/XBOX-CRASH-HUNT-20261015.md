@@ -986,3 +986,26 @@ Compact before/after: artifacts/crash-hunt/grenade-settle-comparison.json.
 This is a validated bounded contact-work correction, not a global stability
 claim. Original spin/material/wake fidelity remains deferred. Existing delivery
 artifacts were preserved and were not refreshed with this private test build.
+
+
+## L11S2 rocket combat with recovery (230633)
+
+Run20261015-230633-L11S2.rfl used the current private Xbox build,authored
+actor10362 at distance8,loadout5,normal aimed explosives scenario,1800 inputs,
+360-second watchdog and unchanged OpenJKDF2 HMP log transport. All32 authored
+actors were retained. No source/build change was needed for this batch.
+COMPLETED1709 live/91 dead inputs,two scene starts,one normal death/recovery.
+Sampled per-scene maxima:25 player shots,six rockets,19 enemy attacks,three
+blast kills,three simultaneous alerted enemies,six weapon switches. These
+maxima are not cumulative totals across reload. All encounter coverage gates
+passed. Native guest error arrays stayed clear. The late recovery resumed
+without restarting the host session or increasing the watchdog.
+
+Zero terrain edits/debris were observed: this qualifies explosive combat and
+resource reload only, not repeated destruction. Visual/audio correctness and
+white/yellow flashing remain unverified. A read-only review of the current HUD
+flash path confirms red input and the existing HUD draw callback; it adds no
+rendered-output proof or cause for the user's report. No captures,host input,
+PC builds or hardware deployment occurred. Compact lifecycle-summary.json and
+result/telemetry remain in the run directory. Earlier local work and delivery
+artifacts are preserved; the overall hunt remains active.
