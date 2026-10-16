@@ -1354,7 +1354,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         FILE *scenario_file=tester_profile?NULL:fopen("D:\\crash-scenario.flag","rb");
         rf_scene_crash_scenario=0;
         if(scenario_file){int mode=fgetc(scenario_file);
-            rf_scene_crash_scenario=mode==EOF?1u:mode=='2'?2u:0u;
+            rf_scene_crash_scenario=mode==EOF?1u:mode=='2'?2u:mode=='3'?3u:0u;
             int invalid=!rf_scene_crash_scenario || fgetc(scenario_file)!=EOF;
             fclose(scenario_file);if(invalid)return RF_FORMAT;}
         FILE *loadout_file=tester_profile?NULL:fopen("D:\\crash-loadout.bin","rb");

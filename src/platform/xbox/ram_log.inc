@@ -49,7 +49,7 @@ static void xbox_debug_MirrorWrite(const char *msg)
     g_XboxDebugMirrorMagic1 = XDBG_MIRROR_MAGIC1;
 }
 
-extern uint32_t rf_scene_combat_population[4],rf_scene_crash_activity[4];
+extern uint32_t rf_scene_combat_population[4],rf_scene_crash_activity[4],rf_scene_player_ammo[8];
 extern uint32_t rf_scene_crash_scenario_trace[8],rf_scene_enemy_failure[6],rf_scene_crash_terrain[8];
 extern uint32_t rf_scene_crash_terrain_owner[8];
 extern uint32_t rf_scene_crash_terrain_admission[10];
@@ -60,6 +60,7 @@ extern uint32_t rf_scene_grenade_contact_trace[20];
 extern uint32_t rf_scene_ai_fusion[6],rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
 extern uint32_t rf_scene_enemy_damage_kinds[10],rf_scene_crash_aim_trace[4];
+extern uint32_t rf_scene_turret_combat[10],rf_scene_turret_owners[8];
 extern uint32_t rf_scene_crash_flash[6],rf_scene_noise_live_trace[20],rf_scene_noise_nav_delay[4];
 extern uint32_t rf_scene_contact_admission[12];
 extern uint32_t rf_scene_drone_owner_admission[16];
@@ -98,7 +99,10 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_player_life,8);
     RAM_ARRAY(rf_scene_combat,8);
     RAM_ARRAY(rf_scene_weapon_selection,8);
+    RAM_ARRAY(rf_scene_player_ammo,8);
     RAM_ARRAY(rf_scene_enemy_combat,8);
+    RAM_ARRAY(rf_scene_turret_combat,10);
+    RAM_ARRAY(rf_scene_turret_owners,8);
     RAM_ARRAY(&rf_scene_combat_event_count,1);
     RAM_ARRAY(rf_scene_combat_events,160);
     RAM_ARRAY(rf_scene_enemy_damage_kinds,10);

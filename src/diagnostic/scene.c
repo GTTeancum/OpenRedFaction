@@ -17233,9 +17233,10 @@ static int campaign_inventory_initialize(void)
                 if(!scene_weapon_available(slot) || id<0 || (uint32_t)id>=campaign_weapon_supply.names.count)return RF_FORMAT;
                 status=rf_weapon_acquire_sp(&campaign_player_inventory,
                     campaign_weapon_supply.definitions+id,id,-1);if(status)return status;
-                /* Clipless grenades need reserve rounds; acquiring an empty
-                 * magazine alone supplies none. Use a finite capped pickup. */
-                if(slot==5) {
+                /* Clipless grenades need reserve rounds. Mobile railgun stress
+                 * also gets four capped pickup rounds to exercise real reloads;
+                 * older profiles retain their single loaded-round recipe. */
+                if(slot==5 || (slot==7 && rf_scene_crash_scenario==3)) {
                     rf_weapon_pickup_grant grant;
                     status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,
                         campaign_weapon_supply.definitions+id,id,4,0,&grant);if(status)return status;

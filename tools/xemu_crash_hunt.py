@@ -42,7 +42,7 @@ def main():
     parser.add_argument('--aim-actor', type=int, help='Prioritize this authored UID through bounded look input; nearest-hostile fallback after loss')
     parser.add_argument('--aim-point', type=float, nargs=3, metavar=('X','Y','Z'),
                         help='Process-local bounded look input toward an explicit world point')
-    parser.add_argument('--scenario', choices=('combat','explosives'), help='Game-owned live-tick phases; explosives recovers the requested weapon through ordinary cycle inputs')
+    parser.add_argument('--scenario', choices=('combat','explosives','mobile'), help='Game-owned live-tick phases; mobile adds sustained movement, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
     parser.add_argument('--input', choices=('neutral','exercise','combat','approach','approach-jump'), default='neutral')
@@ -199,7 +199,7 @@ def main():
         if args.aim_point:
             (disc / 'crash-aim-point.bin').write_bytes(struct.pack('<3f',*args.aim_point))
         if args.scenario:
-            (disc / 'crash-scenario.flag').write_bytes(b'2' if args.scenario=='explosives' else b'')
+            (disc / 'crash-scenario.flag').write_bytes(b'2' if args.scenario=='explosives' else b'3' if args.scenario=='mobile' else b'')
         if args.log_protocol=='jkdf2-hmp':
             (disc / 'crash-ram-log.flag').write_bytes(b'')
         iso = ROOT / 'build/xbox/redfaction-crash.iso'
@@ -373,7 +373,7 @@ dvd_path = '{iso.as_posix()}'
         if args.scenario:
             trace=result.get('last',{}).get('rf_scene_crash_scenario_trace',[0]*8)
             result['scenario_coverage']={
-                'game_owned_phases_observed':trace[0] in (1,2) and trace[4]>=6 and trace[5]>=2,
+                'game_owned_phases_observed':trace[0] in (1,2,3) and trace[4]>=6 and trace[5]>=2,
                 'repeated_player_fire':max_shots>=12,
                 'repeated_enemy_fire':max_enemy_shots>=6,
                 'simultaneous_enemy_alerts':max_alerted_actors>=2,

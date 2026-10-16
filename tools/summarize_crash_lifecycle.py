@@ -12,6 +12,8 @@ def summarize(path):
     intervals = []
     pending = None
     prior = None
+    prior_row = None
+    action_intervals = []
     samples = 0
     for line in path.read_text().splitlines():
         row = json.loads(line)
@@ -20,6 +22,20 @@ def summarize(path):
         if not activity or not trace or not trace[0]:
             continue
         samples += 1
+        if prior_row is not None:
+            old_activity = prior_row['rf_scene_crash_activity']
+            # Counters reset on scene load. Never subtract across reloads or
+            # attribute a death/recovery interval to sustained live combat.
+            if activity[2:] == old_activity[2:] and activity[1] == old_activity[1]:
+                live = activity[0] - old_activity[0]
+                npc = row.get('rf_scene_enemy_combat', [0]*8)[2] - prior_row.get('rf_scene_enemy_combat', [0]*8)[2]
+                turret = row.get('rf_scene_turret_combat', [0]*10)[3] - prior_row.get('rf_scene_turret_combat', [0]*10)[3]
+                if live > 0 and npc >= 0 and turret >= 0:
+                    action_intervals.append(dict(start_seconds=prior_row['elapsed_seconds'],
+                        end_seconds=row['elapsed_seconds'], live_inputs=live,
+                        npc_attacks=npc, turret_shots=turret,
+                        enemy_action_observed=bool(npc or turret)))
+        prior_row = row
         key = (activity[2], activity[3])
         if key != prior:
             events.append(dict(seconds=row['elapsed_seconds'], scene_starts=key[0],
@@ -44,8 +60,11 @@ def summarize(path):
         intervals.append(pending)
     return dict(source=str(path), samples=samples, transitions=events,
                 death_intervals=intervals,
+                live_action_intervals=action_intervals,
+                live_inputs_in_intervals_with_enemy_action=sum(i['live_inputs'] for i in action_intervals if i['enemy_action_observed']),
+                live_inputs_in_intervals_without_enemy_action=sum(i['live_inputs'] for i in action_intervals if not i['enemy_action_observed']),
                 recovered_intervals=sum(i.get('resumed_seconds') is not None for i in intervals),
-                limitation='Sampled, non-atomic application telemetry; no visual/audio or stability verdict.')
+                limitation='Sampled, non-atomic application telemetry; action within an interval does not prove continuous or simultaneous attacks. Reload/death intervals are excluded from action totals. No visual/audio or stability verdict.')
 
 
 if __name__ == '__main__':

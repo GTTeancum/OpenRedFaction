@@ -1158,3 +1158,77 @@ This validates a more capable input harness and actual target damage,not
 sustained gameplay stability. Next vary ordinary movement/follow-up fire instead
 of repeating stationary reloads. Existing visual/audio and Drone/effect limits
 remain. No PC builds,captures,hardware deployment or delivery replacement.
+
+
+## Mobile profile and L13S1 turret/reload validation (October16)
+
+New diagnostic scenario mobile uses native mode3/trace version3. It retains the
+six360-live-tick phases, normal death/Use recovery, weapon cadence and collision.
+After20 initial aiming ticks it strafes at axis0.8, reverses during later phases
+and moves backward0.35 during reload. The mobile railgun loadout additionally
+uses an ordinary capped four-round pickup; older recipes retain their ammo.
+No health,damage,enemy membership or weapon timing changes. Host coverage
+recognizes version3 with unchanged activity thresholds. Added existing player
+ammo,turret combat and turret-owner counters to RAM logs. Native builds passed;
+a mistyped Makefile path failed before compilation and was corrected.
+
+20261016-000336-L14S2.rfl:mobile railgun/priority10439,80 live/40 dead inputs,
+one priority kill,13 enemy attacks,two alerted actors,rail reload pending at
+death. Intentionally stopped exact owned PID32040; operator-stop.json records
+that PROCESS_EXITED is not a guest crash. It does not establish sustained fire.
+
+Read-only L13S1 selection retains39 authored actors,with guards/mercenaries and
+two auto turrets. Positions:artifacts/crash-hunt/l13s1-encounter-selection.json.
+20261016-000744-L13S1.rfl staged at guard8230,distance8,priority8230,mobile
+railgun. First life killed the guard, then turret-path20-damage events killed
+player at125. Ordinary NPC shot counter remained zero; this excludes static
+turret fire and must not be reported as zero total enemy action. Aim already
+switched to8253. Intentional stop PID30296 was based on an older sample;
+final collection showed929 live/91 dead inputs,two starts,one death and four
+player shots. It had resumed useful combat. Corrected operator-stop.json and
+retain interrupted status; neither fail nor completed stress-pass classification.
+Do not stop a future progressing run based on stale gameplay observations.
+
+20261016-001302-L13S1.rfl:identical placement,priority8253 instead.
+COMPLETED1800 live inputs,no deaths,no guest error,16 player shots,five weapon
+switches,one turret death. Separate turret counter13 shots by sample120,then
+unchanged; ordinary NPC attacks remained zero. Only one alerted NPC observed.
+Thus repeated-player-fire/phases gates pass, but sustained/multiple-enemy
+pressure remains unmet. Do not count the quiet tail as sustained combat.
+
+Ammo evidence:weapon14(railgun) begins reserve4/loaded1;first rail shot consumes
+loaded round;ordinary reload transfers one. Rail selected again by1440 with
+reserve3/loaded1;second rail shot by1500,then reload yields reserve2/loaded1
+by1680. Across all weapons three reloads transferred four rounds. End values
+are selected-handgun ammunition,not rail reserve. The intervening weapon cycle
+includes ordinary handgun,rifle and shotgun fire. Compact per-sample evidence:
+run/mobile-ammo-summary.json. First successful L13S1 compile/load also exercises
+the existing clutter-material budget path on a different authored environment.
+No terrain edits/debris or visual/audio verification. Preserve all incomplete
+coverage and prior Drone/effect issues. Updated AGENTS instructions explicitly
+retain this targeted crash hunt over earlier smoke-only limits; no images,
+host input,PC builds or deployment occurred. Delivery artifacts unchanged.
+
+## October16: reject inactive-group stress coverage
+
+20261016-064821-L13S1.rfl completed1800 live inputs on stock64 with no
+reported guest failure, nine player shots, five weapon switches, no NPC or
+turret attacks and no alerted actors. Recipe:actor8234,distance8,rifle2,
+nearest-hostile aim,mobile profile. This is NOT a combat stress pass.
+Read-only authored-activation.json records the v180 fields using level.c's
+spawn layout: mercenaries8233/8234/8235/8410/8411/8412 have creation_flags2,
+which entity.c maps to object0x4000; the aim and combat paths exclude this
+state. Guard8230 and turret8253 have creation_flags0. The recipe retained
+all39 authored actors but placement alone did not activate this group.
+Next selection must check authored activation state or exercise the actual
+activation event without silently removing those flags.
+
+Extended the offline lifecycle summarizer with same-scene live intervals,
+separate NPC attacks/turret shots, and quiet-input totals. Death/reload
+boundaries are excluded. Synthetic checks passed for NPC action, turret action,
+quiet intervals, death and reload boundaries. Prior001302 run has1680 live
+inputs in quiet observed intervals and60 in intervals containing enemy action;
+the initial60 inputs lack a preceding live sample and are not attributed.
+An interval containing attacks does not prove continuous/simultaneous fire.
+Both runs retain action-intervals.json. No new images, host input, PC build,
+hardware deployment or delivery refresh. Crash-hunt goal remains active.
