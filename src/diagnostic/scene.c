@@ -11907,8 +11907,9 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     pitch=asinf(delta[1]/(horizontal+fabsf(delta[1])))-actor_look.state.eye_angles[0];
     input->look[0]=fmaxf(-.8f,fminf(.8f,pitch*6.f));
     input->look[1]=fmaxf(-.8f,fminf(.8f,yaw*6.f));
-    /* A precision priority shot waits for look input to converge; no aim snap. */
-    float tolerance=rf_scene_crash_aim==3?.02f:.12f;
+    /* Rail priority needs precision. Other weapons retain the ordinary aim
+     * tolerance so a rocket does not wait for railgun alignment under fire. */
+    float tolerance=rf_scene_crash_aim==3 && campaign_equipped_slot==7?.02f:.12f;
     if(fabsf(yaw)>tolerance || fabsf(pitch)>tolerance)input->fire=0;
     if(input->fire)++rf_scene_crash_aim_trace[3];
 }

@@ -1,3 +1,4 @@
+- L19S2A mixed-weapon group remains unqualified: priority rocket now fires but669.375-damage hits end45-input lives before grenade/flame action. Next use finite railgun priority against11890 with all authored opponents retained.
 - L6S3 mobile aiming stops improved per-life shots9/18/1/7 versus9/1/1/2;360-second run timed out at1513 live inputs/four deaths with no guest error. Investigate sparse third-life fire and phase continuation after recovery; sustained hunt remains open.
 - L6S3 active elite cluster produced repeated enemy fire and three recoveries, but360-second watchdog ended at1375 live inputs/four deaths; improve mobile aim/fire opportunities without reducing authored pressure.
 - L13S1 mercenary placement had no enemy action: authored creation flag2 maps to inactive object flag0x4000. Select initially active authored opponents or exercise their real activation event before further stress runs; quiet intervals do not count.

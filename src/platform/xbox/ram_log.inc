@@ -58,6 +58,7 @@ extern uint32_t rf_scene_drone_separation[20];
 extern uint32_t rf_scene_drone_smash[12],rf_scene_drone_secondary[12];
 extern uint32_t rf_scene_grenade_contact_trace[20];
 extern uint32_t rf_scene_ai_fusion[6],rf_scene_fusion_projectiles[5];
+extern uint32_t rf_scene_ai_flame[8],rf_scene_ai_grenades[5];
 extern uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
 extern uint32_t rf_scene_enemy_damage_kinds[10],rf_scene_crash_aim_trace[4];
 extern uint32_t rf_scene_turret_combat[10],rf_scene_turret_owners[8];
@@ -112,6 +113,8 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_rockets,8);
     RAM_ARRAY(rf_scene_grenades,8);
     RAM_ARRAY(rf_scene_ai_fusion,6);
+    RAM_ARRAY(rf_scene_ai_flame,8);
+    RAM_ARRAY(rf_scene_ai_grenades,5);
     RAM_ARRAY(rf_scene_fusion_projectiles,5);
     RAM_ARRAY(rf_scene_grenade_contact_trace,20);
     RAM_ARRAY(rf_scene_rocket_blast,8);

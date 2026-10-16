@@ -1287,3 +1287,32 @@ Saved mobile-stop-comparison.json and action-intervals.json beside result/logs.
 Next examine phase continuation across recovery and aiming under movement;
 do not weaken the encounter to obtain a green result. No visual/audio claims,
 images, host input, deployment or delivery refresh. Crash hunt remains active.
+
+## October16: L19S2A mixed-weapon probe and priority tolerance
+
+Authored candidates identify six initially active nearby rifle/railgun/grenade/
+flamethrower mercenaries around11812; all27 authored actors retained.
+Recipe:levels3/L19S2A,anchor11812,distance8,rocket5,priority11890,mobile,
+1800 requested inputs/360-second watchdog.071036 run had45 live/75 dead inputs,
+one death,two enemy attacks and no rocket; intentionally stopped, operator-stop
+record retained. No guest error or completed stress pass.
+
+Priority aim formerly required0.02-radian alignment for every weapon, inherited
+from the railgun probe. Diagnostic-only aiming now uses0.02 only for equipped
+rail slot7 and ordinary0.12 for other weapons. No aim snap, weapon timing,
+damage or actor changes. Added existing rf_scene_ai_grenades[5] and
+rf_scene_ai_flame[8] to RAM logs to distinguish actual mixed-weapon activity.
+Xbox build passed (build-priority-rocket-telemetry.log).
+
+071342 identical probe with rebuilt XBE launched a rocket, but two45-live-input
+cycles ended before sustained combat. Final90 live/210 dead,2 starts/2 deaths,
+max per-life1 player shot/2 enemy attacks,5 simultaneous alerts observed.
+Recorded damage events in the second life:frame33 amount23.4375 then frame44
+amount669.375. Dedicated enemy grenade and flame arrays remained zero in
+collected samples; authored weapon membership is not actual attack coverage.
+Operator stopped exact owned XEMU after this repeated pattern; PROCESS_EXITED
+is intentionally interrupted, not a guest crash or pass. Both operator-stop
+records and compact logs/results retained. Next use finite railgun priority
+against11890 so the mixed group has a chance to engage; preserve authored
+stress and distinguish subsequent observed weapon paths. No images, host input,
+PC build, hardware deployment or delivery refresh. Goal remains active.
