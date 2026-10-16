@@ -1316,3 +1316,28 @@ records and compact logs/results retained. Next use finite railgun priority
 against11890 so the mixed group has a chance to engage; preserve authored
 stress and distinguish subsequent observed weapon paths. No images, host input,
 PC build, hardware deployment or delivery refresh. Goal remains active.
+
+## October16 handoff: user-requested break, commit and push
+
+071816 L19S2A finite railgun at prior11812 anchor could not align before death:
+45 live/75 dead,zero player shots; intentionally stopped with operator-stop
+record. No guest crash or stress pass.
+
+072100 stages player eight units facing railgun carrier11890, retaining all27
+authored actors,finite railgun8,priority11890,mobile profile. Frame13 hit for3825
+killed runtime handle26870169 (the prior lethal source); normal fallback aim
+then selected other enemies. First life reached253 live inputs. Dedicated AI
+counters establish actual mixed weapon activity: per-scene maxima2 grenade
+launches,16 contacts,1 detonation;7 flame pulses,35 fuel,7 player hits,zero
+reported flame status or grenade pool refusals. These maxima are not cumulative
+across reloads. Final watchdog result TIMEOUT:613 live/287 dead inputs,three
+starts/three deaths,max1 player shot and14 enemy attacks per scene,three
+simultaneously alerted actors observed. Repeated player-fire/phase gates fail;
+no guest error reported, no completed stress pass. The run had already exited
+when the user requested a break. No emulator was left running.
+
+User requested commit/push and pause. Goal marked paused, not complete.
+Remaining: sustained return fire after the initial priority kill, broader crash
+coverage and previously documented Drone/effect issues. No new image, PC build,
+hardware deployment or ready-delivery refresh. Compact run evidence stays local;
+only tracked source/tools/docs are included in the push.

@@ -1,3 +1,4 @@
+- USER PAUSED crash hunt on October16; source/build changes committed for push. Latest L19S2A carrier-facing rail probe reached enemy grenade detonation/flame hits but timed out with sparse return fire; resume only when requested.
 - L19S2A mixed-weapon group remains unqualified: priority rocket now fires but669.375-damage hits end45-input lives before grenade/flame action. Next use finite railgun priority against11890 with all authored opponents retained.
 - L6S3 mobile aiming stops improved per-life shots9/18/1/7 versus9/1/1/2;360-second run timed out at1513 live inputs/four deaths with no guest error. Investigate sparse third-life fire and phase continuation after recovery; sustained hunt remains open.
 - L6S3 active elite cluster produced repeated enemy fire and three recoveries, but360-second watchdog ended at1375 live inputs/four deaths; improve mobile aim/fire opportunities without reducing authored pressure.
