@@ -1,3 +1,4 @@
+- L11S2 clutter startup RF_RANGE is cleared by streaming reduced TGAs and a2MiB bounded cap(measured1.10MB peak); the encounter now exposes a separate RF_FORMAT at input836 after25 player shots/18 enemy attacks, reproduced identically in simulation stage6 after presentation; trace the failing call next.
 - Airborne Drone contact now admits normal player mode3: identical jump replay changed from zero to two accepted contacts and stopped the player1.77m earlier; 600-input mixed-combat regression completed; NPC-first contact and white/yellow effect diagnosis remain open.
 - Pink L3S4 floor traced to authored invisible surfaces6117/6118; render filters now exclude0x2000 and Xbox600-input check passed. USER visual confirmation remains.
 - Drone authored radius2 proxy has scoped airborne player-contact evidence; retain animated-shape, NPC-first response and original user-observed visual overlap as unverified limitations.

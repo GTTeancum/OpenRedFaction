@@ -4722,13 +4722,18 @@ static int campaign_glare_resources_open(const char *tables_path,rf_vpp *archive
     }
     rf_scene_glare_resources[6]=h;rf_scene_glare_resources[8]=p;return RF_OK;
 }
+uint32_t rf_scene_clutter_load_trace[8]; /* stage,budget,persistent,scratch,materials,staging peak,status,available texture budget */
 static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archives,uint32_t archive_count)
 {
-    const uint32_t budget=1024*1024;uint8_t (*records)[84]=NULL;
+    /* L11S2 has104 authored material slots; the former1MiB cap rejects
+     * its retained64px set. Keep a bounded2MiB cap, as for NPC materials. */
+    const uint32_t budget=2*1024*1024;uint8_t (*records)[84]=NULL;
     uint64_t count=0,scratch,offset_bytes,persistent,stage_peak,peak;uint32_t i,j,k,x,y,h=2166136261u,p=2166136261u,appearance_count=0;
     uint32_t *representatives=NULL;char *table=NULL,(*replacement_names)[64]=NULL;const char **overrides=NULL;
     rf_entity_assets *assets=NULL;rf_vpp tables={0};rf_vpp_entry entry;int status;
     if(campaign_clutter_material_offsets || campaign_clutter_appearance_slots || campaign_clutter_materials.items)return RF_RANGE;
+    memset(rf_scene_clutter_load_trace,0,sizeof(rf_scene_clutter_load_trace));
+    rf_scene_clutter_load_trace[0]=1;rf_scene_clutter_load_trace[1]=budget;
     memset(rf_scene_clutter_materials,0,sizeof(rf_scene_clutter_materials));
     memset(rf_scene_clutter_skins,0,sizeof(rf_scene_clutter_skins));
     if(!campaign_clutter_model_count)return RF_OK;
@@ -4754,6 +4759,9 @@ static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archi
     status=rf_vpp_open(&tables,tables_path);if(status)goto fail;
     status=rf_vpp_find(&tables,"clutter.tbl",&entry);if(status)goto fail;
     stage_peak=persistent+scratch+(uint64_t)campaign_clutter_records.count*4+entry.size+sizeof(*assets);
+    rf_scene_clutter_load_trace[0]=2;rf_scene_clutter_load_trace[2]=(uint32_t)persistent;
+    rf_scene_clutter_load_trace[3]=(uint32_t)scratch;rf_scene_clutter_load_trace[4]=(uint32_t)count;
+    rf_scene_clutter_load_trace[5]=(uint32_t)stage_peak;
     if(stage_peak>budget){status=RF_RANGE;goto fail;}
     campaign_clutter_material_offsets=malloc((size_t)offset_bytes);
     table=malloc(entry.size);assets=malloc(sizeof(*assets));
@@ -4783,9 +4791,10 @@ static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archi
     rf_scene_clutter_skins[0]=appearance_count;
     h=npc_hash_bytes(h,campaign_clutter_appearance_slots,campaign_clutter_records.count*4);rf_scene_clutter_skins[5]=h;
     free(table);table=NULL;free(assets);assets=NULL;free(representatives);representatives=NULL;
+    rf_scene_clutter_load_trace[0]=3;rf_scene_clutter_load_trace[7]=(uint32_t)(budget-persistent-scratch);
     status=rf_model_materials_open_records_overrides(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch));
-    if(status==RF_RANGE)status=rf_model_materials_open_records_overrides_limit(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch),128);
-    if(status==RF_RANGE)status=rf_model_materials_open_records_overrides_limit(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch),64);
+    if(status==RF_RANGE){rf_scene_clutter_load_trace[0]=4;status=rf_model_materials_open_records_overrides_limit(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch),128);}
+    if(status==RF_RANGE){rf_scene_clutter_load_trace[0]=5;status=rf_model_materials_open_records_overrides_limit(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch),64);}
     if(status)goto fail;
     peak=campaign_clutter_materials.peak_bytes+persistent+scratch;if(stage_peak>peak)peak=stage_peak;
     free(records);records=NULL;free(overrides);overrides=NULL;free(replacement_names);replacement_names=NULL;
@@ -4807,6 +4816,7 @@ static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archi
     }
     rf_scene_clutter_materials[5]=h;rf_scene_clutter_materials[7]=p;return RF_OK;
  fail:
+    rf_scene_clutter_load_trace[6]=(uint32_t)status;
     rf_vpp_close(&tables);free(table);free(assets);free(representatives);free(overrides);free(replacement_names);
     free(campaign_clutter_appearance_slots);campaign_clutter_appearance_slots=NULL;
     free(records);free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;

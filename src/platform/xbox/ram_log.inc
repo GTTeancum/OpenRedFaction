@@ -59,6 +59,11 @@ extern uint32_t rf_scene_drone_smash[12],rf_scene_drone_secondary[12];
 extern uint32_t rf_scene_crash_flash[6];
 extern uint32_t rf_scene_contact_admission[12];
 extern uint32_t rf_scene_drone_owner_admission[16];
+extern uint32_t rf_scene_campaign_load_stage,rf_scene_campaign_load_detail;
+extern uint32_t rf_scene_npc_body_admission[4],rf_scene_npc_body_failure[2],rf_scene_patrol_failure[3];
+extern uint32_t rf_scene_clutter_load_trace[8],rf_scene_clutter_materials[8],rf_material_failure[3];
+extern char rf_material_failure_name[61];
+extern uint32_t rf_scene_profile_stage[2],rf_preview_failure[8];
 extern float rf_scene_gameplay_eye[3];
 static void rf_ram_log_sample(uint32_t force)
 {
@@ -75,6 +80,16 @@ static void rf_ram_log_sample(uint32_t force)
     used=(size_t)snprintf(text,sizeof(text),"RFLOG {");
 #define RAM_ARRAY(name,n) do {     count=snprintf(text+used,sizeof(text)-used,"\"" #name "\":[");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;     for(uint32_t i=0;i<(n);i++){uint32_t word;memcpy(&word,(const void*)((const unsigned char*)(name)+i*4),4);         count=snprintf(text+used,sizeof(text)-used,"%s%u",i?",":"",word);         if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;}     count=snprintf(text+used,sizeof(text)-used,"],");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count; } while(0)
     RAM_ARRAY(rf_diagnostic,58);
+    RAM_ARRAY(&rf_xbox_load_stage,1);
+    RAM_ARRAY(&rf_scene_campaign_load_stage,1);
+    RAM_ARRAY(&rf_scene_campaign_load_detail,1);
+    RAM_ARRAY(rf_scene_npc_body_admission,4);
+    RAM_ARRAY(rf_scene_npc_body_failure,2);
+    RAM_ARRAY(rf_scene_patrol_failure,3);
+    RAM_ARRAY(rf_scene_clutter_load_trace,8);
+    RAM_ARRAY(rf_scene_clutter_materials,8);
+    RAM_ARRAY(rf_material_failure,3);
+    RAM_ARRAY(rf_material_failure_name,15);
     RAM_ARRAY(rf_player_replay_diagnostic,4);
     RAM_ARRAY(rf_scene_player_life,8);
     RAM_ARRAY(rf_scene_combat,8);
@@ -89,6 +104,8 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_debris,8);
     RAM_ARRAY(rf_scene_crash_scenario_trace,8);
     RAM_ARRAY(rf_scene_enemy_failure,6);
+    RAM_ARRAY(rf_scene_profile_stage,2);
+    RAM_ARRAY(rf_preview_failure,8);
     RAM_ARRAY(rf_scene_crash_terrain,8);
     RAM_ARRAY(rf_scene_crash_terrain_owner,8);
     RAM_ARRAY(rf_scene_crash_terrain_admission,10);

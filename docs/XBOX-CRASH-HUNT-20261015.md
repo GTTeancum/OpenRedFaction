@@ -4,6 +4,47 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## L11S2 authored-cluster startup failure
+
+Selected levels2.vpp/L11S2.rfl near guard10362,distance8,finite rifle loadout2,
+aimed game-owned combat1800 inputs. Authored census has32 actors; local cluster
+includes guards10361/10362/10363 and mutant10357. Spatial selection evidence is
+artifacts/crash-hunt/l11s2-encounter-selection.json; proximity alone does not prove
+LOS or simultaneous AI activation.
+
+Runs220722 and220932 failed before input0 with RF_RANGE. Application load-stage
+logging locates scene stage14:campaign_clutter_materials_open. Run221242 traces
+stage5(the64px retry),budget1048576,persistent1296,scratch15808,104 material slots,
+metadata staging peak186994,texture-loader allowance1031472. Failure is
+counter_01.tga(entry196652bytes,archive index0). The reduced-material loader still decoded
+the full image before reduction. Reused existing rf_image_tga_limited for reduced
+TGA loads at supported limits<=128; its box averaging matches rf_image_reduce.
+VBM and unrestricted decode remain unchanged. Xbox build passed.
+
+Run221435 advances beyond counter_01 but still fails at later texture
+2pt_Switch02_Off.tga(entry49196bytes). Thus the former1MiB cap also cannot retain
+this authored material set at64px. Increased only clutter's bounded cap to2MiB,
+matching the existing NPC-material cap; no actor removal or extra texture reduction.
+Added successful material resident/peak counters to application logs. Full stock
+64MiB runtime validation is required before declaring this startup failure fixed.
+
+Run221708 clears startup with51 appearances,104 materials and81 textures;
+clutter resident1068528bytes,peak1095568bytes,texture pixels1040384bytes. This
+confirms the old1MiB cap was below the measured working set. The stock64MiB run
+then reaches836 live inputs,25 player shots,18 enemy attacks,four recorded kills,
+and two simultaneously alerted actors before a separate RF_FORMAT failure. The
+initial material-load failure is resolved for this encounter; the complete run
+is not a pass. Enemy-failure counters remain zero,so existing gameplay stage and
+preview failure diagnostics are added to the same application log for the next
+identical reproduction. No additional emulator failure-time inspection protocol.
+
+Run222020 reproduces the second failure at exactly input836 with the same
+25 player shots/18 enemy attacks. Profile receipt[835,6] places it after
+presentation in the simulation-step block; rf_preview_failure and enemy-failure
+arrays remain zero. Next add failure call-site receipts within that block before
+changing gameplay. No claim that L11S2 completed1800 inputs. Startup and repeated
+combat have progressed farther, but the new deterministic error is open.
+
 ## Airborne Drone contact gap fixed
 
 A normal forward-and-jump replay adds one jump edge at input12,with no shooting,

@@ -274,7 +274,16 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
             result = rf_vpp_find(archives + a, name, &entry);
             if (result == RF_NOT_FOUND) continue;
             if (result) goto fail;
-            result = rf_image_open(&item->image, archives + a, &entry, budget - m->allocated_bytes);
+            /* Reduced TGA admission must not require the full-resolution
+             * allocation first. Reuse the streaming box decoder; VBM and
+             * unrestricted loads retain their established decode path. */
+            if(limit && limit<=128 && !(limit&(limit-1))) {
+                unsigned char magic[4];
+                result=entry.size<4?RF_FORMAT:rf_vpp_read(archives+a,&entry,0,magic,4);
+                if(!result)result=!memcmp(magic,".vbm",4)?
+                    rf_image_open(&item->image,archives+a,&entry,budget-m->allocated_bytes):
+                    rf_image_tga_limited(&item->image,archives+a,&entry,limit,budget-m->allocated_bytes);
+            } else result = rf_image_open(&item->image, archives + a, &entry, budget - m->allocated_bytes);
             if (result) {
                 memcpy(rf_material_failure_name,name,strlen(name)+1);
                 rf_material_failure[0]=(uint32_t)result;rf_material_failure[1]=a;rf_material_failure[2]=entry.size;
