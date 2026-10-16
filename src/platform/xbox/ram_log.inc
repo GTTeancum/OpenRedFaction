@@ -54,6 +54,8 @@ extern uint32_t rf_scene_crash_scenario_trace[8],rf_scene_enemy_failure[6],rf_sc
 extern uint32_t rf_scene_crash_terrain_owner[8];
 extern uint32_t rf_scene_crash_terrain_admission[10];
 extern uint32_t rf_scene_drone_player_contact[10];
+extern uint32_t rf_scene_contact_admission[12];
+extern uint32_t rf_scene_drone_owner_admission[16];
 extern float rf_scene_gameplay_eye[3];
 static void rf_ram_log_sample(uint32_t force)
 {
@@ -88,6 +90,8 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_crash_terrain_owner,8);
     RAM_ARRAY(rf_scene_crash_terrain_admission,10);
     RAM_ARRAY(rf_scene_drone_player_contact,10);
+    RAM_ARRAY(rf_scene_contact_admission,12);
+    RAM_ARRAY(rf_scene_drone_owner_admission,16);
     RAM_ARRAY(rf_scene_gameplay_eye,3);
 #undef RAM_ARRAY
     if(used+3>=sizeof(text))return;

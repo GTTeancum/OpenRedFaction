@@ -4,6 +4,35 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Live admission investigation
+
+Runs20261015-213517-L3S4.rfl and20261015-214035-L3S4.rfl completed60 inputs
+on stock64MiB:58 alive,2 dead,one player shot and one enemy shot,without a
+reported guest failure. These are diagnostic probes, not sustained stress passes.
+The preserved last-live player admission is accepted1,mode1,index1,health100,
+object flags8,unlinked,allocated body396bytes. This disproves player admission
+or initial height as the explanation for zero Drone pair queries in this recipe.
+The second run adds Drone owner admission tracing, but its call count remains0:
+the live query never reaches that owner before death. The combat phase is
+stationary for its first60 live ticks; the player dies at58. A forward-walking
+replay from the first input is the next focused test, without shooting or changing
+health, enemy state, or host input. The owner trace records identity,flags,mode,
+health and admission stage without changing eligibility. Xbox compile/link passed
+(build-drone-owner-admission.log). The collision bug remains open.
+
+The movement-first follow-up20261015-214242-L3S4.rfl completed60 inputs,
+58 alive and2 dead,with zero player shots and one enemy shot. Player eye moved
+from X42.34972 to45.38519 at Y8.19691,Z-26.97119. Drone owner trace is
+[49,4,3,1159479296,33554448,33554448,0,2147483768,11,11,4294967295,348,18,0,31,1]:
+all identity gates pass,live fly11 owner reaches accepted stage4. The sphere
+path ran49 player-first queries and zero accepted contacts. NPC-first count0.
+This demonstrates that the stationary probe's missing query is a coverage issue,
+not evidence that Drone eligibility is broken. It does not resolve the user's
+observed overlap. Next inspect committed sphere centers, relative separation and
+movement proposals during a representative approach; retain world-hit precedence.
+The harness adds --input approach using the existing RFI6 process-local replay,
+ordinary forward movement .65 from the first frame,without firing or OS input.
+
 ## Pink floor material identified and invisible rendering corrected
 
 Original L3S4 geometry at the reported player's eye(49.22456,13.69607,-22.43431)

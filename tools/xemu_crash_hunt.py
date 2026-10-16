@@ -44,7 +44,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives'), help='Game-owned live-tick phases; explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','combat'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','combat','approach'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -147,7 +147,11 @@ def main():
         rows = []
         for frame in range(args.frames):
             move = [0., 0., 0.]; look = [0., 0.]; buttons = [0]*7
-            if args.input == 'exercise' and frame >= 60:
+            if args.input == 'approach':
+                # Focused contact probe: ordinary forward movement from the
+                # first live frame, with no fire or host input.
+                move[2] = .65
+            elif args.input == 'exercise' and frame >= 60:
                 phase = (frame-60) % 600
                 # One-second releases separate edges. All input stays inside
                 # player_poll_paced; no OS/device injection is involved.

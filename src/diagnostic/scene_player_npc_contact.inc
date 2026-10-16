@@ -11,10 +11,11 @@ typedef struct scene_player_npc_contact {
     float position[3],velocity[3],radius,inverse_mass;
 } scene_player_npc_contact;
 
+uint32_t rf_scene_contact_admission[12]; /* last live player: calls,accepted,mode,index,health bits,object flags,state flags,body flags,class flags,cutscene,link,allocated */
 static uint32_t scene_player_npc_player(const rf_physics_body_state *state,uint32_t handle)
 {
     uint32_t mode=rf_scene_actor_landing[1];
-    return state && campaign_spawn && !campaign_cutscene_runtime.active &&
+    uint32_t accepted=state && campaign_spawn && !campaign_cutscene_runtime.active &&
         mode<16 && campaign_modes[mode].index==1 &&
         campaign_player_object.handle==handle && campaign_player_object.object_kind==0 &&
         campaign_player_object.view==&campaign_player_view && campaign_player_view.type==0 &&
@@ -27,13 +28,52 @@ static uint32_t scene_player_npc_player(const rf_physics_body_state *state,uint3
         scene_actor_body.allocated_bytes &&
         rf_object_registry_lookup(&campaign_registry,handle)==&campaign_player_object &&
         rf_entity_lookup(&campaign_entities,(int32_t)handle)==&campaign_player_view;
+    if(state && campaign_player_damage.state.effects.health>0) {
+        ++rf_scene_contact_admission[0];rf_scene_contact_admission[1]=accepted;
+        rf_scene_contact_admission[2]=mode;rf_scene_contact_admission[3]=mode<16?campaign_modes[mode].index:UINT32_MAX;
+        memcpy(rf_scene_contact_admission+4,&campaign_player_damage.state.effects.health,4);
+        rf_scene_contact_admission[5]=campaign_player_view.flags_7c;
+        rf_scene_contact_admission[6]=campaign_player_view.flags_810|campaign_player_damage.state.effects.flags_810;
+        rf_scene_contact_admission[7]=state->flags;rf_scene_contact_admission[8]=campaign_player_damage.class_flags;
+        rf_scene_contact_admission[9]=campaign_cutscene_runtime.active;
+        rf_scene_contact_admission[10]=(uint32_t)campaign_player_view.linked_handle;
+        rf_scene_contact_admission[11]=scene_actor_body.allocated_bytes;
+    }
+    return accepted;
 }
+uint32_t rf_scene_drone_owner_admission[16]; /* calls,stage,slot,health,object/view/state/body flags,mode,index,link,allocated,class,use,identity,pose status */
 static const campaign_npc_body *scene_player_npc_owner(uint32_t slot)
 {
-    const campaign_npc_body *owner;rf_entity_pose *pose=NULL;uint32_t cls,handle;
+    const campaign_npc_body *owner;rf_entity_pose *pose=NULL;uint32_t cls,handle,trace=0;
     if(!campaign_npc_bodies || slot>=campaign_npc_body_count || !campaign_seeds.items ||
        !campaign_seeds.records.items || slot>=campaign_seeds.records.count || !campaign_seeds.classes)return NULL;
     owner=campaign_npc_bodies+slot;handle=owner->registration.handle;
+    trace=!strcmp(campaign_seeds.records.items[slot].record.class_name,"Drone") && campaign_player_damage.state.effects.health>0;
+    if(trace) {
+        uint32_t identity=0;
+        cls=campaign_seeds.items[slot].class_index;
+        identity|=(owner->registration.view==&owner->view)?1u:0;
+        identity|=(!owner->registration.object_kind && !owner->view.type)?2u:0;
+        identity|=((uint32_t)owner->view.handle==handle)?4u:0;
+        identity|=(rf_object_registry_lookup(&campaign_registry,handle)==&owner->registration)?8u:0;
+        identity|=(rf_entity_lookup(&campaign_entities,(int32_t)handle)==&owner->view)?16u:0;
+        identity|=scene_npc_seat_attached(handle)?32u:0;
+        ++rf_scene_drone_owner_admission[0];rf_scene_drone_owner_admission[1]=1;
+        rf_scene_drone_owner_admission[2]=slot;
+        memcpy(rf_scene_drone_owner_admission+3,&owner->damage.effects.health,4);
+        rf_scene_drone_owner_admission[4]=owner->object_flags;
+        rf_scene_drone_owner_admission[5]=owner->view.flags_7c;
+        rf_scene_drone_owner_admission[6]=owner->view.flags_810|owner->damage.effects.flags_810;
+        rf_scene_drone_owner_admission[7]=owner->body.state.flags;
+        rf_scene_drone_owner_admission[8]=owner->movement_slot;
+        rf_scene_drone_owner_admission[9]=owner->movement_slot<16?campaign_modes[owner->movement_slot].index:UINT32_MAX;
+        rf_scene_drone_owner_admission[10]=(uint32_t)owner->view.linked_handle;
+        rf_scene_drone_owner_admission[11]=owner->body.allocated_bytes;
+        rf_scene_drone_owner_admission[12]=cls<campaign_seeds.class_count?campaign_seeds.classes[cls].physics.flags:0;
+        rf_scene_drone_owner_admission[13]=cls<campaign_seeds.class_count?campaign_seeds.classes[cls].physics.use_kind:UINT32_MAX;
+        rf_scene_drone_owner_admission[14]=identity;rf_scene_drone_owner_admission[15]=0;
+    }
+
     if(owner->registration.view!=&owner->view || owner->registration.object_kind || owner->view.type ||
        (uint32_t)owner->view.handle!=handle ||
        rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration ||
@@ -44,10 +84,13 @@ static const campaign_npc_body *scene_player_npc_owner(uint32_t slot)
        owner->view.linked_handle!=-1 || scene_npc_seat_attached(handle) ||
        !owner->body.allocated_bytes || owner->movement_slot>=16 ||
        (campaign_modes[owner->movement_slot].index!=1 && !scene_contact_drone(slot)) || (owner->body.state.flags&(0x4000u|0x400u)))return NULL;
+    if(trace)rf_scene_drone_owner_admission[1]=2;
     cls=campaign_seeds.items[slot].class_index;
     if(cls>=campaign_seeds.class_count || (!(campaign_seeds.classes[cls].physics.flags&0x20000u) && !scene_contact_drone(slot)) ||
        campaign_seeds.classes[cls].physics.use_kind==1)return NULL;
+    if(trace)rf_scene_drone_owner_admission[1]=3;
     if(campaign_actor_pose(slot,&pose) || !pose)return NULL;
+    if(trace){rf_scene_drone_owner_admission[1]=4;rf_scene_drone_owner_admission[15]=1;}
     return owner;
 }
 static int scene_player_npc_radius(const rf_physics_spheres *spheres,float *maximum)
