@@ -1,3 +1,4 @@
+- L2S2a grenade run completed2400 inputs with2069 live inputs and three normal recoveries; repeated grenades, blast kills and four alerted enemies observed, but generic12-shot gate and destruction coverage remain unmet.
 - L17S1 combat follow-up completed1800 inputs on stock64 using OpenJKDF2 HMP logs, with1229 live inputs and five normal death/reload recoveries; continue completed explosive scenarios and unresolved destruction coverage.
 - Active crash hunt: exercise authored combat environments under representative enemy, weapon and effect loads; two fixes and small passing probes do not establish stability.
 - L1S2 stress: two1800-input wall runs completed with repeated rockets,54/55 enemy shots and normal reload; terrain mutation succeeds but publication declines with RF_NOT_FOUND, so joint destruction/debris combat coverage remains open.

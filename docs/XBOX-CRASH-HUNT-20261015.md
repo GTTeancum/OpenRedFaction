@@ -4,6 +4,34 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Completed grenade encounter with HMP logging
+
+Run `artifacts/crash-hunt/20261015-202316-L2S2a.rfl` completed the original
+2400-input target within the600-second watchdog. Recipe: levels1.vpp/L2S2a.rfl,
+actor8394 at distance8, finite grenade loadout6, bounded aim and game-owned
+explosive phases. All57 original actors were retained. This uses the unchanged
+OpenJKDF2 HMP reader and the same diagnostic XBE as the completed L17S1 run:
+SHA256 de045fc298d6d67585f9fe4bfa6d13727de92b912ea1eac86ab48754008500cc.
+The game reported67108864 bytes of memory.
+
+Observed2069 live inputs,331 dead inputs, four scene starts and three deaths.
+The lifecycle receipt confirms all three recoveries with unchanged live-phase
+counters during sampled dead intervals. Per-scene sampled maxima: three grenade
+releases, two detonations, twenty bounces, two blast kills,22 enemy shots and four
+simultaneously alerted enemies. These are not cumulative totals across reloads.
+No fatal game error or tool-level security rejection appeared. The harness
+completed and stopped its owned XEMU normally.
+
+Terminal completion and repeated explosive/enemy activity are established, but
+`scenario_qualified` remains false: the generic repeated-player-fire gate requires
+12 shots per scene and this finite-grenade run recorded three. Do not weaken that
+gate or treat completion as overall stability. Zero terrain edits/debris were
+observed; L2S2a still has no connected terrain cutter. Visual/audio correctness
+remains unverified. Next investigate the preserved L1S2 publication rejection
+and continue distinct weapon/environment loads rather than repeating this same
+now-completed timeout recipe. HMP's faster completion is an observation, not a
+controlled attribution of the earlier timeout's cause.
+
 ## L17S1 completed combat/reload follow-up
 
 Run `artifacts/crash-hunt/20261015-201206-L17S1.rfl` completed1800 inputs
