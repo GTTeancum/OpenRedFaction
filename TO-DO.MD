@@ -1,4 +1,4 @@
-- Validate user-observed L3S4 drone/player interpenetration: movement-first probe passes both owner gates and runs49 full-body queries without a hit; inspect committed sphere positions and separation next, since contact response remains unverified.
+- Investigate user-observed L3S4 white/yellow flashing and drone interpenetration: close approach confirms Smash damage at57/death58 with zero missiles and a red submitted overlay; flash cause and actual body-contact response remain unverified.
 - Pink L3S4 floor traced to authored invisible surfaces6117/6118; render filters now exclude0x2000 and Xbox600-input check passed. USER visual confirmation remains.
 - Drone radius2 body and bounded3D contact path compile and run queries in the guard encounter, but no accepted pair contact has been demonstrated; do not report the overlap fixed.
 - L1S2 completed1800 inputs with committed terrain cuts/debris under enemy fire across reload; deeper cuts reject authored-brush overlap, so repeated-cut coverage remains open. User still reports security interruption with the verified OpenJKDF2 HMP reader.

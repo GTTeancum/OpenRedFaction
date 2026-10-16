@@ -4,6 +4,51 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Sustained guard/drone run and reported flashing
+
+Run20261015-214653-L3S4.rfl completed1800 inputs on stock64MiB with1589 live
+inputs,211 dead inputs,three scene starts and two death/reload recoveries.
+Sampled per-scene maxima include12 player shots and3 enemy attacks; simultaneous
+multi-enemy pressure and repeated-enemy-fire gates remain unmet. No reported
+guest failure. This is bounded evidence, not overall stability.
+
+The nearest-separation receipt records the closest point along the permitted
+translation segment for each sphere pair, respecting the earlier world-hit limit.
+There were1257 NPC-first and812 player-first queries,zero raw ray hits and zero
+accepted contacts. Closest gap1.2606314: Drone sphere center(45.724945,11.641300,
+-26.062033),radius2; player sphere center(46.174976,12.679989,-22.360859),radius0.6;
+Drone delta(0.0110245,0.0407076,0.0906715),world limit0.0988842. This recipe does
+not reach body contact. It cannot validate the response or negate the user's
+observed overlap. Compact results and lifecycle-summary.json are retained.
+
+The user additionally reports the screen turning white and flashing yellow
+before death. Record this as observed behavior, cause unconfirmed. The authored
+Drone secondary is a15-damage missile with blast radius2; its primary Smash has
+base bash damage1600 before AI/difficulty/target scaling. There is no nuclear
+weapon selection in this owner. Ordinary player damage flash requests red,
+RGBA(255,0,0,128). New logging includes existing Smash/secondary counters and
+submitted full-screen flash ARGB/alpha, to distinguish weapon damage from effect
+presentation. No images, host input or visual-correctness claim are involved.
+
+The follow-up20261015-215337-L3S4.rfl completed90 inputs(58 live,32 dead).
+Drone Smash counters show one start,one armed strike,one due contact,one body
+contact and one positive damage dispatch at input57,status0. Drone secondary
+shows54 qualified attempts,all held by geometry/LOS,zero launches. Player death
+is recorded at58. Thus this close approach reproduces a melee death,not a missile
+or nuclear blast. Flash telemetry:90 draw calls,33 active draws,last ARGB0x40ff0000,
+last alpha64,maximum alpha128,status0. These sampled/submitted values establish a
+red damage overlay in this reproduction; they do not establish the rendered
+white/yellow effect's cause or disprove the user's report.
+
+Nearest permitted body gap is0.1874573m,between player sphere center(45.255215,
+8.292233,-26.971186),radius0.15,and Drone center(46.349720,10.390756,-26.971186),
+radius2,with forward delta0.0649872 and limit1. There were49 player-first queries
+and zero hits.
+The attack's reach can produce melee contact before physical body contact; these
+are distinct paths. No contact-response validation is claimed. Both Xbox builds
+passed; only diagnostics changed this turn. Next investigate effect presentation
+and obtain an actual body-contact case without weakening authored collision gates.
+
 ## Live admission investigation
 
 Runs20261015-213517-L3S4.rfl and20261015-214035-L3S4.rfl completed60 inputs

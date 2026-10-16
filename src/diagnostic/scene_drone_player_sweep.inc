@@ -3,6 +3,7 @@
  * Each caller freezes the other body's committed pose; world hits win ties.
  * Angular sweep and dead-body response remain separate, unimplemented paths. */
 uint32_t rf_scene_drone_player_contact[10]; /* NPC queries,hits,player queries,hits; last admission side,slot,spheres,material,mass bits,radius bits */
+uint32_t rf_scene_drone_separation[20]; /* samples,side,gap bits,source xyz,target xyz,radii,delta xyz,limit,nearest fraction,i,j,ray hits,reserved */
 static uint32_t scene_contact_drone(uint32_t slot)
 {
     uint32_t cls;
@@ -45,7 +46,31 @@ static int scene_drone_sphere_sweep(const rf_physics_body_state *moving,
             ray[k]=(float)a;center[k]=(float)b;ray[k+3]=delta[k]/length;
             if(!isfinite(ray[k])||!isfinite(center[k]))return RF_FORMAT;
         }
+        /* Diagnostic receipt of the closest permitted translation segment.
+         * Sample only finite validated geometry; never alter the collision result. */
+        {
+            double projection=0,distance2=0;float nearest,gap,previous;
+            for(k=0;k<3;k++)projection+=((double)center[k]-ray[k])*delta[k];
+            nearest=(float)fmax(0.0,fmin((double)limit,projection/magnitude));
+            for(k=0;k<3;k++) {double d=(double)ray[k]+delta[k]*nearest-center[k];distance2+=d*d;}
+            gap=(float)(sqrt(distance2)-radius);
+            memcpy(&previous,rf_scene_drone_separation+2,4);
+            if(!rf_scene_drone_separation[0] || gap<previous) {
+                rf_scene_drone_separation[1]=rf_scene_drone_player_contact[4];
+                memcpy(rf_scene_drone_separation+2,&gap,4);
+                memcpy(rf_scene_drone_separation+3,ray,12);
+                memcpy(rf_scene_drone_separation+6,center,12);
+                memcpy(rf_scene_drone_separation+9,&source->items[i].radius,4);
+                memcpy(rf_scene_drone_separation+10,&target->items[j].radius,4);
+                memcpy(rf_scene_drone_separation+11,delta,12);
+                memcpy(rf_scene_drone_separation+14,&limit,4);
+                memcpy(rf_scene_drone_separation+15,&nearest,4);
+                rf_scene_drone_separation[16]=i;rf_scene_drone_separation[17]=j;
+            }
+            ++rf_scene_drone_separation[0];
+        }
         if(!rf_collision_ray_sphere(ray,length,center,radius,point,&t))continue;
+        ++rf_scene_drone_separation[18];
         if(!isfinite(t))return RF_FORMAT;if(t<0||t>=limit)continue;
         for(k=0;k<3;k++){double d=(double)point[k]-center[k];norm+=d*d;dot+=d*delta[k];}
         if(!t&&dot>=0)continue;
