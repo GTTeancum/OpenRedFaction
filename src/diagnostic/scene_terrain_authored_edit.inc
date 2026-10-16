@@ -189,6 +189,7 @@ static int scene_terrain_authored_template_edit(scene_stream *s,const float cent
 {
     scene_authored_edit_context context={s,center,basis,scale,limits,count,0,NULL};
     memset(rf_scene_crash_terrain_owner,0,sizeof(rf_scene_crash_terrain_owner));
+    memset(rf_scene_crash_terrain_admission,0,sizeof(rf_scene_crash_terrain_admission));
     rf_scene_crash_terrain_owner[5]=s->terrain_authored->asset_view.settings.hardness;
     if(s->terrain_source_count>1) {
         scene_authored_edit_context requests[4];uint32_t indices[4],n,i;int status;

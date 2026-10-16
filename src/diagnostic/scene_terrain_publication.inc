@@ -345,6 +345,12 @@ static int scene_authored_cuts_admit(const scene_terrain_authored_assets *a,
         status=a->asset_view.detail_guard_count?rf_geomod_authored_post_admit(a->asset,lo,hi):
             rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);
         if(status) {
+            rf_scene_crash_terrain_admission[0]=a->asset_view.source_uid;
+            rf_scene_crash_terrain_admission[1]=i;
+            rf_scene_crash_terrain_admission[2]=(uint32_t)status;
+            rf_scene_crash_terrain_admission[3]=a->asset_view.detail_guard_count;
+            memcpy(rf_scene_crash_terrain_admission+4,lo,sizeof(lo));
+            memcpy(rf_scene_crash_terrain_admission+7,hi,sizeof(hi));
             if(rf_scene_combat_trace)
                 printf("GEOMOD_ADMISSION_REJECT owner%u cut%u status%d\n",
                     a->asset_view.source_uid,i,status);

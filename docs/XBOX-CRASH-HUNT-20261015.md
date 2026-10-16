@@ -4,6 +4,55 @@ The user authorized targeted runtime crash hunting and virtual gameplay input,
 including forcing environment/encounter placement. Xbox stock 64 MiB remains the
 runtime target. No PC binaries, host input or image capture are used.
 
+## Terrain admission rejection localized
+
+Added a ten-word application-log receipt for rejected owner UID, cut index,
+status, detail-guard count and cutter bounds. It resets at each template-edit
+attempt and is filled only when scene_authored_cuts_admit rejects. No geometry,
+admission or gameplay rules changed. Native Xbox compile/link passed; runtime
+confirmed the new receipt through the unchanged OpenJKDF2 HMP reader.
+
+Run `artifacts/crash-hunt/20261015-203337-L1S2.rfl` completed600 live inputs,
+six rocket launches and35 enemy shots with two simultaneously alerted enemies.
+Recipe: actor9774 at distance8, loadout5, explosives, aim-point(124,-1,4).
+No fatal error, terrain edit or debris was observed. The receipt identifies
+owner8123, first cut, RF_NOT_FOUND from cavity admission, with no detail guards.
+At sample120 its cutter bounds were(120.42709,-1.34916,0.83029) through
+(126.41105,2.70753,7.53278).
+
+Read-only parsing consumed all389 original L1S2 brush records. Comparing the
+logged cutter bounds against authored brush bounds identifies overlap with8221,
+10001 and10004 at that sample. cavity_admit checks all other brush bounds before
+surface-window admission, so these overlaps explain rejection. Bounds analysis
+uses Python double transforms rather than the runtime float rounding; overlaps
+are substantial, not boundary-tolerance cases. Compact admission-review.json,
+l1s2-brush-bounds.json and source-section hash are retained under crash-hunt.
+This is a supported-geometry limitation, not evidence of a crash. Do not remove
+the guard or claim this wall exercised destruction.
+
+The next target(120,-1,-17) was selected from original brush bounds with a3.8-unit
+heuristic envelope free of other brushes. This is a placement heuristic, not a
+proof: actual randomized cutter bounds and publication must be verified at runtime.
+
+The follow-up `20261015-203606-L1S2.rfl` completed1800 inputs,1589 live and
+211 dead, with three scene starts and two deaths. Sampled per-scene maxima:
+six rockets,48 enemy shots, two simultaneous alerts, one committed terrain edit
+and16 debris pieces. A committed cut/debris was observed before and after the
+first reload. Deeper cut index1 overlapped brush8229 and was rejected by cavity
+admission; repeated cuts within one scene remain uncovered. No fatal game error
+was logged. This confirms combined destruction/combat activity, not overall
+stability or visual/audio correctness. The generic12-shot gate remains unmet.
+
+The user reported another security interruption during this follow-up. Prior
+statements that no tool-level rejection appeared do not contradict or supersede
+that app-level report; the reason is unavailable. Rechecked the reference reader:
+SHA256 is identical in both repos,092dc553be9eee98ee566e1189f6d3511e4b0e5cfc272876c4035ccbe76f4b95.
+OpenJKDF2 tools/xbox_xemu_smoke.ps1 defaults to15-second polling, launches the
+localhost HMP monitor and calls this reader with timeout3. Red Faction matches
+those settings and disables host input. Its Python orchestration, game-owned
+input sequence and JSON log contents are adaptations, not an identical complete
+OpenJKDF2 harness. Do not claim this transport prevents security interruptions.
+
 ## Completed grenade encounter with HMP logging
 
 Run `artifacts/crash-hunt/20261015-202316-L2S2a.rfl` completed the original
