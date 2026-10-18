@@ -11870,6 +11870,8 @@ static int scene_player_kill_fixture(uint32_t frame)
 uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
 float rf_scene_gameplay_eye[3]; /* Last gameplay camera, read-only harness telemetry. */
 uint32_t rf_scene_crash_aim_trace[4]; /* input frames,target UID,target changes,aligned fire inputs */
+uint32_t rf_scene_crash_visibility[4]; /* world rays,blocked candidates,query errors,last status */
+static int combat_obstructed(scene_stream *,const float *,const float *,uint32_t *);
 #include "scene_crash_scenario.inc"
 static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
 {
@@ -11877,7 +11879,7 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     campaign_npc_body *target=NULL;float nearest=30.f*30.f,delta[3],yaw,pitch,horizontal;
     uint32_t uid=UINT32_MAX,priority_dead=0;
     if(!rf_scene_crash_aim)return;
-    if(!frame){priority_cycled=0;memset(rf_scene_crash_aim_trace,0,sizeof(rf_scene_crash_aim_trace));return;}
+    if(!frame){priority_cycled=0;memset(rf_scene_crash_aim_trace,0,sizeof(rf_scene_crash_aim_trace));memset(rf_scene_crash_visibility,0,sizeof(rf_scene_crash_visibility));return;}
     if(!campaign_spawn || campaign_player_damage.state.effects.health<=0)return;
     ++rf_scene_crash_aim_trace[0];
     if(rf_scene_crash_aim==2) {
@@ -11892,6 +11894,19 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
         if(!o->registration.view || !o->body.allocated_bytes || o->damage.effects.health<=0 ||
            o->damage.effects.affiliation!=0 || (o->object_flags&(2u|0x4000u)))continue;
         for(uint32_t k=0;k<3;k++){float d=o->eye_position[k]-rf_scene_gameplay_eye[k];distance+=d*d;}
+        if(!isfinite(distance) || distance<=.01f || distance>=30.f*30.f)continue;
+        /* Test input chooses a visible target using the same world/mover ray
+         * as NPC awareness. This changes input only, not damage or enemy AI.
+         * Explicit terrain aim points bypass this actor-selection filter. */
+        if(!scene_actor_collision_owner){input->fire=0;return;}
+        {
+            uint32_t blocked=0;int status;float sight[3];
+            for(uint32_t k=0;k<3;k++)sight[k]=o->eye_position[k]-rf_scene_gameplay_eye[k];
+            ++rf_scene_crash_visibility[0];
+            status=combat_obstructed(scene_actor_collision_owner,rf_scene_gameplay_eye,sight,&blocked);
+            if(status){++rf_scene_crash_visibility[2];rf_scene_crash_visibility[3]=(uint32_t)status;input->fire=0;return;}
+            if(blocked){++rf_scene_crash_visibility[1];continue;}
+        }
         if(isfinite(distance) && distance>.01f && distance<30.f*30.f &&
            rf_scene_crash_aim==3 && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid){target=o;break;}
         if(isfinite(distance) && distance>.01f && distance<nearest){nearest=distance;target=o;}

@@ -320,6 +320,7 @@ dvd_path = '{iso.as_posix()}'
         counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
         symbols={}
         counts['rf_scene_crash_scenario_trace']=8
+        counts['rf_scene_crash_visibility']=4
         counts['rf_scene_crash_aim_point']=3
         counts['rf_scene_crash_aim']=1
         counts['rf_scene_crash_terrain']=8
@@ -417,6 +418,11 @@ dvd_path = '{iso.as_posix()}'
                         'xbe_sha256':result['xbe_sha256'],
                         'map_sha256':result['map_sha256'],
                         'sample':sample},indent=2))
+                    break
+                visibility = sample.get('rf_scene_crash_visibility', [0]*4)
+                if visibility[2]:
+                    result['status']='INPUT_QUERY_ERROR'
+                    result['input_query_error']=visibility
                     break
                 escaped = outside_world(sample, result['world_bounds'])
                 if escaped:
