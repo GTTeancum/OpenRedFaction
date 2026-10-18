@@ -1,3 +1,4 @@
+- Mobile priority-kill cycle now uses normal weapon selection and improved L19S2A shots to3/9/2 across lives; watchdog still ended at613 live inputs. Retain mixed-weapon evidence and broaden authored combat coverage without counting this as a completed stress pass.
 - Crash hunt resumed October17. L19S2A fallback aim tolerance did not increase shots; automatic reload already works. Next use ordinary weapon switching after the priority kill to sustain return fire.
 - L19S2A mixed-weapon group remains unqualified: priority rocket now fires but669.375-damage hits end45-input lives before grenade/flame action. Next use finite railgun priority against11890 with all authored opponents retained.
 - L6S3 mobile aiming stops improved per-life shots9/18/1/7 versus9/1/1/2;360-second run timed out at1513 live inputs/four deaths with no guest error. Investigate sparse third-life fire and phase continuation after recovery; sustained hunt remains open.

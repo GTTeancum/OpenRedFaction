@@ -1367,3 +1367,26 @@ the watchdog then returned TIMEOUT. This does not prove or disprove a visual
 freeze. No images or desktop input used. Retain user observation as unresolved;
 no new run launched in response. Compact evidence retained and payload cleanup
 performed. Goal remains active; no push or delivery refresh in this batch.
+
+## October17: ordinary weapon cycle after priority kill
+
+Diagnostic-only mobile rail opener now requests one cycle edge after the named
+priority actor's health reaches zero. The latch resets at scene start; range or
+visibility loss cannot trigger it. No direct selection, ammunition or gameplay
+mutation: normal holster/draw/selection handles the request. Xbox build passed
+(build-priority-followup-cycle.log).
+
+20261017-204726-L19S2A.rfl repeats carrier11890/distance8/finite rail8/priority
+11890/mobile,1800 requested inputs/360 seconds. TIMEOUT:613 live/287 dead,three
+starts/deaths,two observed recoveries,no reported guest error. Per-life shots
+3/9/2 versus1/1/1 before; switches1/2/1. First life shows handgun follow-up and
+normal reload (reserve125 to123,loaded16). Per-life enemy attacks13/14/6;
+flame pulses3/7/0; grenade detonations0/1/1. Max simultaneous alerts3.
+420 live inputs in same-scene sampled intervals contain enemy action; remaining
+live inputs cross excluded/unsampled boundaries. No quiet same-scene intervals
+observed; this is not proof of uninterrupted action. Per-life maximum9 player
+shots remains below the unchanged repeated-fire gate, and watchdog status is
+not a completed stress pass. Evidence:per-life-summary.json/action-intervals.json
+beside native logs/result. Retain the useful input improvement and broaden
+other authored stress rather than treating this small batch as goal completion.
+No images,host input,PC build,hardware deployment,delivery refresh or push.

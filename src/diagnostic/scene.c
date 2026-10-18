@@ -11873,10 +11873,11 @@ uint32_t rf_scene_crash_aim_trace[4]; /* input frames,target UID,target changes,
 #include "scene_crash_scenario.inc"
 static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
 {
+    static uint32_t priority_cycled;
     campaign_npc_body *target=NULL;float nearest=30.f*30.f,delta[3],yaw,pitch,horizontal;
-    uint32_t uid=UINT32_MAX;
+    uint32_t uid=UINT32_MAX,priority_dead=0;
     if(!rf_scene_crash_aim)return;
-    if(!frame){memset(rf_scene_crash_aim_trace,0,sizeof(rf_scene_crash_aim_trace));return;}
+    if(!frame){priority_cycled=0;memset(rf_scene_crash_aim_trace,0,sizeof(rf_scene_crash_aim_trace));return;}
     if(!campaign_spawn || campaign_player_damage.state.effects.health<=0)return;
     ++rf_scene_crash_aim_trace[0];
     if(rf_scene_crash_aim==2) {
@@ -11886,6 +11887,8 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     } else {
     for(uint32_t i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;float distance=0;
+        if(rf_scene_crash_aim==3 && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid &&
+           o->damage.effects.health<=0)priority_dead=1;
         if(!o->registration.view || !o->body.allocated_bytes || o->damage.effects.health<=0 ||
            o->damage.effects.affiliation!=0 || (o->object_flags&(2u|0x4000u)))continue;
         for(uint32_t k=0;k<3;k++){float d=o->eye_position[k]-rf_scene_gameplay_eye[k];distance+=d*d;}
@@ -11896,6 +11899,12 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     if(!target){input->fire=0;return;}
     uid=(uint32_t)campaign_seeds.records.items[target-campaign_npc_bodies].record.uid;
     for(uint32_t k=0;k<3;k++)delta[k]=target->eye_position[k]-rf_scene_gameplay_eye[k];
+    }
+    /* Mobile rail opener: after the named actor actually dies, request one
+     * ordinary cycle edge. Do not force selection, refill ammo, or interpret
+     * range/visibility loss as a kill. Normal holster/draw owns the switch. */
+    if(rf_scene_crash_scenario==3 && campaign_equipped_slot==7 && priority_dead && !priority_cycled) {
+        input->cycle_weapon=1;input->fire=0;input->reload=0;priority_cycled=1;
     }
     if(uid!=rf_scene_crash_aim_trace[1])++rf_scene_crash_aim_trace[2];
     rf_scene_crash_aim_trace[1]=uid;
