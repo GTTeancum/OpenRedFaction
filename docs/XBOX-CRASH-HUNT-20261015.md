@@ -1341,3 +1341,29 @@ Remaining: sustained return fire after the initial priority kill, broader crash
 coverage and previously documented Drone/effect issues. No new image, PC build,
 hardware deployment or ready-delivery refresh. Compact run evidence stays local;
 only tracked source/tools/docs are included in the push.
+
+## October17: resumed hunt, fallback aim comparison
+
+Goal verified active; checkout at pushed630b8a5e, no project processes. Prior
+ammo evidence disproved a delayed-reload hypothesis: automatic rail reload
+had154 ticks remaining at60,34 at180 and had transferred one round by240.
+No reload rule or weapon timing was changed. Diagnostic priority precision now
+applies only to the named railgun target; nearest-hostile fallback uses ordinary
+0.12-radian tolerance. Bounded look remains unchanged. Xbox build passed in
+build-priority-fallback-aim.log.
+
+20261017-203848-L19S2A.rfl repeats carrier11890/distance8/finite rail8/mobile,
+1800 requested inputs/360-second watchdog. TIMEOUT with613 live/287 dead inputs,
+three starts/deaths,max1 player shot/14 enemy attacks/3 simultaneous alerts,
+no reported guest error. Same activity outcome as072100 baseline despite more
+aligned input. First life again253 inputs; second life observed grenade
+detonation and seven flame hits. This change does NOT establish improved return
+fire or stability. Next use ordinary weapon switching after the opening rail
+kill rather than shorten authored reload or reduce enemy pressure.
+
+User reported frozen near watchdog completion. Process and current logs were
+checked: last sample at327.281 host seconds showed third death,613 live/287 dead;
+the watchdog then returned TIMEOUT. This does not prove or disprove a visual
+freeze. No images or desktop input used. Retain user observation as unresolved;
+no new run launched in response. Compact evidence retained and payload cleanup
+performed. Goal remains active; no push or delivery refresh in this batch.
