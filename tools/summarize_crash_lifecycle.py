@@ -14,6 +14,7 @@ def summarize(path):
     prior = None
     prior_row = None
     action_intervals = []
+    scene_observations = {}
     samples = 0
     for line in path.read_text().splitlines():
         row = json.loads(line)
@@ -22,6 +23,25 @@ def summarize(path):
         if not activity or not trace or not trace[0]:
             continue
         samples += 1
+        if activity[2]:
+            scene = scene_observations.setdefault(activity[2], dict(scene_start=activity[2], samples=0))
+            scene['samples'] += 1
+            # Per-scene maxima, not sums across repeated ring-buffer samples.
+            # Direct-hit/kill counters exclude the separate explosion paths.
+            for name, key, index in (
+                ('player_shots', 'rf_scene_combat', 0),
+                ('player_direct_hits', 'rf_scene_combat', 1),
+                ('player_direct_kills', 'rf_scene_combat', 2),
+                ('npc_attacks', 'rf_scene_enemy_combat', 2),
+                ('turret_shots', 'rf_scene_turret_combat', 3),
+                ('rocket_launches', 'rf_scene_rockets', 0),
+                ('rocket_self_hits', 'rf_scene_rocket_blast', 4),
+                ('rocket_blast_kills', 'rf_scene_rocket_blast', 3),
+                ('simultaneously_alerted_actors', 'rf_scene_combat_population', 2),
+            ):
+                values = row.get(key)
+                if values is not None and len(values) > index:
+                    scene[name] = max(scene.get(name, 0), values[index])
         if prior_row is not None:
             old_activity = prior_row['rf_scene_crash_activity']
             # Counters reset on scene load. Never subtract across reloads or
@@ -62,6 +82,7 @@ def summarize(path):
         pending['resumed_seconds'] = None
         intervals.append(pending)
     return dict(source=str(path), samples=samples, transitions=events,
+                scene_observations=list(scene_observations.values()),
                 death_intervals=intervals,
                 live_action_intervals=action_intervals,
                 live_inputs_in_intervals_with_enemy_action=sum(i['live_inputs'] for i in action_intervals if i['enemy_action_observed']),

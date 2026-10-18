@@ -1453,3 +1453,13 @@ Run20261017-211355-L8S2.rfl used levels2, actor9378,distance8,finite rocket load
 TIMEOUT:374 live/286 dead inputs,three starts/deaths,two observed recoveries. Per-scene maxima:two rockets/player shots,three enemy attacks,four alerted actors. No terrain edits/debris or blast kills. Same-scene sampled intervals contain120 live inputs with enemy action and60 without; boundaries excluded. Early deaths and reload time prevent sustained stress qualification. No visual/audio validation. The earlier L17S3 void runs remain invalid gameplay evidence.
 
 No source build,host input,image capture,hardware deployment or push. Goal remains active. Compact result,telemetry and action-intervals.json retained; temporary payloads pruned after the run.
+
+## October17: L8S2 rifle/mobile follow-up and damage attribution
+
+Prior211355 rocket run shows two rocket self-hits in each sampled life and no blast kills (damage-review.json). Source scene_explosion_blast_source_policy logs the victim handle for player blast events; direct enemy-fire events log the attacker. Do not infer attacker identity uniformly from event type1. Nearest-target test aiming has no visibility gate; cross-room targeting is possible but intervening geometry was not directly proven for these shots.
+
+212134-L8S2 kept actor9378/distance8,supported room1 start and all13 authored actors. Changed finite loadout to rifle2 and input profile to mobile,nearest aim,1800-input/360-second bound. TIMEOUT at1109 live/211 dead inputs,two deaths/two observed recoveries. Per-life player shots6/9/22,direct hits2/1/4,direct kills1/0/4,NPC attacks4/6/8. Five actors simultaneously alerted at peak; two switches observed. EyeY-1.104..0.205,no recorded exterior escape or guest fatal. No terrain edits/debris.
+
+Sampled same-scene intervals contain420 live inputs with enemy action and540 without. Quiet intervals do not establish sustained combat. This improved live action over the rocket probe but changed both loadout and movement, so it is not an isolated causal comparison. TIMEOUT remains unqualified. No new visual/audio evidence.
+
+Offline lifecycle summarizer now records per-scene maxima for shots,direct hits/kills,NPC/turret attacks,rocket self-hits and alerted population. Direct counters explicitly exclude explosion paths. Replayed prior rocket telemetry against the independent damage review: all three lives match for launches,self-hits and enemy attacks. No native source changes or builds. Cleanup retained compact logs/reports and delivery; no host input,images,hardware deployment or push. Crash hunt remains active.
