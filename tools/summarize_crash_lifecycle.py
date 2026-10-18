@@ -35,8 +35,10 @@ def summarize(path):
                 ('npc_attacks', 'rf_scene_enemy_combat', 2),
                 ('turret_shots', 'rf_scene_turret_combat', 3),
                 ('rocket_launches', 'rf_scene_rockets', 0),
-                ('rocket_self_hits', 'rf_scene_rocket_blast', 4),
-                ('rocket_blast_kills', 'rf_scene_rocket_blast', 3),
+                # Historical symbol covers any blast with a source handle;
+                # player hits do not establish self-inflicted damage.
+                ('sourced_blast_player_hits', 'rf_scene_rocket_blast', 4),
+                ('sourced_blast_npc_kills', 'rf_scene_rocket_blast', 3),
                 ('simultaneously_alerted_actors', 'rf_scene_combat_population', 2),
             ):
                 values = row.get(key)

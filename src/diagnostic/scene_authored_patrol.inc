@@ -134,6 +134,15 @@ static int scene_patrol_path_source(uint32_t index,rf_level_waypoint_path *path,
     const rf_level_owned_entity *record;
     if(!path||!mode||index>=campaign_seeds.records.count||!campaign_seeds.records.items)return RF_RANGE;
     record=campaign_seeds.records.items+index;
+    if(!rf_scene_patrol_failure[0])rf_scene_patrol_failure[2]=index;
+    /* L20S2's generated hidden Masako dependency has no authored RFL span
+     * or waypoint descriptor. Its boss lifecycle owns activation, not patrol.
+     * Do not treat arbitrary missing raw records as valid generated actors. */
+    if(scene_masako_seed_is(index)) {
+        if(record->raw||record->record.bytes||record->record.uid!=SCENE_MASAKO_GENERATED_UID)
+            return scene_patrol_failure(RF_FORMAT,__LINE__);
+        return RF_NOT_FOUND;
+    }
     if(!campaign_seeds.items||!campaign_seeds.classes)return RF_RANGE;
     cls=campaign_seeds.items[index].class_index;if(cls>=campaign_seeds.class_count)return scene_patrol_failure(RF_FORMAT,__LINE__);
     {const rf_entity_seed_class *c=campaign_seeds.classes+cls;

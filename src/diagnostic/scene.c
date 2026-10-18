@@ -16712,7 +16712,7 @@ failed:
     rf_scene_detached_pieces[5]=(uint32_t)status;return status;
 }
 
-uint32_t rf_scene_rocket_blast[8]; /* explosions, candidates, damaged, NPC kills, self hits, last amount bits, occluded, status */
+uint32_t rf_scene_rocket_blast[8]; /* sourced blasts: explosions,candidates,damaged,NPC kills,player hits,last amount bits,occluded,status; not necessarily player rockets */
 /* Ordinary489010 victim: cover ray to physics position with CF5, then falloff.
  * Bullet rays intentionally retain their distinct CF0x27 policy. */
 static int scene_blast_amount(scene_stream *s,const float origin[3],const rf_physics_body *body,float damage,float radius,float *amount)
