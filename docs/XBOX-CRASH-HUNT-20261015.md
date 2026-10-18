@@ -1509,3 +1509,13 @@ Prior L19S2B quiet samples retain loaded ammo while every candidate world sight 
 Only60 sampled same-scene live inputs include enemy action,zero quiet; most short-life boundaries are excluded,so zero quiet does not mean sustained coverage. Eye samples show little travel in first life and roughly2 units of Z extent in second. Forward input alone did not establish escape from the starting pocket or prove route reachability. More aggressive exposure shortened useful survival; retain as an optional short pressure probe,not the preferred sustained profile or a passing batch. Comparison saved in l19s2b-advance-comparison.json.
 
 No PC builds,images,host input,hardware deployment or push. Compact evidence retained and generated payloads pruned after terminal run. Crash hunt remains active.
+
+## October17: L19S1 repeatable flame/grenade combat
+
+Read authored support before launching: several8/12-unit offsets lack nearby floor and were not used. All26 actors retained,finite rifle2,mobile profile,nearest-visible aim,1800-input/360-second bound. No build or native source changes in this batch.
+
+221432-L19S1 start actor9917/distance8 was deliberately stopped after observed first-life64 inputs,zero shots and zero aligned fire inputs. Terminal buffered logs show127 live inputs,two deaths and one recovery,still zero player shots. Per-life flame pulses4/8 and grenade detonations1/1 confirmed enemy action; zero flame-player hits. Confirmed owned XEMU PID29764 was terminated by terminal process management,operator-stop.json records why. PROCESS_EXITED is operator termination,not a crash,freeze diagnosis or pass.
+
+221750 instead starts facing flame actor9911 at distance4:room5,face2969,floorY approximately-1,clearance1.556. Same loadout/profile and unchanged authored population. TIMEOUT1085 live/415 dead inputs,four deaths,three observed recoveries. Per-life player shots15/6/6/6,direct-hit counts8/10/15/5,direct kills2/0/1/1;NPC attacks18/18/14/19. Hit counts are damage contacts,not necessarily unique shots/targets. Flame pulses and player hits8/8/4/10,grenade launches2 each life,detonations1/1/1/2. Up to four simultaneously alerted actors. No guest fatal,query error,exterior escape or pain-audio error; no full-voice refusal in this run. EyeY0.665..1.898.
+
+Sampled same-scene intervals:660 live inputs with enemy action,120 without; death/load boundaries excluded. This establishes repeatable mixed-weapon action and ordinary recovery,not sustained full-budget completion. No terrain edits/debris or visual/audio verification. All compact logs and support/lifecycle reports retained; generated payload cleanup after both terminal sessions. No host input,images,PC build,hardware deployment or push. Goal remains active.
