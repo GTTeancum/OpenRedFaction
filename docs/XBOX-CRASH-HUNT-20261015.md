@@ -1445,3 +1445,11 @@ for every surface or broad stability. No dedicated laser counter is logged,
 so do not claim laser-specific coverage from the map's weapon membership.
 No Xbox source change/build,PC build,images,host input,deployment or push.
 Goal remains active; valid action evidence replaces the prior void runs.
+
+## October17: L8S2 supported explosive encounter
+
+Run20261017-211355-L8S2.rfl used levels2, actor9378,distance8,finite rocket loadout5,nearest-hostile aim,explosives profile1800/360. All13 authored actors retained. Static support face4791,room1,Y-2.75,marker clearance1.651. Live telemetry eyeY remained-1.083..0.194; no exterior escape or guest fatal error was recorded. This corroborates safe placement here, not general collision correctness.
+
+TIMEOUT:374 live/286 dead inputs,three starts/deaths,two observed recoveries. Per-scene maxima:two rockets/player shots,three enemy attacks,four alerted actors. No terrain edits/debris or blast kills. Same-scene sampled intervals contain120 live inputs with enemy action and60 without; boundaries excluded. Early deaths and reload time prevent sustained stress qualification. No visual/audio validation. The earlier L17S3 void runs remain invalid gameplay evidence.
+
+No source build,host input,image capture,hardware deployment or push. Goal remains active. Compact result,telemetry and action-intervals.json retained; temporary payloads pruned after the run.
