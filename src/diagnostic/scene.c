@@ -8237,6 +8237,7 @@ int rf_scene_npc_death_motion(uint32_t handle,const rf_scene_death_motion_ops *o
 uint32_t rf_scene_npc_pain_audio[9]; /* calls, selections, plays, loads, PCM bytes, last sample, RNG, errors, name hash */
 uint32_t rf_scene_pain_voice_pressure[4]; /* declined,last sample,occupied slots,looping slots */
 uint32_t rf_scene_npc_pain_sound_test[10]; /* two deadline/voice/sample/RNG/play-count snapshots */
+uint32_t rf_scene_pain_bank_pressure[5]; /* declines,sample,resident bytes,requested bytes,budget */
 typedef struct campaign_pain_audio_context {rf_random_state *random;int status;uint32_t *telemetry,player;} campaign_pain_audio_context;
 static int32_t campaign_pain_audio_resolve(void *context,int32_t group)
 {
@@ -8287,7 +8288,22 @@ static int32_t campaign_pain_audio_play_voice(void *context,const float position
         uint32_t ch=*name;if(ch>='A' && ch<='Z')ch+='a'-'A';hash=(hash^ch)*16777619u;
      }c->telemetry[8]=hash;}
     if(!rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample)) {
-        c->status=campaign_ambient_reload((uint32_t)sample);if(c->status)return -1;
+        c->status=campaign_ambient_reload((uint32_t)sample);
+        if(c->status==RF_RANGE) {
+            rf_vpp_entry entry;
+            /* Reload has already attempted permitted idle eviction. A proven
+             * bank-capacity refusal is optional audio pressure, not a failed
+             * damage transaction. Preserve every other loader/device error. */
+            if(campaign_audio_archive.stream &&
+               rf_vpp_find(&campaign_audio_archive,campaign_audio_bank.samples[sample].name,&entry)==RF_OK &&
+               entry.size && (uint64_t)campaign_audio_bank.bytes+entry.size>campaign_audio_bank.budget) {
+                ++rf_scene_pain_bank_pressure[0];rf_scene_pain_bank_pressure[1]=(uint32_t)sample;
+                rf_scene_pain_bank_pressure[2]=campaign_audio_bank.bytes;
+                rf_scene_pain_bank_pressure[3]=entry.size;rf_scene_pain_bank_pressure[4]=campaign_audio_bank.budget;
+                c->status=RF_OK;return -1;
+            }
+        }
+        if(c->status)return -1;
         if((uint32_t)sample<sizeof(campaign_audio_evictable))campaign_audio_evictable[sample]=1;
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[sample].bytes;
         rf_scene_live_audio[1]=campaign_audio_bank.bytes;
