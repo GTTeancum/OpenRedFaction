@@ -11937,7 +11937,7 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     /* Mobile rail opener: after the named actor actually dies, request one
      * ordinary cycle edge. Do not force selection, refill ammo, or interpret
      * range/visibility loss as a kill. Normal holster/draw owns the switch. */
-    if(rf_scene_crash_scenario==3 && campaign_equipped_slot==7 && priority_dead && !priority_cycled) {
+    if((rf_scene_crash_scenario==3 || rf_scene_crash_scenario==4) && campaign_equipped_slot==7 && priority_dead && !priority_cycled) {
         input->cycle_weapon=1;input->fire=0;input->reload=0;priority_cycled=1;
     }
     if(uid!=rf_scene_crash_aim_trace[1])++rf_scene_crash_aim_trace[2];
@@ -17282,7 +17282,7 @@ static int campaign_inventory_initialize(void)
                 /* Clipless grenades need reserve rounds. Mobile railgun stress
                  * also gets four capped pickup rounds to exercise real reloads;
                  * older profiles retain their single loaded-round recipe. */
-                if(slot==5 || (slot==7 && rf_scene_crash_scenario==3)) {
+                if(slot==5 || (slot==7 && (rf_scene_crash_scenario==3 || rf_scene_crash_scenario==4))) {
                     rf_weapon_pickup_grant grant;
                     status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,
                         campaign_weapon_supply.definitions+id,id,4,0,&grant);if(status)return status;

@@ -12,7 +12,7 @@ static void scene_crash_scenario_input(uint32_t frame,rf_scene_input *input)
     uint32_t tick,phase,local;
     if(!rf_scene_crash_scenario)return;
     memset(input,0,sizeof(*input));
-    rf_scene_crash_scenario_trace[0]=rf_scene_crash_scenario==3?4:2;
+    rf_scene_crash_scenario_trace[0]=rf_scene_crash_scenario==4?5:rf_scene_crash_scenario==3?4:2;
     if(!frame || !campaign_spawn)return;
     if(campaign_player_damage.state.effects.health<=0) {
         tick=rf_scene_crash_scenario_trace[3]++;
@@ -27,13 +27,21 @@ static void scene_crash_scenario_input(uint32_t frame,rf_scene_input *input)
         else if(tick<240){phase=4;local=tick-180;input->reload=local==0;}
         else if(tick<330){phase=5;local=tick-240;input->jump=local==60;}
         else {phase=6;local=tick-330;input->cycle_weapon=local==0;}
-        if(rf_scene_crash_scenario==3) {
+        if(rf_scene_crash_scenario==3 || rf_scene_crash_scenario==4) {
             /* Alternate short aiming stops with ordinary strafing. Continuous
              * close-range orbiting can outrun bounded look input and suppress
              * nearly all fire. Reload movement and normal cadence stay live. */
             input->move[0]=(phase<=2 || phase==6)?.8f:-.8f;
             if((phase<=3 || phase==5) && tick%60<24)input->move[0]=0;
             if(phase==4)input->move[2]=-.35f;
+        }
+        if(rf_scene_crash_scenario==4 && phase!=4) {
+            /* Advance along the current, normally turned view to leave the
+             * starting pocket. Normal body/world collision owns traversal;
+             * this is forward input, not a pathfinder or position write. */
+            input->move[2]=.65f;
+            input->move[0]*=.5f;
+            if((phase<=3 || phase==5) && tick%60<24)input->move[2]=0;
         }
         if(phase<=3 || phase==5)input->fire=tick%12<6;
         /* Explosive focus uses ordinary cycle edges to recover from pickup
