@@ -30,6 +30,33 @@ from xemu_world_hdd import standalone
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def static_world_bounds(level):
+    """Conservative exterior guard, not proof of valid floor/room placement."""
+    import io
+    from inspect_levels import inspect
+    from inspect_geometry import inspect as geometry
+    meta = inspect(io.BytesIO(level), dict(offset=0, size=len(level), name='probe.rfl'))
+    section = next(s for s in meta['sections'] if s['type']=='0x100')
+    data = level[section['offset']+8:section['offset']+8+section['size']]
+    info = geometry(data)
+    vertices = list(struct.iter_unpack('<3f', data[info['vertices_offset']:info['vertices_offset']+info['vertices']*12]))
+    if not vertices or not all(math.isfinite(v) for point in vertices for v in point):
+        raise ValueError('Invalid static world bounds')
+    return dict(minimum=[min(p[i] for p in vertices) for i in range(3)],
+                maximum=[max(p[i] for p in vertices) for i in range(3)], margin=16.0)
+
+
+def outside_world(sample, bounds):
+    if not sample.get('rf_scene_crash_activity', [0])[0]:
+        return None
+    eye = [struct.unpack('<f', struct.pack('<I', v))[0] for v in sample['rf_scene_gameplay_eye']]
+    if any(not math.isfinite(v) or v < bounds['minimum'][i]-bounds['margin'] or
+           v > bounds['maximum'][i]+bounds['margin'] for i,v in enumerate(eye)):
+        return dict(eye=eye, bounds=bounds,
+                    reason='Player eye outside conservative authored static geometry bounds; gameplay coverage invalid.')
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--level', default='L1S1.rfl')
@@ -109,6 +136,7 @@ def main():
         from build_fragment_platform_fixture import read_entry
         from xemu_turret_combat import entity_rows
         level_bytes = read_entry(ROOT/'Installed_Game'/args.archive,args.level)
+        result['world_bounds'] = static_world_bounds(level_bytes)
         actors = entity_rows(level_bytes)
         if args.aim_actor is not None and not any(r['uid']==args.aim_actor for r in actors):
             raise ValueError('Priority aim UID is not authored in this level')
@@ -345,6 +373,12 @@ dvd_path = '{iso.as_posix()}'
                         'xbe_sha256':result['xbe_sha256'],
                         'map_sha256':result['map_sha256'],
                         'sample':sample},indent=2))
+                    break
+                escaped = outside_world(sample, result['world_bounds'])
+                if escaped:
+                    result['status']='OUTSIDE_WORLD'
+                    result['outside_world']=escaped
+                    (run/'outside-world.json').write_text(json.dumps(dict(evidence=escaped,sample=sample),indent=2))
                     break
                 # Native terminal success validates the final scene's frame
                 # count. Presentation counts reset on ordinary level reload;

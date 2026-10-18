@@ -1390,3 +1390,30 @@ not a completed stress pass. Evidence:per-life-summary.json/action-intervals.jso
 beside native logs/result. Retain the useful input improvement and broaden
 other authored stress rather than treating this small batch as goal completion.
 No images,host input,PC build,hardware deployment,delivery refresh or push.
+
+## October17: L17S3 void failure, user visual correction
+
+205501 L17S3/levels3 stages8 from rail carrier18723,loadout8/priority18723/mobile;
+205911 stages4 from Meca Turret14435,rifle2/nearest aim/mobile. All23 authored
+actors retained. Both reached1800 inputs with no guest error. First had6 shots/
+zero enemy attacks; second9 shots/two enemy attacks. These terminal COMPLETED
+statuses are NOT valid gameplay coverage: user-provided screenshot shows HUD
+and weapon against empty space. No new image was captured or uploaded.
+
+Decoded eye positions confirm falling outside the world. First run Y falls from
+-5.487 at60 to-28.687 at240 and-1737.728 at1800. Second falls from-5.672 at60 to
+-35.472 at240 and-1801.710 at1800. Static geometry Y minimum is-8. Earlier
+commentary misclassified this as a quiet tail/possible cover; corrected here.
+Both runs carry outside-world-review.json retaining original terminal status
+alongside INVALID_GAMEPLAY_OUTSIDE_WORLD classification. Treat the input count
+as harness progress only, not sustained gameplay. Do not add pursuit input
+until placement/support/collision has been investigated.
+
+Host harness now derives conservative static-vertex bounds from the read-only
+level and stops on OUTSIDE_WORLD if the sampled player eye is nonfinite or lies
+more than16 units outside those bounds. This is an exterior guard, not proof
+of room/floor validity, and not a gameplay fall fix. Offline replay catches both
+traces at240; pre-game zero sample is ignored; previous L19S2A mixed-combat trace
+stays inside its bounds. No new emulator was launched after the user's report.
+No Xbox source changes/build or PC build in this batch. Goal remains active;
+void cause is unresolved. Compact logs and user observation preserved locally.
