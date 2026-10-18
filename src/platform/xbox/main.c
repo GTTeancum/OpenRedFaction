@@ -53,6 +53,7 @@ static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,camp
  * The packager admits only stock assets and this marker in its separate disc. */
 static uint32_t tester_profile;
 uint32_t rf_xbox_load_stage;
+uint32_t rf_xbox_startup_trace[4]; /* sequence,stage,GetTickCount,status */
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 uint32_t rf_xbox_event_handoff_probe[2]; /* live refs and pending state after return / after dispatch */
 char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
@@ -838,6 +839,13 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
     memset(input,0,sizeof(*input));return RF_OK;
 }
 #include "ram_log.inc"
+/* Bounded startup checkpoints; emitted only when crash RAM logging is enabled. */
+static void startup_trace(uint32_t stage,int status)
+{
+    ++rf_xbox_startup_trace[0];rf_xbox_startup_trace[1]=stage;
+    rf_xbox_startup_trace[2]=GetTickCount();rf_xbox_startup_trace[3]=(uint32_t)status;
+    rf_ram_log_sample(1);
+}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
     rf_ram_log_sample(0);
@@ -2031,7 +2039,7 @@ static int player_campaign_run(const char *saved_level)
                     result=invalid || !uid?RF_FORMAT:rf_scene_stage_trigger(&level,uid);}
             }
 campaign_load_section:
-            rf_xbox_load_stage=1;
+            rf_xbox_load_stage=1;startup_trace(6,result);
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);
@@ -2089,7 +2097,7 @@ campaign_load_section:
                         rf_xbox_load_stage=6;
                         if (result == RF_OK && !scene_mode) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
                         if (result == RF_OK) {
-                            rf_xbox_load_stage=7;
+                            rf_xbox_load_stage=7;startup_trace(7,result);
                             if(scene_mode)result=scene_preview(&level,&mesh);
                             else {
                                 FILE *model_flag=fopen("D:\\model-preview.flag","rb");
@@ -2184,7 +2192,9 @@ int main(void)
     OutputDebugStringA("RF_DIAGNOSTIC_BOOT\n");
     rf_ram_log_sample(1);
     record_fp_control(2);
+    startup_trace(1,RF_OK);
     if(!tester_profile)particle_resource_check();
+    startup_trace(2,RF_OK);
     record_fp_control(3);
     result = rf_vpp_open(&archive, "D:\\tables.vpp");
     if (result == RF_OK) {
@@ -2200,12 +2210,14 @@ int main(void)
         OutputDebugStringA("RF_VPP_FAILED\n");
         rf_diagnostic[2] = 0x80000000u | (uint32_t)(-result);
     }
+    startup_trace(3,result);
     if (result == RF_OK && !tester_profile) {
         uint32_t animation[8], i;
         result=rf_animation_check("D:\\meshes.vpp","D:\\motions.vpp",animation);
         for (i=0;i<8;++i) rf_diagnostic[48+i]=animation[i];
         if (result!=RF_OK) rf_diagnostic[2]=0x80000200u | (uint32_t)(-result);
     }
+    startup_trace(4,result);
     if(result==RF_OK && tester_profile){
         uint32_t ended=0;
         /* Read once per normal tester boot, before any controller/session opens.
@@ -2241,7 +2253,7 @@ int main(void)
             rf_xbox_frontend_diagnostic[4]=rf_xbox_available_memory_pages();
             printf("SESSION_RETURN status%d pages%u\n",result,rf_xbox_frontend_diagnostic[4]);
         }
-    }else if(result==RF_OK)result=player_campaign_run(NULL);
+    }else if(result==RF_OK){startup_trace(5,RF_OK);result=player_campaign_run(NULL);startup_trace(8,result);}
     rf_ram_log_sample(1);
     for (;;) Sleep(1000);
     return 0;

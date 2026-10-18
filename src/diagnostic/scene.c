@@ -11908,7 +11908,10 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
     } else {
     for(uint32_t i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;float distance=0;
-        if(rf_scene_crash_aim==3 && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid &&
+        /* Static turret seeds leave an empty skeletal slot. Its zeroed vitals
+         * are not a death; only an admitted NPC body owns this check. */
+        if(o->registration.view && o->body.allocated_bytes && rf_scene_crash_aim==3 &&
+           (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid &&
            o->damage.effects.health<=0)priority_dead=1;
         if(!o->registration.view || !o->body.allocated_bytes || o->damage.effects.health<=0 ||
            o->damage.effects.affiliation!=0 || (o->object_flags&(2u|0x4000u)))continue;

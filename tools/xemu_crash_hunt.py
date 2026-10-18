@@ -360,7 +360,8 @@ dvd_path = '{iso.as_posix()}'
                                 if not line.startswith('RFLOG '):continue
                                 try:value=json.loads(line[6:])
                                 except json.JSONDecodeError:continue
-                                key=(value['rf_player_replay_diagnostic'][2],value['rf_diagnostic'][2])
+                                key=(value['rf_player_replay_diagnostic'][2],value['rf_diagnostic'][2],
+                                     tuple(value.get('rf_xbox_startup_trace',[])))
                                 if key not in seen_samples:
                                     seen_samples.add(key);pending_samples.append(value)
                         if not pending_samples:

@@ -90,6 +90,7 @@ static void rf_ram_log_sample(uint32_t force)
 #define RAM_ARRAY(name,n) do {     count=snprintf(text+used,sizeof(text)-used,"\"" #name "\":[");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;     for(uint32_t i=0;i<(n);i++){uint32_t word;memcpy(&word,(const void*)((const unsigned char*)(name)+i*4),4);         count=snprintf(text+used,sizeof(text)-used,"%s%u",i?",":"",word);         if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;}     count=snprintf(text+used,sizeof(text)-used,"],");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count; } while(0)
     RAM_ARRAY(rf_diagnostic,58);
     RAM_ARRAY(&rf_xbox_load_stage,1);
+    RAM_ARRAY(rf_xbox_startup_trace,4);
     RAM_ARRAY(&rf_scene_campaign_load_stage,1);
     RAM_ARRAY(&rf_scene_campaign_load_detail,1);
     RAM_ARRAY(rf_scene_npc_body_admission,4);
