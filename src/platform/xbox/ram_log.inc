@@ -61,7 +61,7 @@ extern uint32_t rf_scene_ai_fusion[6],rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_ai_flame[8],rf_scene_ai_grenades[5];
 extern uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
 extern uint32_t rf_scene_enemy_damage_kinds[10],rf_scene_crash_aim_trace[4];
-extern uint32_t rf_scene_crash_visibility[4];
+extern uint32_t rf_scene_crash_visibility[4],rf_scene_player_failure[4];
 extern uint32_t rf_scene_combat_pain[8],rf_scene_npc_pain_audio[9],rf_scene_live_audio[8];
 extern uint32_t rf_scene_pain_voice_pressure[4];
 extern uint32_t rf_scene_turret_combat[10],rf_scene_turret_owners[8];
@@ -131,6 +131,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_debris,8);
     RAM_ARRAY(rf_scene_crash_scenario_trace,8);
     RAM_ARRAY(rf_scene_enemy_failure,6);
+    RAM_ARRAY(rf_scene_player_failure,4);
     RAM_ARRAY(rf_scene_profile_stage,2);
     RAM_ARRAY(rf_preview_failure,8);
     RAM_ARRAY(rf_scene_crash_terrain,8);
