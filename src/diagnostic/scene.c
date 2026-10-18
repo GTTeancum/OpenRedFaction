@@ -11930,9 +11930,35 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
            rf_scene_crash_aim==3 && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid){target=o;break;}
         if(isfinite(distance) && distance>.01f && distance<nearest){nearest=distance;target=o;}
     }
-    if(!target){input->fire=0;return;}
-    uid=(uint32_t)campaign_seeds.records.items[target-campaign_npc_bodies].record.uid;
-    for(uint32_t k=0;k<3;k++)delta[k]=target->eye_position[k]-rf_scene_gameplay_eye[k];
+    if(target) {
+        uid=(uint32_t)campaign_seeds.records.items[target-campaign_npc_bodies].record.uid;
+        for(uint32_t k=0;k<3;k++)delta[k]=target->eye_position[k]-rf_scene_gameplay_eye[k];
+    }
+    /* Static turret owners are not skeletal NPC bodies. Use their ordinary
+     * target point and liveness service so the process-local driver can fight
+     * them too, without altering combat ownership, health or weapon behavior. */
+    for(uint32_t i=0;i<scene_turret_count;i++) {
+        scene_turret_owner *o=scene_turrets+i;
+        float point[3],sight[3],distance=0;uint32_t affiliation,alive,blocked=0;int status;
+        if(rf_scene_crash_aim==3 && o->uid==rf_scene_crash_aim_uid &&
+           o->damage.effects.health<=0)priority_dead=1;
+        if(rf_scene_crash_aim==3 && uid==rf_scene_crash_aim_uid)break;
+        if(scene_turret_lookup(o->registration.handle)!=o)continue;
+        status=scene_turret_target(o->registration.handle,point,&affiliation,&alive);
+        if(status){++rf_scene_crash_visibility[2];rf_scene_crash_visibility[3]=(uint32_t)status;input->fire=0;return;}
+        if(!alive || affiliation!=0)continue;
+        for(uint32_t k=0;k<3;k++){sight[k]=point[k]-rf_scene_gameplay_eye[k];distance+=sight[k]*sight[k];}
+        if(!isfinite(distance) || distance<=.01f || distance>=30.f*30.f)continue;
+        if(!scene_actor_collision_owner){input->fire=0;return;}
+        ++rf_scene_crash_visibility[0];
+        status=combat_obstructed(scene_actor_collision_owner,rf_scene_gameplay_eye,sight,&blocked);
+        if(status){++rf_scene_crash_visibility[2];rf_scene_crash_visibility[3]=(uint32_t)status;input->fire=0;return;}
+        if(blocked) {++rf_scene_crash_visibility[1];continue;}
+        if(distance<nearest || (rf_scene_crash_aim==3 && o->uid==rf_scene_crash_aim_uid)) {
+            nearest=distance;uid=o->uid;memcpy(delta,sight,sizeof(delta));
+        }
+    }
+    if(uid==UINT32_MAX){input->fire=0;return;}
     }
     /* Mobile rail opener: after the named actor actually dies, request one
      * ordinary cycle edge. Do not force selection, refill ammo, or interpret
