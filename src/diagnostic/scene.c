@@ -8235,6 +8235,7 @@ int rf_scene_npc_death_motion(uint32_t handle,const rf_scene_death_motion_ops *o
 }
 
 uint32_t rf_scene_npc_pain_audio[9]; /* calls, selections, plays, loads, PCM bytes, last sample, RNG, errors, name hash */
+uint32_t rf_scene_pain_voice_pressure[4]; /* declined,last sample,occupied slots,looping slots */
 uint32_t rf_scene_npc_pain_sound_test[10]; /* two deadline/voice/sample/RNG/play-count snapshots */
 typedef struct campaign_pain_audio_context {rf_random_state *random;int status;uint32_t *telemetry,player;} campaign_pain_audio_context;
 static int32_t campaign_pain_audio_resolve(void *context,int32_t group)
@@ -8263,6 +8264,24 @@ static int32_t campaign_pain_audio_play_voice(void *context,const float position
     if(c->status)return -1;
     if(sample==-1)return -1; /* Original playback rejects the absent sample without a voice. */
     if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){c->status=RF_RANGE;return -1;}
+    /* Ordinary sound allocation (rf_audio_select_ordinary) returns no voice
+     * when all30 slots are active or reserved looping slots. The original
+     * damage-sound backend is a void notification: this optional refusal must
+     * not turn an otherwise valid NPC hit into a fatal RF_IO. Do not swallow
+     * PCM loading, invalid parameter or device errors below. */
+    {
+        uint32_t i,looping=0;
+        for(i=0;i<RF_AUDIO_VOICES;i++) {
+            const rf_audio_voice *v=campaign_audio_mixer.voices+i;
+            if(!v->handle || (!v->loop&&!v->active))break;
+            looping+=v->loop!=0;
+        }
+        if(i==RF_AUDIO_VOICES) {
+            ++rf_scene_pain_voice_pressure[0];rf_scene_pain_voice_pressure[1]=(uint32_t)sample;
+            rf_scene_pain_voice_pressure[2]=i;rf_scene_pain_voice_pressure[3]=looping;
+            return -1;
+        }
+    }
     {const unsigned char *name=(const unsigned char *)campaign_audio_bank.samples[sample].name;
      uint32_t hash=2166136261u;for(;*name;++name) {
         uint32_t ch=*name;if(ch>='A' && ch<='Z')ch+='a'-'A';hash=(hash^ch)*16777619u;
