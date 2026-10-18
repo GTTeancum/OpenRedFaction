@@ -57,6 +57,46 @@ def outside_world(sample, bounds):
     return None
 
 
+def static_floor_below(level, position):
+    """Conservative staged-start screen; not a body-fit or mover-support test."""
+    import io
+    from inspect_levels import inspect
+    from inspect_geometry import inspect as geometry
+    meta = inspect(io.BytesIO(level), dict(offset=0, size=len(level), name='probe.rfl'))
+    section = next(s for s in meta['sections'] if s['type']=='0x100')
+    data = level[section['offset']+8:section['offset']+8+section['size']]
+    info = geometry(data)
+    at = info['vertices_offset']
+    vertices = list(struct.iter_unpack('<3f', data[at:at+info['vertices']*12]))
+    at += info['vertices']*12
+    count, = struct.unpack_from('<I', data, at); at += 4
+    x,y,z = position
+    hits = []
+    for face in range(count):
+        header = data[at:at+56]; at += 56
+        normal_y, = struct.unpack_from('<f', header, 4)
+        lightmap, = struct.unpack_from('<I', header, 20)
+        portal,flags = struct.unpack_from('<II', header, 36)
+        room,corners = struct.unpack_from('<II', header, 48)
+        stride = 12 if lightmap==0xffffffff else 20
+        points = [vertices[struct.unpack_from('<I',data,at+i*stride)[0]] for i in range(corners)]
+        at += corners*stride
+        if portal or flags&1 or normal_y<.5:
+            continue
+        a = points[0]
+        for b,c in zip(points[1:-1],points[2:]):
+            den = (b[2]-c[2])*(a[0]-c[0])+(c[0]-b[0])*(a[2]-c[2])
+            if abs(den)<1e-8: continue
+            u = ((b[2]-c[2])*(x-c[0])+(c[0]-b[0])*(z-c[2]))/den
+            v = ((c[2]-a[2])*(x-c[0])+(a[0]-c[0])*(z-c[2]))/den
+            if min(u,v,1-u-v)<-1e-5: continue
+            floor = u*a[1]+v*b[1]+(1-u-v)*c[1]
+            if .05 <= y-floor <= 3.0:
+                hits.append(dict(face=face,room=room,height=floor,clearance=y-floor))
+            break
+    return max(hits,key=lambda h:h['height']) if hits else None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--level', default='L1S1.rfl')
@@ -166,6 +206,10 @@ def main():
             position = [pose[i]+pose[3+i]*args.distance for i in range(3)]
             position[1] += .625
             if args.spawn_y is not None:position[1]=args.spawn_y
+            support = static_floor_below(level_bytes, position)
+            if support is None:
+                raise ValueError('Staged start lacks nearby static floor support; choose a supported position before launching')
+            result['staged_floor_support'] = support
             forward = [-x for x in pose[3:6]]
             right = [forward[2],0.,-forward[0]]
             meta = inspect(io.BytesIO(level_bytes),dict(offset=0,size=len(level_bytes),name=args.level))

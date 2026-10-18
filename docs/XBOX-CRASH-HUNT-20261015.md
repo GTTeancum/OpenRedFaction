@@ -1417,3 +1417,31 @@ traces at240; pre-game zero sample is ignored; previous L19S2A mixed-combat trac
 stays inside its bounds. No new emulator was launched after the user's report.
 No Xbox source changes/build or PC build in this batch. Goal remains active;
 void cause is unresolved. Compact logs and user observation preserved locally.
+
+## October17: unsupported staged starts diagnosed and screened
+
+Read-only vertical triangle intersections against authored L17S3 geometry show
+205501 start has no static floor in its vertical column;205911 startY-4.523 is
+below floor4038 atY-1.5,room7. They were unsupported/under-floor starts created
+by an unchecked actor-relative offset across stacked rooms. No evidence here
+justifies changing collision filtering or restoring invisible render faces.
+Compact source evidence:l17s3-floor-support-review.json and supported-starts.json.
+
+Harness preflight now rejects staged starts without an upward static floor
+0.05..3 units below the marker. Portal/flag-bit1 faces are excluded;
+render-invisible faces remain eligible. It records face/room/height/clearance.
+This conservative point support check is NOT a full collision-body fit, room
+containment or mover-support validator. It rejects both known bad starts and
+accepts the previous valid L19S2A start. No game assets are mutated.
+
+210608-L17S3 repeats rail8/priority18723/mobile at distance4 rather than8:
+face4815,room89,floorY-6.5,marker clearance1.394. Runtime maintained standing
+height instead of falling (see telemetry). TIMEOUT at360 seconds:1254 live/
+306 dead,three starts/deaths,max16 player shots/22 enemy attacks per life,
+three weapon switches,five simultaneously alerted actors,no guest error or
+outside-world event. The first two lives reached374 and486 live inputs.
+This supports the placement diagnosis; it does not prove collision correctness
+for every surface or broad stability. No dedicated laser counter is logged,
+so do not claim laser-specific coverage from the map's weapon membership.
+No Xbox source change/build,PC build,images,host input,deployment or push.
+Goal remains active; valid action evidence replaces the prior void runs.
