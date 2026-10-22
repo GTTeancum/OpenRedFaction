@@ -12919,6 +12919,8 @@ uint32_t rf_scene_enemy_failure[6]; /* status,line,frame,slot,UID,weapon */
 uint32_t rf_scene_combat_population[4]; /* owners, live registered, alerted, scripted */
 /* Read-only admission evidence for the process-local controller's target. */
 uint32_t rf_scene_crash_enemy_state[12]; /* UID,frame,mode,flags,weapon,affiliation,alarm,medic,move,origin,alert,suppressed */
+uint32_t rf_scene_crash_npc_motion[12]; /* UID,frame,body xyz,published xyz,playback hash,pose hash,active clips,generation */
+uint32_t rf_scene_crash_npc_progress[12]; /* UID,ticks,body/pub/playback/pose changes,max clips/generation,live/alert frames,health,status */
 static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t slot)
 {
     if(status && !rf_scene_enemy_failure[0]){
@@ -12978,7 +12980,8 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
     rf_scene_combat_population[0]=campaign_npc_body_count;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
-        if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_trace[1]) {
+        if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==
+           (rf_scene_crash_aim==3?rf_scene_crash_aim_uid:rf_scene_crash_aim_trace[1])) {
             uint32_t state[12]={(uint32_t)campaign_seeds.records.items[i].record.uid,frame,
                 (uint32_t)owner->ai_mode.action_280,owner->object_flags,(uint32_t)owner->view.weapons[0],
                 owner->damage.effects.affiliation,owner->alarm.present,owner->medic.pending,
@@ -20805,6 +20808,7 @@ _Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache
 #include "scene_player_landing_audio.inc"
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_t frame)
 {
+    static uint32_t tracked_uid=UINT32_MAX,tracked_body_hash,tracked_published_hash,tracked_playback_hash,tracked_pose_hash;
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
     uint32_t timing[8]={0},clock=profile_clock && profile_active?profile_clock():0;
     if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
@@ -20903,6 +20907,43 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
         status=scene_npc_speech_reconcile(i);if(status)return status;
         status=scene_medic_clip_reconcile(campaign_npc_bodies+i,i);if(status)return status;
         status=campaign_npc_eye_update(i);if(status)return status;
+        if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==
+           (rf_scene_crash_aim==3?rf_scene_crash_aim_uid:rf_scene_crash_aim_trace[1])) {
+            uint32_t uid=(uint32_t)campaign_seeds.records.items[i].record.uid;
+            uint32_t body_hash=npc_hash_bytes(2166136261u,campaign_npc_bodies[i].body.state.position,12);
+            uint32_t published_hash=npc_hash_bytes(2166136261u,campaign_npc_bodies[i].published,12);
+            uint32_t playback_hash=npc_hash_bytes(2166136261u,&pose->playback,sizeof(pose->playback));
+            uint32_t pose_hash=npc_hash_bytes(2166136261u,pose->matrices,pose->bone_count*48);
+            if(tracked_uid!=uid || !frame) {
+                memset(rf_scene_crash_npc_progress,0,sizeof(rf_scene_crash_npc_progress));
+                tracked_uid=uid;tracked_body_hash=body_hash;tracked_published_hash=published_hash;
+                tracked_playback_hash=playback_hash;tracked_pose_hash=pose_hash;
+                rf_scene_crash_npc_progress[0]=uid;
+            } else {
+                rf_scene_crash_npc_progress[2]+=body_hash!=tracked_body_hash;
+                rf_scene_crash_npc_progress[3]+=published_hash!=tracked_published_hash;
+                rf_scene_crash_npc_progress[4]+=playback_hash!=tracked_playback_hash;
+                rf_scene_crash_npc_progress[5]+=pose_hash!=tracked_pose_hash;
+                tracked_body_hash=body_hash;tracked_published_hash=published_hash;
+                tracked_playback_hash=playback_hash;tracked_pose_hash=pose_hash;
+            }
+            ++rf_scene_crash_npc_progress[1];
+            if(pose->playback.completion.active.count>rf_scene_crash_npc_progress[6])
+                rf_scene_crash_npc_progress[6]=pose->playback.completion.active.count;
+            if(pose->playback.generation>rf_scene_crash_npc_progress[7])
+                rf_scene_crash_npc_progress[7]=pose->playback.generation;
+            rf_scene_crash_npc_progress[8]+=campaign_npc_bodies[i].damage.effects.health>0;
+            rf_scene_crash_npc_progress[9]+=!!campaign_npc_bodies[i].combat_alert;
+            memcpy(rf_scene_crash_npc_progress+10,&campaign_npc_bodies[i].damage.effects.health,4);
+            rf_scene_crash_npc_motion[0]=(uint32_t)campaign_seeds.records.items[i].record.uid;
+            rf_scene_crash_npc_motion[1]=frame;
+            memcpy(rf_scene_crash_npc_motion+2,campaign_npc_bodies[i].body.state.position,12);
+            memcpy(rf_scene_crash_npc_motion+5,campaign_npc_bodies[i].published,12);
+            rf_scene_crash_npc_motion[8]=playback_hash;
+            rf_scene_crash_npc_motion[9]=pose_hash;
+            rf_scene_crash_npc_motion[10]=pose->playback.completion.active.count;
+            rf_scene_crash_npc_motion[11]=pose->playback.generation;
+        }
         ++actors;bones+=pose->bone_count;
         h=scene_diagnostic_hash(h,&pose->playback,sizeof(pose->playback));
         p=scene_diagnostic_hash(p,pose->matrices,pose->bone_count*48);p=scene_diagnostic_hash(p,pose->generations,pose->bone_count*2);

@@ -160,7 +160,10 @@ def main():
     ram_poll_index = 0
     run = ROOT / 'artifacts/crash-hunt' / (datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + args.level)
     result = {'recipe': vars(args), 'input_recipe_version': 7, 'status': 'NOT_RUN'}
-    eyes = set(); max_shots = max_switches = 0
+    eyes = set(); npc_positions = set(); npc_published_positions = set()
+    npc_playback_hashes = set(); npc_pose_hashes = set()
+    max_npc_active_clips = max_npc_animation_generation = 0
+    max_shots = max_switches = 0
     max_enemy_shots = max_alerts = max_deaths = max_respawns = 0
     alive_samples = dead_samples = 0
     max_live_actors = max_alerted_actors = 0
@@ -364,7 +367,7 @@ dvd_path = '{iso.as_posix()}'
             result['ram_reader_sha256']=hashlib.sha256(reader_path.read_bytes()).hexdigest()
             result['ram_poll_interval_seconds']=15
         startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
-        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
+        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_crash_npc_motion':12,'rf_scene_crash_npc_progress':12,'rf_scene_npc_playback':7,'rf_scene_npc_eyes':4,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
         symbols={}
         counts['rf_scene_crash_scenario_trace']=8
         counts['rf_scene_crash_visibility']=4
@@ -425,6 +428,14 @@ dvd_path = '{iso.as_posix()}'
                     if sample['rf_scene_player_life'][2]: dead_samples += 1
                     else: alive_samples += 1
                     eyes.add(tuple(sample['rf_scene_gameplay_eye']))
+                    motion=sample.get('rf_scene_crash_npc_motion',[0]*12)
+                    if motion[0]:
+                        npc_positions.add(tuple(motion[2:5]))
+                        npc_published_positions.add(tuple(motion[5:8]))
+                        npc_playback_hashes.add(motion[8])
+                        npc_pose_hashes.add(motion[9])
+                        max_npc_active_clips=max(max_npc_active_clips,motion[10])
+                        max_npc_animation_generation=max(max_npc_animation_generation,motion[11])
                     max_shots=max(max_shots,sample['rf_scene_combat'][0])
                     max_switches=max(max_switches,sample['rf_scene_weapon_selection'][1])
                     max_enemy_shots=max(max_enemy_shots,sample['rf_scene_enemy_combat'][2])
@@ -444,6 +455,15 @@ dvd_path = '{iso.as_posix()}'
                     max_blast_kills=max(max_blast_kills,sample.get('rf_scene_rocket_blast',[0,0,0,0])[3])
                 result['observed']={'distinct_eye_positions':len(eyes),'shots':max_shots,'weapon_switches':max_switches,
                     'enemy_shots':max_enemy_shots,'enemy_alerts':max_alerts,'deaths':max_deaths,'respawns':max_respawns,'alive_samples':alive_samples,'dead_samples':dead_samples,'max_live_actors':max_live_actors,'max_alerted_actors':max_alerted_actors}
+                result['observed'].update(tracked_npc_uid=sample.get('rf_scene_crash_npc_motion',[0])[0],
+                    distinct_npc_body_positions=len(npc_positions),distinct_npc_published_positions=len(npc_published_positions),
+                    distinct_npc_playback_hashes=len(npc_playback_hashes),distinct_npc_pose_hashes=len(npc_pose_hashes),
+                    max_npc_active_clips=max_npc_active_clips,max_npc_animation_generation=max_npc_animation_generation)
+                progress=sample.get('rf_scene_crash_npc_progress',[0]*12)
+                result['observed'].update(tracked_npc_ticks=progress[1],tracked_npc_body_changes=progress[2],
+                    tracked_npc_published_changes=progress[3],tracked_npc_playback_changes=progress[4],
+                    tracked_npc_pose_changes=progress[5],tracked_npc_live_frames=progress[8],
+                    tracked_npc_alert_frames=progress[9],tracked_npc_health_bits=progress[10])
                 activity=sample.get('rf_scene_crash_activity')
                 if activity:
                     result['observed'].update(live_input_frames=activity[0],dead_input_frames=activity[1],scene_starts=activity[2],total_deaths=activity[3])
