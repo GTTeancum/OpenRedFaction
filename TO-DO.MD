@@ -1,4 +1,4 @@
-- Paused at user wrap-up: L19S1 grenade run154150 was operator-stopped without finalized telemetry/result; retain raw logs, investigate collection before retrying, and do not count it as coverage.
+- L19S1 grenade replay reached four combat lives/three recoveries, three player releases/two detonations and repeated flame hits without logged fatal error; watchdog ended at593 live inputs. Next improve ordinary movement/survival without reducing authored enemies.
 - Crash hunt resumed October22 under repository confinement: L20S2 completed three combat lives/two recoveries without a logged fatal error, but the360-second watchdog expired before the full input budget; continue broader sustained action.
 - Crash harness now uses ignored repository-local XEMU/firmware/packer copies and per-run temp/profile/cache paths; direct and junction escapes are rejected, with XEMU's actual base path confirmed inside the repository.
 - L18S3 turret targeting and bounded pain-audio bank refusal are exercised; the former second-life fatal no longer reproduces, while short-life survival and broader stress coverage remain open.

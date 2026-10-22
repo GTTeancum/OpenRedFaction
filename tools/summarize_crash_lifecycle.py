@@ -44,6 +44,10 @@ def summarize(path):
                 ('npc_fusion_launches', 'rf_scene_ai_fusion', 0),
                 ('npc_fusion_impacts', 'rf_scene_ai_fusion', 3),
                 ('rocket_launches', 'rf_scene_rockets', 0),
+                ('player_grenade_releases', 'rf_scene_grenades', 1),
+                ('player_grenade_contacts', 'rf_scene_grenades', 2),
+                ('player_grenade_detonations', 'rf_scene_grenades', 3),
+                ('player_grenade_limited_ticks', 'rf_scene_grenades', 6),
                 # Historical symbol covers any blast with a source handle;
                 # player hits do not establish self-inflicted damage.
                 ('sourced_blast_player_hits', 'rf_scene_rocket_blast', 4),
