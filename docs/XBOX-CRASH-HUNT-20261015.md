@@ -1620,3 +1620,12 @@ Third-life telemetry shows grenade start without release at cumulative329 live i
 User correction: switching during a pending throw is legitimate player behavior and valuable crash-hunt coverage. Do not suppress it or treat cancellation as a defect merely because it reduces grenade releases. No source change was made. Preserve this sequence as evidence of interrupted-throw handling under combat stress. Continue broader authored action and state-transition coverage; investigate actual fatal errors, hangs or invalid world state rather than optimizing the driver for successful throws.
 
 Session18569 terminated normally at the watchdog; cleanup preserves compact results,logs,lifecycle and ready delivery. Unrelated local work preserved. No push,host input,images,PC builds or hardware deployment.
+
+
+## October22: broad gameplay crash hunt, L11S2
+
+User clarified to keep this practical: spawn,move,fire,switch weapons and use vehicles where available; do not optimize health loss or successful attacks. Recorded this in AGENTS.md. No gameplay or input-driver changes.
+
+160309-L11S2.rfl uses levels2,actor10362/distance8,finite grenade6,aim,mobile,2400-input/360-second cap,stock64 and the complete authored roster. TIMEOUT after1128 live inputs,three combat lives and two normal recoveries. Movement,grenade throwing,weapon switching and enemy fire occurred. No reported guest fatal or invalid-world stop; the watchdog is not a crash or completion verdict. Detailed telemetry/result/lifecycle retained; no visual/audio verification.
+
+Next use existing broad exercise inputs (forward/side movement,primary/alternate fire,switch,reload,Use,jump,crouch) across another suitable authored space. Existing check_jeep_replay.py provides process-local driver/gunner input examples,not proof of current vehicle coverage. Do not replace this crash hunt with isolated control-performance tuning or invent vehicle success. Session56955 finished; cleanup preserves compact evidence and ready delivery. No PC build,images,host input,deployment or push. Goal remains active.
