@@ -1661,3 +1661,14 @@ Current coverage:
 | Fighter | open | open | open | open | open |
 
 Next choose an unoccupied authored Jeep for driver control and retain combat exposure for death; continue the other vehicle types through ordinary gameplay actions. Do not count sent inputs as outcomes or optimize successful combat. No visuals/audio verified. Cleanup after terminal sessions retains compact evidence/private build and ready delivery. No push/deployment; goal active.
+
+
+## October22: Jeep player driving and APC admission
+
+163022-L10S1.rfl: visible unoccupied authored Jeep2485,levels2,vehicle replay1800/300,stock64. Completed with three entries/three exits,1074 driver frames,510 gunner frames,six seat switches and24 mounted rounds. Occupied driver samples moved25.04 units from the first driver sample. No vehicle or player death,damage calls,enemy shots or reported fatal error. This establishes player driving alongside entry/fire/exit,not combat/death coverage. All authored actors retained. Jeep death remains required.
+
+163315-L1S3.rfl: APC9627,vehicle replay1800/300 completed without a reported fatal,but entries/firing/exits stayed zero despite enemy fire. Inspection of original record confirms creation_flags2 (hidden); existing source rejects use on hidden hosts and prior fixture activates original UnHide9628. This is expected admission behavior,not a boarding defect. Do not claim successful APC lifecycle coverage. Visible unoccupied APC3303 in L15S1 chosen next; no hidden flags changed and no event bypass added.
+
+163556-L15S1.rfl: visible authored APC3303,levels3,vehicle replay1800/300,stock64. Completed1800 total inputs (1514 live/286 dead) with one player death and normal recovery. First life records entry,occupied movement and11 mounted rounds. Player dies at frame255 while seated; vehicle state transitions from occupied to one exit by sample300,while vehicle destroyed remains zero. This is occupied-player death/seat release coverage,not voluntary exit or destroyed-APC coverage. No guest fatal reported; later on-foot firing/enemy attacks continue after recovery. Vehicle-coverage.json retained for each run.
+
+Updated lifecycle status: Jeep entry/player driving/fire/voluntary exit observed; player/vehicle death still open. APC entry/movement/fire and occupied-player death/recovery observed; voluntary exit and chassis destruction still open. Driller,submarine and fighter remain pending for all requested actions. Continue those types next without declaring lifecycle coverage complete from these partial results. No source changes this turn; no host input,images,PC build,hardware deployment or push. Sessions terminal; cleanup preserves compact logs/reports and ready delivery. Goal active.
