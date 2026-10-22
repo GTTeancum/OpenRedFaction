@@ -81,7 +81,7 @@ static int scene_active_vehicle_set_visible(uint32_t handle,uint32_t visible)
         memcpy(trace+6,&owner->damage.state.effects.health,4);trace[7]=occupied;}
     return !visible&&occupied?RF_NOT_FOUND:RF_OK;
 }
-uint32_t rf_scene_drill_state[8]; /* ticks,contacts,damage,cuts,requests,rejections,postwork,status */
+uint32_t rf_scene_drill_state[10]; /* ticks,contacts,damage,cuts,requests,rejections,postwork,status,held,spin */
 static uint32_t scene_campaign_vehicle_target(const scene_stream *s,uint32_t handle,
     float position[3],float *health)
 {
@@ -945,6 +945,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
         frame?scene_step_seconds:0,&weapon_backend);if(status)goto fail;}
     ++rf_scene_drill_state[0];rf_scene_drill_state[1]=s->driller_weapon.contacts;
     rf_scene_drill_state[2]=s->driller_weapon.damage_calls;rf_scene_drill_state[3]=s->driller_weapon.accepted_cuts;
+    rf_scene_drill_state[8]=s->driller_weapon.held;memcpy(rf_scene_drill_state+9,&s->driller_weapon.spin,4);
     memcpy(s->driller_position,r->physics.state.position,12);memcpy(s->driller_basis,r->physics.state.orientation,36);
     memcpy(rf_scene_vehicle_damage,&r->damage.damage.state.effects.health,4);
     memcpy(rf_scene_vehicle_damage+1,&r->damage.last_amount,4);rf_scene_vehicle_damage[2]=r->damage.damage_calls;

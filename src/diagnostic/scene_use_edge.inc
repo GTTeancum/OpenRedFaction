@@ -4,6 +4,16 @@ typedef struct scene_use_edge_state {
     uint32_t raw,held,edge,filtered,consumed,selected,kind,player,prepared,claimed;
 } scene_use_edge_state;
 static scene_use_edge_state scene_use_edge={0,0,0,0,0,UINT32_MAX,0,UINT32_MAX,0,0};
+uint32_t rf_scene_use_selection[10]; /* frame,raw,edge,filtered,prepared,selected,kind,claimed,consumed,player */
+static void scene_use_publish(uint32_t frame)
+{
+    if(!scene_use_edge.edge)return;
+    rf_scene_use_selection[0]=frame;rf_scene_use_selection[1]=scene_use_edge.raw;
+    rf_scene_use_selection[2]=scene_use_edge.edge;rf_scene_use_selection[3]=scene_use_edge.filtered;
+    rf_scene_use_selection[4]=scene_use_edge.prepared;rf_scene_use_selection[5]=scene_use_edge.selected;
+    rf_scene_use_selection[6]=scene_use_edge.kind;rf_scene_use_selection[7]=scene_use_edge.claimed;
+    rf_scene_use_selection[8]=scene_use_edge.consumed;rf_scene_use_selection[9]=scene_use_edge.player;
+}
 static void scene_use_sample(uint32_t held)
 {
     scene_use_edge.raw=!!held;scene_use_edge.edge=held&&!scene_use_edge.held;

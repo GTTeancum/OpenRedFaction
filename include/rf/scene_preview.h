@@ -32,7 +32,7 @@ extern float rf_scene_crash_aim_point[3];
 extern uint32_t rf_scene_crash_scenario;
 extern uint32_t rf_scene_vehicle_enabled;
 extern uint32_t rf_scene_vehicle_state[16];
-extern uint32_t rf_scene_drill_state[8];
+extern uint32_t rf_scene_drill_state[10];
 extern uint32_t rf_scene_vehicle_damage[8];
 int rf_scene_vehicle_test_place(rf_level *level);
 extern uint32_t rf_scene_fusion_projectiles[5];

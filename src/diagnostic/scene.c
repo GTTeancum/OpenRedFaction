@@ -18949,7 +18949,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         stream->vehicle_checkpoint_pending=0;
         printf("VEHICLE_CHECKPOINT_LOAD %.9g %u\n",(double)stream->vehicle_checkpoint.health,stream->vehicle_checkpoint.accepted_drill_cuts);
     }
-    status=scene_use_prepare(stream,frame,controller);if(status)return status;
+    status=scene_use_prepare(stream,frame,controller);scene_use_publish(frame);if(status)return status;
     status=scene_driller_runtime_tick(stream,frame);if(status)return status;
     status=scene_apc_aim_tick(stream,frame);if(status)return status;
     status=scene_jeep_gun_tick(stream);if(status)return status;
