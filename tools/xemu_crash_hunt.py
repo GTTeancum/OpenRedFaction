@@ -113,7 +113,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','vehicle','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','vehicle','vehicle-quick','vehicle-land','vehicle-stress','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -159,7 +159,7 @@ def main():
     seen_samples = set()
     ram_poll_index = 0
     run = ROOT / 'artifacts/crash-hunt' / (datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + args.level)
-    result = {'recipe': vars(args), 'input_recipe_version': 6, 'status': 'NOT_RUN'}
+    result = {'recipe': vars(args), 'input_recipe_version': 7, 'status': 'NOT_RUN'}
     eyes = set(); max_shots = max_switches = 0
     max_enemy_shots = max_alerts = max_deaths = max_respawns = 0
     alive_samples = dead_samples = 0
@@ -243,6 +243,35 @@ def main():
                 buttons[3] = int(190 <= phase < 240 or 360 <= phase < 420)
                 buttons[6] = int(250 <= phase < 280 or 430 <= phase < 450)
                 buttons[5] = int(phase in (320, 490))
+            elif args.input == 'vehicle-quick':
+                # Short ordinary lifecycle for lethal authored encounters:
+                # board, move/turn, use primary fire, then exit via Use.
+                # Secondary weapons remain in the longer vehicle sequence;
+                # close APC rockets can kill the occupant before an exit.
+                phase = frame % 180
+                buttons[2] = int(phase in (12, 125))
+                if 35 <= phase < 75: move[2] = .65
+                if 55 <= phase < 75: look[1] = .2
+                buttons[3] = int(80 <= phase < 110)
+            elif args.input == 'vehicle-land':
+                # Ordinary Fighter landing attempt before a voluntary exit.
+                phase = frame % 540
+                buttons[2] = int(phase in (12, 430))
+                if 35 <= phase < 360:
+                    move[2] = .35
+                    buttons[0] = 1  # crouch maps to controlled descent
+                if 80 <= phase < 120: look[1] = .15
+                buttons[3] = int(130 <= phase < 175)
+            elif args.input == 'vehicle-stress':
+                # Remain occupied under authored pressure while continuously
+                # driving, turning and exercising both fire controls.
+                phase = frame % 360
+                buttons[2] = int(frame == 12)
+                if frame >= 35: move[2] = .7
+                if 60 <= phase < 150: look[1] = .2
+                elif 180 <= phase < 270: look[1] = -.2
+                buttons[3] = int(90 <= phase < 160 or 210 <= phase < 280)
+                buttons[6] = int(170 <= phase < 195 or 290 <= phase < 315)
             elif args.input in ('approach','approach-jump'):
                 # Focused contact probe: ordinary forward movement from the
                 # first live frame, with no fire or host input.
