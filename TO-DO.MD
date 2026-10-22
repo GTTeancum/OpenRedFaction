@@ -1,3 +1,4 @@
+- Vehicle crash coverage: Jeep entry,mounted fire and exit observed in L12S1; occupied movement observed but player driving/death remain open. Driller,APC,submarine,fighter still need entry,movement,firing,death and exit runs.
 - Broad exercise inputs completed L18S1 near an authored Jeep (boarding unverified, no enemy fire); L6S3 shotgun run exercised two combat lives/recovery before watchdog without a reported fatal. Continue varied ordinary gameplay and vehicle use.
 - L11S2 movement/grenade/weapon-switching run reached three combat lives and normal recoveries without a reported fatal error; continue broad ordinary gameplay, including Use/alternate fire and vehicles where available.
 - Continue crash hunting across authored action-heavy scenarios, including interrupted throws and weapon switching; L19S1 mobile grenade run exercised cancellation without a reported fatal error (667 live inputs/four lives, watchdog timeout).

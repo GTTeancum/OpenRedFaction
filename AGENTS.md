@@ -74,3 +74,5 @@
 - User correction (2026-10-15): The crash hunt remains active after the first two fixes. Load action-heavy environments at their normal authored stress levels; a small passing batch does not complete the goal. Record actual enemy/player action and do not count idle or dead frames as sustained combat coverage.
 
 - User correction (2026-10-22): Keep the crash hunt practical: spawn into authored environments, move, fire and switch weapons, interact and use vehicles where available. Interrupted attacks and ordinary mistakes are useful coverage; do not optimize combat outcomes, successful throws or health loss. Investigate crashes, freezes and invalid states.
+
+- User requirement (2026-10-22): Crash hunting must include entry,firing,movement,death and exit for each vehicle type. Track observed game behavior,not merely sent input; keep missing actions open.

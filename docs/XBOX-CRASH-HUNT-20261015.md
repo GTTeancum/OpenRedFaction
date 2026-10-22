@@ -1640,3 +1640,24 @@ Read the repository's authored vehicle inventory to locate Jeep10517; compact in
 161440-L6S3.rfl: levels1,actor3840/distance8,finite shotgun4,bounded aim,exercise input,1800-input/240-second cap. TIMEOUT after886 live/255 dead inputs,two combat lives/two deaths and one observed recovery; current logs advanced after a long loading interval,so no freeze conclusion from the earlier stale sample. Per-scene maxima include two player shots,74 enemy attacks and four alerted actors. No reported guest fatal or outside-world stop. The input budget was not completed. Existing exercise input does not publish the scenario-phase trace; do not apply the scenario-only lifecycle summarizer as if zero output meant zero gameplay. Raw activity and result retain the evidence.
 
 Both sessions terminal; preserve compact logs/results and ready delivery,clean generated payloads. Goal stays active. Vehicle driving remains unverified; retain nearby Jeep attempt as interaction coverage only. No code tuning or new build.
+
+
+## October22: required vehicle lifecycle coverage
+
+User requires entry,movement,firing,death and exit for every vehicle type. Added existing vehicle state/damage,Jeep seats,APC/Jeep gun,submarine/fighter weapons and drill counters to the opt-in RAM log; unchanged OpenJKDF2 HMP reader. Added ordinary vehicle replay inputs based on check_jeep_replay: Use,throttle/steering,primary/alternate fire,seat cycle,exit. No direct occupancy,health or gameplay-state writes.
+
+Human explicitly authorized reading/executing C:/nxdk and C:/msys64. Dry-run build commands inspected; actual compilation used repository-local temp/profile/cache environment via repository_runtime.child_environment,explicit build/xbox cwd and private crash-disc output. build-vehicle-log.log records successful Xbox compile/link; no PC build or external installation modification.
+
+162210-L18S1 completed1200 inputs but vehicle profile/state remained zero,so no boarding/driving claim. Selected supported authored L12S1 Jeep7629 next,without changing its roster.162447-L12S1 completed1200 inputs with one entry,one exit,15 mounted rounds,528 gunner frames and zero player driver frames. Vehicle moved while occupied,received10 damage calls and remained alive; enemy fire occurred. Neither player nor vehicle death observed. No guest fatal. Compact vehicle-coverage.json distinguishes occupied movement from player driving; raw counters retained.
+
+Current coverage:
+
+| Vehicle | Entry | Player driving | Firing | Death | Exit |
+| --- | --- | --- | --- | --- | --- |
+| Jeep | observed | open (gunner only; host moved) | observed | open | observed |
+| Driller | open | open | open | open | open |
+| APC | open | open | open | open | open |
+| Submarine | open | open | open | open | open |
+| Fighter | open | open | open | open | open |
+
+Next choose an unoccupied authored Jeep for driver control and retain combat exposure for death; continue the other vehicle types through ordinary gameplay actions. Do not count sent inputs as outcomes or optimize successful combat. No visuals/audio verified. Cleanup after terminal sessions retains compact evidence/private build and ready delivery. No push/deployment; goal active.

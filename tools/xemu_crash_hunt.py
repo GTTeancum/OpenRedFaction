@@ -113,7 +113,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','vehicle','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -233,7 +233,17 @@ def main():
         rows = []
         for frame in range(args.frames):
             move = [0., 0., 0.]; look = [0., 0.]; buttons = [0]*7
-            if args.input in ('approach','approach-jump'):
+            if args.input == 'vehicle':
+                # Ordinary boarding, driving, firing, seat switching and exit.
+                # Based on check_jeep_replay; effects remain game-owned.
+                phase = frame % 600
+                buttons[2] = int(phase in (12, 540))
+                if 40 <= phase < 180: move[2] = .65
+                if 100 <= phase < 150: look[1] = .2
+                buttons[3] = int(190 <= phase < 240 or 360 <= phase < 420)
+                buttons[6] = int(250 <= phase < 280 or 430 <= phase < 450)
+                buttons[5] = int(phase in (320, 490))
+            elif args.input in ('approach','approach-jump'):
                 # Focused contact probe: ordinary forward movement from the
                 # first live frame, with no fire or host input.
                 move[2] = .65
