@@ -23,6 +23,7 @@ import time
 
 from xemu_guest_snapshot import words
 from xemu_host import SessionLock, stop_owned_process
+from repository_runtime import confined_path, child_environment
 from xemu_session_guard import require_no_project_xemu
 from xemu_smoke import Monitor
 from xemu_world_hdd import standalone
@@ -145,6 +146,12 @@ def main():
     if any(len(s.encode('ascii')) >= 64 or '/' in s or '\\' in s for s in (args.level, args.archive)):
         parser.error('Require simple archive and level names')
     lock = SessionLock(ROOT)
+    emu = confined_path(ROOT, ROOT / 'local/runtime/xemu')
+    packer = confined_path(ROOT, ROOT / 'local/runtime/extract-xiso.exe')
+    for required in (packer, emu/'xemu.exe', emu/'MCPX/mcpx_1.0.bin',
+                     emu/'BIOS/xbox-4627_debug.bin', emu/'EEPROM/eeprom.bin'):
+        if not confined_path(ROOT, required).is_file():
+            parser.error('Missing repository-local runtime file: ' + str(required))
     lock.acquire()
     process = monitor = None
     ram_reader = None
@@ -170,7 +177,9 @@ def main():
             if source.name in ('default.xbe','tester-profile.flag'): continue
             dest = disc / source.name
             if source.is_file() and not dest.exists(): dest.hardlink_to(source)
+        run = confined_path(ROOT, run)
         run.mkdir(parents=True)
+        runtime_env = child_environment(ROOT, run)
         # Pin authored encounter membership; actor staging changes only the
         # player placement, never enemy count or original archive bytes.
         from build_fragment_platform_fixture import read_entry
@@ -277,8 +286,7 @@ def main():
         iso = ROOT / 'build/xbox/redfaction-crash.iso'
         iso.unlink(missing_ok=True)
         with (run / 'pack.log').open('wb') as log:
-            subprocess.run(['C:/nxdk/tools/extract-xiso/build/extract-xiso.exe','-c',str(disc),str(iso)],check=True,stdout=log,stderr=subprocess.STDOUT)
-        emu = Path('C:/Games/Emulators/Xemu')
+            subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
         shutil.copyfile(emu/'EEPROM/eeprom.bin',run/'eeprom.bin')
         config = f'''[general]
 show_welcome = false
@@ -332,9 +340,8 @@ dvd_path = '{iso.as_posix()}'
         if args.aim_point and 'rf_scene_crash_aim_point' not in symbols:
             raise RuntimeError('Aim point requires an updated Xbox binary/map')
         require_no_project_xemu(ROOT)
-        (run/'temp').mkdir()
         with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
-            process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,env=dict(os.environ,SDL_AUDIODRIVER='dummy',SDL_AUDIO_DRIVER='dummy',TEMP=str(run/'temp'),TMP=str(run/'temp'),TMPDIR=str(run/'temp')))
+            process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,env=runtime_env)
         result['pid']=process.pid
         deadline=time.monotonic()+args.seconds
         while not ram_reader and time.monotonic()<deadline and process.poll() is None:
