@@ -77,6 +77,7 @@ extern float rf_scene_gameplay_eye[3];
 extern uint32_t rf_scene_vehicle_enabled,rf_scene_vehicle_state[16],rf_scene_vehicle_damage[8];
 extern uint32_t rf_scene_jeep_seats[8],rf_scene_apc_primary[8],rf_scene_fighter_weapon[8];
 extern uint32_t rf_scene_submarine_weapon[8],rf_scene_drill_state[8];
+extern uint32_t rf_scene_vehicle_entry_probe[16];
 static void rf_ram_log_sample(uint32_t force)
 {
     static int initialized,enabled;
@@ -159,6 +160,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_fighter_weapon,8);
     RAM_ARRAY(rf_scene_submarine_weapon,8);
     RAM_ARRAY(rf_scene_drill_state,8);
+    RAM_ARRAY(rf_scene_vehicle_entry_probe,16);
 #undef RAM_ARRAY
     if(used+3>=sizeof(text))return;
     text[used-1]='}';text[used++]='\n';text[used]=0;
