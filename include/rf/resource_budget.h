@@ -9,9 +9,11 @@
 #define RF_CAMPAIGN_LIGHTMAP_BUDGET (4u*1024u*1024u)
 /* The combined renderer also references separately owned NPC, clutter,
  * weapon and pickup images. This check does not allocate/copy their pixels.
- * L2S3 references18,677,764 bytes including lightmaps and fallback; the old
- *16MiB sum rejected already loaded assets before any GPU allocation. */
-#define RF_CAMPAIGN_IMAGE_BUDGET (20u*1024u*1024u)
+ * L2S3 references18,677,764 bytes including lightmaps and fallback. L10S2
+ * references23,152,452 unique bytes and still has3,652 stock-memory pages
+ * free before the3MiB renderer buffer; lower caps reject already resident
+ * assets without saving memory. */
+#define RF_CAMPAIGN_IMAGE_BUDGET (24u*1024u*1024u)
 /* Demand-loaded player shield view profile; still subject to stock64MiB admission. */
 #define RF_PLAYER_SHIELD_IMAGE_BUDGET (21u*1024u*1024u)
 #endif

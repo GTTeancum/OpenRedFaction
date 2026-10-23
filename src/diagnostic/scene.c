@@ -382,6 +382,7 @@ static uint32_t profile_last,profile_active;
 /* View failures101..108: listener, camera effect, ambient, camera setup,
  * room locate, visibility begin/view, world mesh. Success stages stay0..12. */
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
+uint32_t rf_scene_presentation_failure[8]; /* owner,status,frame,mesh count,mesh bytes,world,capacity,materials */
 uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4],rf_scene_step_profile[8][4],rf_scene_npc_step_profile[8][4];
 uint32_t rf_scene_npc_playback_profile[8][4];
 /* Per-frame totals accumulated across actors, nested within NPC playback. */
@@ -22423,7 +22424,12 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
             if(status){rf_scene_profile_stage[1]=211;return status;}
         }
-        status=scene_undercover_draw(stream);if(status){rf_scene_profile_stage[1]=206;return status;}
+        status=scene_undercover_draw(stream);if(status){
+            uint32_t failure[8]={1,(uint32_t)status,frame,stream->mesh->count,stream->mesh->bytes,
+                stream->world,stream->capacity,stream->materials->count};
+            memcpy(rf_scene_presentation_failure,failure,sizeof(failure));
+            rf_scene_profile_stage[1]=206;return status;
+        }
         /* Only these synchronous presentation callbacks share owner views.
          * No physics/events/retirement can intervene; never retain validity
          * across frames, repeated presentations, restore, or an error return. */
@@ -22434,7 +22440,12 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 #endif
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;
-        if(stream->glare_snapshot)stream->glare_snapshot->valid=0;presentation_mark(5,&presentation_clock);if(status){rf_scene_profile_stage[1]=206;return status;}
+        if(stream->glare_snapshot)stream->glare_snapshot->valid=0;presentation_mark(5,&presentation_clock);if(status){
+            uint32_t failure[8]={2,(uint32_t)status,frame,stream->mesh->count,stream->mesh->bytes,
+                stream->world,stream->capacity,stream->materials->count};
+            memcpy(rf_scene_presentation_failure,failure,sizeof(failure));
+            rf_scene_profile_stage[1]=206;return status;
+        }
         if(campaign_spawn)campaign_player_export_capture();
         presentation_mark(6,&presentation_clock);profile_mark(6);
         if(profile_clock && profile_active)step_clock=profile_clock();

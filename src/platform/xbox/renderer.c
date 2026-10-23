@@ -126,6 +126,7 @@ static uint32_t field(uint32_t mask, uint32_t value)
     return (value << shift) & mask;
 }
 typedef struct gpu_texture { uint32_t *pixels, format,transparent; } gpu_texture;
+uint32_t rf_xbox_texture_budget[12]; /* materials,lightmaps,total,unique,aliases,null,mismatch,max,budget,unique materials,unique lightmaps,cross aliases */
 static void renderer_draw_mark(uint32_t phase,uint32_t *previous,int enabled)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -686,9 +687,33 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(menu_assets)return RF_RANGE;
     if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > RF_CAMPAIGN_TEXTURE_SLOTS || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
     if(streaming){int status=rf_scene_prepare_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;}
-    for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
-    for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
+    memset(rf_xbox_texture_budget,0,sizeof(rf_xbox_texture_budget));
+    rf_xbox_texture_budget[0]=materials->count;rf_xbox_texture_budget[1]=lightmaps->count;
+    rf_xbox_texture_budget[3]=4;
+    rf_xbox_texture_budget[8]=(rf_scene_player_shield_resources || rf_scene_fusion_enabled)?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
+    for (i = 0; i < materials->count; ++i) {
+        const rf_image *image=&materials->items[i].image;uint32_t j,alias=UINT32_MAX;
+        upload_bytes += image->bytes;
+        if(image->bytes>rf_xbox_texture_budget[7])rf_xbox_texture_budget[7]=image->bytes;
+        if(!image->rgba){if(image->bytes)++rf_xbox_texture_budget[5];continue;}
+        for(j=0;j<i;++j)if(materials->items[j].image.rgba==image->rgba){alias=j;break;}
+        if(alias!=UINT32_MAX){const rf_image *other=&materials->items[alias].image;++rf_xbox_texture_budget[4];
+            if(other->bytes!=image->bytes || other->width!=image->width || other->height!=image->height)++rf_xbox_texture_budget[6];}
+        else {rf_xbox_texture_budget[3]+=image->bytes;++rf_xbox_texture_budget[9];}
+    }
+    for (i = 0; i < lightmaps->count; ++i) {
+        const rf_image *image=lightmaps->images+i,*other=NULL;uint32_t j;
+        upload_bytes += image->bytes;
+        if(image->bytes>rf_xbox_texture_budget[7])rf_xbox_texture_budget[7]=image->bytes;
+        if(!image->rgba){if(image->bytes)++rf_xbox_texture_budget[5];continue;}
+        for(j=0;j<materials->count;++j)if(materials->items[j].image.rgba==image->rgba){other=&materials->items[j].image;++rf_xbox_texture_budget[11];break;}
+        if(!other)for(j=0;j<i;++j)if(lightmaps->images[j].rgba==image->rgba){other=lightmaps->images+j;break;}
+        if(other){++rf_xbox_texture_budget[4];if(other->bytes!=image->bytes || other->width!=image->width || other->height!=image->height)++rf_xbox_texture_budget[6];}
+        else {rf_xbox_texture_budget[3]+=image->bytes;++rf_xbox_texture_budget[10];}
+    }
+    rf_xbox_texture_budget[2]=(uint32_t)upload_bytes;
     rf_xbox_renderer_stage[1]=(uint32_t)upload_bytes;rf_xbox_renderer_stage[2]=vertex_bytes;
+    {MM_STATISTICS stats={0};stats.Length=sizeof(stats);if(NT_SUCCESS(MmQueryStatistics(&stats)))rf_xbox_renderer_stage[3]=stats.AvailablePages;}
     if (upload_bytes > ((rf_scene_player_shield_resources || rf_scene_fusion_enabled)?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET) || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && !RF_PREVIEW_IS_VERTEX_LIT(mesh->vertices[i].lightmap) && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
@@ -702,7 +727,6 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     rf_xbox_renderer_stage[0]=2;
     if (!stream_device_ready) {if(pb_init())return RF_IO;stream_device_ready=1;}
     rf_xbox_renderer_stage[0]=3;
-    {MM_STATISTICS stats={0};stats.Length=sizeof(stats);if(NT_SUCCESS(MmQueryStatistics(&stats)))rf_xbox_renderer_stage[3]=stats.AvailablePages;}
     gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
     if (!gpu) { pb_kill();stream_device_ready=0; return RF_RANGE; }
     rf_xbox_renderer_stage[0]=4;

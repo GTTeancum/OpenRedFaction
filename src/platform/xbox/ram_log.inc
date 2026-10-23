@@ -75,6 +75,8 @@ extern uint32_t rf_scene_npc_body_admission[4],rf_scene_npc_body_failure[2],rf_s
 extern uint32_t rf_scene_clutter_load_trace[8],rf_scene_clutter_materials[8],rf_material_failure[3];
 extern char rf_material_failure_name[61];
 extern uint32_t rf_scene_profile_stage[2],rf_preview_failure[8];
+extern uint32_t rf_scene_presentation_failure[8],rf_xbox_renderer_stage[4],rf_xbox_draw_audit[4],rf_xbox_texture_budget[12];
+extern uint32_t rf_scene_late_load[8];
 extern float rf_scene_gameplay_eye[3];
 extern uint32_t rf_scene_vehicle_enabled,rf_scene_vehicle_state[16],rf_scene_vehicle_damage[8];
 extern uint32_t rf_scene_jeep_seats[8],rf_scene_apc_primary[8],rf_scene_fighter_weapon[8];
@@ -146,6 +148,11 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_player_failure,4);
     RAM_ARRAY(rf_scene_pain_bank_pressure,5);
     RAM_ARRAY(rf_scene_profile_stage,2);
+    RAM_ARRAY(rf_scene_presentation_failure,8);
+    RAM_ARRAY(rf_scene_late_load,8);
+    RAM_ARRAY(rf_xbox_renderer_stage,4);
+    RAM_ARRAY(rf_xbox_draw_audit,4);
+    RAM_ARRAY(rf_xbox_texture_budget,12);
     RAM_ARRAY(rf_preview_failure,8);
     RAM_ARRAY(rf_scene_crash_terrain,8);
     RAM_ARRAY(rf_scene_crash_terrain_owner,8);
