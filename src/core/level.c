@@ -128,7 +128,9 @@ int rf_level_waypoint_find(const void *data,uint32_t bytes,uint32_t navigation_c
         if(count>(bytes-cursor)/4)return RF_FORMAT;
         for(j=0;j<count;j++){uint32_t node=le32(p+cursor+4*j);if(node!=UINT32_MAX && node>=navigation_count)return RF_FORMAT;}
         if(name && wanted && wanted==length && !memcmp(name,text,length)) {
-            if(found)return RF_FORMAT;found=1;selected.indices=p+cursor;selected.count=count;
+            /* Authored levels can repeat a path name (L6S1 has two "wibble"
+             * rows). The original ordered lookup retains the first record. */
+            if(!found){found=1;selected.indices=p+cursor;selected.count=count;}
         }
         cursor+=4*count;
     }
