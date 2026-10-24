@@ -36,4 +36,7 @@ int rf_xbox_checkpoint_storage_idle_status(void);
  * unmount retains process-owned evidence and forbids automatic retry or a
  * later reopen; never advertise that retirement as a successful save. */
 int rf_xbox_checkpoint_storage_close(rf_xbox_checkpoint_storage *);
+/* Last-write time (FILETIME units) of the slot selected by the last load,
+ * so the newest of the manual and autosave families can be chosen. */
+int rf_xbox_checkpoint_storage_selected_time(const rf_xbox_checkpoint_storage *,uint64_t *);
 #endif

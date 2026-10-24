@@ -22905,8 +22905,14 @@ modal_step_done:
             if(death_recovery && scene_live_save_status)campaign_life_request_restart(frame);
             printf("QUICK_LOAD frame%u status%d\n",frame,scene_live_save_status);
         }
+        /* The player snapshot refuses mid-action states (turning, landing,
+         * weapon cooldown); hold the request up to 3 s for them to settle. */
+        if(!scene_live_save_pending)scene_live_save_wait_until=0;
+        else if(!scene_driller_active(stream) && scene_checkpoint_player_state_scope(stream,1,2)==RF_RANGE){
+            if(!scene_live_save_wait_until)scene_live_save_wait_until=frame+180;
+            if(frame<scene_live_save_wait_until)return RF_OK;}
         if(scene_live_save_pending){
-            scene_live_save_pending=0;scene_live_notice_load=0;
+            scene_live_save_pending=0;scene_live_notice_load=0;scene_live_save_wait_until=0;
             scene_live_save_status=(campaign_endgame.phase || campaign_defuse.active)?RF_NOT_FOUND:
                 scene_world_snapshot_capture_mode(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
             scene_live_save_until=frame+180;

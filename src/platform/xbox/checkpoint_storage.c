@@ -113,6 +113,16 @@ int rf_xbox_checkpoint_storage_store(rf_xbox_checkpoint_storage *s,const void *d
     if(status)s->selection.ready=0;else rf_xbox_checkpoint_storage_state[7]|=4;
     return storage_result(s,5,status,error,native);
 }
+int rf_xbox_checkpoint_storage_selected_time(const rf_xbox_checkpoint_storage *s,uint64_t *time)
+{
+    char path[64];WIN32_FILE_ATTRIBUTE_DATA info;int status=storage_admit(s);
+    if(status)return status;
+    if(!time||!s->selection.ready)return RF_RANGE;
+    (void)snprintf(path,sizeof(path),"%s.%u",s->base?s->base:RF_XBOX_CHECKPOINT_BASE,s->selection.slot);
+    if(!GetFileAttributesExA(path,GetFileExInfoStandard,&info))return RF_IO;
+    *time=((uint64_t)info.ftLastWriteTime.dwHighDateTime<<32)|info.ftLastWriteTime.dwLowDateTime;
+    return RF_OK;
+}
 int rf_xbox_checkpoint_storage_close(rf_xbox_checkpoint_storage *s)
 {
     if(!s)return storage_result(s,6,RF_RANGE,ERROR_INVALID_PARAMETER,0);

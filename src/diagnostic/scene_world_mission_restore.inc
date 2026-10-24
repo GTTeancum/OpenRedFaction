@@ -31,6 +31,8 @@ static int scene_world_mission_key(const char (*levels)[64],uint32_t nl,const rf
     }
     if(found==UINT32_MAX)return RF_NOT_FOUND;*slot=found;return RF_OK;
 }
+/* Last rejected mission-restore check: source line, status. */
+uint32_t rf_scene_world_mission_reject[2];
 static inline int scene_world_mission_prepare_with_movers_storage_accounted(scene_stream *stream,const rf_world_checkpoint *world,int32_t now,
     uint32_t budget,const rf_group_runtime_entry *airlock_entries,uint32_t airlock_entry_count,
     const rf_geometry_collision_world *airlock_world,scene_world_mission_stage **out,const rf_prepare_memory *memory,const rf_prepare_storage *provider)
@@ -39,48 +41,48 @@ static inline int scene_world_mission_prepare_with_movers_storage_accounted(scen
     if(!out||*out||!stream||!world||now<0||now>RF_TIMER_PERIOD||
        campaign_triggers.count>RF_CAMPAIGN_TRIGGER_SLOTS||stream->pickups.count>RF_CAMPAIGN_PICKUP_SLOTS||
        (campaign_triggers.count&&!campaign_triggers.items)||
-       (stream->pickups.count&&(!stream->pickups.items||!stream->pickup_slots||!stream->pickup_taken)))return RF_RANGE;
+       (stream->pickups.count&&(!stream->pickups.items||!stream->pickup_slots||!stream->pickup_taken))){rf_scene_world_mission_reject[0]=__LINE__;return RF_RANGE;}
     cost=sizeof(*s)+(uint64_t)campaign_triggers.count*sizeof(*s->live_triggers)+(uint64_t)stream->pickups.count*sizeof(*s->live_pickups);
-    if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
+    if(cost>budget||cost>UINT32_MAX){rf_scene_world_mission_reject[0]=__LINE__;return RF_RANGE;}
     {void *allocation=NULL;status=rf_prepare_storage_allocate(provider,memory,NULL,(size_t)cost,&allocation);
-     if(status)return status;s=allocation;}s->bytes=(uint32_t)cost;
+     if(status){rf_scene_world_mission_reject[0]=__LINE__;return status;}s=allocation;}s->bytes=(uint32_t)cost;
     s->stream=stream;s->trigger_owner=campaign_triggers.items;s->trigger_count=campaign_triggers.count;s->pickup_count=stream->pickups.count;
     memcpy(s->pickup_states_before,campaign_pickup_states,sizeof(s->pickup_states_before));
     s->taken_owner=stream->pickup_taken;s->state_owner=stream->pickup_state;s->slot_owner=stream->pickup_slots;
     s->live_triggers=(scene_world_mission_trigger*)(s+1);s->live_pickups=(scene_world_mission_pickup*)(s->live_triggers+s->trigger_count);
-    v=world->sections+RF_WORLD_GOALS-1;status=rf_campaign_goals_checkpoint_decode(v->data,v->bytes,world->identity,&s->goals,&s->local);if(status)goto fail;
+    v=world->sections+RF_WORLD_GOALS-1;status=rf_campaign_goals_checkpoint_decode(v->data,v->bytes,world->identity,&s->goals,&s->local);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
     v=world->sections+RF_WORLD_PICKUPS-1;
     status=rf_campaign_pickups_checkpoint_decode_states(v->data,v->bytes,world->identity,&s->pickups,
-        s->pickup_states,RF_CAMPAIGN_PICKUP_SLOTS);if(status)goto fail;
+        s->pickup_states,RF_CAMPAIGN_PICKUP_SLOTS);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
     /* Bind every current-level override to an actual authored item, including
      * a retired one. Other-section identities remain with the existing ledger. */
     for(i=0;i<s->pickups.count;i++)if(s->pickup_states[i]&&
        scene_npc_checkpoint_level_equal(s->pickups.levels[s->pickups.items[i].level],campaign_current_level)){
         uint32_t matches=0;
         for(j=0;j<stream->pickups.count;j++)matches+=stream->pickups.items[j].uid==s->pickups.items[i].uid;
-        if(matches!=1){status=RF_FORMAT;goto fail;}
+        if(matches!=1){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
     }
-    v=world->sections+RF_WORLD_STARTUP-1;status=rf_campaign_pickups_checkpoint_decode(v->data,v->bytes,world->identity,&s->startup);if(status)goto fail;
-    v=world->sections+RF_WORLD_TRIGGER-1;status=rf_campaign_triggers_checkpoint_decode(v->data,v->bytes,world->identity,&s->triggers);if(status)goto fail;
-    status=scene_airlock_restore_prepare(&s->triggers,airlock_entries,airlock_entry_count,airlock_world,&s->airlock);if(status)goto fail;
+    v=world->sections+RF_WORLD_STARTUP-1;status=rf_campaign_pickups_checkpoint_decode(v->data,v->bytes,world->identity,&s->startup);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
+    v=world->sections+RF_WORLD_TRIGGER-1;status=rf_campaign_triggers_checkpoint_decode(v->data,v->bytes,world->identity,&s->triggers);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
+    status=scene_airlock_restore_prepare(&s->triggers,airlock_entries,airlock_entry_count,airlock_world,&s->airlock);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
     for(i=0;i<s->trigger_count;i++){
         scene_world_mission_trigger *r=s->live_triggers+i;rf_runtime_trigger *t=campaign_triggers.items+i;
-        if(!t->authored||rf_object_registry_lookup(&campaign_registry,t->handle)!=t){status=RF_FORMAT;goto fail;}
-        for(j=0;j<i;j++)if(campaign_triggers.items[j].authored->record.uid==t->authored->record.uid){status=RF_FORMAT;goto fail;}
-        status=scene_world_mission_key(s->triggers.levels,s->triggers.level_count,s->triggers.items,s->triggers.count,(uint32_t)t->authored->record.uid,&slot);if(status)goto fail;
-        if(!s->triggers.items[slot].retired){status=RF_FORMAT;goto fail;}
+        if(!t->authored||rf_object_registry_lookup(&campaign_registry,t->handle)!=t){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
+        for(j=0;j<i;j++)if(campaign_triggers.items[j].authored->record.uid==t->authored->record.uid){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
+        status=scene_world_mission_key(s->triggers.levels,s->triggers.level_count,s->triggers.items,s->triggers.count,(uint32_t)t->authored->record.uid,&slot);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
+        if(!s->triggers.items[slot].retired){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
         {rf_campaign_trigger_state saved=s->triggers.states[slot];
             r->removed=!!(saved.object_flags&SCENE_WORLD_TRIGGER_REMOVED);
             /* The marker belongs to RFTC, never to the live trigger flags. */
             saved.object_flags&=~SCENE_WORLD_TRIGGER_REMOVED;
-            if(r->removed&&(!(saved.flags&16u)||!(saved.object_flags&2u))){status=RF_FORMAT;goto fail;}
-            r->before=r->next=*t;status=rf_runtime_trigger_restore(&r->next,now,&saved);if(status)goto fail;}
+            if(r->removed&&(!(saved.flags&16u)||!(saved.object_flags&2u))){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
+            r->before=r->next=*t;status=rf_runtime_trigger_restore(&r->next,now,&saved);if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
     }
     for(i=0;i<s->pickup_count;i++){
         scene_world_mission_pickup *r=s->live_pickups+i;r->uid=(uint32_t)stream->pickups.items[i].uid;
         r->before_state=s->state_owner?s->state_owner[i]:0;
-        if(r->before_state>2){status=RF_FORMAT;goto fail;}
-        for(j=0;j<i;j++)if(s->live_pickups[j].uid==r->uid){status=RF_FORMAT;goto fail;}
+        if(r->before_state>2){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
+        for(j=0;j<i;j++)if(s->live_pickups[j].uid==r->uid){status=RF_FORMAT;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
         status=scene_world_mission_key(s->pickups.levels,s->pickups.level_count,s->pickups.items,s->pickups.count,r->uid,&slot);
         /* Unsupported authored item classes have no runtime pickup owner and
          * are never registered by campaign_pickups_restore. Preserve that
@@ -89,10 +91,10 @@ static inline int scene_world_mission_prepare_with_movers_storage_accounted(scen
            !stream->pickup_taken[i] && !stream->pickup_slots[i]){
             r->before_slot=r->next_slot=0;r->before_taken=r->next_taken=0;continue;
         }
-        if(status)goto fail;
+        if(status){rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}
         r->before_slot=stream->pickup_slots[i];r->before_taken=stream->pickup_taken[i];r->next_slot=slot;r->next_taken=(uint8_t)s->pickups.items[slot].retired;
         r->next_state=s->pickup_states[slot];
-        if(r->next_state&&!s->state_owner){status=RF_NOT_FOUND;goto fail;}
+        if(r->next_state&&!s->state_owner){status=RF_NOT_FOUND;{rf_scene_world_mission_reject[0]=__LINE__;rf_scene_world_mission_reject[1]=(uint32_t)status;goto fail;}}
     }
     *out=s;return RF_OK;
 fail:(void)rf_prepare_storage_release(provider,NULL,NULL,s,RF_OK);return status;

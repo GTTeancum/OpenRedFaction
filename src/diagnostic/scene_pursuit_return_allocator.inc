@@ -117,6 +117,9 @@ static int scene_pursuit_return_allocator_bind_accounted(
  * This does not establish compiled stack fit or process physical footprint.
  */
 enum { SCENE_RETURN_LEDGER_RETAINED=1,SCENE_RETURN_LEDGER_TRANSIENT=2 };
+/* Largest transaction budget; a world load stages up to 6 MiB (64 KiB rounded,
+ * never refunded), well inside the free stock64 pages measured at load. */
+#define SCENE_RETURN_LEDGER_MAX_BUDGET (6u*1024u*1024u)
 typedef struct scene_return_memory_slot {
     const void *owner;size_t request_bytes;uint32_t charged_bytes,kind;
 } scene_return_memory_slot;
@@ -141,7 +144,7 @@ static int scene_return_memory_initialize(scene_return_memory_ledger *ledger,
 {
     scene_return_memory_ledger value={0};int status;
     if(sizeof(void*)!=4||sizeof(size_t)!=4||!stack_bytes||
-       budget>2u*1024u*1024u||stack_bytes>budget)return RF_RANGE;
+       budget>SCENE_RETURN_LEDGER_MAX_BUDGET||stack_bytes>budget)return RF_RANGE;
     status=scene_return_memory_storage(ledger,slots,count);if(status)return status;
     value.slots=slots;value.slot_count=count;value.budget=budget;
     value.stack_bytes=stack_bytes;value.peak_bytes=stack_bytes;
@@ -154,7 +157,7 @@ static int scene_return_memory_validate(const scene_return_memory_ledger *ledger
     if(!ledger)return RF_RANGE;
     status=scene_return_memory_storage(ledger,ledger->slots,ledger->slot_count);
     if(status)return status;
-    if(!ledger->stack_bytes||ledger->budget>2u*1024u*1024u||
+    if(!ledger->stack_bytes||ledger->budget>SCENE_RETURN_LEDGER_MAX_BUDGET||
        ledger->stack_bytes>ledger->budget)return RF_FORMAT;
     for(i=0;i<ledger->slot_count;i++){
         const scene_return_memory_slot *slot=ledger->slots+i;

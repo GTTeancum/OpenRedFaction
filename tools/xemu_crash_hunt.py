@@ -56,6 +56,10 @@ def outside_world(sample, bounds, state):
     # because a later death in that next level rebalances the counters.
     if len(activity) > 3 and activity[2] > activity[3] + 1:
         state['left_authored_level'] = True
+    # A load (death recovery or quick-load) may resume another level's save.
+    choice = sample.get('rf_scene_quickload_choice', [0]*8)
+    if choice[0] and choice[3] != choice[4]:
+        state['left_authored_level'] = True
     if state.get('left_authored_level'):
         return None
     eye = [struct.unpack('<f', struct.pack('<I', v))[0] for v in sample['rf_scene_gameplay_eye']]
@@ -113,6 +117,7 @@ def main():
     parser.add_argument('--actor', type=int)
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
+    parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/railgun start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
     parser.add_argument('--aim-actor', type=int, help='Prioritize this authored UID through bounded look input; nearest-hostile fallback after loss')
@@ -201,6 +206,10 @@ def main():
             if source.name in ('default.xbe','tester-profile.flag'): continue
             dest = disc / source.name
             if source.is_file() and not dest.exists(): dest.hardlink_to(source)
+        # Cleanup also prunes the copied original archives; relink any missing.
+        for name in ('tables','levels1','levels2','levels3','levelsm','maps1','maps2','maps3','maps4','maps_en','meshes','motions','audio','music','ui'):
+            dest = disc / (name + '.vpp')
+            if not dest.exists(): dest.hardlink_to(ROOT / 'Installed_Game' / (name + '.vpp'))
         run = confined_path(ROOT, run)
         run.mkdir(parents=True)
         runtime_env = child_environment(ROOT, run)
@@ -223,7 +232,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -349,6 +358,7 @@ def main():
         if args.paced: (disc / 'crash-paced.flag').write_bytes(b'')
         if args.render_sync: (disc / 'render-overlap.bin').write_bytes(struct.pack('<I',args.render_sync))
         if args.experiment: (disc / 'crash-experiment.bin').write_bytes(struct.pack('<I',args.experiment))
+        if args.quick_actions: (disc / 'campaign-quick-actions.bin').write_bytes(struct.pack('<2I',*args.quick_actions))
         if not args.no_audio: (disc / 'audio-output.flag').write_bytes(b'')
         result['xbox_audio_backend'] = not args.no_audio
         if args.target == 'hardware':

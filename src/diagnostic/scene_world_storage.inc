@@ -6,7 +6,7 @@
 uint32_t rf_scene_world_checkpoint_state[10]; /* load status/bytes/staged,save status/bytes,generation,slot,snapshot stage,load attempted,save attempted */
 uint32_t rf_scene_world_snapshot_event_probe[6]; /* step, event index, UID, type, source, actor on rejection */
 unsigned char *rf_scene_world_checkpoint_data; /* Retained native endpoint capture; released at next capture. */
-static uint32_t scene_live_save_held,scene_live_save_pending,scene_live_save_until;
+static uint32_t scene_live_save_held,scene_live_save_pending,scene_live_save_until,scene_live_save_wait_until;
 static int scene_live_save_status;
 static uint32_t scene_live_load_held,scene_live_load_pending,scene_live_load_active,scene_live_notice_load;
 static uint32_t scene_live_load_death_recovery;

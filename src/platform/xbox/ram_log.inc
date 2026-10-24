@@ -198,6 +198,10 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_remote_hash_trace[7];RAM_ARRAY(rf_scene_remote_hash_trace,7);}
     {extern uint32_t rf_scene_tactical_failure[3];RAM_ARRAY(rf_scene_tactical_failure,3);}
     {extern uint32_t rf_scene_world_load_fallback[3];RAM_ARRAY(rf_scene_world_load_fallback,3);}
+    {extern uint32_t rf_scene_quickload_choice[8];RAM_ARRAY(rf_scene_quickload_choice,8);}
+    {extern uint32_t rf_scene_world_mission_reject[2];RAM_ARRAY(rf_scene_world_mission_reject,2);}
+    {extern uint32_t rf_scene_world_snapshot_reject[3];RAM_ARRAY(rf_scene_world_snapshot_reject,3);}
+    {extern uint32_t rf_xbox_checkpoint_storage_state[8];RAM_ARRAY(rf_xbox_checkpoint_storage_state,8);}
     {extern uint32_t rf_scene_physics_profile[8][4];RAM_ARRAY(rf_scene_physics_profile,32);}
     /* Cumulative per-phase rows (count, total ms lo/hi, max ms); active only
      * on the paced frame clock. Rates come from deltas between samples. */

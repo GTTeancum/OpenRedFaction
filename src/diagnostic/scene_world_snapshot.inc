@@ -52,6 +52,8 @@ static inline void scene_world_history_probe(const rf_world_checkpoint *world,in
 #endif
     (void)now;
 }
+/* Last refused save: FNV1a of the refusing part, status, snapshot stage. */
+uint32_t rf_scene_world_snapshot_reject[3];
 static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *level,const char *tables_path,uint32_t requested)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -297,6 +299,9 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;}
 #endif
     rf_scene_world_checkpoint_state[3]=(uint32_t)status;
+    if(status){uint32_t h=2166136261u;const char *c;
+        for(c=part;*c;c++)h=(h^(unsigned char)*c)*16777619u;
+        rf_scene_world_snapshot_reject[0]=h;rf_scene_world_snapshot_reject[1]=(uint32_t)status;rf_scene_world_snapshot_reject[2]=stage;}
     if(status)printf("WORLD_SNAPSHOT_REJECT %s %d\n",part,status);return status;
 }
 static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,const char *tables_path)

@@ -1,20 +1,13 @@
-/* Death recovery resumes the level the player died in. The HDD slots outlive
- * a power cycle and a direct level launch writes no section autosave, so the
- * newest slot can belong to another level or an earlier session; reloading it
- * would move the player to that level. Treat it as absent, so death recovery
- * tries the other slot and otherwise restarts the current level (caller's
- * campaign_life_request_restart). Manual quick-load keeps any level. */
-#ifdef RF_IMAGE_XBOX_NATIVE
-static int scene_world_quickload_same_level(const void *data,uint32_t bytes)
+/* Diagnostics: [0] requests,[1] chosen family(1 auto,2 manual),[2] autosave
+ * status,[3] FNV1a of saved level,[4] FNV1a of current level,[5] storage
+ * generation,[6] slot,[7] death recovery. */
+uint32_t rf_scene_quickload_choice[8];
+static uint32_t scene_quickload_name_hash(const char *name,uint32_t limit)
 {
-    rf_world_checkpoint world;int status=rf_world_checkpoint_decode(data,bytes,0,&world);
-    if(status)return status;
-    if(memchr(world.level,0,sizeof(world.level))==NULL||strcmp(world.level,campaign_current_level)){
-        printf("DEATH_RELOAD_OTHER_LEVEL saved%.63s current%s\n",world.level,campaign_current_level);
-        return RF_NOT_FOUND;}
-    return RF_OK;
+    uint32_t h=2166136261u,i;
+    for(i=0;i<limit && name[i];i++)h=(h^(unsigned char)name[i])*16777619u;
+    return h;
 }
-#endif
 /* Resolve the saved level and verify its source before discarding the current scene.
  * Full component/resource admission remains in the fresh-scene loader. */
 static int scene_world_quickload_request(scene_stream *stream,uint32_t death_recovery)
@@ -34,22 +27,44 @@ static int scene_world_quickload_request(scene_stream *stream,uint32_t death_rec
 #ifdef RF_IMAGE_XBOX_NATIVE
     (void)selection;
     if(death_recovery){
-        status=rf_xbox_checkpoint_storage_open_world_auto(&storage,0);
+        /* Death reloads the player's most recent save, autosave or manual,
+         * whichever level it belongs to; ties keep the autosave. */
+        uint64_t auto_time=0,manual_time=0;int auto_status,closed;
+        auto_status=rf_xbox_checkpoint_storage_open_world_auto(&storage,0);
+        if(!auto_status)auto_status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+        rf_scene_quickload_choice[2]=(uint32_t)auto_status;
+        if(!auto_status && rf_xbox_checkpoint_storage_selected_time(&storage,&auto_time))auto_time=0;
+        if(auto_status && auto_status!=RF_NOT_FOUND && auto_status!=RF_FORMAT && auto_status!=RF_RANGE){status=auto_status;goto done;}
+        closed=scene_world_storage_close(&storage);if(closed){status=closed;goto done;}
+        memset(&storage,0,sizeof(storage));
+        status=rf_xbox_checkpoint_storage_open_world(&storage,0);
         if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
-        if(!status)status=scene_world_quickload_same_level(data,bytes);
-        if(status==RF_NOT_FOUND || status==RF_FORMAT || status==RF_RANGE){
-            int closed=scene_world_storage_close(&storage);if(closed){status=closed;goto done;}
+        if(!status && !auto_status && (rf_xbox_checkpoint_storage_selected_time(&storage,&manual_time) || manual_time<=auto_time))status=RF_NOT_FOUND;
+        if(status){
+            if(auto_status)goto done;
+            closed=scene_world_storage_close(&storage);if(closed){status=closed;goto done;}
             memset(&storage,0,sizeof(storage));
-            status=rf_xbox_checkpoint_storage_open_world(&storage,0);
-        }else if(!status)chosen_auto=1;
-    }else status=rf_xbox_checkpoint_storage_open_world(&storage,0);
-    if(!status && !chosen_auto)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
-    if(!status && !chosen_auto && death_recovery)status=scene_world_quickload_same_level(data,bytes);
+            status=rf_xbox_checkpoint_storage_open_world_auto(&storage,0);
+            if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+            chosen_auto=!status;
+        }
+    }else{
+        status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+        if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+    }
 #else
     status=rf_checkpoint_file_load("redfaction-save",data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL,&selection);
 #endif
     if(status)goto done;
     status=rf_world_checkpoint_decode(data,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&world);if(status)goto done;
+    ++rf_scene_quickload_choice[0];
+    rf_scene_quickload_choice[3]=scene_quickload_name_hash(world.level,sizeof(world.level));
+    rf_scene_quickload_choice[4]=scene_quickload_name_hash(campaign_current_level,sizeof(campaign_current_level));
+    rf_scene_quickload_choice[7]=death_recovery;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    rf_scene_quickload_choice[1]=chosen_auto?1u:2u;
+    rf_scene_quickload_choice[5]=storage.selection.generation;rf_scene_quickload_choice[6]=storage.selection.slot;
+#endif
     /* Prefer the already-open archive, including a process-local fixture. */
     status=rf_level_open(&target,stream->world_checkpoint_level->archive,world.level);
     if(status==RF_NOT_FOUND){

@@ -100,7 +100,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
     unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,rows_bytes=0,added=0,flags=0,selected=0,cost=sizeof(uint32_t);int status=RF_OK,found=0;
-    const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
+    const uint32_t budget=SCENE_RETURN_LEDGER_MAX_BUDGET;const char *phase="identity";
     scene_world_load_reached_publication=0;
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
     if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
@@ -133,7 +133,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #ifdef RF_IMAGE_XBOX_NATIVE
     /* Cumulative native accounting: slots0/1 name file buffer and initial NPC rows; slot2 names resource planning. Subsequent admissions charge real temporary arena backing and separate persistent children, demand payloads, file requests and return-driver allocations. Each backing request includes128B overhead and64KiB rounding; no free or failed allocation refunds its admission. The unchanged2MiB cap bounds admission slots. The ledger itself does not prove compiled stack fit; that assessment is separate. */
     scene_return_memory_ledger early_memory={0};
-    scene_return_memory_slot early_memory_slots[(2u*1024u*1024u)/65536u]={0};
+    scene_return_memory_slot early_memory_slots[SCENE_RETURN_LEDGER_MAX_BUDGET/65536u]={0};
     const rf_prepare_memory world_memory={scene_world_stage_memory,&early_memory};
     scene_world_stage_arena stage_arena={NULL,&world_memory};
     const rf_prepare_storage stage_storage={scene_world_stage_arena_allocate,scene_world_stage_arena_release,&stage_arena};

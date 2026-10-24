@@ -1752,3 +1752,11 @@ First pass: 62 of 68 completed. Failures and fixes:
 - L14S3, L19S2A, L19S2B, L19S3: death reload failed at the player phase (weapon-modes checkpoint RF_FORMAT). The catalog hash included `campaign_remote`/`campaign_primary[8]` bytes, which are filled only when a scene loads remote charges and never cleared, so a save written before they were loaded mismatched later. The hash now counts them only when the current scene loaded them; restore also accepts the legacy and never-loaded values where no live charges are saved. Xbox death recovery ignores slots from other levels, and `scene_world_load_live_fallback` restarts the level for FORMAT/NOT_FOUND/RANGE rejections before publication (`rf_scene_world_load_fallback[3]`).
 
 Rerun of all seven on the fixed build: all COMPLETED; the four death-reload levels each recorded a death with zero load rejections or fallbacks. L20S3 is a non-interactive finale (one eye position).
+
+### Cross-level save and load (user direction: dying may load another level's save when it is the newest)
+
+- Death recovery takes the newest of the autosave and manual families by slot last-write time (`rf_xbox_checkpoint_storage_selected_time`), autosave on ties; the same-level filter is removed. Manual quick-load is unchanged (newest manual slot).
+- Quick-save in L1S2 was refused by the player snapshot (RF_RANGE, player state scope: turning/landing/weapon cooldown). A save request now waits up to 180 ticks for `scene_checkpoint_player_state_scope` to clear before capturing. `rf_scene_world_snapshot_reject[3]` records the refusing part.
+- Loading that save from L2S1 switched to L1S2 and then failed in the mission phase: the world-load staging ledger (2 MiB, 64 KiB rounding, no refunds) ran out of admission. `SCENE_RETURN_LEDGER_MAX_BUDGET` raises the world-load budget to 6 MiB; per-allocation caps are unchanged. `rf_scene_world_mission_reject[2]` records the failing check.
+- Console result: save at replay frame 300 in L1S2 (generation written and flushed), fresh L2S1 run loads at frame 300, two scene starts, no load rejection or fallback; the player eye after the load equals the L1S2 eye at the save, with L1S2's 38-NPC set.
+- `--quick-actions SAVE LOAD` drives quick-save/quick-load frames in the harness; the harness relinks original archives that cleanup prunes from the crash disc.
