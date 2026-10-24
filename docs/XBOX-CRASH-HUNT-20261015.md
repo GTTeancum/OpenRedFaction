@@ -1783,3 +1783,7 @@ RAM-log memory accounting (rf_xbox_reload_memory rows after each level release, 
 - Open/close loop with no reloads: direct NtCreateFile and stdio probes of missing files left pool flat; successful fopen/fclose grew pool about 70 bytes per pair.
 - Cause: NXDK PDCLib fopen calls mtx_init (NtCreateMutant) per stream and fclose never calls mtx_destroy. tools/prepare_checked_stdio.py now inserts mtx_destroy for non-static streams into the patched fclose.
 - Result: 28-reload loop, pool 5-6 pages throughout, available pages flat at 9052 from reload 7 on.
+
+### Vehicle damage tables (entity.tbl)
+
+Driller01 Life 900, bullet 0.0, armor piercing 0.1; Jeep01 Life 400, bullet 0.1; APC Life 5000, bullet 0.1, armor piercing 0.3; sub Life 700, bullet 0.0; Fighter01 Life 900, bullet 0.0, explosive 0.5. The Driller's unchanged health under enemy bullets matches the authored table. No floor-supported staging within 25 units exists for the L5S3 submarine or the L18S2 Fighter (search over every authored actor, distances 3-20); the APC has staging at 6-11 units but its guards kill the player within seconds.
