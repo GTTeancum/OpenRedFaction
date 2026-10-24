@@ -194,7 +194,7 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_world_build_skips;RAM_ARRAY(&rf_scene_world_build_skips,1);}
     {extern uint32_t rf_scene_draw_skips;RAM_ARRAY(&rf_scene_draw_skips,1);}
     {extern uint32_t rf_scene_world_load_reject[3];RAM_ARRAY(rf_scene_world_load_reject,3);}
-    {extern uint32_t rf_scene_world_player_probe[2];RAM_ARRAY(rf_scene_world_player_probe,2);}
+    {extern uint32_t rf_scene_world_player_probe[2];RAM_ARRAY(rf_scene_world_player_probe,3);}
     {extern uint32_t rf_scene_remote_hash_trace[7];RAM_ARRAY(rf_scene_remote_hash_trace,7);}
     {extern uint32_t rf_scene_tactical_failure[3];RAM_ARRAY(rf_scene_tactical_failure,3);}
     {extern uint32_t rf_scene_world_load_fallback[3];RAM_ARRAY(rf_scene_world_load_fallback,3);}

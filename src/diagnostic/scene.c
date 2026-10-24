@@ -225,7 +225,7 @@ int rf_scene_replay_header(FILE *file,uint32_t *count,uint32_t *record_size)
         if(fread(header+1,4,1,file)!=1 || header[1]!=size)return RF_FORMAT;
         offset=8;
     }
-    if(bytes<=offset || (bytes-offset)%size || (bytes-offset)/size>60000 || fseek(file,offset,SEEK_SET))return RF_FORMAT;
+    if(bytes<=offset || (bytes-offset)%size || (bytes-offset)/size>240000 || fseek(file,offset,SEEK_SET))return RF_FORMAT;
     *count=(uint32_t)(bytes-offset)/size;*record_size=size;return RF_OK;
 }
 static rf_scene_input_poll player_poll;

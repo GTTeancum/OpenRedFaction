@@ -164,6 +164,21 @@ static inline int scene_world_player_prepare_accounted(scene_stream *stream,cons
             scene_world_passive_support_place(stream,&context,&s.placement,passive,
                 passive_index,campaign_player_object.handle,(uint32_t)campaign_player_view.linked_handle,&s.room,&s.support):
             scene_checkpoint_world_place(&context,&s.placement,&s.room,&s.support);
+        /* A player saved mid-jump or against geometry may not fit exactly:
+         * accept no floor contact, then nudge up, then take the saved spot
+         * unchecked; physics settles the body on the first steps. */
+        if(status==RF_NOT_FOUND&&passive_index==UINT32_MAX&&!support_uid){
+            static const float lift[4]={.125f,.25f,.5f,1.f};
+            scene_checkpoint_world_context loose=context;loose.allow_no_contact=1;
+            status=scene_checkpoint_world_place(&loose,&s.placement,&s.room,&s.support);
+            for(uint32_t k=0;status==RF_NOT_FOUND&&k<4;k++){
+                float at[3]={s.player.position[0],s.player.position[1]+lift[k],s.player.position[2]};
+                status=scene_world_restore_fit_at(&loose,&s.placement,at,&s.room,&s.support);
+                if(!status){memcpy(s.player.position,at,12);memcpy(s.placement.position,at,12);}
+            }
+            if(status==RF_NOT_FOUND)status=scene_world_restore_accept_at(&loose,s.player.position,location.room+1,&s.room,&s.support);
+            if(!status)++rf_scene_world_player_probe[2];
+        }
         if(status)return status;}
     if(support_uid&&passive_index==UINT32_MAX){
         uint32_t i,found=0;
