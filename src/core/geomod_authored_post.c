@@ -19,6 +19,9 @@ typedef struct cursor {
 struct rf_geomod_authored_post {
     rf_geomod_authored_post_view view;
     float (*cavity_obstacles)[2][3];uint32_t cavity_obstacle_count;
+    /* {obstacle index, first face box, face count} for closed air neighbors. */
+    uint32_t (*cavity_refined)[3];uint32_t cavity_refined_count;
+    float (*cavity_face_boxes)[2][3];
 };
 static uint32_t u32(const unsigned char *p) {
     return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
@@ -173,6 +176,91 @@ static int overlap(const brush_record *a, const brush_record *b) {
         if (a->minimum[i] > b->maximum[i] + 1e-5f || a->maximum[i] < b->minimum[i] - 1e-5f)
             return 0;
     return 1;
+}
+/* Index-closed check for an air obstacle: every directed corner edge has
+ * exactly one reversed partner. Duplicate-position vertices or open shells
+ * return RF_NOT_FOUND and keep the plain AABB obstacle (conservative). */
+static int brush_closed(const unsigned char *data, const brush_record *b) {
+    uint32_t i, j, at = b->face_offset;
+    if (b->corners > 2048)
+        return RF_NOT_FOUND;
+    for (i = 0; i < b->faces; i++) {
+        const unsigned char *p = data + at;
+        uint32_t n = u32(p + 52), stride = u32(p + 20) == UINT32_MAX ? 12 : 20;
+        for (j = 0; j < n; j++) {
+            uint32_t x = u32(p + 56 + j * stride), y = u32(p + 56 + ((j + 1) % n) * stride);
+            uint32_t f, other = b->face_offset, matches = 0;
+            if (x == y)
+                return RF_NOT_FOUND;
+            for (f = 0; f < b->faces; f++) {
+                const unsigned char *q = data + other;
+                uint32_t m = u32(q + 52), qs = u32(q + 20) == UINT32_MAX ? 12 : 20, k;
+                for (k = 0; k < m; k++)
+                    if (u32(q + 56 + k * qs) == y && u32(q + 56 + ((k + 1) % m) * qs) == x)
+                        matches++;
+                other += 56 + m * qs;
+            }
+            if (matches != 1)
+                return RF_NOT_FOUND;
+        }
+        at += 56 + n * stride;
+    }
+    return RF_OK;
+}
+/* World AABB of each authored face, using the same transform as parse(), so
+ * every face box lies inside the brush AABB. */
+static int brush_face_boxes(const unsigned char *data, const brush_record *b, float (*out)[2][3]) {
+    uint32_t i, j, k, at = b->face_offset;
+    for (i = 0; i < b->faces; i++) {
+        const unsigned char *p = data + at;
+        uint32_t n = u32(p + 52), stride = u32(p + 20) == UINT32_MAX ? 12 : 20;
+        for (j = 0; j < n; j++) {
+            float point[3];
+            int s = transform(b, data + b->vertex_offset + u32(p + 56 + j * stride) * 12, point);
+            if (s)
+                return s;
+            for (k = 0; k < 3; k++) {
+                if (!j || point[k] < out[i][0][k])
+                    out[i][0][k] = point[k];
+                if (!j || point[k] > out[i][1][k])
+                    out[i][1][k] = point[k];
+            }
+        }
+        at += 56 + n * stride;
+    }
+    return RF_OK;
+}
+static int box_touch(const float *lo, const float *hi, const float minimum[3], const float maximum[3]) {
+    uint32_t k;
+    for (k = 0; k < 3; k++)
+        if (maximum[k] < lo[k] - 1e-5f || minimum[k] > hi[k] + 1e-5f)
+            return 0;
+    return 1;
+}
+/* Obstacle i blocks the box. A closed air obstacle blocks only when the box
+ * touches one of its face boxes or lies wholly inside its AABB: otherwise the
+ * box crosses no boundary polygon and has a point outside the AABB, so it is
+ * wholly outside that air volume. Other obstacles keep the AABB test. */
+static int cavity_obstacle_hit(const struct rf_geomod_authored_post *o, uint32_t i,
+    const float minimum[3], const float maximum[3]) {
+    uint32_t r, f, k;
+    if (!box_touch(o->cavity_obstacles[i][0], o->cavity_obstacles[i][1], minimum, maximum))
+        return 0;
+    for (r = 0; r < o->cavity_refined_count; r++)
+        if (o->cavity_refined[r][0] == i)
+            break;
+    if (r == o->cavity_refined_count)
+        return 1;
+    for (k = 0; k < 3; k++)
+        if (minimum[k] < o->cavity_obstacles[i][0][k] - 1e-5f || maximum[k] > o->cavity_obstacles[i][1][k] + 1e-5f)
+            break;
+    if (k == 3)
+        return 1;
+    for (f = 0; f < o->cavity_refined[r][2]; f++)
+        if (box_touch(o->cavity_face_boxes[o->cavity_refined[r][1] + f][0],
+                      o->cavity_face_boxes[o->cavity_refined[r][1] + f][1], minimum, maximum))
+            return 1;
+    return 0;
 }
 static int same(const float a[3], const float b[3]) { return a[0] == b[0] && a[1] == b[1] && a[2] == b[2]; }
 static int geometry_source(const rf_geometry *g, uint32_t face, uint32_t *id) {
@@ -468,7 +556,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     const beam_profile *beam=find_beam_profile(source_uid);
     const post_profile *post=find_post_profile(source_uid);
     rf_geomod_authored_detail_guard guard={0},*stored_guard=NULL;
-    uint32_t detail_faces=0;
+    uint32_t detail_faces=0, refined=0, refined_faces=0;
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
@@ -530,6 +618,17 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
         s = RF_NOT_FOUND;
         goto done;
     }
+    /* Closed air neighbors touching the source AABB retain face boxes. */
+    for (i = 0; cavity && i < count; i++)
+        if (i != source_index && records[i].flags == 2 && overlap(source, records + i)) {
+            s = brush_closed(data, records + i);
+            if (s == RF_NOT_FOUND)
+                continue;
+            if (s)
+                goto done;
+            refined++;
+            refined_faces += records[i].faces;
+        }
     for (i = 0; i < count; i++)
         if (!cavity && i != source_index && overlap(source, records + i)) {
             brush_record *b = records + i;
@@ -675,7 +774,11 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     void_owner = chunk(base, &at, roof_air?1:0, sizeof(*void_owner));                                      \
     stored_guard = chunk(base, &at, post?1:0, sizeof(*stored_guard));
     ALLOCATE_FIELDS(NULL);
-    if(cavity)chunk(NULL,&at,count-1,sizeof(float[2][3]));
+    if(cavity) {
+        chunk(NULL,&at,count-1,sizeof(float[2][3]));
+        chunk(NULL,&at,refined,sizeof(uint32_t[3]));
+        chunk(NULL,&at,refined_faces,sizeof(float[2][3]));
+    }
     peak = scratch + at;
     if (peak > budget || at > UINT32_MAX) {
         s = RF_RANGE;
@@ -692,9 +795,53 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     ALLOCATE_FIELDS((unsigned char *)o);
     if(cavity) {
         o->cavity_obstacles=chunk((unsigned char *)o,&at,count-1,sizeof(*o->cavity_obstacles));
+        o->cavity_refined=chunk((unsigned char *)o,&at,refined,sizeof(*o->cavity_refined));
+        o->cavity_face_boxes=chunk((unsigned char *)o,&at,refined_faces,sizeof(*o->cavity_face_boxes));
+        k=0;
         for(i=0;i<count;i++)if(i!=source_index) {
-            memcpy(o->cavity_obstacles[o->cavity_obstacle_count][0],records[i].minimum,12);
-            memcpy(o->cavity_obstacles[o->cavity_obstacle_count++][1],records[i].maximum,12);
+            const brush_record *b=records+i;float (*box)[3]=o->cavity_obstacles[o->cavity_obstacle_count];
+            memcpy(box[0],b->minimum,12);memcpy(box[1],b->maximum,12);
+            /* Portal bounds are rebuilt from compiled faces below; an empty
+             * (inverted) box afterwards falls back to the authored sheet. */
+            if(b->flags==1)for(j=0;j<3;j++){box[0][j]=INFINITY;box[1][j]=-INFINITY;}
+            /* Same selection as the counting pass above (no scratch retained). */
+            if(b->flags==2 && overlap(source,b)) {
+                s=brush_closed(data,b);
+                if(!s) {
+                    uint32_t *row;
+                    if(o->cavity_refined_count==refined || b->faces>refined_faces-k){s=RF_FORMAT;goto done;}
+                    row=o->cavity_refined[o->cavity_refined_count++];
+                    row[0]=o->cavity_obstacle_count;row[1]=k;row[2]=b->faces;
+                    s=brush_face_boxes(data,b,o->cavity_face_boxes+k);if(s)goto done;
+                    k+=b->faces;
+                } else if(s!=RF_NOT_FOUND)goto done;
+            }
+            o->cavity_obstacle_count++;
+        }
+        if(o->cavity_refined_count!=refined || k!=refined_faces){s=RF_FORMAT;goto done;}
+        /* Portal obstacles use their compiled (room-clipped) extent: the
+         * authored sheet may extend into solid where no portal exists. */
+        for(i=0;i<g->faces;i++) {
+            uint32_t id,brush;const face_owner *owner;rf_geometry_face f;float (*box)[3];
+            s=geometry_source(g,i,&id);if(s)goto done;
+            owner=find_owner(owners,total_faces,id);
+            if(!owner || owner->brush==source_index || records[owner->brush].flags!=1)continue;
+            s=rf_geometry_get_face(g,i,&f);if(s)goto done;
+            brush=owner->brush;box=o->cavity_obstacles[brush<source_index?brush:brush-1];
+            for(j=0;j<f.corners;j++) {
+                rf_geometry_corner corner;float position[3];uint32_t axis;
+                s=rf_geometry_get_corner(g,i,j,&corner);if(s)goto done;
+                s=rf_geometry_vertex(g,corner.vertex,position);if(s)goto done;
+                for(axis=0;axis<3;axis++) {
+                    if(!isfinite(position[axis])){s=RF_FORMAT;goto done;}
+                    if(position[axis]<box[0][axis])box[0][axis]=position[axis];
+                    if(position[axis]>box[1][axis])box[1][axis]=position[axis];
+                }
+            }
+        }
+        for(i=0;i<count;i++)if(i!=source_index && records[i].flags==1) {
+            float (*box)[3]=o->cavity_obstacles[i<source_index?i:i-1];
+            if(box[0][0]>box[1][0]){memcpy(box[0],records[i].minimum,12);memcpy(box[1],records[i].maximum,12);}
         }
     }
 #undef ALLOCATE_FIELDS
@@ -977,10 +1124,8 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
     if(!o || !minimum || !maximum || !reference)return RF_RANGE;
     a=&o->view;if((a->source_uid!=66 && a->source_uid!=148 && a->source_uid!=8123 && a->source_uid!=8219) || !o->cavity_obstacles)return RF_NOT_FOUND;
     for(k=0;k<3;k++)if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || minimum[k]>maximum[k])return RF_RANGE;
-    for(i=0;i<o->cavity_obstacle_count;i++) {
-        for(k=0;k<3;k++)if(maximum[k]<o->cavity_obstacles[i][0][k]-1e-5f || minimum[k]>o->cavity_obstacles[i][1][k]+1e-5f)break;
-        if(k==3)return RF_NOT_FOUND;
-    }
+    for(i=0;i<o->cavity_obstacle_count;i++)
+        if(cavity_obstacle_hit(o,i,minimum,maximum))return RF_NOT_FOUND;
     if(a->source_uid==148 || a->source_uid==8123 || a->source_uid==8219) {
         uint32_t touched=0,ref;int status=cavity_surface_box_admit(a,minimum,maximum,&touched,&ref);
         if(!status){*reference=ref;return RF_OK;}
@@ -1015,11 +1160,8 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
             }
         }
         /* A deep cutter cannot jump past an intervening authored brush. */
-        for(j=0;j<o->cavity_obstacle_count && accepted;j++) {
-            for(k=0;k<3;k++)if(corridor[1][k]<o->cavity_obstacles[j][0][k]-1e-5f ||
-                corridor[0][k]>o->cavity_obstacles[j][1][k]+1e-5f)break;
-            if(k==3)accepted=0;
-        }
+        for(j=0;j<o->cavity_obstacle_count && accepted;j++)
+            if(cavity_obstacle_hit(o,j,corridor[0],corridor[1]))accepted=0;
         if(accepted){*reference=a->window_origins[i].reference;return RF_OK;}
     }
     return RF_NOT_FOUND;

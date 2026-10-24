@@ -67,7 +67,12 @@ int rf_geomod_authored_cavity_open(const rf_level *,const rf_geometry *,uint32_t
 int rf_geomod_authored_cavity_decode(const void *,uint32_t,const rf_geometry *,
     const rf_level_geomod_settings *,uint32_t,rf_geomod_authored_post **);
 /* Conservative local cavity admission. Exact cutter AABB must avoid every
- * other authored brush AABB and its projection must fit one ordinary compiled
+ * other authored brush AABB, except: an index-closed air brush whose AABB
+ * touches the source blocks only if the cutter touches one of its face boxes
+ * or lies wholly inside its AABB (provably outside that air volume otherwise),
+ * and a portal brush uses the AABB of its compiled faces when it has any
+ * (authored sheet AABB otherwise). The same tests guard the deep corridor
+ * (unverified on hardware, 2026-10-24). Its projection must fit one ordinary compiled
  * wall window or a convex pair sharing an exact reversed full edge; the entire corridor back to that plane must also avoid brushes.
  * UID148 additionally admits wall/floor corners only when every actual source
  * surface clipped by the cutter bounds fits retained compiled windows.
