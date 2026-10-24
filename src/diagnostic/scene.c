@@ -21902,12 +21902,23 @@ static int scene_pickups_draw(scene_stream *stream)
 
 typedef struct scene_glare_search_context {
     rf_glare_visibility_object *objects;uint32_t (*facts)[3];uint32_t count,movers,actors;
+    uint32_t capacity; /* Clutter joins on first lookup; occlusion lists hold only movers/actors. */
 } scene_glare_search_context;
 uint32_t rf_scene_glare_search[8]; /* passes, queries, visible, cached repeats, hash, bytes, objects, errors */
 static int scene_glare_lookup(void *context,uint32_t handle,const rf_glare_visibility_object **result)
 {
-    scene_glare_search_context *c=context;uint32_t i;*result=NULL;
-    for(i=0;i<c->count;++i)if(c->objects[i].handle==handle){*result=c->objects+i;break;}
+    scene_glare_search_context *c=context;uint32_t i;const void *registered;*result=NULL;
+    for(i=0;i<c->count;++i)if(c->objects[i].handle==handle){*result=c->objects+i;return RF_OK;}
+    /* Performance: clutter is only ever reached by handle (glare parents and
+     * associations), never as an occlusion candidate. Copy a prop's view into
+     * the snapshot on its first lookup instead of every prop every frame. */
+    registered=rf_object_registry_lookup(&campaign_registry,handle);
+    if(!registered || c->count>=c->capacity)return RF_OK;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i] && &campaign_clutter_bodies[i]->state==registered) {
+        uint32_t n=c->count;int status=campaign_clutter_visibility_view_at(i,handle,c->objects+n);if(status)return status;
+        memset(c->facts[n],0,sizeof(c->facts[n]));c->facts[n][0]=campaign_clutter_bodies[i]->state.first_word;c->facts[n][2]=UINT32_MAX;
+        c->count=n+1;*result=c->objects+n;break;
+    }
     return RF_OK;
 }
 static int scene_glare_solid_owner(void *context,uint32_t handle,const rf_glare_visibility_object **result)
@@ -21958,7 +21969,7 @@ static int scene_glare_snapshot_fill(scene_glare_search_context *out,uint32_t *s
     uint32_t i,n=0,selected;const rf_entity_view *linked;int status=RF_OK;
     if(!campaign_alpha_world || !campaign_player_object.view || !storage || required>capacity)return RF_RANGE;
     c.objects=storage;c.facts=(uint32_t(*)[3])(c.objects+capacity);
-    memset(c.facts,0,capacity*sizeof(*c.facts));
+    memset(c.facts,0,((size_t)campaign_mover_count+campaign_npc_body_count+1)*sizeof(*c.facts));
     for(i=0;i<campaign_mover_count;++i,++n) {
         status=campaign_mover_visibility_view_at(i,campaign_mover_wrappers[i].handle,c.objects+n);if(status)goto done;
         c.facts[n][2]=UINT32_MAX;
@@ -21968,11 +21979,7 @@ static int scene_glare_snapshot_fill(scene_glare_search_context *out,uint32_t *s
         status=campaign_npc_visibility_view_at(i,campaign_npc_bodies[i].registration.handle,c.objects+n);if(status)goto done;
         status=campaign_npc_visibility_facts_at(i,c.objects[n].handle,c.facts[n]);if(status)goto done;++n;
     }
-    c.actors=n-c.movers;
-    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
-        status=campaign_clutter_visibility_view_at(i,campaign_clutter_bodies[i]->state.handle,c.objects+n);if(status)goto done;
-        c.facts[n][0]=campaign_clutter_bodies[i]->state.first_word;c.facts[n][2]=UINT32_MAX;++n;
-    }
+    c.actors=n-c.movers;c.capacity=capacity;
     selected=n++;
     if(rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=campaign_player_object.view){status=RF_NOT_FOUND;goto done;}
     /* Selected player participates only in room/association and exclusion;
@@ -22078,7 +22085,24 @@ static int scene_corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uin
 {scene_corona_context *c=context;c->color=(r&255u)|((g&255u)<<8)|((b&255u)<<16)|((a&255u)<<24);return RF_OK;}
 static int scene_corona_texture(void *context,uint32_t bitmap,int32_t second)
 {scene_corona_context *c=context;if(second!=-1 || bitmap>=campaign_glare_materials.texture_count)return RF_RANGE;c->bitmap=bitmap;return RF_OK;}
+/* Corona cost split (CPU cycles): [0] renders, [1] searches, [2] snapshot
+ * cycles, [3] search cycles, [4] total render cycles, [5] glares in list. */
+uint64_t rf_scene_corona_cycles[10]; /* [6] parent, [7] geometry, [8] sink cycles, [9] geometry calls */
+static uint64_t corona_cycles(void)
+{
+#if defined(__i386__) || defined(__x86_64__)
+    uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;
+#else
+    return 0;
+#endif
+}
+static int scene_corona_geometry_body(scene_corona_context *c,const float first[3],const float *second,float angle,float size,uint32_t mode,uint32_t volume);
 static int scene_corona_geometry(scene_corona_context *c,const float first[3],const float *second,float angle,float size,uint32_t mode,uint32_t volume)
+{
+    uint64_t t0=corona_cycles();int status=scene_corona_geometry_body(c,first,second,angle,size,mode,volume);
+    rf_scene_corona_cycles[7]+=corona_cycles()-t0;++rf_scene_corona_cycles[9];return status;
+}
+static int scene_corona_geometry_body(scene_corona_context *c,const float first[3],const float *second,float angle,float size,uint32_t mode,uint32_t volume)
 {
     uint32_t *row=volume?rf_scene_volume_draw:rf_scene_corona_draw;
     const rf_particle_animation *animation=&campaign_glare_materials.textures[c->bitmap].animation;
@@ -22104,7 +22128,7 @@ static int scene_corona_geometry(scene_corona_context *c,const float first[3],co
     e.rgba=c->color;e.vertex_color=states.vertex_color;e.vertex_alpha=states.vertex_alpha;
     e.depth_scale=e.reciprocal_scale=c->stream->particle_camera.view.scale[2];e.uv_scale[0]=e.uv_scale[1]=1;
     for(i=0;i<polygon.count;++i){status=rf_particle_vertex_encode(&e,polygon.vertices+i,vertices+i);if(status)return status;}
-    if(c->sink){status=c->sink(c->context,vertices,polygon.count,image,mode);if(status)return status;}
+    if(c->sink){uint64_t t0=corona_cycles();status=c->sink(c->context,vertices,polygon.count,image,mode);rf_scene_corona_cycles[8]+=corona_cycles()-t0;if(status)return status;}
     ++row[3];row[4]+=polygon.count;
     row[5]=scene_diagnostic_hash(row[5],vertices,polygon.count*sizeof(*vertices));
     row[5]=npc_hash_bytes(row[5],&c->bitmap,4);return RF_OK;
@@ -22113,27 +22137,23 @@ static int scene_corona_billboard(void *c,const float p[3],float angle,float siz
 {return scene_corona_geometry(c,p,NULL,angle,size,mode,0);}
 static int scene_corona_oriented(void *c,const float p[3],const float q[3],float size,uint32_t mode)
 {return scene_corona_geometry(c,p,q,0,size,mode,0);}
+static int scene_corona_parent_body(void *context,uint32_t handle,uint32_t *visible);
 static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
 {
+    uint64_t t0=corona_cycles();int status=scene_corona_parent_body(context,handle,visible);
+    rf_scene_corona_cycles[6]+=corona_cycles()-t0;return status;
+}
+static int scene_corona_parent_body(void *context,uint32_t handle,uint32_t *visible)
+{
     scene_corona_context *c=context;const rf_glare_visibility_object *parent;uint32_t room;int status;
-    status=scene_vehicle_headlamp_visible(c->stream,handle,visible);if(status!=RF_NOT_FOUND)return status;
-    status=scene_corona_snapshot(c);if(status)return status;
+    {uint64_t t0=corona_cycles();status=scene_vehicle_headlamp_visible(c->stream,handle,visible);rf_scene_corona_cycles[5]+=corona_cycles()-t0;}
+    if(status!=RF_NOT_FOUND)return status;
+    {uint64_t t0=corona_cycles();status=scene_corona_snapshot(c);rf_scene_corona_cycles[2]+=corona_cycles()-t0;}if(status)return status;
     status=scene_glare_lookup(&c->snapshot,handle,&parent);if(status)return status;*visible=1;if(!parent)return RF_OK;
     if(parent->geometry.flags&(2u|0x4000u)){*visible=0;return RF_OK;}
     status=scene_glare_room(&c->snapshot,parent,&room);if(status)return status;
     if(room){if(room>c->stream->visibility.state.count)return RF_RANGE;*visible=c->stream->visibility.state.rooms[room-1].visible!=0;}
     return RF_OK;
-}
-/* Corona cost split (CPU cycles): [0] renders, [1] searches, [2] snapshot
- * cycles, [3] search cycles, [4] total render cycles, [5] glares in list. */
-uint64_t rf_scene_corona_cycles[6];
-static uint64_t corona_cycles(void)
-{
-#if defined(__i386__) || defined(__x86_64__)
-    uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;
-#else
-    return 0;
-#endif
 }
 static int scene_corona_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *visible)
 {
@@ -22442,7 +22462,7 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
         status=scene_corona_snapshot(&c);if(status)return status;
     }
     ++rf_scene_corona_draw[0];
-    views[0]=&stream->particle_camera;rf_scene_corona_cycles[5]=campaign_glare_list.count;
+    views[0]=&stream->particle_camera;
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
     if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }

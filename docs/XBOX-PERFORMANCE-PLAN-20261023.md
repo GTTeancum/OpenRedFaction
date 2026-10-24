@@ -161,3 +161,5 @@ Profile (console, paced exercise replay): per game step about 12 ms of simulatio
 - New RAM-log diagnostics: renderer phase profile (r:/d: rows in tools/crash_profile.py), particle/corona time split, corona search cycles, NPC pose LOD counters.
 
 Remaining L1S2 costs per step: NPC AI ~1.5, animation ~1.3, physics ~2.8 (crusher/conveyor movers and per-tick audio commit), combat ~1.5, events ~1.3; per drawn frame: corona submission ~1.2 ms beyond searches, world/model draws ~2.5 ms.
+
+- Drawn-frame split (L1S2, per drawn frame): world+movers 1.5 ms (indexed path; draw-arrays fallback measured 2.3 ms), models/stream 1.9 ms, particles+coronas 2.8 ms. Corona parent visibility cost 0.9 ms because its first call built the glare snapshot, copying every clutter prop every frame; clutter is never an occlusion candidate, only a handle lookup, so it now joins the snapshot on first lookup. Snapshot 0.88 -> 0.25 ms, coronas 2.1 -> 1.5 ms per drawn frame, L1S2 drawn fps median 25.9.

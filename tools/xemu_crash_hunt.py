@@ -119,6 +119,7 @@ def main():
     parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
     parser.add_argument('--seed', type=int, default=1, help='Random input seed')
     parser.add_argument('--save-load-every', type=int, metavar='FRAMES', help='Alternate quick-save and quick-load every FRAMES replay frames (up to 64 actions)')
+    parser.add_argument('--world-arrays', action='store_true', help='Draw the retained world with draw arrays instead of inline indices')
     parser.add_argument('--load-only', action='store_true', help='With --save-load-every: save once, then only load')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/railgun start; ordinary finite ammunition')
@@ -235,7 +236,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -374,6 +375,7 @@ def main():
         if args.paced: (disc / 'crash-paced.flag').write_bytes(b'')
         if args.render_sync: (disc / 'render-overlap.bin').write_bytes(struct.pack('<I',args.render_sync))
         if args.experiment: (disc / 'crash-experiment.bin').write_bytes(struct.pack('<I',args.experiment))
+        if args.world_arrays: (disc / 'renderer-world-indices-off.flag').write_bytes(b'')
         if args.quick_actions: (disc / 'campaign-quick-actions.bin').write_bytes(struct.pack('<2I',*args.quick_actions))
         if args.save_load_every:
             pairs = [(f, (1 if i == 0 else 2) if args.load_only else 1 + (i % 2)) for i, f in enumerate(range(args.save_load_every, args.frames, args.save_load_every))][:64]
