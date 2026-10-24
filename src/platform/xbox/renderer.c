@@ -207,6 +207,13 @@ static gpu_texture *stream_textures;
 static const rf_materials *stream_materials;
 static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
+/* pbkit never advances pb_front_index; its VBlank ISR owns scanout of each
+ * completed back buffer. Re-pointing scanout at framebuffer0 every frame shows
+ * whichever buffer is currently being cleared/drawn when no flip is pending at
+ * that VBlank, producing an intermittent one-frame dark flash. Leave the debug
+ * screen once per pbkit lifetime and let the ISR present thereafter. */
+static int front_screen_shown;
+static void show_front_screen(void){if(!front_screen_shown){pb_show_front_screen();front_screen_shown=1;}}
 /* Explicit menu-root owner; never retained during ordinary gameplay.
  * Resident world/HUD ownership is independent even for suspended Options. */
 static rf_menu_assets *menu_assets;
@@ -569,7 +576,7 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
     status=rf_scene_draw_session_menu(scene_hud_present,NULL,selection,flags);
     hud_batch_end();
     if(status)return status;
-    pb_show_front_screen();while(pb_finished()) {}
+    show_front_screen();while(pb_finished()) {}
     /* A paused wall-clock interval creates neither a simulation frame nor a
      * scene capture count. Rebase the present cadence when the world resumes. */
     stream_start_valid=0;
@@ -587,7 +594,7 @@ int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uin
     /* The existing HUD atlas stays scene-owned. Fence it even on draw error;
      * the menu never creates or caches a second atlas/scene/image owner. */
     hud_batch_end();if(status)return status;
-    pb_show_front_screen();while(pb_finished()) {}
+    show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32_t selection,uint32_t difficulty,
@@ -621,7 +628,7 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
         rf_scene_draw_frontend(scene_hud_present,NULL,flags,session_status,page,selection,difficulty,load_outcome,load_status);
     hud_batch_end();if(status)return status;
     if(menu_assets)++rf_xbox_menu_resources[7];
-    pb_show_front_screen();while(pb_finished()) {}
+    show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
@@ -637,7 +644,7 @@ int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
     status=rf_scene_draw_options_page(scene_menu_present,NULL,menu_assets,page,selection,flags,
         sensitivity_percent,invert_y,deadzone_percent);
     hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
-    pb_show_front_screen();while(pb_finished()) {}
+    show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
@@ -649,7 +656,7 @@ int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
     status=rf_scene_draw_authored_audio_options(scene_menu_present,NULL,menu_assets,selection,flags,
         master_percent,effects_percent,music_percent);
     hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
-    pb_show_front_screen();while(pb_finished()) {}
+    show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
@@ -660,7 +667,7 @@ int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
     hud_batch_begin();
     status=rf_scene_draw_authored_button_mapping(scene_menu_present,NULL,menu_assets,selection,flags,actions,controls);
     hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
-    pb_show_front_screen();while(pb_finished()) {}
+    show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
@@ -728,10 +735,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if (!stream_device_ready) {if(pb_init())return RF_IO;stream_device_ready=1;}
     rf_xbox_renderer_stage[0]=3;
     gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    if (!gpu) { pb_kill();stream_device_ready=0; return RF_RANGE; }
+    if (!gpu) { pb_kill();stream_device_ready=front_screen_shown=0; return RF_RANGE; }
     rf_xbox_renderer_stage[0]=4;
     textures = calloc(materials->count + 1 + lightmaps->count, sizeof(*textures));
-    if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=0; return RF_RANGE; }
+    if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=front_screen_shown=0; return RF_RANGE; }
     for (i = 0; i < materials->count + 1 + lightmaps->count; ++i) {
         int result;
         const rf_image *image = i < materials->count ? &materials->items[i].image : i == materials->count ? &fallback : lightmaps->images + i - materials->count - 1;
@@ -740,7 +747,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         result = upload(textures+i, image,i==materials->count,1);
         if (result) {
             if(i>materials->count && textures[materials->count].pixels)MmFreeContiguousMemory(textures[materials->count].pixels);
-            free(textures); MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=0; return result;
+            free(textures); MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=front_screen_shown=0; return result;
         }
     }
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
@@ -800,7 +807,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     p = pb_push1(p, NV097_SET_DEPTH_MASK, 1);
     p = pb_push1(p, NV097_SET_DEPTH_FUNC, NV097_SET_DEPTH_FUNC_V_LESS);
     pb_end(p);
-    pb_show_front_screen();
+    show_front_screen();
     renderer_mark(3,&profile_previous,profiling);
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
         uint32_t *audit_begin=NULL;

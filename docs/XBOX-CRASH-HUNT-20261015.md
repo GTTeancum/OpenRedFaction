@@ -1683,3 +1683,60 @@ Updated lifecycle status: Jeep entry/player driving/fire/voluntary exit observed
 165045-L1S2.rfl short120-input diagnostic replay completed with vehicle runtime active but all entry-probe words zero. The entry-allowed callback was never reached; this does not demonstrate a collision/path rejection. Next trace ordinary Use selection/ownership and scene_vehicle_physics_allows_control before changing gameplay or repeatedly rerunning a full no-entry sequence. Source locations: scene_use_edge.inc,scene_vehicle_switch.inc,scene_driller_runtime.inc around use_input/can_use. No control gates bypassed.
 
 Fighter lifecycle remains pending. Jeep/APC/submarine chassis destruction and unobserved voluntary exits remain open. Do not mark broad crash hunt complete. All sessions terminal; cleanup preserves compact evidence and ready delivery. No images,host input,PC build,deployment or push.
+
+
+## October23: full retest pass after the 5.6 Sol move
+
+Every previously exercised recipe was replayed on stock64 from the current tree:
+108 unique recipes (latest non-preflight-rejected run per recipe, original frame
+and watchdog budgets). Compact per-recipe results, prior statuses and floor-retry
+distances are retained in artifacts/crash-hunt/retest-20261023.json. Older reports
+stay historical evidence only.
+
+Outcome: 70 COMPLETED, 36 TIMEOUT, 2 unrunnable, zero GUEST_ERROR, zero
+PROCESS_EXITED, every enemy-failure word zero. Each TIMEOUT kept advancing live
+or dead inputs to the watchdog (largest gap one 15-second poll during a death
+reload), so none is a freeze; they are lethal encounters (L14S2, L18S3, L19S1/2A,
+L17S3, L20S2) cycling ordinary death/restart, or early180-second recipes whose
+level load consumes most of the budget. Earlier PROCESS_EXITED rows (L8S2, L14S2,
+L13S1, L19S2A, L18S3, L19S1) were deliberately short burst instances, not crashes;
+their recipes now run to TIMEOUT/COMPLETED. Improvements over earlier results:
+L17S1 goal-block stop, L2S2a explosives, L8S2 rifle/rocket, L19S3 and L11S2 now
+complete their full budgets.
+
+Seven early recipes predate the static floor preflight and are now rejected at
+their original distance. Only the staging distance was changed (nearest supported
+of 3..14): L20S1 3, L9S4 6 (both recipes), L13S1 5, L17S3 18723 6 ran; L3S4 844
+distance4 (its spawn-y variants still run) and L17S3 14435 have no supported
+distance and remain unrunnable. Retry folders collided when two preflight
+rejections fell in the same second; the retry driver now spaces attempts.
+
+Vehicle recipes (17) reproduce prior counters exactly: Jeep entries/driving/seat
+switches/24 mounted rounds (L10S1), L12S1 gunner/damage and stress chassis
+destruction with exit, APC L15S1 entry/11 rounds/occupied death, submarine L5S3
+torpedoes/occupied death, Fighter L18S2 35 shots, Driller L1S2 220 drill contacts
+with bullet health unchanged. Replay is deterministic across the renderer change.
+
+### One-frame dark flash (user-reported)
+
+User observed an intermittent one-frame black flash at roughly one-second cadence
+during runs. Cause in source: the streaming preview and every menu draw called
+pb_show_front_screen, which writes PCRTC_START=pb_FBAddr[pb_front_index]; nxdk
+pbkit sets pb_front_index=0 at init and never advances it, while its VBlank ISR
+owns scanout of completed back buffers. Each frame therefore re-pointed scanout at
+framebuffer0; whenever no flip was pending at the next VBlank (every frame here is
+late, see below), the display latched framebuffer0, which in the triple-buffer
+rotation is periodically the buffer being cleared to 0xff101018 and drawn. Fix:
+switch off the debug screen once per pbkit lifetime (reset on pb_kill) and leave
+presentation to the ISR. Built into crash and tester discs; USER visual
+confirmation pending.
+
+### Frame rate
+
+Added rf_xbox_frame_rate to the opt-in RAM log (guest ms, frame-start VBlank,
+frame-clock ticks/presentations, late frame starts). The crash replay advances one
+simulation tick per drawn frame without the player frame clock, so the game runs
+slowed rather than dropping frames. XEMU measurements: L13S1 mercenary group median
+22.8 fps (20.7..29.2), L17S3 laser/rail/turret group median 24.9 fps; every frame
+start found its VBlank already crossed. Emulator throughput on the host, not a
+hardware measurement.

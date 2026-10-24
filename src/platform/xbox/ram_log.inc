@@ -178,6 +178,13 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_vehicle_entry_probe,16);
     RAM_ARRAY(rf_scene_vehicle_exit_probe,80);
     RAM_ARRAY(rf_scene_use_selection,10);
+    /* Guest ms, last frame-start VBlank, simulation ticks, presented frames,
+     * frame starts that found their VBlank already crossed; rates come from
+     * deltas between samples. */
+    {extern uint32_t rf_renderer_vblank[3];
+     uint32_t rf_xbox_frame_rate[5]={GetTickCount(),rf_renderer_vblank[2],rf_player_frame_clock.steps,
+         rf_player_frame_clock.presentations,rf_renderer_vblank[1]};
+     RAM_ARRAY(rf_xbox_frame_rate,5);}
 #undef RAM_ARRAY
     if(used+3>=sizeof(text))return;
     text[used-1]='}';text[used++]='\n';text[used]=0;
