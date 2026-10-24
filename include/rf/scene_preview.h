@@ -821,6 +821,9 @@ void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend);
 typedef int (*rf_scene_model_backend)(const rf_model_geometry *,uint32_t,
     const float (*)[12],uint32_t,const rf_model_projection *,uint32_t,uint32_t);
 void rf_scene_set_model_backend(rf_scene_model_backend backend);
+/* First-person view models: same request, unscaled by scope, screen depth
+ * 16384/(1+1/z) as the CPU view-model band. NULL keeps the CPU path. */
+void rf_scene_set_view_model_backend(rf_scene_model_backend backend);
 /* Retain mover source geometry and local material mappings for reprojection.
  * Borrows world (must outlive this owner); copies only the preview camera.
  * Archives and the source level may close after success. Output mesh, material

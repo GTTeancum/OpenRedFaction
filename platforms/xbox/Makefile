@@ -35,6 +35,7 @@ SRCS += $(PROJECT_ROOT)/src/core/authored_owner_extension.c $(PROJECT_ROOT)/src/
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_fixture.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
+SRCS += $(PROJECT_ROOT)/src/platform/xbox/file_io.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/settings_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c
 APU_BACKEND = $(PROJECT_ROOT)/build/nxaudio
@@ -145,3 +146,4 @@ rf_checked_stdio_validate:
 	python3 $(PROJECT_ROOT)/tools/prepare_checked_stdio.py --nxdk-dir "$(NXDK_DIR)" --output "$(RF_CHECKED_STDIO)"
 $(RF_CHECKED_STDIO): rf_checked_stdio_validate
 $(RF_CHECKED_STDIO:.c=.obj): $(RF_CHECKED_STDIO)
+$(PROJECT_ROOT)/src/core/vpp.obj: $(PROJECT_ROOT)/src/platform/xbox/file_io.h

@@ -88,12 +88,22 @@ static float scene_player_rocket_lock_distance(const float delta[3])
     if(a<b){t=a;a=b;b=t;}if(b<c){t=b;b=c;c=t;}if(a<b){t=a;a=b;b=t;}
     return a+b*.375f+c*.1875f;
 }
+/* count,status,object-sweep status,detached-sweep status,start xyz,end y bits */
+uint32_t rf_scene_rocket_lock_sight_failure[8];
 static int scene_player_rocket_lock_sight(scene_stream *s,const float start[3],
     const float end[3],uint32_t target,uint32_t *clear)
 {
     rf_weapon_flight_contact contact={0};float delta[3];uint32_t i,liquid=0,matched=0;int status;
     for(i=0;i<3;i++)delta[i]=end[i]-start[i];
-    status=scene_rocket_sweep(s,start,delta,0,0x104u,&contact,&liquid,&matched);if(status)return status;
+    status=scene_rocket_sweep(s,start,delta,0,0x104u,&contact,&liquid,&matched);
+    /* Lock acquisition is advisory: a sight query that cannot resolve (seen
+     * on hardware at real speed) leaves the candidate unlocked, not fatal. */
+    if(status){
+        uint32_t *f=rf_scene_rocket_lock_sight_failure;
+        if(!f[0]++){f[1]=(uint32_t)status;f[2]=rf_scene_rocket_contacts[6];f[3]=rf_scene_detached_rocket[6];
+            memcpy(f+4,start,12);memcpy(f+7,end+1,4);}
+        *clear=0;return RF_OK;
+    }
     *clear=!matched;
     if(matched && !liquid && (contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
         i=contact.object&0xffffu;

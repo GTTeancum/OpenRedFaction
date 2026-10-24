@@ -409,6 +409,18 @@ static void step_profile_mark(uint32_t phase,uint32_t *previous)
     ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
     if(elapsed>row[3])row[3]=elapsed;
 }
+/* World-build split: retained backend, mover/world projection, terrain/geomod
+ * generation, projection-cache capture. Same row layout as the others. */
+uint32_t rf_scene_world_build_profile[4][4];
+static void world_build_profile_mark(uint32_t phase,uint32_t *previous)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!profile_clock || !profile_active)return;
+    now=profile_clock();elapsed=now-*previous;*previous=now;
+    row=rf_scene_world_build_profile[phase];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
+    ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
 static void world_profile_mark(uint32_t phase,uint32_t *previous)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -429,6 +441,9 @@ static void presentation_mark(uint32_t phase,uint32_t *previous)
 }
 void rf_scene_set_profile(uint32_t (*milliseconds)(void))
 {profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));memset(rf_scene_step_profile,0,sizeof(rf_scene_step_profile));memset(rf_scene_npc_step_profile,0,sizeof(rf_scene_npc_step_profile));memset(rf_scene_npc_playback_profile,0,sizeof(rf_scene_npc_playback_profile));}
+/* Platform hook: nonzero when this tick will be presented. NULL draws always. */
+int (*rf_scene_present_query)(void);
+uint32_t rf_scene_world_build_skips;
 static void profile_mark(uint32_t stage)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -667,6 +682,16 @@ int rf_scene_world_update_camera_staged(const rf_scene_world_geometry *geometry,
 static rf_scene_static_world_backend static_world_backend;
 static rf_scene_model_backend model_backend;
 void rf_scene_set_model_backend(rf_scene_model_backend backend){model_backend=backend;}
+/* First-person view models (player weapon, mounted Jeep gun, undercover
+ * silencer). Same request shape as model_backend, but the backend must keep
+ * the CPU view-model contract: no scope magnification (they draw after the
+ * world prefix is magnified) and screen depth 16384/(1+q), q=1/view z, the
+ * band the CPU path writes into position[2]. NULL (PC, or an Xbox renderer
+ * without that contract) or NOT_FOUND keeps the CPU path. Prototype belongs
+ * in scene_preview.h beside rf_scene_set_model_backend. */
+void rf_scene_set_view_model_backend(rf_scene_model_backend backend);
+static rf_scene_model_backend view_model_backend;
+void rf_scene_set_view_model_backend(rf_scene_model_backend backend){view_model_backend=backend;}
 static uint32_t static_world_retained;
 void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend)
 {static_world_backend=backend;static_world_retained=0;}
@@ -685,7 +710,7 @@ static int scene_world_dispatch_camera(const rf_scene_world_geometry *geometry,
     mapping.textures.count=geometry->material_count;
     memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
     return rf_preview_update_world_visible(mesh,capacity_bytes,scratch,scratch_bytes,
-        geometry->world,&geometry->movers,poses,&mapping,&camera,static_world_retained?0x100u:0,visibility);
+        geometry->world,&geometry->movers,poses,&mapping,&camera,static_world_retained?0x300u:0,visibility);
 }
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {
@@ -12920,6 +12945,36 @@ uint32_t rf_scene_enemy_failure[6]; /* status,line,frame,slot,UID,weapon */
 uint32_t rf_scene_combat_population[4]; /* owners, live registered, alerted, scripted */
 /* Read-only admission evidence for the process-local controller's target. */
 uint32_t rf_scene_crash_enemy_state[12]; /* UID,frame,mode,flags,weapon,affiliation,alarm,medic,move,origin,alert,suppressed */
+/* Every live NPC: half-second windows with the ordinary walk state (2) held
+ * throughout while the body moved under 0.05 units. Walk animation without
+ * displacement is the visible "walking in place" fault. Diagnostic only. */
+uint32_t rf_scene_npc_walk_in_place[8]; /* walk ticks,stuck windows,stuck NPCs,last UID,x,y,z bits,longest run */
+#define SCENE_WALK_PROBE_LIMIT 256
+static float scene_walk_origin[SCENE_WALK_PROBE_LIMIT][3];
+static uint16_t scene_walk_ticks[SCENE_WALK_PROBE_LIMIT],scene_walk_runs[SCENE_WALK_PROBE_LIMIT];
+static uint8_t scene_walk_flagged[SCENE_WALK_PROBE_LIMIT];
+static void scene_npc_walk_in_place_reset(void)
+{
+    memset(rf_scene_npc_walk_in_place,0,sizeof(rf_scene_npc_walk_in_place));
+    memset(scene_walk_ticks,0,sizeof(scene_walk_ticks));memset(scene_walk_runs,0,sizeof(scene_walk_runs));
+    memset(scene_walk_flagged,0,sizeof(scene_walk_flagged));
+}
+static void scene_npc_walk_in_place_sample(uint32_t i,const rf_entity_pose *pose)
+{
+    const float *at=campaign_npc_bodies[i].body.state.position;float d[3];uint32_t k;
+    if(i>=SCENE_WALK_PROBE_LIMIT)return;
+    if(campaign_npc_bodies[i].damage.effects.health<=0 || pose->controller.current!=2){scene_walk_ticks[i]=scene_walk_runs[i]=0;return;}
+    ++rf_scene_npc_walk_in_place[0];
+    if(!scene_walk_ticks[i]++){memcpy(scene_walk_origin[i],at,12);return;}
+    if(scene_walk_ticks[i]<30)return;
+    for(k=0;k<3;k++)d[k]=at[k]-scene_walk_origin[i][k];
+    if(d[0]*d[0]+d[1]*d[1]+d[2]*d[2]<.0025f){
+        ++rf_scene_npc_walk_in_place[1];rf_scene_npc_walk_in_place[2]+=!scene_walk_flagged[i];scene_walk_flagged[i]=1;
+        rf_scene_npc_walk_in_place[3]=(uint32_t)campaign_seeds.records.items[i].record.uid;memcpy(rf_scene_npc_walk_in_place+4,at,12);
+        if(++scene_walk_runs[i]>rf_scene_npc_walk_in_place[7])rf_scene_npc_walk_in_place[7]=scene_walk_runs[i];
+    } else scene_walk_runs[i]=0;
+    scene_walk_ticks[i]=0;
+}
 uint32_t rf_scene_crash_npc_motion[12]; /* UID,frame,body xyz,published xyz,playback hash,pose hash,active clips,generation */
 uint32_t rf_scene_crash_npc_progress[12]; /* UID,ticks,body/pub/playback/pose changes,max clips/generation,live/alert frames,health,status */
 static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t slot)
@@ -19121,6 +19176,14 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         rf_scene_visibility_summary[4]=record[2];rf_scene_visibility_summary[5]=room.room;
     }
     world_profile_mark(5,&world_clock);
+    /* Paced play decides presentation before the costly view-dependent world
+     * build. A tick that will not be drawn keeps the previous world prefix and
+     * drops last tick's appended actors; simulation inputs above stay live. */
+    if(rf_scene_present_query && !rf_scene_present_query()){
+        stream->mesh->count=stream->world;stream->mesh->bytes=stream->world*sizeof(rf_preview_vertex);
+        ++rf_scene_world_build_skips;goto world_build_done;
+    }
+    {uint32_t build_clock=profile_clock && profile_active?profile_clock():0;
     static_world_retained=0;
     if(static_world_backend && campaign_spawn) {
         status=static_world_backend(render_world,position,orientation,
@@ -19128,6 +19191,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
         static_world_retained=status==RF_OK;
     }
+    if(!static_world_retained)rf_preview_clear_retained_movers();
+    world_build_profile_mark(0,&build_clock);
     /* Retained static geometry is still submitted above every frame. Only
      * reuse the unchanged immutable-mover CPU prefix with an exact camera and
      * pose key; all other world preparation and simulation remain live. */
@@ -19153,6 +19218,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
+     world_build_profile_mark(1,&build_clock);
      if(terrain_cuts) {
         rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
@@ -19203,9 +19269,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         }
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
+     world_build_profile_mark(2,&build_clock);
      *stream->mesh=world_mesh;}
     scene_world_projection_capture(stream,render_world,position,orientation,terrain_cuts);
     }
+    world_build_profile_mark(3,&build_clock);}
+world_build_done:
     world_profile_mark(6,&world_clock);profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
@@ -20908,6 +20977,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
         status=scene_npc_speech_reconcile(i);if(status)return status;
         status=scene_medic_clip_reconcile(campaign_npc_bodies+i,i);if(status)return status;
         status=campaign_npc_eye_update(i);if(status)return status;
+        scene_npc_walk_in_place_sample(i,pose);
         if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==
            (rf_scene_crash_aim==3?rf_scene_crash_aim_uid:rf_scene_crash_aim_trace[1])) {
             uint32_t uid=(uint32_t)campaign_seeds.records.items[i].record.uid;
@@ -21024,7 +21094,27 @@ static int scene_model_retain(scene_stream *stream,const rf_model_geometry *geom
     if(!model_backend || material>=stream->materials->count || !stream->materials->items[material].image.rgba)return RF_NOT_FOUND;
     return model_backend(geometry,batch,matrices,bones,view,material,stream->mesh->count);
 }
+/* View-model variant: the CPU fallback emits ambient-free white vertices
+ * (preview_model_emit colour 1, lightmap UINT32_MAX), the same constant-white
+ * result the retained combiner produces, so only depth/scope differ. */
+static int scene_view_model_retain(scene_stream *stream,const rf_model_geometry *geometry,uint32_t batch,
+    const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,uint32_t material)
+{
+    if(!view_model_backend || material>=stream->materials->count || !stream->materials->items[material].image.rgba)return RF_NOT_FOUND;
+    return view_model_backend(geometry,batch,bones?matrices:NULL,bones,view,material,stream->mesh->count);
+}
 #include "scene_monitor_render.inc"
+/* True when this frame's lightmap/terrain/monitor update will rewrite
+ * GPU-read texels, so the renderer must let the previous frame retire first. */
+int rf_scene_gpu_image_writes_pending(void)
+{
+    scene_stream *stream=particle_draw_stream;uint32_t i;
+    if(!stream)return 0;
+    if(stream->terrain_atlas_pending)return 1;
+    if(stream->monitors && stream->monitors->pending<stream->monitors->count)return 1;
+    if(stream->light_storage)for(i=0;i<stream->light_storage->dirty_count;i++)if(stream->light_storage->dirty[i])return 1;
+    return 0;
+}
 #include "scene_turret_draw.inc"
 uint32_t rf_scene_turret_draw[4]; /* live/dead submissions,errors,last UID */
 static int scene_turrets_draw(scene_stream *stream,uint32_t frame)
@@ -21352,11 +21442,11 @@ static int scene_grenades_draw(scene_stream *stream)
     }
     return RF_OK;
 }
-uint32_t rf_scene_player_weapon[8]; /* frames,clip,vertices,resident,peak,pose hash,status,reserved */
+uint32_t rf_scene_player_weapon[8]; /* frames,clip,CPU vertices,resident,peak,pose hash,status,GPU-retained batches */
 /* frame,weapon ID,view slot,authored offset[3],FOV,camera[3],clip scale[3],
  * emitted vertices,completed batches,status; floats are raw IEEE32 words. */
 uint32_t rf_scene_player_weapon_view[16];
-uint32_t rf_scene_rocket_visual[8]; /* frame, active flights, active meshes, emitted vertices, hash, resource bytes, status, reserved */
+uint32_t rf_scene_rocket_visual[8]; /* frame, active flights, active meshes, emitted vertices, hash, resource bytes, status, additive faces */
 static int scene_rockets_draw(scene_stream *s,uint32_t frame)
 {
     scene_rocket_visual *v=s->rocket_visual;uint32_t shot,m,f,j,k,start=s->mesh->count;int status;
@@ -21393,16 +21483,25 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
         for(k=0;k<3;k++)camera.player_position[k]-=flight->position[k];
         for(m=0;m<v->geometry->count;m++) {
             rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
-            rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};uint32_t count=0;
+            rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
             if(!instance)continue;
             status=rf_vfx_instance_update(instance,time);if(status)return status;if(!instance->active)continue;
             ++rf_scene_rocket_visual[2];if(source->prefix.faces>128)return RF_RANGE;
+            /* Per-face emission carries each authored material's blend: additive
+             * flare/glow faces (material word2) brighten what is behind them,
+             * faded faces blend, opaque faces are texture x authored colour. As in
+             * scene_driller_cockpit_draw; projectiles are self-lit (white input). */
             for(f=0;f<source->prefix.faces;f++) {
-                rf_vfx_face face;uint32_t material,slot,offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
-                float triangle[9],normal[3];
+                static const unsigned char self_lit[3]={255,255,255};
+                rf_vfx_face face;uint32_t material,slot,alpha,tag,offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
+                float triangle[9],normal[3],opacity=1,brightness=0;unsigned char rgb[3];
                 status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
                 status=rf_vfx_asset_material_index(v->geometry,v->materials,m,face.material,&material);if(status)return status;
                 slot=v->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
+                status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,1,time,&brightness);if(status && status!=RF_NOT_FOUND)return status;
+                status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,2,time,&opacity);if(status && status!=RF_NOT_FOUND)return status;
+                alpha=(uint32_t)((double)(255.f*fminf(1.f,fmaxf(0.f,opacity)))+.5);if(!alpha)continue;
+                status=rf_vfx_material_color(v->materials->views+material,self_lit,fminf(1.f,fmaxf(0.f,brightness)),source->edges.flags,rgb);if(status)return status;
                 for(j=0;j<3;j++)for(k=0;k<3;k++) {
                     const float *local=instance->vertices+face.indices[j]*3;
                     triangle[j*3+k]=local[0]*basis[k]+local[1]*basis[3+k]+local[2]*basis[6+k];
@@ -21410,17 +21509,20 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
                 /* Animated zero-area effect faces are not drawable. */
                 status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
                 for(j=0;j<3;j++) {
-                    memcpy(v->vertices[count*3+j].position,triangle+j*3,12);
-                    v->vertices[count*3+j].uv[0]=instance->uv[f*6+j];v->vertices[count*3+j].uv[1]=instance->uv[f*6+3+j];
+                    memcpy(v->vertices[j].position,triangle+j*3,12);
+                    v->vertices[j].uv[0]=instance->uv[f*6+j];v->vertices[j].uv[1]=instance->uv[f*6+3+j];
                 }
-                v->faces[count]=(rf_geomod_face){count*3,3,v->base+slot,UINT32_MAX};++count;
+                v->faces[0]=(rf_geomod_face){0,3,v->base+slot,UINT32_MAX};
+                mesh.vertices=v->vertices;mesh.faces=v->faces;mesh.vertex_count=3;mesh.face_count=1;
+                status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,3,v->bound,1);if(status)return status;
+                emitted.vertices=s->mesh->vertices+s->mesh->count;emitted.count=emitted.bytes=0;
+                status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&camera);if(status)return status;
+                tag=(v->materials->views[material].words[2]&255)?RF_PREVIEW_ADDITIVE_FADE_TAG|alpha:
+                    alpha<255?RF_PREVIEW_FADE_TAG|alpha:RF_PREVIEW_VERTEX_LIT;
+                if(RF_PREVIEW_IS_ADDITIVE_FADED(tag))++rf_scene_rocket_visual[7];
+                for(j=0;j<emitted.count;j++){emitted.vertices[j].lightmap=tag;for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);}
+                s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
             }
-            mesh.vertices=v->vertices;mesh.faces=v->faces;mesh.vertex_count=count*3;mesh.face_count=count;
-            if(!count)continue;
-            status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,384,v->bound,128);if(status)return status;
-            emitted.vertices=s->mesh->vertices+s->mesh->count;
-            status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&camera);if(status)return status;
-            s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
         }
     }
     rf_scene_rocket_visual[3]=s->mesh->count-start;
@@ -21603,7 +21705,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
     uint32_t batch,k,start=stream->mesh->count;int status;
     memset(rf_scene_player_weapon_view,0,sizeof(rf_scene_player_weapon_view));
-    rf_scene_player_weapon_view[0]=frame+1;
+    rf_scene_player_weapon[7]=0;rf_scene_player_weapon_view[0]=frame+1;
     rf_scene_player_weapon_view[1]=(uint32_t)campaign_slot_weapon(campaign_equipped_slot);
     rf_scene_player_weapon_view[2]=view_slot;
     if(scene_turret_player_active())return RF_OK;
@@ -21627,6 +21729,11 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
         if(material>=w->materials.count){status=RF_FORMAT;goto done;}
         memcpy(&slot,w->materials.items[material].record.bytes+0x10,4);
         if(slot>=stream->player_weapon_textures[view_slot]){status=RF_FORMAT;goto done;}
+        /* GPU skinning replaces CPU skin/clip/emit of the whole batch. */
+        status=scene_view_model_retain(stream,&w->geometry,batch,(const float (*)[12])w->prepared,w->bone_count,&view,
+            stream->player_weapon_base[view_slot]+slot);
+        if(status==RF_OK){++rf_scene_player_weapon_view[14];++rf_scene_player_weapon[7];continue;}
+        if(status!=RF_NOT_FOUND)goto done;
         status=scene_model_scratch_prepare(&buffers,w->geometry.batches[batch].vertices);if(status)goto done;
         status=rf_model_geometry_render_batch(&w->geometry,batch,w->prepared,w->bone_count,&view,&lights,&attributes,&buffers);if(status)goto done;
         status=rf_preview_model_emit(&w->geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
@@ -22410,6 +22517,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
         }
         status=scene_jeep_gunner_view_draw(stream,frame);if(status){rf_scene_profile_stage[1]=205;return status;}
+        presentation_mark(7,&presentation_clock); /* row7: vehicle/projectile/debris draws */
         status=scene_driller_active(stream) || campaign_cutscene_runtime.active?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         if(scene_driller_active(stream) && !(rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat))){uint32_t faces;const unsigned char lighting[3]={200,200,200};
             int32_t hud_ammo[2];float hud_fraction;uint32_t hud_capacity[2]={0,0};
@@ -23406,6 +23514,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.frame_count=rf_scene_actor_frame_count;placement.animation_timing_wrap=rf_scene_actor_live_enabled;
 
             memset(rf_scene_actor_locomotion_frames,0,sizeof(rf_scene_actor_locomotion_frames));
+            scene_npc_walk_in_place_reset();
             memset(rf_scene_actor_stance_ground,0,sizeof(rf_scene_actor_stance_ground));
             memset(rf_scene_actor_stance_support,0,sizeof(rf_scene_actor_stance_support));
             rf_scene_actor_stance_flags=rf_scene_actor_stance_request=0;

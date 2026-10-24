@@ -10,6 +10,7 @@
 #include "rf/finite.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -30,6 +31,109 @@ static uint32_t stream_profile_frames;
 static uint32_t stream_start_vblank,stream_start_valid;
 /* Streaming frame starts: explicit waits, already crossed VBlank, last counter. */
 uint32_t rf_renderer_vblank[3];
+/* CPU time spent waiting for the GPU, in 1024-cycle units (~1.4 us at 733 MHz),
+ * per site: 0 particle reset,1 HUD reset,2 HUD end,3 stream start,4 lightmap,
+ * 5 skybox,6 mesh/audit,7 error drain,8 swap queue,9 VBlank; 10 frames. */
+uint32_t rf_xbox_gpu_wait[11];
+/* Bottleneck experiments (XDK method): bit0 issue no draws, bit1 clip
+ * rasterisation to a quarter of the screen, bit2 sample 1x1 textures. */
+uint32_t rf_xbox_experiment;
+static inline uint64_t gpu_wait_clock(void){uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;}
+#define GPU_WAIT(site,expr) do{uint64_t gpu_wait_start=gpu_wait_clock();expr;rf_xbox_gpu_wait[site]+=(uint32_t)((gpu_wait_clock()-gpu_wait_start)>>10);}while(0)
+/* Overlapped presentation (XDK: never stall the CPU on the GPU; double-buffer
+ * dynamic data behind fences). pbkit's pb_reset waits until the GPU has fetched
+ * every queued command, and the old frame used it several times. Instead each
+ * command block checks free space ahead of the GPU DMA get pointer and wraps
+ * with a jump only when the push buffer end is near.
+ * Fences are command-stream positions, not GPU writes: real NV2A raised a
+ * protection error for a semaphore DMA context that XEMU accepted. A position
+ * counts as retired once the GPU has fetched FENCE_MARGIN words beyond it (the
+ * PGRAPH input FIFO is far shorter) or the GPU is idle.
+ * D:\render-overlap.bin bisect bits: bit0 keeps pbkit resets (no ring, so no
+ * fences), bit1 keeps full waits (no vertex halves, immediate frees). */
+static int stream_device_ready,front_screen_shown; /* tentative; defined below */
+#define RING_BLOCK_WORDS 4096u
+#define RING_SPAN (PBKIT_PUSHBUFFER_SIZE/4)
+#define FENCE_MARGIN 4096u
+static uint32_t *ring_head,*ring_tail,ring_lap,gpu_fence_issued,overlap_frame;
+uint32_t rf_xbox_render_sync;
+/* mode, wraps, ring waits, fences, fence waits, deferred frees, freed, timeouts */
+uint32_t rf_xbox_overlap[8];
+static uint32_t *ring_gpu_get(void){return (uint32_t *)(((*(volatile uint32_t *)0xFD800044u)&0x0FFFFFFFu)|0x80000000u);}
+static uint32_t *ring_begin(uint32_t words)
+{
+    uint32_t *p=(pb_begin)(),*get;DWORD start;
+    if(!ring_head)return p;
+    if(p+words+16>ring_tail) {
+        *p=1+((uint32_t)ring_head&0x0FFFFFFFu);pb_end(ring_head);p=(pb_begin)();++ring_lap;++rf_xbox_overlap[1];
+    }
+    /* The GPU may still be a lap behind only in pathological lag; never write
+     * over commands it has not fetched. Bounded; fall back to a full drain. */
+    start=GetTickCount();
+    for(;;) {
+        get=ring_gpu_get();if(get<=p || get>p+words+16)break;
+        ++rf_xbox_overlap[2];
+        if(GetTickCount()-start>2000u){++rf_xbox_overlap[7];while(pb_busy()){}break;}
+    }
+    return p;
+}
+#define pb_begin() ring_begin(RING_BLOCK_WORDS)
+static uint32_t ring_position(void){uint32_t *put=(pb_begin)();return ring_lap*RING_SPAN+(uint32_t)(put-ring_head);}
+static uint32_t gpu_position(void)
+{
+    uint32_t *get=ring_gpu_get(),*put=(pb_begin)();
+    if(get<ring_head || get>=ring_head+RING_SPAN)return ring_position(); /* outside ring: not ours */
+    return (get<=put?ring_lap:ring_lap-1)*RING_SPAN+(uint32_t)(get-ring_head);
+}
+static int fence_done(uint32_t value)
+{return !ring_head || !pb_busy() || (int32_t)(gpu_position()-value)>=(int32_t)FENCE_MARGIN;}
+static void fence_wait(uint32_t value,uint32_t site)
+{
+    DWORD start;if(fence_done(value))return;
+    ++rf_xbox_overlap[4];start=GetTickCount();
+    GPU_WAIT(site,while(!fence_done(value)){if(GetTickCount()-start>2000u){++rf_xbox_overlap[7];while(pb_busy()){}break;}});
+}
+static uint32_t fence_insert(void){++rf_xbox_overlap[3];return gpu_fence_issued=ring_position();}
+/* Contiguous GPU-visible memory freed while queued commands may still read it
+ * waits for the current stream position to retire. rf_image_close funnels here. */
+#define GPU_FREE_QUEUE 512u
+static struct {void *memory;uint32_t fence;} gpu_free_queue[GPU_FREE_QUEUE];
+static uint32_t gpu_free_count;
+static void gpu_free_collect(int all)
+{
+    uint32_t i,kept=0;
+    for(i=0;i<gpu_free_count;i++) {
+        if(all || fence_done(gpu_free_queue[i].fence)){MmFreeContiguousMemory(gpu_free_queue[i].memory);++rf_xbox_overlap[6];}
+        else gpu_free_queue[kept++]=gpu_free_queue[i];
+    }
+    gpu_free_count=kept;
+}
+void rf_xbox_gpu_free(void *memory)
+{
+    if(!memory)return;
+    if(!ring_head || (rf_xbox_render_sync&2) || !pb_busy()){MmFreeContiguousMemory(memory);return;}
+    if(gpu_free_count==GPU_FREE_QUEUE){fence_wait(gpu_free_queue[0].fence,7);gpu_free_collect(0);}
+    if(gpu_free_count==GPU_FREE_QUEUE){GPU_WAIT(7,while(pb_busy()){});gpu_free_collect(1);}
+    gpu_free_queue[gpu_free_count].memory=memory;gpu_free_queue[gpu_free_count++].fence=ring_position();
+    ++rf_xbox_overlap[5];
+}
+static int device_open(void)
+{
+    FILE *bits;
+    if(stream_device_ready)return RF_OK;
+    /* Read the bisect switch before any GPU setup so every mode is honoured. */
+    bits=fopen("D:\render-overlap.bin","rb");
+    if(bits){uint32_t mode=0;if(fread(&mode,4,1,bits)==1 && mode<=3)rf_xbox_render_sync=mode;fclose(bits);}
+    if(pb_init())return RF_IO;
+    stream_device_ready=1;
+    pb_reset();ring_head=NULL;ring_lap=0;gpu_free_collect(1);
+    if(!(rf_xbox_render_sync&1)){ring_head=(pb_begin)();pb_end(ring_head);ring_tail=ring_head+RING_SPAN-64;}
+    rf_xbox_overlap[0]=0x100u|rf_xbox_render_sync|(ring_head?0x10u:0);return RF_OK;
+}
+static void device_lost(void){stream_device_ready=front_screen_shown=0;ring_head=NULL;}
+/* checks, scanout on the buffer about to be cleared, last scanout address.
+ * PCRTC_START (NV base 0xFD000000 + 0x600800) holds the displayed surface. */
+uint32_t rf_xbox_scanout_hazard[3];
 #define HUD_BATCH_WORD_LIMIT (32u*1024u) /*128KiB of the512KiB pushbuffer. */
 static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws,hud_batch_open,hud_batch_words,hud_batch_color;
 static uint32_t hud_batch_mode,hud_batch_format;
@@ -73,8 +177,8 @@ static void particle_batch_flush(void)
 {
     /* pb_reset has a void timeout path, so retain the complete pre-reset
      * idle guard before any command storage is recycled. */
-    while(pb_busy()) {}
-    pb_reset();particle_batch_draws=particle_batch_ready=0;particle_batch_pixels=NULL;
+    if(!overlap_frame || !ring_head){GPU_WAIT(0,while(pb_busy()) {});pb_reset();}
+    particle_batch_draws=particle_batch_ready=0;particle_batch_pixels=NULL;
     ++rf_xbox_particle_batch[1];
 }
 static void particle_batch_begin(void)
@@ -92,8 +196,8 @@ static void hud_batch_flush(void)
 {
     /* END must precede either the full-idle wait or pushbuffer reuse. */
     hud_batch_close_primitive();
-    while(pb_busy()) {}
-    pb_reset();hud_batch_draws=hud_batch_words=0;++rf_xbox_hud_batch[6];
+    if(!overlap_frame || !ring_head){GPU_WAIT(1,while(pb_busy()) {});pb_reset();}
+    hud_batch_draws=hud_batch_words=0;++rf_xbox_hud_batch[6];
 }
 static void hud_batch_begin(void)
 {
@@ -107,7 +211,7 @@ static void hud_batch_end(void)
     /* Keep the completed-frame/lifetime contract: particles and HUD are fully
      * drawn before capture publication, image mutation or an error return. */
     hud_batch_close_primitive();
-    while(pb_busy()) {}
+    if(!overlap_frame)GPU_WAIT(2,while(pb_busy()) {});
     hud_batch_draws=hud_batch_active=hud_batch_ready=0;hud_batch_pixels=NULL;
 }
 static void renderer_mark(uint32_t phase,uint32_t *previous,int enabled)
@@ -141,6 +245,7 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
     if (!image->width || !image->height || (image->width & (image->width-1)) || (image->height & (image->height-1))) return RF_FORMAT;
     for (x = image->width; x > 1; x >>= 1) ++u;
     for (y = image->height; y > 1; y >>= 1) ++v;
+    if(rf_xbox_experiment&4)u=v=0; /* 1x1: first texel only */
     /* Decoded images own GPU-ready storage for the entire render stream. */
     out->pixels=(uint32_t *)image->rgba;
     if(fallback) {
@@ -162,6 +267,7 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
 }
 /* Shared aiming projection; scene owns state and CPU world geometry. */
 extern float rf_scene_scope_projection;
+int rf_scene_gpu_image_writes_pending(void);
 static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     (void)context;
@@ -207,11 +313,15 @@ static gpu_texture *stream_textures;
 static const rf_materials *stream_materials;
 static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
+static uint32_t stream_half_fence[2],stream_half_next,stream_half_used;
 /* pbkit never advances pb_front_index; its VBlank ISR owns scanout of each
  * completed back buffer. Re-pointing scanout at framebuffer0 every frame shows
  * whichever buffer is currently being cleared/drawn when no flip is pending at
  * that VBlank, producing an intermittent one-frame dark flash. Leave the debug
  * screen once per pbkit lifetime and let the ISR present thereafter. */
+/* Linear min/mag with the convolution kernel field set to quincunx (1).
+ * Real NV2A raises a GPU invalid-data error for kernel 0; XEMU accepts it. */
+#define RF_TEXTURE_FILTER_LINEAR 0x02022000u
 static int front_screen_shown;
 static void show_front_screen(void){if(!front_screen_shown){pb_show_front_screen();front_screen_shown=1;}}
 /* Explicit menu-root owner; never retained during ordinary gameplay.
@@ -223,7 +333,7 @@ int rf_xbox_menu_open(void)
     int status;DWORD attributes,error;const char *overlay="D:\\ps2mainmenu.vpp";
     rf_xbox_menu_resources[1]=RF_OK;
     if(menu_assets || hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
     ++rf_xbox_menu_resources[0];
     attributes=GetFileAttributesA(overlay);
@@ -301,6 +411,8 @@ static void renderer_flush(renderer_command_batch *batch)
 
 static int retained_model_prepare(const rf_model_geometry *,uint32_t,const float (*)[12],uint32_t,
     const rf_model_projection *,uint32_t,uint32_t);
+static int retained_view_model_prepare(const rf_model_geometry *,uint32_t,const float (*)[12],uint32_t,
+    const rf_model_projection *,uint32_t,uint32_t);
 static void retained_models_begin(void);
 /* Retained static-world geometry: no per-frame CPU projection, clipping,
  * expanded triangle construction or world vertex upload. Four MiB hard cap
@@ -330,8 +442,11 @@ static int retained_face_material_order(const void *left,const void *right)
 }
 static void retained_world_indices_close(void);
 static void retained_world_indices_open(void);
+static void retained_movers_close(void);
+static void retained_movers_enable(void);
 static void retained_world_close(void)
 {
+    retained_movers_close();
     retained_world_indices_close();
     if(retained_world.vertices){if(stream_device_ready)while(pb_busy()){} MmFreeContiguousMemory(retained_world.vertices);}
     free(retained_world.faces);memset(&retained_world,0,sizeof(retained_world));
@@ -415,7 +530,11 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
     retained_world.visibility=visibility;memcpy(retained_world.position,position,12);
     memcpy(retained_world.orientation,orientation,36);return RF_OK;
 }
-void rf_xbox_enable_retained_world(void){rf_scene_set_static_world_backend(retained_world_prepare);rf_scene_set_model_backend(retained_model_prepare);}
+/* A paced tick that will not be presented skips the world build, which is
+ * where the retained model queue normally restarts; restart it here. */
+void rf_xbox_frame_skipped(void){retained_models_begin();}
+void rf_xbox_enable_retained_world(void){rf_scene_set_static_world_backend(retained_world_prepare);rf_scene_set_model_backend(retained_model_prepare);
+    rf_scene_set_view_model_backend(retained_view_model_prepare);retained_movers_enable();}
 static void vertex_program(const uint32_t *program,uint32_t words)
 {
     uint32_t i,*p=pb_begin();
@@ -452,7 +571,7 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     uint32_t i,j,*p,visible=0,faces=0,draws=0,active=0,bound_material=0,bound_lightmap=0;float rows[3][4];
     renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};int indexed;
     memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
-    if(retained_world.ready!=1)return RF_OK;
+    if(retained_world.ready!=1 || (rf_xbox_experiment&1))return RF_OK;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
     indexed=retained_world_indices_prepare();
     if(indexed!=RF_OK && indexed!=RF_NOT_FOUND)return indexed;
@@ -479,8 +598,8 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
         p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)retained_world.vertices+(i==3?40:i*12))&0x03ffffff);
     }
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00010101);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
-    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
-    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,0x02020000);pb_end(p);
+    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,RF_TEXTURE_FILTER_LINEAR);pb_end(p);
     if(indexed==RF_OK)return retained_world_indices_draw(materials,lightmaps,textures);
     for(i=0;i<retained_world.face_count;) {
         const retained_face *face=retained_world.faces+i;uint32_t start,count,material,lightmap,textured;const gpu_texture *texture,*lighting;
@@ -524,6 +643,7 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     rf_xbox_retained_world[4]=visible;rf_xbox_retained_world[5]=faces;rf_xbox_retained_world[6]=draws;return RF_OK;
 }
 #include "retained_models.h"
+#include "retained_movers.h"
 void rf_xbox_scene_stream_close(void)
 {
     if(rf_xbox_draw_audit[1])MmFreeContiguousMemory((void *)rf_xbox_draw_audit[1]);
@@ -535,6 +655,7 @@ void rf_xbox_scene_stream_close(void)
     stream_start_valid=0;memset(rf_renderer_vblank,0,sizeof(rf_renderer_vblank));
     if(!stream_gpu)return;
     while(pb_busy()) {}
+    gpu_free_collect(1);stream_half_fence[0]=stream_half_fence[1]=gpu_fence_issued;
     /* pbkit owns process-lifetime framebuffer/DMA state; only level buffers retire. */
     if(stream_textures && stream_textures[stream_fallback].pixels)MmFreeContiguousMemory(stream_textures[stream_fallback].pixels);
     free(stream_textures);MmFreeContiguousMemory(stream_gpu);
@@ -548,6 +669,7 @@ int rf_xbox_frontend_exit_status(void)
        retained_world.source || retained_world.visibility || retained_world.vertices || retained_world.faces ||
        retained_indices.items || retained_indices.groups || retained_indices.rooms ||
        retained_model_count || retained_draws || retained_draw_count ||
+       retained_movers.vertices || retained_movers.movers || retained_movers.groups ||
        hud_batch_active || hud_batch_open || hud_commands.p || particle_batch_active ||
        hud_batch_pixels || particle_batch_pixels || rf_xbox_draw_audit[1])return RF_RANGE;
     for(i=0;i<RETAINED_MODEL_LIMIT;i++)if(retained_models[i].geometry || retained_models[i].gpu ||
@@ -568,7 +690,7 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
     int status;
     /* Input may discover a missing controller before the first world frame.
      * The normal preview reuses this same pbkit device when play starts. */
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
     pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
     pb_fill(0,0,640,480,0xff101018);
@@ -585,7 +707,7 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
 int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uint32_t *pages)
 {
     int status;
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
     pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
     pb_fill(0,0,640,480,0xff101018);
@@ -607,7 +729,7 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
     /* After terminal cleanup/Dashboard failure the owner is already retired.
      * Keep the original allocation-free error screen available on that path. */
     if(!menu_assets && !session_status)return RF_RANGE;
-    if(!stream_device_ready){if(pb_init())return RF_IO;stream_device_ready=1;}
+    {int opened=device_open();if(opened)return opened;}
     if(menu_assets){
         if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
         if(rf_vpp_checked_idle_status()){rf_xbox_menu_resources[1]=(uint32_t)RF_IO;return RF_IO;}
@@ -729,16 +851,26 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(stream_materials!=materials || stream_mode!=model ||
            (model==4 && stream_lightmaps!=lightmaps))return RF_RANGE;
         gpu=stream_gpu;textures=stream_textures;
-        while(pb_busy()) {}
+        overlap_frame=ring_head && !(rf_xbox_render_sync&2);
+        if(!overlap_frame)GPU_WAIT(3,while(pb_busy()) {});
+        else {
+            /* Alternate halves of the streamed vertex store so the CPU fills
+             * one while the GPU may still read the other; oversize frames use
+             * the whole store after both halves retire. */
+            uint32_t half=(stream_capacity/2)/sizeof(rf_preview_vertex),h=stream_half_next;
+            gpu_free_collect(0);
+            if(mesh->count<=half){fence_wait(stream_half_fence[h],3);gpu+=h*half;stream_half_used=1u<<h;stream_half_next=h^1;}
+            else{fence_wait(stream_half_fence[0],3);fence_wait(stream_half_fence[1],3);stream_half_used=3;}
+        }
     } else {
     rf_xbox_renderer_stage[0]=2;
-    if (!stream_device_ready) {if(pb_init())return RF_IO;stream_device_ready=1;}
+    {int opened=device_open();if(opened)return opened;}
     rf_xbox_renderer_stage[0]=3;
     gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    if (!gpu) { pb_kill();stream_device_ready=front_screen_shown=0; return RF_RANGE; }
+    if (!gpu) { pb_kill();device_lost(); return RF_RANGE; }
     rf_xbox_renderer_stage[0]=4;
     textures = calloc(materials->count + 1 + lightmaps->count, sizeof(*textures));
-    if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=front_screen_shown=0; return RF_RANGE; }
+    if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();device_lost(); return RF_RANGE; }
     for (i = 0; i < materials->count + 1 + lightmaps->count; ++i) {
         int result;
         const rf_image *image = i < materials->count ? &materials->items[i].image : i == materials->count ? &fallback : lightmaps->images + i - materials->count - 1;
@@ -747,7 +879,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         result = upload(textures+i, image,i==materials->count,1);
         if (result) {
             if(i>materials->count && textures[materials->count].pixels)MmFreeContiguousMemory(textures[materials->count].pixels);
-            free(textures); MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=front_screen_shown=0; return result;
+            free(textures); MmFreeContiguousMemory(gpu); pb_kill();device_lost(); return result;
         }
     }
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
@@ -755,7 +887,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     }
     rf_xbox_renderer_stage[0]=5;
     if(model==4) {
-        int status;while(pb_busy()) {}
+        int status;
+        /* Lightmap/terrain/monitor texels are GPU-read: wait for the last frame
+         * only when this frame will actually rewrite them. */
+        if(!overlap_frame)GPU_WAIT(4,while(pb_busy()) {});
+        else if(rf_scene_gpu_image_writes_pending())fence_wait(gpu_fence_issued,4);
         status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;
         rf_scene_update_monitor_images(lightmaps);
         __asm__ volatile("sfence" ::: "memory");
@@ -823,12 +959,21 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
          if(!streaming || !stream_start_valid || vblank==stream_start_vblank) {
             /* A prior skipped wait may leave a signalled event. Consume it
              * and wait again unless the counter actually advances. */
-            do {vblank=pb_wait_for_vbl();}
-            while(streaming && stream_start_valid && vblank==stream_start_vblank);
+            GPU_WAIT(9,do {vblank=pb_wait_for_vbl();}
+            while(streaming && stream_start_valid && vblank==stream_start_vblank));
             if(streaming)++rf_renderer_vblank[0];
          } else ++rf_renderer_vblank[1];
          if(streaming){stream_start_vblank=vblank;stream_start_valid=1;rf_renderer_vblank[2]=vblank;}}
-        pb_reset(); pb_target_back_buffer();
+        if(!overlap_frame || !ring_head)pb_reset();
+        else {uint32_t *ensure=pb_begin();pb_end(ensure);} /* ring space for pbkit's own setup */
+        pb_target_back_buffer();
+        if(rf_xbox_experiment&2){uint32_t c;p=pb_begin();
+            /* Quarter-area fill experiment: every window clip to 320x240. */
+            for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,319u<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,239u<<16);}
+            pb_end(p);}
+        {uint32_t shown=*(volatile uint32_t *)0xFD600800u&0x03ffffffu;
+         ++rf_xbox_scanout_hazard[0];rf_xbox_scanout_hazard[2]=shown;
+         if(shown==((uint32_t)pb_back_buffer()&0x03ffffffu))++rf_xbox_scanout_hazard[1];}
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
         /* The clear and draws share one ordered pushbuffer. Preserve GPU idle
@@ -841,7 +986,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             status=rf_scene_draw_skybox(scene_world_particle_present,NULL);particle_batch_end();
             /* Far backdrop precedes transparent world/models. Drain even on
              * error before the borrowed scene/material owner can retire. */
-            while(pb_busy()) {}
+            if(!overlap_frame || status)GPU_WAIT(5,while(pb_busy()) {});
             if(status)return status;
             vertex_program(program,sizeof(program)/4);
             p=pb_begin();
@@ -860,6 +1005,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         uint32_t draw_profile_previous=profile_previous;
         if(model==4 && retained_world.ready==1) {
             int status=retained_world_draw(materials,lightmaps,textures);if(status)return status;
+            status=retained_movers_draw(materials,lightmaps,textures);if(status)return status;
             vertex_program(program,sizeof(program)/4);
             p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
             p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);pb_end(p);
@@ -886,17 +1032,19 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
         p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00010101);
         p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
-        p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
+        p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);
         p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
         p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
-        p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,0x02020000);
+        p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,RF_TEXTURE_FILTER_LINEAR);
         pb_end(p);
         for (i = 0; i < mesh->count || retained_next<retained_total;) {
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex<i)return RF_FORMAT;
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex==i) {
                 uint32_t loaded=UINT32_MAX,j;
                 do {
-                    uint32_t shader=retained_models[retained_draws[retained_next].entry].bones!=0;
+                    /* View models load different c4/c7 depth constants. */
+                    uint32_t shader=(retained_models[retained_draws[retained_next].entry].bones!=0)|
+                        (retained_draws[retained_next].view_model<<1);
                     int status=retained_model_render(retained_next,materials,textures,loaded!=shader);
                     if(status)return status;loaded=shader;++retained_next;
                 }
@@ -951,10 +1099,12 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
                 p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
                 bound_lighting=lighting;methods+=2;++state_changes;
             }
+            if(!(rf_xbox_experiment&1)) {
             p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
             p = pb_push1(p, 0x40000000 | NV097_DRAW_ARRAYS,
                 field(NV097_DRAW_ARRAYS_COUNT, count-1) | field(NV097_DRAW_ARRAYS_START_INDEX, i));
             p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
+            }
             pb_end(p); i += count;++draws;methods+=3;
         }
         if(model==4)retained_draw_count=0;
@@ -964,7 +1114,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         /* The following particle begin already performs the full idle guard
          * before recycling command storage. Standalone and command-audit
          * consumers still need this immediate completion fence. */
-        if(!streaming || audit_begin)while(pb_busy()) {}
+        if(!streaming || audit_begin)GPU_WAIT(6,while(pb_busy()) {});
         if(audit_begin) {
             uint32_t bytes=(uint32_t)(p-audit_begin)*4;
             if(!bytes || bytes>256u*1024u)return RF_RANGE;
@@ -982,7 +1132,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             renderer_draw_mark(4,&draw_profile_previous,profiling);
             /* On success, the HUD's final fence owns all remaining commands.
              * Errors must still finish this pass before any owner can retire. */
-            if(status){while(pb_busy()) {}return status;}}
+            if(status){GPU_WAIT(7,while(pb_busy()) {});return status;}}
         if(streaming) {int status;hud_batch_begin();
             renderer_draw_mark(5,&draw_profile_previous,profiling);
             status=rf_scene_draw_player_flash(scene_hud_present,NULL);
@@ -995,7 +1145,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
         capture[4] = mesh->count; capture[5] = streaming?capture[5]+1:frame+1;
-        while (pb_finished()) {}
+        if(overlap_frame){uint32_t serial=fence_insert();
+            if(stream_half_used&1)stream_half_fence[0]=serial;
+            if(stream_half_used&2)stream_half_fence[1]=serial;}
+        GPU_WAIT(8,while (pb_finished()) {});if(streaming)++rf_xbox_gpu_wait[10];
+        overlap_frame=0;
         renderer_mark(6,&profile_previous,profiling);
     }
     /* GPU and framebuffer remain alive for native capture; application lifetime. */
@@ -1042,6 +1196,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     const uint32_t hud_state_words=8+5*(sizeof(program)/16)+128;
     uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u,
         opaque=mode==RF_VFX_OPAQUE_MODE,sky=mode==RF_SKYBOX_MODE;int status;
+    if(rf_xbox_experiment&1)return vertices && count>=3 && count<=12?RF_OK:RF_RANGE;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !rf_finite_float(depth_scale) || !rf_finite_float(depth_bias))return RF_RANGE;
     if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) &&
@@ -1123,7 +1278,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     }
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,corona?0x00030101:0x00030303);
     p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,solid?0:NV097_SET_TEXTURE_CONTROL0_ENABLE);
-    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
+    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+i*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
     /* HUD forbids fog, but the textured fragment program still adds COLOR1.

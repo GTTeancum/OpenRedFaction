@@ -158,10 +158,44 @@ int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_byt
  * NULL preserves unfiltered rendering; no allocation or visibility mutation. */
 struct rf_visibility;
 /* disabled bit0x100 omits static geometry for a retained platform backend;
- * the low byte keeps its existing mover suppression meaning. */
+ * bit0x200 hands drawn movers to the mover backend below; the low byte keeps
+ * its existing mover suppression meaning. */
 int rf_preview_update_world_visible(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
     const rf_geometry_movers *movers,rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t disabled,
     const struct rf_visibility *visibility);
+#define RF_PREVIEW_WORLD_RETAINED_STATIC 0x100u
+/* disabled bit0x200 (dispatch/visible entry points only) offers each drawn
+ * mover to the registered retained mover backend instead of projecting it.
+ * Ignored when no backend is registered (PC build): behaviour is unchanged. */
+#define RF_PREVIEW_WORLD_RETAINED_MOVERS 0x200u
+/* Optional platform mover backend (scaffolding for the Xbox GPU path, not
+ * original-game behaviour). Within one world build:
+ *  begin  runs at the start of every generation pass, after validation. It
+ *         discards any pending queue. OK enables submit for this pass;
+ *         NOT_FOUND keeps every mover on the CPU path; other values fail.
+ *  submit runs only for a mover that the CPU path would draw this pass (not
+ *         hidden by pose flag2, not low-byte suppressed, not frustum-culled).
+ *         OK queues that mover at the world pose (origin, row-major local
+ *         axes, as rf_collision_contact_world) and emits no CPU vertices;
+ *         NOT_FOUND projects it on the CPU. Its answer for a mover must not
+ *         change between the passes of one build.
+ *  finish runs once per build in which begin ran: OK publishes the final
+ *         pass's queue for drawing, any other status discards it and keeps
+ *         the previously published queue.
+ *  clear  drops the published queue (caller is drawing movers on the CPU).
+ * Borrowed movers/materials are valid only during the call. */
+typedef struct rf_preview_mover_backend {
+    int (*begin)(void *context,const rf_geometry_movers *movers,const rf_geometry_materials *materials);
+    int (*submit)(void *context,uint32_t mover,const float origin[3],const float matrix[3][3]);
+    void (*finish)(void *context,int status);
+    void (*clear)(void *context);
+    void *context;
+} rf_preview_mover_backend;
+/* Copies the table; NULL unregisters. All four callbacks are required. */
+int rf_preview_set_mover_backend(const rf_preview_mover_backend *backend);
+void rf_preview_clear_retained_movers(void);
+/* Last bit-0x200 build: offered, retained, CPU fallback, inactive passes. */
+extern uint32_t rf_preview_retained_mover_stats[4];
 #endif

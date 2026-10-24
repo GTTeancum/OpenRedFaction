@@ -6,13 +6,13 @@ struct Output { float4 position : POSITION; float4 color : COLOR;
 Output main(Input input, uniform float4 view_x : register(c0),
     uniform float4 view_y : register(c1), uniform float4 view_z : register(c2),
     uniform float4 projection : register(c3), uniform float4 depth : register(c4),
-    uniform float4 tint : register(c5)) {
+    uniform float4 tint : register(c5), uniform float4 depth_divisor : register(c7)) {
     Output output;
     float4 p = float4(input.position, depth.z);
     float x = dot(p, view_x), y = dot(p, view_y), z = dot(p, view_z);
     float q = depth.z / z;
     output.position = float4(projection.z + x*q*projection.x,
-        projection.w + y*q*projection.y, depth.x*(depth.z-depth.y*q), z);
+        projection.w + y*q*projection.y, depth.x*(depth.z-depth.y*q)/(depth.z+depth_divisor.x*q), z);
     output.color = tint;
     output.texture = float4(input.texture, depth.w, depth.z);
     output.lightmap = float4(depth.www, depth.z);

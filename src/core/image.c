@@ -74,7 +74,8 @@ void rf_image_close(rf_image *image)
 {
     if (!image)return;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    if(image->rgba)MmFreeContiguousMemory(image->rgba);
+    /* The renderer defers the free while queued GPU commands may read it. */
+    {void rf_xbox_gpu_free(void *);if(image->rgba)rf_xbox_gpu_free(image->rgba);}
 #else
     free(image->rgba);
 #endif

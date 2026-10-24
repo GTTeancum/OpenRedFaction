@@ -118,6 +118,16 @@ def main():
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
                         help='Default uses the unchanged OpenJKDF2 RAM log reader over HMP')
+    parser.add_argument('--target', choices=('xemu','hardware'), default='xemu',
+                        help='hardware stages the disc folder on an Xbox debug kit over xbdm')
+    parser.add_argument('--xbox-host', default='10.0.0.231', help='Debug-kit address for --target hardware')
+    parser.add_argument('--paced', action='store_true',
+                        help='Consume replay input on the live 60 Hz frame clock with presentation skipping')
+    parser.add_argument('--experiment', type=int, choices=range(8), default=0,
+                        help='Bottleneck experiment bits: 1 issue no draws, 2 quarter-screen raster clip, 4 1x1 textures')
+    parser.add_argument('--render-sync', type=int, choices=range(4), default=0,
+                        help='Renderer overlap bisect: 1 keep pbkit resets, 2 no fences/vertex halves, 3 both (old behaviour)')
+    parser.add_argument('--no-audio', action='store_true', help='Leave the Xbox APU audio backend closed')
     parser.add_argument('--poll-seconds', type=float, default=1.0,
                         help='Application telemetry interval (0.3..5 seconds); larger intervals may miss short-lived states')
     args = parser.parse_args()
@@ -150,7 +160,7 @@ def main():
     packer = confined_path(ROOT, ROOT / 'local/runtime/extract-xiso.exe')
     for required in (packer, emu/'xemu.exe', emu/'MCPX/mcpx_1.0.bin',
                      emu/'BIOS/xbox-4627_debug.bin', emu/'EEPROM/eeprom.bin'):
-        if not confined_path(ROOT, required).is_file():
+        if args.target == 'xemu' and not confined_path(ROOT, required).is_file():
             parser.error('Missing repository-local runtime file: ' + str(required))
     lock.acquire()
     process = monitor = None
@@ -159,6 +169,9 @@ def main():
     seen_samples = set()
     ram_poll_index = 0
     run = ROOT / 'artifacts/crash-hunt' / (datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + args.level)
+    for suffix in range(2, 100):
+        if not run.exists(): break
+        run = run.with_name(run.name.split('~')[0] + '~' + str(suffix))
     result = {'recipe': vars(args), 'input_recipe_version': 7, 'status': 'NOT_RUN'}
     eyes = set(); npc_positions = set(); npc_published_positions = set()
     npc_playback_hashes = set(); npc_pose_hashes = set()
@@ -173,7 +186,7 @@ def main():
         require_no_project_xemu(ROOT)
         disc = ROOT / 'build/xbox/crash-disc'
         base = ROOT / 'local/xemu-harness/pacing-base.qcow2'
-        standalone(base)
+        if args.target == 'xemu': standalone(base)
         # Cleanup may prune regenerable archives, so restore only this harness's
         # missing immutable inputs through hardlinks, never overwrite assets.
         for source in (ROOT / 'build/xbox/tester-disc').iterdir():
@@ -202,7 +215,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -323,14 +336,44 @@ def main():
             (disc / 'crash-aim-point.bin').write_bytes(struct.pack('<3f',*args.aim_point))
         if args.scenario:
             (disc / 'crash-scenario.flag').write_bytes({'combat':b'', 'explosives':b'2', 'mobile':b'3', 'advance':b'4'}[args.scenario])
-        if args.log_protocol=='jkdf2-hmp':
+        if args.log_protocol=='jkdf2-hmp' or args.target=='hardware':
             (disc / 'crash-ram-log.flag').write_bytes(b'')
-        iso = ROOT / 'build/xbox/redfaction-crash.iso'
-        iso.unlink(missing_ok=True)
-        with (run / 'pack.log').open('wb') as log:
-            subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
-        shutil.copyfile(emu/'EEPROM/eeprom.bin',run/'eeprom.bin')
-        config = f'''[general]
+        if args.paced: (disc / 'crash-paced.flag').write_bytes(b'')
+        if args.render_sync: (disc / 'render-overlap.bin').write_bytes(struct.pack('<I',args.render_sync))
+        if args.experiment: (disc / 'crash-experiment.bin').write_bytes(struct.pack('<I',args.experiment))
+        if not args.no_audio: (disc / 'audio-output.flag').write_bytes(b'')
+        result['xbox_audio_backend'] = not args.no_audio
+        if args.target == 'hardware':
+            import xbox_hw
+            remote = 'E:' + chr(92) + 'RFCrash' + chr(92)
+            sent = xbox_hw.sync_disc(args.xbox_host, disc, remote, ROOT/'build/xbox/hardware-sync.json')
+            result['hardware'] = {'host': args.xbox_host, 'folder': remote, 'bytes_sent': sent}
+            reader_path=ROOT/'tools/vendor/openjkdf2/poll_xemu_ram_log.py'
+            spec=importlib.util.spec_from_file_location('jkdf2_ram_log',reader_path)
+            vendored=importlib.util.module_from_spec(spec);spec.loader.exec_module(vendored)
+            poll_map=run/'poll-build.map'
+            poll_map.write_text(re.sub(r'\b00000000([0-9a-fA-F]{8})\b',r'\1',mapping))
+            ram_symbols=vendored.resolve_symbols(str(poll_map),str(disc/'default.xbe'))
+            ram_args=None
+            ram_reader=xbox_hw.HardwareReader(args.xbox_host,vendored.decode_mirror,vendored.MIRROR_BYTES,
+                                              (vendored.MAGIC0,vendored.MAGIC1))
+            result['ram_poll_interval_seconds']=5
+            xbox_hw.launch(args.xbox_host, remote + 'default.xbe').close()
+            class Running:
+                pid = None
+                def poll(self): return None
+            process = Running()
+            port = None
+            deadline = time.monotonic() + args.seconds
+            result['status'] = 'TIMEOUT'
+            time.sleep(5)
+        else:
+          iso = ROOT / 'build/xbox/redfaction-crash.iso'
+          iso.unlink(missing_ok=True)
+          with (run / 'pack.log').open('wb') as log:
+              subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
+          shutil.copyfile(emu/'EEPROM/eeprom.bin',run/'eeprom.bin')
+          config = f'''[general]
 show_welcome = false
 skip_boot_anim = true
 [general.updates]
@@ -349,53 +392,55 @@ eeprom_path = '{run.as_posix()}/eeprom.bin'
 hdd_path = '{base.as_posix()}'
 dvd_path = '{iso.as_posix()}'
 '''
-        (run/'xemu.toml').write_text(config)
-        with socket.socket() as reserve:
-            reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
-        command=[str(emu/'xemu.exe'),'-config_path',str(run/'xemu.toml'),'-m','64','-snapshot','-display','xemu','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
-        if args.log_protocol=='jkdf2-hmp':
-            command[-2:]=['-monitor',f'tcp:127.0.0.1:{port},server,nowait']
-            reader_path=ROOT/'tools/vendor/openjkdf2/poll_xemu_ram_log.py'
-            spec=importlib.util.spec_from_file_location('jkdf2_ram_log',reader_path)
-            ram_reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(ram_reader)
-            # LLD prints 32-bit VAs padded to sixteen digits; the unchanged
-            # upstream reader expects eight. Strip only redundant zero padding.
-            poll_map=run/'poll-build.map'
-            poll_map.write_text(re.sub(r'\b00000000([0-9a-fA-F]{8})\b',r'\1',mapping))
-            ram_symbols=ram_reader.resolve_symbols(str(poll_map),str(disc/'default.xbe'))
-            ram_args=argparse.Namespace(timeout=3,phys_delta='auto',header_only=False)
-            result['ram_reader_sha256']=hashlib.sha256(reader_path.read_bytes()).hexdigest()
-            result['ram_poll_interval_seconds']=15
-        startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
-        counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_scene_presentation_failure':8,'rf_scene_late_load':8,'rf_xbox_renderer_stage':4,'rf_xbox_draw_audit':4,'rf_xbox_texture_budget':12,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_crash_npc_motion':12,'rf_scene_crash_npc_progress':12,'rf_scene_npc_playback':7,'rf_scene_npc_eyes':4,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
-        symbols={}
-        counts['rf_scene_crash_scenario_trace']=8
-        counts['rf_scene_crash_visibility']=4
-        counts['rf_scene_crash_aim_point']=3
-        counts['rf_scene_crash_aim']=1
-        counts['rf_scene_crash_terrain']=8
-        for name,count in counts.items():
-            match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
-            if match:symbols[name]=(int(match[1],16),count)
-        if args.scenario and 'rf_scene_crash_scenario_trace' not in symbols:
-            raise RuntimeError('Scenario runner requires an updated Xbox binary/map')
-        if args.aim_point and 'rf_scene_crash_aim_point' not in symbols:
-            raise RuntimeError('Aim point requires an updated Xbox binary/map')
-        require_no_project_xemu(ROOT)
-        with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
-            process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,env=runtime_env)
-        result['pid']=process.pid
-        deadline=time.monotonic()+args.seconds
-        while not ram_reader and time.monotonic()<deadline and process.poll() is None:
-            try:
-                monitor=Monitor(port);monitor.sock.settimeout(3);break
-            except OSError:time.sleep(.2)
-        if not ram_reader:
-            if monitor is None:raise RuntimeError('No QMP connection')
-            memory=monitor.command('query-memory-size-summary');result['memory']=memory
-            if memory['base-memory']!=64*1024*1024 or memory.get('plugged-memory',0):raise RuntimeError('Not stock64')
-        result['status']='TIMEOUT'
-        if ram_reader:time.sleep(15)  # Reference smoke runner waits before its first poll.
+          (run/'xemu.toml').write_text(config)
+          with socket.socket() as reserve:
+              reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
+          command=[str(emu/'xemu.exe'),'-config_path',str(run/'xemu.toml'),'-m','64','-snapshot','-display','xemu','-qmp',f'tcp:127.0.0.1:{port},server=on,wait=off']
+          if args.log_protocol=='jkdf2-hmp':
+              command[-2:]=['-monitor',f'tcp:127.0.0.1:{port},server,nowait']
+              reader_path=ROOT/'tools/vendor/openjkdf2/poll_xemu_ram_log.py'
+              spec=importlib.util.spec_from_file_location('jkdf2_ram_log',reader_path)
+              ram_reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(ram_reader)
+              # LLD prints 32-bit VAs padded to sixteen digits; the unchanged
+              # upstream reader expects eight. Strip only redundant zero padding.
+              poll_map=run/'poll-build.map'
+              poll_map.write_text(re.sub(r'\b00000000([0-9a-fA-F]{8})\b',r'\1',mapping))
+              ram_symbols=ram_reader.resolve_symbols(str(poll_map),str(disc/'default.xbe'))
+              ram_args=argparse.Namespace(timeout=3,phys_delta='auto',header_only=False)
+              result['ram_reader_sha256']=hashlib.sha256(reader_path.read_bytes()).hexdigest()
+              result['ram_poll_interval_seconds']=15
+          startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
+          counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_scene_presentation_failure':8,'rf_scene_late_load':8,'rf_xbox_renderer_stage':4,'rf_xbox_draw_audit':4,'rf_xbox_texture_budget':12,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_crash_npc_motion':12,'rf_scene_crash_npc_progress':12,'rf_scene_npc_playback':7,'rf_scene_npc_eyes':4,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
+          symbols={}
+          counts['rf_scene_crash_scenario_trace']=8
+          counts['rf_scene_crash_visibility']=4
+          counts['rf_scene_crash_aim_point']=3
+          counts['rf_scene_crash_aim']=1
+          counts['rf_scene_crash_terrain']=8
+          for name,count in counts.items():
+              match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
+              if match:symbols[name]=(int(match[1],16),count)
+          if args.scenario and 'rf_scene_crash_scenario_trace' not in symbols:
+              raise RuntimeError('Scenario runner requires an updated Xbox binary/map')
+          if args.aim_point and 'rf_scene_crash_aim_point' not in symbols:
+              raise RuntimeError('Aim point requires an updated Xbox binary/map')
+          require_no_project_xemu(ROOT)
+          with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
+              process=subprocess.Popen(command,cwd=run,stdout=out,stderr=err,startupinfo=startup,env=runtime_env)
+          result['pid']=process.pid
+          deadline=time.monotonic()+args.seconds
+          while not ram_reader and time.monotonic()<deadline and process.poll() is None:
+              try:
+                  monitor=Monitor(port);monitor.sock.settimeout(3);break
+              except OSError:time.sleep(.2)
+          if not ram_reader:
+              if monitor is None:raise RuntimeError('No QMP connection')
+              memory=monitor.command('query-memory-size-summary');result['memory']=memory
+              if memory['base-memory']!=64*1024*1024 or memory.get('plugged-memory',0):raise RuntimeError('Not stock64')
+          result['status']='TIMEOUT'
+          if ram_reader:time.sleep(15)  # Reference smoke runner waits before its first poll.
+        poll_wait = 5 if args.target == 'hardware' else 15
+        stall = [None, time.monotonic()]
         with (run/'telemetry.jsonl').open('w',buffering=1) as log:
             while time.monotonic()<deadline and process.poll() is None:
                 try:
@@ -405,6 +450,12 @@ dvd_path = '{iso.as_posix()}'
                             ram_poll_index+=1
                             (run/f'ram_poll_{ram_poll_index:04d}.txt').write_text(ram_text)
                             result['ram_header']=header;result['ram_physical_delta']=delta
+                            if args.target=='hardware':
+                                # A halted title (exception/break) stops log writes while
+                                # memory stays readable; report it instead of waiting out.
+                                if header['writes']!=stall[0]: stall[:]=[header['writes'],time.monotonic()]
+                                elif time.monotonic()-stall[1]>180:
+                                    result['status']='STALLED';result['stalled_header']=header;break
                             for line in ram_text.splitlines():
                                 if not line.startswith('RFLOG '):continue
                                 try:value=json.loads(line[6:])
@@ -414,7 +465,7 @@ dvd_path = '{iso.as_posix()}'
                                 if key not in seen_samples:
                                     seen_samples.add(key);pending_samples.append(value)
                         if not pending_samples:
-                            time.sleep(15);continue
+                            time.sleep(poll_wait);continue
                         sample=pending_samples.pop(0)
                         pages=sample['rf_diagnostic'][3]
                         result['memory']={'source':'game MmQueryStatistics','base-memory':pages*4096}
@@ -503,7 +554,7 @@ dvd_path = '{iso.as_posix()}'
                 if diagnostic[1]==9 and diagnostic[2]==5 and sample['rf_player_replay_diagnostic'][2]>=args.frames:
                     result['status']='COMPLETED';break
                 if ram_reader:
-                    if not pending_samples:time.sleep(15)
+                    if not pending_samples:time.sleep(poll_wait)
                 else:time.sleep(args.poll_seconds)
         if result['status']=='TIMEOUT' and process.poll() is not None:
             result['status']='PROCESS_EXITED'
@@ -518,7 +569,10 @@ dvd_path = '{iso.as_posix()}'
             except Exception:pass
             try:monitor.close()
             except Exception:pass
-        if process:
+        if process and args.target == 'hardware':
+            import xbox_hw
+            xbox_hw.reboot(args.xbox_host)
+        elif process:
             stop_owned_process(process)
             result['exit_code']=process.poll()
         if args.scenario:

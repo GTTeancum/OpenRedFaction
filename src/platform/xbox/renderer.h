@@ -4,6 +4,7 @@
 #include "rf/material.h"
 #include "rf/lightmap.h"
 void rf_xbox_enable_retained_world(void);
+void rf_xbox_frame_skipped(void);
 /* Opaque allocation-free session screen on the existing HUD backend. Does not
  * rerender or advance the world; safe before the first gameplay presentation. */
 int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags);

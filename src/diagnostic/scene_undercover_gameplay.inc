@@ -104,6 +104,9 @@ static int scene_undercover_draw(scene_stream *s)
             if(b->material>=o->materials.count)return RF_FORMAT;
             memcpy(&slot,o->materials.items[b->material].record.bytes+0x10,4);
             if(slot>=s->undercover_textures)return RF_FORMAT;
+            status=scene_view_model_retain(s,g,batch,NULL,0,&view,s->undercover_base+slot);
+            if(status==RF_OK)continue;
+            if(status!=RF_NOT_FOUND)return status;
             status=scene_model_scratch_prepare(&buffers,b->vertices);if(status)return status;
             status=rf_model_geometry_render_static_batch(g,batch,&view,&lights,&attributes,NULL,&buffers);if(status)return status;
             status=rf_preview_static_model_emit(g,batch,&buffers,s->npc_indices,s->npc_pool,&view,&planes,&projection,

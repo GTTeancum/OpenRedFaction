@@ -13,7 +13,7 @@ typedef struct retained_model_entry {
     rf_model_box posed_bounds;uint32_t posed_valid;
 } retained_model_entry;
 typedef struct retained_model_draw {
-    uint32_t entry,at_vertex,material,front_face;float rows[3][4],screen[4],palette[150][4];
+    uint32_t entry,at_vertex,material,front_face,view_model;float rows[3][4],screen[4],palette[150][4];
 } retained_model_draw;
 static retained_model_entry retained_models[RETAINED_MODEL_LIMIT];
 static retained_model_draw *retained_draws;
@@ -149,16 +149,21 @@ static int retained_model_cache(const rf_model_geometry *geometry,uint32_t batch
 failed:
     if(entry.gpu)MmFreeContiguousMemory(entry.gpu);free(entry.parts);free(entry.bounds);return status;
 }
-static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t batch,const float (*matrices)[12],uint32_t bones,
-    const rf_model_projection *view,uint32_t material,uint32_t at_vertex)
+/* view_model: first-person request. Its CPU path draws after the scope
+ * magnification of the world prefix and writes Z=16384/(1+q), so it keeps
+ * the unscaled projection and selects the view-model depth constants. */
+static int retained_model_queue(const rf_model_geometry *geometry,uint32_t batch,const float (*matrices)[12],uint32_t bones,
+    const rf_model_projection *view,uint32_t material,uint32_t at_vertex,uint32_t view_model)
 {
     retained_model_draw *draw;uint32_t slot,i,j;float determinant;int status;rf_model_projection scoped;
     if(!view || (bones && !matrices))return RF_RANGE;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
-    /* Retained requests are world models; firstperson mesh stays on CPU path.
-     * Copy so fallback callers retain their original unscaled projection. */
-    scoped=*view;scoped.screen[0]*=rf_scene_scope_projection;scoped.screen[1]*=rf_scene_scope_projection;view=&scoped;
-    if((!bones && matrices) || bones>50 || !view->perspective || retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
+    /* World requests are scope-magnified like the CPU world prefix; view
+     * models are not. Copy so fallback callers keep the original projection. */
+    scoped=*view;
+    if(!view_model){scoped.screen[0]*=rf_scene_scope_projection;scoped.screen[1]*=rf_scene_scope_projection;}
+    view=&scoped;
+    if((!bones && matrices) || bones>50 || !view->perspective)goto fallback;
     for(i=0;i<9;i++)if(!isfinite(view->rotation[i]))return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(view->camera[i]))return RF_RANGE;
     for(i=0;i<4;i++)if(!isfinite(view->screen[i]))return RF_RANGE;
@@ -188,8 +193,11 @@ static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t bat
             return RF_OK;
         }
     } else ++rf_xbox_model_visibility[6];
+    /* Culled requests consume no draw slot; only visible overflow falls back. */
+    if(retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
     if(retained_draw_count && retained_draws[retained_draw_count-1].at_vertex>at_vertex)return RF_RANGE;
     draw=retained_draws+retained_draw_count;draw->entry=slot;draw->at_vertex=at_vertex;draw->material=material;
+    draw->view_model=view_model!=0;
     /* Original accepts dot(camera-a, cross(b-a,c-b)) > 0. Screen Y is
      * downward: a positive signed screen area is clockwise on NV2A. */
     draw->front_face=determinant<0?NV097_SET_FRONT_FACE_V_CW:NV097_SET_FRONT_FACE_V_CCW;
@@ -208,6 +216,12 @@ static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t bat
 fallback:
     ++rf_xbox_retained_models[6];return RF_NOT_FOUND;
 }
+static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t batch,const float (*matrices)[12],uint32_t bones,
+    const rf_model_projection *view,uint32_t material,uint32_t at_vertex)
+{return retained_model_queue(geometry,batch,matrices,bones,view,material,at_vertex,0);}
+static int retained_view_model_prepare(const rf_model_geometry *geometry,uint32_t batch,const float (*matrices)[12],uint32_t bones,
+    const rf_model_projection *view,uint32_t material,uint32_t at_vertex)
+{return retained_model_queue(geometry,batch,matrices,bones,view,material,at_vertex,1);}
 /* Retained models bind a known 1x1 0xffffffff fallback on unit1 and emit
  * lightmap coordinates (0,0,0,1). Preserve both register-combiner iterations,
  * including their intermediate clamp and stage1 x2 operation, but replace
@@ -239,6 +253,7 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
     const gpu_texture *texture=draw->material<materials->count && textures[draw->material].pixels?textures+draw->material:textures+materials->count;
     const gpu_texture *white=textures+materials->count,*previous_texture=NULL;uint32_t i,part_index,*p;
     renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks+4};
+    if(rf_xbox_experiment&1)return RF_OK; /* null-draw bottleneck experiment */
     /* install_program starts each CPU-boundary/same-shader run. Within that
      * run, the immediately preceding request proves the last unit0 binding;
      * no cross-pass/frame pointer cache or caller-owned mutation is needed. */
@@ -259,9 +274,15 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
      * shader-kind change. Intervening same-kind draws only alter c0..c3 and
      * the bone palette at c8+, so these constants remain identical. */
     if(install_program) {
-        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,(1000.0f/999.9f)*16777215.0f,.1f,1,0);
+        /* c4 depth: world Z=K*(1-.1q); view model Z=16384*(1-0q)/(1+1q),
+         * the CPU first-person band (scene.c position[2]=16384/(1+q)).
+         * c7.x=0 leaves world models dividing by exactly depth.z=1. The
+         * caller reinstalls on every view_model change (shader kind bit1). */
+        if(draw->view_model)p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,16384.0f,0,1,0);
+        else p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,(1000.0f/999.9f)*16777215.0f,.1f,1,0);
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,.5f,.5f,.5f,1);
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,1,0,0); /* Cg literal c6. */
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,draw->view_model?1.0f:0.0f,0,0,0); /* c7 depth divisor. */
     }
     pb_end(p);
     p=pb_begin();p=pb_push1(p,NV097_SET_FRONT_FACE,draw->front_face);

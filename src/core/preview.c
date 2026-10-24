@@ -484,11 +484,40 @@ static int mover_render_family(void *context,uint32_t kind)
     if((uint8_t)c->disabled || !c->geometry)return RF_OK;
     return generate(c->mesh,c->geometry,c->level,c->capacity,c->origin,c->matrix,0,NULL);
 }
+/* Last world build: mover groups, groups culled outside view, emitted vertices,
+ * world/static groups generated. Diagnostic only; overwritten every build. */
+uint32_t rf_preview_world_stats[4];
+/* Platform mover backend (Xbox GPU retention). Unregistered on PC. */
+static rf_preview_mover_backend mover_backend;
+static uint32_t mover_backend_set;
+uint32_t rf_preview_retained_mover_stats[4];
+int rf_preview_set_mover_backend(const rf_preview_mover_backend *backend)
+{
+    if(!backend){memset(&mover_backend,0,sizeof(mover_backend));mover_backend_set=0;return RF_OK;}
+    if(!backend->begin || !backend->submit || !backend->finish || !backend->clear)return RF_RANGE;
+    mover_backend=*backend;mover_backend_set=1;return RF_OK;
+}
+void rf_preview_clear_retained_movers(void)
+{if(mover_backend_set)mover_backend.clear(mover_backend.context);}
+/* The render path's former rf_collision_contact_world call with a zero local
+ * contact only validated the pose: it fails RF_FORMAT for any non-finite
+ * origin or axis and has no other effect. Keep that exact outcome inline. */
+static int mover_pose_finite(const float *origin,const float (*matrix)[3])
+{
+    uint32_t i,j;
+    if(!origin || !matrix)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(origin[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+    }
+    return RF_OK;
+}
 static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t budget,int reuse,rf_preview_vertex *scratch,rf_group_attached_pose *render_poses,uint32_t disabled,const rf_visibility *visibility)
 {
     rf_preview_mesh next={0};uint32_t pass,i,j,total=0,capacity=budget/sizeof(rf_preview_vertex);int status;
+    uint32_t offer,begun=0,retained=0;
     memset(rf_preview_failure,0,sizeof(rf_preview_failure));
     if(!mesh || (!reuse && (mesh->vertices || mesh->bytes)) ||
         (reuse && ((budget && !mesh->vertices) || mesh->bytes>budget ||
@@ -506,35 +535,61 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     }
     if(visibility && (visibility->count!=world->rooms || !visibility->rooms))return RF_RANGE;
     next.vertices=scratch;
+    memset(rf_preview_world_stats,0,sizeof(rf_preview_world_stats));rf_preview_world_stats[0]=movers->count;
+    /* Retained movers exist only for the live type9 dispatch path. */
+    offer=mover_backend_set && render_poses && (disabled&RF_PREVIEW_WORLD_RETAINED_MOVERS) && !(uint8_t)disabled;
+    if(offer)memset(rf_preview_retained_mover_stats,0,sizeof(rf_preview_retained_mover_stats));
     for(pass=scratch?1:0;pass<2;++pass) {
         uint32_t at=0;
+        if(offer) {
+            begun=1;status=mover_backend.begin(mover_backend.context,movers,materials);
+            if(status==RF_OK)retained=1;
+            else if(status==RF_NOT_FOUND){retained=0;if(pass)++rf_preview_retained_mover_stats[3];}
+            else goto fail;
+        }
         for(i=0;i<materials->count;++i) {
             if(!i && (disabled&0x100u))continue; /* Static world is retained by the GPU backend. */
             const rf_geometry *g=i?&movers->items[i-1].geometry:world;
             const float *origin=i?(poses?poses[i-1].position:movers->items[i-1].position):NULL;
             const float (*matrix)[3]=i?(poses?(const float (*)[3])poses[i-1].output_matrix:(const float (*)[3])movers->items[i-1].orientation):NULL;
             rf_preview_mesh part={0};
-            if(origin) {
-                rf_collision_ray_hit local={0},hit;
-                status=rf_collision_contact_world(&local,origin,matrix,&hit);if(status)goto fail;
-            }
+            if(origin){status=mover_pose_finite(origin,matrix);if(status)goto fail;}
             if(pass && next.vertices)part.vertices=next.vertices+at;
             if(i && render_poses) {
                 uint32_t flags=render_poses[i-1].flags;
                 mover_render_context context={&part,g,level,capacity-at,disabled,origin,matrix};
-                if(!(flags&2u) && !(uint8_t)disabled && mover_render_outside(movers->items+i-1,render_poses+i-1,level))
-                    context.geometry=NULL;
-                rf_object_render_backend backend={mover_render_white,mover_render_kind,mover_render_prepare,mover_render_family,&context};
-                /* Local flags: sizing and failed emission must not publish markers. */
-                status=rf_object_render_dispatch(&flags,9,0,&backend);
+                /* Dispatch returns before any family work for flag2, and the
+                 * family emits nothing for low-byte suppression or a culled
+                 * box; flags are local copies. Decide those cheaply first so
+                 * hidden, suppressed and culled movers do no further work. */
+                if(flags&2u)status=RF_OK;
+                else if((uint8_t)disabled)status=RF_OK;
+                else if(mover_render_outside(movers->items+i-1,render_poses+i-1,level))
+                    {status=RF_OK;if(pass)++rf_preview_world_stats[1];}
+                else {
+                    status=RF_NOT_FOUND;
+                    if(retained) {
+                        if(pass)++rf_preview_retained_mover_stats[0];
+                        status=mover_backend.submit(mover_backend.context,i-1,origin,matrix);
+                        if(status==RF_OK){if(pass)++rf_preview_retained_mover_stats[1];}
+                        else if(status!=RF_NOT_FOUND)goto fail;
+                        else if(pass)++rf_preview_retained_mover_stats[2];
+                    }
+                    if(status==RF_NOT_FOUND) {
+                        rf_object_render_backend backend={mover_render_white,mover_render_kind,mover_render_prepare,mover_render_family,&context};
+                        /* Local flags: sizing and failed emission must not publish markers. */
+                        status=rf_object_render_dispatch(&flags,9,0,&backend);
+                    }
+                }
             } else status=generate(&part,g,level,capacity-at,origin,matrix,0,i?NULL:visibility);
             if(status)goto fail;
             if(pass)for(j=0;j<part.count;++j) {
                 if(part.vertices[j].material>=g->textures){status=RF_FORMAT;goto fail;}
                 part.vertices[j].material=materials->slots[materials->offsets[i]+part.vertices[j].material];
             }
-            at+=part.count;
+            at+=part.count;if(pass && !i)++rf_preview_world_stats[3];
         }
+        if(pass)rf_preview_world_stats[2]=at;
         if(!pass) {
             total=at;capacity=total;next.count=total;next.bytes=total*sizeof(rf_preview_vertex);
             if(reuse)next.vertices=mesh->vertices;
@@ -544,11 +599,13 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     }
     if(scratch) {if(next.bytes)memcpy(mesh->vertices,scratch,next.bytes);next.vertices=mesh->vertices;}
     *mesh=next;
+    if(begun)mover_backend.finish(mover_backend.context,RF_OK);
     /* Successful transaction publishes the exact outer488b20 marker even when
      * the family draw was suppressed. Hidden objects preserve their flags. */
     if(render_poses)for(i=0;i<movers->count;++i)if(!(render_poses[i].flags&2))render_poses[i].flags|=0x10;
     return RF_OK;
 fail:
+    if(begun)mover_backend.finish(mover_backend.context,status);
     if(!reuse)rf_preview_close(&next);return status;
 }
 int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,

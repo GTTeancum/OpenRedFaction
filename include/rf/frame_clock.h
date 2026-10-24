@@ -16,7 +16,7 @@ typedef struct rf_frame_clock {
  * First call consumes the initial pose tick immediately. */
 uint32_t rf_frame_clock_step(rf_frame_clock *clock,uint32_t now_ms);
 /* Once per completed tick: zero skips presentation while catching up.
- * Forces presentation after eight consecutive skips, >=33 ms since the last
+ * Forces presentation after eight consecutive skips, >=50 ms since the last
  * draw, or when pre-presentation simulation took >=17 ms. The time deadline
  * also covers physics after the previous presentation. Physics still runs. */
 int rf_frame_clock_present(rf_frame_clock *clock,uint32_t now_ms);

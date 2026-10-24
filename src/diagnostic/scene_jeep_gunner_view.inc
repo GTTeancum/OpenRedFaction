@@ -111,6 +111,9 @@ static int scene_jeep_gunner_view_draw(scene_stream *s,uint32_t frame)
         if(material>=w->materials.count){status=RF_FORMAT;goto done;}
         memcpy(&slot,w->materials.items[material].record.bytes+0x10,4);
         if(slot>=o->textures){status=RF_FORMAT;goto done;}
+        status=scene_view_model_retain(s,&w->geometry,batch,(const float (*)[12])w->prepared,w->bone_count,&view,o->base+slot);
+        if(status==RF_OK){++p[5];continue;}
+        if(status!=RF_NOT_FOUND)goto done;
         status=scene_model_scratch_prepare(&buffers,w->geometry.batches[batch].vertices);if(status)goto done;
         status=rf_model_geometry_render_batch(&w->geometry,batch,w->prepared,w->bone_count,&view,&lights,&attributes,&buffers);if(status)goto done;
         status=rf_preview_model_emit(&w->geometry,batch,&buffers,s->npc_indices,s->npc_pool,&view,&planes,&projection,
