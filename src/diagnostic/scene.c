@@ -20927,6 +20927,14 @@ _Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache
 #include "scene_player_footsteps.inc"
 #include "scene_player_jump_audio.inc"
 #include "scene_player_landing_audio.inc"
+#ifdef RF_IMAGE_XBOX_NATIVE
+/* Xbox animation level of detail: NPCs out of view or beyond 20 units pose on
+ * alternate ticks with the skipped tick's time carried, halving their skinning
+ * cost; visible nearby NPCs keep the original every-tick advance. */
+#define NPC_POSE_CARRY_SLOTS 512u
+static float npc_pose_carry[NPC_POSE_CARRY_SLOTS];
+uint32_t rf_scene_npc_pose_lod[2]; /* advances done, advances deferred */
+#endif
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_t frame)
 {
     static uint32_t tracked_uid=UINT32_MAX,tracked_body_hash,tracked_published_hash,tracked_playback_hash,tracked_pose_hash;
@@ -21007,8 +21015,18 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             if(!advance||pose->playback.completion.frozen){
                 status=scene_medic_clip_culled(campaign_npc_bodies+i,pose,model,elapsed);if(status)return status;
             }
+            float step=elapsed;
+#ifdef RF_IMAGE_XBOX_NATIVE
+            if(!frame && i<NPC_POSE_CARRY_SLOTS)npc_pose_carry[i]=0;
+            if(advance && i<NPC_POSE_CARRY_SLOTS && !pose->playback.completion.frozen &&
+               ((gate.descriptor_present && !(gate.descriptor_flag&255u)) || gate.distance>20.0f)) {
+                if((i^frame)&1u){npc_pose_carry[i]+=elapsed;advance=0;++rf_scene_npc_pose_lod[1];}
+                else{step+=npc_pose_carry[i];npc_pose_carry[i]=0;}
+            } else if(i<NPC_POSE_CARRY_SLOTS){step+=npc_pose_carry[i];npc_pose_carry[i]=0;}
+            if(advance)++rf_scene_npc_pose_lod[0];
+#endif
             if(advance) {
-                status=rf_entity_pose_advance_shared(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement,rf_scene_pose_sharing_disabled?NULL:&campaign_pose_batch);
+                status=rf_entity_pose_advance_shared(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,step,displacement,rf_scene_pose_sharing_disabled?NULL:&campaign_pose_batch);
                 /* Advancement may remove slots before later pose evaluation fails. */
                 {int retired=scene_npc_speech_reconcile(i);
                  if(status)return status;if(retired)return retired;}
@@ -22105,14 +22123,27 @@ static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
     if(room){if(room>c->stream->visibility.state.count)return RF_RANGE;*visible=c->stream->visibility.state.rooms[room-1].visible!=0;}
     return RF_OK;
 }
+/* Corona cost split (CPU cycles): [0] renders, [1] searches, [2] snapshot
+ * cycles, [3] search cycles, [4] total render cycles, [5] glares in list. */
+uint64_t rf_scene_corona_cycles[6];
+static uint64_t corona_cycles(void)
+{
+#if defined(__i386__) || defined(__x86_64__)
+    uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;
+#else
+    return 0;
+#endif
+}
 static int scene_corona_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *visible)
 {
     scene_corona_context *c=context;scene_glare_search_context *s=&c->snapshot;
-    int status=scene_corona_snapshot(c);if(status)return status;
+    uint64_t t0=corona_cycles(),t1;int status=scene_corona_snapshot(c);if(status)return status;
+    t1=corona_cycles();rf_scene_corona_cycles[2]+=t1-t0;++rf_scene_corona_cycles[1];
     rf_glare_visibility_list movers={s->objects,s->movers},actors={s->objects+s->movers,s->actors};
     rf_glare_visibility_backend b={scene_glare_lookup,scene_glare_solid_owner,scene_glare_room,scene_glare_state,
         scene_glare_associated,rf_scene_glare_solid_query,scene_glare_model,s};
-    return rf_glare_visibility_search(owner,camera,&movers,&actors,s->objects+c->selected,1,0,&b,visible);
+    status=rf_glare_visibility_search(owner,camera,&movers,&actors,s->objects+c->selected,1,0,&b,visible);
+    rf_scene_corona_cycles[3]+=corona_cycles()-t1;return status;
 }
 static int scene_corona_special(void *c,rf_glare_base_owner *o,const float p[3],uint32_t *v)
 {(void)c;(void)o;(void)p;(void)v;return RF_NOT_FOUND;}
@@ -22131,7 +22162,9 @@ static int scene_corona_render(void *context,rf_glare_base_owner *owner,uint32_t
     bitmap=campaign_glare_materials.bindings[cls][0];f.bitmap=bitmap==UINT32_MAX?-1:(int32_t)bitmap;
     memcpy(f.camera,c->stream->particle_camera.view.origin,12);memcpy(f.basis,c->stream->particle_camera.view.basis,36);
     f.field_of_view=90;f.intensity_scale=f.size_scale=.5f;f.frame=c->stream->particle_frame;f.view=view;f.face_cache_state=-1;
-    ++rf_scene_corona_draw[2];return rf_glare_corona_render(owner,campaign_glare_classes.definitions+cls,&f,&services);
+    ++rf_scene_corona_draw[2];
+    {uint64_t t0=corona_cycles();int status=rf_glare_corona_render(owner,campaign_glare_classes.definitions+cls,&f,&services);
+     rf_scene_corona_cycles[4]+=corona_cycles()-t0;++rf_scene_corona_cycles[0];return status;}
 }
 static int scene_volume_special(void *c,rf_glare_base_owner *o,uint32_t *allowed)
 {(void)c;(void)o;(void)allowed;return RF_NOT_FOUND;}
@@ -22408,7 +22441,7 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
         status=scene_corona_snapshot(&c);if(status)return status;
     }
     ++rf_scene_corona_draw[0];
-    views[0]=&stream->particle_camera;
+    views[0]=&stream->particle_camera;rf_scene_corona_cycles[5]=campaign_glare_list.count;
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
     if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }

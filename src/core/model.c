@@ -711,7 +711,14 @@ int rf_glare_refresh_visibility(rf_glare_base_owner *owner,const float camera[3]
     if(!owner || !camera || !search || !visible)return RF_RANGE;
     if(!owner->state.active || owner->state.word_2cc)return RF_RANGE;
     if(face_cache_state>=0)owner->state.cached_face=0;
+    /* Original alternates (handle^frame)&1. Xbox performance: one quarter of
+     * the glares re-trace per drawn frame, staggered by handle; each corona's
+     * cached occlusion result holds in between (~0.18 ms per trace on L1S2). */
+#ifdef RF_IMAGE_XBOX_NATIVE
+    if(!((owner->handle^frame)&3)) {
+#else
     if(!((owner->handle^frame)&1)) {
+#endif
         status=search(context,owner,camera,&result);if(status)return status;
         owner->state.reserved[0]=(uint8_t)result;
     }

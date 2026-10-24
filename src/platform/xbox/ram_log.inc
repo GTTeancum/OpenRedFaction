@@ -203,6 +203,11 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_tactical_failure[3];RAM_ARRAY(rf_scene_tactical_failure,3);}
     {extern uint32_t rf_scene_world_load_fallback[3];RAM_ARRAY(rf_scene_world_load_fallback,3);}
     RAM_ARRAY(rf_xbox_live_memory,4);
+    {extern uint32_t rf_renderer_profile[8][4],rf_renderer_draw_profile[8][4];RAM_ARRAY(rf_renderer_profile,32);RAM_ARRAY(rf_renderer_draw_profile,32);}
+    {extern uint32_t rf_xbox_particle_batch[4],rf_xbox_particle_texture_switches;RAM_ARRAY(rf_xbox_particle_batch,4);RAM_ARRAY(&rf_xbox_particle_texture_switches,1);}
+    {extern uint32_t rf_renderer_fx_split[3];RAM_ARRAY(rf_renderer_fx_split,3);}
+    {extern uint64_t rf_scene_corona_cycles[6];RAM_ARRAY(rf_scene_corona_cycles,12);}
+    {extern uint32_t rf_scene_npc_pose_lod[2];RAM_ARRAY(rf_scene_npc_pose_lod,2);}
     {extern uint32_t rf_xbox_native_files[35];RAM_ARRAY(rf_xbox_native_files,35);}
     {extern uint32_t rf_scene_quickload_choice[8];RAM_ARRAY(rf_scene_quickload_choice,8);}
     {extern uint32_t rf_xbox_reload_memory[16][8],rf_xbox_contiguous[4];RAM_ARRAY(rf_xbox_reload_memory,128);RAM_ARRAY(rf_xbox_contiguous,4);}

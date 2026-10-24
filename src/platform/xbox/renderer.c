@@ -171,28 +171,35 @@ static void hud_batch_close_primitive(void)
 /* Private world-particle pass: immediate vertices live in push commands and
  * all referenced animation images remain owned until the pass is drained. */
 static uint32_t particle_batch_active,particle_batch_draws;
-static uint32_t particle_batch_ready,particle_batch_mode,particle_batch_format;
+static uint32_t particle_batch_ready,particle_batch_mode,particle_batch_format,particle_program_loaded;
 static const uint32_t *particle_batch_pixels;
 /* Last streaming pass: fans, command-buffer resets, omitted image texels, reused states. */
 uint32_t rf_xbox_particle_batch[4];
+uint32_t rf_xbox_particle_texture_switches;
+uint32_t rf_renderer_fx_split[3]; /* ms in particles, ms in coronas, profiled frames */ /* texture-only state changes in world particle passes */
 static void particle_batch_flush(void)
 {
     /* pb_reset has a void timeout path, so retain the complete pre-reset
      * idle guard before any command storage is recycled. */
-    if(!overlap_frame || !ring_head){GPU_WAIT(0,while(pb_busy()) {});pb_reset();}
-    particle_batch_draws=particle_batch_ready=0;particle_batch_pixels=NULL;
+    /* GPU registers survive a pushbuffer reset; only the segment count and,
+     * conservatively, the cached state are dropped when storage recycles.
+     * Ring storage never recycles here, so the installed state stays valid. */
+    if(!overlap_frame || !ring_head){GPU_WAIT(0,while(pb_busy()) {});pb_reset();
+        particle_batch_ready=particle_program_loaded=0;particle_batch_pixels=NULL;}
+    particle_batch_draws=0;
     ++rf_xbox_particle_batch[1];
 }
 static void particle_batch_begin(void)
 {
     memset(rf_xbox_particle_batch,0,sizeof(rf_xbox_particle_batch));
+    particle_batch_ready=particle_program_loaded=0;particle_batch_pixels=NULL;
     particle_batch_flush();particle_batch_active=1;
 }
 static void particle_batch_end(void)
 {
     /* The following HUD begin recycles the command buffer. The final HUD end
      * fences every draw before publication, simulation or owner retirement. */
-    particle_batch_active=particle_batch_ready=0;particle_batch_pixels=NULL;
+    particle_batch_active=particle_batch_ready=particle_program_loaded=0;particle_batch_pixels=NULL;
 }
 static void hud_batch_flush(void)
 {
@@ -1138,8 +1145,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         renderer_draw_mark(2,&draw_profile_previous,profiling);
         if(streaming) {int status;particle_batch_begin();
             renderer_draw_mark(3,&draw_profile_previous,profiling);
-            status=rf_scene_draw_particles(scene_world_particle_present,NULL);
+            {DWORD t0=GetTickCount(),t1;
+            status=rf_scene_draw_particles(scene_world_particle_present,NULL);t1=GetTickCount();
             if(!status)status=rf_scene_draw_coronas(scene_world_particle_present,NULL);
+            if(profiling){rf_renderer_fx_split[0]+=t1-t0;rf_renderer_fx_split[1]+=GetTickCount()-t1;++rf_renderer_fx_split[2];}}
             particle_batch_end();
             renderer_draw_mark(4,&draw_profile_previous,profiling);
             /* On success, the HUD's final fence owns all remaining commands.
@@ -1242,6 +1251,15 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         particle_batch_pixels==texture.pixels && particle_batch_format==texture.format;
     if(hud_batch_active)reuse_state=hud_batch_ready && hud_batch_mode==mode &&
         hud_batch_pixels==texture.pixels && hud_batch_format==texture.format;
+    /* World particles: same mode, different image. Only the texture binding
+     * changes; program, combiner, blend and depth state stay installed. */
+    if(!reuse_state && particle_batch_active && particle_batch_ready && particle_batch_mode==mode && !solid) {
+        p=pb_begin();
+        p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture.pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);pb_end(p);
+        particle_batch_pixels=texture.pixels;particle_batch_format=texture.format;
+        reuse_state=1;++rf_xbox_particle_texture_switches;
+    }
     if(!reuse_state) {
     if(hud_batch_active) {
         /* A deferred HUD packet must be published before any independent
@@ -1254,16 +1272,20 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
          * vertex fence. Publish their native write-combined pixel stores now. */
         if(!solid)__asm__ volatile("sfence" ::: "memory");
     }
+    if(!(particle_batch_active && particle_program_loaded)) {
     p=pb_begin();
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_START,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_EXECUTION_MODE,
         field(NV097_SET_TRANSFORM_EXECUTION_MODE_MODE,NV097_SET_TRANSFORM_EXECUTION_MODE_MODE_PROGRAM)|
         field(NV097_SET_TRANSFORM_EXECUTION_MODE_RANGE_MODE,NV097_SET_TRANSFORM_EXECUTION_MODE_RANGE_MODE_PRIV));
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_CXT_WRITE_EN,0);
-    p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_LOAD,0);pb_end(p);
+    p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_LOAD,0);
     for(i=0;i<sizeof(program)/sizeof(program[0]);i+=4) {
-        p=pb_begin();pb_push(p++,NV097_SET_TRANSFORM_PROGRAM,4);
-        memcpy(p,program+i,16);p+=4;pb_end(p);
+        pb_push(p++,NV097_SET_TRANSFORM_PROGRAM,4);
+        memcpy(p,program+i,16);p+=4;
+    }
+    pb_end(p);
+    if(particle_batch_active)particle_program_loaded=1;
     }
     p=pb_begin();
     if(solid) {
@@ -1335,8 +1357,9 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         }
     } else {
         if(hud_batch_active)hud_batch_close_primitive();
-        p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);pb_end(p);
-        if(hud_batch_active){hud_batch_note_words(2);++rf_xbox_hud_batch[4];}
+        p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);
+        /* HUD segments are word-budgeted per call; keep their separate blocks. */
+        if(hud_batch_active){pb_end(p);p=NULL;hud_batch_note_words(2);++rf_xbox_hud_batch[4];}
     }
     if(hud_triangles) {
         static const uint8_t quad_triangles[6]={0,1,2,0,2,3};uint32_t color=vertices[0].argb;
@@ -1364,7 +1387,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         for(i=0;i<count;i++) {
             const rf_particle_draw_vertex *v=vertices+i;
             float f=(!solid && !glow && (fog_enabled&255u))?(float)(v->fog>>24)/255.0f:1.0f;
-            p=pb_begin();
+            if(hud_batch_active)p=pb_begin();
             p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+3*16,
                 (float)((v->argb>>16)&255u)/255.0f*f,(float)((v->argb>>8)&255u)/255.0f*f,
                 (float)(v->argb&255u)/255.0f*f,(float)(v->argb>>24)/255.0f);
@@ -1373,12 +1396,14 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
                 (float)((fog_rgb>>16)&255u)/255.0f*(1-f),0);
             p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M+9*16,v->uv[0]*v->reciprocal_w,v->uv[1]*v->reciprocal_w,0,v->reciprocal_w);
             p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M,v->screen[0],v->screen[1],depth_bias+depth_scale*v->depth,1);
-            pb_end(p);
+            if(hud_batch_active)pb_end(p);
         }
         if(hud_batch_active)hud_batch_note_words(count*20);
     }
     if(!hud_triangles) {
-        p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
+        /* Non-HUD fans: BEGIN, every vertex and END share one block (<=244 words). */
+        if(hud_batch_active)p=pb_begin();
+        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
         if(hud_batch_active)hud_batch_note_words(2);
     }
     if(hud_batch_active) {

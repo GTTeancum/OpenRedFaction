@@ -150,3 +150,14 @@ Loading, by timestamped campaign and late-load stages:
 Remaining L1S2 per-step costs: simulation ~9 ms (NPC AI/animation ~4.7, physics
 ~2.8), world ~2.7, draw preparation on drawn ticks. Loading remainder: GeoMod
 identity hashing 4 s, renderer first frame 2.4 s, weapon views 1.6 s.
+
+## Results — October 24 afternoon (L1S2 drawn frame rate)
+
+Profile (console, paced exercise replay): per game step about 12 ms of simulation (NPC AI/animation ~4-5, physics ~3, combat ~1.5, events ~1.3) plus about 12 ms CPU per drawn frame, of which world particles 0.7 ms and coronas 2.8 ms. Labels 'medic/masako' and 'w:camera' are mostly NPC animation playback and the combat tick respectively.
+
+- Corona occlusion: 220 glares in L1S2, ~16 in visible rooms per drawn frame, each search ~0.18 ms (world ray plus mover/actor occluders). Xbox build re-traces a quarter of the glares per drawn frame (handle-staggered) instead of half; cached results hold in between. PC/shared path keeps the original alternation. Coronas 2.8 -> 2.2 ms per drawn frame; L1S2 drawn fps median 19.2 -> 21.2.
+- NPC animation level of detail (Xbox): NPCs in unseen rooms or beyond 20 units pose on alternate ticks with the skipped time carried; visible nearby NPCs keep every-tick advance. Pose advance 2.0 -> 1.3 ms per step, ~40% of advances deferred; L1S2 drawn fps median 21.2 -> 25.1 (game steps stay at 60/s).
+- World particle submission now sends each fan as one pushbuffer block, changes only the texture binding when the mode is unchanged, and loads the particle vertex program once per pass. L1S2 issues only ~7 world fans per frame, so this showed no measurable gain there; it reduces command traffic in particle-heavy scenes.
+- New RAM-log diagnostics: renderer phase profile (r:/d: rows in tools/crash_profile.py), particle/corona time split, corona search cycles, NPC pose LOD counters.
+
+Remaining L1S2 costs per step: NPC AI ~1.5, animation ~1.3, physics ~2.8 (crusher/conveyor movers and per-tick audio commit), combat ~1.5, events ~1.3; per drawn frame: corona submission ~1.2 ms beyond searches, world/model draws ~2.5 ms.

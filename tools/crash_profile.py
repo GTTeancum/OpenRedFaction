@@ -18,6 +18,8 @@ PHASES = {
     'rf_scene_npc_playback_profile': ['a:prepare', 'a:controller', 'a:residency', 'a:lod-gate', 'a:pose-advance', 'a:collision-refresh', 'a:post', 'a:fixtures'],
     'rf_scene_physics_profile': ['f:forces', 'f:movers', 'f:vehicles', 'f:npc-support', 'f:player-move', 'f:player-ground', 'f:liquid/damage', 'f:mover-commit'],
     'rf_scene_npc_step_profile': ['ai', 'medic/masako', 'rooms/liquid', 'glare/clutter', 'attach', 'attach-fx', 'glare-rooms', '-'],
+    'rf_renderer_profile': ['r:checks', 'r:stream-copy', 'r:stats', 'r:frame-begin', 'r:sky', 'r:draws', 'r:finish', 'r:end'],
+    'rf_renderer_draw_profile': ['d:setup', 'd:world-models', 'd:audit', 'd:fx-begin', 'd:particles', 'd:hud-begin', 'd:hud', 'd:hud-end'],
 }
 
 
