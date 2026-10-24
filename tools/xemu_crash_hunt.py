@@ -119,6 +119,8 @@ def main():
     parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
     parser.add_argument('--seed', type=int, default=1, help='Random input seed')
     parser.add_argument('--save-load-every', type=int, metavar='FRAMES', help='Alternate quick-save and quick-load every FRAMES replay frames (up to 64 actions)')
+    parser.add_argument('--authored-source', type=int, help='ctf06 developer destruction source UID (requires --dev-room)')
+    parser.add_argument('--dev-driller', action='store_true', help='ctf06 developer room with the Driller (authored source 148)')
     parser.add_argument('--world-arrays', action='store_true', help='Draw the retained world with draw arrays instead of inline indices')
     parser.add_argument('--load-only', action='store_true', help='With --save-load-every: save once, then only load')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
@@ -236,7 +238,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -357,6 +359,8 @@ def main():
         (disc / 'player-replay.bin').write_bytes(replay)
         result['replay_sha256'] = hashlib.sha256(replay).hexdigest()
         if args.dev_room: (disc / 'dev-room.flag').write_bytes(b'1')
+        if args.authored_source is not None: (disc / 'authored-source.bin').write_bytes(struct.pack('<I', args.authored_source))
+        if args.dev_driller: (disc / 'vehicle-test.flag').write_text('1')
         if args.firearms: (disc / 'firearms-test.flag').write_text(str(args.firearms))
         if args.actor is not None and args.distance is None:
             (disc / 'campaign-actor.bin').write_bytes(struct.pack('<I',args.actor))
