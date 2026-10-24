@@ -612,7 +612,19 @@ int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t budget)
 {
-    return world_mesh(mesh,world,movers,poses,materials,level,budget,0,NULL,NULL,0,NULL);
+    int status=world_mesh(mesh,world,movers,poses,materials,level,budget,0,NULL,NULL,0,NULL);
+    /* L20S3 (Finale) static geometry is one invisible box: six faces, all
+     * flags 0x2100, texture mtl_invisible02, no movers. Zero triangles is a
+     * valid authored world, but world_mesh only allocates for nonzero bytes,
+     * and the scene loader treats a NULL world buffer as "not built" (RF_RANGE
+     * before campaign setup). Publish a one-vertex owned buffer with count and
+     * bytes still zero; rf_preview_close releases it as usual. */
+    if(status==RF_OK && !mesh->vertices) {
+        if(mesh->count || mesh->bytes)return RF_FORMAT;
+        mesh->vertices=calloc(1,sizeof(rf_preview_vertex));
+        if(!mesh->vertices)return RF_RANGE;
+    }
+    return status;
 }
 int rf_preview_update_world(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geometry *world,const rf_geometry_movers *movers,

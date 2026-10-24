@@ -1,6 +1,8 @@
 #ifndef RF_SCENE_WORLD_PLAYER_RESTORE_INCLUDED
 #define RF_SCENE_WORLD_PLAYER_RESTORE_INCLUDED
 #include "rf/prepare_memory.h"
+/* Defined in scene_remote_checkpoint.inc (included later by scene.c). */
+static uint32_t scene_weapon_modes_checkpoint_catalog(const void *,uint32_t);
 /* Player candidate with static or exact authored-mover support; no gameplay
  * publication. Boot integration restores inventory/equipment before input. */
 typedef struct scene_world_player_stage {
@@ -98,7 +100,7 @@ static inline int scene_world_player_prepare_accounted(scene_stream *stream,cons
     }else{status=rf_player_checkpoint_validate(&s.player,&catalog,s.basis,s.eye);if(status)return status;}
     rf_scene_world_player_probe[0]=3;
     v=world->envelope.sections+RF_WORLD_WEAPON_MODES-1;
-    status=rf_weapon_modes_checkpoint_decode(v->data,v->bytes,scene_remote_checkpoint_catalog_hash(),&s.modes);if(status)return status;
+    status=rf_weapon_modes_checkpoint_decode(v->data,v->bytes,scene_weapon_modes_checkpoint_catalog(v->data,v->bytes),&s.modes);if(status)return status;
     rf_scene_world_player_probe[0]=4;
     status=scene_weapon_modes_checkpoint_prepare(stream,&s.player.player,&s.modes);if(status)return status;
     if(vehicle && vehicle->value.vehicle.player_occupied){

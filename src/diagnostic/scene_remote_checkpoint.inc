@@ -11,17 +11,75 @@ static rf_remote_checkpoint scene_remote_capture_state,scene_remote_restore_stat
 static uint32_t scene_remote_restore_ready,scene_remote_restore_keep,scene_remote_restore_select;
 static uint32_t scene_remote_checkpoint_level_hash(void)
 {return npc_hash_bytes(2166136261u,campaign_current_level,(uint32_t)strlen(campaign_current_level));}
+/* Diagnostic: per call, supply word, remote-definition hash, primary-prefix
+ * hash; [0..2] first call this session, [3..5] latest, [6] calls. */
+uint32_t rf_scene_remote_hash_trace[7];
+/* RFRM1/2 catalog identity predates appended piercing metadata. Remote
+ * charges do not consume it; retain the exact legacy primary prefix. */
+_Static_assert(offsetof(rf_weapon_primary_definition,piercing_enabled)==76u,
+               "RFRM legacy primary catalog prefix");
+/* FNV-1a over zero bytes, identical to npc_hash_bytes on a zero buffer. */
+static uint32_t scene_remote_checkpoint_hash_zero(uint32_t hash,uint32_t bytes)
+{while(bytes--)hash*=16777619u;return hash;}
+/* variant0: the remote definitions as currently resident in the process-wide
+ * statics (the original, legacy formula). variant1: the same formula over
+ * zero-filled definitions, i.e. the value produced by a process that never
+ * loaded Remote Charge resources.
+ * Those statics are filled only when a scene demands remote charges and are
+ * never cleared, so variant0 depended on process history: a save written by a
+ * process that never loaded remote charges (variant1) failed RFWM/RFRM
+ * catalog admission in any later process that had (2026-10-24 hardware
+ * death-reload failures in L14S3/L19S2A/L19S2B/L19S3). */
+static uint32_t scene_remote_checkpoint_catalog_hash_variant(uint32_t zero)
+{
+    const uint32_t prefix=(uint32_t)offsetof(rf_weapon_primary_definition,piercing_enabled);
+    uint32_t hash=rf_scene_weapon_supply[3];
+    if(zero){hash=scene_remote_checkpoint_hash_zero(hash,(uint32_t)sizeof(campaign_remote));
+        return scene_remote_checkpoint_hash_zero(hash,prefix);}
+    hash=npc_hash_bytes(hash,&campaign_remote,sizeof(campaign_remote));
+    return npc_hash_bytes(hash,&campaign_remote_primary,prefix);
+}
+/* Canonical encoder identity: definitions count only when THIS scene loaded
+ * them (campaign demand, or the DEV room which loads them unconditionally).
+ * Stale statics left by an earlier scene are hashed as zero. In the DEV room
+ * and in any scene with remote demand this equals the legacy value. */
 static uint32_t scene_remote_checkpoint_catalog_hash(void)
 {
-    uint32_t hash=rf_scene_weapon_supply[3];
-    hash=npc_hash_bytes(hash,&campaign_remote,sizeof(campaign_remote));
-    /* RFRM1/2 catalog identity predates appended piercing metadata. Remote
-     * charges do not consume it; retain the exact legacy primary prefix. */
-    _Static_assert(offsetof(rf_weapon_primary_definition,piercing_enabled)==76u,
-                   "RFRM legacy primary catalog prefix");
-    return npc_hash_bytes(hash,&campaign_remote_primary,
-        (uint32_t)offsetof(rf_weapon_primary_definition,piercing_enabled));
+    uint32_t loaded=scene_remote_resources||rf_scene_dev_room_enabled;
+    {uint32_t parts[3]={rf_scene_weapon_supply[3],loaded?npc_hash_bytes(2166136261u,&campaign_remote,sizeof(campaign_remote)):0u,
+        loaded?npc_hash_bytes(2166136261u,&campaign_remote_primary,(uint32_t)offsetof(rf_weapon_primary_definition,piercing_enabled)):0u};
+     if(!rf_scene_remote_hash_trace[6]++)memcpy(rf_scene_remote_hash_trace,parts,12);
+     memcpy(rf_scene_remote_hash_trace+3,parts,12);}
+    return scene_remote_checkpoint_catalog_hash_variant(!loaded);
 }
+/* Decoder admission for a stored catalog word. Returns the expected value to
+ * pass to the codec: the stored word when it is one of the admitted
+ * identities, otherwise the canonical value (so the codec rejects as before).
+ * Canonical and legacy-resident values are always admitted. The zero-
+ * definition value is admitted when the caller states that the payload does
+ * not consume remote definitions (RFWM always; RFRM only without charges).
+ * The world envelope identity independently binds rf_scene_weapon_supply[3]. */
+static uint32_t scene_remote_checkpoint_catalog_admit(uint32_t stored,uint32_t definitions_unused)
+{
+    uint32_t canonical=scene_remote_checkpoint_catalog_hash();
+    if(stored==canonical||stored==scene_remote_checkpoint_catalog_hash_variant(0))return stored;
+    if(definitions_unused&&stored==scene_remote_checkpoint_catalog_hash_variant(1))return stored;
+    return canonical;
+}
+static uint32_t scene_remote_checkpoint_stored_word(const void *data,uint32_t bytes,uint32_t offset)
+{
+    const unsigned char *p=data;
+    if(!p||bytes<offset+4)return 0;
+    return (uint32_t)p[offset]|(uint32_t)p[offset+1]<<8|(uint32_t)p[offset+2]<<16|(uint32_t)p[offset+3]<<24;
+}
+/* RFWM carries flags/RNG/shield only; remote definitions never affect it.
+ * Catalog word is at byte16 (rf_weapon_modes_checkpoint.h). */
+static uint32_t scene_weapon_modes_checkpoint_catalog(const void *data,uint32_t bytes)
+{return scene_remote_checkpoint_catalog_admit(scene_remote_checkpoint_stored_word(data,bytes,16),1);}
+/* RFRM: charge count at byte12, catalog word at byte20 (remote_checkpoint.c). */
+static uint32_t scene_remote_checkpoint_catalog(const void *data,uint32_t bytes)
+{return scene_remote_checkpoint_catalog_admit(scene_remote_checkpoint_stored_word(data,bytes,20),
+    bytes>=24&&!scene_remote_checkpoint_stored_word(data,bytes,12));}
 static int scene_remote_checkpoint_npc_key(uint32_t index,uint32_t *key)
 {
     if(!key || index>=campaign_npc_body_count || !campaign_seeds.records.items || index>=campaign_seeds.records.count)return RF_FORMAT;
@@ -128,7 +186,7 @@ static int scene_remote_checkpoint_prepare(scene_stream *stream,const void *data
     int32_t remote_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge");
     scene_remote_restore_ready=0;if(!stream)return RF_RANGE;
     if(!bytes){if(data)return RF_RANGE;memset(state,0,sizeof(*state));scene_remote_restore_ready=1;return RF_OK;}
-    status=rf_remote_checkpoint_decode(data,bytes,scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),state);if(status)return status;
+    status=rf_remote_checkpoint_decode(data,bytes,scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog(data,bytes),state);if(status)return status;
     if(state->pending && state->selected_mode!=1)return RF_FORMAT;
     for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)if(state->charges[i].flight.lifecycle.active){
         rf_remote_charge *charge=state->charges+i;rf_remote_charge_host host;uint32_t action;

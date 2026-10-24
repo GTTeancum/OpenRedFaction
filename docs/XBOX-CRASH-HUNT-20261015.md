@@ -1740,3 +1740,15 @@ slowed rather than dropping frames. XEMU measurements: L13S1 mercenary group med
 22.8 fps (20.7..29.2), L17S3 laser/rail/turret group median 24.9 fps; every frame
 start found its VBlank already crossed. Emulator throughput on the host, not a
 hardware measurement.
+
+## October24: console level crash sweep on the frame-rate build
+
+Debug kit 10.0.0.231, stock64, paced exercise replay, 1800 inputs per level, 300 s watchdog.
+First pass: 62 of 68 completed. Failures and fixes:
+
+- L10S3, L17S4: harness OUTSIDE_WORLD false alarms when the level legitimately loads the next level (L17S4 cutscene into L18S1); `outside_world` now latches `left_authored_level` and skips once scene starts exceed deaths+1. L10S3 rerun completed.
+- L20S3: finale with an empty static world faulted at publication; `preview.c` publishes a one-vertex buffer and scene.c tolerates zero-count meshes.
+- L15S4: tactical cover move RF_FORMAT; `scene_tactical_move_publishable()` skips unpublishable cover moves. `rf_scene_tactical_failure[3]` logged.
+- L14S3, L19S2A, L19S2B, L19S3: death reload failed at the player phase (weapon-modes checkpoint RF_FORMAT). The catalog hash included `campaign_remote`/`campaign_primary[8]` bytes, which are filled only when a scene loads remote charges and never cleared, so a save written before they were loaded mismatched later. The hash now counts them only when the current scene loaded them; restore also accepts the legacy and never-loaded values where no live charges are saved. Xbox death recovery ignores slots from other levels, and `scene_world_load_live_fallback` restarts the level for FORMAT/NOT_FOUND/RANGE rejections before publication (`rf_scene_world_load_fallback[3]`).
+
+Rerun of all seven on the fixed build: all COMPLETED; the four death-reload levels each recorded a death with zero load rejections or fallbacks. L20S3 is a non-interactive finale (one eye position).

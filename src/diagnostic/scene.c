@@ -22863,7 +22863,12 @@ modal_step_done:
         scene_player_outside_audio_reconcile(stream);
         scene_player_landing_audio_end();
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
-            if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
+            if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;
+                /* Rejected live load before any publication: the fresh level is
+                 * untouched, so restart it instead of stopping. */
+                if(scene_world_load_live_fallback(status)){
+                    if(rf_scene_follow_level_exits)campaign_life_request_restart(frame);
+                    status=RF_OK;}}
             if(status)return status;}
         scene_player_support_save_fixture_tick(frame);
         if(campaign_spawn)scene_nano_visual_admit(stream,frame);
@@ -23244,7 +23249,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
          fclose(fixture);if(!valid || !at || at>60000)return RF_FORMAT;
          scene_player_kill_test_frame=at;}}
 #endif
-    if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
+    if(!level || !mesh || !materials || (mesh->count && !mesh->vertices) || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
     if(rf_scene_actor_eye_enabled && !actor_follow_world)return RF_RANGE;
@@ -23829,7 +23834,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
     vertices=malloc((size_t)capacity);items=malloc((size_t)count*sizeof(*items));
     if(!vertices || !items) {status=RF_IO;goto done;}
-    memcpy(vertices,mesh->vertices,mesh->bytes);if(actor.bytes)memcpy(vertices+mesh->count,actor.vertices,actor.bytes);
+    if(mesh->bytes)memcpy(vertices,mesh->vertices,mesh->bytes);if(actor.bytes)memcpy(vertices+mesh->count,actor.vertices,actor.bytes);
     memcpy(items,materials->items,materials->count*sizeof(*items));
     memcpy(items+materials->count,bundle.textures.items,bundle.textures.count*sizeof(*items));
     free(mesh->vertices);free(materials->items);

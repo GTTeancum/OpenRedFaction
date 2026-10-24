@@ -68,6 +68,27 @@ static int scene_world_npc_plan_account(void *context,const void *owner,size_t r
  * All gameplay owners validate before assignment; cache demand may remain on
  * an aborted load and is owned by normal scene cleanup. */
 uint32_t rf_scene_world_load_reject[3]; /* phase FNV1a, status, staged bytes */
+/* Set once a load reaches its first live-state mutation (vehicle publish /
+ * owner assignment). A rejection while this is zero left the freshly
+ * constructed scene untouched, so the caller may continue with or restart
+ * that pristine level instead of stopping the session. */
+static uint32_t scene_world_load_reached_publication;
+/* Diagnostic: [0] live loads converted to a level restart, [1] last status,
+ * [2] last rejected phase FNV1a (copy of rf_scene_world_load_reject[0]). */
+uint32_t rf_scene_world_load_fallback[3];
+/* Caller: frame-0 live load (death recovery, quick-load or menu load) that
+ * returned status. Returns 1 when the rejection is a data/admission refusal
+ * made before any publication, so the pristine level may be restarted.
+ * Storage/IO failures and post-publication failures stay fatal. */
+static int scene_world_load_live_fallback(int status)
+{
+    if(!status||scene_world_load_reached_publication||
+       (status!=RF_FORMAT&&status!=RF_NOT_FOUND&&status!=RF_RANGE))return 0;
+    ++rf_scene_world_load_fallback[0];rf_scene_world_load_fallback[1]=(uint32_t)status;
+    rf_scene_world_load_fallback[2]=rf_scene_world_load_reject[0];
+    printf("WORLD_LOAD_FALLBACK_RESTART %s status%d\n",campaign_current_level,status);
+    return 1;
+}
 static int scene_world_load(scene_stream *stream,const rf_level *level,const char *tables_path)
 {
     extern rf_entity_room_state rf_scene_actor_room_state;
@@ -80,6 +101,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
     unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,rows_bytes=0,added=0,flags=0,selected=0,cost=sizeof(uint32_t);int status=RF_OK,found=0;
     const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
+    scene_world_load_reached_publication=0;
     if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
     if(scene_vehicle_switch_has_parked())return RF_NOT_FOUND;
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;rf_npc_checkpoint_rng inspected_rng={0};uint32_t inspected_tactical_cursor=0;
@@ -722,6 +744,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
         if(stream->driller_runtime||stream->driller||scene_vehicle_switch_has_parked()){
             status=RF_NOT_FOUND;goto done;}
         status=scene_npc_reload_player_seal(stream,&return_on_foot);if(status)goto done;}
+    scene_world_load_reached_publication=1;
     scene_medic_flight_restore_scope(1);flight_locked=1;
     scene_continuous_charge_restore_scope(1);charge.locked=1;
     /* Parked publication has no callbacks or mutation on rejection. Admit it

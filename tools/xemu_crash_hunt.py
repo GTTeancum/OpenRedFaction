@@ -47,8 +47,16 @@ def static_world_bounds(level):
                 maximum=[max(p[i] for p in vertices) for i in range(3)], margin=16.0)
 
 
-def outside_world(sample, bounds):
-    if not sample.get('rf_scene_crash_activity', [0])[0]:
+def outside_world(sample, bounds, state):
+    activity = sample.get('rf_scene_crash_activity', [0, 0, 0, 0])
+    if not activity[0]:
+        return None
+    # Bounds belong to the authored level. More scene starts than death
+    # reloads means an ordinary level exit loaded another level; latch it,
+    # because a later death in that next level rebalances the counters.
+    if len(activity) > 3 and activity[2] > activity[3] + 1:
+        state['left_authored_level'] = True
+    if state.get('left_authored_level'):
         return None
     eye = [struct.unpack('<f', struct.pack('<I', v))[0] for v in sample['rf_scene_gameplay_eye']]
     if any(not math.isfinite(v) or v < bounds['minimum'][i]-bounds['margin'] or
@@ -542,7 +550,7 @@ dvd_path = '{iso.as_posix()}'
                     result['status']='INPUT_QUERY_ERROR'
                     result['input_query_error']=visibility
                     break
-                escaped = outside_world(sample, result['world_bounds'])
+                escaped = outside_world(sample, result['world_bounds'], result)
                 if escaped:
                     result['status']='OUTSIDE_WORLD'
                     result['outside_world']=escaped

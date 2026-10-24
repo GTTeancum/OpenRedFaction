@@ -1,3 +1,20 @@
+/* Death recovery resumes the level the player died in. The HDD slots outlive
+ * a power cycle and a direct level launch writes no section autosave, so the
+ * newest slot can belong to another level or an earlier session; reloading it
+ * would move the player to that level. Treat it as absent, so death recovery
+ * tries the other slot and otherwise restarts the current level (caller's
+ * campaign_life_request_restart). Manual quick-load keeps any level. */
+#ifdef RF_IMAGE_XBOX_NATIVE
+static int scene_world_quickload_same_level(const void *data,uint32_t bytes)
+{
+    rf_world_checkpoint world;int status=rf_world_checkpoint_decode(data,bytes,0,&world);
+    if(status)return status;
+    if(memchr(world.level,0,sizeof(world.level))==NULL||strcmp(world.level,campaign_current_level)){
+        printf("DEATH_RELOAD_OTHER_LEVEL saved%.63s current%s\n",world.level,campaign_current_level);
+        return RF_NOT_FOUND;}
+    return RF_OK;
+}
+#endif
 /* Resolve the saved level and verify its source before discarding the current scene.
  * Full component/resource admission remains in the fresh-scene loader. */
 static int scene_world_quickload_request(scene_stream *stream,uint32_t death_recovery)
@@ -19,6 +36,7 @@ static int scene_world_quickload_request(scene_stream *stream,uint32_t death_rec
     if(death_recovery){
         status=rf_xbox_checkpoint_storage_open_world_auto(&storage,0);
         if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+        if(!status)status=scene_world_quickload_same_level(data,bytes);
         if(status==RF_NOT_FOUND || status==RF_FORMAT || status==RF_RANGE){
             int closed=scene_world_storage_close(&storage);if(closed){status=closed;goto done;}
             memset(&storage,0,sizeof(storage));
@@ -26,6 +44,7 @@ static int scene_world_quickload_request(scene_stream *stream,uint32_t death_rec
         }else if(!status)chosen_auto=1;
     }else status=rf_xbox_checkpoint_storage_open_world(&storage,0);
     if(!status && !chosen_auto)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
+    if(!status && !chosen_auto && death_recovery)status=scene_world_quickload_same_level(data,bytes);
 #else
     status=rf_checkpoint_file_load("redfaction-save",data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL,&selection);
 #endif

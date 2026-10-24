@@ -103,6 +103,24 @@ static int scene_tactical_service_recheck(campaign_npc_body *owners,uint32_t slo
        !scene_tactical_service_allowed(o))return scene_tactical_failure(RF_FORMAT,1,__LINE__);
     return RF_OK;
 }
+/* Mirror of the movement/mode preconditions enforced by the final route
+ * publisher. Ordinary authored command sequences can legitimately leave an
+ * owner tactical-eligible while it still carries an event route identity:
+ * campaign_pursuit_target() converts a superseded Goto/Goto_Player to follow2
+ * with origin NONE but keeps script_move.event/path, and several command or
+ * mode transitions clear only script_move.active. L15S4 UID9632 (merc_heavy,
+ * heavy_machine_gun) is the field case: its When_Dead9652 watches no object
+ * and fires at level start into Goto_Player9653 [9642,9654,9632], so the
+ * actor enters combat with event9653 retained. That shape is valid gameplay
+ * state, not corruption; the publisher would refuse it with RF_FORMAT and
+ * stop the enemy tick. Treat it as "no tactical relocation this episode" and
+ * keep ordinary pursuit. Port adaptation: original4cecd0 has no separate
+ * movement-owner discriminator to compare. */
+static uint32_t scene_tactical_move_publishable(const campaign_npc_body *o)
+{
+    return o->script_move.origin==SCENE_MOVE_ORIGIN_NONE&&!o->script_move.event&&
+        !o->script_move.path.count&&(!o->script_move.active||o->script_move.follow==2);
+}
 /* Only the preselected fairness slot may reach route work this frame. The
  * selection budget is not replenished when later range/LOS admission fails. */
 static int scene_tactical_try_route(scene_stream *stream,uint32_t slot,uint32_t chosen,
@@ -124,6 +142,12 @@ static int scene_tactical_try_route(scene_stream *stream,uint32_t slot,uint32_t 
     if((double)distance2>(double)range*range)return RF_OK;
     handle=o->registration.handle;target=o->tactical.target;
     if(target!=scene_blind_target_handle(o)||!scene_blind_target_live(target))return RF_OK;
+    /* Stale mode relation: scene_tactical_maintain/scene_blind_sync retire it. */
+    if((o->tactical.flags>>SCENE_TACTICAL_MODE_SHIFT)!=o->combat_scripted)return RF_OK;
+    if(!scene_tactical_move_publishable(o)){
+        next=o->tactical;status=scene_tactical_retry(&next,now);if(status)return scene_tactical_failure(status,1,__LINE__);
+        o->tactical=next;return RF_OK;
+    }
     before=o->tactical;
     status=combat_obstructed(stream,o->eye_position,sight_delta,&blocked);if(status)return scene_tactical_failure(status,1,__LINE__);
     status=scene_tactical_service_recheck(owners,slot,handle,target,weapon,&before);if(status)return scene_tactical_failure(status,1,__LINE__);
@@ -142,7 +166,7 @@ static int scene_tactical_try_route(scene_stream *stream,uint32_t slot,uint32_t 
     status=scene_tactical_navigation(stream,slot,target_position,&next.random,&candidate,&found);
     if(status==RF_NOT_FOUND)found=0;else if(status)return scene_tactical_failure(status,1,__LINE__);
     status=scene_tactical_service_recheck(owners,slot,handle,target,weapon,&before);if(status)return scene_tactical_failure(status,1,__LINE__);
-    if(!found){status=scene_tactical_retry(&next,now);if(status)return scene_tactical_failure(status,1,__LINE__);o->tactical=next;return RF_OK;}
+    if(!found||!scene_tactical_move_publishable(o)){status=scene_tactical_retry(&next,now);if(status)return scene_tactical_failure(status,1,__LINE__);o->tactical=next;return RF_OK;}
     return scene_tactical_route_publish(slot,handle,target,&candidate,&next.random,now);
 }
 #endif

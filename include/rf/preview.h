@@ -123,7 +123,10 @@ void rf_preview_close(rf_preview_mesh *mesh);
 /* One bounded allocation for world followed by authored mover meshes. The
  * material bundle must describe world then movers in the same order. Optional
  * poses supplies one committed runtime pose per mover; NULL uses file poses.
- * Preserves output on failure; close before reuse. Diagnostic projection only. */
+ * Preserves output on failure; close before reuse. Diagnostic projection only.
+ * A successful build always owns a non-NULL allocation, including a world with
+ * no drawable triangles (count/bytes zero), so callers may distinguish
+ * "built but empty" (e.g. L20S3, all faces flagged invisible) from "not built". */
 int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t budget);
