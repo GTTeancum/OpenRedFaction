@@ -5,6 +5,7 @@
 #include <limits.h>
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include <xboxkrnl/xboxkrnl.h>
+#include "../platform/xbox/contiguous_track.h"
 #endif
 int rf_image_is_packed_1555(const rf_image *image)
 {

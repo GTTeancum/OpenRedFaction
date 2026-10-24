@@ -119,6 +119,7 @@ def main():
     parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
     parser.add_argument('--seed', type=int, default=1, help='Random input seed')
     parser.add_argument('--save-load-every', type=int, metavar='FRAMES', help='Alternate quick-save and quick-load every FRAMES replay frames (up to 64 actions)')
+    parser.add_argument('--load-only', action='store_true', help='With --save-load-every: save once, then only load')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/railgun start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
@@ -375,7 +376,7 @@ def main():
         if args.experiment: (disc / 'crash-experiment.bin').write_bytes(struct.pack('<I',args.experiment))
         if args.quick_actions: (disc / 'campaign-quick-actions.bin').write_bytes(struct.pack('<2I',*args.quick_actions))
         if args.save_load_every:
-            pairs = [(f, 1 + (i % 2)) for i, f in enumerate(range(args.save_load_every, args.frames, args.save_load_every))][:64]
+            pairs = [(f, (1 if i == 0 else 2) if args.load_only else 1 + (i % 2)) for i, f in enumerate(range(args.save_load_every, args.frames, args.save_load_every))][:64]
             (disc / 'campaign-quick-actions.bin').write_bytes(b'RFQA' + struct.pack('<I', len(pairs)) + b''.join(struct.pack('<2I', *p) for p in pairs))
             result['quick_actions'] = pairs
         if not args.no_audio: (disc / 'audio-output.flag').write_bytes(b'')

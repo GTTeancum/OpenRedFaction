@@ -1772,3 +1772,14 @@ Random input, eight levels (L2S3, L4S1b, L8S2, L11S2, L14S2, L18S1, L9S4, L6S1),
 Long session, L2S3 random seed 101 with save/load every 3000 frames: 73 minutes wall time (126k frames, 123 scene starts, 64 save/load actions), no crash or stall. Some loads failed restoring the player position (now fixed with the player fallback; a 15-minute rerun with 60 saves/loads had zero rejections). Free pages after level release fell 10120 -> 9147 over 122 reloads (one ~900-page drop, then about one page per reload): open leak.
 
 Vehicles: rockets destroyed Jeep 2485 (L10S1) and Driller 8122 (L1S2); Jeep 7629 (L12S1) destroyed under enemy fire with ejection, player later killed on foot; Driller boarded from distance 6 with 360 drill contacts and 211 damage calls, health unchanged. APC 3303 rocket staging died to enemy fire within seconds at distances 10 and 14; Fighter 10066 and submarine 3963 staging rejected (no floor support) at all tried distances. Open: seated player death in Jeep/Driller, APC/Fighter/submarine destruction, Driller bullet damage.
+
+## October24: per-reload memory leak
+
+RAM-log memory accounting (rf_xbox_reload_memory rows after each level release, rf_xbox_live_memory per sample, rf_xbox_contiguous for game contiguous blocks, rf_xbox_native_files for direct file handles) on L3S2 reload loops:
+
+- Contiguous (GPU) memory returns to zero after every release; committed virtual memory (heap) rises to a high-water of about 5321 pages over the first seven loads and then stays flat.
+- Kernel pool grew about 1.2 pages per reload, independent of audio and of saving (load-only loop identical) and not with time (idle run flat).
+- A fresh event handle's value rose by 55 per load. Game stdio streams and direct NtCreateFile handles balanced exactly, so the extra handles were not game file handles.
+- Open/close loop with no reloads: direct NtCreateFile and stdio probes of missing files left pool flat; successful fopen/fclose grew pool about 70 bytes per pair.
+- Cause: NXDK PDCLib fopen calls mtx_init (NtCreateMutant) per stream and fclose never calls mtx_destroy. tools/prepare_checked_stdio.py now inserts mtx_destroy for non-static streams into the patched fclose.
+- Result: 28-reload loop, pool 5-6 pages throughout, available pages flat at 9052 from reload 7 on.

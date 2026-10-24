@@ -28,6 +28,14 @@ def main():
         ("    _PDCLIB_LOCK( stream->mtx );", "    int native_close_status;\n    _PDCLIB_LOCK( stream->mtx );"),
         ("    _PDCLIB_close( stream->handle );", "    native_close_status = _PDCLIB_close( stream->handle );"),
         ("    return 0;\n}\n\n#endif", "    return native_close_status ? EOF : 0;\n}\n\n#endif"),
+        # fopen creates a kernel mutant per stream (NXDK mtx_init ->
+        # NtCreateMutant) and upstream fclose never destroys it: every
+        # fopen/fclose pair leaked one handle and ~70 bytes of kernel pool
+        # (measured on the console, about 55 handles per level load).
+        ("    _PDCLIB_UNLOCK( stream->mtx );\n\n    /* Free stream */",
+         "    _PDCLIB_UNLOCK( stream->mtx );\n\n#ifndef __STDC_NO_THREADS__\n"
+         "    if ( ! ( stream->status & _PDCLIB_STATIC ) )\n    {\n        mtx_destroy( &stream->mtx );\n    }\n"
+         "#endif\n\n    /* Free stream */"),
     ]
     for before, after in edits:
         if text.count(before) != 1:

@@ -10,6 +10,8 @@
 #include "rf/finite.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
+#include "contiguous_track.h"
+uint32_t rf_xbox_contiguous[4];
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

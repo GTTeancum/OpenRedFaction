@@ -19,6 +19,7 @@
 #include "rf/frame_clock.h"
 #include "rf/particle_pool.h"
 #include "renderer.h"
+#include "file_io.h"
 #include "input.h"
 #include "settings_storage.h"
 #include <string.h>
@@ -58,6 +59,11 @@ uint32_t rf_xbox_startup_trace[4]; /* sequence,stage,GetTickCount,status */
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 /* Failed level switch: step (1 player get,2 pose get,3 level open,4 placement,5 item stage,6 player set), status, FNV1a of target level. */
 uint32_t rf_xbox_transition_failure[3];
+/* Memory after each level release (first rows): available pages, live
+ * contiguous blocks, live contiguous pages, committed virtual-memory pages,
+ * pool, cache, stack and image pages. */
+#define RELOAD_MEMORY_ROWS 16u
+uint32_t rf_xbox_reload_memory[RELOAD_MEMORY_ROWS][8];
 /* First failing scene_frame return: source line, status, frame. */
 uint32_t rf_xbox_frame_failure[3];
 #define FRAME_FAIL(expr) do{int frame_status_=(expr);if(frame_status_&&!rf_xbox_frame_failure[1]){rf_xbox_frame_failure[0]=__LINE__;rf_xbox_frame_failure[1]=(uint32_t)frame_status_;rf_xbox_frame_failure[2]=frame;}return frame_status_;}while(0)
@@ -2182,6 +2188,9 @@ campaign_load_section:
                     if(!fresh)rf_vpp_close(&archive);
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
+                    {extern uint32_t rf_xbox_contiguous[4];uint32_t n=rf_xbox_level_transitions[0];
+                     if(n<=RELOAD_MEMORY_ROWS){uint32_t *row=rf_xbox_reload_memory[n-1];row[0]=memory.AvailablePages;row[1]=rf_xbox_contiguous[0];row[2]=rf_xbox_contiguous[1]>>12;
+                         row[3]=memory.VirtualMemoryBytesCommitted>>12;row[4]=memory.PoolPagesCommitted;row[5]=memory.CachePagesCommitted;row[6]=memory.StackPagesCommitted;row[7]=memory.ImagePagesCommitted;}}
                     step=3;
                     if(fresh){result=rf_level_open(&level,&archive,next.level);
                         if(result==RF_NOT_FOUND){rf_vpp_close(&archive);result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);}

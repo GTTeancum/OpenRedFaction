@@ -9,6 +9,17 @@
 #include <windows.h>
 #include <xboxkrnl/xboxkrnl.h>
 
+/* Diagnostic: [0] native files open now, [1] opens, [2] closes, then up to 32
+ * FNV1a hashes of the base names of the files still open. */
+uint32_t rf_xbox_native_files[3 + 32];
+static HANDLE native_track[32];
+static uint32_t native_name(const char *path)
+{
+    const char *base = path, *p; uint32_t h = 2166136261u;
+    for (p = path; *p; p++) if (*p == '/' || *p == '\\') base = p + 1;
+    for (p = base; *p; p++) h = (h ^ (unsigned char)*p) * 16777619u;
+    return h;
+}
 int rf_xbox_file_open(const char *path, uint32_t unbuffered, void **handle)
 {
     ANSI_STRING name;
@@ -28,6 +39,8 @@ int rf_xbox_file_open(const char *path, uint32_t unbuffered, void **handle)
                           FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_DELETE, FILE_OPEN, options);
     if (!NT_SUCCESS(status) || !native) return RF_XBOX_FILE_ERROR;
     *handle = (void *)native;
+    ++rf_xbox_native_files[0]; ++rf_xbox_native_files[1];
+    for (uint32_t i = 0; i < 32; i++) if (!native_track[i]) { native_track[i] = native; rf_xbox_native_files[3 + i] = native_name(path); break; }
     return RF_XBOX_FILE_OK;
 }
 
@@ -55,6 +68,8 @@ int rf_xbox_file_read(void *handle, uint32_t offset, void *data, uint32_t size, 
 int rf_xbox_file_close(void *handle)
 {
     if (!handle) return RF_XBOX_FILE_OK;
+    --rf_xbox_native_files[0]; ++rf_xbox_native_files[2];
+    for (uint32_t i = 0; i < 32; i++) if (native_track[i] == (HANDLE)handle) { native_track[i] = NULL; rf_xbox_native_files[3 + i] = 0; break; }
     return NT_SUCCESS(NtClose((HANDLE)handle)) ? RF_XBOX_FILE_OK : RF_XBOX_FILE_ERROR;
 }
 

@@ -84,6 +84,8 @@ extern uint32_t rf_scene_submarine_weapon[8],rf_scene_drill_state[10];
 extern uint32_t rf_scene_vehicle_entry_probe[16];
 extern uint32_t rf_scene_vehicle_exit_probe[80];
 extern uint32_t rf_scene_use_selection[10];
+/* Sampled each log line: available, committed VM, pool and stack pages. */
+uint32_t rf_xbox_live_memory[4];
 static void rf_ram_log_sample(uint32_t force)
 {
     static int initialized,enabled;
@@ -96,6 +98,8 @@ static void rf_ram_log_sample(uint32_t force)
     uint32_t frame=rf_player_replay_diagnostic[2];
     if(!force && (frame==previous || frame%60))return;
     previous=frame;g_XboxBootPhase=rf_diagnostic[2];
+    {MM_STATISTICS m={0};m.Length=sizeof(m);if(NT_SUCCESS(MmQueryStatistics(&m))){rf_xbox_live_memory[0]=m.AvailablePages;
+        rf_xbox_live_memory[1]=m.VirtualMemoryBytesCommitted>>12;rf_xbox_live_memory[2]=m.PoolPagesCommitted;rf_xbox_live_memory[3]=m.StackPagesCommitted;}}
     used=(size_t)snprintf(text,sizeof(text),"RFLOG {");
 #define RAM_ARRAY(name,n) do {     count=snprintf(text+used,sizeof(text)-used,"\"" #name "\":[");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;     for(uint32_t i=0;i<(n);i++){uint32_t word;memcpy(&word,(const void*)((const unsigned char*)(name)+i*4),4);         count=snprintf(text+used,sizeof(text)-used,"%s%u",i?",":"",word);         if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;}     count=snprintf(text+used,sizeof(text)-used,"],");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count; } while(0)
     RAM_ARRAY(rf_diagnostic,58);
@@ -198,7 +202,10 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_remote_hash_trace[7];RAM_ARRAY(rf_scene_remote_hash_trace,7);}
     {extern uint32_t rf_scene_tactical_failure[3];RAM_ARRAY(rf_scene_tactical_failure,3);}
     {extern uint32_t rf_scene_world_load_fallback[3];RAM_ARRAY(rf_scene_world_load_fallback,3);}
+    RAM_ARRAY(rf_xbox_live_memory,4);
+    {extern uint32_t rf_xbox_native_files[35];RAM_ARRAY(rf_xbox_native_files,35);}
     {extern uint32_t rf_scene_quickload_choice[8];RAM_ARRAY(rf_scene_quickload_choice,8);}
+    {extern uint32_t rf_xbox_reload_memory[16][8],rf_xbox_contiguous[4];RAM_ARRAY(rf_xbox_reload_memory,128);RAM_ARRAY(rf_xbox_contiguous,4);}
     {extern uint32_t rf_scene_blind_dropped;RAM_ARRAY(&rf_scene_blind_dropped,1);}
     {extern uint32_t rf_scene_crouch_reject[5];RAM_ARRAY(rf_scene_crouch_reject,5);}
     {extern uint32_t rf_scene_teardown_failure[2];RAM_ARRAY(rf_scene_teardown_failure,2);}
