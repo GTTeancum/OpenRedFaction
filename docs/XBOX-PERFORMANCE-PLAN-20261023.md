@@ -110,3 +110,43 @@ stream positions retired by DMA get distance or GPU idle. Skipped paced ticks
 must restart the retained-model queue (`rf_xbox_frame_skipped`).
 Open: the D:\render-overlap.bin bisect switch was not observed on hardware
 (all runs reported mode 0); L1S2 remains CPU-bound at ~73% speed.
+
+## Results — October 24 (L1S2 frame cost and loading)
+
+Per-step stage timers (prestep, physics and animation splits) located the
+remaining L1S2 costs on the console:
+
+- Parked campaign vehicle ran full rigid support/collision every tick (2.9 ms)
+  and never settled (residual angular momentum). Resting chassis now sleep after
+  two still steps, clear residual motion, wake on command or force, and run a
+  full step every 30 ticks (1738 of 1799 steps skipped on L1S2).
+- Undrawn paced ticks ran the whole draw-preparation pass; they now skip it and
+  only age debris (48fd70 ages at draw submission).
+- The controller commit software-mixed 800 PCM frames per voice per tick and
+  discarded them (no software sink on Xbox). rf_audio_advance applies the
+  identical position arithmetic in closed form (0/2000 mismatches against
+  rf_audio_mix in a host test); full mixing remains with a sink or checksums.
+
+Loading, by timestamped campaign and late-load stages:
+
+- Light regeneration scanned every face per lightmap mapping to size work
+  storage (24.7 s); faces are bucketed by mapping once (identical counts).
+- entities.tbl re-read per lookup for base motions (~150 MB, 6.9 s): class
+  index and per-class records; motions opened once per load.
+- clutter.tbl re-scanned per class (81 MB, 6.0 s) and weapons.tbl read 48
+  times: class index, scoped table-text cache, faster tokenizer.
+- Texture decode per pixel through swizzle addressing and per-byte checksums
+  over write-combined memory: row/band decoding, shared first-person hand
+  textures, word-read digests, linear alpha classification.
+- Authored GeoMod identity SHA-256 (~60 MB): faster identical SHA with a
+  start-up self-test (6.0 → 4.1 s; memoisation would remove most of the rest).
+
+| Level | Steps/s median (slowest) | Drawn/s | Load to first frame |
+| --- | --- | --- | --- |
+| L1S2 | 59.5 (42.9) | 20.7 | 19.2 s |
+| L2S1 | 59.9 (59.0) | 59.8 | 14.3 s |
+| L3S2 | 60.0 (57.4) | 51.7 | 19.2 s |
+
+Remaining L1S2 per-step costs: simulation ~9 ms (NPC AI/animation ~4.7, physics
+~2.8), world ~2.7, draw preparation on drawn ticks. Loading remainder: GeoMod
+identity hashing 4 s, renderer first frame 2.4 s, weapon views 1.6 s.

@@ -255,8 +255,17 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
     }
     /* Only material sorting needs alpha classification. Particle blending is
      * fixed by its mode, so inspecting every texel on every quad is redundant. */
-    if(classify_alpha)for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)
-        if(packed?!(rf_image_pixel(image,x,y)[1]&128u):rf_image_pixel(image,x,y)[3]<255)out->transparent=1;
+    /* Any non-opaque texel marks the material transparent; texel order is
+     * irrelevant, so scan the stored bytes linearly (no per-texel swizzle
+     * addressing) and stop at the first hit. Same result as the per-(x,y)
+     * rf_image_pixel walk over every texel. */
+    if(classify_alpha && image->rgba) {
+        /* Word reads: write-combined pixels are uncached, so fewer loads matter. */
+        const uint32_t *word=(const uint32_t *)image->rgba;uint32_t n=image->width*image->height;
+        if(packed){for(x=0;x<n/2;x++)if((word[x]&0x80008000u)!=0x80008000u){out->transparent=1;break;}
+            if(!out->transparent && (n&1) && !(image->rgba[(n-1)*2+1]&128u))out->transparent=1;}
+        else for(x=0;x<n;x++)if((word[x]>>24)!=255u){out->transparent=1;break;}
+    }
     out->format = field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE, NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR) |
         field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY, 2) |
@@ -268,6 +277,7 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
 /* Shared aiming projection; scene owns state and CPU world geometry. */
 extern float rf_scene_scope_projection;
 int rf_scene_gpu_image_writes_pending(void);
+void rf_scene_load_mark(uint32_t stage);
 static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     (void)context;
@@ -868,7 +878,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     rf_xbox_renderer_stage[0]=3;
     gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
     if (!gpu) { pb_kill();device_lost(); return RF_RANGE; }
-    rf_xbox_renderer_stage[0]=4;
+    rf_xbox_renderer_stage[0]=4;rf_scene_load_mark(86);
     textures = calloc(materials->count + 1 + lightmaps->count, sizeof(*textures));
     if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();device_lost(); return RF_RANGE; }
     for (i = 0; i < materials->count + 1 + lightmaps->count; ++i) {
@@ -885,7 +895,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
         stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;stream_fallback=materials->count;}
     }
-    rf_xbox_renderer_stage[0]=5;
+    rf_xbox_renderer_stage[0]=5;rf_scene_load_mark(87);
     if(model==4) {
         int status;
         /* Lightmap/terrain/monitor texels are GPU-read: wait for the last frame

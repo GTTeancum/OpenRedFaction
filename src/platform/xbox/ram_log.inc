@@ -103,6 +103,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_xbox_startup_trace,4);
     RAM_ARRAY(rf_vpp_io_stats,16);
     RAM_ARRAY(rf_vpp_io_stages,48);
+    {extern uint32_t rf_scene_load_stage_ms[96];RAM_ARRAY(rf_scene_load_stage_ms,96);}
     RAM_ARRAY(&rf_scene_campaign_load_stage,1);
     RAM_ARRAY(&rf_scene_campaign_load_detail,1);
     RAM_ARRAY(rf_scene_npc_body_admission,4);
@@ -191,6 +192,8 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_rocket_lock_sight_failure[8];RAM_ARRAY(rf_scene_rocket_lock_sight_failure,8);}
     {extern uint32_t rf_scene_npc_walk_in_place[8];RAM_ARRAY(rf_scene_npc_walk_in_place,8);}
     {extern uint32_t rf_scene_world_build_skips;RAM_ARRAY(&rf_scene_world_build_skips,1);}
+    {extern uint32_t rf_scene_draw_skips;RAM_ARRAY(&rf_scene_draw_skips,1);}
+    {extern uint32_t rf_scene_physics_profile[8][4];RAM_ARRAY(rf_scene_physics_profile,32);}
     /* Cumulative per-phase rows (count, total ms lo/hi, max ms); active only
      * on the paced frame clock. Rates come from deltas between samples. */
     {extern uint32_t rf_scene_profile[8][4],rf_scene_step_profile[8][4],rf_scene_npc_step_profile[8][4],
@@ -198,7 +201,9 @@ static void rf_ram_log_sample(uint32_t force)
      RAM_ARRAY(rf_scene_profile,32);RAM_ARRAY(rf_scene_step_profile,32);RAM_ARRAY(rf_scene_npc_step_profile,32);
      RAM_ARRAY(rf_scene_world_profile,32);RAM_ARRAY(rf_scene_presentation_profile,32);}
     {extern uint32_t rf_scene_world_build_profile[4][4];RAM_ARRAY(rf_scene_world_build_profile,16);}
+    {extern uint32_t rf_scene_prestep_profile[8][4],rf_scene_npc_playback_profile[8][4];RAM_ARRAY(rf_scene_prestep_profile,32);RAM_ARRAY(rf_scene_npc_playback_profile,32);}
     {extern uint32_t rf_xbox_overlap[8];RAM_ARRAY(rf_xbox_overlap,8);}
+    {extern uint32_t rf_scene_vehicle_rest[8];RAM_ARRAY(rf_scene_vehicle_rest,8);}
     {extern uint32_t rf_xbox_gpu_wait[11],rf_xbox_experiment;RAM_ARRAY(rf_xbox_gpu_wait,11);RAM_ARRAY(&rf_xbox_experiment,1);}
     {extern uint32_t rf_scene_rocket_visual[8];RAM_ARRAY(rf_scene_rocket_visual,8);}
     {extern uint32_t rf_preview_world_stats[4],rf_xbox_retained_world[8];RAM_ARRAY(rf_preview_world_stats,4);RAM_ARRAY(rf_xbox_retained_world,8);}

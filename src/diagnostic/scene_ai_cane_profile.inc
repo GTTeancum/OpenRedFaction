@@ -101,10 +101,9 @@ static int campaign_enemy_cane_open(rf_vpp *tables,const rf_weapon_supply_catalo
        flags->definitions[weapon].flags_264!=0 || flags->definitions[weapon].flags_268!=0x10u)return RF_FORMAT;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>128u*1024u)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=scene_ai_cane_profile_read(text,entry.size,&next);
-    free(text);if(status)return status;
+    rf_table_text_release(text);if(status)return status;
     next.flight.weapon=weapon;next.flight.ready=1;scene_ai_cane_definition=next;return RF_OK;
 }
 static uint32_t campaign_enemy_cane_weapon(int32_t weapon)

@@ -184,6 +184,51 @@ static int same(const char *a,const char *b)
         if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;if(x!=y)return 0;}
     return *a==*b;
 }
+/* Scoped table-text reuse (see entity_assets.h). Keyed by the bound archive
+ * handle, its stream and open serial, plus the entry's byte range. */
+#define TABLE_CACHE_SLOTS 4u
+#define TABLE_CACHE_BYTES (160u*1024u)
+static struct {
+    rf_vpp *archive;FILE *stream;uint32_t serial,active,count,bytes;
+    struct {uint32_t offset,size;void *text;} slots[TABLE_CACHE_SLOTS];
+} table_cache;
+void rf_table_text_cache_end(void)
+{
+    uint32_t i;
+    for(i=0;i<table_cache.count;++i)free(table_cache.slots[i].text);
+    memset(&table_cache,0,sizeof(table_cache));
+}
+void rf_table_text_cache_begin(rf_vpp *tables)
+{
+    rf_table_text_cache_end();if(!tables)return;
+    table_cache.archive=tables;table_cache.stream=tables->stream;table_cache.serial=tables->serial;table_cache.active=1;
+}
+static int table_cache_bound(const rf_vpp *tables)
+{
+    return table_cache.active && tables==table_cache.archive &&
+        tables->stream==table_cache.stream && tables->serial==table_cache.serial;
+}
+void *rf_table_text_acquire(rf_vpp *tables,const rf_vpp_entry *entry,int *status)
+{
+    uint32_t i;void *text;
+    if(!tables || !entry || !status)return NULL;
+    if(table_cache_bound(tables))for(i=0;i<table_cache.count;++i)
+        if(table_cache.slots[i].offset==entry->offset && table_cache.slots[i].size==entry->size){*status=RF_OK;return table_cache.slots[i].text;}
+    text=malloc(entry->size);if(!text)return NULL;
+    *status=rf_vpp_read(tables,entry,0,text,entry->size);
+    if(!*status && table_cache_bound(tables) && table_cache.count<TABLE_CACHE_SLOTS &&
+       entry->size<=TABLE_CACHE_BYTES-table_cache.bytes) {
+        table_cache.slots[table_cache.count].offset=entry->offset;table_cache.slots[table_cache.count].size=entry->size;
+        table_cache.slots[table_cache.count++].text=text;table_cache.bytes+=entry->size;
+    }
+    return text;
+}
+void rf_table_text_release(void *text)
+{
+    uint32_t i;if(!text)return;
+    for(i=0;i<table_cache.count;++i)if(table_cache.slots[i].text==text)return;
+    free(text);
+}
 /* Writes only caller-local working records; public wrappers commit together. */
 static int skeletal_assets_load(const char *tables_path,const char *class_name,const char *skin,
     rf_vpp *meshes,uint32_t table_budget,rf_entity_assets *assets,rf_vpp_entry *mesh)
@@ -215,6 +260,9 @@ int rf_level_actor_assets_load(const rf_level *level,int32_t uid,const char *tab
         meshes,table_budget,&value.assets,&value.mesh);if(status)return status;
     *result=value;return RF_OK;
 }
+/* Equivalent to strchr("(){}",c) for the nonzero bytes token() tests;
+ * avoids a library call per byte while scanning large tables. */
+static int token_bracket(unsigned char c){return c=='(' || c==')' || c=='{' || c=='}';}
 static int token(lexer *l,char out[256],int *quoted)
 {
     uint32_t n=0;unsigned c;
@@ -233,8 +281,8 @@ static int token(lexer *l,char out[256],int *quoted)
             if(n==255)return RF_RANGE;out[n++]=(char)c;
         }
         if(l->at==l->size)return RF_FORMAT;++l->at;
-    } else if(strchr("(){}",l->text[l->at]))out[n++]=(char)l->text[l->at++];
-    else while(l->at<l->size && l->text[l->at]>32 && !strchr("(){}\"",l->text[l->at])) {
+    } else if(token_bracket(l->text[l->at]))out[n++]=(char)l->text[l->at++];
+    else while(l->at<l->size && l->text[l->at]>32 && !token_bracket(l->text[l->at]) && l->text[l->at]!='"') {
         if(l->at+1<l->size && l->text[l->at]=='/' && l->text[l->at+1]=='/')break;
         if(n==255)return RF_RANGE;out[n++]=(char)l->text[l->at++];
     }
@@ -317,10 +365,9 @@ int rf_weapon_names_load(rf_vpp *tables,uint32_t budget,rf_weapon_names *result)
     if(!tables || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_RANGE;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_RANGE;
     if(!status)status=rf_weapon_names_read(text,entry.size,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 int rf_entity_weapon_groups_read(const void *text,uint32_t bytes,const char *class_name,
     const rf_weapon_names *weapons,uint32_t groups[2])
@@ -862,10 +909,9 @@ int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_we
     if(!tables || !name || !*name || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_primary_read(text,entry.size,name,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_projectile_geometry_read(const void *text,uint32_t bytes,const char *name,
@@ -906,10 +952,9 @@ int rf_weapon_projectile_geometry_load(rf_vpp *tables,const char *name,uint32_t 
     if(!tables || !name || !*name || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_projectile_geometry_read(text,entry.size,name,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_impact_delays_read(const void *text,uint32_t bytes,const char *name,rf_weapon_impact_delays *result)
@@ -955,10 +1000,9 @@ int rf_weapon_impact_delays_load(rf_vpp *tables,const char *name,uint32_t budget
     if(!tables || !name || !*name || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_impact_delays_read(text,entry.size,name,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_camera_shake_read(const void *text,uint32_t bytes,const char *name,rf_weapon_camera_shake *result)
@@ -997,10 +1041,9 @@ int rf_weapon_camera_shake_load(rf_vpp *tables,const char *name,uint32_t budget,
     if(!tables || !name || !*name || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_camera_shake_read(text,entry.size,name,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 static int weapon_glow_read(lexer *l,rf_weapon_explosive_definition *value)
@@ -1131,10 +1174,9 @@ int rf_weapon_explosive_load(rf_vpp *tables,const char *name,uint32_t budget,rf_
     if(!tables || !name || !*name || !out)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_explosive_read(text,entry.size,name,out);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 static int weapon_preference_store(uint32_t index,uint32_t primary_count,
     uint32_t seen,uint32_t flags,uint32_t position,int32_t preference[32])
@@ -1202,10 +1244,9 @@ int rf_weapon_preference_load(rf_vpp *tables,uint32_t budget,
        names->primary_count>names->count)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_preference_read(text,entry.size,names,preference);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     const void *weapons,uint32_t weapon_bytes,rf_weapon_supply_catalog *result)
@@ -1340,10 +1381,9 @@ int rf_projectile_model_catalog_load(rf_vpp *tables,uint32_t budget,rf_projectil
     if(!tables || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_projectile_model_catalog_read(text,entry.size,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result)
@@ -1375,10 +1415,9 @@ int rf_weapon_model_names_load(rf_vpp *tables,uint32_t budget,rf_weapon_model_na
     if(!tables || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_model_names_read(text,entry.size,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_reset_catalog_read(const void *text,uint32_t bytes,
@@ -1423,10 +1462,9 @@ int rf_weapon_reset_catalog_load(rf_vpp *tables,uint32_t budget,
     if(!tables || !initial_flags || !sounds || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_reset_catalog_read(text,entry.size,initial_flags,sounds,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_launch_fail_groups_read(const void *text,uint32_t bytes,
@@ -1464,10 +1502,9 @@ int rf_weapon_launch_fail_groups_load(rf_vpp *tables,uint32_t budget,
     if(!tables || !names || !sounds || !groups)return RF_RANGE;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=rf_weapon_launch_fail_groups_read(text,entry.size,names,sounds,groups);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 int rf_weapon_supply_load(rf_vpp *tables,uint32_t budget,rf_weapon_supply_catalog *result)
@@ -2395,8 +2432,209 @@ static int state_group_exists(const void *text,uint32_t bytes,const char *class_
     }
     return status;
 }
-static int state_set_read(const void *text,uint32_t size,const char *class_name,const char *weapon,
-    rf_vpp *motions,rf_entity_state_set *value)
+/* Load-time accelerator for rf_entity_base_motions_open (port scaffolding, no
+ * original-code counterpart). The legacy readers above/below re-tokenize
+ * entity.tbl from byte 0 for every (class, weapon, state/action) query: about
+ * 69 full-prefix scans per weapon group, i.e. ~150 MB of tokenizing for L1S2's
+ * classes. This keeps their results exact:
+ *  - Before the selected class every reader only handles unquoted "$Name:"
+ *    and its required quoted argument, so the lexer can start at the first
+ *    matching "$Name:" token (tbl_index) with identical later tokens/errors.
+ *  - Inside the class, one pass per reader kind (group/state/action) records
+ *    the ordered keyword events each reader would see, including errors and
+ *    the use-dependent +Footstep Trigger/asset/duplicate outcomes; replaying
+ *    events reproduces each reader's status and output.
+ * Any allocation failure or unindexed class falls back to the legacy readers. */
+typedef struct tbl_span {const char *text;uint32_t length;} tbl_span;
+enum {TBL_EV_WEAPON,TBL_EV_STATE,TBL_EV_ACTION,TBL_EV_ERROR,TBL_EV_END};
+typedef struct tbl_event {
+    uint8_t kind,tail_bad;int32_t status,foot_status;
+    tbl_span name,motion,sound;uint32_t marker_count;float frames[2];
+} tbl_event;
+typedef struct tbl_events {tbl_event *items;uint32_t count,capacity;} tbl_events;
+typedef struct tbl_section {const char *text;uint32_t bytes;tbl_events modes[3];} tbl_section;
+typedef struct tbl_index {const char *text;uint32_t bytes,count,capacity;uint32_t *starts;} tbl_index;
+static int tbl_span_same(tbl_span s,const char *b)
+{
+    uint32_t i;
+    for(i=0;i<s.length;++i) {unsigned x=(unsigned char)s.text[i],y=(unsigned char)b[i];
+        if(!y)return 0;if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;if(x!=y)return 0;}
+    return !b[s.length];
+}
+/* Content of the quoted token token() just returned (no escapes, no NUL). */
+static tbl_span tbl_quoted_span(const lexer *l,const char *t)
+{
+    tbl_span s;s.length=(uint32_t)strlen(t);s.text=(const char*)l->text+l->at-1-s.length;return s;
+}
+static void tbl_index_close(tbl_index *x){free(x->starts);memset(x,0,sizeof(*x));}
+/* Records each unquoted "$Name:" token offset in stream order up to the first
+ * prefix error (which every reader would reproduce from the full text). */
+static int tbl_index_open(const void *text,uint32_t bytes,tbl_index *x)
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];int quoted;uint32_t at;
+    memset(x,0,sizeof(*x));x->text=text;x->bytes=bytes;
+    for(;;) {
+        at=l.at;
+        if(token(&l,t,&quoted))return RF_OK;
+        if(quoted || !same(t,"$Name:"))continue;
+        if(x->count==x->capacity) {
+            uint32_t capacity=x->capacity?x->capacity*2:128;uint32_t *grown=realloc(x->starts,capacity*sizeof(*grown));
+            if(!grown){tbl_index_close(x);return RF_IO;}
+            x->starts=grown;x->capacity=capacity;
+        }
+        x->starts[x->count++]=at;
+        if(token(&l,t,&quoted) || !quoted)return RF_OK;
+    }
+}
+/* Slice beginning at the first "$Name:" whose argument matches; 0 if unknown. */
+static int tbl_index_find(const tbl_index *x,const char *class_name,const char **text,uint32_t *bytes)
+{
+    uint32_t i;char t[256];int quoted;
+    if(!x || !x->starts || !class_name)return 0;
+    for(i=0;i<x->count;++i) {
+        lexer l={(const unsigned char*)x->text,x->bytes,x->starts[i]};
+        if(token(&l,t,&quoted) || quoted || !same(t,"$Name:"))return 0;
+        if(token(&l,t,&quoted) || !quoted)return 0;
+        if(same(t,class_name)) {*text=x->text+x->starts[i];*bytes=x->bytes-x->starts[i];return 1;}
+    }
+    return 0;
+}
+static int tbl_events_push(tbl_events *v,const tbl_event *e)
+{
+    if(v->count==v->capacity) {
+        uint32_t capacity=v->capacity?v->capacity*2:64;tbl_event *grown=realloc(v->items,capacity*sizeof(*grown));
+        if(!grown)return RF_IO;v->items=grown;v->capacity=capacity;
+    }
+    v->items[v->count++]=*e;return RF_OK;
+}
+/* mode 0: state_group_exists, 1: rf_entity_state_declaration_read,
+ * 2: rf_entity_action_read token streams after the selected $Name:. */
+static int tbl_section_pass(const char *text,uint32_t bytes,uint32_t mode,tbl_events *out)
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];int quoted,status;tbl_event e;
+    if(token(&l,t,&quoted) || quoted || !same(t,"$Name:") || token(&l,t,&quoted) || !quoted)return RF_FORMAT;
+    for(;;) {
+        memset(&e,0,sizeof(e));
+        status=token(&l,t,&quoted);
+        if(status) {e.kind=status==RF_NOT_FOUND?TBL_EV_END:TBL_EV_ERROR;e.status=status;return tbl_events_push(out,&e);}
+        if(quoted)continue;
+        if(same(t,"$Name:")) {e.kind=TBL_EV_END;return tbl_events_push(out,&e);}
+        if(same(t,"+Weapon")) {
+            if(token(&l,t,&quoted) || quoted || !same(t,"Specific:") || token(&l,t,&quoted) || !quoted)
+                {e.kind=TBL_EV_ERROR;e.status=RF_FORMAT;return tbl_events_push(out,&e);}
+            e.kind=TBL_EV_WEAPON;e.name=tbl_quoted_span(&l,t);
+        } else if(mode==1 && same(t,"+State:")) {
+            lexer probe;uint32_t count=0;float frames[2]={0,0};
+            if(token(&l,t,&quoted) || !quoted){e.kind=TBL_EV_ERROR;e.status=RF_FORMAT;return tbl_events_push(out,&e);}
+            e.name=tbl_quoted_span(&l,t);
+            if(token(&l,t,&quoted) || !quoted){e.kind=TBL_EV_ERROR;e.status=RF_FORMAT;return tbl_events_push(out,&e);}
+            e.motion=tbl_quoted_span(&l,t);e.kind=TBL_EV_STATE;
+            /* Selected-state footstep consumption; the unselected stream skips
+             * these same non-keyword tokens, so l continues from here. */
+            probe=l;
+            while(metadata_tag(&probe,"+Footstep Trigger:")) {
+                if(count || sphere_number(&probe,&frames[0]) || sphere_number(&probe,&frames[1])){e.foot_status=RF_FORMAT;break;}
+                count=2;
+            }
+            e.marker_count=count;memcpy(e.frames,frames,sizeof(frames));
+        } else if(mode==2 && same(t,"+Action:")) {
+            if(token(&l,t,&quoted) || !quoted){e.kind=TBL_EV_ERROR;e.status=RF_FORMAT;return tbl_events_push(out,&e);}
+            e.name=tbl_quoted_span(&l,t);
+            if(token(&l,t,&quoted) || !quoted){e.kind=TBL_EV_ERROR;e.status=RF_FORMAT;return tbl_events_push(out,&e);}
+            e.motion=tbl_quoted_span(&l,t);e.kind=TBL_EV_ACTION;
+            if(token(&l,t,&quoted) || !quoted){e.tail_bad=1;return tbl_events_push(out,&e);}
+            e.sound=tbl_quoted_span(&l,t);
+        } else continue;
+        status=tbl_events_push(out,&e);if(status)return status;
+    }
+}
+static void tbl_section_close(tbl_section *s)
+{uint32_t i;for(i=0;i<3;++i)free(s->modes[i].items);memset(s,0,sizeof(*s));}
+static int tbl_section_open(const char *text,uint32_t bytes,tbl_section *s)
+{
+    uint32_t i;int status;memset(s,0,sizeof(*s));s->text=text;s->bytes=bytes;
+    for(i=0;i<3;++i){status=tbl_section_pass(text,bytes,i,s->modes+i);if(status){tbl_section_close(s);return status;}}
+    return RF_OK;
+}
+static int tbl_section_group_exists(const tbl_section *s,const char *weapon)
+{
+    uint32_t i;if(!*weapon)return RF_OK;
+    for(i=0;i<s->modes[0].count;++i) {
+        const tbl_event *e=s->modes[0].items+i;
+        if(e->kind==TBL_EV_WEAPON){if(tbl_span_same(e->name,weapon))return RF_OK;}
+        else if(e->kind==TBL_EV_ERROR)return e->status;
+        else break;
+    }
+    return RF_NOT_FOUND;
+}
+static int tbl_section_state(const tbl_section *s,const char *weapon,const char *state,rf_entity_state_declaration *result)
+{
+    rf_entity_state_declaration value={0};int group=!*weapon,matched=0;uint32_t i;
+    for(i=0;i<s->modes[1].count;++i) {
+        const tbl_event *e=s->modes[1].items+i;
+        if(e->kind==TBL_EV_WEAPON)group=*weapon && tbl_span_same(e->name,weapon);
+        else if(e->kind==TBL_EV_STATE) {
+            if(!group || !tbl_span_same(e->name,state))continue;
+            if(matched)return RF_FORMAT;
+            if(e->motion.length) {if(e->motion.length>=64)return RF_RANGE;memcpy(value.motion,e->motion.text,e->motion.length);}
+            matched=1;
+            if(e->foot_status)return e->foot_status;
+            value.marker_count=e->marker_count;memcpy(value.marker_frames,e->frames,sizeof(value.marker_frames));
+        } else if(e->kind==TBL_EV_ERROR)return e->status;
+        else break;
+    }
+    if(!matched)return RF_NOT_FOUND;
+    *result=value;return RF_OK;
+}
+static int tbl_section_action(const tbl_section *s,const char *weapon,const char *action,rf_entity_action_declaration *result)
+{
+    rf_entity_action_declaration value={0};int group=!*weapon,matched=0,use;uint32_t i;
+    for(i=0;i<s->modes[2].count;++i) {
+        const tbl_event *e=s->modes[2].items+i;
+        if(e->kind==TBL_EV_WEAPON)group=*weapon && tbl_span_same(e->name,weapon);
+        else if(e->kind==TBL_EV_ACTION) {
+            use=group && tbl_span_same(e->name,action);
+            if(use) {
+                if(matched)return RF_FORMAT;
+                if(e->motion.length) {if(e->motion.length>=64)return RF_RANGE;memcpy(value.motion,e->motion.text,e->motion.length);}
+            }
+            if(e->tail_bad)return RF_FORMAT;
+            if(use) {
+                if(e->sound.length) {if(e->sound.length>=64)return RF_RANGE;memcpy(value.sound,e->sound.text,e->sound.length);}
+                matched=1;
+            }
+        } else if(e->kind==TBL_EV_ERROR)return e->status;
+        else break;
+    }
+    if(!matched)return RF_NOT_FOUND;
+    *result=value;return RF_OK;
+}
+/* Same archive, same compiled name: rf_motion_file_open is a pure function of
+ * the immutable entry, so successful results are reused within one load. */
+typedef struct motion_memo_entry {uint32_t hash;char name[64];rf_motion_file file;} motion_memo_entry;
+typedef struct motion_memo {motion_memo_entry *items;uint32_t count,capacity,disabled;rf_vpp *archive;} motion_memo;
+static uint32_t motion_memo_hash(const char *s)
+{uint32_t h=2166136261u;while(*s)h=(h^(unsigned char)*s++)*16777619u;return h;}
+static int motion_memo_open(motion_memo *m,rf_motion_file *file,rf_vpp *motions,const char *name)
+{
+    uint32_t i,hash;int status;
+    if(!m || m->disabled || m->archive!=motions || !file || !name)return rf_motion_file_open(file,motions,name);
+    hash=motion_memo_hash(name);
+    for(i=0;i<m->count;++i)
+        if(m->items[i].hash==hash && !strcmp(m->items[i].name,name)){*file=m->items[i].file;return RF_OK;}
+    status=rf_motion_file_open(file,motions,name);
+    if(status || strlen(name)>=64)return status;
+    if(m->count==m->capacity) {
+        uint32_t capacity=m->capacity?m->capacity*2:64;motion_memo_entry *grown=realloc(m->items,capacity*sizeof(*grown));
+        if(!grown){m->disabled=1;return RF_OK;}
+        m->items=grown;m->capacity=capacity;
+    }
+    m->items[m->count].hash=hash;strcpy(m->items[m->count].name,name);m->items[m->count].file=*file;++m->count;
+    return RF_OK;
+}
+static void motion_memo_close(motion_memo *m){free(m->items);memset(m,0,sizeof(*m));}
+static int state_set_read_with(const void *text,uint32_t size,const char *class_name,const char *weapon,
+    rf_vpp *motions,rf_entity_state_set *value,const tbl_section *section,motion_memo *memo)
 {
     static const char *names[23]={"stand","attack_stand","walk","attack_walk","run","attack_run",
         "flee_run","flail_run","crouch","attack_crouch","attack_crouch_walk","attack_lean_left",
@@ -2405,11 +2643,12 @@ static int state_set_read(const void *text,uint32_t size,const char *class_name,
     rf_entity_state_declaration declaration;char compiled[64];uint32_t identities[23]={0},i,identity;
     uint8_t flags[23]={0};int status,added;int32_t index;
     rf_model_motion_registry registry={identities,flags,0,23};
-    status=state_group_exists(text,size,class_name,weapon);if(status)return status;
+    status=section?tbl_section_group_exists(section,weapon):state_group_exists(text,size,class_name,weapon);if(status)return status;
     for(i=0;i<45;++i)value->actions[i]=-1;
     for(i=0;i<23;++i) {
         value->states[i]=-1;
-        status=rf_entity_state_declaration_read(text,size,class_name,weapon,names[i],&declaration);
+        status=section?tbl_section_state(section,weapon,names[i],&declaration):
+            rf_entity_state_declaration_read(text,size,class_name,weapon,names[i],&declaration);
         if(status==RF_NOT_FOUND) {status=RF_OK;continue;}
         if(status)return status;
         if(!*declaration.motion)continue;
@@ -2419,11 +2658,16 @@ static int state_set_read(const void *text,uint32_t size,const char *class_name,
         if(added) {
             value->cache_indices[index]=identity;value->looping[index]=1;
             status=rf_motion_compiled_filename((const char*)value->cache[identity].bytes,compiled);if(status)return status;
-            status=rf_motion_file_open(value->files+index,motions,compiled);if(status)return status;
+            status=motion_memo_open(memo,value->files+index,motions,compiled);if(status)return status;
         }
         value->states[i]=index;
     }
     value->count=registry.count;return RF_OK;
+}
+static int state_set_read(const void *text,uint32_t size,const char *class_name,const char *weapon,
+    rf_vpp *motions,rf_entity_state_set *value)
+{
+    return state_set_read_with(text,size,class_name,weapon,motions,value,NULL,NULL);
 }
 int rf_entity_state_set_open(const char *path,const char *class_name,const char *weapon,
     rf_vpp *motions,uint32_t budget,rf_entity_state_set *result)
@@ -2457,7 +2701,8 @@ int rf_entity_action_declarations_read(const void *text,uint32_t bytes,const cha
     }
     memcpy(result,bits,sizeof(bits));return RF_OK;
 }
-static int action_set_extend(const void *text,uint32_t size,const char *name,const char *weapon,rf_vpp *motions,rf_entity_state_set *v)
+static int action_set_extend(const void *text,uint32_t size,const char *name,const char *weapon,rf_vpp *motions,rf_entity_state_set *v,
+    const tbl_section *section,motion_memo *memo)
 {
     const char *const *names=entity_action_names;
 
@@ -2469,7 +2714,8 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,con
     for(i=0;i<v->count;++i){identities[i]=v->cache_indices[i]+1;flags[i]=v->looping[i];}
     for(i=0;i<45;++i) {
         rf_entity_action_declaration action;
-        status=rf_entity_action_read(text,size,name,weapon,names[i],&action);
+        status=section?tbl_section_action(section,weapon,names[i],&action):
+            rf_entity_action_read(text,size,name,weapon,names[i],&action);
         if(status==RF_NOT_FOUND)continue;if(status)return status;
         v->action_declarations[i/32]|=1u<<(i%32);
         memcpy(v->action_sounds[i],action.sound,64);
@@ -2478,7 +2724,7 @@ static int action_set_extend(const void *text,uint32_t size,const char *name,con
         status=rf_model_register_motion(&registry,identity+1,0,&index,&added);if(status)return status;
         if(added) {
             status=rf_motion_compiled_filename((const char*)v->cache[identity].bytes,compiled);if(status)return status;
-            status=rf_motion_file_open(v->files+index,motions,compiled);if(status)return status;
+            status=motion_memo_open(memo,v->files+index,motions,compiled);if(status)return status;
             v->cache_indices[index]=identity;v->looping[index]=0;
         }
         v->actions[i]=index;
@@ -2501,7 +2747,10 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
     uint32_t budget,rf_entity_base_motions *result)
 {
     rf_entity_base_motions v={0};rf_vpp_entry entry,weapon_entry;void *text=NULL;
-    uint64_t bytes;uint32_t i,j,group_count=0,at=0;int status;rf_entity_state_set *working=NULL;
+    uint64_t bytes;uint32_t i,j,group_count=0,at=0,section_class=UINT32_MAX;int status;rf_entity_state_set *working=NULL;
+    /* Load-time accelerators only; every result is identical to the legacy
+     * full-table readers (see tbl_index/tbl_section/motion_memo). */
+    tbl_index name_index={0};tbl_section section={0};motion_memo memo={0};int indexed=0,sectioned=0,located;
     if(!seeds || !tables || !motions || !result || result->classes || result->class_count ||
        result->resident_bytes || result->peak_bytes || result->weapons.count || result->weapons.primary_count || result->groups || result->group_count ||
        (seeds->class_count && !seeds->classes))return RF_RANGE;
@@ -2518,19 +2767,24 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
     v.classes=calloc(v.class_count,sizeof(*v.classes));text=malloc(entry.size);
     if(!v.classes || !text){status=RF_RANGE;goto done;}
     status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+    indexed=!tbl_index_open(text,entry.size,&name_index);memo.archive=motions;
     for(i=0;i<v.class_count;++i) {
-        const rf_entity_seed_class *c=seeds->classes+i;
+        const rf_entity_seed_class *c=seeds->classes+i;const char *class_text=text;uint32_t class_bytes=entry.size;
         for(j=0;j<23;++j)v.classes[i].states[j]=-1;
         for(j=0;j<45;++j)v.classes[i].actions[j]=-1;
         if(c->record_index>=seeds->records.count || !seeds->records.items){status=RF_RANGE;goto done;}
-        status=rf_entity_weapon_groups_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,&v.weapons,v.classes[i].weapon_groups);
+        located=indexed && tbl_index_find(&name_index,seeds->records.items[c->record_index].record.class_name,&class_text,&class_bytes);
+        status=rf_entity_weapon_groups_read(class_text,class_bytes,seeds->records.items[c->record_index].record.class_name,&v.weapons,v.classes[i].weapon_groups);
         if(status)goto done;
-        status=rf_entity_default_weapons_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,&v.weapons,&v.classes[i].default_weapons);
+        status=rf_entity_default_weapons_read(class_text,class_bytes,seeds->records.items[c->record_index].record.class_name,&v.weapons,&v.classes[i].default_weapons);
         if(status)goto done;
         if(c->model_kind!=2)continue;
-        status=state_set_read(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
-        if(status)goto done;
-        status=action_set_extend(text,entry.size,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i);
+        sectioned=located && !tbl_section_open(class_text,class_bytes,&section);
+        status=state_set_read_with(class_text,class_bytes,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i,
+            sectioned?&section:NULL,&memo);
+        if(!status)status=action_set_extend(class_text,class_bytes,seeds->records.items[c->record_index].record.class_name,"",motions,v.classes+i,
+            sectioned?&section:NULL,&memo);
+        if(sectioned){tbl_section_close(&section);sectioned=0;}
         if(status)goto done;
         for(j=0;j<v.weapons.count;++j)if(v.classes[i].weapon_groups[j>>5]&(1u<<(j&31)))++group_count;
     }
@@ -2542,11 +2796,16 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
         v.group_count=group_count;v.resident_bytes=(uint32_t)bytes;
         for(i=0;i<v.class_count;++i)if(seeds->classes[i].model_kind==2)for(j=0;j<v.weapons.count;++j) {
             rf_entity_weapon_motion_group *g;uint64_t resource_bytes,peak;const char *name;
+            const char *class_text=text;uint32_t class_bytes=entry.size;
             if(!(v.classes[i].weapon_groups[j>>5]&(1u<<(j&31))))continue;
             name=seeds->records.items[seeds->classes[i].record_index].record.class_name;
+            located=indexed && tbl_index_find(&name_index,name,&class_text,&class_bytes);
+            /* One event section per class, reused across its weapon groups. */
+            if(sectioned && section_class!=i){tbl_section_close(&section);sectioned=0;}
+            if(!sectioned && located){sectioned=!tbl_section_open(class_text,class_bytes,&section);section_class=i;}
             memset(working,0,sizeof(*working));
-            status=state_set_read(text,entry.size,name,v.weapons.names[j],motions,working);if(status)goto done;
-            status=action_set_extend(text,entry.size,name,v.weapons.names[j],motions,working);if(status)goto done;
+            status=state_set_read_with(class_text,class_bytes,name,v.weapons.names[j],motions,working,sectioned?&section:NULL,&memo);if(status)goto done;
+            status=action_set_extend(class_text,class_bytes,name,v.weapons.names[j],motions,working,sectioned?&section:NULL,&memo);if(status)goto done;
             resource_bytes=(uint64_t)working->count*(sizeof(*g->files)+sizeof(*g->looping)+sizeof(*g->identities));
             peak=bytes+resource_bytes+entry.size+sizeof(*working);if(peak>budget){status=RF_RANGE;goto done;}
             if(peak>v.peak_bytes)v.peak_bytes=(uint32_t)peak;
@@ -2564,8 +2823,12 @@ int rf_entity_base_motions_open(const rf_entity_seeds *seeds,rf_vpp *tables,rf_v
             bytes+=resource_bytes;v.resident_bytes=(uint32_t)bytes;
         }
     }
+    if(sectioned)tbl_section_close(&section);
+    tbl_index_close(&name_index);motion_memo_close(&memo);
     free(working);free(text);*result=v;return RF_OK;
 done:
+    if(sectioned)tbl_section_close(&section);
+    tbl_index_close(&name_index);motion_memo_close(&memo);
     free(working);free(text);rf_entity_base_motions_close(&v);return status;
 }
 
@@ -3525,10 +3788,9 @@ int rf_vclip_definition_load(rf_vpp *tables,const char *name,uint32_t scratch_bu
     if(!tables || !name || !*name || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"vclip.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>scratch_budget)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_RANGE;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_RANGE;
     if(!status)status=rf_vclip_definition_read(text,entry.size,name,result);
-    free(text);return status;
+    rf_table_text_release(text);return status;
 }
 
 static int effect_label(lexer *l,const char *label,int required)

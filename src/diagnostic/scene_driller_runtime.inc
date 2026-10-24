@@ -20,6 +20,7 @@
 #include "scene_apc_exit_transition.inc"
 #include "scene_driller_projectile_contact.inc"
 struct scene_driller_runtime {
+    uint32_t rest_steps; /* consecutive full steps that left an idle chassis unmoved */
     scene_driller_physics physics;scene_vehicle_collision collision;scene_jeep_seat_state jeep_seat;
     scene_submarine_motion submarine;scene_fighter_motion fighter;rf_liquid_rooms submarine_liquids;
     rf_vehicle_submersible_parameters submarine_parameters;
@@ -830,6 +831,9 @@ static int scene_campaign_fighter_route_command(const scene_driller_runtime *r,
     command->rise=fmaxf(-1.f,fminf(1.f,dy/6.f));
     ++rf_scene_vehicle_route_state[3];return RF_OK;
 }
+uint32_t rf_scene_vehicle_rest[8]; /* skipped resting steps, full steps, reserved..., rest steps (last tick) */
+static int scene_vehicle_vector_small(const float v[3],float limit)
+{return fabsf(v[0])<=limit && fabsf(v[1])<=limit && fabsf(v[2])<=limit;}
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
@@ -912,7 +916,27 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
                 status=scene_vehicle_ai_steer(r->entry.host.handle,&r->physics.state,&sub);if(status)goto fail;
             }
             status=rf_vehicle_submersible_step(&r->physics.state,&r->submarine_parameters,&sub,scene_step_seconds,&wet_backend,&result);
-        }else status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);
+        }else {uint32_t physics_clock=profile_clock&&profile_active?profile_clock():0;
+            /* Resting chassis sleep, like the original rest/coast handling: an
+             * uncontrolled vehicle with no command or pending force whose last
+             * two full steps moved it under 1e-3 units and rotated it under 1e-3
+             * per basis element is settled (residual velocity/momentum cleared)
+             * and skips the support/collision queries. Input or force wakes it;
+             * a full step every 30 ticks still notices lost support. */
+            rf_vehicle_rigid_state *v=&r->physics.state;
+            int idle=!command.controlled && command.throttle==0 && command.turn==0 &&
+                scene_vehicle_vector_small(v->force,0) && scene_vehicle_vector_small(v->torque,0);
+            if(idle && r->rest_steps>=2 && frame%30){
+                memset(v->velocity,0,12);memset(v->momentum,0,12);++rf_scene_vehicle_rest[0];status=RF_OK;
+            } else {float before[12];uint32_t k,still=1;
+                memcpy(before,v->position,12);memcpy(before+3,v->orientation,36);
+                status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);
+                for(k=0;k<3;k++)if(fabsf(v->position[k]-before[k])>=1e-3f)still=0;
+                for(k=0;k<9;k++)if(fabsf(v->orientation[k]-before[3+k])>=1e-3f)still=0;
+                if(!status && idle && still)++r->rest_steps;else r->rest_steps=0;
+                ++rf_scene_vehicle_rest[1];}
+            rf_scene_vehicle_rest[7]=r->rest_steps;
+            prestep_profile_mark(7,&physics_clock);} /* row7: rigid vehicle physics step */
         if(status)goto fail;
     }
     stage=3;

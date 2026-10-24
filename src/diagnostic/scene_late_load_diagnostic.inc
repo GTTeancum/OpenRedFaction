@@ -5,7 +5,7 @@
 uint32_t rf_scene_late_load[8]; /* stage,status,start pages,material count,material bytes,end pages,frame stage,UID */
 static void scene_late_load_mark(uint32_t stage,const rf_materials *materials)
 {
-    rf_scene_campaign_load_stage=stage;rf_scene_late_load[0]=stage;
+    campaign_load_stage_set(stage);rf_scene_late_load[0]=stage;
     rf_scene_late_load[1]=rf_scene_late_load[5]=rf_scene_late_load[6]=rf_scene_late_load[7]=0;
     rf_scene_late_load[3]=materials?materials->count:0;
     rf_scene_late_load[4]=materials?materials->allocated_bytes:0;

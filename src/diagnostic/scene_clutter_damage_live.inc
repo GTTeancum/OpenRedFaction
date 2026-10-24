@@ -3,6 +3,7 @@
 #include "rf/clutter.h"
 #include "rf/clutter_damage.h"
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* One compact profile per authored CLASS, not model filename: classes sharing
@@ -21,12 +22,13 @@ typedef struct scene_clutter_damage_live_result {
     float health_before,health_after;
     int32_t killing_type;
 } scene_clutter_damage_live_result;
-static int scene_clutter_damage_profile_read(const void *text,uint32_t bytes,
-    const char *name,scene_clutter_damage_profile *out)
+static int scene_clutter_damage_profile_read_indexed(const rf_clutter_class_index *index,
+    const void *text,uint32_t bytes,const char *name,scene_clutter_damage_profile *out)
 {
     rf_clutter_gameplay_definition d;scene_clutter_damage_profile p={0};uint32_t i;int status;
     if(!out)return RF_RANGE;
-    status=rf_clutter_gameplay_read(text,bytes,name,&d);if(status)return status;
+    status=index?rf_clutter_gameplay_read_indexed(index,text,bytes,name,&d):rf_clutter_gameplay_read(text,bytes,name,&d);
+    if(status)return status;
     p.break_damage=d.explosion_damage; /* Multiplier until vclip resolution. */
     p.break_radius=d.explosion_radius;memcpy(p.break_offset,d.explosion_offset,12);p.break_effect=!strcmp(d.explosion,"yellboom")?1:!strcmp(d.explosion,"oil drum explode")?2:0;
     p.life=d.life;p.protected_object=d.life<0;p.ordinary=1;
@@ -35,6 +37,26 @@ static int scene_clutter_damage_profile_read(const void *text,uint32_t bytes,
         if(!a[i] && !shield[i])p.ordinary=0;
     }
     memcpy(p.damage_factors,d.damage_factors,sizeof(p.damage_factors));*out=p;return RF_OK;
+}
+static inline int scene_clutter_damage_profile_read(const void *text,uint32_t bytes,
+    const char *name,scene_clutter_damage_profile *out)
+{return scene_clutter_damage_profile_read_indexed(NULL,text,bytes,name,out);}
+/* Same results, order and first-error stop as calling the single-class reader
+ * for classes[0..count). Each class name used to rescan clutter.tbl from byte
+ * 0 twice (431 classes, ~81MB tokenized); one index pass makes every lookup
+ * parse only its own block. Without index memory, falls back to full scans. */
+static inline int scene_clutter_damage_profiles_read(const void *text,uint32_t bytes,
+    const rf_clutter_class *classes,uint32_t count,scene_clutter_damage_profile *out)
+{
+    rf_clutter_class_index index;rf_clutter_class_index_entry *entries=NULL;uint32_t i,capacity;int status=RF_OK;
+    if(count && (!classes || !out))return RF_RANGE;
+    if(!count)return RF_OK;
+    capacity=count+64u;
+    if(capacity>count)entries=malloc((size_t)capacity*sizeof(*entries));
+    if(entries && rf_clutter_class_index_build(text,bytes,entries,capacity,&index)){free(entries);entries=NULL;}
+    for(i=0;!status && i<count;i++)
+        status=scene_clutter_damage_profile_read_indexed(entries?&index:NULL,text,bytes,classes[i].name,out+i);
+    free(entries);return status;
 }
 static int scene_clutter_damage_identity(const rf_object_registry *registry,
     const rf_clutter_base_owner *owner)

@@ -398,4 +398,6 @@ int rf_audio_bank_reload_idle(rf_audio_bank *bank,rf_audio_mixer *mixer,rf_vpp *
     const uint8_t *eligible,uint32_t eligible_count,int (*release_device)(void *,const uint8_t *),
     void *context,uint32_t released[2]);
 int rf_audio_mix(rf_audio_mixer *mixer,int16_t *stereo,uint32_t frames);
+/* Advances voice positions exactly as rf_audio_mix would, without producing PCM. */
+int rf_audio_advance(rf_audio_mixer *mixer,uint32_t frames);
 #endif

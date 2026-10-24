@@ -84,7 +84,11 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
     for(i=0;i<w->bone_count;i++){status=rf_model_bone_transform(w->bones[i].rotation,w->bones[i].position,w->stored[i]);if(status)goto done;}
     status=rf_model_geometry_open(&w->geometry,model,0,budget-used-scratch);if(status)goto done;
     used+=w->geometry.accounted_bytes;
-    status=rf_model_materials_open(&w->materials,model,maps,map_count,budget-used-scratch);if(status)goto done;
+    /* Every first-person view repeats the hand/arm textures (envirohand,
+     * hand1st, armnew1 ...); decode each archive entry once across views. */
+    rf_materials_share_scope(1);
+    status=rf_model_materials_open(&w->materials,model,maps,map_count,budget-used-scratch);
+    rf_materials_share_scope(0);if(status)goto done;
     w->peak_bytes=used+w->materials.peak_bytes+scratch;used+=w->materials.resident_bytes;
     for(i=0;i<w->clip_count;i++) {
         rf_motion_track track;

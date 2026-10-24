@@ -142,6 +142,11 @@ typedef struct rf_materials {
 int rf_materials_open(rf_materials *materials, const rf_geometry *geometry,
                       rf_vpp *archives, uint32_t archive_count, uint32_t budget);
 void rf_materials_close(rf_materials *materials);
+/* Nested load scope (enable=1 opens, 0 closes). Inside it, unreduced texture
+ * loads reuse pixels already decoded inside a scope for the same archive
+ * entry (refcounted; see rf_image_share_find). Accounting, slot order, status
+ * and pixels are unchanged; owners must treat shared pixels as read-only. */
+void rf_materials_share_scope(int enable);
 /* Same bounded loader for a caller-owned name list (e.g. model materials).
  * Names are nonempty, NUL-terminated, at most 60 bytes. Slots retain caller
  * order, including duplicates. Close before reuse; failure leaves empty state. */

@@ -70,9 +70,191 @@ static int read_bytes(reader *r, unsigned char *out, uint32_t size)
     }
     return RF_OK;
 }
+/* Bulk pixel storage. Decoders convert whole rows into cached memory and
+ * publish them with sequential 32-bit stores: row-major on PC, and on Xbox
+ * one aligned band of rows at a time, written tile by tile in swizzled order
+ * so write-combined texture memory receives full lines. The stored bytes are
+ * identical to per-pixel rf_image_pixel writes; only the order of the stores
+ * changes. Little-endian packing: byte0 red, byte3 alpha. */
+#ifdef RF_IMAGE_XBOX_NATIVE
+static uint32_t image_index(uint32_t width,uint32_t height,uint32_t x,uint32_t y)
+{
+    uint32_t bit,index=0,destination=1;
+    for(bit=1;bit<width || bit<height;bit<<=1) {
+        if(bit<width){if(x&bit)index|=destination;destination<<=1;}
+        if(bit<height){if(y&bit)index|=destination;destination<<=1;}
+    }
+    return index;
+}
+/* Band height B<=min(width,height,8): every BxB tile of a band is one
+ * contiguous run of B*B pixels whose low index bits interleave x0,y0,x1,... */
+#define IMAGE_BAND_ROWS 8u
+static const unsigned char image_tile_x[64]={
+    0,1,0,1,2,3,2,3,0,1,0,1,2,3,2,3,4,5,4,5,6,7,6,7,4,5,4,5,6,7,6,7,
+    0,1,0,1,2,3,2,3,0,1,0,1,2,3,2,3,4,5,4,5,6,7,6,7,4,5,4,5,6,7,6,7};
+static const unsigned char image_tile_y[64]={
+    0,0,1,1,0,0,1,1,2,2,3,3,2,2,3,3,0,0,1,1,0,0,1,1,2,2,3,3,2,2,3,3,
+    4,4,5,5,4,4,5,5,6,6,7,7,6,6,7,7,4,4,5,5,4,4,5,5,6,6,7,7,6,6,7,7};
+static uint32_t image_row_fallback[4096];
+#endif
+typedef struct image_rows {
+    rf_image *image;uint32_t *band;uint32_t rows,filled,owned;
+} image_rows;
+static void image_rows_begin(image_rows *s,rf_image *image)
+{
+    memset(s,0,sizeof(*s));s->image=image;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    s->rows=IMAGE_BAND_ROWS;
+    if(s->rows>image->width)s->rows=image->width;
+    if(s->rows>image->height)s->rows=image->height;
+    s->band=malloc((size_t)image->width*s->rows*4u);
+    if(s->band)s->owned=1;
+    else {s->rows=1;s->band=image_row_fallback;}
+#endif
+}
+static uint32_t *image_rows_target(image_rows *s,uint32_t y)
+{
+#ifdef RF_IMAGE_XBOX_NATIVE
+    return s->band+(size_t)(y&(s->rows-1))*s->image->width;
+#else
+    return (uint32_t *)(void *)(s->image->rgba+(size_t)y*s->image->width*4u);
+#endif
+}
+static void image_rows_commit(image_rows *s,uint32_t y)
+{
+#ifdef RF_IMAGE_XBOX_NATIVE
+    uint32_t width=s->image->width,n=s->rows*s->rows,top,tx,i;
+    if(++s->filled<s->rows)return;
+    s->filled=0;top=y&~(s->rows-1);
+    for(tx=0;tx<width;tx+=s->rows) {
+        uint32_t *dst=(uint32_t *)(void *)s->image->rgba+image_index(width,s->image->height,tx,top);
+        const uint32_t *src=s->band+tx;
+        for(i=0;i<n;i++)dst[i]=src[(size_t)image_tile_y[i]*width+image_tile_x[i]];
+    }
+#else
+    (void)s;(void)y;
+#endif
+}
+static void image_rows_end(image_rows *s)
+{
+    if(s->owned)free(s->band);
+    memset(s,0,sizeof(*s));
+}
+
+/* Scoped decoded-image sharing: refcounted pixel storage keyed by archive
+ * entry identity. Only images explicitly published are ever shared; every
+ * holder keeps an ordinary rf_image header and closes it normally. */
+#define IMAGE_SHARE_SLOTS 64
+typedef struct image_share {
+    rf_image image;uint32_t refs,length,offset,size;char name[61];
+} image_share;
+static image_share image_shares[IMAGE_SHARE_SLOTS];
+static int image_share_name(const char *a,const char *b)
+{
+    for(;;) {
+        unsigned char x=(unsigned char)*a++,y=(unsigned char)*b++;
+        if(x>='A' && x<='Z')x+='a'-'A';
+        if(y>='A' && y<='Z')y+='a'-'A';
+        if(x!=y)return 0;
+        if(!x)return 1;
+    }
+}
+int rf_image_share_find(const rf_vpp *archive,const rf_vpp_entry *entry,rf_image *image)
+{
+    uint32_t i;
+    if(!archive || !entry || !image || !memchr(entry->name,0,sizeof(entry->name)))return RF_RANGE;
+    for(i=0;i<IMAGE_SHARE_SLOTS;++i) {
+        image_share *s=image_shares+i;
+        if(!s->refs || s->length!=archive->length || s->offset!=entry->offset || s->size!=entry->size ||
+           !image_share_name(s->name,entry->name))continue;
+        ++s->refs;*image=s->image;return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
+void rf_image_share_publish(const rf_vpp *archive,const rf_vpp_entry *entry,const rf_image *image)
+{
+    uint32_t i;image_share *free_slot=NULL;
+    if(!archive || !entry || !image || !image->rgba || !memchr(entry->name,0,sizeof(entry->name)))return;
+    for(i=0;i<IMAGE_SHARE_SLOTS;++i) {
+        if(image_shares[i].refs && image_shares[i].image.rgba==image->rgba)return;
+        if(!image_shares[i].refs && !free_slot)free_slot=image_shares+i;
+    }
+    if(!free_slot)return; /* Unshared: the image remains an ordinary owner. */
+    free_slot->image=*image;free_slot->refs=1;free_slot->length=archive->length;
+    free_slot->offset=entry->offset;free_slot->size=entry->size;
+    memcpy(free_slot->name,entry->name,sizeof(free_slot->name));
+}
+/* Returns nonzero when another holder still references the pixels. */
+static int image_share_release(const unsigned char *rgba)
+{
+    uint32_t i;
+    for(i=0;i<IMAGE_SHARE_SLOTS;++i)if(image_shares[i].refs && image_shares[i].image.rgba==rgba) {
+        if(--image_shares[i].refs)return 1;
+        memset(image_shares+i,0,sizeof(image_shares[i]));return 0;
+    }
+    return 0;
+}
+
+uint32_t rf_image_hash_pixels(uint32_t hash,const rf_image *image,uint32_t pixel_bytes)
+{
+    uint32_t x,y,k,element;
+    if(!image || !image->rgba || !image->width || !image->height)return hash;
+    element=rf_image_is_packed_1555(image)?2u:4u;
+    if(pixel_bytes==element && image->width<=4096 && image->height<=4096 &&
+       (uint64_t)image->width*image->height*element==image->bytes) {
+#ifdef RF_IMAGE_XBOX_NATIVE
+        /* Copy one band of swizzled tiles into cached memory with word reads
+         * (texture memory is write-combined, so every CPU read is uncached),
+         * then hash the band in logical row order. */
+        uint32_t rows=IMAGE_BAND_ROWS,n,top,tx,i,row_bytes=image->width*element;unsigned char *band;
+        if(rows>image->width)rows=image->width;
+        if(rows>image->height)rows=image->height;
+        n=rows*rows;band=malloc((size_t)row_bytes*rows);
+        if(band && !(image->width&(image->width-1)) && !(image->height&(image->height-1))) {
+            for(top=0;top<image->height;top+=rows) {
+                for(tx=0;tx<image->width;tx+=rows) {
+                    const unsigned char *src=image->rgba+(size_t)image_index(image->width,image->height,tx,top)*element;
+                    if(element==4) {
+                        for(i=0;i<n;i++) {
+                            uint32_t word;memcpy(&word,src+(size_t)i*4,4);
+                            memcpy(band+(size_t)image_tile_y[i]*row_bytes+(size_t)(tx+image_tile_x[i])*4,&word,4);
+                        }
+                    } else {
+                        for(i=0;i<n;i+=2) {
+                            uint32_t word;unsigned char *a,*b;
+                            if(n==1){memcpy(band+(size_t)tx*2,src,2);break;}
+                            memcpy(&word,src+(size_t)i*2,4);
+                            a=band+(size_t)image_tile_y[i]*row_bytes+(size_t)(tx+image_tile_x[i])*2;
+                            b=band+(size_t)image_tile_y[i+1]*row_bytes+(size_t)(tx+image_tile_x[i+1])*2;
+                            a[0]=(unsigned char)word;a[1]=(unsigned char)(word>>8);
+                            b[0]=(unsigned char)(word>>16);b[1]=(unsigned char)(word>>24);
+                        }
+                    }
+                }
+                for(i=0;i<row_bytes*rows;i++)hash=(hash^band[i])*16777619u;
+            }
+            free(band);return hash;
+        }
+        free(band);
+#else
+        {
+            const unsigned char *p=image->rgba;uint32_t i,total=image->bytes;
+            for(i=0;i<total;i++)hash=(hash^p[i])*16777619u;
+            return hash;
+        }
+#endif
+    }
+    for(y=0;y<image->height;++y)for(x=0;x<image->width;++x) {
+        const unsigned char *p=rf_image_pixel(image,x,y);
+        for(k=0;k<pixel_bytes;k++)hash=(hash^p[k])*16777619u;
+    }
+    return hash;
+}
+
 void rf_image_close(rf_image *image)
 {
     if (!image)return;
+    if(image->rgba && image_share_release(image->rgba)){memset(image,0,sizeof(*image));return;}
 #ifdef RF_IMAGE_XBOX_NATIVE
     /* The renderer defers the free while queued GPU commands may read it. */
     {void rf_xbox_gpu_free(void *);if(image->rgba)rf_xbox_gpu_free(image->rgba);}
@@ -100,8 +282,10 @@ int rf_image_reduce(rf_image *image,uint32_t limit,uint32_t budget)
         uint32_t sum[4]={0},k,n=sx*sy;unsigned char *out=rf_image_pixel(&next,x,y);
         for(dy=0;dy<sy;dy++)for(dx=0;dx<sx;dx++) {
             const unsigned char *p=rf_image_pixel(image,x*sx+dx,y*sy+dy);
-            if(packed){uint32_t v=p[0]|((uint32_t)p[1]<<8);sum[0]+=((v>>10)&31)*255/31;sum[1]+=((v>>5)&31)*255/31;sum[2]+=(v&31)*255/31;sum[3]+=(v&0x8000)?255:0;}
-            else for(k=0;k<4;k++)sum[k]+=p[k];
+            /* One load per source pixel: native texture memory is
+             * write-combined, so each CPU read is an uncached bus read. */
+            if(packed){uint16_t h;uint32_t v;memcpy(&h,p,2);v=h;sum[0]+=((v>>10)&31)*255/31;sum[1]+=((v>>5)&31)*255/31;sum[2]+=(v&31)*255/31;sum[3]+=(v&0x8000)?255:0;}
+            else {uint32_t w;memcpy(&w,p,4);sum[0]+=w&255;sum[1]+=(w>>8)&255;sum[2]+=(w>>16)&255;sum[3]+=w>>24;}
         }
         for(k=0;k<4;k++)out[k]=(unsigned char)((sum[k]+n/2)/n);
     }
@@ -171,7 +355,7 @@ failed:
 }
 int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget)
 {
-    unsigned char h[18], pixel[4], id[255];
+    unsigned char h[18], id[255];
     uint32_t width, height, total, at = 0, stride, alpha;
     reader r;
     int result;
@@ -195,30 +379,50 @@ int rf_image_tga(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, ui
     image->width = width; image->height = height; image->bytes = total * 4;
     result=rf_image_allocate_pixels(image);if(result){rf_image_close(image);return result;}
     image->source_format=rf_image_tga_format(h[16]);
-    while (at < total) {
-        uint32_t count = 1, repeat = 0, i;
-        if (h[2] == 10) {
-            unsigned char packet;
-            result = read_bytes(&r, &packet, 1);
-            if (result) goto fail;
-            count = (packet & 127) + 1; repeat = packet & 128;
-        }
-        if (count > total - at) { result = RF_FORMAT; goto fail; }
-        for (i = 0; i < count; ++i, ++at) {
-            uint32_t x = at % width, y = at / width; unsigned char *dst;
-            if (!repeat || !i) {
-                result = read_bytes(&r, pixel, stride);
-                if (result) goto fail;
+    /* Row-batched form of the per-pixel packet loop: identical packet
+     * validation (count > remaining pixels), packet spans across rows,
+     * orientation bits and channel order; reads are batched per run. */
+    {
+        image_rows rows;unsigned char chunk[256*4];
+        uint32_t row,left=0,value=0,flip=(h[17]&16)!=0,rle=h[2]==10;
+        image_rows_begin(&rows,image);
+        for(row=0;row<height;++row) {
+            uint32_t y=(h[17]&32)?row:height-1-row,x=0,*out=image_rows_target(&rows,y);
+            while(x<width) {
+                uint32_t n=width-x,i;
+                if(rle && !left) {
+                    unsigned char packet;
+                    result=read_bytes(&r,&packet,1);if(result)goto rows_fail;
+                    left=(packet&127)+1;
+                    if(left>total-at){result=RF_FORMAT;goto rows_fail;}
+                    if(packet&128) {
+                        unsigned char p[4];
+                        result=read_bytes(&r,p,stride);if(result)goto rows_fail;
+                        value=(uint32_t)p[2]|(uint32_t)p[1]<<8|(uint32_t)p[0]<<16|(uint32_t)(alpha==8?p[3]:255)<<24;
+                        left|=0x80000000u;
+                    }
+                }
+                if(rle && n>(left&0x7fffffffu))n=left&0x7fffffffu;
+                if(rle && (left&0x80000000u)) {
+                    for(i=0;i<n;i++)out[flip?width-1-(x+i):x+i]=value;
+                } else {
+                    const unsigned char *p=chunk;
+                    if(n>256)n=256;
+                    result=read_bytes(&r,chunk,n*stride);if(result)goto rows_fail;
+                    for(i=0;i<n;i++,p+=stride)
+                        out[flip?width-1-(x+i):x+i]=(uint32_t)p[2]|(uint32_t)p[1]<<8|(uint32_t)p[0]<<16|
+                            (uint32_t)(alpha==8?p[3]:255)<<24;
+                }
+                x+=n;at+=n;
+                if(rle){left-=n;if(!(left&0x7fffffffu))left=0;}
             }
-            if (h[17] & 16) x = width - 1 - x;
-            if (!(h[17] & 32)) y = height - 1 - y;
-            dst=rf_image_pixel(image,x,y);
-            dst[0]=pixel[2];dst[1]=pixel[1];dst[2]=pixel[0];
-            dst[3]=alpha==8?pixel[3]:255;
+            image_rows_commit(&rows,y);
         }
+        image_rows_end(&rows);
+        return RF_OK;
+rows_fail:
+        image_rows_end(&rows);
     }
-    return RF_OK;
-fail:
     rf_image_close(image);
     return result;
 }
@@ -264,7 +468,7 @@ int rf_image_tga_into(rf_image *atlas,uint32_t left,uint32_t top,uint32_t width,
 static int vbm_decode(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t budget,
     uint32_t frame,int static_only,uint32_t *frame_count,uint32_t *frame_rate)
 {
-    reader r; unsigned char h[32], pixel[2];
+    reader r; unsigned char h[32];
     uint32_t width,height,format,mips,w,hg,i,total,frames; uint64_t payload=0;
     int status;
     if(!image)return RF_RANGE;
@@ -293,23 +497,36 @@ static int vbm_decode(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,
     image->source_format=format==0?5:format==1?4:3;
     /* 55dd20 encodes BGR(A) into 565, 4444 and 1555. Expand normalized
        channels to RGBA8; retain only the base mip in the current renderer. */
-    for(i=0;i<total;++i) {
-        uint32_t v,red,green,blue,alpha=255;unsigned char *dst;
-        status=read_bytes(&r,pixel,2);if(status){rf_image_close(image);return status;}
-        v=pixel[0]|(uint32_t)pixel[1]<<8;
+    /* Row-batched; channel expansion tables hold the exact integer results of
+     * c*255/31 and c*255/63 used by the per-pixel form. */
+    {
+        image_rows rows;unsigned char chunk[512*2],lut5[32],lut6[64];uint32_t y,x,n;
         /* 511200 calls 511410 for static format 5 with version below 2. */
-        if(format==0 && (frames>1 || image_u32(h+4)==1))v^=0x8000;
-        if(format==1) {
-            blue=(v&15)*17;green=((v>>4)&15)*17;red=((v>>8)&15)*17;alpha=(v>>12)*17;
-        } else {
-            blue=(v&31)*255/31;
-            green=((v>>5)&(format==2?63:31))*255/(format==2?63:31);
-            red=((v>>(format==2?11:10))&31)*255/31;
-            if(format==0)alpha=(v&32768)?255:0;
+        uint32_t flip=(format==0 && (frames>1 || image_u32(h+4)==1))?0x8000u:0u;
+        for(i=0;i<32;i++)lut5[i]=(unsigned char)(i*255/31);
+        for(i=0;i<64;i++)lut6[i]=(unsigned char)(i*255/63);
+        image_rows_begin(&rows,image);
+        for(y=0;y<height;y++) {
+            uint32_t *out=image_rows_target(&rows,y);
+            for(x=0;x<width;x+=n) {
+                const unsigned char *p=chunk;
+                n=width-x;if(n>512)n=512;
+                status=read_bytes(&r,chunk,n*2);if(status){image_rows_end(&rows);rf_image_close(image);return status;}
+                for(i=0;i<n;i++,p+=2) {
+                    uint32_t v=((uint32_t)p[0]|(uint32_t)p[1]<<8)^flip,red,green,blue,alpha;
+                    if(format==1) {
+                        blue=(v&15)*17;green=((v>>4)&15)*17;red=((v>>8)&15)*17;alpha=(v>>12)*17;
+                    } else if(format==2) {
+                        blue=lut5[v&31];green=lut6[(v>>5)&63];red=lut5[(v>>11)&31];alpha=255;
+                    } else {
+                        blue=lut5[v&31];green=lut5[(v>>5)&31];red=lut5[(v>>10)&31];alpha=(v&32768)?255:0;
+                    }
+                    out[x+i]=red|green<<8|blue<<16|alpha<<24;
+                }
+            }
+            image_rows_commit(&rows,y);
         }
-        dst=rf_image_pixel(image,i%width,i/width);
-        dst[0]=(unsigned char)red;dst[1]=(unsigned char)green;
-        dst[2]=(unsigned char)blue;dst[3]=(unsigned char)alpha;
+        image_rows_end(&rows);
     }
     if(frame_count)*frame_count=frames;
     if(frame_rate)*frame_rate=image_u32(h+20);

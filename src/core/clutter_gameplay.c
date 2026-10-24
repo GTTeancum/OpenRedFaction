@@ -12,6 +12,9 @@ static int same(const char *a,const char *b)
         if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;if(x!=y)return 0;}
     return *a==*b;
 }
+/* Equivalent to strchr("(){}",c) for the nonzero bytes token() tests;
+ * avoids a library call per byte while scanning large tables. */
+static int token_bracket(unsigned char c){return c=='(' || c==')' || c=='{' || c=='}';}
 static int token(lexer *l,char out[256],int *quoted)
 {
     uint32_t n=0;unsigned c;
@@ -30,8 +33,8 @@ static int token(lexer *l,char out[256],int *quoted)
             if(n==255)return RF_RANGE;out[n++]=(char)c;
         }
         if(l->at==l->size)return RF_FORMAT;++l->at;
-    } else if(strchr("(){}",l->text[l->at]))out[n++]=(char)l->text[l->at++];
-    else while(l->at<l->size && l->text[l->at]>32 && !strchr("(){}\"",l->text[l->at])) {
+    } else if(token_bracket(l->text[l->at]))out[n++]=(char)l->text[l->at++];
+    else while(l->at<l->size && l->text[l->at]>32 && !token_bracket(l->text[l->at]) && l->text[l->at]!='"') {
         if(l->at+1<l->size && l->text[l->at]=='/' && l->text[l->at+1]=='/')break;
         if(n==255)return RF_RANGE;out[n++]=(char)l->text[l->at++];
     }
@@ -145,4 +148,49 @@ int rf_clutter_gameplay_read(const void *text,uint32_t bytes,const char *name,
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     *result=value;return RF_OK;
+}
+int rf_clutter_class_index_build(const void *text,uint32_t bytes,rf_clutter_class_index_entry *entries,
+    uint32_t capacity,rf_clutter_class_index *index)
+{
+    lexer l={(const unsigned char*)text,bytes,0};char t[256];int status,quoted;
+    if(!index)return RF_RANGE;
+    index->entries=entries;index->count=0;index->capacity=entries?capacity:0;index->complete=0;index->bytes=bytes;index->text=text;
+    if(!text)return RF_RANGE;
+    /* Same token sequence as the pre-match loops of rf_clutter_definition_read
+     * and rf_clutter_gameplay_read: any error there is past every entry kept. */
+    for(;;){
+        uint32_t boundary=l.at,length;
+        status=token(&l,t,&quoted);
+        if(status==RF_NOT_FOUND){index->complete=1;return RF_OK;}
+        if(status)return RF_OK;
+        if(quoted)continue;
+        if(!same(t,"$Class") || !metadata_tag(&l,"Name:"))continue;
+        if(token(&l,t,&quoted) || !quoted)return RF_OK;
+        if(index->count==index->capacity)return RF_OK;
+        /* A quoted token is the raw bytes before its closing quote. */
+        length=(uint32_t)strlen(t);
+        index->entries[index->count].boundary=boundary;
+        index->entries[index->count].name=l.at-1-length;
+        index->entries[index->count].length=length;
+        ++index->count;
+    }
+}
+int rf_clutter_gameplay_read_indexed(const rf_clutter_class_index *index,const void *text,uint32_t bytes,
+    const char *name,rf_clutter_gameplay_definition *result)
+{
+    const unsigned char *s=text;uint32_t i,j,length;
+    if(!index || !text || !name || !*name || !result || index->text!=text || index->bytes!=bytes || (index->count && !index->entries))
+        return rf_clutter_gameplay_read(text,bytes,name,result);
+    length=(uint32_t)strlen(name);
+    for(i=0;i<index->count;++i){
+        const rf_clutter_class_index_entry *e=index->entries+i;
+        if(e->length!=length || e->boundary>bytes || e->name>bytes || length>bytes-e->name)continue;
+        /* Same ASCII-insensitive equality as same(). */
+        for(j=0;j<length;++j){
+            unsigned x=s[e->name+j],y=(unsigned char)name[j];
+            if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;if(x!=y)break;
+        }
+        if(j==length)return rf_clutter_gameplay_read(s+e->boundary,bytes-e->boundary,name,result);
+    }
+    return rf_clutter_gameplay_read(text,bytes,name,result);
 }

@@ -237,6 +237,12 @@ void rf_materials_close(rf_materials *m)
     for (i = 0; i < m->count; ++i) rf_image_close(&m->items[i].image);
     free(m->items); memset(m, 0, sizeof(*m));
 }
+static uint32_t material_share_depth;
+void rf_materials_share_scope(int enable)
+{
+    if(enable)++material_share_depth;
+    else if(material_share_depth)--material_share_depth;
+}
 static int equal_texture_name(const char *a,const char *b);
 static int open_materials(rf_materials *m,const rf_geometry *g,const char *const *names,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget,uint32_t limit,uint32_t *peak)
@@ -277,7 +283,16 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
             /* Reduced TGA admission must not require the full-resolution
              * allocation first. Reuse the streaming box decoder; VBM and
              * unrestricted loads retain their established decode path. */
-            if(limit && limit<=128 && !(limit&(limit-1))) {
+            if(!limit && material_share_depth) {
+                /* Scoped dedupe: the same entry decodes to the same pixels.
+                 * Keep the decoder's budget rejection (bytes = w*h*4). */
+                result=rf_image_share_find(archives+a,&entry,&item->image);
+                if(result==RF_OK && item->image.bytes>budget-m->allocated_bytes){rf_image_close(&item->image);result=RF_RANGE;}
+                else if(result==RF_NOT_FOUND) {
+                    result=rf_image_open(&item->image,archives+a,&entry,budget-m->allocated_bytes);
+                    if(!result)rf_image_share_publish(archives+a,&entry,&item->image);
+                }
+            } else if(limit && limit<=128 && !(limit&(limit-1))) {
                 unsigned char magic[4];
                 result=entry.size<4?RF_FORMAT:rf_vpp_read(archives+a,&entry,0,magic,4);
                 if(!result)result=!memcmp(magic,".vbm",4)?

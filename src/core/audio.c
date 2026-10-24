@@ -424,6 +424,29 @@ int rf_audio_mix(rf_audio_mixer *mixer,int16_t *stereo,uint32_t frames)
     return RF_OK;
 }
 
+/* Position-only equivalent of rf_audio_mix for hosts that discard the mixed
+ * PCM (hardware voices own output). Per voice, n per-frame steps of
+ * phase+=rate; frame+=phase/RATE; phase%=RATE with loop wrap or stop at the
+ * end collapse exactly to one step with phase+rate*n, because the frame
+ * update only depends on the accumulated advance. */
+int rf_audio_advance(rf_audio_mixer *mixer,uint32_t frames)
+{
+    uint32_t i;
+    if(!mixer)return RF_RANGE;
+    for(i=0;i<RF_AUDIO_VOICES;i++) {
+        rf_audio_voice *v=mixer->voices+i;uint64_t total;uint32_t advance,remaining;
+        if(!v->active || !frames)continue;
+        total=(uint64_t)v->phase+(uint64_t)v->pcm.rate*frames;
+        v->phase=(uint32_t)(total%RF_AUDIO_RATE);
+        if(total/RF_AUDIO_RATE>UINT32_MAX)return RF_RANGE;
+        advance=(uint32_t)(total/RF_AUDIO_RATE);remaining=v->pcm.frames-v->frame;
+        if(advance>=remaining) {
+            if(v->loop)v->frame=(uint32_t)((advance-remaining)%v->pcm.frames);
+            else {v->frame=v->pcm.frames;v->active=0;}
+        } else v->frame+=advance;
+    }
+    return RF_OK;
+}
 static int audio_name_equal(const char *a,const char *b)
 {
     uint32_t i;for(i=0;i<61;i++) {

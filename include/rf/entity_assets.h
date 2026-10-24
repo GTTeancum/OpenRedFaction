@@ -10,6 +10,20 @@
 #include "rf/effect.h"
 #include "rf/weapon.h"
 #include "rf/audio.h"
+/* Scoped table-text reuse for load stages that parse the same table many
+ * times through one open archive (weapons.tbl ~40 times in campaign clutter
+ * open). Between begin and end, the weapons/vclip loaders reuse an already
+ * read copy instead of a fresh allocation and device read; parsed results,
+ * budget checks and error codes are unchanged. At most 4 tables / 160KiB are
+ * held; anything else uses the ordinary malloc+read path. Begin binds one
+ * open archive; end (or a new begin) frees the copies and must precede that
+ * archive's close. Main-thread only, like rf_vpp. acquire returns NULL only on
+ * allocation failure; otherwise *status is the read status. Always release
+ * what acquire returned. */
+void rf_table_text_cache_begin(rf_vpp *tables);
+void rf_table_text_cache_end(void);
+void *rf_table_text_acquire(rf_vpp *tables,const rf_vpp_entry *entry,int *status);
+void rf_table_text_release(void *text);
 /* First-pass primary-fire settings from a named weapons.tbl declaration.
  * SP values only; finite positive fire timing/damage and a bounded magazine.
  * Explosives (including secondaries identified by explosive damage type) and

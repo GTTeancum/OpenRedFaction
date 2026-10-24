@@ -116,13 +116,12 @@ static int campaign_enemy_spit_open(rf_vpp *tables,const rf_weapon_supply_catalo
     }
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>128u*1024u)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     for(i=0;!status && i<2;i++){
         status=scene_ai_spit_profile_read(text,entry.size,scene_ai_spit_contracts+i,next+i);
         if(!status){next[i].flight.weapon=rf_weapon_name_find(&supply->names,scene_ai_spit_contracts[i].name);next[i].flight.ready=1;}
     }
-    free(text);if(status)return status;
+    rf_table_text_release(text);if(status)return status;
     memcpy(scene_ai_spit_definitions,next,sizeof(next));return RF_OK;
 }
 static const scene_ai_spit_profile *campaign_enemy_spit_profile(int32_t weapon)

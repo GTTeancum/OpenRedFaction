@@ -14,6 +14,9 @@ PHASES = {
     'rf_scene_world_profile': ['w:camera-fx', 'w:ambient', 'w:camera', 'w:locate', 'w:visibility', 'w:summary', 'w:mesh-build', '-'],
     'rf_scene_world_build_profile': ['b:retained', 'b:project', 'b:terrain', 'b:capture'],
     'rf_scene_presentation_profile': ['p:npcs', 'p:clutter', 'p:weapons', 'p:pickups', 'p:viewmodel', 'p:gpu-frame', 'p:post', 'p:vehicles/projectiles/debris'],
+    'rf_scene_prestep_profile': ['c:use', 'c:driller/apc/jeep', 'c:vehicle-weapons', 'c:vehicle-ai', 'c:turrets', 'c:camera/listener', 'c:camera-fx', 'c:vehicle-physics'],
+    'rf_scene_npc_playback_profile': ['a:prepare', 'a:controller', 'a:residency', 'a:lod-gate', 'a:pose-advance', 'a:collision-refresh', 'a:post', 'a:fixtures'],
+    'rf_scene_physics_profile': ['f:forces', 'f:movers', 'f:vehicles', 'f:npc-support', 'f:player-move', 'f:player-ground', 'f:liquid/damage', 'f:mover-commit'],
     'rf_scene_npc_step_profile': ['ai', 'medic/masako', 'rooms/liquid', 'glare/clutter', 'attach', 'attach-fx', 'glare-rooms', '-'],
 }
 

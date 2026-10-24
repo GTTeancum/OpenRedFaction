@@ -83,10 +83,9 @@ static int campaign_enemy_sonar_open(rf_vpp *tables,const rf_weapon_supply_catal
        flags->definitions[weapon].flags_264!=0x10600u || flags->definitions[weapon].flags_268!=0x28u)return RF_FORMAT;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
     if(!entry.size || entry.size>128u*1024u)return RF_RANGE;
-    text=malloc(entry.size);if(!text)return RF_IO;
-    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    text=rf_table_text_acquire(tables,&entry,&status);if(!text)return RF_IO;
     if(!status)status=scene_ai_sonar_profile_read(text,entry.size,&next);
-    free(text);if(status)return status;
+    rf_table_text_release(text);if(status)return status;
     next.weapon=weapon;next.liquid_weapon_flags=flags->definitions[weapon].flags_264;
     next.ready=1;scene_ai_sonar_definition=next;return RF_OK;
 }

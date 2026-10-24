@@ -51,7 +51,22 @@ int rf_image_reduce(rf_image *image,uint32_t maximum_dimension,uint32_t budget);
  * Same type2/10,24/32-bit and orientation rules as rf_image_tga. Output must
  * be empty; failure preserves it. Budget counts output pixels only. */
 int rf_image_tga_limited(rf_image *,rf_vpp *,const rf_vpp_entry *,uint32_t limit,uint32_t budget);
+/* Releases this holder. Pixels published through rf_image_share_publish are
+ * freed only when their last holder closes. */
 void rf_image_close(rf_image *image);
+/* Scoped decoded-image sharing (load-time dedupe of identical archive
+ * entries). find copies a live published header for the same archive length,
+ * entry offset, size and case-insensitive name, adding one reference
+ * (RF_NOT_FOUND otherwise). publish registers a freshly decoded owner as the
+ * first reference; a full registry leaves it unshared. Holders must treat the
+ * pixels as read-only. Main-thread only. */
+int rf_image_share_find(const rf_vpp *archive,const rf_vpp_entry *entry,rf_image *image);
+void rf_image_share_publish(const rf_vpp *archive,const rf_vpp_entry *entry,const rf_image *image);
+/* FNV-1a style digest step identical to hashing pixel_bytes bytes of
+ * rf_image_pixel(image,x,y) for every y, then x (hash=(hash^byte)*16777619).
+ * Uses one word read per pixel from native texture memory instead of one per
+ * byte and no per-pixel swizzle computation. NULL/empty images return hash. */
+uint32_t rf_image_hash_pixels(uint32_t hash,const rf_image *image,uint32_t pixel_bytes);
 /* Original 50fe39 TGA depth dispatch: 8/16/24/32 -> 1/5/6/7, else zero.
  * This classifier does not extend decoder support beyond 24/32-bit TGA. */
 uint32_t rf_image_tga_format(uint32_t bits);
