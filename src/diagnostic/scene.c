@@ -596,7 +596,7 @@ done:
 void rf_scene_world_geometry_close(rf_scene_world_geometry *geometry)
 {
     if(!geometry)return;
-    rf_geometry_movers_close(&geometry->movers);free(geometry->offsets);free(geometry->slots);
+    rf_geometry_movers_close(&geometry->movers);free(geometry->offsets);free(geometry->slots);free(geometry->liquid_slots);
     memset(geometry,0,sizeof(*geometry));
 }
 uint32_t rf_scene_world_texture_budget[4]; /* dimension cap, attempts, resident, peak */
@@ -649,8 +649,9 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     if(!status) {
         rf_scene_world_geometry next={0};next.world=world;next.movers=movers;
         next.offsets=bundle.offsets;next.slots=bundle.slots;next.geometry_count=bundle.count;next.material_count=bundle.textures.count;
+        next.liquid_slots=bundle.liquid_slots;next.liquid_rooms=bundle.liquid_rooms;bundle.liquid_slots=NULL;
         next.allocated_bytes=sizeof(next)+movers.allocated_bytes-sizeof(movers)+
-            (bundle.count+1)*sizeof(uint32_t)+bundle.offsets[bundle.count]*sizeof(uint32_t);
+            (bundle.count+1)*sizeof(uint32_t)+bundle.offsets[bundle.count]*sizeof(uint32_t)+next.liquid_rooms*sizeof(uint32_t);
         memcpy(next.camera_position,level->player_position,12);memcpy(next.camera_orientation,level->player_orientation,36);
         *geometry=next;memset(&movers,0,sizeof(movers));bundle.offsets=bundle.slots=NULL;
         *materials=bundle.textures;memset(&bundle.textures,0,sizeof(bundle.textures));

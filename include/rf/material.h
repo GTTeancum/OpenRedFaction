@@ -212,7 +212,14 @@ typedef struct rf_geometry_materials {
     rf_materials textures;
     uint32_t *offsets, *slots;
     uint32_t count, resident_bytes, peak_bytes;
+    /* Geometry 0 liquid rooms: liquid_slots[room] is the material slot of the
+     * room's liquid surface texture (RF_LIQUID_SLOT_TRANSLUCENT marks water or
+     * acid drawn see-through with the authored alpha baked into its texels),
+     * UINT32_MAX for rooms without liquid. Liquid textures never share a slot
+     * with ordinary surfaces. */
+    uint32_t *liquid_slots, liquid_rooms;
 } rf_geometry_materials;
+#define RF_LIQUID_SLOT_TRANSLUCENT 0x80000000u
 /* Shared world/mover texture residency scaffolding, not original allocation
  * policy. Geometry i's local texture j maps to slots[offsets[i]+j]. Names
  * deduplicate case-insensitively in first-use order, including missing images.

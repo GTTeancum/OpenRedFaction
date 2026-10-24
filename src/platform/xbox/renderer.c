@@ -438,7 +438,9 @@ static void retained_models_begin(void);
  * includes metadata; unsupported/large levels retain the existing CPU path. */
 typedef struct retained_face {
     uint32_t start,count,material,lightmap,room,detail;float plane[4];
+    uint32_t translucent; /* Liquid surface drawn in the blended pass. */
 } retained_face;
+uint32_t rf_xbox_liquid_faces[3]; /* opaque liquid faces, translucent liquid faces, translucent faces drawn last frame */
 static struct {
     const rf_geometry *source;const rf_visibility *visibility;
     rf_preview_vertex *vertices;retained_face *faces;
@@ -507,6 +509,13 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
             if(face.texture>=g->textures || !scene->slots)return RF_FORMAT;
             if(face.lightmap_mapping!=UINT32_MAX){status=rf_geometry_lightmap(g,face.lightmap_mapping,UINT32_MAX,&lightmap);if(status)return status;}
             out->start=f;out->count=(face.corners-2)*3;out->material=scene->slots[face.texture];out->lightmap=lightmap;
+            /* Liquid surface (face bit 4): its room's authored liquid texture. */
+            if((face.flags&4u) && scene->liquid_slots && face.room<scene->liquid_rooms &&
+               scene->liquid_slots[face.room]!=UINT32_MAX) {
+                out->material=scene->liquid_slots[face.room]&~RF_LIQUID_SLOT_TRANSLUCENT;
+                out->translucent=(scene->liquid_slots[face.room]&RF_LIQUID_SLOT_TRANSLUCENT)!=0;
+                ++rf_xbox_liquid_faces[out->translucent?1:0];
+            }
             out->room=face.room;out->detail=face.room<g->rooms?g->data[g->room_offsets[face.room]+34]!=0:1;
             memcpy(out->plane,face.plane,16);
         }
@@ -582,18 +591,14 @@ static int retained_face_visible(const retained_face *face)
 }
 /* Optional visible-only element stream; the array path below stays intact. */
 #include "retained_world_indices.h"
-static int retained_world_draw(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
+/* Shared static-world draw state: world vertex program, camera rows,
+ * projection constants, vertex arrays and both texture stages. */
+static void retained_world_setup(void)
 {
     const uint32_t program[]={
 #include "world_vertex.inl"
     };
-    uint32_t i,j,*p,visible=0,faces=0,draws=0,active=0,bound_material=0,bound_lightmap=0;float rows[3][4];
-    renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};int indexed;
-    memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
-    if(retained_world.ready!=1 || (rf_xbox_experiment&1))return RF_OK;
-    if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
-    indexed=retained_world_indices_prepare();
-    if(indexed!=RF_OK && indexed!=RF_NOT_FOUND)return indexed;
+    uint32_t i,j,*p;float rows[3][4];
     vertex_program(program,sizeof(program)/4);
     for(i=0;i<3;i++) {
         memcpy(rows[i],retained_world.orientation[i],12);rows[i][3]=0;
@@ -619,14 +624,66 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00010101);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
     p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,RF_TEXTURE_FILTER_LINEAR);pb_end(p);
+}
+/* Liquid surfaces after opaque world and models: authored alpha baked into
+ * the texture, blended over the scene without depth writes. */
+static int retained_world_draw_liquid(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
+{
+    uint32_t f,*p,drawn=0;
+    rf_xbox_liquid_faces[2]=0;
+    if(retained_world.ready!=1 || !rf_xbox_liquid_faces[1] || (rf_xbox_experiment&1))return RF_OK;
+    if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
+    retained_world_setup();
+    p=pb_begin();
+#include "preview_fragment.inl"
+    p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
+    p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_FUNC,NV097_SET_DEPTH_FUNC_V_LESS);
+    p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
+    p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,0);pb_end(p);
+    for(f=0;f<retained_world.face_count;f++) {
+        const retained_face *face=retained_world.faces+f;const gpu_texture *texture,*lighting;uint32_t textured,start,count;
+        if(!face->translucent || !retained_face_visible(face))continue;
+        if(face->lightmap!=UINT32_MAX && face->lightmap>=lightmaps->count)return RF_FORMAT;
+        textured=face->material<materials->count && textures[face->material].pixels;
+        texture=textured?textures+face->material:textures+materials->count;
+        lighting=face->lightmap<lightmaps->count?textures+materials->count+1+face->lightmap:textures+materials->count;
+        p=pb_begin();
+        p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+        p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
+        p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,textured?0:1,textured?1:0,face->lightmap==UINT32_MAX?.5f:1,.1f);
+        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);
+        for(start=face->start,count=face->count;count;) {
+            uint32_t batch=count>252?252:count;
+            p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,batch-1)|field(NV097_DRAW_ARRAYS_START_INDEX,start));
+            count-=batch;start+=batch;
+        }
+        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);++drawn;
+    }
+    p=pb_begin();p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);pb_end(p);
+    rf_xbox_liquid_faces[2]=drawn;return RF_OK;
+}
+static int retained_world_draw(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
+{
+    uint32_t i,*p,visible=0,faces=0,draws=0,active=0,bound_material=0,bound_lightmap=0;
+    renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};int indexed;
+    memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
+    if(retained_world.ready!=1 || (rf_xbox_experiment&1))return RF_OK;
+    if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
+    indexed=retained_world_indices_prepare();
+    if(indexed!=RF_OK && indexed!=RF_NOT_FOUND)return indexed;
+    retained_world_setup();
     if(indexed==RF_OK)return retained_world_indices_draw(materials,lightmaps,textures);
     for(i=0;i<retained_world.face_count;) {
         const retained_face *face=retained_world.faces+i;uint32_t start,count,material,lightmap,textured;const gpu_texture *texture,*lighting;
-        if(!retained_face_visible(face)){++i;continue;}
+        if(face->translucent || !retained_face_visible(face)){++i;continue;}
         start=face->start;count=face->count;material=face->material;lightmap=face->lightmap;++i;++faces;
         while(i<retained_world.face_count) {
             const retained_face *next=retained_world.faces+i;
-            if(next->start!=start+count || next->material!=material || next->lightmap!=lightmap || !retained_face_visible(next))break;
+            if(next->start!=start+count || next->material!=material || next->lightmap!=lightmap || next->translucent || !retained_face_visible(next))break;
             count+=next->count;++i;++faces;
         }
         if(lightmap!=UINT32_MAX && lightmap>=lightmaps->count) {
@@ -1129,6 +1186,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(model==4)retained_draw_count=0;
         rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
         rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
+        if(model==4 && retained_world.ready==1){int status=retained_world_draw_liquid(materials,lightmaps,textures);if(status)return status;}
         renderer_draw_mark(1,&draw_profile_previous,profiling);
         /* The following particle begin already performs the full idle guard
          * before recycling command storage. Standalone and command-audit

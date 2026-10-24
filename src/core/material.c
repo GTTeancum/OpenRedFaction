@@ -399,8 +399,27 @@ failed:
 void rf_geometry_materials_close(rf_geometry_materials *m)
 {
     if(!m)return;
-    rf_materials_close(&m->textures);free(m->offsets);free(m->slots);
+    rf_materials_close(&m->textures);free(m->offsets);free(m->slots);free(m->liquid_slots);
     memset(m,0,sizeof(*m));
+}
+/* v180 room record: liquid flag at +32, name length at +40; liquid payload
+ * after the name: depth, RGBA color, texture name, visibility, type
+ * (1 water, 2 lava, 3 acid), alpha. Same offsets as rf_liquid_rooms_open. */
+static int room_liquid(const rf_geometry *g,uint32_t room,char name[61],uint32_t *type,uint32_t *alpha)
+{
+    uint32_t at=g->room_offsets[room],n,left,t;const unsigned char *p;
+    *name=0;*type=*alpha=0;
+    if(at>g->bytes || g->bytes-at<42)return RF_FORMAT;
+    p=g->data+at;left=g->bytes-at;n=(uint32_t)p[40]|((uint32_t)p[41]<<8);
+    if(n>left-42)return RF_FORMAT;
+    if(!p[32])return RF_OK;
+    p+=42+n;left-=42+n;if(left<10)return RF_FORMAT;
+    t=(uint32_t)p[8]|((uint32_t)p[9]<<8);
+    if(t>left-10 || left-10-t<37)return RF_FORMAT;
+    if(t>=61)return RF_OK; /* Oversized name: leave the room without a liquid texture. */
+    memcpy(name,p+10,t);name[t]=0;
+    memcpy(type,p+14+t,4);memcpy(alpha,p+18+t,4);
+    return RF_OK;
 }
 int rf_geometry_materials_open_limit(rf_geometry_materials *m,
     const rf_geometry *const *geometries,uint32_t count,
@@ -411,19 +430,27 @@ int rf_geometry_materials_open_limit(rf_geometry_materials *m,
     if(limit>4096 || (limit && (limit&(limit-1))))return RF_RANGE;
     if(!m || m->offsets || m->slots || m->textures.items || m->resident_bytes ||
         (!geometries && count) || (!archives && archive_count))return RF_RANGE;
+    uint32_t rooms=0,first_liquid,*liquid_alpha=NULL;
     for(i=0;i<count;++i) {
         if(!geometries[i] || !geometries[i]->data)return RF_RANGE;
         total+=geometries[i]->textures;
     }
-    base=sizeof(next)+((uint64_t)count+1)*sizeof(uint32_t)+total*sizeof(uint32_t);
-    scratch=total*(61+sizeof(*names));
+    if(count && geometries[0]->rooms && geometries[0]->room_offsets)rooms=geometries[0]->rooms;
+    base=sizeof(next)+((uint64_t)count+1)*sizeof(uint32_t)+total*sizeof(uint32_t)+(uint64_t)rooms*sizeof(uint32_t);
+    scratch=((uint64_t)total+rooms)*(61+sizeof(*names)+sizeof(uint32_t));
     if(total>UINT32_MAX || base+scratch>budget || base+scratch>SIZE_MAX)return RF_RANGE;
     next.offsets=malloc(((size_t)count+1)*sizeof(uint32_t));
     if(!next.offsets){status=RF_RANGE;goto done;}
-    if(total) {
-        next.slots=malloc((size_t)total*sizeof(uint32_t));
-        storage=malloc((size_t)total*61);names=malloc((size_t)total*sizeof(*names));
-        if(!next.slots || !storage || !names){status=RF_RANGE;goto done;}
+    if(total+rooms) {
+        next.slots=malloc(((size_t)total+1)*sizeof(uint32_t));
+        storage=malloc(((size_t)total+rooms)*61);names=malloc(((size_t)total+rooms)*sizeof(*names));
+        liquid_alpha=calloc((size_t)total+rooms,sizeof(uint32_t));
+        if(!next.slots || !storage || !names || !liquid_alpha){status=RF_RANGE;goto done;}
+    }
+    if(rooms) {
+        next.liquid_slots=malloc((size_t)rooms*sizeof(uint32_t));
+        if(!next.liquid_slots){status=RF_RANGE;goto done;}
+        next.liquid_rooms=rooms;
     }
     next.count=count;
     for(i=0;i<count;++i) {
@@ -438,13 +465,32 @@ int rf_geometry_materials_open_limit(rf_geometry_materials *m,
         }
     }
     next.offsets[count]=at;
+    /* Liquid surfaces (USERBMAP, face bit 4) take their room's authored liquid
+     * texture at runtime. Give each distinct texture/alpha its own slot. */
+    first_liquid=unique;
+    for(i=0;i<rooms;++i) {
+        uint32_t type,alpha,slot;char *name=storage+(size_t)unique*61;
+        next.liquid_slots[i]=UINT32_MAX;
+        status=room_liquid(geometries[0],i,name,&type,&alpha);if(status)goto done;
+        if(!*name)continue;
+        alpha=type==2?255u:alpha>255u?255u:alpha;
+        for(slot=first_liquid;slot<unique;++slot)if(equal_texture_name(name,names[slot]) && liquid_alpha[slot]==alpha)break;
+        if(slot==unique){names[unique]=name;liquid_alpha[unique++]=alpha;}
+        next.liquid_slots[i]=slot|(alpha<255u?RF_LIQUID_SLOT_TRANSLUCENT:0u);
+    }
     status=open_materials(&next.textures,NULL,names,unique,archives,archive_count,
         budget-(uint32_t)(base+scratch),limit,&texture_peak);
     if(status)goto done;
+    /* Bake the authored surface alpha into each translucent liquid texture. */
+    for(i=first_liquid;i<unique;++i) {
+        rf_image *image=&next.textures.items[i].image;uint32_t k,n;
+        if(liquid_alpha[i]>=255u || !image->rgba || rf_image_is_packed_1555(image))continue;
+        n=image->bytes/4;for(k=0;k<n;k++)image->rgba[k*4+3]=(unsigned char)liquid_alpha[i];
+    }
     next.resident_bytes=(uint32_t)base+next.textures.allocated_bytes;
     next.peak_bytes=(uint32_t)(base+scratch)+texture_peak;
 done:
-    free(storage);free(names);
+    free(storage);free(names);free(liquid_alpha);
     if(status)rf_geometry_materials_close(&next);else *m=next;
     return status;
 }
