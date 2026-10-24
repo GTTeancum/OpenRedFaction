@@ -164,6 +164,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_crash_terrain,8);
     RAM_ARRAY(rf_scene_crash_terrain_owner,8);
     RAM_ARRAY(rf_scene_crash_terrain_admission,10);
+    {extern uint32_t rf_scene_geomod_shrunk[3];RAM_ARRAY(rf_scene_geomod_shrunk,3);}
     RAM_ARRAY(rf_scene_drone_player_contact,10);
     RAM_ARRAY(rf_scene_drone_separation,20);
     RAM_ARRAY(rf_scene_drone_smash,12);

@@ -17187,6 +17187,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 #include "scene_turret_generated_retirement.inc"
 #include "scene_corpse_source_retirement.inc"
 uint32_t rf_scene_crash_terrain[8]; /* frame,stage,status,point xyz bits,history count,room */
+uint32_t rf_scene_geomod_shrunk[3]; /* craters applied smaller, last shrink step, still refused at smallest */
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -17246,11 +17247,23 @@ static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapo
                      if(profile_clock && profile_active)timing_clock=profile_clock();
                      status=scene_debris_prepare(s,&(*contact),hardness.scale*s->terrain_template->radius);if(status)return status;
                      scene_terrain_edit_mark(timing_row,3,&timing_clock);
-                     stage=9;status=s->terrain_authored?scene_terrain_authored_template_edit(s,adjusted,basis,
-                         hardness.scale,limits,limit_count):scene_terrain_legacy_template_edit(s,adjusted,basis,
-                         hardness.scale,limits,limit_count);
-                     scene_terrain_edit_mark(timing_row,1,&timing_clock);
-                     if(!status){memcpy(cleanup_center,adjusted,12);cleanup_radius=hardness.scale*s->terrain_template->radius;}
+                     /* A crater whose cutter overlaps a neighbouring brush or misses
+                      * the supported wall windows is refused whole (RF_NOT_FOUND).
+                      * Retry the same basis at smaller scales so a deep or edge hit
+                      * still opens a smaller crater; history keeps the applied scale
+                      * so saves and reloads rebuild the identical cut. */
+                     {static const float shrink[4]={1.0f,.75f,.55f,.4f};float applied=hardness.scale;uint32_t attempt;
+                      for(attempt=0;attempt<4;attempt++) {
+                          applied=hardness.scale*shrink[attempt];
+                          stage=9;status=s->terrain_authored?scene_terrain_authored_template_edit(s,adjusted,basis,
+                              applied,limits,limit_count):scene_terrain_legacy_template_edit(s,adjusted,basis,
+                              applied,limits,limit_count);
+                          if(status!=RF_NOT_FOUND)break;
+                      }
+                      if(!status && attempt){record->scale=applied;++rf_scene_geomod_shrunk[0];rf_scene_geomod_shrunk[1]=attempt;}
+                      else if(status==RF_NOT_FOUND)++rf_scene_geomod_shrunk[2];
+                      scene_terrain_edit_mark(timing_row,1,&timing_clock);
+                      if(!status){memcpy(cleanup_center,adjusted,12);cleanup_radius=applied*s->terrain_template->radius;}}
                  }}
                 if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
                 rf_scene_geomod[5]=(uint32_t)status;

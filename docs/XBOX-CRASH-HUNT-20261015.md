@@ -1787,3 +1787,9 @@ RAM-log memory accounting (rf_xbox_reload_memory rows after each level release, 
 ### Vehicle damage tables (entity.tbl)
 
 Driller01 Life 900, bullet 0.0, armor piercing 0.1; Jeep01 Life 400, bullet 0.1; APC Life 5000, bullet 0.1, armor piercing 0.3; sub Life 700, bullet 0.0; Fighter01 Life 900, bullet 0.0, explosive 0.5. The Driller's unchanged health under enemy bullets matches the authored table. No floor-supported staging within 25 units exists for the L5S3 submarine or the L18S2 Fighter (search over every authored actor, distances 3-20); the APC has staging at 6-11 units but its guards kill the player within seconds.
+
+## October24: GeoMod deeper cuts in L1S2
+
+Current build, actor 9774 distance 8, loadout 5, explosives scenario. Aim (124,-1,4): six attempts, all refused by cavity admission at cut 0 (owner 8123, RF_NOT_FOUND). Aim (120,-1,-17): first cut accepted, deeper second cut refused by admission (cut index 1).
+Change: scene_explosion_terrain retries a crater refused with RF_NOT_FOUND at 75%, 55% and 40% of the hardness scale with the same random basis (edits are transactional; rejected candidates are discarded) and records the applied scale in the shallow history so saves and reloads rebuild the same cut. rf_scene_geomod_shrunk logs applied/step/refused.
+Result: aim (120,-1,-17) now commits two cuts at 75%; later rockets pass through the opening and report no affected source (expected). With save/load every 300 frames, loads restore two then three cuts with zero load rejections. Aim (124,-1,4) stays refused at every scale: the cutter overlaps authored brushes beside the wall, which the admission guard rejects by design.
