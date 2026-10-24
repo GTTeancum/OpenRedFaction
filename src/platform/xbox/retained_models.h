@@ -241,7 +241,7 @@ static void retained_model_lightmap_mode(uint32_t white)
         field(NV097_SET_COMBINER_COLOR_ICW_B_MAP,white?1:6));
     pb_end(p);
 }
-static int retained_model_render(uint32_t request,const rf_materials *materials,const gpu_texture *textures,uint32_t install_program)
+static int retained_model_render(uint32_t request,uint32_t previous,const rf_materials *materials,const gpu_texture *textures,uint32_t install_program)
 {
     static const uint32_t skinned_program[]={
 #include "skinned_vertex.inl"
@@ -257,8 +257,8 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
     /* install_program starts each CPU-boundary/same-shader run. Within that
      * run, the immediately preceding request proves the last unit0 binding;
      * no cross-pass/frame pointer cache or caller-owned mutation is needed. */
-    if(!install_program && request) {
-        uint32_t previous_material=retained_draws[request-1].material;
+    if(!install_program && previous!=UINT32_MAX) {
+        uint32_t previous_material=retained_draws[previous].material;
         previous_texture=previous_material<materials->count && textures[previous_material].pixels?
             textures+previous_material:white;
     }
@@ -284,8 +284,8 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,1,0,0); /* Cg literal c6. */
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,draw->view_model?1.0f:0.0f,0,0,0); /* c7 depth divisor. */
     }
-    pb_end(p);
-    p=pb_begin();p=pb_push1(p,NV097_SET_FRONT_FACE,draw->front_face);
+    /* One command block per draw: constants and state share it. */
+    p=pb_push1(p,NV097_SET_FRONT_FACE,draw->front_face);
     if(install_program)p=pb_push1(p,NV097_SET_CULL_FACE,NV097_SET_CULL_FACE_V_BACK);
     p=pb_push1(p,NV097_SET_BLEND_ENABLE,texture->transparent);p=pb_push1(p,NV097_SET_DEPTH_MASK,!texture->transparent);
     if(!previous_texture ||

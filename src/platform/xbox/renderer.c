@@ -176,7 +176,9 @@ static const uint32_t *particle_batch_pixels;
 /* Last streaming pass: fans, command-buffer resets, omitted image texels, reused states. */
 uint32_t rf_xbox_particle_batch[4];
 uint32_t rf_xbox_particle_texture_switches;
-uint32_t rf_renderer_fx_split[3]; /* ms in particles, ms in coronas, profiled frames */ /* texture-only state changes in world particle passes */
+uint32_t rf_renderer_fx_split[3];
+/* Stream pass split: [0] retained model render cycles, [1] whole stream loop cycles, [2] model renders, [3] CPU runs. */
+uint64_t rf_renderer_model_split[4]; /* ms in particles, ms in coronas, profiled frames */ /* texture-only state changes in world particle passes */
 static void particle_batch_flush(void)
 {
     /* pb_reset has a void timeout path, so retain the complete pre-reset
@@ -1113,18 +1115,33 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
         p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,RF_TEXTURE_FILTER_LINEAR);
         pb_end(p);
+        uint64_t stream_t0=gpu_wait_clock();
         for (i = 0; i < mesh->count || retained_next<retained_total;) {
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex<i)return RF_FORMAT;
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex==i) {
-                uint32_t loaded=UINT32_MAX,j;
-                do {
-                    /* View models load different c4/c7 depth constants. */
-                    uint32_t shader=(retained_models[retained_draws[retained_next].entry].bones!=0)|
-                        (retained_draws[retained_next].view_model<<1);
-                    int status=retained_model_render(retained_next,materials,textures,loaded!=shader);
-                    if(status)return status;loaded=shader;++retained_next;
+                uint32_t loaded=UINT32_MAX,j,run_end=retained_next,order[RETAINED_MODEL_LIMIT],key[RETAINED_MODEL_LIMIT],n=0,previous=UINT32_MAX;
+                uint64_t t0=gpu_wait_clock();
+                while(run_end<retained_total && retained_draws[run_end].at_vertex==i)++run_end;
+                /* Opaque draws in a run are order-independent under the depth
+                 * buffer: group them by shader kind and texture so program and
+                 * constant reloads happen once per kind. Translucent draws keep
+                 * their original order after all opaque ones (stable sort). */
+                for(j=retained_next;j<run_end;j++) {
+                    const retained_model_draw *d=retained_draws+j;
+                    uint32_t shader=(retained_models[d->entry].bones!=0)|(d->view_model<<1);
+                    uint32_t clear=d->material<materials->count && textures[d->material].pixels && textures[d->material].transparent;
+                    order[n]=j;key[n]=clear?0x80000000u:(shader<<24)|(d->material&0xffffffu);
+                    {uint32_t k=n++;while(k && key[k-1]>key[k]){uint32_t t=key[k];key[k]=key[k-1];key[k-1]=t;t=order[k];order[k]=order[k-1];order[k-1]=t;--k;}}
                 }
-                while(retained_next<retained_total && retained_draws[retained_next].at_vertex==i);
+                for(j=0;j<n;j++) {
+                    /* View models load different c4/c7 depth constants. */
+                    const retained_model_draw *d=retained_draws+order[j];
+                    uint32_t shader=(retained_models[d->entry].bones!=0)|(d->view_model<<1);
+                    int status=retained_model_render(order[j],previous,materials,textures,loaded!=shader);
+                    ++rf_renderer_model_split[2];
+                    if(status)return status;loaded=shader;previous=order[j];
+                }
+                retained_next=run_end;rf_renderer_model_split[0]+=gpu_wait_clock()-t0;
                 /* No CPU vertex follows this completed retained run. The
                  * particle/HUD pass and next frame install their own state. */
                 if(i==mesh->count)break;
@@ -1186,6 +1203,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(model==4)retained_draw_count=0;
         rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
         rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
+        rf_renderer_model_split[1]+=gpu_wait_clock()-stream_t0;
         if(model==4 && retained_world.ready==1){int status=retained_world_draw_liquid(materials,lightmaps,textures);if(status)return status;}
         renderer_draw_mark(1,&draw_profile_previous,profiling);
         /* The following particle begin already performs the full idle guard
