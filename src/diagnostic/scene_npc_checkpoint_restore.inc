@@ -16,6 +16,7 @@ typedef struct scene_npc_checkpoint_restore_entry {
     uint32_t slot,handle,registered,flags,controller_handle,attack_target_handle;
     uint32_t reload_deadline,dwell_deadline;
     uint32_t blind_target,blind_last_seen; /* Prepared actual-generation receipt; final-close only. */
+    uint32_t blind_dropped; /* Load dropped a non-composing blind pursuit; rechecks expect none. */
     scene_pursuit_delay_receipt pursuit_delay_prepared;
     scene_pursuit_return_receipt pursuit_return_prepared;
     uint32_t pursuit_return_retire_pending;
@@ -62,6 +63,17 @@ _Static_assert(sizeof(void*)!=4||sizeof(scene_npc_checkpoint_restore_stage)<=84,
  * expected resident row count and supplied row count. UINT32_MAX identifies
  * a non-row failure. This is separate from capture admission diagnostics. */
 uint32_t rf_scene_npc_restore_reject[6];
+/* Ordinary-load NPC placement fallbacks (native RAM log). Words:
+ * [0] __LINE__ of the last refusing return in the world NPC placement adapter
+ *     (scene_world_restore.inc), [1] adapter-to-prepare scratch: fallback tier
+ *     of the placement in progress (0 strict, 1 saved/no floor contact, 2
+ *     nudged, 3 authored spawn, 4 saved accepted unchecked, 5 authored
+ *     accepted unchecked, 6 saved in live owner room), [2] NPCs admitted via
+ *     any fallback this load, [3] last such: tier<<24 | UID low 24 bits,
+ *     [4] NPC pair overlaps admitted
+ *     beyond the original policy, [5] __LINE__ in restore prepare that refused
+ *     to adopt a moved fallback position. Reset at each prepare. */
+uint32_t rf_scene_npc_place_fallback[6];
 static int scene_npc_checkpoint_restore_failure(const char *detail,uint32_t index,uint32_t uid,int status)
 {
     uint32_t hash=2166136261u;const unsigned char *p=(const unsigned char *)detail;
@@ -238,6 +250,18 @@ static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t 
     }
     return distance2<radius*radius&&sqrt(candidate_distance2)+.01>=sqrt(distance2);
 }
+/* Ordinary load policy: a save taken mid-fight can hold any NPC pair touching
+ * or stacked (group pursuit, corpse piles, an actor moved by a placement
+ * fallback). The live game was in that state a moment earlier; body physics
+ * separates them on the first steps. Admit every remaining overlap instead of
+ * failing the whole load, and count it. Malformed poses/spheres are still
+ * rejected by the pair-fit core before this policy is consulted. */
+static int scene_npc_checkpoint_restore_load_overlap(void *context,uint32_t i,uint32_t j,
+    uint32_t a,uint32_t b,double candidate_distance2,double radius)
+{
+    if(scene_npc_checkpoint_restore_original_overlap(context,i,j,a,b,candidate_distance2,radius))return 1;
+    ++rf_scene_npc_place_fallback[4];return 1;
+}
 static inline void scene_npc_checkpoint_restore_discard_storage(scene_npc_checkpoint_restore_stage **stage,const rf_prepare_storage *storage)
 {
     uint32_t i;
@@ -291,6 +315,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
     memset(rf_scene_npc_restore_reject,0,sizeof(rf_scene_npc_restore_reject));
     rf_scene_npc_restore_reject[1]=rf_scene_npc_restore_reject[2]=UINT32_MAX;
     rf_scene_npc_restore_reject[5]=count;
+    memset(rf_scene_npc_place_fallback,0,sizeof(rf_scene_npc_place_fallback));
     if(flight_profile>2||(flight_profile&&!rng)||(rng&&(rng->present>1||(!rng->present&&rng->value)||(!flight_profile&&rng->present)))||fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)
         return scene_npc_checkpoint_restore_failure("arguments",UINT32_MAX,UINT32_MAX,RF_RANGE);
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
@@ -396,7 +421,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
         detail="row";
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o;
         const rf_entity_creation_vitals_class *vitals;rf_checkpoint_placement placement={0};
-        rf_motion_playback_resource clip;rf_entity_playback_model *model;float angles[3]={0};int32_t id;uint32_t cls,seated=0;
+        rf_motion_playback_resource clip;rf_entity_playback_model *model;float angles[3]={0};int32_t id;uint32_t cls,seated=0,place_fallback=0;
         status=rf_npc_checkpoint_record_validate(rows+i,catalog);if(status)goto fail;
         detail="row_identity";
         if(i&&rows[i-1].uid>=rows[i].uid){status=RF_FORMAT;goto fail;}
@@ -657,13 +682,41 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
         status=scene_npc_checkpoint_restore_spheres(e,&placement.spheres,&placement.count);if(status)goto fail;
         placement.query_flags=(((rows[i].airborne.present||rows[i].drone.kind==1)?e->body.state_124:o->body.state.state_124)&~0x1000u)|4u;
         memcpy(placement.position,e->published,12);memcpy(placement.basis,e->basis,36);
+        rf_scene_npc_place_fallback[1]=0;
         detail="placement";status=place(context,e->slot,e->handle,e->saved.uid,&placement,&e->room,&e->support);if(status)goto fail;
+        place_fallback=rf_scene_npc_place_fallback[1];rf_scene_npc_place_fallback[1]=0;
+        if(place_fallback){
+            ++rf_scene_npc_place_fallback[2];rf_scene_npc_place_fallback[3]=(place_fallback<<24)|(rows[i].uid&0xffffffu);
+            if(memcmp(e->room.query_position,e->published,12)){
+                /* The ordinary-load adapter fitted this body at a nearby or
+                 * authored position. Republish the candidate body there so
+                 * every later consumer (pair fit, eye, medic child, crouch
+                 * close, assignment) reads one consistent position. The
+                 * adapter only moves owners without crouch/reload/airborne/
+                 * drone/script-physics/seat state; refuse anything else. */
+                uint32_t body_flags=e->body.flags,k;
+                detail="placement_fallback";
+                if(seated||rows[i].airborne.present||rows[i].drone.kind||rows[i].physics.present||
+                   rows[i].reload_present||e->crouch_shape_present||rows[i].support_uid){
+                    rf_scene_npc_place_fallback[5]=__LINE__;status=RF_FORMAT;goto fail;}
+                for(k=0;k<3;k++)if(!isfinite(e->room.query_position[k])){rf_scene_npc_place_fallback[5]=__LINE__;status=RF_FORMAT;goto fail;}
+                memcpy(e->body.position,e->room.query_position,12);
+                status=rf_physics_spheres_bounds(placement.spheres,placement.count,e->body.position,&e->body.bounds);
+                if(status){rf_scene_npc_place_fallback[5]=__LINE__;goto fail;}
+                status=rf_physics_publish_position(&e->body,e->published,&e->flags);
+                e->body.flags=body_flags;
+                if(status){rf_scene_npc_place_fallback[5]=__LINE__;goto fail;}
+            }
+        }
         detail="support_admission";
         if(rows[i].airborne.present&&(e->support.handle||e->support.material!=-1||e->body.flags!=0x80000079u)){status=RF_FORMAT;goto fail;}
+        /* A fallback placement carries no floor contact (material -1); the
+         * first live physics step acquires support, so the strict "standing
+         * owner must report a floor" clause is waived for it only. */
         if(memcmp(e->room.query_position,e->published,12)||
            (!!e->support.handle!=!!rows[i].support_uid)||!e->room.room||
            e->support.material< -1||(!placement.count&&e->support.material!=-1)||
-           (!seated&&!rows[i].airborne.present&&!scene_npc_physics_checkpoint_suspended(rows+i)&&placement.count&&e->support.material==-1&&
+           (!place_fallback&&!seated&&!rows[i].airborne.present&&!scene_npc_physics_checkpoint_suspended(rows+i)&&placement.count&&e->support.material==-1&&
             (((rows[i].physics.present||rows[i].drone.kind==1)?(e->body.flags&(1u|0x400000u)):(o->body.state.flags&(1u|0x400000u)))||
              ((rows[i].physics.present||rows[i].drone.kind==1)?rows[i].support_uid:o->support.handle)))){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
         if(rows[i].support_uid){e->body.flags&=~1u;e->body.flags|=0x400000u;}
@@ -802,7 +855,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode_storage_accounted(co
         detail="eye";status=scene_npc_checkpoint_restore_eye(j,e,e->eye);if(status)goto fail;
     }
     detail="pair_fit";status=scene_npc_checkpoint_pair_fit_allowed(count,scene_npc_checkpoint_restore_placement,stage,
-        scene_npc_checkpoint_restore_original_overlap);if(status)goto fail;
+        scene_npc_checkpoint_restore_load_overlap);if(status)goto fail;
     *out=stage;return RF_OK;
 fail:
     scene_npc_checkpoint_restore_failure(detail,i,i<count?rows[i].uid:UINT32_MAX,status);

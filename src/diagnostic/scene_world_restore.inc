@@ -68,17 +68,94 @@ static inline int scene_world_restore_failure(const char *phase,int status)
 #endif
     return status;
 }
+/* Refusing returns in the NPC placement adapter record their source line in
+ * rf_scene_npc_place_fallback[0] (declared in scene_npc_checkpoint_restore.inc). */
+#define SCENE_WORLD_RESTORE_REFUSE(code) do{rf_scene_npc_place_fallback[0]=__LINE__;return (code);}while(0)
+/* One full candidate-world fit (room, volume, movers, props, floor) at an
+ * explicit position. Static-terrain proof is evaluated per position, so a
+ * moved candidate never inherits the saved position's unchanged-room proof. */
+static int scene_world_restore_fit_at(const scene_checkpoint_world_context *base,
+    const rf_checkpoint_placement *placement,const float position[3],
+    rf_entity_room_state *room,rf_physics_support_contact *support)
+{
+    scene_checkpoint_world_context c=*base;rf_checkpoint_placement p=*placement;
+    rf_collision_room_location location;uint32_t i,changed=0;int status;
+    memcpy(p.position,position,12);
+    if(!c.authored_static_unchanged&&scene_checkpoint_world_outside_modified(&c,&p))c.authored_static_unchanged=1;
+    status=rf_geometry_collision_world_locate(c.world,p.position,&location);if(status)return status;
+    if(location.room==UINT32_MAX||location.room>=c.world->room_count)return RF_NOT_FOUND;
+    if(!c.authored_static_unchanged&&c.modified_room_count){
+        for(i=0;i<c.modified_room_count;i++)if(c.modified_rooms[i]==location.room)changed=1;
+        if(!changed)c.authored_static_unchanged=1;
+    }
+    c.reference_room=location.room;
+    return scene_checkpoint_world_place(&c,&p,room,support);
+}
+/* Accept a position without volume/floor proof: room only, explicit
+ * no-contact support. Physics depenetrates and settles on the first steps. */
+static int scene_world_restore_accept_at(const scene_checkpoint_world_context *c,const float position[3],
+    uint32_t fallback_room,rf_entity_room_state *room,rf_physics_support_contact *support)
+{
+    rf_collision_room_location location;uint32_t k,token=0;
+    for(k=0;k<3;k++)if(!isfinite(position[k]))return RF_FORMAT;
+    if(!rf_geometry_collision_world_locate(c->world,position,&location)&&
+       location.room!=UINT32_MAX&&location.room<c->world->room_count)token=location.room+1;
+    else if(fallback_room&&fallback_room<=c->world->room_count)token=fallback_room;
+    if(!token)return RF_NOT_FOUND;
+    memset(room,0,sizeof(*room));room->room=token;memcpy(room->query_position,position,12);
+    support->handle=0;support->material=-1;return RF_OK;
+}
+/* Ordinary-load fallback ladder after the saved position failed with
+ * NOT_FOUND (inside a wall/prop/mover, outside every room after a cut, or
+ * on a mover with no recorded support). One NPC must not fail the load:
+ *   2 nudged saved position (up, then short horizontal steps), full fit
+ *   3 authored spawn position, full fit
+ *   4 saved position accepted unchecked if it lies in a room
+ *   5 authored spawn accepted unchecked (saved point outside every room)
+ *   6 saved position kept with the live owner's (authored) room token
+ * Movement is only offered for owners without position-bound side state;
+ * the restore prepare republishes a moved body consistently. */
+static int scene_world_restore_fallback(const scene_checkpoint_world_context *world,
+    const rf_checkpoint_placement *placement,uint32_t slot,uint32_t movable,
+    rf_entity_room_state *room,rf_physics_support_contact *support)
+{
+    static const float offsets[8][3]={{0,.125f,0},{0,.25f,0},{0,.5f,0},
+        {.375f,.125f,0},{-.375f,.125f,0},{0,.125f,.375f},{0,.125f,-.375f},{0,1.f,0}};
+    scene_checkpoint_world_context c=*world;const float *authored=NULL;
+    rf_entity_room_state next_room;rf_physics_support_contact next_support;
+    float candidate[3];uint32_t i,k,live_room=0;
+    c.allow_no_contact=1;
+    if(slot<campaign_seeds.records.count)authored=campaign_seeds.records.items[slot].record.position;
+    if(slot<campaign_npc_body_count)live_room=campaign_npc_bodies[slot].room.room;
+    if(movable&&placement->count){
+        for(i=0;i<8;i++){
+            for(k=0;k<3;k++)candidate[k]=placement->position[k]+offsets[i][k];
+            if(!scene_world_restore_fit_at(&c,placement,candidate,&next_room,&next_support)){
+                *room=next_room;*support=next_support;rf_scene_npc_place_fallback[1]=2;return RF_OK;}
+        }
+    }
+    if(movable&&authored&&memcmp(authored,placement->position,12)&&
+       !scene_world_restore_fit_at(&c,placement,authored,&next_room,&next_support)){
+        *room=next_room;*support=next_support;rf_scene_npc_place_fallback[1]=3;return RF_OK;}
+    if(!scene_world_restore_accept_at(&c,placement->position,0,room,support)){
+        rf_scene_npc_place_fallback[1]=4;return RF_OK;}
+    if(movable&&authored&&!scene_world_restore_accept_at(&c,authored,0,room,support)){
+        rf_scene_npc_place_fallback[1]=5;return RF_OK;}
+    if(!scene_world_restore_accept_at(&c,placement->position,live_room,room,support)){
+        rf_scene_npc_place_fallback[1]=6;return RF_OK;}
+    rf_scene_npc_place_fallback[0]=__LINE__;return RF_NOT_FOUND;
+}
 static inline int scene_world_restore_place(void *context,uint32_t actor_slot,uint32_t actor_handle,
     uint32_t actor_uid,const rf_checkpoint_placement *placement,
     rf_entity_room_state *room,rf_physics_support_contact *support)
 {
     scene_world_restore_stage *s=context;scene_checkpoint_world_context world=s->world;
     scene_npc_clutter_checkpoint_pair prop_pair;
-    rf_collision_room_location location;const rf_npc_checkpoint_record *saved;
+    const rf_npc_checkpoint_record *saved;
     uint32_t i,uid=UINT32_MAX,support_uid,seat_handled=0;int status;
     while(s->placement_next<s->placement_count&&(s->placement_rows[s->placement_next].retired||
         s->placement_rows[s->placement_next].dead_pose==2))s->placement_next++;
-    if(s->placement_next>=s->placement_count)return RF_FORMAT;
+    if(s->placement_next>=s->placement_count)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
     saved=s->placement_rows+s->placement_next;
     uid=saved->uid;support_uid=saved->support_uid;
     /* Bind the caller's candidate to the exact resident owner before any seat,
@@ -89,43 +166,54 @@ static inline int scene_world_restore_place(void *context,uint32_t actor_slot,ui
        campaign_npc_bodies[actor_slot].registration.handle!=actor_handle||
        scene_npc_reload_identity(actor_slot,campaign_npc_bodies+actor_slot)||
        placement->count!=campaign_npc_bodies[actor_slot].body.spheres.count||
-       (placement->count&&!placement->spheres))return RF_FORMAT;
+       (placement->count&&!placement->spheres))SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
     world.npc_hover_no_support=world.npc_drone_no_support=world.npc_airborne_no_support=0;
     rf_scene_world_restore_reject[6]=uid;rf_scene_world_restore_reject[7]=s->placement_next;
-    if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
+    if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
     world.npc_route_contact=s->placement_rows[s->placement_next].move.active&&
         s->placement_rows[s->placement_next].move.follow<=2;
     s->placement_next++;
     status=scene_npc_seat_checkpoint_place(s->seats,saved,&world,placement,room,support,&seat_handled);
-    if(status||seat_handled)return status;
+    /* A seated NPC keeps its exact seat pose (the seat stage re-proves it);
+     * if its volume does not fit, accept the pose in its room unchecked. */
+    if(status==RF_NOT_FOUND&&seat_handled&&
+       !scene_world_restore_accept_at(&world,placement->position,
+           campaign_npc_bodies[actor_slot].room.room,room,support)){
+        rf_scene_npc_place_fallback[1]=4;return RF_OK;}
+    if(status)SCENE_WORLD_RESTORE_REFUSE(status);
+    if(seat_handled)return RF_OK;
     if(support_uid){
         uint32_t actor=UINT32_MAX,host;
-        if(!s->passive||!s->stream)return RF_NOT_FOUND;
+        if(!s->passive||!s->stream)SCENE_WORLD_RESTORE_REFUSE(RF_NOT_FOUND);
         for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){actor=i;break;}
         if(actor==UINT32_MAX||!campaign_npc_movement_configs||
-           campaign_seeds.items[actor].class_index>=campaign_seeds.class_count)return RF_FORMAT;
+           campaign_seeds.items[actor].class_index>=campaign_seeds.class_count)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
         for(host=0;host<s->passive->count;host++)if(s->passive->rows[host].uid==support_uid)break;
-        if(host==s->passive->count)return RF_FORMAT;
+        if(host==s->passive->count)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
         if(!s->passive->rows[host].attached){
             status=scene_secondary_vehicle_checkpoint_support(s->secondary,support_uid,campaign_passive_vehicles[host].handle);
-            if(status)return status;
+            if(status)SCENE_WORLD_RESTORE_REFUSE(status);
         }
         world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+actor,
             campaign_seeds.items[actor].class_index,saved->capek_shield_broken);
-        return scene_world_passive_support_place(s->stream,&world,placement,s->passive,host,
+        /* Vehicle-supported riders must keep their host support identity
+         * (admission pairs it with the saved support UID): no fallback. */
+        status=scene_world_passive_support_place(s->stream,&world,placement,s->passive,host,
             campaign_npc_bodies[actor].registration.handle,(uint32_t)campaign_npc_bodies[actor].view.linked_handle,room,support);
+        if(status)SCENE_WORLD_RESTORE_REFUSE(status);
+        return RF_OK;
     }
     world.authored_position=NULL;world.authored_basis=NULL;world.authored_rotating_npc=world.authored_center_shift_npc=0;
     world.npc_prop_pair_rejected=NULL;world.npc_prop_pair_context=NULL;
-    if(!world.authored_static_unchanged &&
-       scene_checkpoint_world_outside_modified(&world,placement))world.authored_static_unchanged=1;
+    /* Unchanged-terrain proof is evaluated per candidate position in
+     * scene_world_restore_fit_at (saved position first, same result). */
     /* Explicit checked owner binding also admits privately prepared spheres.
      * Empty sets retain the existing point-only room path (speed unused). */
     i=actor_slot;
     if(placement->count){
         uint32_t cls=campaign_seeds.items[i].class_index;
-        if(uid!=(uint32_t)campaign_seeds.records.items[i].record.uid)return RF_FORMAT;
-        if(!campaign_npc_movement_configs||cls>=campaign_seeds.class_count)return RF_FORMAT;
+        if(uid!=(uint32_t)campaign_seeds.records.items[i].record.uid)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
+        if(!campaign_npc_movement_configs||cls>=campaign_seeds.class_count)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
         if(scene_npc_clutter_checkpoint_pair_prepare(s,saved,i,actor_handle,placement,&prop_pair)){
             world.npc_prop_pair_rejected=scene_npc_clutter_checkpoint_pair_rejected;
             world.npc_prop_pair_context=&prop_pair;
@@ -135,7 +223,7 @@ static inline int scene_world_restore_place(void *context,uint32_t actor_slot,ui
          * support. Existing world, mover, prop and pair checks all remain. */
         if(saved->airborne.present){
             status=scene_npc_airborne_checkpoint_admit(i,campaign_npc_bodies+i,saved,world.fresh_boot);
-            if(status)return status;world.npc_airborne_no_support=1;
+            if(status)SCENE_WORLD_RESTORE_REFUSE(status);world.npc_airborne_no_support=1;
         }
         uint32_t body_flags=saved->airborne.present?saved->airborne.body_bits:saved->drone.kind==1?saved->drone.body_bits:
             saved->physics.present?saved->physics.body_bits:campaign_npc_bodies[i].body.state.flags;
@@ -165,19 +253,21 @@ static inline int scene_world_restore_place(void *context,uint32_t actor_slot,ui
         }
         world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+i,cls,saved->capek_shield_broken);
     }
-    if(saved->airborne.present&&!world.npc_airborne_no_support)return RF_FORMAT;
-    status=rf_geometry_collision_world_locate(world.world,placement->position,&location);
-    if(!status){
-        if(location.room==UINT32_MAX||location.room>=world.world->room_count)status=RF_NOT_FOUND;
-        else {
-            if(!world.authored_static_unchanged&&world.modified_room_count){
-                uint32_t changed=0;
-                for(i=0;i<world.modified_room_count;i++)if(world.modified_rooms[i]==location.room)changed=1;
-                if(!changed)world.authored_static_unchanged=1;
-            }
-            world.reference_room=location.room;status=scene_checkpoint_world_place(&world,placement,room,support);
-        }
+    if(saved->airborne.present&&!world.npc_airborne_no_support)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
+    status=scene_world_restore_fit_at(&world,placement,placement->position,room,support);
+    /* An NPC saved mid-step or touching a mover can lack a strict floor
+     * contact; accept the saved volume and let physics settle. */
+    if(status==RF_NOT_FOUND&&!world.allow_no_contact){
+        world.allow_no_contact=1;
+        status=scene_world_restore_fit_at(&world,placement,placement->position,room,support);
+        if(!status)rf_scene_npc_place_fallback[1]=1;
     }
+    if(status==RF_NOT_FOUND){
+        const campaign_npc_body *owner=campaign_npc_bodies+actor_slot;
+        uint32_t movable=!saved->airborne.present&&!saved->drone.kind&&!saved->physics.present&&
+            !saved->reload_present&&!saved->crouch.flags&&!owner->crouch.flags&&!(owner->view.flags_810&0x400u);
+        status=scene_world_restore_fallback(&world,placement,actor_slot,movable,room,support);
+    }else if(status)rf_scene_npc_place_fallback[0]=__LINE__;
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(status){const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
         if(enabled&&!strcmp(enabled,"1")){

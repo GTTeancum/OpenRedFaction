@@ -56,6 +56,11 @@ static uint32_t tester_profile;
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_startup_trace[4]; /* sequence,stage,GetTickCount,status */
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
+/* Failed level switch: step (1 player get,2 pose get,3 level open,4 placement,5 item stage,6 player set), status, FNV1a of target level. */
+uint32_t rf_xbox_transition_failure[3];
+/* First failing scene_frame return: source line, status, frame. */
+uint32_t rf_xbox_frame_failure[3];
+#define FRAME_FAIL(expr) do{int frame_status_=(expr);if(frame_status_&&!rf_xbox_frame_failure[1]){rf_xbox_frame_failure[0]=__LINE__;rf_xbox_frame_failure[1]=(uint32_t)frame_status_;rf_xbox_frame_failure[2]=frame;}return frame_status_;}while(0)
 uint32_t rf_xbox_event_handoff_probe[2]; /* live refs and pending state after return / after dispatch */
 char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
@@ -67,7 +72,29 @@ static uint32_t campaign_setup_next_uid,campaign_setup_source_uid,campaign_setup
 static uint32_t campaign_disable_auto_uid,campaign_single_fire_uid;
 static uint32_t campaign_npc_drop_uid,campaign_npc_drop_frame;
 static float campaign_npc_drop_speed;
-static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
+/* Diagnostic quick-save/quick-load schedule on total replay frames. Legacy
+ * file: two u32 (save frame, load frame). Extended: "RFQA", count, then count
+ * (frame, kind 1 save / 2 load) pairs in ascending frame order. */
+#define QUICK_ACTION_MAX 64u
+static uint32_t quick_action_frame[QUICK_ACTION_MAX],quick_action_kind[QUICK_ACTION_MAX];
+static uint32_t quick_action_count,quick_action_next;
+static void quick_actions_reset(void){quick_action_count=quick_action_next=0;}
+static int quick_actions_read(FILE *f)
+{
+    uint32_t words[2],i;quick_actions_reset();
+    if(fread(words,sizeof(words),1,f)!=1)return RF_FORMAT;
+    if(memcmp(words,"RFQA",4)){
+        for(i=0;i<2;i++)if(words[i]!=UINT32_MAX){quick_action_frame[quick_action_count]=words[i];quick_action_kind[quick_action_count++]=i+1;}
+        if(quick_action_count==2&&quick_action_frame[1]<quick_action_frame[0]){
+            uint32_t t=quick_action_frame[0];quick_action_frame[0]=quick_action_frame[1];quick_action_frame[1]=t;
+            quick_action_kind[0]=2;quick_action_kind[1]=1;}
+        return fgetc(f)==EOF?RF_OK:RF_FORMAT;}
+    if(!words[1]||words[1]>QUICK_ACTION_MAX)return RF_FORMAT;
+    for(i=0;i<words[1];i++){uint32_t pair[2];
+        if(fread(pair,sizeof(pair),1,f)!=1||(pair[1]!=1&&pair[1]!=2)||(i&&pair[0]<=quick_action_frame[i-1]))return RF_FORMAT;
+        quick_action_frame[i]=pair[0];quick_action_kind[i]=pair[1];}
+    quick_action_count=words[1];return fgetc(f)==EOF?RF_OK:RF_FORMAT;
+}
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 /* enters,resumes,held polls,status,entry frame,pacing rebases,active,disconnect entries */
 volatile uint32_t rf_xbox_pause_diagnostic[8];
@@ -901,8 +928,10 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
             uint32_t wait;
             while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
         }
-        rf_scene_save_button(campaign_total_frames==quick_action_frames[0]);
-        rf_scene_load_button(campaign_total_frames==quick_action_frames[1]);
+        {uint32_t kind=0;
+            while(quick_action_next<quick_action_count&&quick_action_frame[quick_action_next]<campaign_total_frames)++quick_action_next;
+            if(quick_action_next<quick_action_count&&quick_action_frame[quick_action_next]==campaign_total_frames)kind=quick_action_kind[quick_action_next];
+            rf_scene_save_button(kind==1);rf_scene_load_button(kind==2);}
         memset(input,0,sizeof(*input));
         int status=frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
             fread(input,player_replay_size,1,player_replay)!=1?RF_IO:RF_OK;
@@ -1359,7 +1388,8 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     }
     rf_diagnostic[57]=world;
     if(player_pacing){int present=scene_present_query();present_decided=0;if(!present){rf_xbox_frame_skipped();return scene_frame_storage_check();}}
-    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);return status?status:scene_frame_storage_check();}
+    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
+     if(status)FRAME_FAIL(status);FRAME_FAIL(scene_frame_storage_check());}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
@@ -1466,8 +1496,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             campaign_npc_drop_uid=words[0];campaign_npc_drop_speed=speed;campaign_npc_drop_frame=words[2];}
     }
     {FILE *actions=fopen("D:\\campaign-quick-actions.bin","rb");
-     quick_action_frames[0]=quick_action_frames[1]=UINT32_MAX;
-     if(actions){int invalid=fread(quick_action_frames,sizeof(quick_action_frames),1,actions)!=1||fgetc(actions)!=EOF;
+     quick_actions_reset();
+     if(actions){int invalid=quick_actions_read(actions);
          fclose(actions);if(invalid)return RF_FORMAT;}}
     {FILE *fixture=fopen("D:\\campaign-single-fire.bin","rb");
      campaign_single_fire_uid=0;
@@ -1921,7 +1951,7 @@ static void player_session_counters_reset(void)
     campaign_setup_uid=campaign_return_exit_uid=campaign_return_item_uid=campaign_return_place=0;
     campaign_setup_next_uid=campaign_setup_source_uid=campaign_setup_actor_uid=campaign_setup_immediate=campaign_goto_frame=0;
     campaign_disable_auto_uid=campaign_single_fire_uid=campaign_npc_drop_uid=campaign_npc_drop_frame=0;
-    campaign_npc_drop_speed=0;quick_action_frames[0]=quick_action_frames[1]=UINT32_MAX;
+    campaign_npc_drop_speed=0;quick_actions_reset();
     actor_body_preview=actor_follow_preview=0;rf_xbox_load_stage=0;
     memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     memset(rf_xbox_level_transitions,0,sizeof(rf_xbox_level_transitions));
@@ -2143,29 +2173,33 @@ campaign_load_section:
                 rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
                 uint32_t reload=rf_scene_quickload_pending(),restart=rf_scene_restart_pending(),fresh=reload||restart;
                 memset(&state,0,sizeof(state));memset(departing_position,0,sizeof(departing_position));memset(departing_orientation,0,sizeof(departing_orientation));
+                uint32_t step=1;
+                {uint32_t h=2166136261u,k;for(k=0;k<sizeof(next.level)&&next.level[k];k++)h=(h^(unsigned char)next.level[k])*16777619u;rf_xbox_transition_failure[2]=h;}
                 if(!fresh){result=rf_scene_campaign_player_get(&state);
-                    if(result==RF_OK)result=rf_scene_campaign_pose_get(departing_position,departing_orientation);}
+                    if(result==RF_OK){step=2;result=rf_scene_campaign_pose_get(departing_position,departing_orientation);}}
                 if(result==RF_OK) {
                     player_resident_close();
                     if(!fresh)rf_vpp_close(&archive);
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
+                    step=3;
                     if(fresh){result=rf_level_open(&level,&archive,next.level);
                         if(result==RF_NOT_FOUND){rf_vpp_close(&archive);result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);}
                         memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
                     else result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
                     if(result==RF_OK)memcpy(rf_xbox_transition_target,next.level,sizeof(rf_xbox_transition_target));
                     if(result==RF_OK && !fresh && next.uid!=campaign_forced_exit_uid) {
-                        result=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
+                        step=4;result=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
                         if(result==RF_NOT_FOUND)result=RF_OK;
                     }
-                    if(result==RF_OK && !fresh && campaign_return_place){result=rf_scene_stage_item(&level,campaign_return_item_uid);campaign_return_place=0;}
+                    if(result==RF_OK && !fresh && campaign_return_place){step=5;result=rf_scene_stage_item(&level,campaign_return_item_uid);campaign_return_place=0;}
                     campaign_forced_exit_uid=0;
-                    if(result==RF_OK)result=rf_scene_campaign_player_set(fresh?NULL:&state);
+                    if(result==RF_OK){step=6;result=rf_scene_campaign_player_set(fresh?NULL:&state);}
                     if(result==RF_OK && restart)printf("LEVEL_RESTART %s %u\n",next.level,campaign_total_frames);
                     live_mines_door_fixture=0;
                     if(result==RF_OK)goto campaign_load_section;
                 }
+                if(result!=RF_OK){rf_xbox_transition_failure[0]=step;rf_xbox_transition_failure[1]=(uint32_t)result;}
             }
             rf_vpp_close(&archive);
         }

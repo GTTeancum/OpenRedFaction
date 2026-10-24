@@ -117,6 +117,8 @@ def main():
     parser.add_argument('--actor', type=int)
     parser.add_argument('--distance', type=float, help='Stage this many units in front of --actor, preserving all authored entities')
     parser.add_argument('--spawn-y', type=float, help='Override only the staged player-start height; requires --distance')
+    parser.add_argument('--seed', type=int, default=1, help='Random input seed')
+    parser.add_argument('--save-load-every', type=int, metavar='FRAMES', help='Alternate quick-save and quick-load every FRAMES replay frames (up to 64 actions)')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
     parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/railgun start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
@@ -126,7 +128,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','vehicle','vehicle-quick','vehicle-land','vehicle-stress','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -144,7 +146,7 @@ def main():
     parser.add_argument('--poll-seconds', type=float, default=1.0,
                         help='Application telemetry interval (0.3..5 seconds); larger intervals may miss short-lived states')
     args = parser.parse_args()
-    if not 1 <= args.frames <= 60000 or not 1 <= args.seconds <= 600:
+    if not 1 <= args.frames <= 240000 or not 1 <= args.seconds <= 4500:
         parser.error('Require 1..60000 frames and 1..600 seconds')
     if not .3 <= args.poll_seconds <= 5:
         parser.error('Require 0.3..5 seconds between telemetry samples')
@@ -263,6 +265,8 @@ def main():
             (disc/'campaign-level.bin').write_bytes(b'scene-fixture.vpp'.ljust(64,b'\0')+args.level.encode().ljust(64,b'\0'))
             result['staged_start'] = {'position':position,'forward':forward,
                 'level_sha256':hashlib.sha256(staged).hexdigest(),'changed_bytes':'player-start transform only'}
+        import random
+        rng = random.Random(args.seed); random_state = {'until': 0}
         rows = []
         for frame in range(args.frames):
             move = [0., 0., 0.]; look = [0., 0.]; buttons = [0]*7
@@ -323,6 +327,17 @@ def main():
                 elif phase == 480: buttons[2] = 1  # Use
                 elif phase == 510: buttons[1] = 1  # jump
                 elif phase >= 540: buttons[0] = 1; move[2] = -.4
+            elif args.input == 'random' and frame >= 60:
+                # Seeded button mashing: sticks held for random spans, random
+                # edges on every gameplay button. Pause/menu stay untouched.
+                if frame == 60 or frame >= random_state['until']:
+                    random_state['until'] = frame + rng.randint(6, 90)
+                    random_state['move'] = [rng.choice((0.,0.,rng.uniform(-1,1))) for _ in range(3)]
+                    random_state['move'][1] = 0.
+                    random_state['look'] = [rng.choice((0.,rng.uniform(-.4,.4))) for _ in range(2)]
+                    random_state['held'] = [int(rng.random() < p) for p in (.1,.05,.03,.35,.03,.04,.15)]
+                move = list(random_state['move']); look = list(random_state['look'])
+                buttons = [h if rng.random() < .85 else 0 for h in random_state['held']]
             elif args.input == 'combat':
                 phase = frame % 360
                 move[0] = .35 if 60 <= phase < 150 else -.35 if 150 <= phase < 240 else 0
@@ -359,6 +374,10 @@ def main():
         if args.render_sync: (disc / 'render-overlap.bin').write_bytes(struct.pack('<I',args.render_sync))
         if args.experiment: (disc / 'crash-experiment.bin').write_bytes(struct.pack('<I',args.experiment))
         if args.quick_actions: (disc / 'campaign-quick-actions.bin').write_bytes(struct.pack('<2I',*args.quick_actions))
+        if args.save_load_every:
+            pairs = [(f, 1 + (i % 2)) for i, f in enumerate(range(args.save_load_every, args.frames, args.save_load_every))][:64]
+            (disc / 'campaign-quick-actions.bin').write_bytes(b'RFQA' + struct.pack('<I', len(pairs)) + b''.join(struct.pack('<2I', *p) for p in pairs))
+            result['quick_actions'] = pairs
         if not args.no_audio: (disc / 'audio-output.flag').write_bytes(b'')
         result['xbox_audio_backend'] = not args.no_audio
         if args.target == 'hardware':

@@ -499,24 +499,28 @@ static uint32_t scene_guard_retreat_section_wait(void);
 static void scene_player_holster_sample(uint32_t);
 static void scene_npc_loop_audio_begin_frame(uint32_t);
 static void scene_turret_audio_begin_frame(uint32_t);
+/* Last nonzero player_begin_frame return: source line, status, frame. */
+uint32_t rf_scene_begin_frame_failure[3];
+/* First failing level-exit handoff check in scene teardown: source line, status. */
+uint32_t rf_scene_teardown_failure[2];
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
     scene_npc_loop_audio_begin_frame(frame);
     scene_turret_audio_begin_frame(frame);
     if(frame && !campaign_endgame.credits && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
-        !scene_airlock_handoff_wait() && !scene_medic_handoff_wait() && !scene_guard_retreat_section_wait())return RF_NOT_FOUND;
+        !scene_airlock_handoff_wait() && !scene_medic_handoff_wait() && !scene_guard_retreat_section_wait()){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_NOT_FOUND);rf_scene_begin_frame_failure[2]=frame;return RF_NOT_FOUND;}
     if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
         memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
-    status=player_poll(player_context,frame,&value);if(status)return status;
+    status=player_poll(player_context,frame,&value);if(status){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(status);rf_scene_begin_frame_failure[2]=frame;return status;}
     scene_crash_scenario_input(frame,&value);
     scene_crash_aim_input(frame,&value);
-    for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
-    for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
-    if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>2 || value.alt_fire>1 || value.holster>1)return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_FORMAT);rf_scene_begin_frame_failure[2]=frame;return RF_FORMAT;}
+    for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_FORMAT);rf_scene_begin_frame_failure[2]=frame;return RF_FORMAT;}
+    if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>2 || value.alt_fire>1 || value.holster>1){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_FORMAT);rf_scene_begin_frame_failure[2]=frame;return RF_FORMAT;}
     if(campaign_endgame.credits){
-        status=scene_credits_input(value.use);if(status)return status;
+        status=scene_credits_input(value.use);if(status){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(status);rf_scene_begin_frame_failure[2]=frame;return status;}
         memset(&value,0,sizeof(value));scene_use_filtered(0);goto input_ready;
     }
     scene_player_holster_sample(value.holster);
@@ -530,13 +534,13 @@ static int player_begin_frame(void *context,uint32_t frame)
             rf_scene_level_transition.uid=UINT32_MAX-3u;
             rf_scene_level_transition.pending=1;
             campaign_endgame.restart_requested=1;
-            return RF_NOT_FOUND;
+            {rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_NOT_FOUND);rf_scene_begin_frame_failure[2]=frame;return RF_NOT_FOUND;}
         }
         memset(&value,0,sizeof(value));
     }
     if(campaign_cutscene_runtime.active)memset(&value,0,sizeof(value));
-    if(campaign_defuse.active){status=campaign_defuse_input(frame,&value);if(status)return status;}
-    if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
+    if(campaign_defuse.active){status=campaign_defuse_input(frame,&value);if(status){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(status);rf_scene_begin_frame_failure[2]=frame;return status;}}
+    if(campaign_spawn){status=campaign_life_input(frame,&value);if(status){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(status);rf_scene_begin_frame_failure[2]=frame;return status;}}
     scene_use_filtered(value.use);
     scene_turret_player_filter(&value);
 input_ready:
@@ -22908,7 +22912,8 @@ modal_step_done:
         /* The player snapshot refuses mid-action states (turning, landing,
          * weapon cooldown); hold the request up to 3 s for them to settle. */
         if(!scene_live_save_pending)scene_live_save_wait_until=0;
-        else if(!scene_driller_active(stream) && scene_checkpoint_player_state_scope(stream,1,2)==RF_RANGE){
+        else if(!scene_driller_active(stream) && (scene_checkpoint_player_state_scope(stream,1,2)==RF_RANGE ||
+                scene_npc_checkpoint_save_probe()!=RF_OK)){
             if(!scene_live_save_wait_until)scene_live_save_wait_until=frame+180;
             if(frame<scene_live_save_wait_until)return RF_OK;}
         if(scene_live_save_pending){
@@ -24245,22 +24250,32 @@ done:
     if(!status&&!scene_live_load_active&&!scene_session_end_requested)status=scene_world_checkpoint_probe(stream,level,tables_path);
     if(!status&&!scene_live_load_active&&!scene_session_end_requested)status=scene_world_snapshot_capture(stream,level,tables_path);
     if(!status&&!scene_live_load_active&&!scene_session_end_requested)status=scene_checkpoint_capture(stream);
+    if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}
 #endif
     /* Do not mutate any section history while an accepted airlock is waiting. */
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending &&
         !scene_live_load_active && !campaign_endgame.restart_requested)status=scene_airlock_checkpoint_admit(stream->collision);
+    if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
     if(!status && campaign_spawn && collision && !scene_session_end_requested)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending && !scene_live_load_active && !campaign_endgame.restart_requested) {
         status=campaign_ai_modes_handoff_admit();
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=scene_death_item_handoff_admit();
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=campaign_switch_checkpoint(1);
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1],stream->collision);
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=campaign_event_checkpoint(1,(int32_t)rf_scene_event_ticks[1],stream);
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=scene_npc_shield_history_capture();
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
         if(!status)status=campaign_actors_capture();
+        if(status&&!rf_scene_teardown_failure[0]){rf_scene_teardown_failure[0]=__LINE__;rf_scene_teardown_failure[1]=(uint32_t)status;}
     }
     {int closed=scene_npc_seats_close(0);if(closed&&!status)status=closed;}
     scene_vehicle_ai_close();scene_vehicle_attack_close();

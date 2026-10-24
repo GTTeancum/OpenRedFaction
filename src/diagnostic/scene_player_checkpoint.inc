@@ -106,47 +106,56 @@ static int scene_checkpoint_player_support_state(const scene_stream *s,uint32_t 
 }
 /* modes2 is the ordinary world profile with RFAP flight/input persistence;
  * modes1 retains the settled-only RFCP special-weapon contract. */
+/* Source line of the last player-state check that refused a save. */
+uint32_t rf_scene_player_save_block;
 static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t live,uint32_t modes)
 {
-    uint32_t i,support_uid,rocket_trigger,point_present;float point_velocity[3];
-    if(scene_turret_player_active()&&!(modes==2&&scene_turret_player_checkpoint_player_allowed()))return RF_RANGE;
-    if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
-    if(!modes && campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
-    for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
-    if((!modes && scene_player_shield_damage_save_pending())||scene_player_shield_bash_save_pending()||scene_player_grenade_save_blocked())return RF_RANGE;
-    if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
-    if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
+    uint32_t i,support_uid,rocket_trigger,point_present,drop_trigger,rocket_owned;float point_velocity[3];
+    if(scene_turret_player_active()&&!(modes==2&&scene_turret_player_checkpoint_player_allowed())){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
+    if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
+    if(!modes && campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id]){rf_scene_player_save_block=__LINE__;return RF_RANGE;} /* Fusion live state is not in RFCP yet. */
+    for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]]){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
+    if((!modes && scene_player_shield_damage_save_pending())||scene_player_shield_bash_save_pending()||scene_player_grenade_save_blocked()){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
+    if(!modes && scene_machine_carry_disk_pending()){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
+    if(!modes && campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id]){rf_scene_player_save_block=__LINE__;return RF_RANGE;} /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
-    if(!modes && scene_player_weapon_holstered())return RF_RANGE; /* Legacy RFCP has no posture field. */
+    if(!modes && scene_player_weapon_holstered()){rf_scene_player_save_block=__LINE__;return RF_RANGE;} /* Legacy RFCP has no posture field. */
     if(modes==2){uint32_t rows;int status=scene_player_rocket_checkpoint_capture(s,NULL,&rows);if(status)return status;}
     else if(scene_player_rocket_lock_save_pending(s))return RF_NOT_FOUND;
     if(scene_fusion_checkpoint_busy() || scene_turret_heap_checkpoint_busy() || (modes!=2&&scene_turret_heap_pending()))return RF_NOT_FOUND;
     {int charge=modes==2?scene_continuous_charge_checkpoint_save_guard(s):scene_continuous_charge_checkpoint_standalone();
         if(charge)return charge;}
-    if(scene_player_riot_save_pending() || (modes==2?scene_ai_melee_checkpoint_busy():scene_ai_melee_checkpoint_pending()) || (modes==2?scene_ai_secondary_checkpoint_busy():scene_ai_secondary_checkpoint_pending()) || (modes==2?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || (modes==2?scene_ai_delayed_checkpoint_busy():scene_ai_delayed_checkpoint_pending()))return RF_RANGE;
+    if(scene_player_riot_save_pending() || (modes==2?scene_ai_melee_checkpoint_busy():scene_ai_melee_checkpoint_pending()) || (modes==2?scene_ai_secondary_checkpoint_busy():scene_ai_secondary_checkpoint_pending()) || (modes==2?scene_ai_direct_checkpoint_busy():(scene_ai_laser_pending()||scene_ai_sonar_pending())) || (modes==2?scene_ai_delayed_checkpoint_busy():scene_ai_delayed_checkpoint_pending())){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
     if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
-    rocket_trigger=modes&&campaign_equipped_slot==4&&(scene_player_rocket_pending(s)||
-        (modes==2&&scene_player_rocket_checkpoint_pending(s)))&&
+    rocket_owned=modes&&campaign_equipped_slot==4&&(scene_player_rocket_pending(s)||
+        (modes==2&&scene_player_rocket_checkpoint_pending(s)));
+    rocket_trigger=rocket_owned&&
         !combat_trigger.remaining&&!combat_trigger.delay&&combat_trigger.cooldown<=1200&&combat_trigger.held<=1;
+    /* Ordinary world saves (modes2) do not carry the player's trigger or reload
+     * countdown: rounds are consumed per fired shot, so a queued burst round,
+     * refire cooldown, held trigger or an unfinished reload is simply dropped
+     * and the restored player keeps the saved inventory/magazine. Only a live
+     * rocket whose RFAP row owns the trigger keeps the strict rule above. */
+    drop_trigger=modes==2&&!rocket_owned;
     if(campaign_support_handle && (!modes||(modes==2?
        scene_checkpoint_player_support_state(s,&support_uid,point_velocity,&point_present):
-       scene_checkpoint_player_support_uid(s,&support_uid))))return RF_RANGE;
+       scene_checkpoint_player_support_uid(s,&support_uid)))){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||(campaign_player_view.linked_handle!=-1&&
            !(modes==2&&scene_turret_player_checkpoint_player_allowed()))||rf_scene_actor_landing[1]!=1||
-       ((!rocket_trigger)&&(combat_trigger.cooldown||combat_trigger.held))||
-       combat_trigger.remaining||combat_trigger.delay||(rf_scene_combat[6]&&!(modes==2&&(campaign_equipped_slot==10||campaign_equipped_slot==12)))||
-       (!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||(modes!=2&&scene_fusion_save_pending())||(modes!=2&&scene_burning_save_pending())||(modes!=2&&(scene_flame_input_pending()||scene_flame_canister_save_pending())))return RF_RANGE;
-    for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.velocity[i])||fabsf(scene_actor_body.state.velocity[i])>32.f||
-        actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
-    if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;
+       ((!rocket_trigger)&&!drop_trigger&&(combat_trigger.cooldown||combat_trigger.held))||
+       (!drop_trigger&&(combat_trigger.remaining||combat_trigger.delay))||(rf_scene_combat[6]&&modes!=2)||
+       (!modes&&(rf_scene_rockets[3]||scene_ai_grenade_pending()||scene_ai_rocket_pending()))||(modes!=2&&scene_fusion_save_pending())||(modes!=2&&scene_burning_save_pending())||(modes!=2&&(scene_flame_input_pending()||scene_flame_canister_save_pending()))){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
+    /* Look motion is input, not saved state: the save keeps body/eye angles and
+     * the world load clears command, angular velocity and pending pitch/yaw. */
+    for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.velocity[i])||fabsf(scene_actor_body.state.velocity[i])>32.f){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
     return RF_OK;
 }
 static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t live,uint32_t mutable_props,uint32_t modes)
 {
     if(!rf_scene_dev_room_enabled||rf_scene_water_test_enabled||!campaign_spawn||!s->terrain||
        campaign_movers.count||campaign_npc_body_count||
-       !scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
+       !scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8){rf_scene_player_save_block=__LINE__;return RF_RANGE;}
     if(s->terrain_authored) {
         if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
            (mutable_props?scene_authored_clutter_baseline_check_mutable:scene_authored_clutter_baseline_check)(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;

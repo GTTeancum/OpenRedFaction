@@ -50,6 +50,8 @@ static int scene_blind_composed_target(const scene_npc_checkpoint_restore_stage 
     }
     *target=expected;return RF_OK;
 }
+/* NPCs whose saved blind pursuit was dropped at load. */
+uint32_t rf_scene_blind_dropped;
 static int scene_blind_composed_prepare(scene_npc_checkpoint_restore_stage *stage,
     const scene_npc_seat_checkpoint_stage *seats,const scene_world_player_stage *player,uint32_t player_outside)
 {
@@ -57,11 +59,18 @@ static int scene_blind_composed_prepare(scene_npc_checkpoint_restore_stage *stag
     if(!stage||!player||player->npcs!=stage||player_outside>1||stage->blind_joined)return RF_RANGE;
     for(i=0;i<stage->count;i++){
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;
-        status=scene_blind_composed_target(stage,e,seats,player,player_outside,&target);if(status)return status;
+        status=scene_blind_composed_target(stage,e,seats,player,player_outside,&target);
+        if(!status&&target&&!(e->saved.blind_profile&&!e->saved.blind_present)&&e->blind_target==target)
+            status=scene_blind_prepared(stage,e);
+        else if(!status&&target)status=RF_FORMAT;
+        /* A living NPC whose blind pursuit does not compose loads without it
+         * (ordinary alert combat) instead of rejecting the whole load. */
+        if(status==RF_FORMAT&&!e->saved.retired&&!e->saved.dead_pose&&e->saved.health>0){
+            e->saved.blind_present=0;e->saved.blind_profile=0;e->blind_dropped=1;
+            e->blind_target=e->blind_last_seen=0;++rf_scene_blind_dropped;continue;
+        }
+        if(status)return status;
         if(!target){e->blind_target=e->blind_last_seen=0;continue;}
-        if(e->saved.blind_profile&&!e->saved.blind_present)return RF_FORMAT;
-        if(e->blind_target!=target)return RF_FORMAT;
-        status=scene_blind_prepared(stage,e);if(status)return status;
     }
     stage->blind_joined=1;return RF_OK;
 }
@@ -72,6 +81,7 @@ static int scene_blind_composed(const scene_npc_checkpoint_restore_stage *stage,
     if(!stage||!player||player->npcs!=stage||player_outside>1||stage->blind_joined!=1)return RF_RANGE;
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
+        if(e->blind_dropped){if(e->blind_target)return RF_FORMAT;continue;}
         status=scene_blind_composed_target(stage,e,seats,player,player_outside,&target);if(status)return status;
         if(e->blind_target!=target)return RF_FORMAT;
         status=scene_blind_prepared(stage,e);if(status)return status;

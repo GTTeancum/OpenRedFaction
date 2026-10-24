@@ -68,6 +68,8 @@ static int scene_world_npc_plan_account(void *context,const void *owner,size_t r
  * All gameplay owners validate before assignment; cache demand may remain on
  * an aborted load and is owned by normal scene cleanup. */
 uint32_t rf_scene_world_load_reject[3]; /* phase FNV1a, status, staged bytes */
+/* Source line of the last failing check in the load's validation phases. */
+uint32_t rf_scene_world_validate_line;
 /* Set once a load reaches its first live-state mutation (vehicle publish /
  * owner assignment). A rejection while this is zero left the freshly
  * constructed scene untouched, so the caller may continue with or restart
@@ -660,49 +662,49 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_remote_checkpoint_world_preflight(stream,v->data,v->bytes,world);if(status)goto done;
     status=scene_remote_checkpoint_holster_admit(!!(player.modes.flags&RF_WEAPON_MODES_PLAYER_HOLSTERED));if(status)goto done;
     phase="validate";
-    status=scene_masako_checkpoint_admit(&masako,world->npcs,passive);if(status)goto done;
-    status=scene_medic_flight_player_checkpoint_admit(world->npcs,&player);if(status)goto done;
+    status=scene_masako_checkpoint_admit(&masako,world->npcs,passive);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_medic_flight_player_checkpoint_admit(world->npcs,&player);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
     {int outside=scene_npc_reload_incoming_vehicle(vehicle_present?&vehicle:NULL,seats,0,turret_player!=NULL);
      if(outside&&outside!=RF_NOT_FOUND){status=outside;goto done;}
-     status=scene_blind_composed_prepare(world->npcs,seats,&player,outside==RF_NOT_FOUND);if(status)goto done;
-     status=scene_tactical_composed_prepare(world->npcs,seats,&player,outside==RF_NOT_FOUND);if(status)goto done;
-     status=scene_crouch_composed_prepare(world->npcs,seats,&player);if(status)goto done;
+     status=scene_blind_composed_prepare(world->npcs,seats,&player,outside==RF_NOT_FOUND);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+     status=scene_tactical_composed_prepare(world->npcs,seats,&player,outside==RF_NOT_FOUND);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+     status=scene_crouch_composed_prepare(world->npcs,seats,&player);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
      if(blind_potential&&!reload_transaction){
          for(i=0;i<world->npcs->count;i++)reload_transaction|=!!world->npcs->entries[i].blind_target;
-         if(reload_transaction){status=scene_npc_reload_player_admit(stream,&reload_player);if(status)goto done;}
+         if(reload_transaction){status=scene_npc_reload_player_admit(stream,&reload_player);if(status){rf_scene_world_validate_line=__LINE__;goto done;}}
      }}
-    status=scene_npc_checkpoint_restore_validate(world->npcs);if(status)goto done;
-    status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;
-    status=scene_passive_vehicle_checkpoint_validate(passive);if(status)goto done;
-    status=scene_turret_checkpoint_validate(turrets);if(status)goto done;
-    status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status)goto done;
-    status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status)goto done;
+    status=scene_npc_checkpoint_restore_validate(world->npcs);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_passive_vehicle_checkpoint_validate(passive);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_turret_checkpoint_validate(turrets);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_turret_attack_checkpoint_admit(world->npcs,turrets);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_npc_seat_checkpoint_admit(seats,world->npcs);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
     phase="secondary_clearance";
     status=scene_secondary_vehicle_restore_admit(stream,world,&player,vehicle_present?&vehicle:NULL,passive,
-        secondary,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
+        secondary,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status){rf_scene_world_validate_line=__LINE__;goto done;}
     phase="passive_seat";
     status=scene_passive_jeep_seat_restore_admit(stream,world,&player,vehicle_present?&vehicle:NULL,
-        seats,vehicle_switch,passive,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status)goto done;
-    status=scene_passive_jeep_seat_restore_audit(seats,vehicle_switch,passive);if(status)goto done;
-    phase="turret_player";status=scene_turret_player_checkpoint_admit(turret_player,turrets,&player,0);if(status)goto done;
+        seats,vehicle_switch,passive,scene_vehicle_physics_checkpoint_active_hidden(vehicle_physics));if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_passive_jeep_seat_restore_audit(seats,vehicle_switch,passive);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    phase="turret_player";status=scene_turret_player_checkpoint_admit(turret_player,turrets,&player,0);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
     phase="gunner";if(cost>budget){status=RF_RANGE;goto done;}
 #ifdef RF_IMAGE_XBOX_NATIVE
     status=scene_jeep_gunner_checkpoint_prepare_accounted(stream,seats,vehicle_present?&vehicle:NULL,&player,budget-cost,&gunner,&world_memory);
 #else
     status=scene_jeep_gunner_checkpoint_prepare(stream,seats,vehicle_present?&vehicle:NULL,&player,budget-cost,&gunner);
 #endif
-    if(status)goto done;cost+=scene_jeep_gunner_checkpoint_bytes(gunner);
+    if(status){rf_scene_world_validate_line=__LINE__;goto done;}cost+=scene_jeep_gunner_checkpoint_bytes(gunner);
     status=scene_turret_generated_world_admit(generated,world->npcs,&player,
-        vehicle_present?&vehicle:NULL,(uint32_t)campaign_authored_vehicle_uid,passive,turrets);if(status)goto done;
-    status=scene_turret_generated_attack_admit(world->npcs,generated);if(status)goto done;
-    status=scene_clutter_checkpoint_targets_valid(world->clutter);if(status)goto done;
-    status=campaign_group_control_children_validate(world->controls);if(status)goto done;
-    status=scene_event_checkpoint_validate(&events->events);if(status)goto done;
-    status=scene_world_mission_validate(mission);if(status)goto done;
-    status=scene_campaign_history_checkpoint_rebind_validate(bindings);if(status)goto done;
-    status=scene_campaign_history_checkpoint_capek_admit(history,bindings,world->npcs);if(status)goto done;
-    status=scene_world_environment_validate(environment);if(status)goto done;
-    status=scene_continuous_charge_checkpoint_validate(&charge);if(status)goto done;
+        vehicle_present?&vehicle:NULL,(uint32_t)campaign_authored_vehicle_uid,passive,turrets);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_turret_generated_attack_admit(world->npcs,generated);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_clutter_checkpoint_targets_valid(world->clutter);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=campaign_group_control_children_validate(world->controls);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_event_checkpoint_validate(&events->events);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_world_mission_validate(mission);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_campaign_history_checkpoint_rebind_validate(bindings);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_campaign_history_checkpoint_capek_admit(history,bindings,world->npcs);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_world_environment_validate(environment);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
+    status=scene_continuous_charge_checkpoint_validate(&charge);if(status){rf_scene_world_validate_line=__LINE__;goto done;}
     status=scene_npc_airborne_restore_begin(world->npcs,&airborne_receipt);if(status)goto done;
     if(reload_transaction||crouch_transaction||return_potential||speech_potential){
         if(reload_transaction){

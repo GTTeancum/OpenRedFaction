@@ -199,6 +199,19 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_tactical_failure[3];RAM_ARRAY(rf_scene_tactical_failure,3);}
     {extern uint32_t rf_scene_world_load_fallback[3];RAM_ARRAY(rf_scene_world_load_fallback,3);}
     {extern uint32_t rf_scene_quickload_choice[8];RAM_ARRAY(rf_scene_quickload_choice,8);}
+    {extern uint32_t rf_scene_blind_dropped;RAM_ARRAY(&rf_scene_blind_dropped,1);}
+    {extern uint32_t rf_scene_crouch_reject[5];RAM_ARRAY(rf_scene_crouch_reject,5);}
+    {extern uint32_t rf_scene_teardown_failure[2];RAM_ARRAY(rf_scene_teardown_failure,2);}
+    {extern uint32_t rf_scene_world_validate_line;RAM_ARRAY(&rf_scene_world_validate_line,1);}
+    {extern uint32_t rf_xbox_frame_failure[3],rf_scene_begin_frame_failure[3];RAM_ARRAY(rf_xbox_frame_failure,3);RAM_ARRAY(rf_scene_begin_frame_failure,3);}
+    {extern uint32_t rf_xbox_level_transitions[4],rf_xbox_transition_failure[3];RAM_ARRAY(rf_xbox_level_transitions,4);RAM_ARRAY(rf_xbox_transition_failure,3);}
+    {extern uint32_t rf_scene_npc_save_reject[5];RAM_ARRAY(rf_scene_npc_save_reject,5);}
+    {extern uint32_t rf_scene_npc_save_relaxed[4];RAM_ARRAY(rf_scene_npc_save_relaxed,4);}
+    {extern uint32_t rf_scene_npc_restore_reject[6];RAM_ARRAY(rf_scene_npc_restore_reject,6);}
+    {extern uint32_t rf_scene_npc_place_fallback[6];RAM_ARRAY(rf_scene_npc_place_fallback,6);}
+    {extern uint32_t rf_scene_checkpoint_world_reject[9];RAM_ARRAY(rf_scene_checkpoint_world_reject,9);}
+    {extern uint32_t rf_scene_player_save_block;RAM_ARRAY(&rf_scene_player_save_block,1);}
+    {extern uint32_t rf_scene_world_restore_reject[8];RAM_ARRAY(rf_scene_world_restore_reject,8);}
     {extern uint32_t rf_scene_world_mission_reject[2];RAM_ARRAY(rf_scene_world_mission_reject,2);}
     {extern uint32_t rf_scene_world_snapshot_reject[3];RAM_ARRAY(rf_scene_world_snapshot_reject,3);}
     {extern uint32_t rf_xbox_checkpoint_storage_state[8];RAM_ARRAY(rf_xbox_checkpoint_storage_state,8);}

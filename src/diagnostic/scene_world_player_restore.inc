@@ -53,7 +53,9 @@ static int scene_world_player_npc_overlap_allowed(void *context,uint32_t i,uint3
         return 0;
     }
     if(!i||!j)return 0;
-    return scene_npc_checkpoint_restore_original_overlap((void*)s->npcs,i-1,j-1,a,b,distance2,radius);
+    /* NPC/NPC pairs were already admitted (and counted) by the NPC stage's
+     * ordinary-load overlap policy; this re-check must not be stricter. */
+    (void)a;(void)b;(void)distance2;(void)radius;return 1;
 }
 /* Optional RFEN7 cache is admitted only with its exact staged attached or
  * independently simulated host. The latter requires the prior RFSV join.

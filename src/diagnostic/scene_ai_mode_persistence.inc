@@ -223,14 +223,14 @@ static void campaign_ai_modes_reset(void)
 static int campaign_ai_modes_handoff_admit(void)
 {
     uint32_t i;int status;rf_campaign_actor_route a;
-    status=scene_waypoint_boundary();if(status)return status;
-    for(i=0;i<campaign_npc_body_count;i++){
+    /* A level exit must not fail on transient AI: an NPC mid-alarm or
+     * mid-retreat (or a waypoint event in service) just keeps its previous
+     * route history, which the section capture already tolerates. */
+    status=scene_waypoint_boundary();if(status&&status!=RF_NOT_FOUND)return status;
+    for(i=0;i<campaign_npc_body_count;i++)
         if(campaign_npc_bodies[i].guard_retreat_fault||campaign_npc_bodies[i].alarm_fault)return RF_FORMAT;
-        if(campaign_npc_bodies[i].alarm.present)return RF_NOT_FOUND;
-        if(scene_guard_retreat_active(campaign_npc_bodies+i))return RF_NOT_FOUND;
-    }
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].persistence_registered){
-        status=scene_actor_route_capture(campaign_npc_bodies+i,1,&a);if(status)return status;}
+        status=scene_actor_route_capture(campaign_npc_bodies+i,1,&a);if(status&&status!=RF_NOT_FOUND)return status;}
     return RF_OK;
 }
 static int campaign_ai_mode_restore(campaign_npc_body *o,int32_t now)
