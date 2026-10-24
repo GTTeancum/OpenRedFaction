@@ -52,6 +52,24 @@ static uint8_t retained_index_room_visible(uint32_t room)
     const rf_visibility *v=retained_world.visibility;
     return !v || room>=v->count || v->rooms[room].visible!=0;
 }
+/* The cached index list keeps every face whose plane is within this many
+ * units of facing the camera, and is rebuilt once the camera moves farther
+ * than that (or room visibility changes). A face facing the current camera
+ * is therefore always present; at most a few back faces are also submitted
+ * and hidden by depth. Avoids rebuilding the list on every small move. */
+#define RETAINED_INDEX_MARGIN 2.0f
+static int retained_face_index_visible(const retained_face *face)
+{
+    const rf_visibility *v=retained_world.visibility;const float *n=face->plane,*e=retained_world.position;
+    float distance,length;
+    if(!face->count)return 0;
+    if(face->room<retained_world.source->rooms &&
+       retained_world.source->data[retained_world.source->room_offsets[face->room]+28])return 0;
+    if(v && !face->detail && face->room<v->count && !v->rooms[face->room].visible)return 0;
+    distance=n[0]*e[0]+n[1]*e[1]+n[2]*e[2]+n[3];
+    length=sqrtf(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+    return distance>-RETAINED_INDEX_MARGIN*length;
+}
 static int retained_world_indices_prepare(void)
 {
     const rf_geometry *g=retained_world.source;uint32_t i,j,unchanged;
@@ -60,14 +78,16 @@ static int retained_world_indices_prepare(void)
     if(rf_xbox_world_indexed_disabled || rf_xbox_world_grouping_disabled || rf_xbox_command_batching_disabled) {
         rf_xbox_world_indexed[7]=5;return RF_NOT_FOUND;
     }
-    unchanged=retained_indices.valid && !memcmp(retained_indices.position,retained_world.position,12);
+    {float dx=retained_indices.position[0]-retained_world.position[0],dy=retained_indices.position[1]-retained_world.position[1],
+        dz=retained_indices.position[2]-retained_world.position[2];
+     unchanged=retained_indices.valid && dx*dx+dy*dy+dz*dz<=RETAINED_INDEX_MARGIN*RETAINED_INDEX_MARGIN*.999f;}
     for(i=0;unchanged && i<g->rooms;i++)if(retained_indices.rooms[i]!=retained_index_room_visible(i))unchanged=0;
     if(!unchanged) {
         uint32_t prior=UINT32_MAX,end=0;
         retained_indices.valid=retained_indices.count=retained_indices.group_count=retained_indices.faces=retained_indices.ranges=0;
         for(i=0;i<retained_world.face_count;i++) {
             const retained_face *face=retained_world.faces+i;retained_index_group *group;
-            if(face->translucent || !retained_face_visible(face))continue;
+            if(face->translucent || !retained_face_index_visible(face))continue;
             if(face->start>retained_world.count || face->count>retained_world.count-face->start ||
                face->count%3 || face->count>retained_world.count-retained_indices.count)return RF_FORMAT;
             group=retained_indices.group_count?retained_indices.groups+retained_indices.group_count-1:NULL;
