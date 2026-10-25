@@ -179,18 +179,28 @@ static void screen_erase_depth(void){pb_erase_depth_stencil_buffer(0,0,(int)scre
 /* tools/prepare_checked_pbkit.py: frame-buffer count and pending flips. */
 void pb_set_back_buffers(int count);
 int pb_flips_pending(void);
+unsigned pb_deferred_swaps(void);
 static uint32_t double_buffered;
-/* Frames whose flip the VBlank ISR still owes, by frame start (diagnostic). */
-uint32_t rf_xbox_flip_waits[2];
-/* With two buffers the next back buffer is the one on screen until the
- * queued flip happens: wait for the GPU to finish and the flip to land. */
+/* Frame starts that waited (double-buffer flip, then scanout ownership),
+ * frame starts, VBlank passes that kept an unshown frame queued. */
+uint32_t rf_xbox_flip_waits[4];
+/* Never clear or draw into the surface being scanned out (Perfect-Dark-X
+ * issue 3: black bands and 1-2 frame flicker). With two buffers the next back
+ * buffer stays on screen until the queued flip lands; with three pbkit can
+ * still hand back the displayed one. PCRTC_START is the scanned-out surface. */
 static void target_back_buffer(void)
 {
     if(double_buffered && (pb_busy() || pb_flips_pending())) {
         ++rf_xbox_flip_waits[0];
         while(pb_busy() || pb_flips_pending()) {}
     }
-    ++rf_xbox_flip_waits[1];
+    if(((uint32_t)pb_back_buffer()&0x03ffffffu)==(*(volatile uint32_t *)0xFD600800u&0x03ffffffu)) {
+        /* Bounded: a stuck queue (no flip will come) must not freeze the game. */
+        uint32_t start=pb_get_vbl_counter();++rf_xbox_flip_waits[2];
+        while(((uint32_t)pb_back_buffer()&0x03ffffffu)==(*(volatile uint32_t *)0xFD600800u&0x03ffffffu) &&
+              pb_get_vbl_counter()-start<4) {}
+    }
+    ++rf_xbox_flip_waits[1];rf_xbox_flip_waits[3]=pb_deferred_swaps();
     pb_target_back_buffer();
 }
 static int device_open(void)

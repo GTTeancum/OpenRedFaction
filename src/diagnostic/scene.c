@@ -13059,6 +13059,7 @@ static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t 
     }
     return status;
 }
+#include "scene_bullet_tracers.inc"
 static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const float player_eye[3],
     scene_pursuit_work_dispatch_result *work)
 {
@@ -13542,6 +13543,9 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
+        if(!melee && distance>0){float end[3],reach=fmaxf(attack_range,sqrtf(distance)+1.0f);
+            for(j=0;j<3;j++)end[j]=owner->eye_position[j]+delta[j]*(reach/sqrtf(distance));
+            scene_tracer_fire(stream,scene_tracer_npc_counter+i%SCENE_TRACER_NPC_COUNTERS,weapon,owner->eye_position,end);}
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
@@ -18050,6 +18054,10 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     status=scene_driller_firearm_select(body_shot.source,position,delta,nearest,&vehicle_contact,&vehicle_selected);if(status)return scene_player_failure_return(status,__LINE__,frame);
     if(vehicle_selected)nearest=vehicle_contact.hit.fraction;
     status=campaign_clutter_firearm_select(position,delta,nearest,&clutter_selected,&nearest);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(body_shot.slot!=2){float start[3],end[3];uint32_t k;
+        /* Tracer leaves from beside the gun, not the eye (presentation only). */
+        for(k=0;k<3;k++){start[k]=position[k]+orientation[0][k]*.12f-orientation[1][k]*.1f+orientation[2][k]*.4f;end[k]=position[k]+delta[k]*nearest;}
+        scene_tracer_fire(stream,&scene_tracer_player_counter,body_shot.weapon,start,end);}
     if(rf_scene_combat_trace) {
         uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;
         printf("SHOT_RAY %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",frame,body_shot.slot,pellet,uid,nearest,
@@ -19108,6 +19116,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     scene_vehicle_loop_audio_begin();
     scene_vehicle_ai_player_sync(stream,0);
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
+    scene_tracers_tick();
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
     scene_vehicle_attack_player_sync(stream,0);
@@ -22694,6 +22703,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 stream->apc_mortar_base,stream->apc_mortar_textures,&submissions,&vertices);if(status)return status;
         }
         status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
+        status=scene_tracers_draw(stream);if(status)return status;
         status=scene_submarine_weapon_draw(stream);if(status)return status;
         status=scene_fighter_weapon_draw(stream);if(status)return status;
         status=scene_vehicle_attack_draw(stream);if(status)return status;
@@ -23825,6 +23835,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   if(!status && scene_tankbot_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile));
                   if(!status && scene_tankbot_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary));
                   if(!status && scene_drone_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,scene_ai_drone_missile_resources_open(&tables));
+                  if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_tracers_load(&tables));
                   if(!status && scene_remote_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote));
                   if(!status && scene_grenade_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade));
                   scene_fusion_resources=!!((demand.mask|npc_projectiles)&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
