@@ -602,6 +602,7 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
                 if(token(&l,t,&q))return RF_FORMAT;
                 if(!q && !strcmp(t,")"))break;
                 if(!q)return RF_FORMAT;if(same(t,"alt_continuous_fire"))continuous_alt=1;
+                if(same(t,"infrared"))v.infrared=1;
                 if(same(t,"continuous_fire"))continuous_primary=1;
             }
         } else if(same(t,"$1st")) {

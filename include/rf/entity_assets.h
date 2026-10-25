@@ -110,6 +110,7 @@ int rf_weapon_projectile_light(const rf_weapon_explosive_definition *,
 typedef struct rf_weapon_view_definition {
     char mesh[64],clips[4][64];uint32_t alt_loop;
     float position[3],fov;
+    uint32_t infrared; /* $Flags "infrared" (0x800): 4aeef0 draws the weapon screen */
 } rf_weapon_view_definition;
 int rf_weapon_view_read(const void *,uint32_t,const char *,rf_weapon_view_definition *);
 int rf_weapon_view_load(rf_vpp *,const char *,uint32_t,rf_weapon_view_definition *);

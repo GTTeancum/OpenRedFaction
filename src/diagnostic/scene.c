@@ -1081,6 +1081,7 @@ static const rf_particle_animation *scene_rocket_trail_animation(uint32_t);
 #include "scene_weapon_impact_visual_resources.inc"
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
+static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float basis[3][3]);
 static scene_stream *scene_actor_collision_owner;
 static int scene_runtime_material_rows(scene_stream *,const rf_geometry_runtime_surface **,uint32_t *);
 unsigned char *rf_scene_geomod_checkpoint_data;
@@ -19383,6 +19384,10 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
 world_build_done:
     world_profile_mark(6,&world_clock);profile_mark(2);
     stream->world=stream->mesh->count;
+    /* Infrared weapon screen (4aeef0), drawn frames only, from the eye. */
+    if(campaign_spawn && !(rf_scene_present_query && !rf_scene_present_query())) {
+        status=scene_ir_screen_update(stream,position,(const float (*)[3])orientation);if(status)return status;
+    }
     memcpy(view->camera,position,12);memcpy(view->rotation,view_basis,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
     stream->npc_view=*view;
@@ -21250,6 +21255,7 @@ static int scene_view_model_retain(scene_stream *stream,const rf_model_geometry 
     return view_model_backend(geometry,batch,bones?matrices:NULL,bones,view,material,stream->mesh->count);
 }
 #include "scene_monitor_render.inc"
+#include "scene_weapon_ir_screen.inc"
 /* True when this frame's lightmap/terrain/monitor update will rewrite
  * GPU-read texels, so the renderer must let the previous frame retire first. */
 int rf_scene_gpu_image_writes_pending(void)
@@ -24035,6 +24041,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures));
         for(i=0;i<scene_weapon_resource_slots();i++) {
         if(!scene_weapon_available(i))continue;
+        /* Infrared weapons: screen.tga gets its own live image (4af8a0). */
+        status=scene_ir_screen_prepare(i,stream->player_weapon[i],materials->count,maps,map_count);if(status)goto done;
         textures=&stream->player_weapon[i]->materials.textures;
         stream->player_weapon_base[i]=materials->count;stream->player_weapon_textures[i]=textures->count;
         if((uint64_t)materials->count+textures->count>RF_CAMPAIGN_TEXTURE_SLOTS){status=RF_RANGE;goto done;}

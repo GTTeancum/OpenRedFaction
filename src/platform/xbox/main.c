@@ -82,7 +82,9 @@ static void video_mode_open(void)
     /* 720p only on request (resolution = 720/auto) and when the dashboard allows it. */
     /* color_depth auto: 16-bit at 720p (frees ~7 MiB for the larger frame
      * buffers), full 32-bit at 480 where memory is not short. */
-    int bpp720=xbox_settings.color_depth==32?32:16,bpp480=xbox_settings.color_depth==16?16:32;
+    /* 720p is always 32-bit: asked for 16-bit, the kernel's AvSetDisplayMode programs
+     * 640x480 display timing (console registers, October 25) and the output scrambles. */
+    int bpp720=32,bpp480=xbox_settings.color_depth==16?16:32;
     if(!(xbox_settings.resolution!=480 && hdtv && (encoder&VIDEO_MODE_720P) && XVideoSetMode(1280,720,bpp720,REFRESH_DEFAULT)))
         XVideoSetMode(640,480,bpp480,REFRESH_DEFAULT);
     if(XVideoGetMode().height==720)progressive=1;
