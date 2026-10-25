@@ -4,7 +4,7 @@
  * Singleton follows current scene ownership. All resources bounded and closed
  * during scene teardown, after particle users cease. */
 typedef struct scene_fusion_effects_owner {
-    rf_explosion_definition definition;rf_explosion_materials materials;
+    rf_explosion_definition definition;rf_explosion_materials materials;char explosion[32];
     struct {rf_explosion_clock clock;uint32_t slots[3];} instances[4];
 } scene_fusion_effects_owner;
 static scene_fusion_effects_owner *scene_fusion_effects;
@@ -14,13 +14,15 @@ static void scene_fusion_effects_close(void)
     rf_explosion_materials_close(&scene_fusion_effects->materials);
     free(scene_fusion_effects);scene_fusion_effects=NULL;
 }
-static int scene_fusion_effects_open(const char *tables_path,rf_vpp *maps,uint32_t map_count)
+static int scene_fusion_effects_open_clip(const char *tables_path,rf_vpp *maps,uint32_t map_count,const char *clip_name)
 {
     rf_vpp tables={0};rf_vclip_definition clip;scene_fusion_effects_owner *owner;int status;
-    if(scene_fusion_effects)return RF_RANGE;
+    if(scene_fusion_effects || !clip_name)return RF_RANGE;
     owner=calloc(1,sizeof(*owner));if(!owner)return RF_IO;
     status=rf_vpp_open(&tables,tables_path);
-    if(!status)status=rf_vclip_definition_load(&tables,"shoulder_cannon_explode",65536,&clip);
+    if(!status)status=rf_vclip_definition_load(&tables,clip_name,65536,&clip);
+    if(!status && !(clip.flags&8u))status=RF_FORMAT; /* code_explode */
+    if(!status){memcpy(owner->explosion,clip.explosion,sizeof(owner->explosion));owner->explosion[sizeof(owner->explosion)-1]=0;}
     if(!status)status=rf_explosion_definition_load(&tables,clip.explosion,256*1024,&owner->definition);
     rf_vpp_close(&tables);
     if(status)printf("FUSION_EFFECT_DEFINITION_ERROR %d\n",status);
@@ -35,6 +37,8 @@ static int scene_fusion_effects_open(const char *tables_path,rf_vpp *maps,uint32
     if(status){rf_explosion_materials_close(&owner->materials);free(owner);return status;}
     scene_fusion_effects=owner;return RF_OK;
 }
+static int scene_fusion_effects_open(const char *tables_path,rf_vpp *maps,uint32_t map_count)
+{return scene_fusion_effects_open_clip(tables_path,maps,map_count,"shoulder_cannon_explode");}
 /* Index relative to first fusion texture, after normal particles, rocket,
  * blood and any loaded flame effect textures. */
 static const rf_particle_animation *scene_fusion_effects_image(uint32_t index)

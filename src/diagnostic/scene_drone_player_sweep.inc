@@ -3,6 +3,7 @@
  * Each caller freezes the other body's committed pose; world hits win ties.
  * Angular sweep and dead-body response remain separate, unimplemented paths. */
 uint32_t rf_scene_drone_player_contact[10]; /* NPC queries,hits,player queries,hits; last admission side,slot,spheres,material,mass bits,radius bits */
+uint32_t rf_scene_drone_player_response[4]; /* NPC-first player responses,last fraction bits,last advanced ratio bits,zero-advance count */
 uint32_t rf_scene_drone_separation[20]; /* samples,side,gap bits,source xyz,target xyz,radii,delta xyz,limit,nearest fraction,i,j,ray hits,reserved */
 static uint32_t scene_contact_drone(uint32_t slot)
 {
