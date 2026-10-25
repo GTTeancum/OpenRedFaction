@@ -134,7 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','driller-dig','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-siege','driller-dig','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -156,7 +156,10 @@ def main():
         parser.error('Require 1..60000 frames and 1..600 seconds')
     if not .3 <= args.poll_seconds <= 5:
         parser.error('Require 0.3..5 seconds between telemetry samples')
-    if args.dev_room and (args.level != 'ctf06.rfl' or args.archive != 'levelsm.vpp'):
+    if args.dev_room and args.dev_vehicle == 4:
+        if args.level != 'L5S3.rfl' or args.archive != 'levels1.vpp':
+            parser.error('The developer submarine fixture uses L5S3.rfl from levels1.vpp')
+    elif args.dev_room and (args.level != 'ctf06.rfl' or args.archive != 'levelsm.vpp'):
         parser.error('This crash-hunt developer profile uses ctf06.rfl from levelsm.vpp')
     if args.firearms and not args.dev_room:
         parser.error('--firearms requires --dev-room')
@@ -328,6 +331,16 @@ def main():
                     elif 180 <= phase < 270: look[1] = -.2
                     buttons[3] = int(90 <= phase < 160 or 210 <= phase < 280)
                     buttons[6] = int(170 <= phase < 195 or 290 <= phase < 315)
+            elif args.input == 'vehicle-siege':
+                # On-foot destruction of an empty DEV vehicle: back away from
+                # the host the fixture faces, cycle to the rocket launcher
+                # (slot 4 of 5), fire once a second, refill with Use+Reload.
+                if 20 <= frame < 80: move[2] = -.65
+                buttons[5] = int(frame in (100, 120, 140, 160))
+                if frame >= 200:
+                    phase = (frame-200) % 240
+                    buttons[3] = int(phase % 60 == 0 and phase < 200)
+                    if 220 <= phase < 224: buttons[2] = buttons[4] = 1
             elif args.input == 'driller-dig':
                 # ctf06 Driller fixture: walk up facing it, one Use to board,
                 # then drive forward with the drill held, sweeping slowly.
