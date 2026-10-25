@@ -6,7 +6,7 @@
 // 16384/(1+q)) and degenerate q pass through unchanged.
 struct Input { float3 position : POSITION; float3 color : DIFFUSE; float3 texture : TEXCOORD0; float3 lightmap : TEXCOORD1; };
 struct Output { float4 position : POSITION; float4 color : COLOR; float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
-Output main(Input input, uniform float4 opacity : register(c1),
+Output main(Input input, uniform float4 viewport : register(c95), uniform float4 opacity : register(c1),
     uniform float4 move_x : register(c8), uniform float4 move_y : register(c9),
     uniform float4 move_z : register(c10), uniform float4 screen : register(c11),
     uniform float4 depth : register(c12)) {
@@ -27,5 +27,7 @@ Output main(Input input, uniform float4 opacity : register(c1),
     output.color = float4(input.color, opacity.x);
     output.texture = float4(input.texture.xy * ratio, 0.0, input.texture.z * ratio);
     output.lightmap = float4(input.lightmap.xy * ratio, 0.0, input.lightmap.z * ratio);
+    // Screen mode: 640x480 picture scaled/offset into the framebuffer (c95).
+    output.position.xy = output.position.xy * viewport.xy + viewport.zw;
     return output;
 }

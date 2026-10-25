@@ -603,6 +603,8 @@ void rf_scene_world_geometry_close(rf_scene_world_geometry *geometry)
     rf_geometry_movers_close(&geometry->movers);free(geometry->offsets);free(geometry->slots);free(geometry->liquid_slots);free(geometry->liquid_pan);
     memset(geometry,0,sizeof(*geometry));
 }
+/* Widescreen horizontal squeeze for drawing (renderer sets 0.75 at 16:9). */
+float rf_scene_view_squeeze=1.0f;
 uint32_t rf_scene_world_texture_budget[4]; /* dimension cap, attempts, resident, peak */
 int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
@@ -19247,6 +19249,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(scene_inspection_enabled) {
         memcpy(position,scene_inspection_eye,12);memcpy(orientation,scene_inspection_basis,36);
     }
+    /* Widescreen (port-owned): drawing uses a copy whose right axis is scaled
+     * by rf_scene_view_squeeze, so the fixed 640-wide projection covers the
+     * wider view and the renderer stretches it back. Gameplay keeps the
+     * orthonormal orientation above. Squeeze 1 is the original exact path. */
+    float view_basis[3][3];memcpy(view_basis,orientation,36);
+    {uint32_t k;for(k=0;k<3;k++)view_basis[0][k]*=rf_scene_view_squeeze;}
     world_profile_mark(2,&world_clock);
     if(stream->visibility.storage) {
         rf_collision_room_location room;rf_visibility_camera camera={0};
@@ -19254,6 +19262,9 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
          * distance. FOV=1 supplies an exact unit projection factor. */
         rf_visibility_camera_parameters parameters={{640,480,0,0,1,1,1000,1},{0},{0},.1f,1,1,1,0};
         uint32_t i,cached=0,hash=2166136261u,*record=rf_scene_visibility_frames[frame%64];
+        /* Same squeeze through the original viewport terms (547150): factor
+         * 1/s widens the horizontal view; pixel aspect s keeps the vertical. */
+        parameters.viewport.fov=1.0f/rf_scene_view_squeeze;parameters.viewport.pixel_aspect=rf_scene_view_squeeze;
         memcpy(parameters.origin,position,12);memcpy(parameters.basis,orientation,36);
         status=rf_visibility_camera_setup(&parameters,&camera);if(status){rf_scene_profile_stage[1]=104;return status;}
         stream->particle_camera=camera;stream->particle_frame=frame;
@@ -19281,7 +19292,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     {uint32_t build_clock=profile_clock && profile_active?profile_clock():0;
     static_world_retained=0;
     if(static_world_backend && campaign_spawn) {
-        status=static_world_backend(render_world,position,orientation,
+        status=static_world_backend(render_world,position,view_basis,
             stream->visibility.storage?&stream->visibility.state:NULL);
         if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
         static_world_retained=status==RF_OK;
@@ -19291,7 +19302,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     /* Retained static geometry is still submitted above every frame. Only
      * reuse the unchanged immutable-mover CPU prefix with an exact camera and
      * pose key; all other world preparation and simulation remain live. */
-    if(!scene_world_projection_hit(stream,render_world,position,orientation,terrain_cuts)) {
+    if(!scene_world_projection_hit(stream,render_world,position,view_basis,terrain_cuts)) {
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
     {rf_preview_mesh world_mesh=*stream->mesh;
@@ -19301,16 +19312,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      world_mesh.count=stream->world;world_mesh.bytes=stream->world*sizeof(rf_preview_vertex);
      rf_preview_failure[0]=0;
      if(rf_scene_actor_eye_enabled && world_mesh.bytes>world_capacity)
-        status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
+        status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,view_basis,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      else {
-        status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,
+        status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,view_basis,
         &world_mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
         stream->capacity-world_capacity,stream->visibility.storage?&stream->visibility.state:NULL);
         /* First-person rendering has no visible actor prefix to reserve. A
          * large world may use the whole allocation through the transactional
          * two-pass path instead of terminating at the staging-half boundary. */
         if(status==RF_RANGE && rf_scene_actor_eye_enabled && rf_preview_failure[0])
-            status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
+            status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,view_basis,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
      world_build_profile_mark(1,&build_clock);
@@ -19318,7 +19329,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
         generated.vertices=world_mesh.vertices+world_mesh.count;
-        memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
+        memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,view_basis,36);
         if(stream->campaign_geomod && stream->campaign_geomod->active){
             const scene_campaign_geomod_owner *owner=stream->campaign_geomod;
             status=rf_preview_geomod_world_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
@@ -19366,16 +19377,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      }
      world_build_profile_mark(2,&build_clock);
      *stream->mesh=world_mesh;}
-    scene_world_projection_capture(stream,render_world,position,orientation,terrain_cuts);
+    scene_world_projection_capture(stream,render_world,position,view_basis,terrain_cuts);
     }
     world_build_profile_mark(3,&build_clock);}
 world_build_done:
     world_profile_mark(6,&world_clock);profile_mark(2);
     stream->world=stream->mesh->count;
-    memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
+    memcpy(view->camera,position,12);memcpy(view->rotation,view_basis,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
     stream->npc_view=*view;
-    memcpy(stream->rocket_camera.player_position,position,12);memcpy(stream->rocket_camera.player_orientation,orientation,36);
+    memcpy(stream->rocket_camera.player_position,position,12);memcpy(stream->rocket_camera.player_orientation,view_basis,36);
     r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);
     {uint32_t i,*d=rf_scene_actor_follow_summary;if(!frame) {d[0]=d[2]=0;d[1]=d[3]=2166136261u;}
      d[0]=frame+1;d[4]=stream->capacity;if(stream->mesh->bytes>d[2])d[2]=stream->mesh->bytes;

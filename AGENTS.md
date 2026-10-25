@@ -21,6 +21,7 @@
 
 - Keep the four existing GitHub images; upload no additional screenshots until near-retail-quality replacements are available.
 - User update (2026-09-25): No images; do not capture, generate, display, or upload images until the user changes this instruction.
+- User update (2026-10-25): The user asked for 720p/480p comparison screenshots. Console screenshots through the debug kit (xbdm `screenshot`, `tools/xbox_hw.py`) are allowed when the user requests visual comparisons; still upload nothing to GitHub.
 
 - Do not launch a second Red Faction XEMU instance while an existing project session is open; leave the existing session untouched and continue Xbox source/build work.
 

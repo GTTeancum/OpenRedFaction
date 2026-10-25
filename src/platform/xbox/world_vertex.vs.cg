@@ -2,7 +2,7 @@
 // divide output XYZ explicitly and retain camera depth in output W.
 struct Input { float3 position : POSITION; float3 color : DIFFUSE; float3 texture : TEXCOORD0; float3 lightmap : TEXCOORD1; };
 struct Output { float4 position : POSITION; float4 color : COLOR; float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
-Output main(Input input, uniform float4 view_x : register(c0),
+Output main(Input input, uniform float4 viewport : register(c95), uniform float4 view_x : register(c0),
     uniform float4 view_y : register(c1), uniform float4 view_z : register(c2),
     uniform float4 shade : register(c3), uniform float4 projection : register(c4),
     uniform float4 pan : register(c6)) {
@@ -17,5 +17,7 @@ Output main(Input input, uniform float4 view_x : register(c0),
     // Liquid texture mover offset (original 55f5e0); zero for other faces.
     output.texture = float4(input.texture.xy + pan.xy, 0.0, projection.w);
     output.lightmap = float4(input.lightmap.xy, 0.0, projection.w);
+    // Screen mode: 640x480 picture scaled/offset into the framebuffer (c95).
+    output.position.xy = output.position.xy * viewport.xy + viewport.zw;
     return output;
 }

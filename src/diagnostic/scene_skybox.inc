@@ -161,6 +161,7 @@ int rf_scene_draw_skybox(rf_scene_particle_sink sink,void *context)
     if(!sink||!rf_scene_skybox_ready())return RF_OK;
     if(!g||scene_skybox.world!=actor_follow_world||actor_follow_world->world!=g)return RF_FORMAT;
     memcpy(parameters.origin,scene_skybox.center,12);memcpy(parameters.basis,stream->particle_camera.view.basis,36);
+    parameters.viewport.fov=1.0f/rf_scene_view_squeeze;parameters.viewport.pixel_aspect=rf_scene_view_squeeze; /* Widescreen, as the main view. */
     status=rf_visibility_camera_setup(&parameters,&camera);if(status)return status;
     /*45e870 builds the axis matrix;4d39b0 installs its inverse for the sky
      * room's row-vector transform. Geometry is translated around its center;

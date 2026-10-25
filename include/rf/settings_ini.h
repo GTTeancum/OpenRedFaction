@@ -14,11 +14,13 @@
  * fallback:   30_smooth | 30 | none   (used by auto; none keeps dropping pictures)
  * smooth_characters: on | off  move characters and vehicles in in-between pictures
  * flicker_filter: auto | 0..5  TV encoder vertical blur (auto: 0 progressive, 2 interlaced)
- * textures: compressed | original  use the DXT texture pack (rfdds.vpp) when present */
+ * textures: compressed | original  use the DXT texture pack (rfdds.vpp) when present
+ * resolution: 480 | 720 | auto  720 needs the dashboard's 720p setting; the
+ *             picture is 4:3, 960x720 centred with side bars (auto = 720 when allowed) */
 enum { RF_FRAME_RATE_60, RF_FRAME_RATE_30, RF_FRAME_RATE_30_SMOOTH, RF_FRAME_RATE_AUTO };
 typedef struct rf_settings {
     uint32_t frame_rate,fallback,smooth_characters,flicker_filter; /* flicker: 0..5, or UINT32_MAX auto */
-    uint32_t compressed_textures;
+    uint32_t compressed_textures,resolution; /* resolution: 480, 720, or 0 auto */
     uint32_t unknown,invalid; /* ignored lines, for the RAM log */
 } rf_settings;
 /* Defaults when no file exists: fixed 60 (crash-harness replays rely on it). */

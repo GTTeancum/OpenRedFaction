@@ -11,6 +11,7 @@
 #include "rf/liquid_wave.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
+#include <hal/video.h>
 #include "contiguous_track.h"
 uint32_t rf_xbox_contiguous[4];
 #include <stdio.h>
@@ -122,15 +123,65 @@ void rf_xbox_gpu_free(void *memory)
     gpu_free_queue[gpu_free_count].memory=memory;gpu_free_queue[gpu_free_count++].fence=ring_position();
     ++rf_xbox_overlap[5];
 }
+/* Screen mode (port-owned). The game composes a 640x480 virtual picture.
+ * In a 1280x720 video mode it is widescreen: 3D drawing uses a camera
+ * squeezed horizontally by 3/4 (rf_scene_view_squeeze), so the same 640-wide
+ * projection covers a 16:9 view with the 4:3 vertical field, and output
+ * stretches it by (2, 1.5) to fill the frame. HUD and menus keep their shape:
+ * (1.5, 1.5) centred with 160 px each side; full-width overlays are widened.
+ * Every vertex program applies c95 = (scale x, scale y, offset x, offset y).
+ * 640x480 modes use (1,1,0,0), the previous output exactly. */
+extern float rf_scene_view_squeeze;
+static float screen_scale_x=1,screen_scale_y=1,hud_scale=1,hud_offset_x;
+static uint32_t screen_width=640,screen_height=480,screen_wide,hud_widen_active;
+uint32_t rf_xbox_screen[4]; /* framebuffer width, height, 3D x-scale x1000, widescreen */
+static void screen_mode_setup(void)
+{
+    VIDEO_MODE vm=XVideoGetMode();
+    screen_wide=vm.width==1280 && vm.height==720;
+    if(screen_wide){screen_width=1280;screen_height=720;screen_scale_x=2;screen_scale_y=1.5f;hud_scale=1.5f;hud_offset_x=160;rf_scene_view_squeeze=.75f;}
+    else {screen_width=640;screen_height=480;screen_scale_x=screen_scale_y=hud_scale=1;hud_offset_x=0;rf_scene_view_squeeze=1;}
+    rf_xbox_screen[0]=screen_width;rf_xbox_screen[1]=screen_height;rf_xbox_screen[2]=(uint32_t)(screen_scale_x*1000);rf_xbox_screen[3]=screen_wide;
+}
+static void screen_c95(float sx,float sy,float ox)
+{
+    uint32_t *p=pb_begin();
+    p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96+95);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,sx,sy,ox,0);pb_end(p);
+}
+/* 3D transform and a whole-frame window clip (start of every picture). */
+static void screen_constants(void)
+{
+    uint32_t *p,c;
+    screen_c95(screen_scale_x,screen_scale_y,0);
+    p=pb_begin();
+    for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,(screen_width-1)<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,(screen_height-1)<<16);}
+    pb_end(p);
+}
+static void hud_constants(void){screen_c95(hud_scale,hud_scale,hud_offset_x);}
+/* Widescreen HUD: a quad spanning the whole 640-wide virtual screen (flash,
+ * blackout, fades) is widened to cover the full 16:9 frame. */
+static const rf_particle_draw_vertex *hud_widen(const rf_particle_draw_vertex *vertices,uint32_t count,rf_particle_draw_vertex *scratch)
+{
+    float lo=1e9f,hi=-1e9f;uint32_t i;
+    if(!screen_wide || !hud_widen_active || count>8)return vertices;
+    for(i=0;i<count;i++){if(vertices[i].screen[0]<lo)lo=vertices[i].screen[0];if(vertices[i].screen[0]>hi)hi=vertices[i].screen[0];}
+    if(lo>0 || hi<640)return vertices;
+    for(i=0;i<count;i++){scratch[i]=vertices[i];scratch[i].screen[0]=(vertices[i].screen[0]-320)*(4.f/3.f)+320;}
+    return scratch;
+}
+/* Clear the whole frame (at 16:9 the 3D picture fills it). */
+static void screen_fill(uint32_t color){pb_fill(0,0,(int)screen_width,(int)screen_height,color);}
+static void screen_erase_depth(void){pb_erase_depth_stencil_buffer(0,0,(int)screen_width,(int)screen_height);}
 static int device_open(void)
 {
     FILE *bits;
     if(stream_device_ready)return RF_OK;
     /* Read the bisect switch before any GPU setup so every mode is honoured. */
-    bits=fopen("D:\render-overlap.bin","rb");
+    bits=fopen("D:\\render-overlap.bin","rb"); /* Previously "D:\r...": a carriage return, never opened. */
     if(bits){uint32_t mode=0;if(fread(&mode,4,1,bits)==1 && mode<=3)rf_xbox_render_sync=mode;fclose(bits);}
     if(pb_init())return RF_IO;
-    stream_device_ready=1;
+    stream_device_ready=1;screen_mode_setup();
     pb_reset();ring_head=NULL;ring_lap=0;gpu_free_collect(1);
     if(!(rf_xbox_render_sync&1)){ring_head=(pb_begin)();pb_end(ring_head);ring_tail=ring_head+RING_SPAN-64;}
     rf_xbox_overlap[0]=0x100u|rf_xbox_render_sync|(ring_head?0x10u:0);return RF_OK;
@@ -219,6 +270,7 @@ static void hud_batch_begin(void)
     memset(rf_xbox_hud_reuse,0,sizeof(rf_xbox_hud_reuse));
     memset(rf_xbox_hud_texture,0,sizeof(rf_xbox_hud_texture));
     hud_batch_flush();hud_batch_active=1;hud_batch_ready=0;hud_batch_pixels=NULL;
+    hud_constants();
 }
 static void hud_batch_end(void)
 {
@@ -325,8 +377,9 @@ static int scene_hud_present(void *context,const rf_particle_draw_vertex *vertic
 {
     uint32_t normal=RF_PARTICLE_NORMAL_MODE&~(31u<<20);
     (void)context;
+    rf_particle_draw_vertex wide[8];
     if(mode!=0x18000u && mode!=RF_PARTICLE_NORMAL_MODE && mode!=normal)return RF_NOT_FOUND;
-    return rf_xbox_particle_draw(vertices,count,image,mode&~(31u<<20),1,0,0,0);
+    return rf_xbox_particle_draw(hud_widen(vertices,count,wide),count,image,mode&~(31u<<20),1,0,0,0);
 }
 /* Original457870/50bc60 selected menu artwork uses additive blending.
  * The ordinary gameplay HUD callback retains its normal-alpha-only contract. */
@@ -865,8 +918,8 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
      * The normal preview reuses this same pbkit device when play starts. */
     {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_fill(0,0,640,480,0xff101018);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();
+    screen_fill(0xff101018);
     hud_batch_begin();
     status=rf_scene_draw_session_menu(scene_hud_present,NULL,selection,flags);
     hud_batch_end();
@@ -882,8 +935,8 @@ int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uin
     int status;
     {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_fill(0,0,640,480,0xff101018);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();
+    screen_fill(0xff101018);
     hud_batch_begin();
     status=rf_scene_draw_message_history(scene_hud_present,NULL,index,page,flags,pages);
     /* The existing HUD atlas stays scene-owned. Fence it even on draw error;
@@ -916,7 +969,7 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
         status=menu_prepare(art_page);if(status)return status;
     }
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=menu_assets?rf_scene_draw_authored_frontend(scene_menu_present,NULL,menu_assets,
         flags,session_status,page,selection,difficulty,load_outcome,load_status):
@@ -934,7 +987,7 @@ int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
     art_page=page==RF_SCENE_OPTIONS_PAGE_ROOT?RF_MENU_PAGE_OPTIONS:
         page==RF_SCENE_OPTIONS_PAGE_GAME?RF_MENU_PAGE_GAME:RF_MENU_PAGE_CONTROLS;
     status=menu_prepare(art_page);if(status)return status;
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_options_page(scene_menu_present,NULL,menu_assets,page,selection,flags,
         sensitivity_percent,invert_y,deadzone_percent);
@@ -946,7 +999,7 @@ int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
     uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent)
 {
     int status=menu_prepare(RF_MENU_PAGE_AUDIO);if(status)return status;
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_authored_audio_options(scene_menu_present,NULL,menu_assets,selection,flags,
         master_percent,effects_percent,music_percent);
@@ -958,7 +1011,7 @@ int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
     const char *const *actions,const char *const *controls)
 {
     int status=menu_prepare(RF_MENU_PAGE_BUTTONS);if(status)return status;
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();pb_fill(0,0,640,480,0xff000000);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_authored_button_mapping(scene_menu_present,NULL,menu_assets,selection,flags,actions,controls);
     hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
@@ -1139,7 +1192,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
          if(streaming){stream_start_vblank=vblank;stream_start_valid=1;rf_renderer_vblank[2]=vblank;}}
         if(!overlap_frame || !ring_head)pb_reset();
         else {uint32_t *ensure=pb_begin();pb_end(ensure);} /* ring space for pbkit's own setup */
-        pb_target_back_buffer();
+        pb_target_back_buffer();screen_constants();
         if(rf_xbox_experiment&2){uint32_t c;p=pb_begin();
             /* Quarter-area fill experiment: every window clip to 320x240. */
             for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,319u<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,239u<<16);}
@@ -1147,8 +1200,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         {uint32_t shown=*(volatile uint32_t *)0xFD600800u&0x03ffffffu;
          ++rf_xbox_scanout_hazard[0];rf_xbox_scanout_hazard[2]=shown;
          if(shown==((uint32_t)pb_back_buffer()&0x03ffffffu))++rf_xbox_scanout_hazard[1];}
-        pb_erase_depth_stencil_buffer(0, 0, 640, 480);
-        pb_fill(0, 0, 640, 480, 0xff101018);
+        screen_erase_depth();
+        screen_fill(0xff101018);
         /* The clear and draws share one ordered pushbuffer. Preserve GPU idle
          * before drawing without spinning the CPU: it can submit following
          * commands while clear completes. No CPU framebuffer access, resource
@@ -1327,12 +1380,13 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             if(status){GPU_WAIT(7,while(pb_busy()) {});return status;}}
         if(streaming) {int status;hud_batch_begin();
             renderer_draw_mark(5,&draw_profile_previous,profiling);
+            hud_widen_active=1; /* Gameplay HUD only; menus keep 4:3 art. */
             status=rf_scene_draw_player_flash(scene_hud_present,NULL);
             if(!status)status=rf_scene_draw_combat_hud(scene_hud_present,NULL);
             if(!status)status=rf_scene_draw_player_blackout(scene_hud_present,NULL);
             if(!status)status=rf_scene_draw_endgame(scene_hud_present,NULL);
             renderer_draw_mark(6,&draw_profile_previous,profiling);
-            hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}
+            hud_widen_active=0;hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
@@ -1603,7 +1657,7 @@ static int packed_lightmap_test(void)
     rf_packed_lightmap_diagnostic[0]=0x52464c35;
     status=packed_lightmap_fixture(&image,vertices);if(status)return status;
     packed_lightmap_sample_fixture(&image,rf_packed_lightmap_samples);
-    pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+    screen_fill(0xff204060);screen_erase_depth();while(pb_busy()) {}
     status=rf_xbox_particle_draw(vertices,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);
     while(pb_busy()) {}
     if(!status)for(y=0;y<2;++y)for(x=0;x<32;++x)rf_packed_lightmap_diagnostic[2+y*32+x]=
@@ -1618,7 +1672,7 @@ static int packed_lightmap_test(void)
         rf_lightmap_update_diagnostic[2]=dirty;
         __asm__ volatile("sfence" ::: "memory");
         if(!status) {
-            pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+            screen_fill(0xff204060);screen_erase_depth();while(pb_busy()) {}
             status=rf_xbox_particle_draw(vertices,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);while(pb_busy()) {}
             if(!status)for(y=0;y<2;y++)for(x=0;x<32;x++)rf_lightmap_update_diagnostic[3+y*32+x]=
                 *(volatile uint32_t*)((unsigned char*)pb_back_buffer()+(96+y*64)*pb_back_buffer_pitch()+(72+x*16)*4);
@@ -1643,7 +1697,7 @@ static int corpse_pixel_test(void)
     if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_corpse_pixel_diagnostic[5]=statistics.AvailablePages;
     corpse_surface_fixture(&camera,&environment,&effect);
     for(i=0;i<4;++i) {
-        pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+        screen_fill(0xff204060);screen_erase_depth();while(pb_busy()) {}
         effect.elapsed=i==0?0:i==1?2.5f:5;
         status=rf_corpse_surface_draw(&effect,&camera,&environment,&texture.image,RF_PARTICLE_NORMAL_MODE,scene_particle_present,NULL);if(status)break;
         while(pb_busy()) {}
@@ -1668,7 +1722,7 @@ static int particle_texture_test(void)
     if(status){rf_vpp_close(&archive);return status;}
     rf_particle_animation_close(&animation);
     if(NT_SUCCESS(MmQueryStatistics(&statistics)))rf_particle_texture_diagnostic[3]=rf_particle_texture_diagnostic[6]=statistics.AvailablePages;
-    pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+    screen_fill(0xff204060);screen_erase_depth();while(pb_busy()) {}
     status=rf_particle_animation_open(&animation,&definition,&archive,1,1048576);
     rf_vpp_close(&archive);if(status)return status;
     memset(&definition,0xdd,sizeof(definition));particle.frame_count=(uint16_t)animation.count;particle.life=1;
@@ -1702,7 +1756,7 @@ static int particle_stretch_test(void)
     status=rf_image_allocate_pixels(&image);if(status)return status;
     memset(image.rgba,255,4);rf_particle_stretch_diagnostic[0]=0x52505358;
     for(i=0;i<6;i++) {
-        pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+        screen_fill(0xff204060);screen_erase_depth();while(pb_busy()) {}
         status=particle_stretch_fixture(i,vertices,&count);if(status)break;
         rf_particle_stretch_diagnostic[2+i]=count;
         if(count)status=rf_xbox_particle_draw(vertices,count,&image,RF_PARTICLE_NORMAL_MODE,
@@ -1722,7 +1776,7 @@ static int flash_pixel_test(void)
     rf_particle_draw_vertex v[4];uint32_t i,j;int status;
     rf_flash_pixel_diagnostic[0]=0x5246464c;
     for(i=0;i<4;++i) {
-        pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        screen_fill(0xff204060);while(pb_busy()) {}
         memset(v,0,sizeof(v));
         for(j=0;j<4;++j) {
             v[j].screen[0]=(j==1 || j==2)?640:0;v[j].screen[1]=j>=2?480:0;
@@ -1753,7 +1807,7 @@ static int volume_animation_test(void)
         status=rf_bitmap_animation_frame(corona_animation_times[i],0,animation.rate,animation.count,1,&frame);
         if(status || frame<0 || (uint32_t)frame>=animation.count){status=RF_RANGE;break;}
         rf_volume_animation_diagnostic[8+i]=(uint32_t)frame;
-        pb_erase_depth_stencil_buffer(0,0,640,480);pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        screen_erase_depth();screen_fill(0xff204060);while(pb_busy()) {}
         status=rf_xbox_particle_draw(v,count,animation.images+frame,RF_PARTICLE_GLOW_MODE,1,0,1,0xff00);if(status)break;
         for(y=0;y<16;++y)for(x=0;x<16;++x)rf_volume_animation_diagnostic[16+i*256+y*16+x]=
             *(volatile uint32_t *)((unsigned char *)pb_back_buffer()+(217+y*3)*pb_back_buffer_pitch()+(252+x*9)*4);
@@ -1781,7 +1835,7 @@ static int corona_animation_test(void)
         status=rf_bitmap_animation_frame(corona_animation_times[i],0,animation.rate,animation.count,1,&frame);
         if(status || frame<0 || (uint32_t)frame>=animation.count){status=RF_RANGE;break;}
         rf_corona_animation_diagnostic[8+i]=(uint32_t)frame;
-        pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        screen_fill(0xff204060);while(pb_busy()) {}
         status=rf_xbox_particle_draw(v,4,animation.images+frame,0x06010c41u,1,0,1,0xff00);if(status)break;
         for(y=0;y<16;++y)for(x=0;x<16;++x)rf_corona_animation_diagnostic[16+i*256+y*16+x]=
             *(volatile uint32_t *)((unsigned char *)pb_back_buffer()+(36+y*8)*pb_back_buffer_pitch()+(36+x*8)*4);
@@ -1799,7 +1853,7 @@ static int corona_pixel_test(void)
     memcpy(pixels,corona_texels,16);image.rgba=pixels;__asm__ volatile("sfence" ::: "memory");
     rf_corona_pixel_diagnostic[0]=0x52464352;
     for(i=0;i<36;++i){
-        pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        screen_fill(0xff204060);while(pb_busy()) {}
         corona_pixel_fixture(i,v);
         if(i==0) {
             status=rf_xbox_particle_draw(v,4,&image,0x06010c41u,1,0,1,0xff00);if(status)break;
@@ -1809,7 +1863,7 @@ static int corona_pixel_test(void)
             p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);
             for(j=0;j<4;++j)p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M,v[j].screen[0],v[j].screen[1],0,1);
             p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);while(pb_busy()) {}
-            pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+            screen_fill(0xff204060);while(pb_busy()) {}
             status=rf_xbox_particle_draw(v,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);if(status)break;
             if((*(volatile uint32_t *)((unsigned char *)pb_back_buffer()+88*pb_back_buffer_pitch()+72*4)&0xffffffu)!=0x204060u) {
                 status=RF_FORMAT;break;
@@ -1830,8 +1884,8 @@ void rf_xbox_particle_pixel_test(void)
     if(!pixels){rf_particle_pixel_diagnostic[1]=0x80000002u;return;}
     *pixels=0x80ffffff;image.rgba=(unsigned char *)pixels;
     __asm__ volatile("sfence" ::: "memory");
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();
-    pb_erase_depth_stencil_buffer(0,0,640,480);pb_fill(0,0,640,480,0xff204060);
+    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();
+    screen_erase_depth();screen_fill(0xff204060);
     while(pb_busy()) {}
     for(i=0;i<12;i++) {
         float left=32+(i%4)*140,top=48+(i/4)*180;

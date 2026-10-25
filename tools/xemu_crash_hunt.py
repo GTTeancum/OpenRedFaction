@@ -150,6 +150,10 @@ def main():
                         help='write openrf.ini with this frame_rate (absent: no file, fixed 60)')
     parser.add_argument('--textures', choices=('compressed','original'), default='compressed',
                         help='original writes textures = original into openrf.ini (pack still staged)')
+    parser.add_argument('--resolution', choices=('480','720'), default='480',
+                        help='720: openrf.ini resolution = 720; xemu also gets an HDTV pack and 720p/480p enabled in its EEPROM')
+    parser.add_argument('--screenshots', type=int, default=0,
+                        help='xemu + qmp-telemetry only: N QMP screendumps spread through the replay')
     parser.add_argument('--render-sync', type=int, choices=range(4), default=0,
                         help='Renderer overlap bisect: 1 keep pbkit resets, 2 no fences/vertex halves, 3 both (old behaviour)')
     parser.add_argument('--no-audio', action='store_true', help='Leave the Xbox APU audio backend closed')
@@ -257,6 +261,7 @@ def main():
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
         if args.textures == 'original': ini.append('textures = original')
+        if args.resolution == '720': ini.append('resolution = 720')
         if ini: (disc / 'openrf.ini').write_text('[video]\n' + '\n'.join(ini) + '\n')
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         run_nonce = int.from_bytes(os.urandom(4),'little') or 1
@@ -473,6 +478,16 @@ def main():
           with (run / 'pack.log').open('wb') as log:
               subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
           shutil.copyfile(emu/'EEPROM/eeprom.bin',run/'eeprom.bin')
+          if args.resolution == '720':
+              # Dashboard video settings (user section, 0x94): 480p|720p|60Hz,
+              # then the user-section checksum at 0x60 over 0x64..0xbf.
+              e=bytearray((run/'eeprom.bin').read_bytes())
+              e[0x94:0x98]=struct.pack('<I',0x00080000|0x00020000|0x00400000)
+              high=low=0
+              for i in range(0x64,0x64+0x5c,4):
+                  v=struct.unpack('<I',e[i:i+4])[0];total=((high<<32)|low)+v;high=(total>>32)&0xffffffff;low=total&0xffffffff
+              e[0x60:0x64]=struct.pack('<I',(~(high+low))&0xffffffff)
+              (run/'eeprom.bin').write_bytes(bytes(e))
           config = f'''[general]
 show_welcome = false
 skip_boot_anim = true
@@ -485,6 +500,8 @@ background_input_capture = false
 enable = false
 [audio]
 use_dsp = true
+[sys]
+avpack = 'hdtv'
 [sys.files]
 bootrom_path = '{emu.as_posix()}/MCPX/mcpx_1.0.bin'
 flashrom_path = '{emu.as_posix()}/BIOS/xbox-4627_debug.bin'
@@ -510,7 +527,7 @@ dvd_path = '{iso.as_posix()}'
               result['ram_reader_sha256']=hashlib.sha256(reader_path.read_bytes()).hexdigest()
               result['ram_poll_interval_seconds']=15
           startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
-          counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_scene_presentation_failure':8,'rf_scene_late_load':8,'rf_xbox_renderer_stage':4,'rf_xbox_draw_audit':4,'rf_xbox_texture_budget':12,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_crash_npc_motion':12,'rf_scene_crash_npc_progress':12,'rf_scene_npc_playback':7,'rf_scene_npc_eyes':4,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4}
+          counts={'rf_diagnostic':58,'rf_scene_enemy_failure':6,'rf_scene_tactical_failure':3,'rf_scene_enemy_combat':8,'rf_scene_combat_population':4,'rf_scene_enemy_awareness':8,'rf_scene_npc_registration':6,'rf_scene_player_ammo':8,'rf_scene_rockets':8,'rf_scene_rocket_blast':8,'rf_scene_grenades':8,'rf_scene_geomod':8,'rf_scene_debris':8,'rf_scene_profile_stage':2,'rf_scene_presentation_failure':8,'rf_scene_late_load':8,'rf_xbox_renderer_stage':4,'rf_xbox_draw_audit':4,'rf_xbox_texture_budget':12,'rf_xbox_load_stage':1,'rf_scene_campaign_load_stage':1,'rf_scene_campaign_load_detail':1,'rf_scene_npc_body_admission':4,'rf_scene_npc_body_failure':2,'rf_scene_patrol_failure':3,'rf_player_replay_diagnostic':4,'rf_scene_actor_frame_count':1,'rf_scene_player_life':8,'rf_scene_crash_activity':4,'rf_scene_crash_aim_trace':4,'rf_scene_crash_enemy_state':12,'rf_scene_crash_npc_motion':12,'rf_scene_crash_npc_progress':12,'rf_scene_npc_playback':7,'rf_scene_npc_eyes':4,'rf_scene_enemy_aim':4,'rf_scene_gameplay_eye':3,'rf_scene_combat':8,'rf_scene_weapon_selection':8,'rf_preview_failure':8,'rf_scene_world_texture_budget':4,'rf_xbox_screen':4,'rf_xbox_video':4,'rf_xbox_frame_failure':3}
           symbols={}
           counts['rf_scene_crash_scenario_trace']=8
           counts['rf_scene_crash_visibility']=4
@@ -540,6 +557,7 @@ dvd_path = '{iso.as_posix()}'
           result['status']='TIMEOUT'
           if ram_reader:time.sleep(15)  # Reference smoke runner waits before its first poll.
         poll_wait = 5 if args.target == 'hardware' else 15
+        shots_taken = 0
         stall = [None, time.monotonic()]
         outside_streak = 0
         with (run/'telemetry.jsonl').open('w',buffering=1) as log:
@@ -579,6 +597,22 @@ dvd_path = '{iso.as_posix()}'
                     result['last_read_error']=str(exc);time.sleep(15 if ram_reader else .2);continue
                 sample['elapsed_seconds']=round(args.seconds-(deadline-time.monotonic()),3)
                 log.write(json.dumps(sample)+'\n');result['last']=sample
+                # Native emulator capture (QMP screendump), evenly through the replay.
+                if args.screenshots and shots_taken<args.screenshots and (args.target=='hardware' or (monitor and not ram_reader)):
+                    consumed=(sample.get('rf_player_replay_diagnostic') or [0,0,0])[2]
+                    if consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                        try:
+                            if args.target=='hardware':
+                                name=f'shot_{shots_taken:02d}.png'
+                                screen=sample.get('rf_xbox_screen') or [640,480]
+                                hazard=sample.get('rf_xbox_scanout_hazard') or [0,0,0]
+                                info=xbox_hw.save_framebuffer(args.xbox_host,str(run/name),screen[0] or 640,screen[1] or 480,hazard[2])
+                            else:
+                                name=f'shot_{shots_taken:02d}.ppm';info=None
+                                monitor.command('screendump',{'filename':str(run/name)})
+                            result.setdefault('screenshots',[]).append({'file':name,'input':consumed,'screen':sample.get('rf_xbox_screen'),'xbdm':info})
+                        except (RuntimeError,OSError) as exc: result['screenshot_error']=str(exc)
+                        shots_taken+=1
                 if sample['rf_player_replay_diagnostic'][2]:
                     if sample['rf_scene_player_life'][2]: dead_samples += 1
                     else: alive_samples += 1

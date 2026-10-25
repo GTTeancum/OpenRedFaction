@@ -3,7 +3,7 @@
 struct Input { float3 position : POSITION; float2 texture : TEXCOORD0; };
 struct Output { float4 position : POSITION; float4 color : COLOR;
     float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
-Output main(Input input, uniform float4 view_x : register(c0),
+Output main(Input input, uniform float4 viewport : register(c95), uniform float4 view_x : register(c0),
     uniform float4 view_y : register(c1), uniform float4 view_z : register(c2),
     uniform float4 projection : register(c3), uniform float4 depth : register(c4),
     uniform float4 tint : register(c5), uniform float4 depth_divisor : register(c7)) {
@@ -16,5 +16,7 @@ Output main(Input input, uniform float4 view_x : register(c0),
     output.color = tint;
     output.texture = float4(input.texture, depth.w, depth.z);
     output.lightmap = float4(depth.www, depth.z);
+    // Screen mode: 640x480 picture scaled/offset into the framebuffer (c95).
+    output.position.xy = output.position.xy * viewport.xy + viewport.zw;
     return output;
 }

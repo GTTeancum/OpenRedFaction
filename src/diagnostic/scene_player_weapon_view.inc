@@ -24,7 +24,8 @@ static int scene_player_weapon_view_prepare(const rf_player_weapon *weapon,
      * Normalize the common depth scale to preserve the existing model-unit
      * near plane and independent first-person depth band.
      */
-    value.rotation[0]=scale.scale[0]/scale.scale[2];
+    /* Widescreen squeeze (stretched back on output): same on-screen weapon. */
+    value.rotation[0]=scale.scale[0]/scale.scale[2]*rf_scene_view_squeeze;
     value.rotation[4]=scale.scale[1]/scale.scale[2];value.rotation[8]=1;
     value.screen[0]=scale.half[0];value.screen[1]=-scale.half[1];
     value.screen[2]=scale.center[0];value.screen[3]=scale.center[1];

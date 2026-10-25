@@ -82,6 +82,25 @@ class Xbdm:
         if not line.startswith(b'200'):
             raise RuntimeError('sendfile %s: %r' % (remote, line))
 
+    def screenshot(self):
+        """xbdm 'screenshot': 203 binary reply, one key=value header line
+        (pitch, width, height, format, framebuffersize), then the pixels of
+        the surface the console is showing. Returns (header, bytes)."""
+        self.s.sendall(b'screenshot\r\n')
+        line = self.f.readline()
+        if not line.startswith(b'203'):
+            raise RuntimeError('screenshot: %r' % line)
+        header = self.f.readline().decode(errors='replace')
+        kv = {k: int(v, 16) for k, v in re.findall(r'(\w+)=0x([0-9a-fA-F]+)', header)}
+        size = kv.get('framebuffersize', kv.get('pitch', 0) * kv.get('height', 0))
+        data = bytearray()
+        while len(data) < size:
+            chunk = self.f.read(size - len(data))
+            if not chunk:
+                raise RuntimeError('screenshot truncated')
+            data += chunk
+        return kv, bytes(data)
+
     def close(self):
         try:
             self.s.sendall(b'bye\r\n')
@@ -205,3 +224,51 @@ class HardwareReader:
             return None, values, text
         finally:
             x.close()
+
+def save_screenshot(host, path):
+    """Capture the console's displayed picture to a PNG (32-bit BGRX rows)."""
+    from PIL import Image
+    x = connect(host, timeout=30)
+    try:
+        kv, data = x.screenshot()
+    finally:
+        x.close()
+    w, h, pitch = kv['width'], kv['height'], kv['pitch']
+    rows = b''.join(data[y * pitch:y * pitch + w * 4] for y in range(h))
+    Image.frombytes('RGB', (w, h), rows, 'raw', 'BGRX').save(path)
+    return kv
+
+
+
+def save_framebuffer(host, path, width, height, fallback_phys=0):
+    """Capture the displayed picture of a title that draws without D3D
+    (xbdm 'screenshot' cannot find its surface). Breaks the title so the
+    buffer is stable, reads the scanout address (PCRTC_START, NV base
+    0xFD000000 + 0x600800) and the frame through the NV2A memory window at
+    0xF0000000 (tiled colour surfaces read back linear there), then resumes.
+    Saves a PNG of 32-bit BGRX rows. Returns a small info dict."""
+    from PIL import Image
+    x = connect(host, timeout=30)
+    try:
+        x.ok('stop')
+        try:
+            try:
+                phys = struct.unpack('<I', x.getmem(0xFD600800, 4))[0] & 0x03FFFFFF
+            except RuntimeError:
+                phys = fallback_phys & 0x03FFFFFF
+            pitch = width * 4
+            data = None
+            for base in (0xF0000000, 0x80000000):
+                try:
+                    data = x.getmem(base | phys, pitch * height)
+                    break
+                except RuntimeError:
+                    continue
+            if data is None:
+                raise RuntimeError('framebuffer unreadable at 0x%08x' % phys)
+        finally:
+            x.ok('go')
+    finally:
+        x.close()
+    Image.frombytes('RGB', (width, height), data, 'raw', 'BGRX').save(path)
+    return {'phys': phys, 'base': hex(base), 'width': width, 'height': height}
