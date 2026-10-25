@@ -154,6 +154,8 @@ def main():
                         help='720: openrf.ini resolution = 720; xemu also gets an HDTV pack and 720p/480p enabled in its EEPROM')
     parser.add_argument('--color-depth', choices=('auto','32','16'), default='auto',
                         help='32/16 write color_depth into openrf.ini (auto: game default)')
+    parser.add_argument('--shot-on-ir', action='store_true',
+                        help='with --screenshots: capture when the infrared weapon screen shows a warm body')
     parser.add_argument('--screenshots', type=int, default=0,
                         help='xemu + qmp-telemetry only: N QMP screendumps spread through the replay')
     parser.add_argument('--render-sync', type=int, choices=range(4), default=0,
@@ -561,6 +563,7 @@ dvd_path = '{iso.as_posix()}'
           if ram_reader:time.sleep(15)  # Reference smoke runner waits before its first poll.
         poll_wait = 5 if args.target == 'hardware' else 15
         shots_taken = 0
+        last_shot_input = -1000
         stall = [None, time.monotonic()]
         outside_streak = 0
         with (run/'telemetry.jsonl').open('w',buffering=1) as log:
@@ -603,7 +606,11 @@ dvd_path = '{iso.as_posix()}'
                 # Native emulator capture (QMP screendump), evenly through the replay.
                 if args.screenshots and shots_taken<args.screenshots and (args.target=='hardware' or (monitor and not ram_reader)):
                     consumed=(sample.get('rf_player_replay_diagnostic') or [0,0,0])[2]
-                    if consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                    ir=(sample.get('rf_scene_weapon_ir') or [0,0])[1]
+                    # --shot-on-ir: capture only while the weapon screen shows heat,
+                    # at least 120 inputs apart; otherwise evenly through the replay.
+                    if (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                        last_shot_input=consumed
                         try:
                             if args.target=='hardware':
                                 name=f'shot_{shots_taken:02d}.png'
