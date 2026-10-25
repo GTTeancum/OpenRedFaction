@@ -8,6 +8,7 @@
 #include "rf/model_bounds.h"
 #include "rf/scene_preview.h"
 #include "rf/finite.h"
+#include "rf/liquid_wave.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
 #include "contiguous_track.h"
@@ -442,8 +443,25 @@ typedef struct retained_face {
     uint32_t start,count,material,lightmap,room,detail;float plane[4];
     uint32_t translucent; /* Liquid surface drawn in the liquid pass (blended or panned). */
     uint32_t blended;float pan[2]; /* Alpha blend; texture mover pan, UV units/second. */
+    uint32_t animated; /* Room liquid waveform 0..2: procedural surface (4e6550). */
 } retained_face;
 uint32_t rf_xbox_liquid_faces[4]; /* opaque liquid faces, liquid-pass faces, liquid-pass faces drawn last frame, panned faces */
+/* Procedural liquid surfaces (original 4e6550/4e6780). Each owns a cached
+ * copy of its source texels and its own GPU output, so a decoded image shared
+ * with ordinary walls is never warped. Updated once per rendered frame, and
+ * only when a face using it is drawn (4e6b70 skips textures not bound). */
+#define RF_XBOX_LIQUID_WAVES 8
+static struct {uint32_t material,frame;const unsigned char *owner;rf_liquid_wave wave;rf_image image;gpu_texture texture;} liquid_waves[RF_XBOX_LIQUID_WAVES];
+static uint32_t liquid_wave_count,liquid_wave_frame;
+uint32_t rf_xbox_liquid_waves[4]; /* animated faces, open waves, updates, refused opens */
+static void liquid_waves_close(void)
+{
+    uint32_t i;
+    if(liquid_wave_count && stream_device_ready)while(pb_busy()){}
+    for(i=0;i<liquid_wave_count;i++){rf_liquid_wave_close(&liquid_waves[i].wave);
+        if(liquid_waves[i].image.rgba)MmFreeContiguousMemory(liquid_waves[i].image.rgba);}
+    memset(liquid_waves,0,sizeof(liquid_waves));liquid_wave_count=0;
+}
 static struct {
     const rf_geometry *source;const rf_visibility *visibility;
     rf_preview_vertex *vertices;retained_face *faces;
@@ -472,6 +490,7 @@ static void retained_world_close(void)
 {
     retained_movers_close();
     retained_world_indices_close();
+    liquid_waves_close();
     if(retained_world.vertices){if(stream_device_ready)while(pb_busy()){} MmFreeContiguousMemory(retained_world.vertices);}
     free(retained_world.faces);memset(&retained_world,0,sizeof(retained_world));
 }
@@ -505,7 +524,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
          * index in start; no GPU vertex data exists yet and no extra scratch
          * allocation is needed. Sorting only descriptors after upload leaves
          * adjacent draw-order faces scattered across GPU memory. */
-        memset(rf_xbox_liquid_faces,0,sizeof(rf_xbox_liquid_faces));
+        memset(rf_xbox_liquid_faces,0,sizeof(rf_xbox_liquid_faces));memset(rf_xbox_liquid_waves,0,sizeof(rf_xbox_liquid_waves));
         for(f=0;f<g->faces;f++) {
             rf_geometry_face face;retained_face *out=retained_world.faces+f;uint32_t lightmap=UINT32_MAX;
             status=rf_geometry_get_face(g,f,&face);if(status)return status;
@@ -516,7 +535,8 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
             /* Liquid surface (face bit 4): its room's authored liquid texture. */
             if((face.flags&4u) && scene->liquid_slots && face.room<scene->liquid_rooms &&
                scene->liquid_slots[face.room]!=UINT32_MAX) {
-                out->material=scene->liquid_slots[face.room]&~RF_LIQUID_SLOT_TRANSLUCENT;
+                out->material=scene->liquid_slots[face.room]&~(RF_LIQUID_SLOT_TRANSLUCENT|RF_LIQUID_SLOT_ANIMATED);
+                out->animated=(scene->liquid_slots[face.room]&RF_LIQUID_SLOT_ANIMATED)!=0;rf_xbox_liquid_waves[0]+=out->animated;
                 out->blended=(scene->liquid_slots[face.room]&RF_LIQUID_SLOT_TRANSLUCENT)!=0;
                 if(scene->liquid_pan)memcpy(out->pan,scene->liquid_pan[face.room],8);
                 ++rf_xbox_liquid_faces[out->blended?1:0];
@@ -528,7 +548,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
                  if(id==face.source_word){memcpy(out->pan,pan,8);break;}}}
             /* Panned faces leave the batched opaque pass: their texture offset
              * is set per face in the liquid pass (original 55f5e0). */
-            out->translucent=out->blended || out->pan[0]!=0 || out->pan[1]!=0;
+            out->translucent=out->blended || out->animated || out->pan[0]!=0 || out->pan[1]!=0;
             rf_xbox_liquid_faces[3]+=out->pan[0]!=0 || out->pan[1]!=0;
             out->room=face.room;out->detail=face.room<g->rooms?g->data[g->room_offsets[face.room]+34]!=0:1;
             memcpy(out->plane,face.plane,16);
@@ -646,14 +666,42 @@ static void retained_world_setup(void)
  * (01ea574c += frametime). Each frame is capped at 0.1 s here so a load or
  * a paused frame does not jump the surface. */
 static double liquid_pan_clock;static uint32_t liquid_pan_tick;
+/* Returns the material's procedural surface, advanced once this frame. */
+static const gpu_texture *liquid_wave_texture(const rf_materials *materials,const gpu_texture *textures,uint32_t material)
+{
+    uint32_t i;const rf_image *source;
+    if(material>=materials->count || !textures[material].pixels)return NULL;
+    source=&materials->items[material].image;
+    for(i=0;i<liquid_wave_count;i++)if(liquid_waves[i].material==material)break;
+    if(i<liquid_wave_count && liquid_waves[i].owner!=source->rgba)return NULL;
+    if(i==liquid_wave_count) {
+        rf_image image=*source;
+        if(liquid_wave_count==RF_XBOX_LIQUID_WAVES){++rf_xbox_liquid_waves[3];return NULL;}
+        memset(&liquid_waves[i],0,sizeof(liquid_waves[i]));liquid_waves[i].material=material;liquid_waves[i].owner=source->rgba;
+        ++liquid_wave_count;
+        if(rf_liquid_wave_open(&liquid_waves[i].wave,source)){++rf_xbox_liquid_waves[3];return NULL;}
+        image.rgba=MmAllocateContiguousMemoryEx(source->bytes,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        if(!image.rgba){rf_liquid_wave_close(&liquid_waves[i].wave);++rf_xbox_liquid_waves[3];return NULL;}
+        liquid_waves[i].image=image;liquid_waves[i].texture=textures[material];
+        liquid_waves[i].texture.pixels=(uint32_t *)image.rgba;liquid_waves[i].frame=liquid_wave_frame-1;
+        ++rf_xbox_liquid_waves[1];
+    }
+    if(!liquid_waves[i].image.rgba)return NULL;
+    if(liquid_waves[i].frame!=liquid_wave_frame) {
+        liquid_waves[i].frame=liquid_wave_frame;
+        if(rf_liquid_wave_update(&liquid_waves[i].wave,&liquid_waves[i].image))return NULL;
+        __asm__ volatile("sfence" ::: "memory");++rf_xbox_liquid_waves[2];
+    }
+    return &liquid_waves[i].texture;
+}
 static int retained_world_draw_liquid(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
 {
     uint32_t f,*p,drawn=0,blending=1,now=GetTickCount();
     rf_xbox_liquid_faces[2]=0;
-    if(retained_world.ready!=1 || (!rf_xbox_liquid_faces[1] && !rf_xbox_liquid_faces[3]) || (rf_xbox_experiment&1))return RF_OK;
+    if(retained_world.ready!=1 || (!rf_xbox_liquid_faces[1] && !rf_xbox_liquid_faces[3] && !rf_xbox_liquid_waves[0]) || (rf_xbox_experiment&1))return RF_OK;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
     if(liquid_pan_tick)liquid_pan_clock+=fmin((double)(now-liquid_pan_tick)*.001,.1);
-    liquid_pan_tick=now?now:1;
+    liquid_pan_tick=now?now:1;++liquid_wave_frame;
     retained_world_setup();
     p=pb_begin();
 #include "preview_fragment.inl"
@@ -668,6 +716,7 @@ static int retained_world_draw_liquid(const rf_materials *materials,const rf_lig
         if(face->lightmap!=UINT32_MAX && face->lightmap>=lightmaps->count)return RF_FORMAT;
         textured=face->material<materials->count && textures[face->material].pixels;
         texture=textured?textures+face->material:textures+materials->count;
+        if(textured && face->animated){const gpu_texture *wave=liquid_wave_texture(materials,textures,face->material);if(wave)texture=wave;}
         lighting=face->lightmap<lightmaps->count?textures+materials->count+1+face->lightmap:textures+materials->count;
         p=pb_begin();
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);

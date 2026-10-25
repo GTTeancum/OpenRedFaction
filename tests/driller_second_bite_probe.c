@@ -58,6 +58,22 @@ int main(int argc,char **argv)
             before.mesh.face_count,after.mesh.face_count,before.mesh.vertex_count,after.mesh.vertex_count);
         CHECK(before.cuts==after.cuts && before.mesh.face_count==after.mesh.face_count && before.mesh.vertex_count==after.mesh.vertex_count);
         CHECK(!memcmp(before.mesh.vertices,after.mesh.vertices,before.mesh.vertex_count*sizeof(*before.mesh.vertices)));
+        /* Continuation after a load (scene reseed): the restored last cutter
+         * must expose the same star kernel, and further bites merged into it
+         * must build the same wall as the uninterrupted tunnel. */
+        {rf_geomod_mesh_view m;float k1[3],k2[3];uint32_t s1=0,s2=0;int j;
+         CHECK(!rf_geomod_terrain_cutter_get(terrain,before.cuts-1,&m,k1,&s1));
+         CHECK(!rf_geomod_terrain_cutter_get(loaded,after.cuts-1,&m,k2,&s2));
+         CHECK(s1 && s2 && !memcmp(k1,k2,sizeof(k1)));
+         for(j=0;j<4;j++){float c[3]={first[0]+step*(bites+j),first[1],first[2]},basis[9]={0,0,-1,0,1,0,1,0,0};
+             int x=rf_geomod_terrain_merge_template_checked(terrain,&shape,c,basis,1,999,NULL,0,NULL,NULL);
+             int y=rf_geomod_terrain_merge_template_checked(loaded,&shape,c,basis,1,999,NULL,0,NULL,NULL);
+             CHECK(x==y);}
+         CHECK(!rf_geomod_terrain_get(terrain,&before));CHECK(!rf_geomod_terrain_get(loaded,&after));
+         printf("CONTINUE cuts %u/%u faces %u/%u vertices %u/%u\n",before.cuts,after.cuts,
+             before.mesh.face_count,after.mesh.face_count,before.mesh.vertex_count,after.mesh.vertex_count);
+         CHECK(before.cuts==after.cuts && before.mesh.vertex_count==after.mesh.vertex_count &&
+             !memcmp(before.mesh.vertices,after.mesh.vertices,before.mesh.vertex_count*sizeof(*before.mesh.vertices)));}
         free(data);rf_geomod_terrain_close(&loaded);
     }
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);rf_geometry_close(&geometry);rf_vpp_close(&levels);return 0;

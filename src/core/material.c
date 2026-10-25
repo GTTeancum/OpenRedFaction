@@ -405,10 +405,10 @@ void rf_geometry_materials_close(rf_geometry_materials *m)
 /* v180 room record: liquid flag at +32, name length at +40; liquid payload
  * after the name: depth, RGBA color, texture name, visibility, type
  * (1 water, 2 lava, 3 acid), alpha. Same offsets as rf_liquid_rooms_open. */
-static int room_liquid(const rf_geometry *g,uint32_t room,char name[61],uint32_t *type,uint32_t *alpha,float pan[2])
+static int room_liquid(const rf_geometry *g,uint32_t room,char name[61],uint32_t *type,uint32_t *alpha,float pan[2],uint32_t *waveform)
 {
     uint32_t at=g->room_offsets[room],n,left,t;const unsigned char *p;
-    *name=0;*type=*alpha=0;pan[0]=pan[1]=0;
+    *name=0;*type=*alpha=0;pan[0]=pan[1]=0;*waveform=UINT32_MAX;
     if(at>g->bytes || g->bytes-at<42)return RF_FORMAT;
     p=g->data+at;left=g->bytes-at;n=(uint32_t)p[40]|((uint32_t)p[41]<<8);
     if(n>left-42)return RF_FORMAT;
@@ -420,7 +420,7 @@ static int room_liquid(const rf_geometry *g,uint32_t room,char name[61],uint32_t
     memcpy(name,p+10,t);name[t]=0;
     memcpy(type,p+14+t,4);memcpy(alpha,p+18+t,4);
     /* visibility,type,alpha,13 bytes (ppm u/v, angle, plankton),waveform,pan u/v. */
-    memcpy(pan,p+39+t,8);
+    memcpy(waveform,p+35+t,4);memcpy(pan,p+39+t,8);
     if(!isfinite(pan[0]) || !isfinite(pan[1]) || pan[0]==0 || pan[1]==0)pan[0]=pan[1]=0;
     return RF_OK;
 }
@@ -472,14 +472,16 @@ int rf_geometry_materials_open_limit(rf_geometry_materials *m,
      * texture at runtime. Give each distinct texture/alpha its own slot. */
     first_liquid=unique;
     for(i=0;i<rooms;++i) {
-        uint32_t type,alpha,slot;char *name=storage+(size_t)unique*61;
+        uint32_t type,alpha,slot,waveform,animated;char *name=storage+(size_t)unique*61;
         next.liquid_slots[i]=UINT32_MAX;
-        status=room_liquid(geometries[0],i,name,&type,&alpha,next.liquid_pan[i]);if(status)goto done;
+        status=room_liquid(geometries[0],i,name,&type,&alpha,next.liquid_pan[i],&waveform);if(status)goto done;
         if(!*name)continue;
         alpha=type==2?255u:alpha>255u?255u:alpha;
-        for(slot=first_liquid;slot<unique;++slot)if(equal_texture_name(name,names[slot]) && liquid_alpha[slot]==alpha)break;
-        if(slot==unique){names[unique]=name;liquid_alpha[unique++]=alpha;}
-        next.liquid_slots[i]=slot|(alpha<255u?RF_LIQUID_SLOT_TRANSLUCENT:0u);
+        /* 4cdc50 creates the procedural surface for waveform>=0; 4e6550 animates 0..2. */
+        animated=waveform<3u?RF_LIQUID_SLOT_ANIMATED:0u;
+        for(slot=first_liquid;slot<unique;++slot)if(equal_texture_name(name,names[slot]) && liquid_alpha[slot]==(alpha|animated))break;
+        if(slot==unique){names[unique]=name;liquid_alpha[unique++]=alpha|animated;}
+        next.liquid_slots[i]=slot|(alpha<255u?RF_LIQUID_SLOT_TRANSLUCENT:0u)|animated;
     }
     status=open_materials(&next.textures,NULL,names,unique,archives,archive_count,
         budget-(uint32_t)(base+scratch),limit,&texture_peak);
@@ -487,8 +489,8 @@ int rf_geometry_materials_open_limit(rf_geometry_materials *m,
     /* Bake the authored surface alpha into each translucent liquid texture. */
     for(i=first_liquid;i<unique;++i) {
         rf_image *image=&next.textures.items[i].image;uint32_t k,n;
-        if(liquid_alpha[i]>=255u || !image->rgba || rf_image_is_packed_1555(image))continue;
-        n=image->bytes/4;for(k=0;k<n;k++)image->rgba[k*4+3]=(unsigned char)liquid_alpha[i];
+        if((liquid_alpha[i]&~RF_LIQUID_SLOT_ANIMATED)>=255u || !image->rgba || rf_image_is_packed_1555(image))continue;
+        n=image->bytes/4;for(k=0;k<n;k++)image->rgba[k*4+3]=(unsigned char)(liquid_alpha[i]&255u);
     }
     next.resident_bytes=(uint32_t)base+next.textures.allocated_bytes;
     next.peak_bytes=(uint32_t)(base+scratch)+texture_peak;

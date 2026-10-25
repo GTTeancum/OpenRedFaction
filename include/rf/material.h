@@ -224,6 +224,9 @@ typedef struct rf_geometry_materials {
     float (*liquid_pan)[2];
 } rf_geometry_materials;
 #define RF_LIQUID_SLOT_TRANSLUCENT 0x80000000u
+/* Room liquid waveform 0..2: the surface draws the original procedural
+ * texture (rf_liquid_wave); animated and static uses never share a slot. */
+#define RF_LIQUID_SLOT_ANIMATED 0x40000000u
 /* Shared world/mover texture residency scaffolding, not original allocation
  * policy. Geometry i's local texture j maps to slots[offsets[i]+j]. Names
  * deduplicate case-insensitively in first-use order, including missing images.
