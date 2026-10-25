@@ -8,6 +8,13 @@ typedef struct rf_image {
      * Use rf_image_pixel for top-left coordinates. Xbox storage is
      * physically contiguous and swizzled, PC storage is row-major. */
     unsigned char *rgba;
+    /* GPU-compressed storage from the offline texture pack (port-owned):
+     * 0 = ordinary pixels above; 1 = DXT1, 5 = DXT5, linear block order with
+     * mip_levels levels back to back; bytes is the whole payload. alpha_mode
+     * 1 = cutout, 2 = smooth. CPU pixel access is meaningless: rf_image_pixel
+     * returns scratch storage and callers that read texels must skip these.
+     * Positional initializers leave all three zero. */
+    uint32_t compressed,mip_levels,alpha_mode;
 } rf_image;
 /* Storage helpers: caller supplies valid dimensions/bytes before allocation.
  * Pixel coordinates must be in bounds. Close owns/reclaims the allocation. */
@@ -34,6 +41,13 @@ int rf_image_vbm(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, ui
  * success. No playback scheduler or multi-frame residency. Close before reuse. */
 int rf_image_vbm_frame(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,
     uint32_t frame,uint32_t budget,uint32_t *frame_count,uint32_t *frame_rate);
+/* One "<name>.dds" entry from the texture pack (tools/dds_pack.c). Accepts
+ * only its DXT1/DXT5 RFDX files; source_size must equal the original entry
+ * size recorded at packing (a different original keeps the normal decode).
+ * limit>0 drops top mip levels until both sides are <=limit (keeping at
+ * least one level). Budget counts the kept payload. Failure leaves image
+ * empty; RF_NOT_FOUND means "not this source, decode the original". */
+int rf_image_dds(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t source_size,uint32_t limit,uint32_t budget);
 /* Detect VBM by magic, otherwise use the existing TGA decoder. */
 int rf_image_open(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, uint32_t budget);
 /* Original missing-resource pattern50f1d8..50f20d, used by510470.

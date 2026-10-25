@@ -243,7 +243,10 @@ static uint32_t field(uint32_t mask, uint32_t value)
     while (!(mask & (1u << shift))) ++shift;
     return (value << shift) & mask;
 }
-typedef struct gpu_texture { uint32_t *pixels, format,transparent; } gpu_texture;
+/* control: stage-0 TEXTURE_CONTROL0 for this texture (0 = plain enable);
+ * compressed packs open their LOD clamp so the GPU samples every mip. */
+typedef struct gpu_texture { uint32_t *pixels, format,transparent,control; } gpu_texture;
+#define TEXTURE_CONTROL(t) ((t)->control?(t)->control:NV097_SET_TEXTURE_CONTROL0_ENABLE)
 uint32_t rf_xbox_texture_budget[12]; /* materials,lightmaps,total,unique,aliases,null,mismatch,max,budget,unique materials,unique lightmaps,cross aliases */
 static void renderer_draw_mark(uint32_t phase,uint32_t *previous,int enabled)
 {
@@ -273,6 +276,20 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
      * irrelevant, so scan the stored bytes linearly (no per-texel swizzle
      * addressing) and stop at the first hit. Same result as the per-(x,y)
      * rf_image_pixel walk over every texel. */
+    out->control=0;
+    if(image->compressed) {
+        /* Offline pack: DXT blocks with their own mip chain; alpha policy was
+         * recorded at packing. MAX_LOD_CLAMP open lets every level sample. */
+        out->transparent=image->alpha_mode!=0;
+        out->control=NV097_SET_TEXTURE_CONTROL0_ENABLE|NV097_SET_TEXTURE_CONTROL0_MAX_LOD_CLAMP;
+        out->format=field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
+            field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
+            field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY,2)|
+            field(NV097_SET_TEXTURE_FORMAT_COLOR,image->compressed==5?NV097_SET_TEXTURE_FORMAT_COLOR_L_DXT45_A8R8G8B8:NV097_SET_TEXTURE_FORMAT_COLOR_L_DXT1_A1R5G5B5)|
+            field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS,image->mip_levels?image->mip_levels:1)|
+            field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U,u)|field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V,v);
+        return RF_OK;
+    }
     if(classify_alpha && image->rgba) {
         /* Word reads: write-combined pixels are uncached, so fewer loads matter. */
         const uint32_t *word=(const uint32_t *)image->rgba;uint32_t n=image->width*image->height;
@@ -345,7 +362,9 @@ static uint32_t stream_half_fence[2],stream_half_next,stream_half_used;
  * screen once per pbkit lifetime and let the ISR present thereafter. */
 /* Linear min/mag with the convolution kernel field set to quincunx (1).
  * Real NV2A raises a GPU invalid-data error for kernel 0; XEMU accepts it. */
-#define RF_TEXTURE_FILTER_LINEAR 0x02022000u
+/* MAG linear, MIN linear-mipmap-linear (single-level textures keep a zero
+ * LOD clamp, so they sample exactly as before). */
+#define RF_TEXTURE_FILTER_LINEAR 0x02062000u
 static int front_screen_shown;
 static void show_front_screen(void){if(!front_screen_shown){pb_show_front_screen();front_screen_shown=1;}}
 /* Explicit menu-root owner; never retained during ordinary gameplay.
@@ -722,7 +741,7 @@ static int retained_world_draw_liquid(const rf_materials *materials,const rf_lig
         lighting=face->lightmap<lightmaps->count?textures+materials->count+1+face->lightmap:textures+materials->count;
         p=pb_begin();
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
-        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(texture));
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels&0x03ffffff);
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
         p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);
@@ -773,8 +792,8 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
         lighting=lightmap<lightmaps->count?textures+materials->count+1+lightmap:textures+materials->count;
         if(!active || material!=bound_material || lightmap!=bound_lightmap) {
         if(active){p=renderer_reserve(&commands,2);commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);++rf_xbox_command_blocks[1];}
-        p=renderer_reserve(&commands,17);p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
-        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+        p=renderer_reserve(&commands,19);p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(texture));
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels&0x03ffffff);
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
         p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);
@@ -952,7 +971,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     rf_preview_vertex *gpu;
     gpu_texture *textures;
     uint32_t white = 0xffffffffu;
-    rf_image fallback = {1, 1, 4, 0, (unsigned char *)&white};
+    rf_image fallback = {1, 1, 4, 0, (unsigned char *)&white, 0, 0, 0};
     /* Bound referenced image payload; it is now shared, not copied. */
     uint64_t upload_bytes = 4;
     int streaming=model==2 || model==4;
@@ -1260,7 +1279,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
              }}
             if(texture!=bound_texture) {
                 p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels & 0x03ffffff);
-                p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+                p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(texture));
                 bound_texture=texture;methods+=2;++state_changes;
             }
             if(lighting!=bound_lighting) {
@@ -1679,7 +1698,7 @@ static int particle_texture_test(void)
 uint32_t rf_particle_stretch_diagnostic[1544];
 static int particle_stretch_test(void)
 {
-    rf_image image={1,1,4,0,NULL};rf_particle_draw_vertex vertices[12];uint32_t i,x,y,count;int status;
+    rf_image image={1,1,4,0,NULL,0,0,0};rf_particle_draw_vertex vertices[12];uint32_t i,x,y,count;int status;
     status=rf_image_allocate_pixels(&image);if(status)return status;
     memset(image.rgba,255,4);rf_particle_stretch_diagnostic[0]=0x52505358;
     for(i=0;i<6;i++) {
@@ -1774,7 +1793,7 @@ static int corona_animation_test(void)
 uint32_t rf_corona_pixel_diagnostic[38];
 static int corona_pixel_test(void)
 {
-    rf_image image={2,2,16,0,NULL};rf_particle_draw_vertex v[4];uint32_t i,j,*p;int status=RF_OK;
+    rf_image image={2,2,16,0,NULL,0,0,0};rf_particle_draw_vertex v[4];uint32_t i,j,*p;int status=RF_OK;
     unsigned char *pixels=MmAllocateContiguousMemoryEx(16,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
     if(!pixels)return RF_IO;
     memcpy(pixels,corona_texels,16);image.rgba=pixels;__asm__ volatile("sfence" ::: "memory");
@@ -1803,7 +1822,7 @@ static int corona_pixel_test(void)
 }
 void rf_xbox_particle_pixel_test(void)
 {
-    uint32_t *pixels,*p,i,j;rf_image image={1,1,4,0,NULL};
+    uint32_t *pixels,*p,i,j;rf_image image={1,1,4,0,NULL,0,0,0};
     rf_particle_draw_vertex v[4];int status;
     rf_particle_pixel_diagnostic[0]=0x52504658;rf_particle_pixel_diagnostic[1]=1;
     if(pb_init()){rf_particle_pixel_diagnostic[1]=0x80000001u;return;}

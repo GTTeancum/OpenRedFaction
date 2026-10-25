@@ -244,6 +244,16 @@ void rf_materials_share_scope(int enable)
     else if(material_share_depth)--material_share_depth;
 }
 static int equal_texture_name(const char *a,const char *b);
+/* Optional offline texture pack (tools/dds_pack.c). Slots at or after
+ * material_dds_first_raw keep decoded pixels (CPU-written liquid surfaces). */
+static rf_vpp *material_dds;static uint32_t material_dds_first_raw=UINT32_MAX;
+uint32_t rf_material_dds_stats[4]; /* textures from the pack, decoded originals, pack refusals, kept bytes */
+void rf_materials_set_texture_pack(rf_vpp *pack){material_dds=pack;}
+/* One name that always decodes (the level's GeoMod substrate: save identity
+ * hashes its pixels, so it must not depend on the texture setting). */
+static char material_dds_raw_name[64];
+void rf_materials_set_raw_texture(const char *name)
+{size_t n=name?strlen(name):0;if(n>=sizeof(material_dds_raw_name))n=0;memcpy(material_dds_raw_name,name?name:"",n);material_dds_raw_name[n]=0;}
 static int open_materials(rf_materials *m,const rf_geometry *g,const char *const *names,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget,uint32_t limit,uint32_t *peak)
 {
@@ -280,6 +290,21 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
             result = rf_vpp_find(archives + a, name, &entry);
             if (result == RF_NOT_FOUND) continue;
             if (result) goto fail;
+            if(material_dds && i<material_dds_first_raw && !(material_dds_raw_name[0] && equal_texture_name(name,material_dds_raw_name))) {
+                char packed[64];rf_vpp_entry dds;size_t n=strlen(name);
+                if(n+5<=sizeof(packed)){memcpy(packed,name,n);memcpy(packed+n,".dds",5);
+                 if(rf_vpp_find(material_dds,packed,&dds)==RF_OK) {
+                    result=rf_image_dds(&item->image,material_dds,&dds,entry.size,limit,budget-m->allocated_bytes);
+                    if(result==RF_RANGE)goto fail;
+                    if(!result) {
+                        if(peak && m->allocated_bytes+item->image.bytes>*peak)*peak=m->allocated_bytes+item->image.bytes;
+                        item->archive_index=a;item->status=RF_OK;m->allocated_bytes+=item->image.bytes;++m->loaded;
+                        ++rf_material_dds_stats[0];rf_material_dds_stats[3]+=item->image.bytes;break;
+                    }
+                    ++rf_material_dds_stats[2];
+                 }}
+            }
+            ++rf_material_dds_stats[1];
             /* Reduced TGA admission must not require the full-resolution
              * allocation first. Reuse the streaming box decoder; VBM and
              * unrestricted loads retain their established decode path. */
@@ -483,8 +508,11 @@ int rf_geometry_materials_open_limit(rf_geometry_materials *m,
         if(slot==unique){names[unique]=name;liquid_alpha[unique++]=alpha|animated;}
         next.liquid_slots[i]=slot|(alpha<255u?RF_LIQUID_SLOT_TRANSLUCENT:0u)|animated;
     }
+    /* Liquid slots get CPU-written alpha and procedural waves: keep pixels. */
+    material_dds_first_raw=first_liquid;
     status=open_materials(&next.textures,NULL,names,unique,archives,archive_count,
         budget-(uint32_t)(base+scratch),limit,&texture_peak);
+    material_dds_first_raw=UINT32_MAX;
     if(status)goto done;
     /* Bake the authored surface alpha into each translucent liquid texture. */
     for(i=first_liquid;i<unique;++i) {

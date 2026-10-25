@@ -227,8 +227,8 @@ static int retained_movers_draw(const rf_materials *materials,const rf_lightmaps
                 /* CPU-stream lookup: an out-of-range image falls back, no error. */
                 const gpu_texture *lighting=lightmap<lightmaps->count?textures+materials->count+1+lightmap:textures+materials->count;
                 if(active){p=renderer_reserve(&commands,2);commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);active=0;++rf_xbox_command_blocks[1];}
-                p=renderer_reserve(&commands,15);p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
-                p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+                p=renderer_reserve(&commands,17);p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
+                p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(texture));
                 p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels&0x03ffffff);
                 p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
                 p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);

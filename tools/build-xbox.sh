@@ -52,6 +52,16 @@ for shape in driller-single driller-double; do
         rm -f "$root/build/xbox/redfaction-diagnostic.iso"
     fi
 done
+# Full-size DXT texture pack, generated from the user's own archives by the
+# host tool (never tracked). Rebuild it when missing or older than maps1.vpp.
+pack_tool="$root/build/pc/Release/rf_dds_pack.exe"
+if [[ -x "$pack_tool" && ( ! -f "$root/build/data/rfdds.vpp" || "$root/Installed_Game/maps1.vpp" -nt "$root/build/data/rfdds.vpp" ) ]]; then
+    "$pack_tool" "$root/Installed_Game" "$root/build/data/rfdds.vpp"
+fi
+if [[ -f "$root/build/data/rfdds.vpp" && "$root/build/data/rfdds.vpp" -nt "$root/build/xbox/disc/rfdds.vpp" ]]; then
+    cp "$root/build/data/rfdds.vpp" "$root/build/xbox/disc/rfdds.vpp"
+    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+fi
 # User-editable settings beside default.xbe (frame rate and fallback).
 if [[ "$root/platforms/xbox/openrf.ini" -nt "$root/build/xbox/disc/openrf.ini" ]]; then
     cp "$root/platforms/xbox/openrf.ini" "$root/build/xbox/disc/openrf.ini"

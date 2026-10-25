@@ -85,6 +85,19 @@ static void video_mode_open(void)
     rf_xbox_video[0]=encoder;rf_xbox_video[1]=(uint32_t)XVideoGetMode().width;rf_xbox_video[2]=(uint32_t)XVideoGetMode().height;
     rf_xbox_video[3]=progressive|(hdtv<<1)|(((encoder&VIDEO_MODE_720P)!=0)<<2)|(((encoder&VIDEO_MODE_480P)!=0)<<3)|(flicker<<8);
 }
+/* Offline DXT texture pack beside the XBE (built from the user's own
+ * installed archives by tools/dds_pack.c). Absent or disabled in openrf.ini:
+ * every texture decodes from the original archives as before. */
+static rf_vpp texture_pack;
+uint32_t rf_xbox_texture_pack[2]; /* open status+1 (0 never tried), entries */
+static void texture_pack_open(void)
+{
+    int status;
+    if(!xbox_settings.compressed_textures)return;
+    status=rf_vpp_open(&texture_pack,"D:\\rfdds.vpp");
+    rf_xbox_texture_pack[0]=(uint32_t)(status+1);rf_xbox_texture_pack[1]=status?0:texture_pack.count;
+    if(!status)rf_materials_set_texture_pack(&texture_pack);
+}
 static void pacing_settings_load(void)
 {
     char text[4096];FILE *f=fopen("D:\\openrf.ini","rb");uint32_t n=0;
@@ -2310,6 +2323,7 @@ int main(void)
     rf_diagnostic[2] = 1;
     pacing_settings_load();
     video_mode_open();
+    texture_pack_open();
     {FILE *profile=fopen("D:\\tester-profile.flag","rb");
      if(profile){char value[8];int valid=fread(value,1,8,profile)==8 &&
          !memcmp(value,"RFTEST1\n",8) && fgetc(profile)==EOF;fclose(profile);

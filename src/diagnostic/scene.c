@@ -627,6 +627,9 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
             if(m->uid==8523){m->position[0]+=(-42.218231201171875f+40.92414093017578f)*.5f;m->position[2]+=(54.51513671875f-49.68550109863281f)*.5f;}
         }
     }
+    /* GeoMod substrate texture pixels feed the save identity: never packed. */
+    {rf_level_geomod_settings geomod;memset(&geomod,0,sizeof(geomod));
+     rf_materials_set_raw_texture(rf_level_geomod_settings_read(level,&geomod)?NULL:geomod.texture);}
     sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
     sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
     rf_scene_profile_stage[1]=11;

@@ -13,10 +13,12 @@
  *             auto     60 while it keeps up, otherwise the fallback below
  * fallback:   30_smooth | 30 | none   (used by auto; none keeps dropping pictures)
  * smooth_characters: on | off  move characters and vehicles in in-between pictures
- * flicker_filter: auto | 0..5  TV encoder vertical blur (auto: 0 progressive, 2 interlaced) */
+ * flicker_filter: auto | 0..5  TV encoder vertical blur (auto: 0 progressive, 2 interlaced)
+ * textures: compressed | original  use the DXT texture pack (rfdds.vpp) when present */
 enum { RF_FRAME_RATE_60, RF_FRAME_RATE_30, RF_FRAME_RATE_30_SMOOTH, RF_FRAME_RATE_AUTO };
 typedef struct rf_settings {
     uint32_t frame_rate,fallback,smooth_characters,flicker_filter; /* flicker: 0..5, or UINT32_MAX auto */
+    uint32_t compressed_textures;
     uint32_t unknown,invalid; /* ignored lines, for the RAM log */
 } rf_settings;
 /* Defaults when no file exists: fixed 60 (crash-harness replays rely on it). */

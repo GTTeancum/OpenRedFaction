@@ -135,12 +135,12 @@ static int retained_world_indices_draw(const rf_materials *materials,const rf_li
         lighting=group->lightmap<lightmaps->count?textures+materials->count+1+group->lightmap:textures+materials->count;
         address[0]=(uint32_t)texture->pixels&0x03ffffff;
         address[1]=(uint32_t)lighting->pixels&0x03ffffff;
-        p=renderer_reserve(&commands,17);
+        p=renderer_reserve(&commands,19);
         /* State is private to this uninterrupted pass. Compare the actual
          * physical address/format written to NV2A, not material identity. */
         if(!bound || bound_address[0]!=address[0] || bound_format[0]!=texture->format) {
             p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,address[0]);
-            p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);++rf_xbox_texture_reuse[0];
+            p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(texture));++rf_xbox_texture_reuse[0];
         } else ++rf_xbox_texture_reuse[1];
         if(!bound || bound_address[1]!=address[1] || bound_format[1]!=lighting->format) {
             p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,address[1]);

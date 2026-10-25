@@ -292,7 +292,7 @@ static int retained_model_render(uint32_t request,uint32_t previous,const rf_mat
        (((uint32_t)previous_texture->pixels^(uint32_t)texture->pixels)&0x03ffffffu) ||
        previous_texture->format!=texture->format) {
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
-        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);++rf_xbox_texture_reuse[2];
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(texture));++rf_xbox_texture_reuse[2];
     } else ++rf_xbox_texture_reuse[3];
     if(install_program) {
         /* Unit1 is disabled for this exact constant-white specialization. */

@@ -139,6 +139,13 @@ typedef struct rf_materials {
  * Unsupported/corrupt found images fail the whole load. TGA and static VBM supported.
  * Budget includes slots and decoded images, excluding allocator metadata.
  * Close before reuse; any failure releases allocations and leaves empty state. */
+/* Register the offline DXT texture pack (or NULL). Material loads then take
+ * "<name>.dds" from it when its recorded original size matches the archive
+ * entry found by the normal search; liquid slots always decode. */
+void rf_materials_set_texture_pack(rf_vpp *pack);
+/* Keep one texture name decoded from the original (NULL or "" clears). */
+void rf_materials_set_raw_texture(const char *name);
+extern uint32_t rf_material_dds_stats[4];
 int rf_materials_open(rf_materials *materials, const rf_geometry *geometry,
                       rf_vpp *archives, uint32_t archive_count, uint32_t budget);
 void rf_materials_close(rf_materials *materials);

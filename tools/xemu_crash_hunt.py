@@ -148,6 +148,8 @@ def main():
                         help='Bottleneck experiment bits: 1 issue no draws, 2 quarter-screen raster clip, 4 1x1 textures')
     parser.add_argument('--frame-rate', choices=('60','30','30_smooth','auto'),
                         help='write openrf.ini with this frame_rate (absent: no file, fixed 60)')
+    parser.add_argument('--textures', choices=('compressed','original'), default='compressed',
+                        help='original writes textures = original into openrf.ini (pack still staged)')
     parser.add_argument('--render-sync', type=int, choices=range(4), default=0,
                         help='Renderer overlap bisect: 1 keep pbkit resets, 2 no fences/vertex halves, 3 both (old behaviour)')
     parser.add_argument('--no-audio', action='store_true', help='Leave the Xbox APU audio backend closed')
@@ -223,6 +225,11 @@ def main():
         for name in ('tables','levels1','levels2','levels3','levelsm','maps1','maps2','maps3','maps4','maps_en','meshes','motions','audio','music','ui'):
             dest = disc / (name + '.vpp')
             if not dest.exists(): dest.hardlink_to(ROOT / 'Installed_Game' / (name + '.vpp'))
+        # Generated DXT texture pack (tools/dds_pack.c); relink when rebuilt.
+        pack = ROOT / 'build/data/rfdds.vpp'
+        dest = disc / 'rfdds.vpp'
+        if pack.exists() and (not dest.exists() or not dest.samefile(pack)):
+            dest.unlink(missing_ok=True); dest.hardlink_to(pack)
         run = confined_path(ROOT, run)
         run.mkdir(parents=True)
         runtime_env = child_environment(ROOT, run)
@@ -247,8 +254,10 @@ def main():
         # This folder is exclusively owned by this harness; no other staging is touched.
         for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini'):
             (disc / name).unlink(missing_ok=True)
-        if args.frame_rate:
-            (disc / 'openrf.ini').write_text('[video]\nframe_rate = %s\nfallback = 30_smooth\n' % args.frame_rate)
+        ini = []
+        if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
+        if args.textures == 'original': ini.append('textures = original')
+        if ini: (disc / 'openrf.ini').write_text('[video]\n' + '\n'.join(ini) + '\n')
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         run_nonce = int.from_bytes(os.urandom(4),'little') or 1
         (disc / 'crash-run-nonce.bin').write_bytes(run_nonce.to_bytes(4,'little'))

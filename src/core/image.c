@@ -26,6 +26,10 @@ int rf_image_allocate_pixels(rf_image *image)
 }
 unsigned char *rf_image_pixel(const rf_image *image,uint32_t x,uint32_t y)
 {
+    /* Compressed blocks have no addressable texel; hand back scratch so a
+     * stray reader cannot run past the smaller allocation. */
+    static unsigned char compressed_scratch[4];
+    if(image->compressed){memset(compressed_scratch,0,4);return compressed_scratch;}
 #ifdef RF_IMAGE_XBOX_NATIVE
     uint32_t bit,index=0,destination=1;
     for(bit=1;bit<image->width || bit<image->height;bit<<=1) {
@@ -200,6 +204,7 @@ uint32_t rf_image_hash_pixels(uint32_t hash,const rf_image *image,uint32_t pixel
 {
     uint32_t x,y,k,element;
     if(!image || !image->rgba || !image->width || !image->height)return hash;
+    if(image->compressed){for(k=0;k<image->bytes;k++)hash=(hash^image->rgba[k])*16777619u;return hash;} /* Block bytes. */
     element=rf_image_is_packed_1555(image)?2u:4u;
     if(pixel_bytes==element && image->width<=4096 && image->height<=4096 &&
        (uint64_t)image->width*image->height*element==image->bytes) {
@@ -252,6 +257,41 @@ uint32_t rf_image_hash_pixels(uint32_t hash,const rf_image *image,uint32_t pixel
     return hash;
 }
 
+int rf_image_dds(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint32_t source_size,uint32_t limit,uint32_t budget)
+{
+    unsigned char h[128];uint32_t w,ht,levels,block,skip=0,offset=128,bytes=0,k,lw,lh;int status;
+    if(!image)return RF_RANGE;
+    memset(image,0,sizeof(*image));
+    if(!archive || !entry || entry->size<128)return RF_FORMAT;
+    status=rf_vpp_read(archive,entry,0,h,128);if(status)return status;
+#define DDS32(o) ((uint32_t)h[o]|(uint32_t)h[(o)+1]<<8|(uint32_t)h[(o)+2]<<16|(uint32_t)h[(o)+3]<<24)
+    if(memcmp(h,"DDS ",4) || DDS32(4)!=124 || memcmp(h+32,"RFDX",4))return RF_FORMAT;
+    if(source_size && DDS32(48) && DDS32(48)!=source_size)return RF_NOT_FOUND;
+    ht=DDS32(12);w=DDS32(16);levels=DDS32(28);
+    block=!memcmp(h+84,"DXT5",4)?16:!memcmp(h+84,"DXT1",4)?8:0;
+    if(!block || w<4 || ht<4 || w>4096 || ht>4096 || (w&(w-1)) || (ht&(ht-1)) || !levels || levels>13)return RF_FORMAT;
+    for(k=0,lw=w,lh=ht;k<levels;k++,lw/=2,lh/=2) {
+        uint32_t size;
+        if(lw<4 || lh<4)return RF_FORMAT;
+        size=(lw/4)*(lh/4)*block;
+        if(limit && (lw>limit || lh>limit) && k+1<levels){offset+=size;++skip;continue;}
+        bytes+=size;
+    }
+    if((uint64_t)offset+bytes>entry->size)return RF_FORMAT;
+    if(bytes>budget)return RF_RANGE;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    image->rgba=MmAllocateContiguousMemoryEx(bytes,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+#else
+    image->rgba=malloc(bytes);
+#endif
+    if(!image->rgba)return RF_RANGE;
+    image->width=w>>skip;image->height=ht>>skip;image->bytes=bytes;image->source_format=DDS32(36);
+    image->compressed=block==16?5:1;image->mip_levels=levels-skip;image->alpha_mode=DDS32(40);
+#undef DDS32
+    status=rf_vpp_read(archive,entry,offset,image->rgba,bytes);
+    if(status){rf_image_close(image);return status;}
+    return RF_OK;
+}
 void rf_image_close(rf_image *image)
 {
     if (!image)return;
@@ -267,6 +307,7 @@ void rf_image_close(rf_image *image)
 int rf_image_reduce(rf_image *image,uint32_t limit,uint32_t budget)
 {
     rf_image next={0};uint32_t x,y,dx,dy,sx,sy,packed;int status;
+    if(image && image->compressed)return RF_FORMAT; /* Packs carry their own mip levels. */
     if(!image || !image->rgba || !limit || limit>4096 || (limit&(limit-1)) ||
        !image->width || !image->height || image->width>4096 || image->height>4096 ||
        (image->width&(image->width-1)) || (image->height&(image->height-1)))return RF_RANGE;
