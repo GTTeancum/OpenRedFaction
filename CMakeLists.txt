@@ -1194,6 +1194,8 @@ set_tests_properties(scene_driller_bit_animation PROPERTIES WORKING_DIRECTORY ${
 
 add_executable(rf_driller_l1s2_admission_probe tests/driller_l1s2_admission_probe.c)
 target_link_libraries(rf_driller_l1s2_admission_probe PRIVATE rf_core)
+add_executable(rf_liquid_pan_scan tests/liquid_pan_scan.c)
+target_link_libraries(rf_liquid_pan_scan PRIVATE rf_core)
 add_executable(rf_rocket_material_dump tests/rocket_material_dump.c)
 target_link_libraries(rf_rocket_material_dump PRIVATE rf_core)
 add_executable(rf_driller_second_bite_probe tests/driller_second_bite_probe.c)

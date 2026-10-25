@@ -440,9 +440,10 @@ static void retained_models_begin(void);
  * includes metadata; unsupported/large levels retain the existing CPU path. */
 typedef struct retained_face {
     uint32_t start,count,material,lightmap,room,detail;float plane[4];
-    uint32_t translucent; /* Liquid surface drawn in the blended pass. */
+    uint32_t translucent; /* Liquid surface drawn in the liquid pass (blended or panned). */
+    uint32_t blended;float pan[2]; /* Alpha blend; texture mover pan, UV units/second. */
 } retained_face;
-uint32_t rf_xbox_liquid_faces[3]; /* opaque liquid faces, translucent liquid faces, translucent faces drawn last frame */
+uint32_t rf_xbox_liquid_faces[4]; /* opaque liquid faces, liquid-pass faces, liquid-pass faces drawn last frame, panned faces */
 static struct {
     const rf_geometry *source;const rf_visibility *visibility;
     rf_preview_vertex *vertices;retained_face *faces;
@@ -504,6 +505,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
          * index in start; no GPU vertex data exists yet and no extra scratch
          * allocation is needed. Sorting only descriptors after upload leaves
          * adjacent draw-order faces scattered across GPU memory. */
+        memset(rf_xbox_liquid_faces,0,sizeof(rf_xbox_liquid_faces));
         for(f=0;f<g->faces;f++) {
             rf_geometry_face face;retained_face *out=retained_world.faces+f;uint32_t lightmap=UINT32_MAX;
             status=rf_geometry_get_face(g,f,&face);if(status)return status;
@@ -515,9 +517,19 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
             if((face.flags&4u) && scene->liquid_slots && face.room<scene->liquid_rooms &&
                scene->liquid_slots[face.room]!=UINT32_MAX) {
                 out->material=scene->liquid_slots[face.room]&~RF_LIQUID_SLOT_TRANSLUCENT;
-                out->translucent=(scene->liquid_slots[face.room]&RF_LIQUID_SLOT_TRANSLUCENT)!=0;
-                ++rf_xbox_liquid_faces[out->translucent?1:0];
+                out->blended=(scene->liquid_slots[face.room]&RF_LIQUID_SLOT_TRANSLUCENT)!=0;
+                if(scene->liquid_pan)memcpy(out->pan,scene->liquid_pan[face.room],8);
+                ++rf_xbox_liquid_faces[out->blended?1:0];
             }
+            /* Authored face texture mover (original face +0x2c, matched by face
+             * id in 4e60c0) takes priority over the room liquid pan (4f0c00). */
+            {uint32_t k,id;float pan[2];
+             for(k=0;k<g->scrolls;k++){status=rf_geometry_scroll(g,k,&id,pan);if(status)return status;
+                 if(id==face.source_word){memcpy(out->pan,pan,8);break;}}}
+            /* Panned faces leave the batched opaque pass: their texture offset
+             * is set per face in the liquid pass (original 55f5e0). */
+            out->translucent=out->blended || out->pan[0]!=0 || out->pan[1]!=0;
+            rf_xbox_liquid_faces[3]+=out->pan[0]!=0 || out->pan[1]!=0;
             out->room=face.room;out->detail=face.room<g->rooms?g->data[g->room_offsets[face.room]+34]!=0:1;
             memcpy(out->plane,face.plane,16);
         }
@@ -613,6 +625,7 @@ static void retained_world_setup(void)
     p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,100);
     p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,320,240,(1000.0f/999.9f)*16777215.0f,1);
     p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,0,0,0); /* Cg literal c5. */
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,0,0,0); /* c6: texture offset, zero outside liquid panning. */
     p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
     p=pb_push1(p,NV097_SET_CONTROL0,NV097_SET_CONTROL0_Z_FORMAT_FIXED|NV097_SET_CONTROL0_TEXTURE_PERSPECTIVE_ENABLE);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
@@ -629,12 +642,18 @@ static void retained_world_setup(void)
 }
 /* Liquid surfaces after opaque world and models: authored alpha baked into
  * the texture, blended over the scene without depth writes. */
+/* Original 55f5e0 texture mover clock: the sum of rendered frame times
+ * (01ea574c += frametime). Each frame is capped at 0.1 s here so a load or
+ * a paused frame does not jump the surface. */
+static double liquid_pan_clock;static uint32_t liquid_pan_tick;
 static int retained_world_draw_liquid(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
 {
-    uint32_t f,*p,drawn=0;
+    uint32_t f,*p,drawn=0,blending=1,now=GetTickCount();
     rf_xbox_liquid_faces[2]=0;
-    if(retained_world.ready!=1 || !rf_xbox_liquid_faces[1] || (rf_xbox_experiment&1))return RF_OK;
+    if(retained_world.ready!=1 || (!rf_xbox_liquid_faces[1] && !rf_xbox_liquid_faces[3]) || (rf_xbox_experiment&1))return RF_OK;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
+    if(liquid_pan_tick)liquid_pan_clock+=fmin((double)(now-liquid_pan_tick)*.001,.1);
+    liquid_pan_tick=now?now:1;
     retained_world_setup();
     p=pb_begin();
 #include "preview_fragment.inl"
@@ -657,6 +676,11 @@ static int retained_world_draw_liquid(const rf_materials *materials,const rf_lig
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
         p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,textured?0:1,textured?1:0,face->lightmap==UINT32_MAX?.5f:1,.1f);
+        /* uv += pan * clock, wrapped like 55f5e0's whole-unit subtraction. */
+        p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,102);
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,(float)fmod(face->pan[0]*liquid_pan_clock,1.0),(float)fmod(face->pan[1]*liquid_pan_clock,1.0),0,0);
+        if(face->blended!=blending){blending=face->blended;
+            p=pb_push1(p,NV097_SET_BLEND_ENABLE,blending);p=pb_push1(p,NV097_SET_DEPTH_MASK,!blending);}
         p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);
         for(start=face->start,count=face->count;count;) {
             uint32_t batch=count>252?252:count;
@@ -665,7 +689,8 @@ static int retained_world_draw_liquid(const rf_materials *materials,const rf_lig
         }
         p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);++drawn;
     }
-    p=pb_begin();p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);pb_end(p);
+    p=pb_begin();p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+    p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,102);p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,0,0,0);pb_end(p);
     rf_xbox_liquid_faces[2]=drawn;return RF_OK;
 }
 static int retained_world_draw(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)

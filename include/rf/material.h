@@ -218,6 +218,10 @@ typedef struct rf_geometry_materials {
      * UINT32_MAX for rooms without liquid. Liquid textures never share a slot
      * with ordinary surfaces. */
     uint32_t *liquid_slots, liquid_rooms;
+    /* Per room liquid surface texture pan (UV units/second, RFL liquid
+     * pan_u/pan_v); zero when the original builds no liquid texture mover
+     * (4f0c00 requires both speeds nonzero). */
+    float (*liquid_pan)[2];
 } rf_geometry_materials;
 #define RF_LIQUID_SLOT_TRANSLUCENT 0x80000000u
 /* Shared world/mover texture residency scaffolding, not original allocation

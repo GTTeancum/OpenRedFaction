@@ -12,7 +12,11 @@ typedef struct rf_geometry {
     uint32_t vertices_offset, mapping_offset, tail_offset;
     uint32_t *texture_offsets, *room_offsets, *face_offsets;
     uint32_t room_links_offset,room_link_records;
+    uint32_t scroll_offset,scrolls; /* Texture mover records (12 bytes each). */
 } rf_geometry;
+/* Texture mover record: face id (matches rf_geometry_face.source_word, the
+ * original face +0x38 match in 4e60c0) and u/v pan in UV units per second. */
+int rf_geometry_scroll(const rf_geometry *g, uint32_t index, uint32_t *face_id, float pan[2]);
 typedef struct rf_geometry_vertex_faces {
     uint32_t *offsets,*faces,vertices,links,resident_bytes;
 } rf_geometry_vertex_faces;

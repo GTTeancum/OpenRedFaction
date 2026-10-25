@@ -807,7 +807,7 @@ typedef struct rf_scene_world_geometry {
     uint32_t geometry_count,material_count,allocated_bytes;
     float camera_position[3],camera_orientation[3][3];
     /* Per world room: liquid surface material slot (rf_geometry_materials). */
-    uint32_t *liquid_slots,liquid_rooms;
+    uint32_t *liquid_slots,liquid_rooms;float (*liquid_pan)[2];
 } rf_scene_world_geometry;
 struct rf_visibility;
 /* Optional retained static-world backend. OK takes ownership of static-world

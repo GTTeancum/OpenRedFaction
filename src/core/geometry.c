@@ -79,7 +79,8 @@ static int parse(cursor *c)
     g->textures = number(c);
     g->texture_offsets = index_array(c, g->textures, 2);
     for (i = 0; i < g->textures && !c->error; ++i) { g->texture_offsets[i] = c->at; string(c); }
-    count = number(c); take(c, (uint64_t)count * 12);
+    /* Texture movers (face id, u/v pan per second), original GTextureMover. */
+    count = number(c); g->scroll_offset = c->at; take(c, (uint64_t)count * 12); g->scrolls = c->error ? 0 : count;
     g->rooms = number(c);
     g->room_offsets = index_array(c, g->rooms, 42);
     for (i = 0; i < g->rooms && !c->error; ++i) {
@@ -358,6 +359,15 @@ int rf_geometry_texture_name(const rf_geometry *g, uint32_t index, char *name, u
     if (length >= capacity) return RF_RANGE;
     if (memchr(p + 2, 0, length)) return RF_FORMAT;
     memcpy(name, p + 2, length); name[length] = 0;
+    return RF_OK;
+}
+int rf_geometry_scroll(const rf_geometry *g, uint32_t index, uint32_t *face_id, float pan[2])
+{
+    const unsigned char *p;
+    if (!g || !g->data || !face_id || !pan || index >= g->scrolls) return RF_RANGE;
+    p = g->data + g->scroll_offset + index * 12;
+    *face_id = u32(p); pan[0] = f32(p + 4); pan[1] = f32(p + 8);
+    if (!isfinite(pan[0]) || !isfinite(pan[1])) return RF_FORMAT;
     return RF_OK;
 }
 int rf_geometry_get_face(const rf_geometry *g, uint32_t index, rf_geometry_face *face)
