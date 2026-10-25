@@ -121,6 +121,8 @@ def main():
     parser.add_argument('--save-load-every', type=int, metavar='FRAMES', help='Alternate quick-save and quick-load every FRAMES replay frames (up to 64 actions)')
     parser.add_argument('--authored-source', type=int, help='ctf06 developer destruction source UID (requires --dev-room)')
     parser.add_argument('--dev-driller', action='store_true', help='ctf06 developer room with the Driller (authored source 148)')
+    parser.add_argument('--dev-vehicle', type=int, choices=(1,2,3,4,5), help='Developer vehicle fixture: 1 Driller, 2 APC, 3 Jeep, 5 Fighter (ctf06); 4 submarine (L5S3)')
+    parser.add_argument('--dev-npc', choices=tuple('23456789AB'), help='Developer NPC fixture mode (3 grenade, 4 rocket, 5 riot shield, ...)')
     parser.add_argument('--world-arrays', action='store_true', help='Draw the retained world with draw arrays instead of inline indices')
     parser.add_argument('--load-only', action='store_true', help='With --save-load-every: save once, then only load')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
@@ -132,7 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','driller-dig','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','driller-dig','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -238,7 +240,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'player-control.flag').write_bytes(b'')
@@ -313,6 +315,19 @@ def main():
                 elif 180 <= phase < 270: look[1] = -.2
                 buttons[3] = int(90 <= phase < 160 or 210 <= phase < 280)
                 buttons[6] = int(170 <= phase < 195 or 290 <= phase < 315)
+            elif args.input == 'vehicle-hold':
+                # DEV vehicle fixtures start 8.5 units away facing the host:
+                # walk up, board once, then stay occupied under attack while
+                # driving, turning and using both fire controls.
+                if 20 <= frame < 100: move[2] = .65
+                buttons[2] = int(frame == 110)
+                if frame >= 160:
+                    phase = (frame-160) % 360
+                    move[2] = .5 if phase < 240 else -.4
+                    if 60 <= phase < 150: look[1] = .2
+                    elif 180 <= phase < 270: look[1] = -.2
+                    buttons[3] = int(90 <= phase < 160 or 210 <= phase < 280)
+                    buttons[6] = int(170 <= phase < 195 or 290 <= phase < 315)
             elif args.input == 'driller-dig':
                 # ctf06 Driller fixture: walk up facing it, one Use to board,
                 # then drive forward with the drill held, sweeping slowly.
@@ -372,6 +387,8 @@ def main():
         if args.dev_room: (disc / 'dev-room.flag').write_bytes(b'1')
         if args.authored_source is not None: (disc / 'authored-source.bin').write_bytes(struct.pack('<I', args.authored_source))
         if args.dev_driller: (disc / 'vehicle-test.flag').write_text('1')
+        if args.dev_vehicle: (disc / 'vehicle-test.flag').write_text(str(args.dev_vehicle))
+        if args.dev_npc: (disc / 'dev-npc.flag').write_text(args.dev_npc)
         if args.firearms: (disc / 'firearms-test.flag').write_text(str(args.firearms))
         if args.actor is not None and args.distance is None:
             (disc / 'campaign-actor.bin').write_bytes(struct.pack('<I',args.actor))
@@ -515,6 +532,8 @@ dvd_path = '{iso.as_posix()}'
                                 if not line.startswith('RFLOG '):continue
                                 try:value=json.loads(line[6:])
                                 except json.JSONDecodeError:continue
+                                # A torn mirror read can parse yet omit fields; wait for a whole sample.
+                                if 'rf_player_replay_diagnostic' not in value or 'rf_diagnostic' not in value:continue
                                 key=(value['rf_player_replay_diagnostic'][2],value['rf_diagnostic'][2],
                                      tuple(value.get('rf_xbox_startup_trace',[])))
                                 if key not in seen_samples:

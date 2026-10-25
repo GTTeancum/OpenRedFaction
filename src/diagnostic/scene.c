@@ -23213,6 +23213,14 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
             record->position[0]=-24.7f;record->position[1]=-15.9f;record->position[2]=5.f;
             record->orientation[0][2]=1;record->orientation[2][0]=-1;
         }
+        if(rf_scene_vehicle_enabled>=1 && rf_scene_vehicle_enabled<=3 &&
+           (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4)){
+            /* Crash-hunt attacker 10 units behind the ctf06 vehicle fixture
+             * (player start 30,5,-158.5 facing the host at z-167). */
+            record->position[0]=30;record->position[1]=5;record->position[2]=-148.5f;
+            memset(record->orientation,0,36);record->orientation[0][0]=-1;
+            record->orientation[1][1]=1;record->orientation[2][2]=-1;
+        }
         if(rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9){
             /* Isolated CTF06 translating-platform rider fixture. */
             record->position[0]=9.449f;record->position[1]=7.f;record->position[2]=2.5f;

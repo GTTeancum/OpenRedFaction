@@ -1,5 +1,9 @@
 #ifndef RF_SCENE_ALARM_RUNNER_INCLUDED
 #define RF_SCENE_ALARM_RUNNER_INCLUDED
+/* Last refused sight query: stage (1 authored,2 player admit,3 obstruction,
+ * 4 player seal,5 identity,6 request), status, frame. */
+uint32_t rf_scene_alarm_sight_fail[3];
+#define ALARM_SIGHT_FAIL(stage_,status_) (rf_scene_alarm_sight_fail[0]=(stage_),rf_scene_alarm_sight_fail[1]=(uint32_t)(status_),rf_scene_alarm_sight_fail[2]=frame,(status_))
 /* Original4087a0 +4049b0/404a30. Bounded on-foot player damage/sight
  * consumers reuse the existing practical route/movement and sight policy.
  * No new perception, arbitrary destinations or actor/animation pools. */
@@ -30,6 +34,9 @@ static int scene_alarm_runner_authored(uint32_t slot,uint32_t *uid,const rf_leve
     const uint8_t *raw;uint32_t at=4,bytes,cls;rf_runtime_event *e;int status;
     if(!uid||!event||!campaign_seeds.items||!campaign_seeds.classes||!campaign_seeds.records.items||
        slot>=campaign_seeds.records.count)return RF_RANGE;
+    /* DEV fixtures copy a multiplayer (ctf06) record whose tail is not the
+     * campaign layout parsed below; the developer room has no alarm events. */
+    if(rf_scene_dev_room_enabled)return RF_NOT_FOUND;
     record=campaign_seeds.records.items+slot;cls=campaign_seeds.items[slot].class_index;
     if(cls>=campaign_seeds.class_count)return RF_FORMAT;
     if((campaign_seeds.classes[cls].physics.flags&0x20011u)!=0x20011u||
@@ -220,18 +227,19 @@ static int scene_alarm_runner_sight(scene_stream *stream,uint32_t slot,uint32_t 
        !campaign_enemy_mode_admits(o,1,0)||
        !isfinite(campaign_player_damage.state.effects.health)||campaign_player_damage.state.effects.health<=0||
        (campaign_player_form.active&&!campaign_player_form.compromised))return RF_OK;
-    status=scene_alarm_runner_authored(slot,&uid,&event);if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
-    status=scene_npc_reload_player_admit(stream,&player);if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
+    status=scene_alarm_runner_authored(slot,&uid,&event);if(status==RF_NOT_FOUND)return RF_OK;if(status)return ALARM_SIGHT_FAIL(1,status);
+    status=scene_npc_reload_player_admit(stream,&player);if(status==RF_NOT_FOUND)return RF_OK;if(status)return ALARM_SIGHT_FAIL(2,status);
     if(!campaign_enemy_opposed_cone(o,player_eye,delta,&distance))return RF_OK;
     handle=o->registration.handle;epoch=scene_alarm_runner_epoch;
-    status=combat_obstructed(stream,o->eye_position,delta,&blocked);if(status)return status;
+    status=combat_obstructed(stream,o->eye_position,delta,&blocked);if(status)return ALARM_SIGHT_FAIL(3,status);
     if(blocked)return RF_OK;
     /* The query is synchronous and gameplay-inert. Authenticate its actual
      * player/body/stream and runner identity before resource/route admission. */
-    status=scene_npc_reload_player_seal(stream,&player);if(status)return status;
+    status=scene_npc_reload_player_seal(stream,&player);if(status)return ALARM_SIGHT_FAIL(4,status);
     if(epoch!=scene_alarm_runner_epoch||slot>=campaign_npc_body_count||o!=campaign_npc_bodies+slot||
-       o->registration.handle!=handle||!campaign_enemy_opposed_live(o))return RF_FORMAT;
-    return scene_alarm_runner_request(o,player.player,scene_medic_now(frame),SCENE_ALARM_TRIGGER_SIGHT,handled);
+       o->registration.handle!=handle||!campaign_enemy_opposed_live(o))return ALARM_SIGHT_FAIL(5,RF_FORMAT);
+    status=scene_alarm_runner_request(o,player.player,scene_medic_now(frame),SCENE_ALARM_TRIGGER_SIGHT,handled);
+    return status?ALARM_SIGHT_FAIL(6,status):RF_OK;
 }
 static int scene_alarm_runner_live_present(uint32_t *out)
 {
