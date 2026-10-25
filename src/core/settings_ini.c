@@ -3,7 +3,7 @@
 void rf_settings_defaults(rf_settings *s)
 {
     memset(s,0,sizeof(*s));
-    s->frame_rate=RF_FRAME_RATE_60;s->fallback=RF_FRAME_RATE_30_SMOOTH;s->smooth_characters=1;s->flicker_filter=UINT32_MAX;s->compressed_textures=1;s->resolution=480;
+    s->frame_rate=RF_FRAME_RATE_60;s->fallback=RF_FRAME_RATE_30_SMOOTH;s->smooth_characters=1;s->flicker_filter=UINT32_MAX;s->compressed_textures=1;s->resolution=480;s->color_depth=32;
 }
 static int lower(int c){return c>='A' && c<='Z'?c-'A'+'a':c;}
 static int same(const char *a,uint32_t n,const char *b)
@@ -49,6 +49,10 @@ void rf_settings_parse(rf_settings *s,const char *text,uint32_t bytes)
             if(same(value,vn,"480"))s->resolution=480;
             else if(same(value,vn,"720"))s->resolution=720;
             else if(same(value,vn,"auto"))s->resolution=0;
+            else ++s->invalid;
+        } else if(same(key,kn,"color_depth")) {
+            if(same(value,vn,"32"))s->color_depth=32;
+            else if(same(value,vn,"16"))s->color_depth=16;
             else ++s->invalid;
         } else if(same(key,kn,"textures")) {
             if(same(value,vn,"compressed"))s->compressed_textures=1;

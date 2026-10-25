@@ -240,7 +240,7 @@ def save_screenshot(host, path):
 
 
 
-def save_framebuffer(host, path, width, height, fallback_phys=0):
+def save_framebuffer(host, path, width, height, fallback_phys=0, bpp=32):
     """Capture the displayed picture of a title that draws without D3D
     (xbdm 'screenshot' cannot find its surface). Breaks the title so the
     buffer is stable, reads the scanout address (PCRTC_START, NV base
@@ -256,7 +256,7 @@ def save_framebuffer(host, path, width, height, fallback_phys=0):
                 phys = struct.unpack('<I', x.getmem(0xFD600800, 4))[0] & 0x03FFFFFF
             except RuntimeError:
                 phys = fallback_phys & 0x03FFFFFF
-            pitch = width * 4
+            pitch = width * (2 if bpp == 16 else 4)
             data = None
             for base in (0xF0000000, 0x80000000):
                 try:
@@ -270,5 +270,8 @@ def save_framebuffer(host, path, width, height, fallback_phys=0):
             x.ok('go')
     finally:
         x.close()
-    Image.frombytes('RGB', (width, height), data, 'raw', 'BGRX').save(path)
-    return {'phys': phys, 'base': hex(base), 'width': width, 'height': height}
+    if bpp == 16:
+        Image.frombytes('RGB', (width, height), data, 'raw', 'BGR;16').save(path)
+    else:
+        Image.frombytes('RGB', (width, height), data, 'raw', 'BGRX').save(path)
+    return {'phys': phys, 'base': hex(base), 'width': width, 'height': height, 'bpp': bpp}

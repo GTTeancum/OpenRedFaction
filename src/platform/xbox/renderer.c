@@ -141,7 +141,7 @@ static void screen_mode_setup(void)
     screen_wide=vm.width==1280 && vm.height==720;
     if(screen_wide){screen_width=1280;screen_height=720;screen_scale_x=2;screen_scale_y=1.5f;hud_scale=1.5f;hud_offset_x=160;rf_scene_view_squeeze=.75f;}
     else {screen_width=640;screen_height=480;screen_scale_x=screen_scale_y=hud_scale=1;hud_offset_x=0;rf_scene_view_squeeze=1;}
-    rf_xbox_screen[0]=screen_width;rf_xbox_screen[1]=screen_height;rf_xbox_screen[2]=(uint32_t)(screen_scale_x*1000);rf_xbox_screen[3]=screen_wide;
+    rf_xbox_screen[0]=screen_width;rf_xbox_screen[1]=screen_height;rf_xbox_screen[2]=(uint32_t)(screen_scale_x*1000);rf_xbox_screen[3]=screen_wide|((uint32_t)vm.bpp<<8);
 }
 static void screen_c95(float sx,float sy,float ox)
 {
@@ -155,6 +155,7 @@ static void screen_constants(void)
     uint32_t *p,c;
     screen_c95(screen_scale_x,screen_scale_y,0);
     p=pb_begin();
+    p=pb_push1(p,NV097_SET_DITHER_ENABLE,XVideoGetMode().bpp==16); /* Hide 16-bit banding. */
     for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,(screen_width-1)<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,(screen_height-1)<<16);}
     pb_end(p);
 }
@@ -180,6 +181,8 @@ static int device_open(void)
     /* Read the bisect switch before any GPU setup so every mode is honoured. */
     bits=fopen("D:\\render-overlap.bin","rb"); /* Previously "D:\r...": a carriage return, never opened. */
     if(bits){uint32_t mode=0;if(fread(&mode,4,1,bits)==1 && mode<=3)rf_xbox_render_sync=mode;fclose(bits);}
+    /* 16-bit video modes (openrf.ini color_depth = 16) take R5G6B5 frame buffers. */
+    if(XVideoGetMode().bpp==16)pb_set_color_format(NV097_SET_SURFACE_FORMAT_COLOR_LE_R5G6B5,false);
     if(pb_init())return RF_IO;
     stream_device_ready=1;screen_mode_setup();
     pb_reset();ring_head=NULL;ring_lap=0;gpu_free_collect(1);

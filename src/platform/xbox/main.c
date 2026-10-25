@@ -80,8 +80,9 @@ static void video_mode_open(void)
     DWORD encoder=XVideoGetEncoderSettings();uint32_t hdtv=(encoder&VIDEO_ADAPTER_MASK)==AV_PACK_HDTV;
     uint32_t progressive=hdtv && (encoder&VIDEO_MODE_480P)!=0,flicker;
     /* 720p only on request (resolution = 720/auto) and when the dashboard allows it. */
-    if(!(xbox_settings.resolution!=480 && hdtv && (encoder&VIDEO_MODE_720P) && XVideoSetMode(1280,720,32,REFRESH_DEFAULT)))
-        XVideoSetMode(640,480,32,REFRESH_DEFAULT);
+    int bpp=xbox_settings.color_depth==16?16:32;
+    if(!(xbox_settings.resolution!=480 && hdtv && (encoder&VIDEO_MODE_720P) && XVideoSetMode(1280,720,bpp,REFRESH_DEFAULT)))
+        XVideoSetMode(640,480,bpp,REFRESH_DEFAULT);
     if(XVideoGetMode().height==720)progressive=1;
     flicker=xbox_settings.flicker_filter<=5?xbox_settings.flicker_filter:progressive?0u:2u;
     XVideoSetFlickerFilter((int)flicker);XVideoSetSoftenFilter(FALSE);

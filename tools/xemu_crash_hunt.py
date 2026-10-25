@@ -152,6 +152,8 @@ def main():
                         help='original writes textures = original into openrf.ini (pack still staged)')
     parser.add_argument('--resolution', choices=('480','720'), default='480',
                         help='720: openrf.ini resolution = 720; xemu also gets an HDTV pack and 720p/480p enabled in its EEPROM')
+    parser.add_argument('--color-depth', choices=('32','16'), default='32',
+                        help='16 writes color_depth = 16 into openrf.ini')
     parser.add_argument('--screenshots', type=int, default=0,
                         help='xemu + qmp-telemetry only: N QMP screendumps spread through the replay')
     parser.add_argument('--render-sync', type=int, choices=range(4), default=0,
@@ -262,6 +264,7 @@ def main():
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
         if args.textures == 'original': ini.append('textures = original')
         if args.resolution == '720': ini.append('resolution = 720')
+        if args.color_depth == '16': ini.append('color_depth = 16')
         if ini: (disc / 'openrf.ini').write_text('[video]\n' + '\n'.join(ini) + '\n')
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         run_nonce = int.from_bytes(os.urandom(4),'little') or 1
@@ -606,7 +609,8 @@ dvd_path = '{iso.as_posix()}'
                                 name=f'shot_{shots_taken:02d}.png'
                                 screen=sample.get('rf_xbox_screen') or [640,480]
                                 hazard=sample.get('rf_xbox_scanout_hazard') or [0,0,0]
-                                info=xbox_hw.save_framebuffer(args.xbox_host,str(run/name),screen[0] or 640,screen[1] or 480,hazard[2])
+                                info=xbox_hw.save_framebuffer(args.xbox_host,str(run/name),screen[0] or 640,screen[1] or 480,hazard[2],
+                                    16 if len(screen)>3 and (screen[3]>>8)==16 else 32)
                             else:
                                 name=f'shot_{shots_taken:02d}.ppm';info=None
                                 monitor.command('screendump',{'filename':str(run/name)})
