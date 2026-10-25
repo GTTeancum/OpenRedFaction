@@ -17606,6 +17606,9 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
             int32_t weapon=rf_scene_dev_npc_enabled==5?scene_npc_shields.weapon:rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
             int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
             npc->inventory.owned[weapon]=1;if(ammo>=0 && ammo<32)npc->inventory.reserve[ammo]=3;
+            /* Vehicle crash-hunt attacker: the weapon's authored capacity, so it can
+             * keep attacking a hull for the whole run (fixture setup only). */
+            if(rf_scene_vehicle_enabled && ammo>=0 && ammo<32)npc->inventory.reserve[ammo]=campaign_weapon_supply.definitions[weapon].capacity;
             if(rf_scene_dev_npc_enabled==4)npc->inventory.loaded[weapon]=1;
             npc->view.weapons[0]=weapon;
             status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,

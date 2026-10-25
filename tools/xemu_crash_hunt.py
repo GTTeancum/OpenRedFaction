@@ -243,9 +243,11 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin'):
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
+        run_nonce = int.from_bytes(os.urandom(4),'little') or 1
+        (disc / 'crash-run-nonce.bin').write_bytes(run_nonce.to_bytes(4,'little'))
         (disc / 'player-control.flag').write_bytes(b'')
         (disc / 'scene-preview.flag').write_bytes(b'')
         (disc / 'diagnostic-checksums-off.flag').write_bytes(b'')
@@ -548,6 +550,7 @@ dvd_path = '{iso.as_posix()}'
                                 except json.JSONDecodeError:continue
                                 # A torn mirror read can parse yet omit fields; wait for a whole sample.
                                 if 'rf_player_replay_diagnostic' not in value or 'rf_diagnostic' not in value:continue
+                                if value.get('rf_xbox_run_nonce',[run_nonce])[0]!=run_nonce:continue
                                 key=(value['rf_player_replay_diagnostic'][2],value['rf_diagnostic'][2],
                                      tuple(value.get('rf_xbox_startup_trace',[])))
                                 if key not in seen_samples:

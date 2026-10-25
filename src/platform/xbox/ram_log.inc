@@ -90,10 +90,14 @@ static void rf_ram_log_sample(uint32_t force)
 {
     static int initialized,enabled;
     static uint32_t previous=UINT32_MAX;
-    static char text[12288];
+    static char text[12288];static uint32_t rf_xbox_run_nonce[1];
     size_t used=0;int count;
     if(!initialized){FILE *f=tester_profile?NULL:fopen("D:\\crash-ram-log.flag","rb");
-        initialized=1;enabled=f!=NULL;if(f)fclose(f);}
+        initialized=1;enabled=f!=NULL;if(f)fclose(f);
+        /* Harness run identity: lines left in memory by an earlier run carry
+         * a different value and are ignored by the reader. */
+        if(enabled && (f=fopen("D:\\crash-run-nonce.bin","rb"))!=NULL){
+            if(fread(rf_xbox_run_nonce,4,1,f)!=1)rf_xbox_run_nonce[0]=0;fclose(f);}}
     if(!enabled)return;
     uint32_t frame=rf_player_replay_diagnostic[2];
     if(!force && (frame==previous || frame%60))return;
@@ -102,6 +106,7 @@ static void rf_ram_log_sample(uint32_t force)
         rf_xbox_live_memory[1]=m.VirtualMemoryBytesCommitted>>12;rf_xbox_live_memory[2]=m.PoolPagesCommitted;rf_xbox_live_memory[3]=m.StackPagesCommitted;}}
     used=(size_t)snprintf(text,sizeof(text),"RFLOG {");
 #define RAM_ARRAY(name,n) do {     count=snprintf(text+used,sizeof(text)-used,"\"" #name "\":[");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;     for(uint32_t i=0;i<(n);i++){uint32_t word;memcpy(&word,(const void*)((const unsigned char*)(name)+i*4),4);         count=snprintf(text+used,sizeof(text)-used,"%s%u",i?",":"",word);         if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;}     count=snprintf(text+used,sizeof(text)-used,"],");     if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count; } while(0)
+    RAM_ARRAY(rf_xbox_run_nonce,1);
     RAM_ARRAY(rf_diagnostic,58);
     RAM_ARRAY(&rf_xbox_load_stage,1);
     RAM_ARRAY(rf_xbox_startup_trace,4);
