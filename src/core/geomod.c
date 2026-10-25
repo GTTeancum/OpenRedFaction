@@ -3109,6 +3109,173 @@ int rf_geomod_terrain_cut_template_checked(rf_geomod_terrain *t,const rf_geomod_
     mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
     return terrain_cut_star_checked(t,&mesh,kernel,check,context);
 }
+/* Port policy, not original reconstruction: the original Driller (421310)
+ * keeps up to 25 accepted bites, but this core replays at most
+ * RF_GEOMOD_CUT_LIMIT stacked cutters and two overlapping jagged bits
+ * fragment a wall past its buffers. A tunnel is therefore one convex cutter
+ * circumscribing every point of the previous cutter and the new bite: support
+ * planes in fixed directions of the new bite's basis (around the axis, 45
+ * degrees fore and aft, and both axial caps), each face the plane's square
+ * clipped by every other half-space, fan-triangulated outward. */
+#define TUNNEL_RING 8u
+#define TUNNEL_PLANES (3u*TUNNEL_RING+2u)
+typedef struct tunnel_work {
+    double poly[TUNNEL_PLANES][64][3],clip[2][64][3],unique[TUNNEL_PLANES*64][3],t1[TUNNEL_PLANES][3],t2[TUNNEL_PLANES][3];
+    uint32_t count[TUNNEL_PLANES],index[TUNNEL_PLANES][64];
+} tunnel_work;
+static double tunnel_turn(const double *a,const double *b,const double *c,const double *m)
+{
+    double u[3],w[3],dot=0;uint32_t k;
+    for(k=0;k<3;k++){u[k]=b[k]-a[k];w[k]=c[k]-b[k];}
+    for(k=0;k<3;k++)dot+=(u[(k+1)%3]*w[(k+2)%3]-u[(k+2)%3]*w[(k+1)%3])*m[k];
+    return dot;
+}
+static int tunnel_polytope(const double (*points)[3],uint32_t count,const float basis[9],uint32_t material,uint32_t tilted,
+    rf_geomod_vertex vertices[RF_GEOMOD_STAR_VERTEX_LIMIT],rf_geomod_face faces[RF_GEOMOD_STAR_FACE_LIMIT],float kernel[3],uint32_t *face_count)
+{
+    double normals[TUNNEL_PLANES][3],offsets[TUNNEL_PLANES],center[3]={0},reach=0,sum[3]={0};
+    uint32_t planes=0,i,j,k,p,n,bank,triangles=0,unique=0;tunnel_work *w;int status=RF_OK;
+    if(!points || count<4 || !basis || !vertices || !faces || !kernel || !face_count)return RF_RANGE;
+    for(i=0;i<TUNNEL_RING;i++) {
+        double angle=i*(6.283185307179586/TUNNEL_RING),c=cos(angle),s=sin(angle),ring[3];
+        for(k=0;k<3;k++)ring[k]=c*basis[k]+s*basis[3+k];
+        memcpy(normals[planes++],ring,sizeof(ring));
+        if(tilted)for(j=0;j<2;j++){for(k=0;k<3;k++)normals[planes][k]=(ring[k]+(j?-1:1)*basis[6+k])*.7071067811865476;planes++;}
+    }
+    for(j=0;j<2;j++){for(k=0;k<3;k++)normals[planes][k]=(j?-1:1)*(double)basis[6+k];planes++;}
+    for(i=0;i<count;i++)for(k=0;k<3;k++){if(!isfinite(points[i][k]))return RF_FORMAT;center[k]+=points[i][k]/count;}
+    for(i=0;i<count;i++){double d=0;for(k=0;k<3;k++)d+=(points[i][k]-center[k])*(points[i][k]-center[k]);if(d>reach)reach=d;}
+    reach=4*sqrt(reach)+1;
+    for(p=0;p<planes;p++){double length=0;
+        for(k=0;k<3;k++)length+=normals[p][k]*normals[p][k];length=sqrt(length);if(length<.5)return RF_FORMAT;
+        for(k=0;k<3;k++)normals[p][k]/=length;
+        offsets[p]=-DBL_MAX;for(i=0;i<count;i++){double d=0;for(k=0;k<3;k++)d+=points[i][k]*normals[p][k];if(d>offsets[p])offsets[p]=d;}
+    }
+    w=calloc(1,sizeof(*w));if(!w)return RF_IO;
+    /* 1: each face is its plane's square clipped by every other half-space. */
+    for(p=0;p<planes;p++) {
+        const double *m=normals[p];double *t1=w->t1[p],*t2=w->t2[p],q[3],length=0;
+        /* t1 x t2 == m: corners wind counterclockwise about the outward
+         * normal, matching the original templates. */
+        if(fabs(m[0])<.9){t1[0]=0;t1[1]=-m[2];t1[2]=m[1];}else{t1[0]=m[2];t1[1]=0;t1[2]=-m[0];}
+        for(k=0;k<3;k++)length+=t1[k]*t1[k];length=sqrt(length);for(k=0;k<3;k++)t1[k]/=length;
+        t2[0]=m[1]*t1[2]-m[2]*t1[1];t2[1]=m[2]*t1[0]-m[0]*t1[2];t2[2]=m[0]*t1[1]-m[1]*t1[0];
+        for(length=offsets[p],k=0;k<3;k++)length-=center[k]*m[k];
+        for(k=0;k<3;k++)q[k]=center[k]+length*m[k];
+        for(k=0;k<3;k++){w->clip[0][0][k]=q[k]-reach*t1[k]-reach*t2[k];w->clip[0][1][k]=q[k]+reach*t1[k]-reach*t2[k];
+            w->clip[0][2][k]=q[k]+reach*t1[k]+reach*t2[k];w->clip[0][3][k]=q[k]-reach*t1[k]+reach*t2[k];}
+        n=4;bank=0;
+        for(j=0;j<planes && n;j++)if(j!=p) {
+            uint32_t out=0;
+            for(i=0;i<n;i++) {
+                const double *a=w->clip[bank][i],*b=w->clip[bank][(i+1)%n];double da=-offsets[j],db=-offsets[j];
+                for(k=0;k<3;k++){da+=a[k]*normals[j][k];db+=b[k]*normals[j][k];}
+                if(da<=1e-9){if(out==64){status=RF_RANGE;goto done;}memcpy(w->clip[bank^1][out++],a,sizeof(w->clip[0][0]));}
+                if((da<=1e-9)!=(db<=1e-9)){double t=da/(da-db);if(out==64){status=RF_RANGE;goto done;}
+                    for(k=0;k<3;k++)w->clip[bank^1][out][k]=a[k]+t*(b[k]-a[k]);out++;}
+            }
+            n=out;bank^=1;
+        }
+        memcpy(w->poly[p],w->clip[bank],n*sizeof(w->clip[0][0]));w->count[p]=n;
+    }
+    /* 2: weld corners shared by neighbouring faces to one exact position. */
+    for(p=0;p<planes;p++) {
+        for(i=0,n=0;i<w->count[p];i++) {
+            const double *a=w->poly[p][i];uint32_t u;
+            for(u=0;u<unique;u++){double e=0;for(k=0;k<3;k++)e+=(a[k]-w->unique[u][k])*(a[k]-w->unique[u][k]);if(e<1e-8)break;}
+            if(u==unique)memcpy(w->unique[unique++],a,sizeof(w->unique[0]));
+            if(n && w->index[p][n-1]==u)continue;
+            w->index[p][n++]=u;
+        }
+        while(n>1 && w->index[p][n-1]==w->index[p][0])n--;
+        w->count[p]=n<3?0:n;
+    }
+    for(i=0;i<unique;i++)for(k=0;k<3;k++)w->unique[i][k]=(float)w->unique[i][k];
+    /* 3: a welded corner inside a face edge joins that face too, so every
+     * triangle edge meets exactly one opposite edge. */
+    for(p=0;p<planes;p++)for(i=0;i<w->count[p];i++) {
+        const double *a=w->unique[w->index[p][i]],*b=w->unique[w->index[p][(i+1)%w->count[p]]];
+        double d[3],length=0,best=2;uint32_t u,pick=UINT32_MAX;
+        for(k=0;k<3;k++){d[k]=b[k]-a[k];length+=d[k]*d[k];}
+        if(length<=0)continue;
+        for(u=0;u<unique;u++) {
+            double t=0,e=0;if(u==w->index[p][i] || u==w->index[p][(i+1)%w->count[p]])continue;
+            for(k=0;k<3;k++)t+=(w->unique[u][k]-a[k])*d[k];t/=length;
+            if(t<=1e-6 || t>=1-1e-6 || t>=best)continue;
+            for(k=0;k<3;k++){double q=w->unique[u][k]-a[k]-t*d[k];e+=q*q;}
+            if(e<1e-8){best=t;pick=u;}
+        }
+        if(pick!=UINT32_MAX) {
+            if(w->count[p]==64){status=RF_RANGE;goto done;}
+            memmove(w->index[p]+i+2,w->index[p]+i+1,(w->count[p]-i-1)*sizeof(uint32_t));
+            w->index[p][i+1]=pick;w->count[p]++; /* The shortened edge is revisited next. */
+        }
+    }
+    /* 4: fan from a corner whose incident edges carry no straight-run point,
+     * so no triangle is flat. */
+    for(p=0;p<planes;p++) {
+        uint32_t m=w->count[p],origin=UINT32_MAX;
+        if(m<3)continue;
+        for(i=0;i<m && origin==UINT32_MAX;i++) {
+            const double *a=w->unique[w->index[p][(i+m-2)%m]],*b=w->unique[w->index[p][(i+m-1)%m]],*c=w->unique[w->index[p][i]];
+            const double *d=w->unique[w->index[p][(i+1)%m]],*e=w->unique[w->index[p][(i+2)%m]];
+            if(tunnel_turn(b,c,d,normals[p])>1e-7 && (m==3 || (tunnel_turn(a,b,c,normals[p])>1e-7 && tunnel_turn(c,d,e,normals[p])>1e-7)))origin=i;
+        }
+        if(origin==UINT32_MAX){status=RF_FORMAT;goto done;}
+        for(i=1;i+1<m;i++) {
+            const uint32_t ids[3]={w->index[p][origin],w->index[p][(origin+i)%m],w->index[p][(origin+i+1)%m]};
+            if(triangles==RF_GEOMOD_STAR_FACE_LIMIT){status=RF_RANGE;goto done;}
+            for(j=0;j<3;j++) {
+                rf_geomod_vertex *out=vertices+triangles*3+j;const double *v=w->unique[ids[j]];
+                for(k=0;k<3;k++)out->position[k]=(float)v[k];
+                out->uv[0]=out->uv[1]=0;
+                for(k=0;k<3;k++){out->uv[0]+=(float)(v[k]*w->t1[p][k]*.25);out->uv[1]+=(float)(v[k]*w->t2[p][k]*.25);}
+            }
+            faces[triangles]=(rf_geomod_face){triangles*3,3,material,UINT32_MAX};triangles++;
+        }
+    }
+    if(triangles<4 || unique<4){status=RF_FORMAT;goto done;}
+    for(i=0;i<unique;i++)for(k=0;k<3;k++)sum[k]+=w->unique[i][k];
+    for(k=0;k<3;k++)kernel[k]=(float)(sum[k]/unique);
+    *face_count=triangles;
+done:
+    free(w);return status;
+}
+int rf_geomod_terrain_merge_template_checked(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material,
+    const rf_geomod_shallow_limit *limits,uint32_t limit_count,rf_geomod_terrain_check_fn check,void *context)
+{
+    rf_geomod_vertex bite[RF_GEOMOD_STAR_VERTEX_LIMIT],vertices[RF_GEOMOD_STAR_VERTEX_LIMIT],saved_vertices[RF_GEOMOD_STAR_VERTEX_LIMIT];
+    rf_geomod_face bite_faces[RF_GEOMOD_STAR_FACE_LIMIT],faces[RF_GEOMOD_STAR_FACE_LIMIT],saved_faces[RF_GEOMOD_STAR_FACE_LIMIT];
+    double points[2*RF_GEOMOD_STAR_VERTEX_LIMIT][3];rf_geomod_mesh_view mesh,saved_view;
+    float bite_kernel[3],kernel[3],saved_kernel[3];uint32_t slot,count=0,i,k,triangles=0,saved_mask;int status;
+    if(!t || !t->count)return RF_RANGE;
+    slot=t->count-1;if(!((t->star_mask>>slot)&1u) || t->cuts[slot].vertex_count>RF_GEOMOD_STAR_VERTEX_LIMIT)return RF_RANGE;
+    status=template_prepare(shape,center,basis,scale,material,limits,limit_count,bite,bite_faces,bite_kernel);if(status)return status;
+    for(i=0;i<t->cuts[slot].vertex_count;i++,count++)for(k=0;k<3;k++)points[count][k]=t->cuts[slot].vertices[i].position[k];
+    for(i=0;i<shape->face_count*3;i++,count++)for(k=0;k<3;k++)points[count][k]=bite[i].position[k];
+    status=tunnel_polytope((const double (*)[3])points,count,basis,material,1,vertices,faces,kernel,&triangles);
+    if(status==RF_RANGE)status=tunnel_polytope((const double (*)[3])points,count,basis,material,0,vertices,faces,kernel,&triangles);
+    if(status)return status;
+    mesh=(rf_geomod_mesh_view){vertices,faces,triangles*3,triangles,0};
+    status=star_mesh_planes(&mesh,kernel,t->work.star_planes[slot]);if(status)return status;
+    /* Replace in place; restore the previous cutter if the rebuild refuses. */
+    saved_view=t->cuts[slot];saved_mask=t->star_mask;memcpy(saved_kernel,t->kernels[slot],12);
+    memcpy(saved_vertices,t->cut_vertices[slot],saved_view.vertex_count*sizeof(*saved_vertices));
+    memcpy(saved_faces,t->cut_faces[slot],saved_view.face_count*sizeof(*saved_faces));
+    memcpy(t->cut_vertices[slot],vertices,mesh.vertex_count*sizeof(*vertices));
+    memcpy(t->cut_faces[slot],faces,mesh.face_count*sizeof(*faces));
+    memcpy(t->kernels[slot],kernel,12);
+    t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],mesh.vertex_count,mesh.face_count,0};
+    status=terrain_publish_checked(t,t->count,check,context);
+    if(status) {
+        memcpy(t->cut_vertices[slot],saved_vertices,saved_view.vertex_count*sizeof(*saved_vertices));
+        memcpy(t->cut_faces[slot],saved_faces,saved_view.face_count*sizeof(*saved_faces));
+        memcpy(t->kernels[slot],saved_kernel,12);t->star_mask=saved_mask;
+        t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],saved_view.vertex_count,saved_view.face_count,0};
+    }
+    return status;
+}
 int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *t,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t limit_count)

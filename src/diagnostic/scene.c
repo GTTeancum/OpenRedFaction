@@ -969,6 +969,10 @@ typedef struct scene_stream {
     rf_geomod_shallow_history terrain_history[128];uint16_t terrain_requested[128][3];
     uint32_t terrain_history_count; /* DEV rocket path: template0, room0. */
     float terrain_history_minimum[3],terrain_history_maximum[3];
+    /* Driller tunnel (port policy, see rf_geomod_terrain_merge_template_checked):
+     * last accepted bite, publication serial and each source's tunnel kernel. */
+    float drill_tunnel_center[3],drill_tunnel_forward[3],drill_tunnel_kernel[4][3];
+    uint32_t drill_tunnel_serial,drill_tunnel_mask,terrain_merge_request;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t *terrain_face_offsets;
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;

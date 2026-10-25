@@ -596,6 +596,15 @@ int rf_geomod_terrain_reset_checked(rf_geomod_terrain *,rf_geomod_terrain_check_
 int rf_geomod_terrain_cut_template_checked(rf_geomod_terrain *,const rf_geomod_template *,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t count,rf_geomod_terrain_check_fn check,void *context);
+/* Driller tunnel: replace the LAST star cutter with one convex cutter that
+ * circumscribes it and the prepared new template placement, oriented by the
+ * new basis (at most RF_GEOMOD_STAR_FACE_LIMIT triangles). Cut count is
+ * unchanged. RF_RANGE when there is no star cutter to extend. On any refusal
+ * the previous cutter, mesh and collision are restored. Port policy for the
+ * stacked-cut limit; the original keeps separate bites. */
+int rf_geomod_terrain_merge_template_checked(rf_geomod_terrain *,const rf_geomod_template *,
+    const float center[3],const float basis[9],float scale,uint32_t material,
+    const rf_geomod_shallow_limit *limits,uint32_t count,rf_geomod_terrain_check_fn check,void *context);
 /* RGCH/version1 little-endian committed-cutter checkpoint, maximum RF_GEOMOD_HISTORY_MAX_BYTES.
  * Size query/encode allocate nothing; encode requires exactly the queried size.
  * Decode replaces successful cutter history and atomically rebuilds mesh/tree.

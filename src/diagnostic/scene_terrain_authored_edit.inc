@@ -16,13 +16,32 @@ static int scene_authored_edit_create(void *opaque,uint32_t budget,rf_geomod_ter
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,budget,out);if(status)return status;
     return rf_geomod_terrain_set_mapping(*out,s->terrain_texture_width,s->terrain_texture_height);
 }
+/* Source slot of an authored owner: collection index, or 0 for one source. */
+static uint32_t scene_authored_source_slot(const scene_stream *s,const scene_terrain_authored_assets *a)
+{
+    uint32_t i;if(!s->terrain_source_count)return 0;
+    for(i=0;i<s->terrain_source_count && i<4;i++)if(s->terrain_sources[i].authored==a)return i;
+    return UINT32_MAX;
+}
+/* Only a source whose last cutter is still this tunnel's extends it; any
+ * other source (a later rocket crater, an untouched neighbour) takes a cut. */
+static uint32_t scene_drill_tunnel_matches(const scene_stream *s,const scene_terrain_authored_assets *a,const rf_geomod_terrain *candidate)
+{
+    rf_geomod_terrain_view view;rf_geomod_mesh_view mesh;float kernel[3];uint32_t star,slot=scene_authored_source_slot(s,a);
+    if(slot>=4 || !((s->drill_tunnel_mask>>slot)&1u) || rf_geomod_terrain_get(candidate,&view) || !view.cuts)return 0;
+    if(rf_geomod_terrain_cutter_get(candidate,view.cuts-1,&mesh,kernel,&star) || !star)return 0;
+    return !memcmp(kernel,s->drill_tunnel_kernel[slot],sizeof(kernel));
+}
 static int scene_authored_edit_mutate(void *opaque,rf_geomod_terrain *candidate)
 {
     scene_authored_edit_context *c=opaque;scene_stream *s=c->scene;
     if(c->reset)return rf_geomod_terrain_reset(candidate);
     {
-        int status=rf_geomod_terrain_cut_template_limits(candidate,s->terrain_template,c->center,c->basis,
-            c->scale,s->terrain_material,c->limits,c->count);
+        int status=s->terrain_merge_request && scene_drill_tunnel_matches(s,c->authored?c->authored:s->terrain_authored,candidate)?
+            rf_geomod_terrain_merge_template_checked(candidate,s->terrain_template,c->center,c->basis,
+                c->scale,s->terrain_material,c->limits,c->count,NULL,NULL):
+            rf_geomod_terrain_cut_template_limits(candidate,s->terrain_template,c->center,c->basis,
+                c->scale,s->terrain_material,c->limits,c->count);
         rf_scene_crash_terrain_owner[1]=(c->authored?c->authored:s->terrain_authored)->asset_view.source_uid;
         rf_scene_crash_terrain_owner[2]=(uint32_t)status;
         if(status){uint32_t i;printf("DETACHED_CUT_REJECT %d %.9g",status,c->scale);for(i=0;i<3;i++)printf(" %.9g",c->center[i]);for(i=0;i<9;i++)printf(" %.9g",c->basis[i]);printf(" %u\n",c->count);}

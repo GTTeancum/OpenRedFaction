@@ -1194,6 +1194,8 @@ set_tests_properties(scene_driller_bit_animation PROPERTIES WORKING_DIRECTORY ${
 
 add_executable(rf_driller_second_bite_probe tests/driller_second_bite_probe.c)
 target_link_libraries(rf_driller_second_bite_probe PRIVATE rf_core)
+add_test(NAME driller_tunnel_bite COMMAND rf_driller_second_bite_probe console tunnel)
+set_tests_properties(driller_tunnel_bite PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_executable(rf_driller_cavity_half_probe tests/driller_cavity_half_probe.c)
 target_link_libraries(rf_driller_cavity_half_probe PRIVATE rf_core)
 add_test(NAME driller_cavity_half COMMAND rf_driller_cavity_half_probe)
