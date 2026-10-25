@@ -9,6 +9,9 @@
  * cannot relaunch old debris; its surface probes see the newly cut world. */
 /* Refused drill cuts: count,status,frame,centerXYZ,scale,limit count. */
 uint32_t rf_scene_drill_reject[8];
+/* Replay inputs: last accepted then last refused cut, each requested center3,
+ * aligned center3, basis9, shape (1 double); 16 words each. */
+uint32_t rf_scene_drill_trace[32];
 static int scene_driller_excavation_overlap(const scene_stream *s,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,const rf_geomod_shallow_limit *limits,uint32_t limit_count)
 {
@@ -68,6 +71,8 @@ static int scene_driller_excavate(scene_stream *s,uint32_t frame,rf_geomod_templ
     serial=s->terrain_publication_serial;saved=s->terrain_template;s->terrain_template=shape;
     status=scene_terrain_authored_template_edit(s,adjusted,basis,region.hardness.scale,limits,count);
     s->terrain_template=saved; /* Restore before any error/cosmetic work. */
+    {uint32_t *row=rf_scene_drill_trace+(status?16:0);
+     memcpy(row,center,12);memcpy(row+3,adjusted,12);memcpy(row+6,basis,36);row[15]=shape->face_count;}
     if(status==RF_FORMAT || status==RF_RANGE) {
         /* The transaction discards its candidate on rejection, so a cutter
          * the terrain cannot take is a refused drill contact, not a fatal. */

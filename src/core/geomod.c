@@ -2300,18 +2300,26 @@ static int collision_mesh_face(const rf_geomod_mesh_view *mesh,uint32_t index,
         if(!isfinite(value.minimum[j]) || !isfinite(value.maximum[j]))return RF_FORMAT;
     }
     if(!isfinite(value.plane[3]))return RF_FORMAT;
+    /* Validate against the unrounded plane. The stored float plane alone is
+     * off by more than 1e-5 at ~170 units from the origin, and so are float
+     * vertex positions: allow two position ulps at this face's magnitude. */
+    {double plane[4],extent=0,tolerance;
+    for(j=0;j<3;j++)plane[j]=normal[j]/length;
+    plane[3]=0;for(j=0;j<3;j++)plane[3]-=plane[j]*mesh->vertices[f->first].position[j];
+    for(j=0;j<3;j++)extent=fmax(extent,fmax(fabs((double)value.minimum[j]),fabs((double)value.maximum[j])));
+    tolerance=1e-5+extent*2.4e-7;
     for(i=0;i<f->count;i++) {
         const float *a=mesh->vertices[f->first+i].position,*b=mesh->vertices[f->first+(i+1)%f->count].position;
-        double distance=value.plane[3],edge[3],size=0;uint32_t k;
-        for(j=0;j<3;j++){distance+=(double)value.plane[j]*a[j];edge[j]=(double)b[j]-a[j];size+=edge[j]*edge[j];}
-        if(fabs(distance)>1e-5 || size<=1e-24)return RF_FORMAT;
+        double distance=plane[3],edge[3],size=0;uint32_t k;
+        for(j=0;j<3;j++){distance+=plane[j]*a[j];edge[j]=(double)b[j]-a[j];size+=edge[j]*edge[j];}
+        if(fabs(distance)>tolerance || size<=1e-24)return RF_FORMAT;
         /* Every vertex must lie on the inward side of each directed edge. */
         for(k=0;k<f->count;k++) {
             const float *p=mesh->vertices[f->first+k].position;double inward=0;
-            for(j=0;j<3;j++)inward+=value.plane[j]*(edge[(j+1)%3]*(p[(j+2)%3]-a[(j+2)%3])-edge[(j+2)%3]*(p[(j+1)%3]-a[(j+1)%3]));
+            for(j=0;j<3;j++)inward+=plane[j]*(edge[(j+1)%3]*(p[(j+2)%3]-a[(j+2)%3])-edge[(j+2)%3]*(p[(j+1)%3]-a[(j+1)%3]));
             if(inward< -1e-5*sqrt(size))return RF_FORMAT;
         }
-    }
+    }}
     value.count=f->count;value.filter=*filter;value.triangle_surface=1;*out=value;return RF_OK;
 }
 typedef struct partition_output {
@@ -2331,6 +2339,69 @@ static int partition_emit(partition_output *out,const rf_geomod_vertex *v,uint32
     if(n>out->vc-out->nv || out->nf==out->fc){out->status=RF_RANGE;return 0;}
     memcpy(out->vertices+out->nv,v,n*sizeof(*v));
     out->faces[out->nf++]=(rf_geomod_face){out->nv,n,source->material,source->source_face};out->nv+=n;return 1;
+}
+static double partition_turn(const rf_geomod_vertex *a,const rf_geomod_vertex *b,const rf_geomod_vertex *c,const double normal[3],double *size)
+{
+    double u[3],w[3],x[3],dot=0;uint32_t k;*size=0;
+    for(k=0;k<3;k++){u[k]=(double)b->position[k]-a->position[k];w[k]=(double)c->position[k]-b->position[k];}
+    for(k=0;k<3;k++){x[k]=u[(k+1)%3]*w[(k+2)%3]-u[(k+2)%3]*w[(k+1)%3];dot+=x[k]*normal[k];*size+=x[k]*x[k];}
+    return dot;
+}
+/* No visible surface: a straight sliver, or a needle with an edge under a
+ * millimetre (two points a few float ulps apart after repeated cuts). */
+static int partition_needle(const rf_geomod_vertex *a,const rf_geomod_vertex *b,const rf_geomod_vertex *c,const double normal[3])
+{
+    double size,l[3]={0},shortest;uint32_t k;
+    partition_turn(a,b,c,normal,&size);
+    for(k=0;k<3;k++){double p=(double)b->position[k]-a->position[k],q=(double)c->position[k]-b->position[k],r=(double)a->position[k]-c->position[k];
+        l[0]+=p*p;l[1]+=q*q;l[2]+=r*r;}
+    shortest=fmin(l[0],fmin(l[1],l[2]));
+    return size<=1e-10*l[0]*l[1] || size<=1e-10 || shortest<1e-6;
+}
+/* Last resort for repaired faces whose inserted seam points bend the outline
+ * a few micrometres: clip ears (each a valid triangle on the face's side).
+ * Only when no ear remains is a straight-run point dropped, which can leave a
+ * hairline T-junction but never a missing or inverted surface. */
+static int partition_ear_clip(partition_output *out,const rf_geomod_vertex *v,uint32_t n,const rf_geomod_face *source,const double normal[3])
+{
+    uint32_t index[64],m=n,i,e,pass;rf_geomod_vertex tri[3];double size;
+    if(n<3 || n>64)return 0;
+    for(i=0;i<n;i++)index[i]=i;
+    while(m>3) {
+        uint32_t found=0;
+        /* Pass0 removes zero-width spikes (the outline doubling back along
+         * one line), pass1 clips ears, pass2 drops a straight-run point. */
+        for(pass=0;pass<3 && !found;pass++)for(i=0;i<m && !found;i++) {
+            const rf_geomod_vertex *a=v+index[(i+m-1)%m],*b=v+index[i],*c=v+index[(i+1)%m];
+            double turn=partition_turn(a,b,c,normal,&size);
+            if(pass!=1) {
+                if(!partition_needle(a,b,c,normal))continue;
+                if(!pass) {
+                    double back=0;uint32_t k;
+                    for(k=0;k<3;k++)back+=((double)b->position[k]-a->position[k])*((double)c->position[k]-b->position[k]);
+                    if(back>=0)continue;
+                }
+            } else {
+                if(turn<=0)continue;
+                for(e=0;e<m;e++) {
+                    const rf_geomod_vertex *p=v+index[e];double s,t0,t1,t2;
+                    if(e==i || e==(i+m-1)%m || e==(i+1)%m)continue;
+                    if(!memcmp(p->position,a->position,12) || !memcmp(p->position,b->position,12) || !memcmp(p->position,c->position,12))continue;
+                    t0=partition_turn(a,b,p,normal,&s);t1=partition_turn(b,c,p,normal,&s);t2=partition_turn(c,a,p,normal,&s);
+                    if(t0>0 && t1>0 && t2>0)break;
+                }
+                if(e<m)continue;
+                tri[0]=*a;tri[1]=*b;tri[2]=*c;
+                if(!partition_valid_piece(tri,3,normal))continue;
+                if(!partition_emit(out,tri,3,source))return 0;
+            }
+            memmove(index+i,index+i+1,(m-i-1)*sizeof(*index));m--;found=1;
+        }
+        if(!found)return 0;
+    }
+    tri[0]=v[index[0]];tri[1]=v[index[1]];tri[2]=v[index[2]];
+    if(partition_valid_piece(tri,3,normal))return partition_emit(out,tri,3,source);
+    return partition_needle(tri,tri+1,tri+2,normal);
 }
 static int partition_polygon_edges(partition_output *out,const rf_geomod_vertex *v,const rf_geomod_face *source,const uint16_t *edges,uint16_t face_plane)
 {
@@ -2389,11 +2460,15 @@ static int partition_polygon_edges(partition_output *out,const rf_geomod_vertex 
     for(i=0;i<n;i++){for(k=0;k<3;k++)sum[k]+=v[i].position[k];for(k=0;k<2;k++)sum[k+3]+=v[i].uv[k];}
     for(k=0;k<3;k++)center.position[k]=(float)(sum[k]/n);
     for(k=0;k<2;k++)center.uv[k]=(float)(sum[k+3]/n);
-    for(i=0;i<n;i++) {
+    {uint32_t nv=out->nv,nf=out->nf;
+     for(i=0;i<n;i++) {
         part[0]=center;part[1]=v[i];part[2]=v[(i+1)%n];
-        if(!partition_valid_piece(part,3,normal) || !partition_emit(out,part,3,source))return 0;
-    }
-    return 1;
+        if(!partition_valid_piece(part,3,normal) || !partition_emit(out,part,3,source))break;
+     }
+     if(i==n)return 1;
+     if(out->status==RF_RANGE)return 0;
+     out->nv=nv;out->nf=nf;}
+    return partition_ear_clip(out,v,n,source,normal);
 }
 static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,const rf_geomod_face *source)
 {return partition_polygon_edges(out,v,source,NULL,UINT16_MAX);}
@@ -2416,7 +2491,7 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
             if(n==64)return RF_RANGE;polygon_edges[n]=edge;polygon[n++]=*a;
             if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && plane==edge))continue;
             for(k=0;k<3;k++){d[k]=(double)b->position[k]-a->position[k];length+=d[k]*d[k];}
-            if(length==0)return RF_FORMAT;
+            if(length==0){n--;continue;} /* Coincident corners: keep the next one only. */
             for(q=0;q<s->nf[bank];q++) {
                 const rf_geomod_face *other=s->faces[bank]+q;uint16_t op=work->compact_planes[q];
                 if(op!=plane && op!=edge)continue;
@@ -2433,7 +2508,10 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
                         for(i=0;i<used;i++)if(!memcmp(points[i]->position,p->position,12))break;
                         if(i<used)continue;
                         if(used==64)return RF_RANGE;
-                        for(i=0;i<used;i++)if(t==fractions[i])return RF_FORMAT;
+                        /* Two rounded points at one edge parameter differ only off
+                         * the line: one seam point there suffices. */
+                        for(i=0;i<used;i++)if(t==fractions[i])break;
+                        if(i<used)continue;
                         for(i=used;i && fractions[i-1]>t;i--){fractions[i]=fractions[i-1];points[i]=points[i-1];}
                         fractions[i]=t;points[i]=p;used++;
                     }
