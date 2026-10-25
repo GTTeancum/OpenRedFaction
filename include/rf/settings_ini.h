@@ -17,12 +17,13 @@
  * textures: compressed | original  use the DXT texture pack (rfdds.vpp) when present
  * resolution: 480 | 720 | auto  720 needs the dashboard's 720p setting; the
  *             picture is 16:9 widescreen (auto = 720 when allowed)
- * color_depth: 32 | 16  16 halves frame-buffer memory (dithered; some banding) */
+ * color_depth: auto | 32 | 16  16 halves frame-buffer memory (dithered);
+ *             auto uses 16 only at 720p, where the memory is needed */
 enum { RF_FRAME_RATE_60, RF_FRAME_RATE_30, RF_FRAME_RATE_30_SMOOTH, RF_FRAME_RATE_AUTO };
 typedef struct rf_settings {
     uint32_t frame_rate,fallback,smooth_characters,flicker_filter; /* flicker: 0..5, or UINT32_MAX auto */
     uint32_t compressed_textures,resolution; /* resolution: 480, 720, or 0 auto */
-    uint32_t color_depth; /* 32, or 16 (R5G6B5 frame buffers, dithered) */
+    uint32_t color_depth; /* 32, 16 (R5G6B5 frame buffers, dithered), or 0 auto: 16 at 720p, 32 at 480 */
     uint32_t unknown,invalid; /* ignored lines, for the RAM log */
 } rf_settings;
 /* Defaults when no file exists: fixed 60 (crash-harness replays rely on it). */
