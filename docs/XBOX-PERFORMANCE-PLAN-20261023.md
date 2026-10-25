@@ -1,5 +1,20 @@
 # Xbox performance plan — October 23, 2026
 
+## Still open (summary, October 25)
+
+L1S2 is the slow level: about 27-30 FPS drawn (L2S1 ~60, L3S2 ~52). Gains are rough estimates for L1S2.
+
+- Distant-character AI at reduced rate: ~+2-3 FPS (risk: behaviour changes).
+- Physics (crusher/conveyor movers, per-tick audio commit): ~+2 FPS.
+- Combat and event ticks: ~+1-2 FPS together.
+- Corona (light glare) drawing: ~+1 FPS.
+- Character models' bone upload, world list rebuilds on room changes: under +1 FPS each.
+- GeoMod terrain, debris and effects still built on the CPU every frame: gain unmeasured.
+- Mipmaps (parked) and compressed textures: helps fill-heavy views like L2S1, not L1S2.
+- Smaller vertex format: not started, gain unmeasured.
+- Loading (14-19 s now): GeoMod hashing 4 s, first frame 2.4 s, weapon views 1.6 s.
+- Render-overlap test switch never confirmed on the console.
+
 Scope: stock 64 MiB retail-mode Xbox (debug kit at 10.0.0.231, XBE limited to
 64 MiB, confirmed by MmQueryStatistics 16384 pages). Measurements are from the
 paced replay harness (`--paced`) with the per-phase profile in the RAM log;
