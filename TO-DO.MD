@@ -8,7 +8,7 @@ Needs you (USER):
 
 Engine work still open:
 - GeoMod: a wall takes at most 8 stacked cuts (original 25); doorway shots make no cut; Driller tunnel after a load not yet seen on the console.
-- Drone/effects: white/yellow effect overlap and NPC-first contact response.
+- Drone/effects (source-written October 25, unverified until the console build): white/yellow screen traced to the Drone Missile's own authored impact (big_charge_explode radius 7, the Fusion "shoulder mounted geomod" white flare then fireball), now used instead of the scaled rocket blast; Drone moving into the player now stops at contact and keeps pursuing (docs/DRONE-EFFECTS-CONTACT.md). USER: say whether the effect still looks wrong on screen.
 - Frame rate: L1S2 about 27-30 FPS; open items listed at the top of docs/XBOX-PERFORMANCE-PLAN-20261023.md.
 - 28 older PC tests fail from fixture drift (listed in the October 25 entry).
 - Crash hunting: broad ongoing coverage (paused at your request).

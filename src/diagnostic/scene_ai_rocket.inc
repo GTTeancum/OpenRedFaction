@@ -148,7 +148,9 @@ static int scene_ai_rocket_tick_inner(scene_stream *stream,uint32_t frame)
                 status=scene_nano_weapon_contact(campaign_npc_bodies+index,shot->weapon,shot->damage,contact->hit.point,&consumed);
                 if(status)return status;if(consumed)continue;
             }
-            status=scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);if(status)return status;scene_impact_sound(contact->hit.point,frame);
+            status=definition==&campaign_drone_missile?scene_drone_missile_impact_start(stream,contact,frame):
+                scene_impact_start_sized(stream,contact,frame,definition->impact_count?definition->impact_radius[0]:1.5f);
+            if(status)return status;scene_impact_sound(contact->hit.point,frame);
             if(tag!=UINT32_MAX && (tag&SCENE_DETACHED_ROCKET_OWNER)){
                 status=scene_detached_sources_damage(stream,(tag>>16)&0x7fff,tag&0xffff,shot->damage);if(status)return status;
             }

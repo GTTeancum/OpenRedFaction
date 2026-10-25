@@ -17192,6 +17192,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 }
 #include "scene_flame_effects_runtime.inc"
 #include "scene_fusion_effects_runtime.inc"
+#include "scene_drone_missile_impact.inc"
 #include "scene_clutter_break_runtime.inc"
 #include "scene_script_explode_runtime.inc"
 #include "scene_turret_death_effects.inc"
@@ -20909,6 +20910,28 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                 }
             }
         }
+        /* Drone full3D NPC-first contact whose nearest hit is the player body.
+         * Original actor step49ffd2..4a007c advances to the hit fraction less
+         * the0.05 separation margin (rf_physics_contact_advance); 49d7e0's
+         * dynamic route49dcf6..49ddef then returns zero impact with velocity
+         * and normal unchanged for an NPC against the player (49dd0b..49dd16).
+         * Re-sweeping the unchanged direction meets the player again inside
+         * that margin, so the body rests at the advanced position. Pursuit
+         * stays active: this is ordinary contact, not a blocked route. */
+        if(xyz_pursuit && blocked && scene_contact_drone(i) &&
+           hit.contact.object_id==campaign_player_object.handle &&
+           hit.solid==UINT32_MAX && hit.room==UINT32_MAX && hit.face==UINT32_MAX &&
+           !(proposal.flags&0x4000u) && hit.contact.fraction<1) {
+            /* Flag4000 selects a different original translation path; keep the existing stop there. */
+            rf_physics_body_state advanced=proposal;float remaining;
+            status=rf_physics_contact_advance(&advanced,elapsed,hit.contact.fraction,&remaining);if(status)return status;
+            memcpy(proposal.next_position,advanced.position,12);
+            status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
+            ++rf_scene_drone_player_response[0];memcpy(rf_scene_drone_player_response+1,&hit.contact.fraction,4);
+            memcpy(rf_scene_drone_player_response+2,&advanced.scalar_144,4);
+            if(!advanced.scalar_144)++rf_scene_drone_player_response[3];
+            blocked=0;
+        }
         /* First-playable failure policy: after both slope and wall-slide
          * attempts fail, end6 rather than retaining an unbounded blocked owner. */
         if(blocked){
@@ -24171,6 +24194,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 scene_late_load_mark(52,materials);
                 if(!stream->impact){stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_IO;goto done;}}
                 status=scene_fusion_effects_open(tables_path,maps,map_count);if(status)goto done;
+            }
+            scene_drone_missile_impact_ready=0;
+            if(scene_drone_missile_resources && stream->impact){
+                /* Authored big_charge_explode; on refusal keep the shared rocket recipe. */
+                int drone_status=scene_drone_missile_impact_open(tables_path,maps,map_count);
+                if(drone_status)printf("DRONE_MISSILE_IMPACT_ERROR %d\n",drone_status);
             }
             if(campaign_spawn) {
                 rf_random_state *rng=stream->particles.state?&stream->particles.state->random:NULL;
