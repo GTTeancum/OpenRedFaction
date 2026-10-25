@@ -14,6 +14,11 @@ uint32_t rf_scene_drill_reject[8];
 uint32_t rf_scene_drill_trace[32];
 /* Accepted drill bites: new cutter, tunnel extension, live tunnel source mask. */
 uint32_t rf_scene_drill_tunnel[4];
+/* Last refused drill contact: frame,centerXYZ,contact room,terrain room,refusal
+ * (1 not authored/room, 2 radius, 3 hardness region, 4 repeat spot, 5 outside
+ * every editable source, 6 cutter refused), hardness. */
+uint32_t rf_scene_drill_refusal[8];
+#define DRILL_REFUSED(reason) (rf_scene_drill_refusal[6]=(reason),RF_NOT_FOUND)
 static int scene_driller_excavation_overlap(const scene_stream *s,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,const rf_geomod_shallow_limit *limits,uint32_t limit_count)
 {
@@ -53,7 +58,7 @@ static int scene_driller_excavation_overlap(const scene_stream *s,const rf_geomo
             }
         }
     }
-    return RF_NOT_FOUND; /* Not in an admitted editable source: never report a cut. */
+    return DRILL_REFUSED(5); /* Not in an admitted editable source: never report a cut. */
 }
 /* Last star cutter kernel of each live source (bit set when present). */
 static uint32_t scene_drill_tunnel_kernels(const scene_stream *s,float kernels[4][3])
@@ -79,17 +84,20 @@ static int scene_driller_excavate(scene_stream *s,uint32_t frame,rf_geomod_templ
     if(!accepted || !postwork_status)return RF_RANGE;
     *accepted=0;*postwork_status=RF_OK;
     if(!s || !shape || !contact || !center || !basis)return RF_RANGE;
-    if(!s->terrain || !s->terrain_authored || !s->terrain_template)return RF_NOT_FOUND;
-    if(contact->object!=UINT32_MAX || contact->room!=s->terrain_collision.room)return RF_NOT_FOUND;
+    rf_scene_drill_refusal[0]=frame;memcpy(rf_scene_drill_refusal+1,center,12);
+    rf_scene_drill_refusal[4]=contact->room;rf_scene_drill_refusal[5]=s->terrain_collision.room;rf_scene_drill_refusal[7]=0;
+    if(!s->terrain || !s->terrain_authored || !s->terrain_template)return DRILL_REFUSED(1);
+    if(contact->object!=UINT32_MAX || contact->room!=s->terrain_collision.room)return DRILL_REFUSED(1);
     if(!s->materials || s->terrain_material>=s->materials->count || !s->terrain_texture_width || !s->terrain_texture_height)return RF_FORMAT;
     if(!isfinite(requested_radius) || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
-    if(requested_radius<1)return RF_NOT_FOUND;
+    if(requested_radius<1)return DRILL_REFUSED(2);
     /* Original467020: flag8 bypasses template-radius normalization AND
      * restores scale1 after region admission. Drill flags0x3e use full host
      * basis(flag4); the requested10/20 radius is admission metadata only. */
     requested_scale=(flags&8)?1.f:requested_radius/shape->radius;
     status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,center,requested_scale,&region);if(status)return status;
-    if(!region.hardness.allowed || region.hardness.flags)return RF_NOT_FOUND;
+    rf_scene_drill_refusal[7]=region.hardness.allowed|(region.hardness.flags<<8);
+    if(!region.hardness.allowed || region.hardness.flags)return DRILL_REFUSED(3);
     if(flags&8)region.hardness.scale=1;
     status=rf_geomod_shallow_align(center,shape->radius,region.limits,region.limit_count,s->terrain_history,s->terrain_history_count,adjusted);if(status)return status;
     status=rf_geomod_shallow_normalize(region.limits,region.limit_count,limits,&count);if(status)return status;
@@ -98,7 +106,7 @@ static int scene_driller_excavate(scene_stream *s,uint32_t frame,rf_geomod_templ
         float decoded[3];double distance=0;
         status=rf_geomod_position_decode(s->terrain_history_minimum,s->terrain_history_maximum,s->terrain_requested[i],decoded);if(status)return status;
         for(k=0;k<3;k++){double d=(double)decoded[k]-center[k];distance+=d*d;}
-        if(distance<=(double)(.2f*.2f))return RF_NOT_FOUND;
+        if(distance<=(double)(.2f*.2f))return DRILL_REFUSED(4);
     }
     if(s->terrain_history_count>=128)return RF_RANGE;
     status=rf_geomod_position_encode(s->terrain_history_minimum,s->terrain_history_maximum,center,packed);if(status)return status;
@@ -122,7 +130,7 @@ static int scene_driller_excavate(scene_stream *s,uint32_t frame,rf_geomod_templ
          * the terrain cannot take is a refused drill contact, not a fatal. */
         ++rf_scene_drill_reject[0];rf_scene_drill_reject[1]=(uint32_t)status;rf_scene_drill_reject[2]=frame;
         memcpy(rf_scene_drill_reject+3,adjusted,12);memcpy(rf_scene_drill_reject+6,&region.hardness.scale,4);
-        rf_scene_drill_reject[7]=count;return RF_NOT_FOUND;
+        rf_scene_drill_reject[7]=count;return DRILL_REFUSED(6);
     }
     if(status)return status;
     if(s->terrain_publication_serial==serial)return RF_FORMAT;

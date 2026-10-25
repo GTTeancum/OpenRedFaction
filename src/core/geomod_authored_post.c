@@ -241,10 +241,42 @@ static int box_touch(const float *lo, const float *hi, const float minimum[3], c
  * touches one of its face boxes or lies wholly inside its AABB: otherwise the
  * box crosses no boundary polygon and has a point outside the AABB, so it is
  * wholly outside that air volume. Other obstacles keep the AABB test. */
+/* Every corner of obstacle i's box lies inside the convex source air volume
+ * (same side of each source plane as the source centroid). Growing the cavity
+ * removes solid outside that volume only, so such detail (L1S2 rails 162/169
+ * in front of the x140 face) can never be changed by the cut. */
+static int cavity_obstacle_enclosed(const struct rf_geomod_authored_post *o, uint32_t i) {
+    const rf_geomod_authored_post_view *a = &o->view;
+    double centroid[3] = {0, 0, 0};
+    uint32_t p, c, k;
+    if (!a->source.vertex_count || !a->source_planes)
+        return 0;
+    for (p = 0; p < a->source.vertex_count; p++)
+        for (k = 0; k < 3; k++)
+            centroid[k] += a->source.vertices[p].position[k] / (double)a->source.vertex_count;
+    for (p = 0; p < a->source.face_count; p++) {
+        const float *plane = a->source_planes[p];
+        double inside = plane[3];
+        for (k = 0; k < 3; k++)
+            inside += plane[k] * centroid[k];
+        if (inside == 0)
+            return 0;
+        for (c = 0; c < 8; c++) {
+            double d = plane[3];
+            for (k = 0; k < 3; k++)
+                d += plane[k] * o->cavity_obstacles[i][(c >> k) & 1][k];
+            if ((inside > 0 ? d : -d) < -1e-4)
+                return 0;
+        }
+    }
+    return 1;
+}
 static int cavity_obstacle_hit(const struct rf_geomod_authored_post *o, uint32_t i,
     const float minimum[3], const float maximum[3]) {
     uint32_t r, f, k;
     if (!box_touch(o->cavity_obstacles[i][0], o->cavity_obstacles[i][1], minimum, maximum))
+        return 0;
+    if (cavity_obstacle_enclosed(o, i))
         return 0;
     for (r = 0; r < o->cavity_refined_count; r++)
         if (o->cavity_refined[r][0] == i)

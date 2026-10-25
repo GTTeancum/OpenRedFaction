@@ -45,5 +45,20 @@ int main(int argc,char **argv)
         printf("BITE %d x=%g status %d faces %u vertices %u\n",i+1,c[0],status,view.mesh.face_count,view.mesh.vertex_count);
     }
     printf("ACCEPTED %d\n",accepted);
+    if(merge) {
+        /* Save round trip: the merged tunnel cutter must encode, decode into a
+         * fresh source and rebuild the identical wall. */
+        rf_geomod_terrain *loaded=NULL;rf_geomod_terrain_view before,after;uint32_t bytes;unsigned char *data;
+        CHECK(!rf_geomod_terrain_history_size(terrain,&bytes));data=malloc(bytes);CHECK(data);
+        CHECK(!rf_geomod_terrain_history_encode(terrain,data,bytes));
+        CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,&generated,1,4096,1024,2*1024*1024,&loaded));
+        CHECK(!rf_geomod_terrain_history_decode(loaded,data,bytes));
+        CHECK(!rf_geomod_terrain_get(terrain,&before));CHECK(!rf_geomod_terrain_get(loaded,&after));
+        printf("ROUNDTRIP bytes %u cuts %u/%u faces %u/%u vertices %u/%u\n",bytes,before.cuts,after.cuts,
+            before.mesh.face_count,after.mesh.face_count,before.mesh.vertex_count,after.mesh.vertex_count);
+        CHECK(before.cuts==after.cuts && before.mesh.face_count==after.mesh.face_count && before.mesh.vertex_count==after.mesh.vertex_count);
+        CHECK(!memcmp(before.mesh.vertices,after.mesh.vertices,before.mesh.vertex_count*sizeof(*before.mesh.vertices)));
+        free(data);rf_geomod_terrain_close(&loaded);
+    }
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);rf_geometry_close(&geometry);rf_vpp_close(&levels);return 0;
 }
