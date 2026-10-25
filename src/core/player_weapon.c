@@ -82,6 +82,13 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
     }
     if(!w->bone_count || !model->lod_count){status=RF_FORMAT;goto done;}
     for(i=0;i<w->bone_count;i++){status=rf_model_bone_transform(w->bones[i].rotation,w->bones[i].position,w->stored[i]);if(status)goto done;}
+    {rf_model_attachment tag;uint32_t found=0;
+     for(i=0;i<model->lods[0].attachment_count;i++) {
+        status=rf_model_file_attachment(model,0,i,&tag);if(status)goto done;
+        for(j=0;j<2;j++)if(!strcmp(tag.name,j?"ammo_digit_2":"ammo_digit_1") && tag.parent>=0 && (uint32_t)tag.parent<w->bone_count)
+            {w->digit_tags[j]=tag;found|=1u<<j;}
+     }
+     w->ammo_digits=found==3;}
     status=rf_model_geometry_open(&w->geometry,model,0,budget-used-scratch);if(status)goto done;
     used+=w->geometry.accounted_bytes;
     /* Every first-person view repeats the hand/arm textures (envirohand,

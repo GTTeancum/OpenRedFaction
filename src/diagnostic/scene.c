@@ -21256,6 +21256,7 @@ static int scene_view_model_retain(scene_stream *stream,const rf_model_geometry 
 }
 #include "scene_monitor_render.inc"
 #include "scene_weapon_ir_screen.inc"
+#include "scene_weapon_ammo_digits.inc"
 /* True when this frame's lightmap/terrain/monitor update will rewrite
  * GPU-read texels, so the renderer must let the previous frame retire first. */
 int rf_scene_gpu_image_writes_pending(void)
@@ -21896,6 +21897,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
             v->position[2]=16384.0f/(1.0f+v->texture[2]);
         }
     }
+    status=scene_ammo_digits_draw(stream,w,&view);if(status){rf_scene_weapon_digits[3]=(uint32_t)status;goto done;}
     rf_scene_player_weapon[2]=stream->mesh->count-start;
 done:
     rf_scene_player_weapon_view[13]=stream->mesh->count-start;
@@ -24053,6 +24055,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
         }
+        status=scene_ammo_digits_merge(stream,materials,maps,map_count);if(status)goto done;
         status=scene_undercover_merge(stream,materials);if(status)goto done;
         if(stream->jeep_gun){status=scene_driller_materials_merge(stream->jeep_gun->model,materials,&stream->jeep_gun_base,&stream->jeep_gun_textures);if(status)goto done;}
         if(stream->submarine_torpedo){status=scene_driller_materials_merge(stream->submarine_torpedo,materials,&stream->submarine_torpedo_base,&stream->submarine_torpedo_textures);if(status)goto done;}

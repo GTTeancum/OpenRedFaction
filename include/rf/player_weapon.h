@@ -18,6 +18,9 @@ typedef struct rf_player_weapon {
      * model space. Scene placement consumes this once, after animation. */
     float position[3],fov;
     uint32_t infrared; /* Weapon screen.tga shows the 4aeef0 infrared view. */
+    /* 4aacf8..4aad20 ammo_digit_1/ammo_digit_2 tags (assault rifle clip readout);
+     * ammo_digits is set only when both exist with a valid parent bone. */
+    rf_model_attachment digit_tags[2];uint32_t ammo_digits;
 } rf_player_weapon;
 int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     const rf_weapon_view_definition *definition,uint32_t budget,rf_player_weapon **result);

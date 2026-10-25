@@ -31,8 +31,12 @@ static struct {
 static uint32_t scene_ir_color[SCENE_IR_SIZE*SCENE_IR_SIZE];
 static float scene_ir_depth[SCENE_IR_SIZE*SCENE_IR_SIZE];
 static uint32_t scene_ir_height,scene_ir_argb;
-/* frames rendered, entities drawn last frame, triangles, standby frames, errors, last error */
-uint32_t rf_scene_weapon_ir[6];
+/* frames rendered, entities drawn last frame, triangles, standby frames, errors, last error,
+ * lit pixels last frame, image address (for a console memory read) */
+uint32_t rf_scene_weapon_ir[8];
+/* Last frame's triangle centre bounds in picture pixels (min x, min y, max x, max y, as int*16);
+ * last counted body's expected centre x, y (*16), batches visited, distance (*16). */
+int32_t rf_scene_weapon_ir_bounds[8];
 /* Load time: give an infrared weapon's "screen.tga" texture slot its own
  * 64x64 RGBA image (the placeholder file is 4x4). Called on the weapon's
  * texture set just before it joins the stream materials at `base`. */
@@ -74,6 +78,8 @@ static int scene_ir_triangle(void *context,const rf_preview_vertex tri[3])
         x[i]=tri[i].position[0]*sx;y[i]=tri[i].position[1]*sy;
         if(!isfinite(x[i]) || !isfinite(y[i]) || !isfinite(tri[i].texture[2]))return RF_FORMAT;
     }
+    {float cx=(x[0]+x[1]+x[2])/3*16,cy=(y[0]+y[1]+y[2])/3*16;int32_t *b=rf_scene_weapon_ir_bounds;
+     if((int32_t)cx<b[0])b[0]=(int32_t)cx;if((int32_t)cy<b[1])b[1]=(int32_t)cy;if((int32_t)cx>b[2])b[2]=(int32_t)cx;if((int32_t)cy>b[3])b[3]=(int32_t)cy;}
     area=(x[1]-x[0])*(y[2]-y[0])-(y[1]-y[0])*(x[2]-x[0]);
     if(fabsf(area)<.000001f)return RF_OK;
     left=(int)fmaxf(0,floorf(fminf(x[0],fminf(x[1],x[2]))));
@@ -134,11 +140,13 @@ static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float
     else {scene_ir.weapon=slot;scene_ir.counter=2;}
     if(scene_ir.counter<2)return RF_OK;
     scene_ir.counter=0;
+    rf_scene_weapon_ir_bounds[0]=rf_scene_weapon_ir_bounds[1]=INT32_MAX;rf_scene_weapon_ir_bounds[2]=rf_scene_weapon_ir_bounds[3]=INT32_MIN;rf_scene_weapon_ir_bounds[6]=0;
     --material;if(material>=s->materials->count)return RF_FORMAT;
     /* shoulder_cannon (slot 12) keeps the full 64x64; the Rocket Launcher 64x48. */
     scene_ir_height=slot==12?64:48;squash=scene_ir_height==64?.75f:1.f;
     for(i=0;i<SCENE_IR_SIZE*SCENE_IR_SIZE;i++){scene_ir_color[i]=0xff000000u;scene_ir_depth[i]=0;}
-    memset(&camera,0,sizeof(camera));
+    /* Screen bounds and depth terms come from the main view, as the monitor feed does. */
+    camera=s->npc_view;
     memcpy(camera.camera,eye,12);
     for(i=0;i<3;i++){camera.rotation[i]=basis[0][i]*factor;camera.rotation[3+i]=basis[1][i]*factor*(4.f/3.f)*squash;camera.rotation[6+i]=basis[2][i];}
     camera.screen[0]=320;camera.screen[1]=-240;camera.screen[2]=320;camera.screen[3]=240;
@@ -171,6 +179,10 @@ static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float
             (uint16_t)pose->playback.generation,prepared,generations,50);if(status)break;
         status=rf_model_local_view(&camera,owner->position,owner->basis,&view);if(status)break;
         scene_ir_argb=scene_ir_heat_color(heat);++drawn;
+        {float vx=0,vy=0,vz=0;for(k=0;k<3;k++){vx+=delta[k]*basis[0][k];vy+=delta[k]*basis[1][k];vz+=delta[k]*basis[2][k];}
+         rf_scene_weapon_ir_bounds[4]=(int32_t)((32.f+32.f*vx*factor/vz)*16);
+         rf_scene_weapon_ir_bounds[5]=(int32_t)(((float)scene_ir_height*.5f-32.f*vy*factor/vz)*16);
+         rf_scene_weapon_ir_bounds[7]=(int32_t)(distance*16);}
         /* 4aeef0 draws one level below the distance LOD; the first unique LOD
          * is the port's only retained skeletal detail level. */
         for(lod=0;lod<model->file.lod_count && lod<1;lod++){
@@ -178,6 +190,7 @@ static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float
             for(batch=0;batch<g->batch_count && !status;batch++){
                 const rf_model_draw_batch *draw=g->batches+batch;
                 if(draw->material==UINT32_MAX)continue;
+                ++rf_scene_weapon_ir_bounds[6];
                 status=scene_model_scratch_prepare(&buffers,draw->vertices);
                 if(!status)status=rf_model_geometry_render_batch(g,batch,prepared,pose->bone_count,&view,&lights,&attributes,&buffers);
                 if(!status)status=rf_preview_visit_model(g,batch,&buffers,s->npc_indices,s->npc_pool,&view,&planes,&projection,&attributes,NULL,scene_ir_triangle,NULL);
@@ -188,6 +201,7 @@ static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float
     if(status){++rf_scene_weapon_ir[4];rf_scene_weapon_ir[5]=(uint32_t)status;drawn=0;
         for(i=0;i<SCENE_IR_SIZE*SCENE_IR_SIZE;i++)scene_ir_color[i]=0xff000000u;}
     rf_scene_weapon_ir[1]=drawn;
+    {uint32_t lit=0;for(i=0;i<SCENE_IR_SIZE*SCENE_IR_SIZE;i++)lit+=scene_ir_color[i]!=0xff000000u;rf_scene_weapon_ir[6]=lit;}
     if(!drawn) {
         if(scene_ir.standby)return RF_OK; /* Black already published (1084). */
         scene_ir.standby=1;++rf_scene_weapon_ir[3];
@@ -203,6 +217,7 @@ static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float
     /* Publish into the material image (RGBA bytes), material value 0.7 as brightness. */
     {rf_image *image=&s->materials->items[material].image;
      if(image->width!=SCENE_IR_SIZE || image->height!=SCENE_IR_SIZE || !image->rgba)return RF_FORMAT;
+     rf_scene_weapon_ir[7]=(uint32_t)(uintptr_t)image->rgba;
      for(y=0;y<SCENE_IR_SIZE;y++)for(x=0;x<SCENE_IR_SIZE;x++){
         uint32_t c=scene_ir_color[y*SCENE_IR_SIZE+x];unsigned char p[4];
         p[0]=(unsigned char)(((c>>16)&255)*7/10);p[1]=(unsigned char)(((c>>8)&255)*7/10);p[2]=(unsigned char)((c&255)*7/10);p[3]=255;
