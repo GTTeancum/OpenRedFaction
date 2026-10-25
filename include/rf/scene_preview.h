@@ -592,6 +592,9 @@ int rf_scene_stage_lift(rf_level *level);
 int rf_scene_stage_force(rf_level *level,uint32_t uid);
 /* Follow fixture: 1 MiB world projection plus 1 MiB actor output. */
 #define RF_SCENE_FOLLOW_CAPACITY (3u*1024u*1024u)
+/* Xbox GPU copy of the follow stream. Measured peak: 19260 vertices (1.03 MiB)
+ * in L19S2B combat; a frame above this is skipped, not fatal. */
+#define RF_SCENE_FOLLOW_GPU_CAPACITY (2u*1024u*1024u)
 /* Optional port-owned profiling clock in milliseconds; NULL disables. Counts
  * start at tick 16 to exclude startup work. No changes to simulation timing. */
 void rf_scene_set_profile(uint32_t (*milliseconds)(void));

@@ -1495,7 +1495,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     }
     rf_diagnostic[57]=world;
     if(player_pacing){int present=scene_present_query();present_decided=0;if(!present){rf_xbox_frame_skipped();return scene_frame_storage_check();}}
-    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
+    {int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_GPU_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
      if(status)FRAME_FAIL(status);FRAME_FAIL(scene_frame_storage_check());}
 }
 static int scene_preview(rf_level *level,rf_preview_mesh *mesh)

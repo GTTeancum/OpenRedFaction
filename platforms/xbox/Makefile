@@ -117,6 +117,11 @@ SRCS += $(RF_CHECKED_STDIO)
 # Snapshot only this project's sources, including its adapted APU backend,
 # before NXDK adds its separate library dependency graph.
 RF_PROJECT_OBJS := $(addsuffix .obj, $(basename $(SRCS)))
+# Repository-owned, source-pinned pbkit copy with a selectable frame-buffer
+# count (720p double buffering). Compiled with the SDK's own flags; its
+# symbols replace libpbkit's pbkit.obj, which is then never pulled in.
+RF_CHECKED_PBKIT := $(PROJECT_ROOT)/build/checked-pbkit/pbkit.c
+SRCS += $(RF_CHECKED_PBKIT)
 include $(NXDK_DIR)/Makefile
 # Project compile policy stays off SDK sources and shader/tool prerequisites.
 # NXDK keeps its upstream dialect; the APU C23 overrides remain last below.
@@ -157,4 +162,10 @@ rf_checked_stdio_validate:
 	python3 $(PROJECT_ROOT)/tools/prepare_checked_stdio.py --nxdk-dir "$(NXDK_DIR)" --output "$(RF_CHECKED_STDIO)"
 $(RF_CHECKED_STDIO): rf_checked_stdio_validate
 $(RF_CHECKED_STDIO:.c=.obj): $(RF_CHECKED_STDIO)
+.PHONY: rf_checked_pbkit_validate
+rf_checked_pbkit_validate:
+	python3 $(PROJECT_ROOT)/tools/prepare_checked_pbkit.py --nxdk-dir "$(NXDK_DIR)" --output "$(RF_CHECKED_PBKIT)"
+$(RF_CHECKED_PBKIT): rf_checked_pbkit_validate
+$(RF_CHECKED_PBKIT:.c=.obj): $(RF_CHECKED_PBKIT)
+$(RF_CHECKED_PBKIT:.c=.obj): private CFLAGS += -I$(NXDK_DIR)/lib/pbkit
 $(PROJECT_ROOT)/src/core/vpp.obj: $(PROJECT_ROOT)/src/platform/xbox/file_io.h

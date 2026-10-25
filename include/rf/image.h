@@ -20,6 +20,10 @@ typedef struct rf_image {
  * Pixel coordinates must be in bounds. Close owns/reclaims the allocation. */
 int rf_image_allocate_pixels(rf_image *image);
 int rf_image_is_packed_1555(const rf_image *image);
+/* Port-owned 16-bit storage: source_format 8, bytes=width*height*2, texels
+ * A4R4G4B4 little-endian (HUD atlas). rf_image_pixel addresses 2-byte texels. */
+#define RF_IMAGE_FORMAT_PACKED_4444 8u
+int rf_image_is_packed_4444(const rf_image *image);
 unsigned char *rf_image_pixel(const rf_image *image, uint32_t x, uint32_t y);
 /* True-color TGA types 2/10, 24/32-bit; no palette or interleaving.
  * budget bounds output allocation; input uses a fixed 4096-byte buffer.

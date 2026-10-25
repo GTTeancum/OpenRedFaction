@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 static int geometry_material_slot(const rf_geometry_materials *materials,uint32_t geometry_index,
     const rf_geometry *geometry,uint32_t face,uint32_t *slot)
 {
@@ -164,11 +165,38 @@ void rf_particle_animation_close(rf_particle_animation *animation)
     for(i=0;i<animation->count;i++)rf_image_close(animation->images+i);
     free(animation->images);memset(animation,0,sizeof(*animation));
 }
+extern char rf_material_failure_name[61];extern uint32_t rf_material_failure[3];
+uint32_t rf_material_dds_stats[4]; /* textures from the pack, decoded originals, pack refusals, kept bytes */
+static rf_vpp *material_dds;
+/* Effect bitmaps from the offline pack (tools/dds_pack.c): a still image is
+ * "<name>.dds", animation frame n of a VBM is "<name>~n.dds". RF_NOT_FOUND
+ * (no entry, or a different original) keeps the ordinary decode. */
+static int particle_dds(rf_image *image,const char *name,const rf_vpp_entry *entry,const unsigned char *magic,
+    rf_vpp *archive,uint32_t frame,uint32_t budget,uint32_t *frames,uint32_t *rate)
+{
+    char packed[72];rf_vpp_entry dds;uint32_t count=1,fps=0;int status;
+    if(!material_dds)return RF_NOT_FOUND;
+    if(!memcmp(magic,".vbm",4)) {
+        unsigned char h[32];
+        if(entry->size<32)return RF_NOT_FOUND;
+        status=rf_vpp_read(archive,entry,0,h,32);if(status)return status;
+        fps=(uint32_t)h[20]|(uint32_t)h[21]<<8|(uint32_t)h[22]<<16|(uint32_t)h[23]<<24;
+        count=(uint32_t)h[24]|(uint32_t)h[25]<<8|(uint32_t)h[26]<<16|(uint32_t)h[27]<<24;
+    }
+    if(!count || frame>=count)return RF_NOT_FOUND;
+    if(count>1)snprintf(packed,sizeof(packed),"%s~%u.dds",name,(unsigned)frame);
+    else snprintf(packed,sizeof(packed),"%s.dds",name);
+    if(rf_vpp_find(material_dds,packed,&dds)!=RF_OK)return RF_NOT_FOUND;
+    status=rf_image_dds(image,material_dds,&dds,entry->size,0,budget);
+    if(status)return status;
+    if(frames)*frames=count;if(rate)*rate=fps;
+    ++rf_material_dds_stats[0];rf_material_dds_stats[3]+=image->bytes;return RF_OK;
+}
 int rf_particle_animation_open(rf_particle_animation *animation,const rf_particle_definition *definition,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
     rf_particle_animation value={0};rf_particle_bitmap first={0};rf_vpp_entry entry;
-    uint64_t bytes;uint32_t i;int status;
+    uint64_t bytes;uint32_t i=0;int status;
     if(!animation || animation->images || animation->count || budget<sizeof(value))return RF_RANGE;
     status=rf_particle_bitmap_open(&first,definition,archives,archive_count,0,budget);if(status)return status;
     bytes=sizeof(value)+(uint64_t)first.frames*(sizeof(rf_image)+(uint64_t)first.image.bytes);
@@ -180,8 +208,11 @@ int rf_particle_animation_open(rf_particle_animation *animation,const rf_particl
         status=rf_vpp_find(archives+value.archive_index,definition->bitmap,&entry);if(status)goto failed;
         for(i=1;i<value.count;i++) {
             uint32_t count,rate;
-            status=rf_image_vbm_frame(value.images+i,archives+value.archive_index,&entry,i,
-                value.images[0].bytes,&count,&rate);if(status)goto failed;
+            status=particle_dds(value.images+i,definition->bitmap,&entry,(const unsigned char *)".vbm",
+                archives+value.archive_index,i,value.images[0].bytes,&count,&rate);
+            if(status==RF_NOT_FOUND)status=rf_image_vbm_frame(value.images+i,archives+value.archive_index,&entry,i,
+                value.images[0].bytes,&count,&rate);
+            if(status)goto failed;
             if(count!=value.count || rate!=value.rate || value.images[i].bytes!=value.images[0].bytes ||
                value.images[i].width!=value.images[0].width || value.images[i].height!=value.images[0].height) {
                 status=RF_FORMAT;goto failed;
@@ -190,6 +221,9 @@ int rf_particle_animation_open(rf_particle_animation *animation,const rf_particl
     }
     rf_particle_bitmap_close(&first);*animation=value;return RF_OK;
 failed:
+    {size_t n=strlen(definition->bitmap);if(n>=sizeof(rf_material_failure_name))n=sizeof(rf_material_failure_name)-1;
+     memcpy(rf_material_failure_name,definition->bitmap,n);rf_material_failure_name[n]=0;
+     rf_material_failure[0]=(uint32_t)status;rf_material_failure[1]=0xa000u+i;rf_material_failure[2]=value.count;}
     rf_particle_bitmap_close(&first);rf_particle_animation_close(&value);return status;
 }
 void rf_particle_bitmap_close(rf_particle_bitmap *bitmap)
@@ -209,7 +243,11 @@ int rf_particle_bitmap_open(rf_particle_bitmap *bitmap,const rf_particle_definit
         if(status==RF_NOT_FOUND)continue;if(status)return status;
         if(entry.size<4)return RF_FORMAT;
         status=rf_vpp_read(archives+i,&entry,0,magic,4);if(status)return status;
-        if(!memcmp(magic,".vbm",4))status=rf_image_vbm_frame(&value.image,archives+i,&entry,
+        status=particle_dds(&value.image,definition->bitmap,&entry,magic,archives+i,frame,
+            budget-(uint32_t)sizeof(value),&value.frames,&value.rate);
+        if(status==RF_OK){}
+        else if(status!=RF_NOT_FOUND)return status;
+        else if(!memcmp(magic,".vbm",4))status=rf_image_vbm_frame(&value.image,archives+i,&entry,
             frame,budget-(uint32_t)sizeof(value),&value.frames,&value.rate);
         else {
             if(frame)return RF_RANGE;
@@ -246,8 +284,7 @@ void rf_materials_share_scope(int enable)
 static int equal_texture_name(const char *a,const char *b);
 /* Optional offline texture pack (tools/dds_pack.c). Slots at or after
  * material_dds_first_raw keep decoded pixels (CPU-written liquid surfaces). */
-static rf_vpp *material_dds;static uint32_t material_dds_first_raw=UINT32_MAX;
-uint32_t rf_material_dds_stats[4]; /* textures from the pack, decoded originals, pack refusals, kept bytes */
+static uint32_t material_dds_first_raw=UINT32_MAX;
 void rf_materials_set_texture_pack(rf_vpp *pack){material_dds=pack;}
 /* One name that always decodes (the level's GeoMod substrate: save identity
  * hashes its pixels, so it must not depend on the texture setting). */

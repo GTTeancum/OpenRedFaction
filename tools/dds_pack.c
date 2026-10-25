@@ -5,7 +5,8 @@
  * DDS file with a full box-filtered mip chain compressed to DXT1 (opaque or
  * cutout alpha) or DXT5 (smooth alpha). The output is a VPP v1 archive whose
  * entries are named "<original name>.dds", so the Xbox loader finds them by
- * the material's own name. Animated VBMs, non-power-of-two and very small
+ * the material's own name. Each frame of an animated VBM is its own entry,
+ * "<name>~<frame>.dds" (effect animations). Non-power-of-two and very small
  * images are left out and keep the ordinary decode path.
  *
  * DDS reserved1[0..2] carry "RFDX", the original engine source_format and
@@ -53,7 +54,19 @@ static void halve(const unsigned char *src,uint32_t w,uint32_t h,unsigned char *
         dst[((size_t)y*nw+x)*4+3]=(unsigned char)((alpha+2)/4);
     }
 }
-static int compress_texture(const char *name,uint32_t source_size,const rf_image *image)
+/* Alpha class of an image: 0 opaque, 1 cutout, 2 smooth. */
+static uint32_t alpha_class(const rf_image *image)
+{
+    uint32_t x,y,mode=0;
+    for(y=0;y<image->height;y++)for(x=0;x<image->width;x++) {
+        const unsigned char *p=rf_image_pixel(image,x,y);uint32_t a;
+        if(rf_image_is_packed_1555(image))a=(p[1]&0x80)?255:0;else a=p[3];
+        if(a!=255)mode=a==0 && mode!=2?1:2;
+    }
+    return mode;
+}
+/* minimum_mode: animation frames share one format (equal sizes per frame). */
+static int compress_texture(const char *name,uint32_t source_size,const rf_image *image,uint32_t minimum_mode)
 {
     uint32_t w=image->width,h=image->height,x,y,levels=0,mode=0,bytes=0,level,lw,lh,block;
     unsigned char *level_pixels,*next,*out;pack_entry *e;size_t at;
@@ -68,6 +81,7 @@ static int compress_texture(const char *name,uint32_t source_size,const rf_image
         } else memcpy(d,p,4);
         if(d[3]!=255)mode=d[3]==0 && mode!=2?1:2;
     }
+    if(minimum_mode>mode)mode=minimum_mode;
     block=mode==2?16:8;
     for(lw=w,lh=h;lw>=4 && lh>=4;lw/=2,lh/=2){bytes+=(lw/4)*(lh/4)*block;levels++;}
     out=calloc(1,128+bytes);if(!out){free(level_pixels);return -1;}
@@ -109,11 +123,34 @@ static int visit(const rf_vpp_entry *entry,void *context)
     if(!dot || (!same_name(dot,".tga") && !same_name(dot,".vbm")))return RF_OK;
     snprintf(packed,sizeof(packed),"%s.dds",entry->name);
     if(have(packed))return RF_OK; /* An earlier archive already supplied this name. */
+    snprintf(packed,sizeof(packed),"%s~0.dds",entry->name);
+    if(have(packed))return RF_OK;
     if(same_name(dot,".vbm")) {
         status=rf_image_vbm_frame(&image,c->archive,entry,0,64u*1024u*1024u,&frames,&rate);
-        if(status || frames>1){rf_image_close(&image);++counts[3];return RF_OK;} /* Animated: runtime path. */
+        if(status){rf_image_close(&image);++counts[3];return RF_OK;}
+        if(frames>1) {
+            /* Animated: every frame, or none (the loader needs a complete set). */
+            uint32_t frame,first=entry_count,mode=0,m;char name[64];
+            for(frame=0;frame<frames;frame++) {
+                if(frame){rf_image_close(&image);
+                    if(rf_image_vbm_frame(&image,c->archive,entry,frame,64u*1024u*1024u,NULL,NULL))break;}
+                m=alpha_class(&image);if(m>mode)mode=m;
+            }
+            rf_image_close(&image);
+            if(frame<frames || rf_image_vbm_frame(&image,c->archive,entry,0,64u*1024u*1024u,NULL,NULL)){++counts[3];return RF_OK;}
+            for(frame=0;frame<frames && !c->failed;frame++) {
+                if(frame){rf_image_close(&image);
+                    if(rf_image_vbm_frame(&image,c->archive,entry,frame,64u*1024u*1024u,NULL,NULL))break;}
+                snprintf(name,sizeof(name),"%s~%u",entry->name,(unsigned)frame);
+                if(compress_texture(name,entry->size,&image,mode))c->failed=1;
+                else if(entry_count==first+frame)break; /* skipped (size): drop the set */
+            }
+            if(entry_count!=first+frames){while(entry_count>first)free(entries[--entry_count].data);}
+            rf_image_close(&image);
+            return c->failed?RF_IO:RF_OK;
+        }
     } else if(rf_image_open(&image,c->archive,entry,64u*1024u*1024u)){++counts[3];return RF_OK;}
-    if(compress_texture(entry->name,entry->size,&image))c->failed=1;
+    if(compress_texture(entry->name,entry->size,&image,0))c->failed=1;
     rf_image_close(&image);
     return c->failed?RF_IO:RF_OK;
 }

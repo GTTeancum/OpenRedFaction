@@ -30,8 +30,8 @@ uint32_t rf_renderer_draw_profile[8][4];
 /* Last frame: draw batches, former methods, submitted methods, state changes. */
 uint32_t rf_renderer_submission[4];
 uint32_t rf_xbox_draw_audit[4];
-/* Per-frame stream mesh: most vertices seen, vertex capacity of the GPU buffer. */
-uint32_t rf_xbox_stream_peak[2];
+/* Per-frame stream mesh: most vertices seen, vertex capacity of the GPU buffer, frames skipped as too large. */
+uint32_t rf_xbox_stream_peak[3];
 uint32_t rf_xbox_renderer_stage[4]; /* stage, image bytes, vertex bytes, free pages before GPU allocation */
 static uint32_t stream_profile_frames;
 static uint32_t stream_start_vblank,stream_start_valid;
@@ -176,6 +176,23 @@ static const rf_particle_draw_vertex *hud_widen(const rf_particle_draw_vertex *v
 /* Clear the whole frame (at 16:9 the 3D picture fills it). */
 static void screen_fill(uint32_t color){pb_fill(0,0,(int)screen_width,(int)screen_height,color);}
 static void screen_erase_depth(void){pb_erase_depth_stencil_buffer(0,0,(int)screen_width,(int)screen_height);}
+/* tools/prepare_checked_pbkit.py: frame-buffer count and pending flips. */
+void pb_set_back_buffers(int count);
+int pb_flips_pending(void);
+static uint32_t double_buffered;
+/* Frames whose flip the VBlank ISR still owes, by frame start (diagnostic). */
+uint32_t rf_xbox_flip_waits[2];
+/* With two buffers the next back buffer is the one on screen until the
+ * queued flip happens: wait for the GPU to finish and the flip to land. */
+static void target_back_buffer(void)
+{
+    if(double_buffered && (pb_busy() || pb_flips_pending())) {
+        ++rf_xbox_flip_waits[0];
+        while(pb_busy() || pb_flips_pending()) {}
+    }
+    ++rf_xbox_flip_waits[1];
+    pb_target_back_buffer();
+}
 static int device_open(void)
 {
     FILE *bits;
@@ -185,6 +202,9 @@ static int device_open(void)
     if(bits){uint32_t mode=0;if(fread(&mode,4,1,bits)==1 && mode<=3)rf_xbox_render_sync=mode;fclose(bits);}
     /* 16-bit video modes (openrf.ini color_depth = 16) take R5G6B5 frame buffers. */
     if(XVideoGetMode().bpp==16)pb_set_color_format(NV097_SET_SURFACE_FORMAT_COLOR_LE_R5G6B5,false);
+    /* 720p: two colour buffers instead of pbkit's three (3.5 MiB each). */
+    double_buffered=XVideoGetMode().height>=720;
+    pb_set_back_buffers(double_buffered?1:2);
     if(pb_init())return RF_IO;
     stream_device_ready=1;screen_mode_setup();
     pb_reset();ring_head=NULL;ring_lap=0;gpu_free_collect(1);
@@ -315,7 +335,7 @@ static void renderer_draw_mark(uint32_t phase,uint32_t *previous,int enabled)
 }
 static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t classify_alpha)
 {
-    uint32_t x, y, u = 0, v = 0;int packed=rf_image_is_packed_1555(image);
+    uint32_t x, y, u = 0, v = 0;int packed=rf_image_is_packed_1555(image),packed4444=rf_image_is_packed_4444(image);
     if (!image->width || !image->height || (image->width & (image->width-1)) || (image->height & (image->height-1))) return RF_FORMAT;
     for (x = image->width; x > 1; x >>= 1) ++u;
     for (y = image->height; y > 1; y >>= 1) ++v;
@@ -350,14 +370,15 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
     if(classify_alpha && image->rgba) {
         /* Word reads: write-combined pixels are uncached, so fewer loads matter. */
         const uint32_t *word=(const uint32_t *)image->rgba;uint32_t n=image->width*image->height;
-        if(packed){for(x=0;x<n/2;x++)if((word[x]&0x80008000u)!=0x80008000u){out->transparent=1;break;}
+        if(packed4444){for(x=0;x<n/2;x++)if((word[x]&0xf000f000u)!=0xf000f000u){out->transparent=1;break;}}
+        else if(packed){for(x=0;x<n/2;x++)if((word[x]&0x80008000u)!=0x80008000u){out->transparent=1;break;}
             if(!out->transparent && (n&1) && !(image->rgba[(n-1)*2+1]&128u))out->transparent=1;}
         else for(x=0;x<n;x++)if((word[x]>>24)!=255u){out->transparent=1;break;}
     }
     out->format = field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE, NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR) |
         field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY, 2) |
-        field(NV097_SET_TEXTURE_FORMAT_COLOR, packed?NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A1R5G5B5:NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8) |
+        field(NV097_SET_TEXTURE_FORMAT_COLOR, packed4444?NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A4R4G4B4:packed?NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A1R5G5B5:NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8) |
         field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS, 1) |
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
@@ -923,7 +944,7 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
      * The normal preview reuses this same pbkit device when play starts. */
     {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();
     screen_fill(0xff101018);
     hud_batch_begin();
     status=rf_scene_draw_session_menu(scene_hud_present,NULL,selection,flags);
@@ -940,7 +961,7 @@ int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uin
     int status;
     {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();
     screen_fill(0xff101018);
     hud_batch_begin();
     status=rf_scene_draw_message_history(scene_hud_present,NULL,index,page,flags,pages);
@@ -974,7 +995,7 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
         status=menu_prepare(art_page);if(status)return status;
     }
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=menu_assets?rf_scene_draw_authored_frontend(scene_menu_present,NULL,menu_assets,
         flags,session_status,page,selection,difficulty,load_outcome,load_status):
@@ -992,7 +1013,7 @@ int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
     art_page=page==RF_SCENE_OPTIONS_PAGE_ROOT?RF_MENU_PAGE_OPTIONS:
         page==RF_SCENE_OPTIONS_PAGE_GAME?RF_MENU_PAGE_GAME:RF_MENU_PAGE_CONTROLS;
     status=menu_prepare(art_page);if(status)return status;
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_options_page(scene_menu_present,NULL,menu_assets,page,selection,flags,
         sensitivity_percent,invert_y,deadzone_percent);
@@ -1004,7 +1025,7 @@ int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
     uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent)
 {
     int status=menu_prepare(RF_MENU_PAGE_AUDIO);if(status)return status;
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_authored_audio_options(scene_menu_present,NULL,menu_assets,selection,flags,
         master_percent,effects_percent,music_percent);
@@ -1016,7 +1037,7 @@ int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
     const char *const *actions,const char *const *controls)
 {
     int status=menu_prepare(RF_MENU_PAGE_BUTTONS);if(status)return status;
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();screen_fill(0xff000000);
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_authored_button_mapping(scene_menu_present,NULL,menu_assets,selection,flags,actions,controls);
     hud_batch_end();if(status)return status;++rf_xbox_menu_resources[7];
@@ -1076,6 +1097,9 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     {MM_STATISTICS stats={0};stats.Length=sizeof(stats);if(NT_SUCCESS(MmQueryStatistics(&stats)))rf_xbox_renderer_stage[3]=stats.AvailablePages;}
     if (upload_bytes > ((rf_scene_player_shield_resources || rf_scene_fusion_enabled)?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET) || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && !RF_PREVIEW_IS_VERTEX_LIT(mesh->vertices[i].lightmap) && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
+    /* A streamed frame larger than the GPU store is dropped (the previous
+     * picture stays up) rather than ending the session. */
+    if(streaming && stream_gpu && mesh->bytes>vertex_bytes){++rf_xbox_stream_peak[2];return RF_OK;}
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
     renderer_mark(0,&profile_previous,profiling);
     if(streaming && stream_gpu) {
@@ -1199,7 +1223,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
          if(streaming){stream_start_vblank=vblank;stream_start_valid=1;rf_renderer_vblank[2]=vblank;}}
         if(!overlap_frame || !ring_head)pb_reset();
         else {uint32_t *ensure=pb_begin();pb_end(ensure);} /* ring space for pbkit's own setup */
-        pb_target_back_buffer();screen_constants();
+        target_back_buffer();screen_constants();
         if(rf_xbox_experiment&2){uint32_t c;p=pb_begin();
             /* Quarter-area fill experiment: every window clip to 320x240. */
             for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,319u<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,239u<<16);}
@@ -1472,7 +1496,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
             base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20))) || depth_mode ||
            (fog_enabled&255u))return RF_FORMAT;
         if(image->width>4096 || image->height>4096 ||
-           (uint64_t)image->width*image->height*(rf_image_is_packed_1555(image)?2u:4u)!=image->bytes)return RF_RANGE;
+           (!image->compressed && (uint64_t)image->width*image->height*(rf_image_is_packed_1555(image) || rf_image_is_packed_4444(image)?2u:4u)!=image->bytes))return RF_RANGE;
     }
     if(!solid){status=upload(&texture,image,0,0);if(status!=RF_OK)return status;
         if(particle_batch_active)rf_xbox_particle_batch[2]+=image->width*image->height;}
@@ -1891,7 +1915,7 @@ void rf_xbox_particle_pixel_test(void)
     if(!pixels){rf_particle_pixel_diagnostic[1]=0x80000002u;return;}
     *pixels=0x80ffffff;image.rgba=(unsigned char *)pixels;
     __asm__ volatile("sfence" ::: "memory");
-    pb_wait_for_vbl();pb_reset();pb_target_back_buffer();screen_constants();
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();
     screen_erase_depth();screen_fill(0xff204060);
     while(pb_busy()) {}
     for(i=0;i<12;i++) {

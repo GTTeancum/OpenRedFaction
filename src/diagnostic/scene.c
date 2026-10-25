@@ -23836,14 +23836,16 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              scene_machine_pistol_mode_reset(&campaign_machine_mode);memset(rf_scene_machine_mode,0,sizeof(rf_scene_machine_mode));
              for(i=0;i<scene_weapon_resource_slots() && !status;i++) {
                  if(!scene_weapon_available(i))continue;
+                 rf_scene_campaign_load_detail=900000+i*10;
                  status=rf_weapon_view_load(&tables,campaign_weapon_names[i],128*1024,&view);
+                 if(!status)rf_scene_campaign_load_detail=900001+i*10;
                  /* Rifle loop adds5152bytes; allow one bounded8KiB extension. */
                  if(!status && i==0)view.clips[3][0]=0;
                  if(!status)status=rf_player_weapon_open_view(&archive,&motions,maps,map_count,&view,(i==6?1280*1024:i==12?1152*1024:1024*1024+(i==1?8192:0)),&stream->player_weapon[i]);
                  if(!status && (i==10 || i==13 || i==14 || i==17))stream->player_weapon[i]->resources[1].looping=1;
              }
-             if(!status)status=scene_extra_pickups_machine_resources(stream,&motions);
-             if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
+             if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_machine_resources(stream,&motions));
+             if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_undercover_open(stream,&archive,&motions,maps,map_count));
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled && !campaign_authored_vehicle_uid)status=RF_RANGE;
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
@@ -23870,12 +23872,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  const scene_driller_resources *resource;
                  if(kind>=6){status=RF_FORMAT;break;}
                  if(stream->passive_vehicle_sphere_count[kind])continue;
+                 rf_scene_campaign_load_detail=910000+kind;
                  if(!stream->driller || campaign_selected_vehicle_resource_kind()!=kind)
                      status=scene_vehicle_resources_open(tables_path,campaign_passive_vehicle_classes[kind],NULL,
                          &archive,maps,map_count,3*1024*1024,&stream->passive_vehicle_resources[kind]);
                  if(status)break;
                  resource=stream->passive_vehicle_resources[kind]?stream->passive_vehicle_resources[kind]:stream->driller;
-                 status=scene_passive_vehicle_collision_open(stream,kind,resource);
+                 rf_scene_campaign_load_detail=920000+kind;status=scene_passive_vehicle_collision_open(stream,kind,resource);
              }
              for(i=0;i<campaign_passive_vehicle_count && !status;++i) {
                  scene_passive_vehicle *owner=campaign_passive_vehicles+i;

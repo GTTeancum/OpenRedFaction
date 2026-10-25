@@ -18,7 +18,7 @@ struct rf_hud_assets {
 };
 typedef struct hud_source {rf_vpp *archive;rf_vpp_entry entry;} hud_source;
 typedef struct hud_plan {
-    hud_source sources[RF_HUD_SPRITE_COUNT];hud_rect *rects[HUD_RECTS];uint32_t count;
+    hud_source sources[RF_HUD_SPRITE_COUNT];hud_rect *rects[HUD_RECTS];uint32_t count,height; /* height: shelves used by pack */
     unsigned char *font_data[RF_HUD_FONT_COUNT];uint32_t font_bytes[RF_HUD_FONT_COUNT],font_start[RF_HUD_FONT_COUNT],font_format[RF_HUD_FONT_COUNT];
 } hud_plan;
 static uint32_t u32(const unsigned char *p)
@@ -61,7 +61,7 @@ static int pack(hud_plan *p)
         }
         r->x=(uint16_t)(row_x[j]+1);r->y=(uint16_t)(row_y[j]+1);row_x[j]=(uint16_t)(row_x[j]+w);
     }
-    return RF_OK;
+    p->height=height;return RF_OK;
 }
 static int load_layout(rf_hud_assets *a,rf_vpp *tables,uint32_t allowance,uint32_t *bytes_used)
 {
@@ -147,7 +147,10 @@ int rf_hud_assets_open(rf_hud_assets **out,rf_vpp *ui,rf_vpp *maps,uint32_t coun
         status=font_read(a,p,i,ui,budget-(uint32_t)used);if(status)goto done;used+=p->font_bytes[i];
     }
     status=pack(p);if(status)goto done;
-    a->atlas.width=HUD_WIDTH;a->atlas.height=HUD_HEIGHT;a->atlas.bytes=HUD_WIDTH*HUD_HEIGHT*4;a->atlas.source_format=7;
+    /* Only the packed shelves are kept: next power of two above their height
+     * (the whole 512x1024 plan held 2 MiB; the retail HUD fits in half). */
+    a->atlas.width=HUD_WIDTH;a->atlas.height=64;while(a->atlas.height<p->height)a->atlas.height*=2;
+    a->atlas.bytes=HUD_WIDTH*a->atlas.height*4;a->atlas.source_format=7;
     used+=a->atlas.bytes;if(used>budget){status=RF_RANGE;goto done;}
     if(used>a->peak)a->peak=(uint32_t)used;a->resident=(uint32_t)sizeof(*a)+a->atlas.bytes;
     status=rf_image_allocate_pixels(&a->atlas);if(status)goto done;memset(a->atlas.rgba,0,a->atlas.bytes);
@@ -168,14 +171,26 @@ int rf_hud_assets_open(rf_hud_assets **out,rf_vpp *ui,rf_vpp *maps,uint32_t coun
             }gutter(&a->atlas,r);
         }
     }
+#ifdef RF_IMAGE_XBOX_NATIVE
+    /* Store the finished atlas as A4R4G4B4: half the memory (1 MiB). Fonts
+     * are authored at 4 bits per channel; sprites lose their low bits. */
+    {rf_image packed={a->atlas.width,a->atlas.height,a->atlas.width*a->atlas.height*2,RF_IMAGE_FORMAT_PACKED_4444,NULL,0,0,0};
+     status=rf_image_allocate_pixels(&packed);if(status)goto done;
+     for(j=0;j<packed.height;j++)for(i=0;i<packed.width;i++){
+        const unsigned char *s=rf_image_pixel(&a->atlas,i,j);unsigned char *d=rf_image_pixel(&packed,i,j);
+        uint32_t texel=(uint32_t)(s[3]+8)/17u<<12|(uint32_t)(s[0]+8)/17u<<8|(uint32_t)(s[1]+8)/17u<<4|(uint32_t)(s[2]+8)/17u;
+        d[0]=(unsigned char)texel;d[1]=(unsigned char)(texel>>8);
+     }
+     rf_image_close(&a->atlas);a->atlas=packed;a->resident=(uint32_t)sizeof(*a)+a->atlas.bytes;}
+#endif
     *out=a;a=NULL;status=RF_OK;
  done:if(p){for(i=0;i<RF_HUD_FONT_COUNT;i++)free(p->font_data[i]);free(p);}rf_hud_assets_close(a);return status;
 }
 static void sprite(const rf_hud_assets *a,const hud_rect *r,rf_hud_sprite *out)
 {
     out->image=&a->atlas;out->width=r->w;out->height=r->h;
-    out->uv[0]=(float)r->x/HUD_WIDTH;out->uv[1]=(float)r->y/HUD_HEIGHT;
-    out->uv[2]=(float)(r->x+r->w)/HUD_WIDTH;out->uv[3]=(float)(r->y+r->h)/HUD_HEIGHT;
+    out->uv[0]=(float)r->x/a->atlas.width;out->uv[1]=(float)r->y/a->atlas.height;
+    out->uv[2]=(float)(r->x+r->w)/a->atlas.width;out->uv[3]=(float)(r->y+r->h)/a->atlas.height;
 }
 int rf_hud_assets_sprite(const rf_hud_assets *a,uint32_t id,rf_hud_sprite *out)
 {if(!a || !out || id>=RF_HUD_SPRITE_COUNT)return RF_RANGE;sprite(a,a->sprites+id,out);return RF_OK;}
