@@ -102,4 +102,18 @@ int rf_image_sample_locked(const rf_image_sample_surface *surface,float u,float 
  * Power-of-two dimensions up to4096 on both targets. Logical row crossings
  * are preserved, reads beyond logical pixels rejected. */
 int rf_image_sample_owned(const rf_image *image,float u,float v,uint32_t *color);
+#if defined(RF_HEAP_AUDIT) && !defined(RF_IMAGE_IMPLEMENTATION)
+/* Memory audit: pixel allocations are charged to the loader's caller. */
+extern const char *rf_image_audit_file;extern int rf_image_audit_line;
+#define RF_IMAGE_AUDIT_SITE(call) (rf_image_audit_file=__FILE__,rf_image_audit_line=__LINE__,(call))
+#define rf_image_allocate_pixels(...) RF_IMAGE_AUDIT_SITE((rf_image_allocate_pixels)(__VA_ARGS__))
+#define rf_image_tga(...) RF_IMAGE_AUDIT_SITE((rf_image_tga)(__VA_ARGS__))
+#define rf_image_tga_limited(...) RF_IMAGE_AUDIT_SITE((rf_image_tga_limited)(__VA_ARGS__))
+#define rf_image_vbm(...) RF_IMAGE_AUDIT_SITE((rf_image_vbm)(__VA_ARGS__))
+#define rf_image_vbm_frame(...) RF_IMAGE_AUDIT_SITE((rf_image_vbm_frame)(__VA_ARGS__))
+#define rf_image_dds(...) RF_IMAGE_AUDIT_SITE((rf_image_dds)(__VA_ARGS__))
+#define rf_image_open(...) RF_IMAGE_AUDIT_SITE((rf_image_open)(__VA_ARGS__))
+#define rf_image_missing(...) RF_IMAGE_AUDIT_SITE((rf_image_missing)(__VA_ARGS__))
+#define rf_image_reduce(...) RF_IMAGE_AUDIT_SITE((rf_image_reduce)(__VA_ARGS__))
+#endif
 #endif

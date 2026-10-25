@@ -1,11 +1,18 @@
+#define RF_IMAGE_IMPLEMENTATION
 #include "rf/image.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <limits.h>
+const char *rf_image_audit_file;int rf_image_audit_line; /* RF_HEAP_AUDIT caller site */
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include <xboxkrnl/xboxkrnl.h>
 #include "../platform/xbox/contiguous_track.h"
+#ifdef RF_HEAP_AUDIT
+#define IMAGE_CONTIGUOUS(bytes) rf_contiguous_allocate((bytes),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE,    rf_image_audit_file?rf_image_audit_file:__FILE__,rf_image_audit_file?rf_image_audit_line:__LINE__)
+#else
+#define IMAGE_CONTIGUOUS(bytes) MmAllocateContiguousMemoryEx((bytes),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE)
+#endif
 #endif
 int rf_image_is_packed_1555(const rf_image *image)
 {
@@ -18,7 +25,7 @@ int rf_image_allocate_pixels(rf_image *image)
        ((uint64_t)image->width*image->height*4!=image->bytes && !rf_image_is_packed_1555(image)))return RF_RANGE;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if((image->width&(image->width-1)) || (image->height&(image->height-1)))return RF_FORMAT;
-    image->rgba=MmAllocateContiguousMemoryEx(image->bytes,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+    image->rgba=IMAGE_CONTIGUOUS(image->bytes);
 #else
     image->rgba=malloc(image->bytes);
 #endif
@@ -280,7 +287,7 @@ int rf_image_dds(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint3
     if((uint64_t)offset+bytes>entry->size)return RF_FORMAT;
     if(bytes>budget)return RF_RANGE;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    image->rgba=MmAllocateContiguousMemoryEx(bytes,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+    image->rgba=IMAGE_CONTIGUOUS(bytes);
 #else
     image->rgba=malloc(bytes);
 #endif

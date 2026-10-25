@@ -30,6 +30,8 @@ uint32_t rf_renderer_draw_profile[8][4];
 /* Last frame: draw batches, former methods, submitted methods, state changes. */
 uint32_t rf_renderer_submission[4];
 uint32_t rf_xbox_draw_audit[4];
+/* Per-frame stream mesh: most vertices seen, vertex capacity of the GPU buffer. */
+uint32_t rf_xbox_stream_peak[2];
 uint32_t rf_xbox_renderer_stage[4]; /* stage, image bytes, vertex bytes, free pages before GPU allocation */
 static uint32_t stream_profile_frames;
 static uint32_t stream_start_vblank,stream_start_valid;
@@ -1145,6 +1147,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         statistics.Length = sizeof(statistics);
         if (NT_SUCCESS(MmQueryStatistics(&statistics))) memory[0] = statistics.AvailablePages;
         memory[1] = (uint32_t)upload_bytes; memory[2] = vertex_bytes;
+        if(mesh->count>rf_xbox_stream_peak[0])rf_xbox_stream_peak[0]=mesh->count;
+        rf_xbox_stream_peak[1]=vertex_bytes/(uint32_t)sizeof(rf_preview_vertex);
     }
     renderer_mark(2,&profile_previous,profiling);
     p = pb_begin();

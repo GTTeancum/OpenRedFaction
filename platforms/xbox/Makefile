@@ -104,6 +104,13 @@ SRCS += $(PROJECT_ROOT)/src/core/campaign_goals_checkpoint.c $(PROJECT_ROOT)/src
 SRCS += $(PROJECT_ROOT)/src/core/world_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/mover_checkpoint.c $(PROJECT_ROOT)/src/core/campaign_pickups_checkpoint.c $(PROJECT_ROOT)/src/core/campaign_triggers_checkpoint.c $(PROJECT_ROOT)/src/core/event_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/flame_stream.c
+# Opt-in memory audit (make RF_HEAP_AUDIT=1): every project allocation records
+# its source file and line; live bytes per site reach the RAM log.
+SRCS += $(PROJECT_ROOT)/src/core/heap_audit.c
+RF_HEAP_AUDIT ?= 0
+ifeq ($(RF_HEAP_AUDIT),1)
+RF_PROJECT_CFLAGS += -DRF_HEAP_AUDIT -include $(PROJECT_ROOT)/include/rf/heap_audit.h
+endif
 # Repository-owned, source-pinned PDCLib close-status correction.
 RF_CHECKED_STDIO := $(PROJECT_ROOT)/build/checked-stdio/fclose.c
 SRCS += $(RF_CHECKED_STDIO)
@@ -116,6 +123,8 @@ include $(NXDK_DIR)/Makefile
 $(RF_PROJECT_OBJS): private CFLAGS += $(RF_PROJECT_CFLAGS) -Wall -Wextra -Werror
 $(APU_SRCS:.c=.obj): private CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include
 $(PROJECT_ROOT)/src/platform/xbox/audio.obj: private CFLAGS += -std=c23 -I$(APU_BACKEND)/include
+# The C library's own close path frees library-owned buffers: keep it unaudited.
+$(RF_CHECKED_STDIO:.c=.obj): private CFLAGS += -DRF_HEAP_AUDIT_IMPLEMENTATION
 
 # Windows clang emits D:/ dependency targets while this make uses /d/ paths.
 # Explicit project-header prerequisites keep shared ABI edits from leaving stale

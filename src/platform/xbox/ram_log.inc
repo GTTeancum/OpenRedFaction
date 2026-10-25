@@ -90,7 +90,7 @@ static void rf_ram_log_sample(uint32_t force)
 {
     static int initialized,enabled;
     static uint32_t previous=UINT32_MAX;
-    static char text[12288];static uint32_t rf_xbox_run_nonce[1];
+    static char text[16384];static uint32_t rf_xbox_run_nonce[1];
     size_t used=0;int count;
     if(!initialized){FILE *f=tester_profile?NULL:fopen("D:\\crash-ram-log.flag","rb");
         initialized=1;enabled=f!=NULL;if(f)fclose(f);
@@ -233,6 +233,7 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_weapon_ir[8];RAM_ARRAY(rf_scene_weapon_ir,8);}
     {extern int32_t rf_scene_weapon_ir_bounds[8];RAM_ARRAY(rf_scene_weapon_ir_bounds,8);}
     {extern uint32_t rf_scene_weapon_digits[4];RAM_ARRAY(rf_scene_weapon_digits,4);}
+    {extern uint32_t rf_xbox_stream_peak[2];RAM_ARRAY(rf_xbox_stream_peak,2);}
     {extern uint64_t rf_renderer_model_split[4];RAM_ARRAY(rf_renderer_model_split,8);}
     {extern uint32_t rf_xbox_world_indexed[8];RAM_ARRAY(rf_xbox_world_indexed,8);}
     {extern uint32_t rf_xbox_native_files[35];RAM_ARRAY(rf_xbox_native_files,35);}
@@ -268,6 +269,19 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_xbox_gpu_wait[11],rf_xbox_experiment;RAM_ARRAY(rf_xbox_gpu_wait,11);RAM_ARRAY(&rf_xbox_experiment,1);}
     {extern uint32_t rf_scene_rocket_visual[8];RAM_ARRAY(rf_scene_rocket_visual,8);}
     {extern uint32_t rf_preview_world_stats[4],rf_xbox_retained_world[8];RAM_ARRAY(rf_preview_world_stats,4);RAM_ARRAY(rf_xbox_retained_world,8);}
+#ifdef RF_HEAP_AUDIT
+    /* Memory audit: totals, then the top call sites as "file:line" (c = contiguous), live bytes, blocks. */
+    {uint32_t i;rf_heap_audit_snapshot();RAM_ARRAY(rf_heap_audit_totals,8);
+     count=snprintf(text+used,sizeof(text)-used,"\"rf_heap_audit_sites\":[");if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;
+     for(i=0;i<RF_HEAP_AUDIT_TOP && rf_heap_audit_top[i][2];i++){
+        const char *file=(const char *)(uintptr_t)rf_heap_audit_top[i][0],*slash=strrchr(file,'/'),*back=strrchr(file,'\\');
+        if(back>slash)slash=back;
+        count=snprintf(text+used,sizeof(text)-used,"%s[\"%s:%u%s\",%u,%u]",i?",":"",slash?slash+1:file,
+            (unsigned)(rf_heap_audit_top[i][1]&0x7fffffffu),(rf_heap_audit_top[i][1]>>31)?"c":"",
+            (unsigned)rf_heap_audit_top[i][2],(unsigned)rf_heap_audit_top[i][3]);
+        if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;}
+     count=snprintf(text+used,sizeof(text)-used,"],");if(count<0 || (size_t)count>=sizeof(text)-used)return;used+=(size_t)count;}
+#endif
 #undef RAM_ARRAY
     if(used+3>=sizeof(text))return;
     text[used-1]='}';text[used++]='\n';text[used]=0;
