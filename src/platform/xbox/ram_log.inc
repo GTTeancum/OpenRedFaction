@@ -186,6 +186,7 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_scene_drill_reject,8);
     RAM_ARRAY(rf_scene_drill_trace,32);
     RAM_ARRAY(rf_scene_drill_tunnel,4);
+    {extern uint32_t rf_scene_rocket_trail[8];RAM_ARRAY(rf_scene_rocket_trail,8);}
     {extern uint32_t rf_scene_alarm_sight_fail[3];RAM_ARRAY(rf_scene_alarm_sight_fail,3);}
     {extern uint32_t rf_scene_drill_refusal[8];RAM_ARRAY(rf_scene_drill_refusal,8);}
     {extern uint32_t rf_scene_terrain_draw[5],rf_scene_authored_source_cuts[8];RAM_ARRAY(rf_scene_terrain_draw,5);RAM_ARRAY(rf_scene_authored_source_cuts,8);}
