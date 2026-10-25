@@ -1,0 +1,31 @@
+// In-between picture for CPU-projected geometry (port-owned, not original).
+// A vertex holds screen x/y, depth K*(1-0.1q) and q=1/view depth (texture.z).
+// Recover its view-space point, move it into the nudged camera with
+// v' = M v + t (rows c0..c2, scope folded into M), and project it again with
+// the same rule as preview.c. Screen-locked vertices (view-model depth
+// 16384/(1+q)) and degenerate q pass through unchanged.
+struct Input { float3 position : POSITION; float3 color : DIFFUSE; float3 texture : TEXCOORD0; float3 lightmap : TEXCOORD1; };
+struct Output { float4 position : POSITION; float4 color : COLOR; float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
+Output main(Input input, uniform float4 opacity : register(c1),
+    uniform float4 move_x : register(c8), uniform float4 move_y : register(c9),
+    uniform float4 move_z : register(c10), uniform float4 screen : register(c11),
+    uniform float4 depth : register(c12)) {
+    Output output;
+    float q = max(input.texture.z, 1e-6);
+    float zv = 1.0 / q;
+    float3 v = float3((input.position.x - screen.x) * zv * screen.w,
+        (screen.y - input.position.y) * zv * screen.w, zv);
+    float3 n = float3(dot(move_x.xyz, v) + move_x.w, dot(move_y.xyz, v) + move_y.w,
+        dot(move_z.xyz, v) + move_z.w);
+    float nq = 1.0 / max(n.z, 0.1);
+    float locked = abs(input.position.z - depth.z / (1.0 + q)) < 0.5 ? 1.0 : 0.0;
+    float keep = max(locked, input.texture.z > 0.0 ? 0.0 : 1.0);
+    float3 moved = float3(screen.x + n.x * nq * screen.z, screen.y - n.y * nq * screen.z,
+        depth.x * (1.0 - depth.y * nq));
+    float ratio = lerp(nq * zv, 1.0, keep);
+    output.position = float4(lerp(moved, input.position, keep), 1.0);
+    output.color = float4(input.color, opacity.x);
+    output.texture = float4(input.texture.xy * ratio, 0.0, input.texture.z * ratio);
+    output.lightmap = float4(input.lightmap.xy * ratio, 0.0, input.lightmap.z * ratio);
+    return output;
+}

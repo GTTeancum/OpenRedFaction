@@ -31,7 +31,7 @@ for path in "$disc"/*; do
         exit 1
     fi
     case "${path##*/}" in
-        default.xbe|tester-profile.flag|bluebeard.bty|geomod-template.bin|driller-single.bin|driller-double.bin) ;;
+        default.xbe|tester-profile.flag|openrf.ini|bluebeard.bty|geomod-template.bin|driller-single.bin|driller-double.bin) ;;
         tables.vpp|levels1.vpp|levels2.vpp|levels3.vpp|levelsm.vpp|maps1.vpp|maps2.vpp|maps3.vpp|maps4.vpp|maps_en.vpp|meshes.vpp|motions.vpp|audio.vpp|music.vpp|ui.vpp|ps2mainmenu.vpp) ;;
         *) echo "Refusing unexpected tester package file: $path" >&2; exit 1 ;;
     esac
@@ -75,7 +75,9 @@ for shape in geomod-template driller-single driller-double; do
     borrow_asset "$root/build/data/$shape.bin" "$shape.bin"
 done
 # Recreate the owned marker instead of writing through a possible hardlink.
-rm -f "$disc/tester-profile.flag"
+rm -f "$disc/tester-profile.flag" "$disc/openrf.ini"
+# User-editable settings (frame rate and fallback) beside default.xbe.
+cp "$root/platforms/xbox/openrf.ini" "$disc/openrf.ini"
 printf 'RFTEST1\n' > "$disc/tester-profile.flag"
 profile_stamp="$root/build/xbox/geomod-profile.stamp"
 if [[ ! -f "$profile_stamp" ]] || [[ "$(cat "$profile_stamp")" != 0 ]]; then

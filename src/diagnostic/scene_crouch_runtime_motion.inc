@@ -37,7 +37,7 @@ static int scene_crouch_runtime_motion(scene_stream *stream,uint32_t slot,uint32
     if(!stream||!stream->collision||!campaign_npc_bodies||slot>=campaign_npc_body_count)return RF_RANGE;
     o=campaign_npc_bodies+slot;
     if(!(o->crouch.flags&SCENE_CROUCH_PRESENT)||!scene_crouch_motion_available(o))return RF_OK;
-    if(frame%campaign_npc_body_count!=slot)return RF_OK;
+    if(scene_tick_serial%campaign_npc_body_count!=slot)return RF_OK;
     status=scene_crouch_live_shape(slot,o);if(status)return status;
     status=scene_crouch_owner_guard_capture(slot,&guard);if(status)return status;
     pose=campaign_poses.items+slot;cls=campaign_seeds.items[slot].class_index;

@@ -503,6 +503,9 @@ static void scene_turret_audio_begin_frame(uint32_t);
 uint32_t rf_scene_begin_frame_failure[3];
 /* First failing level-exit handoff check in scene teardown: source line, status. */
 uint32_t rf_scene_teardown_failure[2];
+/* Game updates since scene start. Frame numbers count 60ths and advance by
+ * rf_tick_frames, so round-robin and alternate-update work uses this. */
+static uint32_t scene_tick_serial;
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
@@ -510,6 +513,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     scene_turret_audio_begin_frame(frame);
     if(frame && !campaign_endgame.credits && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
         !scene_airlock_handoff_wait() && !scene_medic_handoff_wait() && !scene_guard_retreat_section_wait()){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_NOT_FOUND);rf_scene_begin_frame_failure[2]=frame;return RF_NOT_FOUND;}
+    scene_tick_serial=frame?scene_tick_serial+1:0;
     if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
         memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
@@ -1276,7 +1280,10 @@ void rf_scene_actor_follow(const rf_scene_world_geometry *world) {actor_follow_w
 #include "scene_skybox.inc"
 uint32_t rf_scene_actor_follow_summary[5]; /* frames, world hash, peak world bytes, camera hash, CPU capacity */
 uint32_t rf_scene_actor_follow_frames[64][14]; /* absolute frame, world vertices, camera position/orientation */
-static const float scene_step_seconds=1.0f/60.0f;
+/* One game update: 1/60 s, or 1/30 s when rf_tick_frames is 2 (frame
+ * numbers still count 60ths). */
+#include "rf/frame_clock.h"
+#define scene_step_seconds ((float)rf_tick_frames*(1.0f/60.0f))
 rf_physics_body scene_actor_body;
 uint32_t rf_scene_actor_physics_diagnostic[8];
 uint32_t rf_scene_actor_initial_animation[12];
@@ -2468,6 +2475,8 @@ static int campaign_npc_motion_residency(void)
 
 static rf_entity_appearances campaign_appearances;
 static rf_entity_materials campaign_npc_materials;
+/* Character texture size cap actually used: 0 full size, else 128 or 64. */
+uint32_t rf_scene_npc_texture_cap;
 uint32_t rf_scene_npc_materials[8]; /* appearances, materials, images, resident, peak, binding hash, pixel bytes, pixel hash */
 uint32_t rf_scene_npc_geometry[7]; /* models, LODs, vertices, triangles, bytes, geometry hash, prepared skin hash */
 uint32_t rf_scene_npc_startup[4]; /* actors, bones, playback hash, matrix/cache hash */
@@ -20981,13 +20990,13 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             scene_patrol_now(frame));if(status)return status;
     }
     if(campaign_npc_body_count){
-        status=scene_crouch_runtime_admit(frame%campaign_npc_body_count,
+        status=scene_crouch_runtime_admit(scene_tick_serial%campaign_npc_body_count,
             scene_patrol_now(frame));if(status)return status;
     }
     if(campaign_npc_body_count){
-        status=scene_crouch_runtime_attention(stream,frame%campaign_npc_body_count,frame);
+        status=scene_crouch_runtime_attention(stream,scene_tick_serial%campaign_npc_body_count,frame);
         if(status)return status;
-        status=scene_crouch_runtime_motion(stream,frame%campaign_npc_body_count,frame);
+        status=scene_crouch_runtime_motion(stream,scene_tick_serial%campaign_npc_body_count,frame);
         if(status)return status;
     }
     /* Original snapshot list completes before any model/controller update. */
@@ -21051,7 +21060,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             if(!frame && i<NPC_POSE_CARRY_SLOTS)npc_pose_carry[i]=0;
             if(advance && i<NPC_POSE_CARRY_SLOTS && !pose->playback.completion.frozen &&
                ((gate.descriptor_present && !(gate.descriptor_flag&255u)) || gate.distance>20.0f)) {
-                if((i^frame)&1u){npc_pose_carry[i]+=elapsed;advance=0;++rf_scene_npc_pose_lod[1];}
+                if((i^scene_tick_serial)&1u){npc_pose_carry[i]+=elapsed;advance=0;++rf_scene_npc_pose_lod[1];}
                 else{step+=npc_pose_carry[i];npc_pose_carry[i]=0;}
             } else if(i<NPC_POSE_CARRY_SLOTS){step+=npc_pose_carry[i];npc_pose_carry[i]=0;}
             if(advance)++rf_scene_npc_pose_lod[0];
@@ -23475,9 +23484,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && campaign_spawn)status=campaign_model_geometry_open();
         if(!status && collision && campaign_spawn)status=rf_entity_appearances_open(&campaign_seeds,&campaign_skeletons,&tables,1024*1024,&campaign_appearances);
         if(!status && collision && campaign_spawn) {
-            campaign_load_stage_set(1);status=rf_entity_materials_open(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024);
-            if(status==RF_RANGE)status=rf_entity_materials_open_limit(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024,128);
-            if(status==RF_RANGE)status=rf_entity_materials_open_limit(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024,64);
+            campaign_load_stage_set(1);rf_scene_npc_texture_cap=0;status=rf_entity_materials_open(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024);
+            if(status==RF_RANGE){rf_scene_npc_texture_cap=128;status=rf_entity_materials_open_limit(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024,128);}
+            if(status==RF_RANGE){rf_scene_npc_texture_cap=64;status=rf_entity_materials_open_limit(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024,64);}
         }
         if(!status && collision && campaign_spawn)campaign_npc_materials_digest();
         rf_vpp_close(&tables);if(status)goto done;

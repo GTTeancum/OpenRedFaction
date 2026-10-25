@@ -52,6 +52,11 @@ for shape in driller-single driller-double; do
         rm -f "$root/build/xbox/redfaction-diagnostic.iso"
     fi
 done
+# User-editable settings beside default.xbe (frame rate and fallback).
+if [[ "$root/platforms/xbox/openrf.ini" -nt "$root/build/xbox/disc/openrf.ini" ]]; then
+    cp "$root/platforms/xbox/openrf.ini" "$root/build/xbox/disc/openrf.ini"
+    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+fi
 cd "$root/build/xbox"
 # Repack changed disc flags without make -W default.xbe, which can suppress
 # rebuilding that XBE even when compilation produces a newer main.exe.

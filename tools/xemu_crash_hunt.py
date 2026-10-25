@@ -146,6 +146,8 @@ def main():
                         help='Consume replay input on the live 60 Hz frame clock with presentation skipping')
     parser.add_argument('--experiment', type=int, choices=range(8), default=0,
                         help='Bottleneck experiment bits: 1 issue no draws, 2 quarter-screen raster clip, 4 1x1 textures')
+    parser.add_argument('--frame-rate', choices=('60','30','30_smooth','auto'),
+                        help='write openrf.ini with this frame_rate (absent: no file, fixed 60)')
     parser.add_argument('--render-sync', type=int, choices=range(4), default=0,
                         help='Renderer overlap bisect: 1 keep pbkit resets, 2 no fences/vertex halves, 3 both (old behaviour)')
     parser.add_argument('--no-audio', action='store_true', help='Leave the Xbox APU audio backend closed')
@@ -243,8 +245,10 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini'):
             (disc / name).unlink(missing_ok=True)
+        if args.frame_rate:
+            (disc / 'openrf.ini').write_text('[video]\nframe_rate = %s\nfallback = 30_smooth\n' % args.frame_rate)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         run_nonce = int.from_bytes(os.urandom(4),'little') or 1
         (disc / 'crash-run-nonce.bin').write_bytes(run_nonce.to_bytes(4,'little'))

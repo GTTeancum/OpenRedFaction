@@ -5,6 +5,7 @@
 #include "rf/entity.h"
 #include "rf/weapon.h"
 #include "rf/effect.h"
+#include "rf/frame_clock.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -169,7 +170,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     struct pose_workspace {rf_model_bone bones[256];float matrices[256][12];} *workspace=NULL;
     rf_model_bone *bones;rf_model_attachment eye={0};
     float (*matrices)[12], local[12], tag[12], displacement[3]={.125f,-.25f,.5f};
-    uint16_t generations[256]={0}; uint32_t count=0,i,frame=UINT32_MAX; int status,opened=0,found=0;
+    uint16_t generations[256]={0}; uint32_t count=0,i,frame=UINT32_MAX,frame_advance=1; int status,opened=0,found=0;
     rf_animation_model_view published={0};
     void *payload=NULL;
     float (*stored)[12]=NULL,(*prepared)[12]=NULL;uint16_t prepared_generations[256]={0};
@@ -319,11 +320,14 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     }
     published.model=&model;published.bones=bones;published.bone_count=count;
     published.matrices=(const float (*)[12])matrices;published.playback=&state;
-    for (frame=0;frame<frame_count;++frame) {
+    for (frame=0;frame<frame_count;frame+=frame_advance) {
         uint32_t diagnostics;
+        /* Campaign play may cover two 60ths per update (30 Hz); frame numbers
+         * keep counting 60ths. Diagnostic streams stay one frame per update. */
+        if(placement && placement->campaign_player)rf_tick_frames=frame?frame_advance:1;
         const rf_motion_file *const *frame_handles=handles;
         rf_animation_progress[0]=frame;rf_animation_progress[1]=1;
-        float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds:1.0f/30.0f;
+        float frame_seconds=frame && placement && placement->step_seconds>0?placement->step_seconds*(placement->campaign_player?(float)rf_tick_frames:1.0f):1.0f/30.0f;
         if(placement && placement->begin_frame) {
             status=placement->begin_frame(placement->frame_context,frame);
             if(status==RF_NOT_FOUND){status=RF_OK;goto done;}if(status)goto done;
@@ -551,6 +555,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         rf_animation_progress[1]=8;
         if(sink) {preview->bytes=preview->count*sizeof(rf_preview_vertex);status=sink(sink_context,frame,preview);if(status)goto done;}
         rf_animation_progress[1]=9;
+        frame_advance=placement && placement->campaign_player && rf_tick_frames_next==2?2u:1u;
     }
     if(!emitted_indices && !placement)status=RF_FORMAT;
 done:

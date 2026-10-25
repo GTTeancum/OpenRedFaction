@@ -42,7 +42,9 @@ uint32_t rf_xbox_gpu_wait[11];
  * rasterisation to a quarter of the screen, bit2 sample 1x1 textures. */
 uint32_t rf_xbox_experiment;
 static inline uint64_t gpu_wait_clock(void){uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;}
-#define GPU_WAIT(site,expr) do{uint64_t gpu_wait_start=gpu_wait_clock();expr;rf_xbox_gpu_wait[site]+=(uint32_t)((gpu_wait_clock()-gpu_wait_start)>>10);}while(0)
+/* Running total of every wait below, never reset (frame pacing reads it). */
+uint32_t rf_xbox_wait_total;
+#define GPU_WAIT(site,expr) do{uint64_t gpu_wait_start=gpu_wait_clock();uint32_t gpu_waited;expr;gpu_waited=(uint32_t)((gpu_wait_clock()-gpu_wait_start)>>10);rf_xbox_gpu_wait[site]+=gpu_waited;rf_xbox_wait_total+=gpu_waited;}while(0)
 /* Overlapped presentation (XDK: never stall the CPU on the GPU; double-buffer
  * dynamic data behind fences). pbkit's pb_reset waits until the GPU has fetched
  * every queued command, and the old frame used it several times. Instead each

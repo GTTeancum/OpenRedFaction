@@ -224,6 +224,9 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_npc_pose_lod[2];RAM_ARRAY(rf_scene_npc_pose_lod,2);}
     {extern uint32_t rf_xbox_liquid_faces[4];RAM_ARRAY(rf_xbox_liquid_faces,4);}
     {extern uint32_t rf_xbox_liquid_waves[4];RAM_ARRAY(rf_xbox_liquid_waves,4);}
+    {extern uint32_t rf_xbox_pacing[8];RAM_ARRAY(rf_xbox_pacing,8);}
+    {extern uint32_t rf_scene_world_texture_budget[4],rf_scene_npc_texture_cap,rf_xbox_video[4];
+     RAM_ARRAY(rf_scene_world_texture_budget,4);RAM_ARRAY(&rf_scene_npc_texture_cap,1);RAM_ARRAY(rf_xbox_video,4);}
     {extern uint64_t rf_renderer_model_split[4];RAM_ARRAY(rf_renderer_model_split,8);}
     {extern uint32_t rf_xbox_world_indexed[8];RAM_ARRAY(rf_xbox_world_indexed,8);}
     {extern uint32_t rf_xbox_native_files[35];RAM_ARRAY(rf_xbox_native_files,35);}

@@ -22,6 +22,7 @@
 #include "file_io.h"
 #include "input.h"
 #include "settings_storage.h"
+#include "rf/settings_ini.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +51,83 @@ static uint32_t door_capacity;
 rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,campaign_scene_start,campaign_frame_limit;
 static int present_decided,present_decision;
+/* openrf.ini beside the XBE (port-owned; absent = fixed 60). */
+static rf_settings xbox_settings;
+/* Frame pacing state: mode in use (RF_FRAME_RATE_*), current tick size,
+ * switches to fallback, switches back to 60, last busy ms per update,
+ * busy-over-budget streak, busy-under streak, ini unknown|invalid<<16. */
+uint32_t rf_xbox_pacing[8];
+static uint32_t pacing_mode;
+/* Recorded inputs consumed so far. At 60 this equals campaign_total_frames;
+ * at 30 one record covers two 60ths, so the recording position and its
+ * limit follow records, not game time. */
+static uint32_t replay_records;
+#define replay_position() (pacing_mode==RF_FRAME_RATE_60?campaign_total_frames:replay_records)
+static uint64_t pacing_last;static uint32_t pacing_wait_last;
+static uint32_t pacing_dwell;
+static inline uint64_t pacing_clock(void){uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;}
+/* Video mode chosen from the console's own video settings: encoder
+ * settings word, width, height, flags (bit0 progressive, bit1 HDTV pack,
+ * bit2 720p allowed, bit3 480p allowed; flicker level << 8). */
+uint32_t rf_xbox_video[4];
+/* XVideoSetMode(640,480) already takes 480p when the dashboard allows it on
+ * component (HDTV) cables, else 480i. 720p needs about 10 MiB more frame
+ * buffer than 640x480 while several campaign levels leave 3-6 MiB free, so it
+ * stays off on stock 64 MiB. NXDK leaves flicker filter 5, a strong vertical
+ * blur; progressive output needs none, interlaced output keeps a light one. */
+static void video_mode_open(void)
+{
+    DWORD encoder=XVideoGetEncoderSettings();uint32_t hdtv=(encoder&VIDEO_ADAPTER_MASK)==AV_PACK_HDTV;
+    uint32_t progressive=hdtv && (encoder&VIDEO_MODE_480P)!=0,flicker;
+    XVideoSetMode(640,480,32,REFRESH_DEFAULT);
+    flicker=xbox_settings.flicker_filter<=5?xbox_settings.flicker_filter:progressive?0u:2u;
+    XVideoSetFlickerFilter((int)flicker);XVideoSetSoftenFilter(FALSE);
+    rf_xbox_video[0]=encoder;rf_xbox_video[1]=(uint32_t)XVideoGetMode().width;rf_xbox_video[2]=(uint32_t)XVideoGetMode().height;
+    rf_xbox_video[3]=progressive|(hdtv<<1)|(((encoder&VIDEO_MODE_720P)!=0)<<2)|(((encoder&VIDEO_MODE_480P)!=0)<<3)|(flicker<<8);
+}
+static void pacing_settings_load(void)
+{
+    char text[4096];FILE *f=fopen("D:\\openrf.ini","rb");uint32_t n=0;
+    rf_settings_defaults(&xbox_settings);
+    if(f){n=(uint32_t)fread(text,1,sizeof(text),f);fclose(f);rf_settings_parse(&xbox_settings,text,n);}
+    rf_xbox_pacing[7]=xbox_settings.unknown|(xbox_settings.invalid<<16);
+}
+/* Start a paced session in the configured mode. Recorded input is consumed
+ * one record per update, so a harness disc without openrf.ini stays at 60. */
+static void pacing_begin(void)
+{
+    uint32_t mode=xbox_settings.frame_rate;
+    pacing_mode=mode;pacing_last=0;pacing_dwell=0;
+    rf_tick_frames=1;rf_tick_frames_next=mode==RF_FRAME_RATE_30 || mode==RF_FRAME_RATE_30_SMOOTH?2:1;
+    rf_xbox_pacing[0]=mode;rf_xbox_pacing[1]=rf_tick_frames_next;rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;
+}
+/* Once per game update, before its pacing wait. Busy time is the CPU time
+ * since the previous update's wait ended, minus GPU/VBlank waits. Auto mode
+ * drops to the fallback when updates keep exceeding 15 ms of work at 60 (a
+ * decaying count: +2 heavy, -1 light, switch at 20), and returns to 60 after
+ * 120 straight updates (4 s) under 11 ms. Each switch holds 1-2 s. */
+static void pacing_update(void)
+{
+    extern uint32_t rf_xbox_wait_total;
+    uint64_t now=pacing_clock();uint32_t waits=rf_xbox_wait_total,busy_ms;
+    if(!pacing_last){pacing_last=now;pacing_wait_last=waits;return;}
+    {uint64_t cycles=now-pacing_last,waited=(uint64_t)(uint32_t)(waits-pacing_wait_last)<<10;
+     busy_ms=(uint32_t)((cycles>waited?cycles-waited:0)/733333u);}
+    rf_xbox_pacing[3]=busy_ms;
+    if(pacing_mode!=RF_FRAME_RATE_AUTO || xbox_settings.fallback==RF_FRAME_RATE_60)return;
+    if(pacing_dwell)--pacing_dwell;
+    if(rf_tick_frames==1) {
+        /* Decaying count: +1 per heavy update, -1/2 per light one, capped. */
+        rf_xbox_pacing[4]=busy_ms>15?(rf_xbox_pacing[4]<30?rf_xbox_pacing[4]+2:30):(rf_xbox_pacing[4]?rf_xbox_pacing[4]-1:0);
+        if(rf_xbox_pacing[4]>=20 && !pacing_dwell){rf_tick_frames_next=2;++rf_xbox_pacing[2];rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;pacing_dwell=60;}
+    } else {
+        rf_xbox_pacing[5]=busy_ms<11?rf_xbox_pacing[5]+1:0;
+        if(rf_xbox_pacing[5]>=120 && !pacing_dwell){rf_tick_frames_next=1;++rf_xbox_pacing[6];rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;pacing_dwell=120;}
+    }
+    rf_xbox_pacing[1]=rf_tick_frames_next;
+}
+static void pacing_wait_done(void)
+{extern uint32_t rf_xbox_wait_total;pacing_last=pacing_clock();pacing_wait_last=rf_xbox_wait_total;}
 /* Opt-in tester package: the ordinary authored campaign and live controller
  * path, with no injected input, level override, event or inventory changes.
  * The packager admits only stock assets and this marker in its separate disc. */
@@ -931,22 +1009,24 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
     }
     if(player_replay) {
         if(player_pacing) {
-            uint32_t wait;
+            uint32_t wait;pacing_update();
             while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+            pacing_wait_done();
         }
         {uint32_t kind=0;
-            while(quick_action_next<quick_action_count&&quick_action_frame[quick_action_next]<campaign_total_frames)++quick_action_next;
-            if(quick_action_next<quick_action_count&&quick_action_frame[quick_action_next]==campaign_total_frames)kind=quick_action_kind[quick_action_next];
+            /* Updates may cover two 60ths: act on the first update at or past each frame. */
+            if(quick_action_next<quick_action_count&&quick_action_frame[quick_action_next]<=campaign_total_frames)kind=quick_action_kind[quick_action_next++];
             rf_scene_save_button(kind==1);rf_scene_load_button(kind==2);}
         memset(input,0,sizeof(*input));
-        int status=frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
-            fread(input,player_replay_size,1,player_replay)!=1?RF_IO:RF_OK;
+        int status=rf_tick_frames_next==1 && pacing_mode==RF_FRAME_RATE_60 && frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
+            fread(input,player_replay_size,1,player_replay)!=1?(pacing_mode!=RF_FRAME_RATE_60 && feof(player_replay)?RF_NOT_FOUND:RF_IO):RF_OK;
         rf_player_replay_diagnostic[3]=(uint32_t)status;
-        if(!status)++rf_player_replay_diagnostic[2];return status;
+        if(!status){++rf_player_replay_diagnostic[2];++replay_records;}return status;
     }
     if(player_pacing) {
-        uint32_t wait;
+        uint32_t wait;pacing_update();
         while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+        pacing_wait_done();
     }
     {
         int status=rf_xbox_input_poll(context,frame,input);
@@ -1382,9 +1462,9 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     (void)context;
-    if(scene_simulation_frames!=frame)return RF_FORMAT;
+    if(frame<scene_simulation_frames)return RF_FORMAT; /* Updates may cover two 60ths. */
     if(!frame)rf_vpp_io_stage(9); /* load finished: first world frame */
-    ++scene_simulation_frames;++campaign_total_frames;
+    campaign_total_frames+=frame?frame+1-scene_simulation_frames:1;scene_simulation_frames=frame+1;
     if(frame==(rf_scene_actor_live_enabled?663u:63u) && actor_body_preview) {
         memcpy(rf_actor_world_diagnostic,rf_scene_actor_initial_world,sizeof(rf_actor_world_diagnostic));
         memcpy(rf_actor_fall_diagnostic,rf_scene_actor_initial_fall,sizeof(rf_actor_fall_diagnostic));
@@ -1632,8 +1712,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             if(rf_scene_replay_header(player_replay,&limit,&player_replay_size)){player_input_close();return RF_FORMAT;}
             long replay_offset=ftell(player_replay);
             rf_player_replay_diagnostic[0]=1;rf_player_replay_diagnostic[1]=limit;
-            if(replay_offset<0 || campaign_total_frames>=limit || fseek(player_replay,replay_offset+(long)((uint64_t)campaign_total_frames*player_replay_size),SEEK_SET)){player_input_close();return RF_RANGE;}
-            rf_player_replay_diagnostic[2]=campaign_total_frames;
+            if(replay_offset<0 || replay_position()>=limit || fseek(player_replay,replay_offset+(long)((uint64_t)replay_position()*player_replay_size),SEEK_SET)){player_input_close();return RF_RANGE;}
+            rf_player_replay_diagnostic[2]=replay_position();
         } else {status=rf_xbox_input_open();if(status)return status;}
         if(player_replay && !tester_profile) {
             FILE *paced=fopen("D:\\crash-paced.flag","rb");
@@ -1643,9 +1723,11 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         rf_scene_set_diagnostic_checksums(!player_pacing);
         if(player_pacing)rf_scene_set_profile(profile_milliseconds);
         rf_scene_present_query=player_pacing?scene_present_query:NULL;present_decided=0;
+        if(player_pacing)pacing_begin();else{rf_tick_frames=rf_tick_frames_next=1;pacing_mode=RF_FRAME_RATE_60;}
         campaign_frame_limit=limit;
-        if(limit && campaign_total_frames>=limit){player_input_close();return RF_RANGE;}
-        rf_scene_set_input(player_poll_paced,NULL,limit?limit-campaign_total_frames:0);
+        if(limit && replay_position()>=limit){player_input_close();return RF_RANGE;}
+        /* Off 60, the recording's end (not a 60ths count) closes the session. */
+        rf_scene_set_input(player_poll_paced,NULL,limit && pacing_mode==RF_FRAME_RATE_60?limit-campaign_total_frames:0);
         if(player_pacing && !player_replay)rf_scene_set_player_feedback_sink(rf_xbox_input_player_feedback,NULL);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
@@ -1952,7 +2034,7 @@ static void player_resident_close(void)
 }
 static void player_session_counters_reset(void)
 {
-    player_pacing=scene_simulation_frames=campaign_total_frames=campaign_scene_start=campaign_frame_limit=0;
+    player_pacing=scene_simulation_frames=campaign_total_frames=campaign_scene_start=campaign_frame_limit=replay_records=0;
     player_replay_size=campaign_exit_uid=campaign_forced_exit_uid=campaign_goal_uid=campaign_goto_uid=0;
     campaign_setup_uid=campaign_return_exit_uid=campaign_return_item_uid=campaign_return_place=0;
     campaign_setup_next_uid=campaign_setup_source_uid=campaign_setup_actor_uid=campaign_setup_immediate=campaign_goto_frame=0;
@@ -2175,7 +2257,7 @@ campaign_load_section:
                 }
             }
             if(result==RF_OK && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
-               (!campaign_frame_limit || campaign_total_frames<campaign_frame_limit)) {
+               (!campaign_frame_limit || replay_position()<campaign_frame_limit)) {
                 rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
                 uint32_t reload=rf_scene_quickload_pending(),restart=rf_scene_restart_pending(),fresh=reload||restart;
                 memset(&state,0,sizeof(state));memset(departing_position,0,sizeof(departing_position));memset(departing_orientation,0,sizeof(departing_orientation));
@@ -2226,7 +2308,8 @@ int main(void)
     int result;
     record_fp_control(1);
     rf_diagnostic[2] = 1;
-    XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
+    pacing_settings_load();
+    video_mode_open();
     {FILE *profile=fopen("D:\\tester-profile.flag","rb");
      if(profile){char value[8];int valid=fread(value,1,8,profile)==8 &&
          !memcmp(value,"RFTEST1\n",8) && fgetc(profile)==EOF;fclose(profile);

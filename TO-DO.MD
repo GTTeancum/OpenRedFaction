@@ -9,7 +9,9 @@ Needs you (USER):
 Engine work still open:
 - GeoMod: a wall takes at most 8 stacked cuts (original 25); doorway shots make no cut; Driller tunnel after a load not yet seen on the console.
 - Drone/effects: white/yellow effect overlap and NPC-first contact response.
-- Frame rate: L1S2 about 27-30 FPS; open items listed at the top of docs/XBOX-PERFORMANCE-PLAN-20261023.md.
+- Frame rate: openrf.ini beside default.xbe now selects 60 / 30 / 30_smooth / auto (shipped default steady 30; no file = fixed 60 for harness replays). Console: steady 30 holds 30 FPS in L1S2; auto drops L1S2 to 30 after ~2 s (17-20 ms per update) and runs the next level at 60. Still open: 30_smooth in-between pictures (currently same as steady 30) and moving characters in them.
+- Picture clarity: world textures load capped at 128 px in L1S2 and L3S2 (characters too in L3S2) to fit memory; next fix is in-memory texture compression (GPU-native DXT) so full-size textures fit. Encoder flicker filter lowered from NXDK's 5 to 2 on 480i and 0 on 480p. 720p does not fit stock 64 MiB (needs ~10 MiB more frame buffer; campaign levels have 3-6 MiB free).
+- USER: the console reports a component (HDTV) cable with 480p and 720p disabled in the dashboard; enable 480p there to get progressive output.
 - 28 older PC tests fail from fixture drift (listed in the October 25 entry).
 - Crash hunting: broad ongoing coverage (paused at your request).
 - Multiplayer: not started (after single-player).
