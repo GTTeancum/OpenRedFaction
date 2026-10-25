@@ -16,7 +16,9 @@ static uint32_t scene_ai_missile_service_depth; /* Stack-owned; world reset cann
 uint32_t rf_scene_ai_rockets[5];
 uint32_t rf_scene_ai_rocket_timing[3]; /* latest launch, impact, expiry frames */
 static void scene_ai_rocket_reset(void)
-{scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_NPC_ROCKET);memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));memset(rf_scene_ai_rocket_timing,0,sizeof(rf_scene_ai_rocket_timing));}
+{scene_projectile_flight_audio_stop_family(SCENE_FLIGHT_AUDIO_NPC_ROCKET);
+ for(uint32_t i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)(void)scene_projectile_trail_stop(scene_actor_collision_owner,SCENE_TRAIL_AI_ROCKET,i);
+ memset(scene_ai_rockets,0,sizeof(scene_ai_rockets));memset(rf_scene_ai_rockets,0,sizeof(rf_scene_ai_rockets));memset(rf_scene_ai_rocket_timing,0,sizeof(rf_scene_ai_rocket_timing));}
 static uint32_t scene_ai_rocket_pending(void)
 {uint32_t i;for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active)return 1;return 0;}
 /* Legacy save/export paths have no Drone variant. RFAP9 alone owns it;
@@ -39,6 +41,7 @@ static void scene_ai_drone_missile_reset(void)
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++) {
         if(scene_ai_rockets[i].definition==&campaign_drone_missile) {
             scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);
+            (void)scene_projectile_trail_stop(scene_actor_collision_owner,SCENE_TRAIL_AI_ROCKET,i);
             memset(scene_ai_rockets+i,0,sizeof(scene_ai_rockets[i]));
         }
         live+=scene_ai_rockets[i].flight.active!=0;
@@ -72,6 +75,7 @@ static int scene_ai_missile_launch_inner(campaign_npc_body *owner,const float ta
         campaign_weapon_supply.names.count,weapon);if(status)return status;
     scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);
     scene_ai_rockets[i]=shot;
+    status=scene_projectile_trail_start(scene_actor_collision_owner,SCENE_TRAIL_AI_ROCKET,i,weapon,&scene_ai_rockets[i].flight,scene_ai_rockets[i].basis,combat_frame);if(status)return status;
     /* Optional audio starts only after real reserve debit and publication.
      * Drone copies its own authored spatial profiles without mutating the
      * shared Rocket sample. Tankbot presentation remains outside this slice. */
@@ -132,6 +136,7 @@ static int scene_ai_rocket_tick_inner(scene_stream *stream,uint32_t frame)
         if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i);return status;}
         scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,
             shot->flight.active && (definition==&campaign_rocket || definition==&campaign_drone_missile),shot->flight.position);
+        status=scene_projectile_trail_update(stream,SCENE_TRAIL_AI_ROCKET,i,&shot->flight,frame);if(status)return status;
         if(move.has_liquid){combat_sound("Medium Water Splash",move.liquid_contact.hit.point);scene_ripple_start(stream,move.liquid_contact.hit.point,frame,0);}
         if(move.terminal.kind==2){++rf_scene_ai_rockets[2];rf_scene_ai_rocket_timing[2]=frame;}
         if(move.terminal.kind==1){

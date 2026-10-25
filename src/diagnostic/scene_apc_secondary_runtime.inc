@@ -29,6 +29,7 @@ static int scene_apc_secondary_tick(scene_stream *stream,uint32_t frame,uint32_t
         {float elapsed=fminf(dt,(float)round->flight.remaining);
          for(k=0;k<3;k++)end[k]=round->flight.position[k]+(round->flight.velocity[k]+scene_gravity.vector[k]*elapsed)*elapsed;}
         status=scene_apc_secondary_step(round,dt,scene_gravity.vector,scene_apc_primary_sweep,&query,&event);if(status)return status;
+        status=scene_projectile_trail_update(stream,SCENE_TRAIL_APC,i,&round->flight,frame);if(status)return status;
         if(event.kind==2)++rf_scene_apc_secondary[3];
         if(event.kind==1){
             rf_weapon_flight_contact contact=event.contact;
@@ -65,6 +66,8 @@ static int scene_apc_secondary_tick(scene_stream *stream,uint32_t frame,uint32_t
             status=rf_weapon_flight_launch(&round.flight,pose+9,direction,state->definition.speed,state->definition.lifetime,state->definition.radius);if(status)return status;
             round.source=runtime->entry.host.handle;round.driver=scene_vehicle_player_fire_owner(&runtime->entry);memcpy(round.previous,pose+9,12);
             state->rounds[i]=round;--state->reserve;state->cooldown=state->definition.fire_seconds;
+            {float basis[9];scene_trail_basis(direction,basis);
+             status=scene_projectile_trail_start(stream,SCENE_TRAIL_APC,i,scene_trail_weapon_named("APC Rocket"),&state->rounds[i].flight,basis,frame);if(status)return status;}
             ++rf_scene_apc_secondary[1];++rf_scene_apc_secondary[4];
             combat_sound("Mortar Launch",pose+9);
         }

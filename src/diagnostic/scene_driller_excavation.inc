@@ -113,6 +113,17 @@ static int scene_driller_excavate(scene_stream *s,uint32_t frame,rf_geomod_templ
     radius=region.hardness.scale*shape->radius;if(!isfinite(radius) || radius<=0)return RF_FORMAT;
     status=scene_detached_sources_counts(s,prior);if(status)return status;
     serial=s->terrain_publication_serial;saved=s->terrain_template;s->terrain_template=shape;
+    /* After a load the tunnel state is not saved: adopt the restored last
+     * cutters and last recorded bite as the tunnel, then apply the same
+     * distance/heading test below. */
+    if(s->drill_tunnel_reseed){
+        s->drill_tunnel_reseed=0;
+        if(s->terrain_history_count){
+            s->drill_tunnel_mask=scene_drill_tunnel_kernels(s,s->drill_tunnel_kernel);
+            memcpy(s->drill_tunnel_center,s->terrain_history[s->terrain_history_count-1].center,12);
+            memcpy(s->drill_tunnel_forward,basis+6,12);s->drill_tunnel_serial=serial;
+        }
+    }
     /* A bite near the previous one, along roughly the same heading, extends
      * that tunnel instead of stacking a cutter (port policy; see geomod.h). */
     {double distance=0,heading=0;

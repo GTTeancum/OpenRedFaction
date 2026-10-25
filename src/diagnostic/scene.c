@@ -972,7 +972,7 @@ typedef struct scene_stream {
     /* Driller tunnel (port policy, see rf_geomod_terrain_merge_template_checked):
      * last accepted bite, publication serial and each source's tunnel kernel. */
     float drill_tunnel_center[3],drill_tunnel_forward[3],drill_tunnel_kernel[4][3];
-    uint32_t drill_tunnel_serial,drill_tunnel_mask,terrain_merge_request;
+    uint32_t drill_tunnel_serial,drill_tunnel_mask,terrain_merge_request,drill_tunnel_reseed;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t *terrain_face_offsets;
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
@@ -1059,7 +1059,9 @@ static int scene_driller_player_collision(scene_stream *,const rf_collision_body
 static int scene_passive_vehicle_actor_collision(scene_stream *,uint32_t,uint32_t,
     const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
 #include "scene_flame_effects_resources.inc"
-#include "scene_rocket_trail.inc"
+/* Projectile trails (scene_rocket_trail.inc, included after the weapon supply). */
+#define SCENE_ROCKET_TRAIL_TAG 0x70000000u
+static const rf_particle_animation *scene_rocket_trail_animation(uint32_t);
 #include "scene_fusion_effects_resources.inc"
 #include "scene_clutter_break_resources.inc"
 #include "scene_script_explode_resources.inc"
@@ -2570,6 +2572,7 @@ uint32_t rf_scene_script_explode_geometry[8]; /* flagged,minimum refused,region 
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
+#include "scene_rocket_trail.inc"
 float rf_scene_scope_projection=1.0f;
 static float scene_scope_look=1.0f;
 static rf_weapon_scope scene_scope;
@@ -15127,7 +15130,7 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
         s->terrain_bindings[i].image=m;
     }
     status=scene_terrain_bind(s);if(status)return status;
-    s->terrain_history_count=admission;s->terrain_random.value=checkpoint_u32(data+244);
+    s->terrain_history_count=admission;s->terrain_random.value=checkpoint_u32(data+244);s->drill_tunnel_mask=0;s->drill_tunnel_reseed=1;
     owner->count=owner->bake=maps;owner->sample=0;owner->x=x;owner->y=y;owner->row=row;owner->random=chain;
     owner->generation=view.cuts?view.mesh.generation:0;owner->cuts=view.cuts;memset(s->terrain_light_cache,0,sizeof(*s->terrain_light_cache));s->terrain_checkpoint_loaded=1;
     scene_terrain_dirty(s,0,0,512,512);
@@ -17299,7 +17302,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
         status=rf_weapon_flight_step_liquid(s->rockets+i,1.f/60,s->rocket_liquid+i,&policy,scene_rocket_sweep,s,&movement);
         if(status){scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i);return status;}
         scene_projectile_flight_audio_step(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i,s->rockets[i].active,s->rockets[i].position);
-        status=scene_rocket_trail_tick(s,i,(int32_t)(((uint64_t)frame*1000/60)%RF_TIMER_PERIOD));if(status)return status;
+        status=scene_projectile_trail_update(s,SCENE_TRAIL_PLAYER_ROCKET,i,s->rockets+i,frame);if(status)return status;
         event=movement.terminal;
         if(!s->rockets[i].active)s->rocket_targets[i]=0;
         else rf_scene_rocket_lock[9]+=s->rocket_targets[i]!=0;
@@ -17906,7 +17909,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         stream->rocket_liquid[i].query_flags=0x1004u|(campaign_rocket.collision_radius<.05f?0x100u:0);
         memcpy(stream->rocket_basis[i],orientation,36);
         rf_scene_rockets[7]=(uint32_t)status;if(status)return scene_player_failure_return(status,__LINE__,frame);
-        status=scene_rocket_trail_start(stream,i,(int32_t)(((uint64_t)frame*1000/60)%RF_TIMER_PERIOD));if(status)return scene_player_failure_return(status,__LINE__,frame);
+        status=scene_projectile_trail_start(stream,SCENE_TRAIL_PLAYER_ROCKET,i,campaign_selected_weapon(),stream->rockets+i,stream->rocket_basis[i],frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
         scene_player_rocket_lock_launch(stream,i,rocket_release?rocket_target:0);
         ++rf_scene_rockets[0];++rf_scene_rockets[3];
     }
@@ -24141,7 +24144,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
             }
             if(scene_flame_resources){scene_late_load_mark(51,materials);status=scene_flame_effects_open(tables_path,maps,map_count);if(status)goto done;}
-            if(rf_scene_dev_room_enabled || scene_rocket_resources){status=scene_rocket_trail_open(tables_path,maps,map_count);if(status)goto done;}
+            status=scene_rocket_trail_open(tables_path,maps,map_count);if(status)goto done; /* Optional authored trails. */
             if(rf_scene_dev_room_enabled) {
 
                 {rf_vpp tables={0};rf_particle_definition billboard={0};uint32_t budget=512*1024;

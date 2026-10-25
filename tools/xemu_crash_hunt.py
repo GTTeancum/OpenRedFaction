@@ -526,6 +526,7 @@ dvd_path = '{iso.as_posix()}'
           if ram_reader:time.sleep(15)  # Reference smoke runner waits before its first poll.
         poll_wait = 5 if args.target == 'hardware' else 15
         stall = [None, time.monotonic()]
+        outside_streak = 0
         with (run/'telemetry.jsonl').open('w',buffering=1) as log:
             while time.monotonic()<deadline and process.poll() is None:
                 try:
@@ -630,7 +631,10 @@ dvd_path = '{iso.as_posix()}'
                     result['input_query_error']=visibility
                     break
                 escaped = outside_world(sample, result['world_bounds'], result)
-                if escaped:
+                # A torn/stale RAM-mirror line from a previous session can show
+                # another level's eye once; require two consecutive escapes.
+                outside_streak = outside_streak + 1 if escaped else 0
+                if escaped and outside_streak >= 2:
                     result['status']='OUTSIDE_WORLD'
                     result['outside_world']=escaped
                     (run/'outside-world.json').write_text(json.dumps(dict(evidence=escaped,sample=sample),indent=2))

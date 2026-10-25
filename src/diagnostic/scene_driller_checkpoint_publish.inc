@@ -135,6 +135,7 @@ static void scene_vehicle_combat_publish_staged(scene_stream *s,const scene_vehi
     memset(&s->apc_primary.scheduler,0,sizeof(s->apc_primary.scheduler));
     memset(s->apc_primary.rounds,0,sizeof(s->apc_primary.rounds));
     s->apc_primary.reserve=(int32_t)candidate->primary_reserve;s->apc_primary.random.value=candidate->primary_random;
+    (void)scene_projectile_trail_stop_kind(s,SCENE_TRAIL_APC);
     memset(s->apc_secondary.rounds,0,sizeof(s->apc_secondary.rounds));s->apc_secondary.cooldown=0;
     s->apc_secondary.reserve=(int32_t)candidate->secondary_reserve;
     s->apc_aim.angles[0]=candidate->aim_pitch;s->apc_aim.angles[1]=candidate->aim_yaw;s->apc_aim.angles[2]=0;

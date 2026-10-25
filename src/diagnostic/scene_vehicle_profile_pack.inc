@@ -303,11 +303,14 @@ static void scene_vehicle_profile_pack_publish(scene_stream *s,uint32_t outgoing
     memset(&s->apc_primary,0,sizeof(s->apc_primary));s->apc_primary.definition=next->primary;
     s->apc_primary.scheduler=next->primary_initial;s->apc_primary.muzzle=next->primary_muzzle;
     s->apc_primary.reserve=next->primary_reserve;s->apc_primary.random=next->primary_random;
+    (void)scene_projectile_trail_stop_kind(s,SCENE_TRAIL_APC);
     memset(&s->apc_secondary,0,sizeof(s->apc_secondary));s->apc_secondary.definition=next->secondary;
     s->apc_secondary.muzzle=next->secondary_muzzle;s->apc_secondary.reserve=next->secondary_reserve;
+    (void)scene_projectile_trail_stop_kind(s,SCENE_TRAIL_SUBMARINE);
     memset(&s->submarine_weapon,0,sizeof(s->submarine_weapon));
     s->submarine_weapon.definition=next->submarine_definition;
     s->submarine_weapon.muzzle=next->submarine_muzzle;s->submarine_weapon.reserve=next->submarine_reserve;
+    (void)scene_projectile_trail_stop_kind(s,SCENE_TRAIL_FIGHTER);
     memset(&s->fighter_weapon,0,sizeof(s->fighter_weapon));
     s->fighter_weapon.primary=next->fighter_primary;s->fighter_weapon.rocket=next->fighter_rocket;
     s->fighter_weapon.primary_muzzle=next->fighter_primary_muzzle;s->fighter_weapon.rocket_muzzle=next->fighter_rocket_muzzle;

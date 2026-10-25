@@ -159,6 +159,7 @@ static int scene_authored_checkpoint_stage_commit(scene_authored_checkpoint_stag
     memcpy(s->terrain_history,p->admission.history,sizeof(s->terrain_history));
     memcpy(s->terrain_requested,p->admission.requested,sizeof(s->terrain_requested));
     s->terrain_history_count=p->admission.count;s->terrain_random=p->admission.random;
+    s->drill_tunnel_mask=0;s->drill_tunnel_reseed=1; /* Next Driller bite may continue the restored tunnel. */
     s->terrain_atlas_index=staged->terrain_atlas_index;
     s->terrain_checkpoint_loaded=staged->terrain_checkpoint_loaded;
     rf_scene_geomod[0]=1;rf_scene_geomod[1]=p->cuts;rf_scene_geomod[2]=p->serial;

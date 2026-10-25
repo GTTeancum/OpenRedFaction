@@ -48,6 +48,7 @@ static int scene_fighter_checkpoint_apply_live(scene_stream *s,const rf_fighter_
     staged.player_occupied=0;
     scene_vehicle_checkpoint_publish_staged(s,&staged);
     memset(s->fighter_weapon.bullets,0,sizeof(s->fighter_weapon.bullets));
+    (void)scene_projectile_trail_stop_kind(s,SCENE_TRAIL_FIGHTER);
     memset(s->fighter_weapon.rockets,0,sizeof(s->fighter_weapon.rockets));
     memset(&s->fighter_weapon.primary_fire,0,sizeof(s->fighter_weapon.primary_fire));
     memset(&s->fighter_weapon.rocket_fire,0,sizeof(s->fighter_weapon.rocket_fire));

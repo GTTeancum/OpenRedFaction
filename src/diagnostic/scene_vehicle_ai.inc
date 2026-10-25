@@ -10,6 +10,7 @@ typedef struct scene_vehicle_ai_state {
     scene_vehicle_primary_state primary_fire;float missile_cooldown,unseen_seconds;
     int32_t primary_reserve,missile_reserve;
     scene_submarine_weapon_round bullets[48],missiles[4];
+    uint32_t trail_id; /* Port key for missile trail emitters (scene_rocket_trail.inc). */
 } scene_vehicle_ai_state;
 typedef struct scene_vehicle_ai_owner {
     uint32_t uid,handle,profile,selected,allowed,alive,affiliation,slot,mask;
@@ -53,7 +54,8 @@ static uint32_t scene_vehicle_ai_busy(uint32_t handle)
 static void scene_vehicle_ai_states_close(scene_vehicle_ai_state **head)
 {
     /* Staged checkpoint candidates do not own live audio. */
-    if(head==&campaign_vehicle_ai)scene_vehicle_loop_audio_stop_controller(SCENE_VEHICLE_LOOP_AI);
+    if(head==&campaign_vehicle_ai){scene_vehicle_loop_audio_stop_controller(SCENE_VEHICLE_LOOP_AI);
+        (void)scene_projectile_trail_stop_kind(scene_vehicle_ai_stream,SCENE_TRAIL_VEHICLE_AI);}
     while(*head){scene_vehicle_ai_state *next=(*head)->next;free(*head);*head=next;}
 }
 static void scene_vehicle_ai_close(void)
@@ -214,6 +216,7 @@ static int scene_vehicle_ai_flights(scene_stream *s,scene_vehicle_ai_state *a,ui
             if(a->profile==4)status=scene_submarine_projectile_step(r,scene_step_seconds,&wet,&r->liquid,0,-1,-1,&liquid);
             else{const rf_weapon_flight_liquid_policy policy={0,0,-1,-1};status=rf_weapon_flight_step_liquid(&r->flight,scene_step_seconds,&r->liquid,&policy,scene_apc_primary_sweep_all,&query,&liquid);}
             if(status)return status;event=liquid.terminal;
+            status=scene_projectile_trail_update(s,SCENE_TRAIL_VEHICLE_AI,a->trail_id*4+slot-48,&r->flight,frame);if(status)return status;
         }else{
             memcpy(r->previous,r->flight.position,12);
             for(uint32_t k=0;k<3;k++)end[k]=r->flight.position[k]+r->flight.velocity[k]*fminf(scene_step_seconds,(float)r->flight.remaining);
@@ -353,6 +356,9 @@ static int scene_vehicle_ai_fire(scene_stream *s,scene_vehicle_ai_state *a,const
     status=rf_weapon_flight_launch(&round.flight,launch+9,muzzle+6,definition->speed,definition->lifetime,definition->radius);if(status)return status;
     round.source=a->handle;round.driver=UINT32_MAX;round.liquid.query_flags=0x1004;memcpy(round.previous,launch+9,12);
     a->missiles[slot]=round;--a->missile_reserve;a->missile_cooldown=definition->fire_seconds;++rf_scene_vehicle_ai[3];
+    {float basis[9];int32_t weapon=a->profile==4?scene_trail_weapon_named("Torpedo"):(int32_t)owner->weapons[1];
+     scene_trail_basis(muzzle+6,basis);
+     status=scene_projectile_trail_start(s,SCENE_TRAIL_VEHICLE_AI,a->trail_id*4+slot,weapon,&a->missiles[slot].flight,basis,frame);if(status)return status;}
     combat_sound(a->profile==4?"TorpedoLaunch":"Fighter Rocket Launch",launch+9);return RF_OK;
 }
 static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
@@ -367,7 +373,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
         scene_vehicle_ai_state *a=scene_vehicle_ai_find(owner.handle);
         if(!a){
             if(!owner.allowed||!owner.mask||scene_vehicle_switch_parked_uid(uid))continue;
-            a=calloc(1,sizeof(*a));if(!a)return RF_IO;a->uid=uid;a->handle=owner.handle;a->profile=owner.profile;a->target=UINT32_MAX;
+            a=calloc(1,sizeof(*a));if(!a)return RF_IO;{static uint32_t next_trail_id;a->trail_id=next_trail_id++&0x3fffu;}a->uid=uid;a->handle=owner.handle;a->profile=owner.profile;a->target=UINT32_MAX;
             a->primary_reserve=owner.profile==4?0:(int32_t)scene_vehicle_ai_gun(owner.profile)->capacity;
             a->missile_reserve=(int32_t)scene_vehicle_ai_missile[scene_vehicle_ai_kind(owner.profile)].capacity;
             (void)scene_vehicle_switch_supply_seed(uid,owner.profile,&a->primary_reserve,&a->missile_reserve,&a->primary_fire,&a->missile_cooldown);

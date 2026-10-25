@@ -77,6 +77,7 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
         status=scene_fighter_rocket_step(round,&state->rocket,dt,scene_fighter_live_candidate,s,
             campaign_npc_body_count+campaign_passive_vehicle_count,
             scene_submarine_homing_sight,s,scene_apc_primary_sweep_all,&query,&event,&target);if(status)return status;
+        status=scene_projectile_trail_update(s,SCENE_TRAIL_FIGHTER,i,&round->flight,frame);if(status)return status;
         if(target!=UINT32_MAX){++rf_scene_fighter_homing_state[1];rf_scene_fighter_homing_state[2]=target;
             if(memcmp(before,round->flight.velocity,sizeof(before)))++rf_scene_fighter_homing_state[3];}
         /* Steering preceded sweep: current velocity defines the same full ray. */
@@ -113,6 +114,8 @@ static int scene_fighter_weapon_tick(scene_stream *s,uint32_t frame)
     status=scene_fighter_weapon_fire(state,&s->driller->tags,runtime->physics.state.position,runtime->physics.state.orientation,aim_pose+6,
         runtime->entry.host.handle,runtime->entry.host.driver,1,player_input.alt_fire,allowed&&!!(scene_vehicle_loadout_selected_mask()&2u),dt,NULL,NULL,&fired);if(status)return status;
     if(fired){++rf_scene_fighter_weapon[2];++rf_scene_fighter_weapon[5];combat_sound("Fighter Rocket Launch",state->rockets[free_slot].flight.position);}
+    if(fired && free_slot<4){float basis[9];scene_trail_basis(state->rockets[free_slot].flight.velocity,basis);
+        status=scene_projectile_trail_start(s,SCENE_TRAIL_FIGHTER,free_slot,scene_trail_weapon_named("Fighter Rocket"),&state->rockets[free_slot].flight,basis,frame);if(status)return status;}
     rf_scene_fighter_weapon[6]=(uint32_t)state->primary_reserve;rf_scene_fighter_weapon[7]=(uint32_t)state->rocket_reserve;return RF_OK;
 }
 /* Minigun tracer is explicit shared first-pass beam presentation. Actual

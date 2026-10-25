@@ -49,6 +49,7 @@ static int scene_submarine_checkpoint_apply_live(scene_stream *s,const rf_submar
     if(status)return status;
     staged.player_occupied=0;
     scene_vehicle_checkpoint_publish_staged(s,&staged);
+    (void)scene_projectile_trail_stop_kind(s,SCENE_TRAIL_SUBMARINE);
     memset(s->submarine_weapon.rounds,0,sizeof(s->submarine_weapon.rounds));
     s->submarine_weapon.reserve=(int32_t)saved->torpedo_reserve;
     s->submarine_weapon.cooldown=saved->torpedo_cooldown;

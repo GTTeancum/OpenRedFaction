@@ -109,6 +109,7 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
         query.world=s->collision;query.composed=scene_apc_primary_sweep_all;query.context=&composed;
         for(k=0;k<3;k++)end[k]=round->flight.position[k]+round->flight.velocity[k]*fminf(dt,(float)round->flight.remaining);
         status=scene_submarine_projectile_step(round,dt,&query,&round->liquid,0,-1,-1,&event);if(status)return status;
+        status=scene_projectile_trail_update(s,SCENE_TRAIL_SUBMARINE,i,&round->flight,frame);if(status)return status;
         if(event.has_liquid)++rf_scene_submarine_weapon[5];
         if(event.terminal.kind==2)++rf_scene_submarine_weapon[3];
         if(event.terminal.kind==1){
@@ -140,6 +141,8 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
         ++rf_scene_submarine_weapon[1];++rf_scene_submarine_weapon[4];
         memcpy(rf_scene_submarine_impact_state+4,state->rounds[free_slot].flight.position,12);
         combat_sound("TorpedoLaunch",state->rounds[free_slot].flight.position);
+        {float basis[9];scene_trail_basis(state->rounds[free_slot].flight.velocity,basis);
+         status=scene_projectile_trail_start(s,SCENE_TRAIL_SUBMARINE,free_slot,scene_trail_weapon_named("Torpedo"),&state->rounds[free_slot].flight,basis,frame);if(status)return status;}
     }
     if(rf_scene_dev_npc_enabled==7 && campaign_npc_body_count==1){const campaign_npc_body *npc=campaign_npc_bodies;uint32_t wet=0;
         status=scene_submarine_weapon_muzzle_wet(s,npc->eye_position,&wet);

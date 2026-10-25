@@ -186,6 +186,7 @@ static inline int scene_authored_collection_stage_commit(scene_authored_collecti
     memcpy(s->terrain_history,p->shared.admission.history,sizeof(s->terrain_history));
     memcpy(s->terrain_requested,p->shared.admission.requested,sizeof(s->terrain_requested));
     s->terrain_history_count=p->shared.admission.count;s->terrain_random=p->shared.admission.random;
+    s->drill_tunnel_mask=0;s->drill_tunnel_reseed=1; /* Next Driller bite may continue the restored tunnel. */
     s->terrain_atlas_index=staged->terrain_atlas_index;s->terrain_checkpoint_loaded=staged->terrain_checkpoint_loaded;
     rf_scene_geomod[0]=1;rf_scene_geomod[1]=p->shared.cuts;rf_scene_geomod[2]=p->shared.serial;
     rf_scene_geomod[3]=s->terrain_publication->resident_bytes+assets;rf_scene_geomod[4]=s->terrain_publication->peak_bytes+asset_peak;
