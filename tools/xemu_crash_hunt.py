@@ -132,7 +132,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','driller-dig','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -313,6 +313,17 @@ def main():
                 elif 180 <= phase < 270: look[1] = -.2
                 buttons[3] = int(90 <= phase < 160 or 210 <= phase < 280)
                 buttons[6] = int(170 <= phase < 195 or 290 <= phase < 315)
+            elif args.input == 'driller-dig':
+                # ctf06 Driller fixture: walk up facing it, one Use to board,
+                # then drive forward with the drill held, sweeping slowly.
+                if 20 <= frame < 100: move[2] = .65
+                buttons[2] = int(frame == 110)
+                if frame >= 160:
+                    phase = (frame-160) % 480
+                    move[2] = .5 if phase < 360 else -.4
+                    if 120 <= phase < 180: look[1] = .1
+                    elif 300 <= phase < 360: look[1] = -.1
+                    buttons[3] = int(phase < 360)
             elif args.input in ('approach','approach-jump'):
                 # Focused contact probe: ordinary forward movement from the
                 # first live frame, with no fire or host input.

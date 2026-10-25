@@ -111,7 +111,10 @@ static int scene_driller_cockpit_draw(scene_driller_cockpit *o,float seconds,con
             status=rf_preview_geomod(&emitted,capacity_bytes-output->bytes,&mesh,&bound,material_count,&local_camera);if(status)return status;
             tag=(o->materials->views[material].words[2]&255)?RF_PREVIEW_ADDITIVE_FADE_TAG|alpha:
                 (!strcmp(source->prefix.name,"Box03") || alpha<255)?RF_PREVIEW_FADE_TAG|alpha:RF_PREVIEW_VERTEX_LIT;
-            for(j=0;j<emitted.count;j++){emitted.vertices[j].lightmap=tag;for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);}
+            /* Same near band as the player weapon: rock the chassis noses
+             * into is nearer than the cockpit frame and must not cover it. */
+            for(j=0;j<emitted.count;j++){emitted.vertices[j].lightmap=tag;for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);
+                emitted.vertices[j].position[2]=16384.0f/(1.0f+emitted.vertices[j].texture[2]);}
             output->count+=emitted.count;output->bytes+=emitted.bytes;if(emitted.count){
                 count++;if(o->hud.channel[material])++rf_scene_vehicle_cockpit_hud[3];
             }

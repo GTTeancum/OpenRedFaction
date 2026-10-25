@@ -2777,9 +2777,12 @@ typedef struct terrain_pending {
 } terrain_pending;
 static void terrain_abort(rf_geomod_terrain *t,terrain_pending *pending)
 {rf_collision_tree_close(&pending->tree);rf_geomod_storage_abort(t->mesh);}
+/* Last refused rebuild: stage (1 cut planes, 2 chronological mesh, 3 storage,
+ * 4 collision bind), status, cut count. Observational only. */
+uint32_t rf_geomod_prepare_failure[3];
 static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *pending)
 {
-    uint32_t c;int status;memset(pending,0,sizeof(*pending));pending->bank=t->bank^1;pending->count=count;
+    uint32_t c,stage=1;int status;memset(pending,0,sizeof(*pending));pending->bank=t->bank^1;pending->count=count;
     for(c=0;c<count;c++) {
         if(t->star_mask&(1u<<c)) {
             status=star_mesh_planes(t->cuts+c,t->kernels[c],t->work.star_planes[c]);
@@ -2791,7 +2794,7 @@ static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *
     }
 #ifndef RF_GEOMOD_LEGACY_REPLAY_TEST
     if(count) {
-        status=terrain_prepare_chronological_mesh(t,count);if(status)goto failed;
+        stage=2;status=terrain_prepare_chronological_mesh(t,count);if(status)goto failed;
     } else
 #endif
     {
@@ -2800,10 +2803,11 @@ static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *
         if(status)goto failed;
         status=terrain_map_pending(t);if(status)goto failed;
     }
-    status=rf_geomod_storage_pending(t->mesh,&pending->mesh);if(status)goto failed;
-    status=terrain_bind(t,&pending->mesh,pending->bank,&pending->tree);if(status)goto failed;
+    stage=3;status=rf_geomod_storage_pending(t->mesh,&pending->mesh);if(status)goto failed;
+    stage=4;status=terrain_bind(t,&pending->mesh,pending->bank,&pending->tree);if(status)goto failed;
     return RF_OK;
 failed:
+    rf_geomod_prepare_failure[0]=stage;rf_geomod_prepare_failure[1]=(uint32_t)status;rf_geomod_prepare_failure[2]=count;
     terrain_abort(t,pending);return status;
 }
 static int terrain_commit(rf_geomod_terrain *t,terrain_pending *pending)

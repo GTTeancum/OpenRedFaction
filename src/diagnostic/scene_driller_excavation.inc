@@ -7,6 +7,8 @@
  * replacement collision, cut rendering, atlas bindings and detached ownership.
  * First-pass policy: debris preparation follows commit, so rejected drilling
  * cannot relaunch old debris; its surface probes see the newly cut world. */
+/* Refused drill cuts: count,status,frame,centerXYZ,scale,limit count. */
+uint32_t rf_scene_drill_reject[8];
 static int scene_driller_excavation_overlap(const scene_stream *s,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,const rf_geomod_shallow_limit *limits,uint32_t limit_count)
 {
@@ -66,6 +68,13 @@ static int scene_driller_excavate(scene_stream *s,uint32_t frame,rf_geomod_templ
     serial=s->terrain_publication_serial;saved=s->terrain_template;s->terrain_template=shape;
     status=scene_terrain_authored_template_edit(s,adjusted,basis,region.hardness.scale,limits,count);
     s->terrain_template=saved; /* Restore before any error/cosmetic work. */
+    if(status==RF_FORMAT || status==RF_RANGE) {
+        /* The transaction discards its candidate on rejection, so a cutter
+         * the terrain cannot take is a refused drill contact, not a fatal. */
+        ++rf_scene_drill_reject[0];rf_scene_drill_reject[1]=(uint32_t)status;rf_scene_drill_reject[2]=frame;
+        memcpy(rf_scene_drill_reject+3,adjusted,12);memcpy(rf_scene_drill_reject+6,&region.hardness.scale,4);
+        rf_scene_drill_reject[7]=count;return RF_NOT_FOUND;
+    }
     if(status)return status;
     if(s->terrain_publication_serial==serial)return RF_FORMAT;
     *accepted=1; /* Publication is committed even if later effects fail. */

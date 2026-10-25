@@ -135,6 +135,16 @@ static int scene_use_prepare(scene_stream *stream,uint32_t frame,const rf_motion
                 o->pose.input_matrix,eye,basis[2],&best);if(status)return status;break;
         }
     }
+    /* Developer-room vehicle fixture: not an authored seed, so the loop above
+     * never visits it. Score it by the same interface tags and use radius. */
+    if(rf_scene_dev_room_enabled&&!campaign_authored_vehicle_uid&&stream->driller_runtime&&stream->driller){
+        scene_driller_runtime *r=stream->driller_runtime;
+        if(r->entry.host.alive&&r->damage.damage.state.effects.health>0&&
+           !(r->damage.damage.object_flags&(2u|0x4000u))){
+            status=scene_use_static(stream,r->entry.host.handle,&stream->driller->physics.authored,&stream->driller->tags,
+                r->physics.state.position,r->physics.state.orientation,eye,basis[2],&best);if(status)return status;
+        }
+    }
     if(scene_use_edge.selected!=UINT32_MAX){
         /*4a1660 consumes SP medic6/AI-response9 even on handler refusal.
          * Vehicle1/turret4 admission failure and switch2/command3 instead
