@@ -65,9 +65,9 @@ static int check_clipping_provenance(const rf_geomod_multi_work *work)
     CHECK(fragment->count>=3 && fragment->count<=64);
     for(edge=0;edge<fragment->count;edge++) {
         uint16_t id=work->edges[0][fragment->first+edge];const float *support;
-        if(id<32){CHECK(id<6);support=work->source_planes[id];}
+        if(id<RF_GEOMOD_SOURCE_FACE_LIMIT){CHECK(id<6);support=work->source_planes[id];}
         else {
-            uint32_t cutter=(id-32)/128,local=(id-32)%128;
+            uint32_t cutter=(id-RF_GEOMOD_SOURCE_FACE_LIMIT)/(RF_GEOMOD_STAR_FACE_LIMIT*4u),local=(id-RF_GEOMOD_SOURCE_FACE_LIMIT)%(RF_GEOMOD_STAR_FACE_LIMIT*4u);
             CHECK(cutter<RF_GEOMOD_CUT_LIMIT && local/4<work->star_count[cutter]);
             support=work->star_planes[cutter][local/4][local%4];
         }
@@ -85,9 +85,9 @@ static int check_compact_provenance(const rf_geomod_multi_work *work,const rf_ge
         const rf_geomod_face *f=pending->faces+face;
         for(edge=0;edge<f->count;edge++) {
             uint16_t id=work->compact_edges[f->first+edge];const float *support;
-            if(id<32){CHECK(id<6);support=work->source_planes[id];}
+            if(id<RF_GEOMOD_SOURCE_FACE_LIMIT){CHECK(id<6);support=work->source_planes[id];}
             else {
-                uint32_t cutter=(id-32)/128,local=(id-32)%128;
+                uint32_t cutter=(id-RF_GEOMOD_SOURCE_FACE_LIMIT)/(RF_GEOMOD_STAR_FACE_LIMIT*4u),local=(id-RF_GEOMOD_SOURCE_FACE_LIMIT)%(RF_GEOMOD_STAR_FACE_LIMIT*4u);
                 CHECK(cutter<RF_GEOMOD_CUT_LIMIT && local/4<work->star_count[cutter]);
                 support=work->star_planes[cutter][local/4][local%4];
             }

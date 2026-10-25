@@ -57,7 +57,7 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
     rf_geomod_owned_piece piece;rf_physics_body *body;float moved;uint32_t bytes;
     rf_geomod_changed_box initial_boxes[32],boxes[32];uint32_t box_count;
     const float center[4][3]={{0,0,0},{5,0,0},{-1,0,0},{-6,0,0}},extent[4][3]={{1,12,12},{2,2,2},{2,2,2},{1,12,12}};
-    CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1179648,&t));
+    CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1572864,&t));
     CHECK(!rf_geomod_piece_registry_open(generated,7,2.5f,.5f,.25f,0,2097152,&r));
     CHECK(!rf_geomod_terrain_set_extraction(t,rf_geomod_piece_registry_emit,r));
     CHECK(!rf_geomod_piece_registry_begin(r,0));
@@ -364,7 +364,7 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
             unsigned char *history;uint32_t history_bytes;
             CHECK(!rf_geomod_terrain_history_size(t,&history_bytes));history=malloc(history_bytes);CHECK(history);
             CHECK(!rf_geomod_terrain_history_encode(t,history,history_bytes));
-            CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1179648,&restored));
+            CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1572864,&restored));
             CHECK(!rf_geomod_piece_registry_open(generated,7,2.5f,.5f,.25f,0,2097152,&restored_pieces));
             CHECK(!rf_geomod_terrain_set_extraction(restored,rf_geomod_piece_registry_emit,restored_pieces));
             CHECK(!rf_geomod_piece_registry_begin(restored_pieces,1));
@@ -448,7 +448,7 @@ static int run(uint32_t star)
             vertices[f*4+j].position[a]=u[k]*10;vertices[f*4+j].position[b]=w[k]*10;}
     }
     if(!star)registry_lifetime(&mesh,filters,&generated);
-    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1179648,&t));
+    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1572864,&t));
     CHECK(!rf_geomod_terrain_set_extraction(t,emit,&stage));
     for(uint32_t c=0;c<4;c++) {
         clear(&stage);
@@ -470,7 +470,7 @@ static int run(uint32_t star)
     }
     CHECK(rf_geomod_terrain_set_extraction(t,NULL,NULL)==RF_RANGE);
     CHECK(!rf_geomod_terrain_history_size(t,&bytes));CHECK(!rf_geomod_terrain_history_encode(t,encoded,bytes));
-    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1179648,&reload));
+    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1572864,&reload));
     CHECK(!rf_geomod_terrain_set_extraction(reload,emit,&decoded));
     CHECK(!rf_geomod_terrain_history_decode(reload,encoded,bytes));CHECK(!rf_geomod_terrain_get(reload,&after));
     CHECK(after.mesh.vertex_count==view.mesh.vertex_count && after.mesh.face_count==view.mesh.face_count);

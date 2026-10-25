@@ -11,7 +11,9 @@ extern "C" {
  * RF_FORMAT/RF_RANGE reject a candidate; other errors abort selection. */
 /* Build-wide transport profile; every producer/consumer must agree. */
 #ifndef RF_CHECKPOINT_FILE_MAX
-#define RF_CHECKPOINT_FILE_MAX 110524
+/* Fits the worst-case authored GeoMod layout (64-face star cutters, 115cd5ff):
+ * 160 KiB for the default 8-cut profile; the Xbox 16-cut profile uses 288 KiB. */
+#define RF_CHECKPOINT_FILE_MAX 163840
 #endif
 enum { RF_CHECKPOINT_FILE_HEADER=24 };
 typedef int (*rf_checkpoint_file_validate)(const void *data,uint32_t bytes,void *context);

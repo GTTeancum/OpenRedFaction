@@ -184,7 +184,7 @@ def main():
         parser.error('--terrain-test-light requires --dev-room')
     if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.dev_room:
         parser.error('GeoMod checkpoints require --dev-room')
-    checkpoint_limit = 262144 if args.expanded_geomod else 110524
+    checkpoint_limit = 294912 if args.expanded_geomod else 163840
     if (args.world_checkpoint_save or args.world_checkpoint_load) and (args.dev_room or args.geomod_checkpoint_in or args.geomod_checkpoint_out):
         parser.error('Ordinary world checkpoints require a non-DEV run without DEV checkpoints')
     if args.world_checkpoint_load and not args.world_hdd_persistent:

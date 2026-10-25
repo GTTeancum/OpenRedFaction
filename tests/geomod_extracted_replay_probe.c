@@ -198,7 +198,7 @@ static void exact_star_corners(void)
     rf_geomod_mesh_view mesh={vertices,&face,3,1,1};
     const float points[3][3]={{.1234567f,1.234567f,2.345678f},{3.456789f,.2345678f,1.345678f},{1.456789f,3.567891f,.3456789f}};
     const float kernel[3]={.4567891f,.5678912f,.6789123f};
-    const uint16_t triples[2][3]={{32,33,35},{33,34,35}};
+    const uint16_t triples[2][3]={{RF_GEOMOD_SOURCE_FACE_LIMIT,RF_GEOMOD_SOURCE_FACE_LIMIT+1,RF_GEOMOD_SOURCE_FACE_LIMIT+3},{RF_GEOMOD_SOURCE_FACE_LIMIT+1,RF_GEOMOD_SOURCE_FACE_LIMIT+2,RF_GEOMOD_SOURCE_FACE_LIMIT+3}};
     const unsigned permutations[6][3]={{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
     geomod_corner_support support={0};float output[3];uint16_t ids[3];unsigned c,p,k;
     REQUIRE(work);work->star_count[0]=1;memcpy(work->star_kernels[0],kernel,12);
@@ -209,7 +209,7 @@ static void exact_star_corners(void)
         REQUIRE(corner_seed_edge(&support,ids,output));
         REQUIRE(!memcmp(output,c?kernel:points[0],12));
     }
-    ids[0]=32;ids[1]=33;ids[2]=32;
+    ids[0]=RF_GEOMOD_SOURCE_FACE_LIMIT;ids[1]=RF_GEOMOD_SOURCE_FACE_LIMIT+1;ids[2]=RF_GEOMOD_SOURCE_FACE_LIMIT;
     REQUIRE(!corner_seed_edge(&support,ids,output));
     free(work);
 }

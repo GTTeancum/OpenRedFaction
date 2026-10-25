@@ -848,7 +848,9 @@ uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,poin
 #define SCENE_TERRAIN_ATLAS_BUDGET (1280u*1024u)
 #endif
 #ifndef SCENE_TERRAIN_CORE_BUDGET
-#define SCENE_TERRAIN_CORE_BUDGET (1152u*1024u)
+/* 64-face source/star supports (115cd5ff) grew the cut scratch charged
+ * here; 1152 KiB refused history replay on the default PC limits. */
+#define SCENE_TERRAIN_CORE_BUDGET (1536u*1024u)
 #endif
 #define SCENE_DETACHED_BUDGET (2u*1024u*1024u)
 #ifndef SCENE_DESTRUCTION_BUDGET
@@ -22900,6 +22902,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 }
                 status=campaign_script_step(stream,scene_step_seconds,frame);
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
+                npc_step_profile_mark(7,&npc_clock); /* row7: NPC script/AI step; row0: samplers after it. */
                 scene_passive_vehicle_npc_fixture_probe();
                 scene_passive_vehicle_support_live_probe(frame,rf_scene_actor_landing[1]);
                 scene_npc_teleport_sample();

@@ -40,11 +40,11 @@ static void detached_transaction(void)
 {
     edit_context c={0};rf_geomod_piece_registry *pieces=NULL;rf_geomod_piece_batch *batch,*same;
     rf_geomod_owned_piece piece;rf_physics_body *body;rf_geomod_terrain *live=NULL,*old;
-    scene_terrain_edit_limits limits={8388608,2097152,1179648};
+    scene_terrain_edit_limits limits={8388608,2097152,1572864};
     scene_terrain_edit_callbacks ops={edit_create,edit_mutate,edit_publish,edit_abort};
     scene_terrain_edit_result result;uint32_t serial=0,bytes;
     make_source(&c.source);c.detached=1;
-    CHECK(!edit_create(&c,1179648,&live));
+    CHECK(!edit_create(&c,1572864,&live));
     CHECK(!rf_geomod_piece_registry_open(&generated,3,2.5f,.5f,.25f,0,2097152,&pieces));
     bytes=rf_geomod_piece_registry_bytes(pieces);old=live;c.fail_publish=1;
     CHECK(scene_terrain_edit_transaction_pieces(&live,&serial,&limits,&ops,&c,&result,pieces,0)==RF_IO);
@@ -82,7 +82,7 @@ static void grouped_transaction(void) {
     scene_terrain_edit_callbacks source_ops={edit_create,edit_mutate,edit_publish,edit_abort};
     scene_terrain_edit_group_callbacks ops={group_publish,group_abort};
     scene_terrain_edit_source sources[2];scene_terrain_edit_result result[2],sentinel[2];
-    scene_terrain_edit_limits limits={16*1024*1024,4*1024*1024,1179648};
+    scene_terrain_edit_limits limits={16*1024*1024,4*1024*1024,1572864};
     group_context group={0};uint32_t serial=0,bytes[2],i,case_id;
     group.live=live;memset(sentinel,0xa5,sizeof(sentinel));
     for(i=0;i<2;i++) {
