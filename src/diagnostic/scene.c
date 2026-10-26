@@ -24135,6 +24135,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
             }
         }
+        status=scene_tracer_visual_open(&archive,maps,map_count,materials);if(status)goto done;
         if((rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4) ||
            (campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl")) ||
            (campaign_spawn && !rf_scene_dev_room_enabled && rf_scene_vehicle_enabled==1 &&
@@ -24472,6 +24473,7 @@ done:
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);
     if(stream->fusion_visual){rf_vfx_asset_materials_close(&stream->fusion_visual->materials);rf_vfx_geometry_asset_close(&stream->fusion_visual->geometry);free(stream->fusion_visual);}
     if(stream->fighter_rocket_visual){rf_vfx_asset_materials_close(&stream->fighter_rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->fighter_rocket_visual->geometry);free(stream->fighter_rocket_visual);}
+    scene_tracer_visual_close();
     if(stream->laser_visual){rf_vfx_asset_materials_close(&stream->laser_visual->materials);rf_vfx_geometry_asset_close(&stream->laser_visual->geometry);free(stream->laser_visual);}
     if(stream->tribeam_visual){rf_vfx_asset_materials_close(&stream->tribeam_visual->materials);rf_vfx_geometry_asset_close(&stream->tribeam_visual->geometry);free(stream->tribeam_visual);}
     scene_sonar_visual_close(&stream->sonar_visual);
