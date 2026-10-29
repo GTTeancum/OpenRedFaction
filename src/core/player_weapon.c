@@ -87,6 +87,12 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
         status=rf_model_file_attachment(model,0,i,&tag);if(status)goto done;
         for(j=0;j<2;j++)if(!strcmp(tag.name,j?"ammo_digit_2":"ammo_digit_1") && tag.parent>=0 && (uint32_t)tag.parent<w->bone_count)
             {w->digit_tags[j]=tag;found|=1u<<j;}
+        /* Muzzle_1 (5a0ea0); compared without case, as authored tag names vary in case. */
+        if(!w->has_muzzle && tag.parent>=0 && (uint32_t)tag.parent<w->bone_count) {
+            const char *a=tag.name,*b="muzzle_1";
+            while(*a && *b && (*a|0x20)==*b){++a;++b;}
+            if(!*a && !*b){w->muzzle_tag=tag;w->has_muzzle=1;}
+        }
      }
      w->ammo_digits=found==3;}
     status=rf_model_geometry_open(&w->geometry,model,0,budget-used-scratch);if(status)goto done;

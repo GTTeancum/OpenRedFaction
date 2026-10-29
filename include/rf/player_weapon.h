@@ -21,6 +21,9 @@ typedef struct rf_player_weapon {
     /* 4aacf8..4aad20 ammo_digit_1/ammo_digit_2 tags (assault rifle clip readout);
      * ammo_digits is set only when both exist with a valid parent bone. */
     rf_model_attachment digit_tags[2];uint32_t ammo_digits;
+    /* 425dab..425dc7: player rounds start at the view model's Muzzle_1 tag
+     * (player+40); has_muzzle only when it exists with a valid parent bone. */
+    rf_model_attachment muzzle_tag;uint32_t has_muzzle;
 } rf_player_weapon;
 int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     const rf_weapon_view_definition *definition,uint32_t budget,rf_player_weapon **result);

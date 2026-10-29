@@ -13543,9 +13543,13 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
-        if(!melee && distance>0){float end[3],reach=fmaxf(attack_range,sqrtf(distance)+1.0f);
-            for(j=0;j<3;j++)end[j]=owner->eye_position[j]+delta[j]*(reach/sqrtf(distance));
-            scene_tracer_fire(stream,scene_tracer_npc_counter+i%SCENE_TRACER_NPC_COUNTERS,weapon,owner->eye_position,end);}
+        if(!melee && distance>0){float end[3],muzzle[3],basis[9],reach=fmaxf(attack_range,sqrtf(distance)+1.0f);
+            /* 41b5a0: the round starts at the held weapon's muzzle, aimed at the
+             * target (rf_scene_npc_muzzle; its own eye fallback when untagged). */
+            if(!rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,muzzle,basis))
+                for(j=0;j<3;j++)end[j]=muzzle[j]+basis[6+j]*reach;
+            else{memcpy(muzzle,owner->eye_position,12);for(j=0;j<3;j++)end[j]=muzzle[j]+delta[j]*(reach/sqrtf(distance));}
+            scene_tracer_fire(stream,scene_tracer_npc_counter+i%SCENE_TRACER_NPC_COUNTERS,weapon,muzzle,end);}
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
@@ -18031,6 +18035,25 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     /* Existing spread and single ammo debit precede continuation; no redraw.
      * These admitted handheld weapons have one ordinary pellet per shot. */
     status=scene_player_body_shot_ray(&body_shot,delta,&body_ray);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(body_shot.slot!=2){float start[3],end[3];uint32_t k;
+        /* 425dab..425dc7: the round starts at the view model's Muzzle_1 tag,
+         * placed in the world as the gun is drawn (eye + basis * (pose + offset)),
+         * unless the eye cannot see it; then at the eye. */
+        rf_player_weapon *w=stream->player_weapon[campaign_view_slot()];
+        memcpy(start,position,12);
+        if(w && w->initialized && w->has_muzzle && (uint32_t)w->muzzle_tag.parent<w->bone_count) {
+            float local[12],pose[12];
+            if(!rf_model_attachment_transform(w->muzzle_tag.rotation,w->muzzle_tag.position,local) &&
+               !rf_model_compose_transform(local,w->pose[w->muzzle_tag.parent],pose)) {
+                float muzzle[3],offset[3];uint32_t blocked_muzzle=0;
+                for(k=0;k<3;k++)offset[k]=pose[9+k]+w->position[k];
+                for(k=0;k<3;k++)muzzle[k]=position[k]+orientation[0][k]*offset[0]+orientation[1][k]*offset[1]+orientation[2][k]*offset[2];
+                if(stream->collision && !rf_geometry_collision_ray(stream->collision,&campaign_movers,position,muzzle,0x26,NULL,&blocked_muzzle) && !blocked_muzzle)
+                    memcpy(start,muzzle,12);
+            }
+        }
+        for(k=0;k<3;k++)end[k]=position[k]+delta[k]; /* full ray; clipped at the first world surface */
+        scene_tracer_fire(stream,&scene_tracer_player_counter,body_shot.weapon,start,end);}
     if(handheld.enabled)return scene_handheld_penetration_fire(stream,frame,pellet,position,delta,&handheld,&body_ray);
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
@@ -18054,10 +18077,6 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     status=scene_driller_firearm_select(body_shot.source,position,delta,nearest,&vehicle_contact,&vehicle_selected);if(status)return scene_player_failure_return(status,__LINE__,frame);
     if(vehicle_selected)nearest=vehicle_contact.hit.fraction;
     status=campaign_clutter_firearm_select(position,delta,nearest,&clutter_selected,&nearest);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    if(body_shot.slot!=2){float start[3],end[3];uint32_t k;
-        /* Tracer leaves from beside the gun, not the eye (presentation only). */
-        for(k=0;k<3;k++){start[k]=position[k]+orientation[0][k]*.12f-orientation[1][k]*.1f+orientation[2][k]*.4f;end[k]=position[k]+delta[k]*nearest;}
-        scene_tracer_fire(stream,&scene_tracer_player_counter,body_shot.weapon,start,end);}
     if(rf_scene_combat_trace) {
         uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;
         printf("SHOT_RAY %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",frame,body_shot.slot,pellet,uid,nearest,
@@ -21609,9 +21628,64 @@ uint32_t rf_scene_player_weapon[8]; /* frames,clip,CPU vertices,resident,peak,po
  * emitted vertices,completed batches,status; floats are raw IEEE32 words. */
 uint32_t rf_scene_player_weapon_view[16];
 uint32_t rf_scene_rocket_visual[8]; /* frame, active flights, active meshes, emitted vertices, hash, resource bytes, status, additive faces */
+/* One VFX model at a world position and basis (rows right, up, forward),
+ * effect time in frames: per-face emission with each authored material's
+ * blend. Shared by flying projectiles (scene_rockets_draw) and tracers. */
+static int scene_vfx_emit(scene_stream *s,scene_rocket_visual *v,const float position[3],const float *basis,float time)
+{
+    rf_level camera=s->rocket_camera;uint32_t m,f,j,k;int status;
+    /* Bind tiny animated triangles near their own origin: world-space plane
+     * constants lose precision at distant authored level coordinates.
+     * Translating the camera instead preserves the same view and culling. */
+    for(k=0;k<3;k++)camera.player_position[k]-=position[k];
+    for(m=0;m<v->geometry->count;m++) {
+        rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
+        rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
+        if(!instance)continue;
+        status=rf_vfx_instance_update(instance,time);if(status)return status;if(!instance->active)continue;
+        ++rf_scene_rocket_visual[2];if(source->prefix.faces>128)return RF_RANGE;
+        /* Per-face emission carries each authored material's blend: additive
+         * flare/glow faces (material word2) brighten what is behind them,
+         * faded faces blend, opaque faces are texture x authored colour. As in
+         * scene_driller_cockpit_draw; projectiles are self-lit (white input). */
+        for(f=0;f<source->prefix.faces;f++) {
+            static const unsigned char self_lit[3]={255,255,255};
+            rf_vfx_face face;uint32_t material,slot,alpha,tag,offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
+            float triangle[9],normal[3],opacity=1,brightness=0;unsigned char rgb[3];
+            status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
+            status=rf_vfx_asset_material_index(v->geometry,v->materials,m,face.material,&material);if(status)return status;
+            slot=v->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
+            status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,1,time,&brightness);if(status && status!=RF_NOT_FOUND)return status;
+            status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,2,time,&opacity);if(status && status!=RF_NOT_FOUND)return status;
+            alpha=(uint32_t)((double)(255.f*fminf(1.f,fmaxf(0.f,opacity)))+.5);if(!alpha)continue;
+            status=rf_vfx_material_color(v->materials->views+material,self_lit,fminf(1.f,fmaxf(0.f,brightness)),source->edges.flags,rgb);if(status)return status;
+            for(j=0;j<3;j++)for(k=0;k<3;k++) {
+                const float *local=instance->vertices+face.indices[j]*3;
+                triangle[j*3+k]=local[0]*basis[k]+local[1]*basis[3+k]+local[2]*basis[6+k];
+            }
+            /* Animated zero-area effect faces are not drawable. */
+            status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
+            for(j=0;j<3;j++) {
+                memcpy(v->vertices[j].position,triangle+j*3,12);
+                v->vertices[j].uv[0]=instance->uv[f*6+j];v->vertices[j].uv[1]=instance->uv[f*6+3+j];
+            }
+            v->faces[0]=(rf_geomod_face){0,3,v->base+slot,UINT32_MAX};
+            mesh.vertices=v->vertices;mesh.faces=v->faces;mesh.vertex_count=3;mesh.face_count=1;
+            status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,3,v->bound,1);if(status)return status;
+            emitted.vertices=s->mesh->vertices+s->mesh->count;emitted.count=emitted.bytes=0;
+            status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&camera);if(status)return status;
+            tag=(v->materials->views[material].words[2]&255)?RF_PREVIEW_ADDITIVE_FADE_TAG|alpha:
+                alpha<255?RF_PREVIEW_FADE_TAG|alpha:RF_PREVIEW_VERTEX_LIT;
+            if(RF_PREVIEW_IS_ADDITIVE_FADED(tag))++rf_scene_rocket_visual[7];
+            for(j=0;j<emitted.count;j++){emitted.vertices[j].lightmap=tag;for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);}
+            s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
+        }
+    }
+    return RF_OK;
+}
 static int scene_rockets_draw(scene_stream *s,uint32_t frame)
 {
-    scene_rocket_visual *v=s->rocket_visual;uint32_t shot,m,f,j,k,start=s->mesh->count;int status;
+    scene_rocket_visual *v=s->rocket_visual;uint32_t shot,start=s->mesh->count;int status;
     memset(rf_scene_rocket_visual,0,sizeof(rf_scene_rocket_visual));rf_scene_rocket_visual[0]=frame+1;
     if(!v && !s->fusion_visual && !s->fighter_rocket_visual && !s->laser_visual && !s->tribeam_visual)return RF_OK;
     rf_scene_rocket_visual[5]=v?sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes:0;
@@ -21638,54 +21712,8 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
         float lifetime=tribeam?scene_ai_tribeam_definition.flight.lifetime:laser?scene_ai_laser_definition.lifetime:fighter?(index<4?s->fighter_weapon.rocket.lifetime:ai_lifetime):fusion?scene_fusion_projectiles[index].definition.lifetime:
             shot<SCENE_ROCKETS?campaign_rocket.lifetime:scene_ai_rockets[shot-SCENE_ROCKETS].definition->lifetime;
         float time=fmodf((lifetime-flight->remaining)*15,tribeam?31.f:laser?2.f:fusion?30.f:16.f);
-        rf_level camera=s->rocket_camera;++rf_scene_rocket_visual[1];
-        /* Bind tiny animated triangles near their own origin: world-space plane
-         * constants lose precision at distant authored level coordinates.
-         * Translating the camera instead preserves the same view and culling. */
-        for(k=0;k<3;k++)camera.player_position[k]-=flight->position[k];
-        for(m=0;m<v->geometry->count;m++) {
-            rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
-            rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
-            if(!instance)continue;
-            status=rf_vfx_instance_update(instance,time);if(status)return status;if(!instance->active)continue;
-            ++rf_scene_rocket_visual[2];if(source->prefix.faces>128)return RF_RANGE;
-            /* Per-face emission carries each authored material's blend: additive
-             * flare/glow faces (material word2) brighten what is behind them,
-             * faded faces blend, opaque faces are texture x authored colour. As in
-             * scene_driller_cockpit_draw; projectiles are self-lit (white input). */
-            for(f=0;f<source->prefix.faces;f++) {
-                static const unsigned char self_lit[3]={255,255,255};
-                rf_vfx_face face;uint32_t material,slot,alpha,tag,offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
-                float triangle[9],normal[3],opacity=1,brightness=0;unsigned char rgb[3];
-                status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
-                status=rf_vfx_asset_material_index(v->geometry,v->materials,m,face.material,&material);if(status)return status;
-                slot=v->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
-                status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,1,time,&brightness);if(status && status!=RF_NOT_FOUND)return status;
-                status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,2,time,&opacity);if(status && status!=RF_NOT_FOUND)return status;
-                alpha=(uint32_t)((double)(255.f*fminf(1.f,fmaxf(0.f,opacity)))+.5);if(!alpha)continue;
-                status=rf_vfx_material_color(v->materials->views+material,self_lit,fminf(1.f,fmaxf(0.f,brightness)),source->edges.flags,rgb);if(status)return status;
-                for(j=0;j<3;j++)for(k=0;k<3;k++) {
-                    const float *local=instance->vertices+face.indices[j]*3;
-                    triangle[j*3+k]=local[0]*basis[k]+local[1]*basis[3+k]+local[2]*basis[6+k];
-                }
-                /* Animated zero-area effect faces are not drawable. */
-                status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
-                for(j=0;j<3;j++) {
-                    memcpy(v->vertices[j].position,triangle+j*3,12);
-                    v->vertices[j].uv[0]=instance->uv[f*6+j];v->vertices[j].uv[1]=instance->uv[f*6+3+j];
-                }
-                v->faces[0]=(rf_geomod_face){0,3,v->base+slot,UINT32_MAX};
-                mesh.vertices=v->vertices;mesh.faces=v->faces;mesh.vertex_count=3;mesh.face_count=1;
-                status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,3,v->bound,1);if(status)return status;
-                emitted.vertices=s->mesh->vertices+s->mesh->count;emitted.count=emitted.bytes=0;
-                status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&camera);if(status)return status;
-                tag=(v->materials->views[material].words[2]&255)?RF_PREVIEW_ADDITIVE_FADE_TAG|alpha:
-                    alpha<255?RF_PREVIEW_FADE_TAG|alpha:RF_PREVIEW_VERTEX_LIT;
-                if(RF_PREVIEW_IS_ADDITIVE_FADED(tag))++rf_scene_rocket_visual[7];
-                for(j=0;j<emitted.count;j++){emitted.vertices[j].lightmap=tag;for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);}
-                s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
-            }
-        }
+        ++rf_scene_rocket_visual[1];
+        status=scene_vfx_emit(s,v,flight->position,basis,time);if(status)return status;
     }
     rf_scene_rocket_visual[3]=s->mesh->count-start;
     rf_scene_rocket_visual[4]=scene_diagnostic_hash(2166136261u,s->mesh->vertices+start,rf_scene_rocket_visual[3]*sizeof(rf_preview_vertex));return RF_OK;

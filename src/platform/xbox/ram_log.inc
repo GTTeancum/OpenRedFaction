@@ -234,7 +234,7 @@ static void rf_ram_log_sample(uint32_t force)
     {extern int32_t rf_scene_weapon_ir_bounds[8];RAM_ARRAY(rf_scene_weapon_ir_bounds,8);}
     {extern uint32_t rf_scene_weapon_digits[4];RAM_ARRAY(rf_scene_weapon_digits,4);}
     {extern uint32_t rf_xbox_stream_peak[3];RAM_ARRAY(rf_xbox_stream_peak,3);}
-    {extern uint32_t rf_scene_tracers[4];RAM_ARRAY(rf_scene_tracers,4);}
+    {extern uint32_t rf_scene_tracers[8];RAM_ARRAY(rf_scene_tracers,8);}
     {extern uint32_t rf_xbox_flip_waits[4];RAM_ARRAY(rf_xbox_flip_waits,4);}
     {extern uint64_t rf_renderer_model_split[4];RAM_ARRAY(rf_renderer_model_split,8);}
     {extern uint32_t rf_xbox_world_indexed[8];RAM_ARRAY(rf_xbox_world_indexed,8);}
