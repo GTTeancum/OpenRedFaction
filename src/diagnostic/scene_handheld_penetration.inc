@@ -14,19 +14,28 @@ typedef struct scene_handheld_shot {
     float base,power;
 } scene_handheld_shot;
 
+/* Flying round (scene_player_rounds.inc): position/delta are the round's whole
+ * path from its origin; `state` (begun at launch) carries power and visited
+ * handles between steps; contacts are taken in order up to `limit` (fraction
+ * of the whole path reached this step), actor queries start at `flown`. A
+ * contact beyond `limit` leaves *done=0 for the next step. */
 static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
-    uint32_t pellet,const float position[3],const float delta[3],const scene_handheld_shot *shot,
-    const scene_player_body_shot *body_ray)
+    uint32_t pellet,scene_sniper_penetration *state,const float position[3],const float delta[3],
+    float flown,float limit,const scene_handheld_shot *shot,const scene_player_body_shot *body_ray,uint32_t *done)
 {
-    scene_sniper_penetration penetration;float end[3],original_position[3],original_delta[3];uint32_t i;int status;
-    if(!shot || !body_ray || !shot->enabled || !position || !delta)return RF_RANGE;
+    float end[3],original_position[3],original_delta[3];uint32_t i;int status;
+    if(!done)return RF_RANGE;*done=1;
+    if(!shot || !body_ray || !state || !shot->enabled || !position || !delta)return RF_RANGE;
     if(!scene_player_body_source_live(body_ray))return RF_OK;
     /* Damage/death callbacks cannot retarget the retained original segment. */
     memcpy(original_position,position,12);memcpy(original_delta,delta,12);
     position=original_position;delta=original_delta;
-    status=scene_sniper_penetration_begin(shot->enabled,shot->power,position,delta,&penetration);
-    if(status)return status;
     for(i=0;i<3;i++)end[i]=position[i]+delta[i];
+    /* Actor queries begin at the round, not behind it. */
+    if(state->cursor<flown) {
+        state->cursor=flown;
+        for(i=0;i<3;i++){state->start[i]=position[i]+delta[i]*flown;state->delta[i]=end[i]-state->start[i];}
+    }
     for(;;) {
         scene_npc_shield_candidate shield_candidate={0};scene_npc_body_contact body_contact={0};
         scene_clutter_precision_contact prop={UINT32_MAX,UINT32_MAX,1};
@@ -34,9 +43,9 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
         uint32_t target=UINT32_MAX,handle=UINT32_MAX,shield_selected=0,vehicle_selected=0;
         uint32_t body_selected=0,blocked=0,more=0;
         float nearest=1,query_fraction,body_fraction=1,damage=shot->base;
-        const float *actor_position=penetration.start,*actor_delta=penetration.delta;
+        const float *actor_position=state->start,*actor_delta=state->delta;
         if(!scene_player_body_source_live(body_ray))return RF_OK;
-        status=scene_sniper_penetration_damage(&penetration,shot->base,&damage);if(status)return status;
+        status=scene_sniper_penetration_damage(state,shot->base,&damage);if(status)return status;
         /* Keep the ordinary body-before-shield enumeration and strict-nearer
          * ties. Only actor queries advance; generation-bearing visited handles
          * prevent a surviving owner from receiving this same shot twice. */
@@ -46,7 +55,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
                !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
             if(rf_object_registry_lookup(&campaign_registry,owner->registration.handle)!=&owner->registration ||
-               scene_sniper_penetration_visited(&penetration,owner->registration.handle))continue;
+               scene_sniper_penetration_visited(state,owner->registration.handle))continue;
             status=scene_npc_body_contact_query(i,body_ray,actor_position,actor_delta,nearest,&candidate_body);
             if(status)return status;
             fraction=candidate_body.fraction;
@@ -70,7 +79,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             }
         }
         query_fraction=nearest;
-        if(target!=UINT32_MAX)nearest=penetration.cursor+(1-penetration.cursor)*query_fraction;
+        if(target!=UINT32_MAX)nearest=state->cursor+(1-state->cursor)*query_fraction;
         /* Every competing prop, vehicle, fragment and world/rubble check uses
          * the ORIGINAL complete ray, up to the next absolute actor contact.
          * Radius advance must not leap over cover, even behind prior actors. */
@@ -100,6 +109,15 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
             ++rf_scene_detached_hitscan[0];
             status=scene_detached_sources_sweep(stream,0x460,position,delta,0,nearest,&hit,&matched);
             rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
+            /* Flying round: only a contact this step reaches is taken now. */
+            if(limit<1) {
+                float contact=(target!=UINT32_MAX || vehicle_selected || prop.slot!=UINT32_MAX)?nearest:1,from[3],to[3];
+                rf_collision_solid_hit wall;uint32_t walled=0;
+                if(matched && hit.piece.hit.fraction<contact)contact=hit.piece.hit.fraction;
+                for(i=0;i<3;i++){from[i]=position[i]+delta[i]*flown;to[i]=position[i]+delta[i]*limit;}
+                status=rf_geometry_collision_ray(stream->collision,&campaign_movers,from,to,0x26,&wall,&walled);if(status)return status;
+                if(!walled && contact>limit){*done=0;return RF_OK;}
+            }
             if(matched && (target==UINT32_MAX || hit.piece.hit.fraction<nearest)) {
                 float contact_end[3];uint32_t wall;
                 for(i=0;i<3;i++)contact_end[i]=position[i]+delta[i]*hit.piece.hit.fraction;
@@ -158,7 +176,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
              * token, or a body beyond that surface, cannot fabricate a contact. */
             if(!body_selected || body_fraction>query_fraction)return RF_OK;
             query_fraction=body_fraction;
-            nearest=penetration.cursor+(1-penetration.cursor)*query_fraction;
+            nearest=state->cursor+(1-state->cursor)*query_fraction;
             if(!scene_npc_body_contact_live(body_ray,&body_contact))return RF_OK;
             {uint32_t consumed;status=scene_nano_weapon_contact(owner,shot->weapon,request.amount,body_contact.point,&consumed);
                 if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
@@ -169,8 +187,8 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
              * radius and prepare continuation BEFORE damage/death callbacks.
              * Even zero applied damage spends this contact's original power. */
             status=scene_npc_body_contact_amount(&body_contact,shot->base,&request.amount);if(status)return status;
-            status=scene_sniper_penetration_damage(&penetration,request.amount,&request.amount);if(status)return status;
-            status=scene_sniper_penetration_body(&penetration,handle,owner->body.state.bounds.radius,
+            status=scene_sniper_penetration_damage(state,request.amount,&request.amount);if(status)return status;
+            status=scene_sniper_penetration_body(state,handle,owner->body.state.bounds.radius,
                 nearest,point,end,&more);if(status)return status;
             memcpy(&clock_bits,&seconds,4);
             if(!scene_npc_body_contact_reaction_publish(body_ray,&body_contact))return RF_OK;

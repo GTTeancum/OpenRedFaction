@@ -36,7 +36,8 @@ static int scene_vfx_emit(scene_stream *s,scene_rocket_visual *v,const float pos
 /* Tracer01.VFX with its textures merged into the stream materials. */
 static scene_rocket_visual *scene_tracer_visual;static float scene_tracer_loop_frames;
 static scene_tracer scene_tracers[SCENE_TRACER_CAPACITY];
-static struct {uint8_t enabled;int32_t frequency;float speed;} scene_tracer_weapons[64];
+/* speed: tracer flight (0.275 x $Velocity); velocity/lifetime: the round itself. */
+static struct {uint8_t enabled;int32_t frequency;float speed,velocity,lifetime;} scene_tracer_weapons[64];
 static int32_t scene_tracer_player_counter,scene_tracer_npc_counter[SCENE_TRACER_NPC_COUNTERS];
 /* launched, active, VFX emissions drawn (total), weapons with tracers (+0x10000 = Tracer01.VFX loaded),
  * rounds seen (any weapon), tracers refused (path under .01 or no basis), player rounds seen, last path length *16 */
@@ -78,7 +79,8 @@ static int scene_tracers_load(rf_vpp *tables)
         if(weapon<0)continue;
         if(!strncmp(p,"$Tracers:",9)){if(!strncmp(value,"true",4)){scene_tracer_weapons[weapon].enabled=1;++rf_scene_tracers[3];}}
         else if(!strncmp(p,"+Tracer Frequency:",18))scene_tracer_weapons[weapon].frequency=(int32_t)scene_tracer_number(value);
-        else if(!strncmp(p,"$Velocity:",10))scene_tracer_weapons[weapon].speed=scene_tracer_number(value)*.275f;
+        else if(!strncmp(p,"$Velocity:",10)){scene_tracer_weapons[weapon].velocity=scene_tracer_number(value);scene_tracer_weapons[weapon].speed=scene_tracer_weapons[weapon].velocity*.275f;}
+        else if(!strncmp(p,"$Lifetime:",10))scene_tracer_weapons[weapon].lifetime=scene_tracer_number(value);
     }
     free(text);return RF_OK;
 }
