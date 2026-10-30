@@ -417,7 +417,15 @@ static int scene_hud_present(void *context,const rf_particle_draw_vertex *vertic
     /* Additive for the Rail Driver scanner picture (4324ec, blend ONE/ONE). */
     if(mode!=0x18000u && mode!=RF_PARTICLE_NORMAL_MODE && mode!=normal &&
        mode!=RF_PARTICLE_GLOW_MODE && mode!=glow)return RF_NOT_FOUND;
-    return rf_xbox_particle_draw(hud_widen(vertices,count,wide),count,image,mode&~(31u<<20),1,0,0,0);
+    vertices=hud_widen(vertices,count,wide);
+    /* Corner panels keep their 4:3 distance from the screen edge at 16:9. */
+    if(screen_wide && rf_scene_hud_anchor && count<=8){
+        float shift=(rf_scene_hud_anchor==1?-hud_offset_x:hud_offset_x)/hud_scale;uint32_t i;
+        if(vertices!=wide)for(i=0;i<count;i++)wide[i]=vertices[i];
+        for(i=0;i<count;i++)wide[i].screen[0]+=shift;
+        vertices=wide;
+    }
+    return rf_xbox_particle_draw(vertices,count,image,mode&~(31u<<20),1,0,0,0);
 }
 /* Original457870/50bc60 selected menu artwork uses additive blending.
  * The gameplay HUD callback also admits additive art (Rail Driver scanner). */

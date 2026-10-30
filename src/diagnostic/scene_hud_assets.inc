@@ -75,6 +75,7 @@ static uint32_t scene_hud_ammo_icon(void)
     default:return RF_HUD_AMMO_BULLET;
     }
 }
+uint32_t rf_scene_hud_anchor;
 static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uint32_t vehicle,
     float vehicle_health,const int32_t vehicle_ammo[2],uint32_t mounted,const scene_turret_owner *turret,
     uint32_t armed,uint32_t loaded,uint32_t reserve,uint32_t magazine,uint32_t remote_pending,uint32_t reticle_color)
@@ -91,6 +92,7 @@ static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uin
     (void)vehicle_health;
     for(i=0;i<19;i++){status=rf_hud_assets_position(a,i,p[i]);if(status)return status;}
     memset(rf_hud_vehicle_diagnostic+1,0,7*sizeof(uint32_t));
+    rf_scene_hud_anchor=1; /* Health/armor (and vehicle health) panel: left edge. */
     if(vehicle){
         ++rf_hud_vehicle_diagnostic[0];rf_hud_vehicle_diagnostic[1]=profile;
         rf_hud_vehicle_diagnostic[4]=(uint32_t)vehicle_ammo[0];rf_hud_vehicle_diagnostic[5]=(uint32_t)vehicle_ammo[1];
@@ -122,6 +124,7 @@ static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uin
          (campaign_equipped_slot==6 || campaign_equipped_slot==15))&&
        (mounted||vehicle_reticle||(!vehicle&&campaign_equipped_slot!=2&&
         campaign_equipped_slot!=5&&campaign_equipped_slot!=9&&campaign_equipped_slot!=11))){
+        rf_scene_hud_anchor=0; /* Reticle stays centred. */
         /* Installed APC Minigun/APC Rocket/Jeep Gun all name reticle.tga. */
         uint32_t id=!vehicle&&!mounted&&campaign_equipped_slot==4&&
             particle_draw_stream->rocket_lock.active&&particle_draw_stream->rocket_lock.locked?RF_HUD_RETICLE_LOCK:
@@ -132,6 +135,7 @@ static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uin
         /* Original43a41b centers by viewport and selected bitmap dimensions. */
         status=scene_hud_sprite_draw(sink,context,&sprite,(640.f-sprite.width)*.5f,(480.f-sprite.height)*.5f,1,reticle_color);if(status)return status;
     }
+    rf_scene_hud_anchor=2; /* Ammo, turret, remote-charge and reload panel: right edge. */
     if(mounted&&turret){
         status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,turret->view.weapons[0]==scene_turret_heap_id?"HEAP":"VAUSS",518,12,108,18,color);if(status)return status;
         return scene_hud_text_box(a,sink,context,RF_HUD_FONT_TEXT,"UNLIMITED",518,34,108,18,color);
@@ -188,6 +192,7 @@ static int scene_hud_original(rf_scene_particle_sink sink,void *context,uint32_t
 {
     int status=scene_hud_original_draw(sink,context,vehicle,vehicle_health,vehicle_ammo,mounted,turret,
         armed,loaded,reserve,magazine,remote_pending,reticle_color);
+    rf_scene_hud_anchor=0;
     rf_hud_vehicle_diagnostic[7]=(uint32_t)status;return status;
 }
 static void scene_hud_open_optional(scene_stream *stream,const char *tables_path,rf_vpp *maps,uint32_t map_count)

@@ -16,6 +16,10 @@
  * NULL staging clears any queued import. The staged value owns its data. */
 /* Enable only when the caller consumes exits after scene cleanup. */
 extern uint32_t rf_scene_follow_level_exits;
+/* Gameplay HUD edge anchoring for wide screens, set around the corner panels:
+ * 0 centred (4:3 area), 1 left edge, 2 right edge. A 16:9 backend moves
+ * anchored quads out by its side margin so they keep the 4:3 edge distance. */
+extern uint32_t rf_scene_hud_anchor;
 extern rf_campaign_countdown rf_scene_campaign_countdown;
 /* Final-puzzle diagnostics; word 1 is active while Xbox D-pad directions feed it. */
 extern uint32_t rf_scene_defuse[17];
