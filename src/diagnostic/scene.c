@@ -13060,9 +13060,173 @@ static int scene_enemy_failure(int status,uint32_t line,uint32_t frame,uint32_t 
     return status;
 }
 #include "scene_bullet_tracers.inc"
+/* One flying NPC round over this step (RF.exe 4c77a0 weapon object, moved
+ * and swept each frame): the established enemy ray resolution runs along the
+ * round's remaining path from its current position; only a contact this step
+ * reaches (`limit`, fraction of that path) is committed, else *done=0. The
+ * outcome feeds the same hit bookkeeping as the instant shot did. */
+static int scene_npc_round_step(scene_stream *stream,uint32_t frame,scene_npc_round *r,const float start[3],
+    const float ray[3],float limit,const float player_eye[3],scene_npc_round_result *out,uint32_t *done)
+{
+    uint32_t i=r->slot,j,blocked=0,clock_bits,pending=0,melee=0,vehicle_damage_applied=0,victim_slot=UINT32_MAX;
+    float seconds=(float)frame/60,amount=0,player_amount=0,bullet_point[3]={0},spread_ray[3],impact_start[3],fraction,body_fraction,end[3];
+    int32_t bullet_material=-1,weapon=r->weapon;uint32_t intended_handle=r->intended;int status;
+    const rf_weapon_primary_definition *definition=r->definition;const float shot_damage=r->damage;
+    combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    scene_ai_pistol_shot pistol_shot=r->pistol;scene_ai_pistol_contact pistol_contact={0};
+    scene_ai_shield_ray_selection npc_shield={0};rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
+    campaign_npc_body *owner=scene_ai_pistol_identity(r->slot,r->source),*victim=NULL;
+    memset(out,0,sizeof(*out));out->victim_slot=UINT32_MAX;*done=1;
+    memcpy(&clock_bits,&seconds,4);memcpy(spread_ray,ray,12);
+    /* A round whose shooter is gone ends here (its registration backs the selection). */
+    if(!owner)return RF_OK;
+            if(pistol_shot.active)memcpy(pistol_shot.start,start,12);
+            memcpy(impact_start,start,12);
+            if(pistol_shot.active){status=scene_ai_pistol_ray(&pistol_shot,spread_ray);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
+            /* Every fired ray resolves actual intervening bodies/shields, independently
+             * of the AI order's intended target. Cover arbitration follows below. */
+            scene_ai_actor_ray_selection actor;
+            status=pistol_shot.active?scene_ai_pistol_actor_select(stream,&pistol_shot,spread_ray,player_eye,&actor,&pistol_contact):
+                scene_ai_actor_ray_select(stream,owner,impact_start,spread_ray,player_eye,&actor);
+            if(pistol_shot.active && status==RF_NOT_FOUND)goto round_done;
+            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+            victim=actor.victim;victim_slot=actor.victim_slot;
+            uint32_t target_hit=actor.body_hit,shield_hit=actor.shield_hit;
+            scene_player_shield_candidate player_shield=actor.player_shield;
+            npc_shield=actor.npc_shield;fraction=actor.fraction;body_fraction=actor.body_fraction;
+            for(j=0;j<3;j++)end[j]=impact_start[j]+spread_ray[j];
+            status=scene_driller_firearm_select(owner->registration.handle,impact_start,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+
+            if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+            if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
+            /* Flying round: a contact beyond this step waits; props and fragments
+             * are only taken up to the distance flown this step. */
+            {uint32_t walled=0;
+             if(limit<1 && !r->penetrates_world){rf_collision_solid_hit wall;float to[3];
+                for(j=0;j<3;j++)to[j]=impact_start[j]+spread_ray[j]*limit;
+                status=rf_geometry_collision_ray(stream->collision,&campaign_movers,impact_start,to,0x26,&wall,&walled);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
+             if(limit<1 && !walled && fraction>limit){pending=1;fraction=limit;}}
+            {uint32_t consumed;float contact_fraction;
+                status=campaign_clutter_enemy_fire_contact(stream,impact_start,spread_ray,fraction,
+                    shot_damage,definition?definition->damage_kind:0,r->penetrates_world,&consumed,&contact_fraction);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                if(contact_fraction>=0)scene_npc_bullet_impact_ray(weapon,-1,impact_start,spread_ray,contact_fraction);
+                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                if(consumed)goto round_done;
+            }
+            blocked=0;
+            if(!r->penetrates_world){scene_npc_bullet_contact contact;
+                status=combat_enemy_fragment_shot_contact(stream,impact_start,spread_ray,fraction,shot_damage,&blocked,&contact);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                scene_npc_bullet_impact_stop(stream,weapon,impact_start,spread_ray,&contact);
+                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;}
+            if(blocked){++rf_scene_enemy_spread[4];goto round_done;}
+            if(pending){*done=0;return RF_OK;}
+            if(vehicle_hit){uint32_t handled=0;float applied=0;
+                if(!r->penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
+                if(!blocked){uint32_t impact_live=scene_npc_bullet_impact_ready(weapon) &&
+                        scene_driller_projectile_contact_live(&vehicle_contact,owner->registration.handle);
+                    status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
+                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                    if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                    if(handled && impact_live)scene_npc_bullet_impact_contact(weapon,-1,vehicle_contact.hit.point);
+                    if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                    if(handled&&applied>0){amount=applied;vehicle_damage_applied=1;}}
+                goto round_done;
+            }
+            if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
+                status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                if(accepted)goto round_done;
+                if(target_hit && !r->penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(blocked)goto round_done;}
+            }
+            if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
+                uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition?definition->damage_kind:0,0,UINT32_MAX,0};
+                status=scene_ai_shield_ray_commit(&npc_shield,impact_start,end,&request,&accepted,&broken);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                if(accepted)goto round_done;
+                if(target_hit && !r->penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(blocked)goto round_done;}
+            }
+
+            if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+            if(!target_hit){++rf_scene_enemy_spread[3];goto round_done;}
+            /* Retain the actual selected body's entry point/material before
+             * damage/death callbacks. Shield-only misses never reach here. */
+            if(pistol_shot.active && pistol_contact.body.outcome==SCENE_BODY_CONTACT_HIT)
+                memcpy(bullet_point,pistol_contact.body.point,12);
+            else for(j=0;j<3;j++)bullet_point[j]=impact_start[j]+spread_ray[j]*body_fraction;
+            bullet_material=victim?(int32_t)victim->collision_material:(int32_t)campaign_player_material;
+            ++rf_scene_enemy_spread[2];
+        {int32_t kind=definition?definition->damage_kind:0;
+         /* Unsupported weapon classes retain the provisional fallback. */
+         if(!definition)++rf_scene_enemy_damage_kinds[9];
+         if(kind<0 || kind>8)return scene_enemy_failure(RF_FORMAT,__LINE__,frame,i);
+         ++rf_scene_enemy_damage_kinds[kind];
+         if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+         rf_damage_request request={shot_damage,pistol_shot.active?pistol_shot.source:owner->registration.handle,kind,0,UINT32_MAX,0};
+         if(victim) {
+             uint32_t entered;
+             if(!melee){uint32_t consumed;status=scene_nano_weapon_contact(victim,weapon,request.amount,bullet_point,&consumed);
+                 if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(consumed)goto round_done;}
+             if(pistol_shot.active){
+                 if(!scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                 if(pistol_contact.body.outcome==SCENE_BODY_CONTACT_HIT){
+                     status=scene_npc_body_contact_amount(&pistol_contact.body,pistol_shot.base,&request.amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                     /* Original828 precedes generic damage, even if damage is
+                      * suppressed or lethal. No callback separates this guard,
+                      * same-owner hint publication and the damage entry below. */
+                     if(!scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto round_done;
+                     if(pistol_contact.body.reaction_frame && pistol_contact.body.pain_action>=24 &&
+                        pistol_contact.body.pain_action<=27)victim->pain.selected_action=pistol_contact.body.pain_action;
+                 }
+             }
+             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+             if(pistol_shot.active){
+                 if(pistol_shot.epoch!=scene_robot_death_epoch)goto round_done;
+                 owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto round_done;
+                 victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);
+                 if(!victim)goto round_done;
+             }
+             if(victim->damage.effects.health<=0) {
+                 status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                 if(pistol_shot.active){
+                     if(pistol_shot.epoch!=scene_robot_death_epoch)goto round_done;
+                     owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto round_done;
+                     victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);
+                     if(!victim)goto round_done;
+                 }
+                 if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
+             }
+         } else {
+             uint32_t target=campaign_player_object.handle;float difficulty;
+             status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+             status=rf_scene_player_damage(target,&request,difficulty,clock_bits,&effects,&amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+             if(pistol_shot.active)player_amount=amount;
+         }
+            if(pistol_shot.active){
+                if(pistol_shot.epoch!=scene_robot_death_epoch)goto round_done;
+                owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto round_done;
+                if(victim){victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);if(!victim)goto round_done;}
+            }
+            if(!melee){scene_npc_bullet_impact_contact(weapon,bullet_material,bullet_point);
+                if(pistol_shot.active){
+                    if(pistol_shot.epoch!=scene_robot_death_epoch)goto round_done;
+                    owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto round_done;
+                    if(victim){victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);if(!victim)goto round_done;}
+                    else if(campaign_player_object.handle!=pistol_contact.body.handle)goto round_done;
+                }
+                scene_ai_actor_hit_probe(owner,intended_handle,victim?victim->registration.handle:campaign_player_object.handle,frame,amount);}
+        }
+round_done:
+    out->amount=amount;out->player_amount=player_amount;out->vehicle_applied=vehicle_damage_applied;
+    if(victim){out->victim_slot=victim_slot;out->victim_handle=victim->registration.handle;}
+    (void)melee;return RF_OK;
+}
 static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const float player_eye[3],
     scene_pursuit_work_dispatch_result *work)
 {
+    scene_npc_rounds_player_eye(player_eye);
     uint32_t i=UINT32_MAX,j,blocked,clock_bits;float seconds=(float)frame/60;
     const uint64_t tick_epoch=scene_robot_death_epoch;
     const int32_t pursuit_now=scene_patrol_now(frame);
@@ -13124,8 +13288,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         scene_ai_pistol_shot pistol_shot={0};scene_ai_pistol_contact pistol_contact={0};
         uint32_t melee_guarded=0,class_melee_waiting=0;
         float melee_start[3],melee_delta[3],melee_damage=0;
-        int32_t melee_kind=0;float delta[3],point_spread_ray[3],bullet_point[3],distance=0,amount=0,player_amount=0;int status;
-        int32_t bullet_material=-1;
+        int32_t melee_kind=0;float delta[3],point_spread_ray[3],distance=0,amount=0,player_amount=0;int status;
         uint32_t point_spread_ready=0,once,vehicle_damage_applied=0,actor_penetrated=0;
         scene_ai_actor_penetration_shot actor_shot={0};
         scene_ai_actor_penetration_result actor_result={0};
@@ -13543,13 +13706,6 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
-        if(!melee && distance>0){float end[3],muzzle[3],basis[9],reach=fmaxf(attack_range,sqrtf(distance)+1.0f);
-            /* 41b5a0: the round starts at the held weapon's muzzle, aimed at the
-             * target (rf_scene_npc_muzzle; its own eye fallback when untagged). */
-            if(!rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,muzzle,basis))
-                for(j=0;j<3;j++)end[j]=muzzle[j]+basis[6+j]*reach;
-            else{memcpy(muzzle,owner->eye_position,12);for(j=0;j<3;j++)end[j]=muzzle[j]+delta[j]*(reach/sqrtf(distance));}
-            scene_tracer_fire(stream,scene_tracer_npc_counter+i%SCENE_TRACER_NPC_COUNTERS,weapon,muzzle,end);}
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
@@ -13620,8 +13776,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             goto enemy_shot_done;
         }
         if(!melee) {
-            float ray[3],spread_ray[3],impact_start[3],fraction,body_fraction,end[3];
-            scene_ai_shield_ray_selection npc_shield={0};rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
+            float ray[3],spread_ray[3];
             ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
             if(point_spread_ready)memcpy(spread_ray,point_spread_ray,12);
             else {
@@ -13643,134 +13798,20 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 vehicle_damage_applied=actor_result.vehicle_applied>0;
                 goto enemy_shot_done;
             }
-            memcpy(impact_start,pistol_shot.active?pistol_shot.start:owner->eye_position,12);
-            if(pistol_shot.active){status=scene_ai_pistol_ray(&pistol_shot,spread_ray);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
-            /* Every fired ray resolves actual intervening bodies/shields, independently
-             * of the AI order's intended target. Cover arbitration follows below. */
-            scene_ai_actor_ray_selection actor;
-            status=pistol_shot.active?scene_ai_pistol_actor_select(stream,&pistol_shot,spread_ray,player_eye,&actor,&pistol_contact):
-                scene_ai_actor_ray_select(stream,owner,impact_start,spread_ray,player_eye,&actor);
-            if(pistol_shot.active && status==RF_NOT_FOUND)goto enemy_shot_done;
-            if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-            victim=actor.victim;victim_slot=actor.victim_slot;
-            uint32_t target_hit=actor.body_hit,shield_hit=actor.shield_hit;
-            scene_player_shield_candidate player_shield=actor.player_shield;
-            npc_shield=actor.npc_shield;fraction=actor.fraction;body_fraction=actor.body_fraction;
-            for(j=0;j<3;j++)end[j]=impact_start[j]+spread_ray[j];
-            status=scene_driller_firearm_select(owner->registration.handle,impact_start,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-
-            if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-            if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
-            {uint32_t consumed;float contact_fraction;
-                status=campaign_clutter_enemy_fire_contact(stream,impact_start,spread_ray,fraction,
-                    shot_damage,definition?definition->damage_kind:0,selected.penetrates_world,&consumed,&contact_fraction);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                if(contact_fraction>=0)scene_npc_bullet_impact_ray(weapon,-1,impact_start,spread_ray,contact_fraction);
-                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                if(consumed)goto enemy_shot_done;
-            }
-            blocked=0;
-            if(!selected.penetrates_world){scene_npc_bullet_contact contact;
-                status=combat_enemy_fragment_shot_contact(stream,impact_start,spread_ray,fraction,shot_damage,&blocked,&contact);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                scene_npc_bullet_impact_stop(stream,weapon,impact_start,spread_ray,&contact);
-                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;}
-            if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
-            if(vehicle_hit){uint32_t handled=0;float applied=0;
-                if(!selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
-                if(!blocked){uint32_t impact_live=scene_npc_bullet_impact_ready(weapon) &&
-                        scene_driller_projectile_contact_live(&vehicle_contact,owner->registration.handle);
-                    status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
-                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                    if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                    if(handled && impact_live)scene_npc_bullet_impact_contact(weapon,-1,vehicle_contact.hit.point);
-                    if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                    if(handled&&applied>0){amount=applied;vehicle_damage_applied=1;}}
-                goto enemy_shot_done;
-            }
-            if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
-                status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                if(accepted)goto enemy_shot_done;
-                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(blocked)goto enemy_shot_done;}
-            }
-            if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
-                uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition?definition->damage_kind:0,0,UINT32_MAX,0};
-                status=scene_ai_shield_ray_commit(&npc_shield,impact_start,end,&request,&accepted,&broken);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                if(accepted)goto enemy_shot_done;
-                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,impact_start,spread_ray,body_fraction,&blocked);if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(blocked)goto enemy_shot_done;}
-            }
-
-            if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-            if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
-            /* Retain the actual selected body's entry point/material before
-             * damage/death callbacks. Shield-only misses never reach here. */
-            if(pistol_shot.active && pistol_contact.body.outcome==SCENE_BODY_CONTACT_HIT)
-                memcpy(bullet_point,pistol_contact.body.point,12);
-            else for(j=0;j<3;j++)bullet_point[j]=impact_start[j]+spread_ray[j]*body_fraction;
-            bullet_material=victim?(int32_t)victim->collision_material:(int32_t)campaign_player_material;
-            ++rf_scene_enemy_spread[2];
-        }
-        {int32_t kind=definition?definition->damage_kind:0;
-         /* Unsupported weapon classes retain the provisional fallback. */
-         if(!definition)++rf_scene_enemy_damage_kinds[9];
-         if(kind<0 || kind>8)return scene_enemy_failure(RF_FORMAT,__LINE__,frame,i);
-         ++rf_scene_enemy_damage_kinds[kind];
-         if(pistol_shot.active && !scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-         rf_damage_request request={shot_damage,pistol_shot.active?pistol_shot.source:owner->registration.handle,kind,0,UINT32_MAX,0};
-         if(victim) {
-             uint32_t entered;
-             if(!melee){uint32_t consumed;status=scene_nano_weapon_contact(victim,weapon,request.amount,bullet_point,&consumed);
-                 if(status)return scene_enemy_failure(status,__LINE__,frame,i);if(consumed)goto enemy_shot_done;}
-             if(pistol_shot.active){
-                 if(!scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                 if(pistol_contact.body.outcome==SCENE_BODY_CONTACT_HIT){
-                     status=scene_npc_body_contact_amount(&pistol_contact.body,pistol_shot.base,&request.amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                     /* Original828 precedes generic damage, even if damage is
-                      * suppressed or lethal. No callback separates this guard,
-                      * same-owner hint publication and the damage entry below. */
-                     if(!scene_ai_pistol_contact_live(&pistol_shot,&pistol_contact))goto enemy_shot_done;
-                     if(pistol_contact.body.reaction_frame && pistol_contact.body.pain_action>=24 &&
-                        pistol_contact.body.pain_action<=27)victim->pain.selected_action=pistol_contact.body.pain_action;
-                 }
-             }
-             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-             if(pistol_shot.active){
-                 if(pistol_shot.epoch!=scene_robot_death_epoch)return RF_OK;
-                 owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto enemy_shot_done;
-                 victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);
-                 if(!victim)goto enemy_shot_done;
-             }
-             if(victim->damage.effects.health<=0) {
-                 status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                 if(pistol_shot.active){
-                     if(pistol_shot.epoch!=scene_robot_death_epoch)return RF_OK;
-                     owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto enemy_shot_done;
-                     victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);
-                     if(!victim)goto enemy_shot_done;
-                 }
-                 if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
-             }
-         } else {
-             uint32_t target=campaign_player_object.handle;float difficulty;
-             status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-             status=rf_scene_player_damage(target,&request,difficulty,clock_bits,&effects,&amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-             if(pistol_shot.active)player_amount=amount;
-         }
-            if(pistol_shot.active){
-                if(pistol_shot.epoch!=scene_robot_death_epoch)return RF_OK;
-                owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto enemy_shot_done;
-                if(victim){victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);if(!victim)goto enemy_shot_done;}
-            }
-            if(!melee){scene_npc_bullet_impact_contact(weapon,bullet_material,bullet_point);
-                if(pistol_shot.active){
-                    if(pistol_shot.epoch!=scene_robot_death_epoch)return RF_OK;
-                    owner=scene_ai_pistol_source(&pistol_shot);if(!owner)goto enemy_shot_done;
-                    if(victim){victim=scene_ai_pistol_identity(pistol_contact.body.slot,pistol_contact.body.handle);if(!victim)goto enemy_shot_done;}
-                    else if(campaign_player_object.handle!=pistol_contact.body.handle)goto enemy_shot_done;
-                }
-                scene_ai_actor_hit_probe(owner,intended_handle,victim?victim->registration.handle:campaign_player_object.handle,frame,amount);}
+            /* 4c77a0: the round leaves the held weapon's muzzle (41b5a0; a pistol
+             * shot keeps its own start) and flies; tracer rounds at 0.275x. */
+            {scene_npc_round round={0};scene_npc_round_result result;uint32_t round_done;float origin[3],muzzle_basis[9];
+             round.slot=i;round.source=owner->registration.handle;round.weapon=weapon;round.definition=definition;
+             round.damage=shot_damage;round.penetrates_world=selected.penetrates_world;round.intended=intended_handle;round.pistol=pistol_shot;
+             if(pistol_shot.active)memcpy(origin,pistol_shot.start,12);
+             else if(rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,origin,muzzle_basis))memcpy(origin,owner->eye_position,12);
+             memcpy(round.origin,origin,12);
+             if(scene_npc_round_launch(&round,spread_ray)==RF_OK)goto enemy_shot_done;
+             /* No table speed/lifetime or pool full: the round resolves at once. */
+             status=scene_npc_round_step(stream,frame,&round,origin,spread_ray,1,player_eye,&result,&round_done);if(status)return status;
+             amount=result.amount;player_amount=result.player_amount;vehicle_damage_applied=result.vehicle_applied;
+             if(result.victim_slot!=UINT32_MAX){victim=scene_ai_pistol_identity(result.victim_slot,result.victim_handle);victim_slot=result.victim_slot;
+                pistol_contact.body.slot=result.victim_slot;pistol_contact.body.handle=result.victim_handle;}}
         }
 enemy_shot_done:
         if(pistol_shot.active){
@@ -19153,8 +19194,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     scene_vehicle_loop_audio_begin();
     scene_vehicle_ai_player_sync(stream,0);
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
-    scene_tracers_tick();
     status=scene_player_rounds_tick(stream,frame);if(status)return status;
+    status=scene_npc_rounds_tick(stream,frame);if(status)return status;
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
     scene_vehicle_attack_player_sync(stream,0);

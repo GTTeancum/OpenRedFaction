@@ -1,46 +1,52 @@
 #ifndef RF_SCENE_BULLET_TRACERS_INC
 #define RF_SCENE_BULLET_TRACERS_INC
-/* Bullet tracers for ordinary firearms (player and NPC hitscan shots).
- * Reconstructed from RF.exe:
- *   4c456c..4c45da weapons.tbl "$Tracers:" sets info+264 bit 0x40000000,
- *          "+Tracer Frequency:" info+274, "+Tracer Effect:" info+540 (loaded
- *          into info+548).
- *   4c7871 weapon object creation: with the flag set, the round is a tracer
- *          when the owner's counter (entity+1424, 429f40) is <= 0; a tracer
- *          flies at $Velocity * 0.275 (5a2564) instead of $Velocity.
+/* NPC firearm rounds and tracers. Reconstructed from RF.exe:
+ *   4c77a0 every firearm round is a weapon object that flies at weapons.tbl
+ *          $Velocity for $Lifetime and applies its shot on contact.
+ *   4c456c..4c45da "$Tracers:" sets info+264 bit 0x40000000,
+ *          "+Tracer Frequency:" info+274, "+Tracer Effect:" info+540/548.
+ *   4c7871 with the flag set, a round is a tracer when the owner's counter
+ *          (entity+1424, 429f40) is <= 0; a tracer flies at 0.275 x $Velocity
+ *          (5a2564) and so covers 0.275 x the range in the same $Lifetime.
+ *          from_eye weapons owned by a local player never make tracers
+ *          (4c785f..4c787b, 48aa30); player rounds are scene_player_rounds.inc.
  *   4c7c46..4c7c5e every created round then runs 429f60 with the weapon's
- *          frequency: decrement the counter and, below zero, reload it.
- *          Frequency 4 gives one tracer in five rounds, 0 every round.
- *   4c754e..4c75ee render: a round flagged as a tracer with a tracer effect
- *          advances that VFX by the frame time, looping (503360), and draws it
- *          at the round's position and orientation (503100).
- *   425dab..425dc7 player rounds start at the view model's Muzzle_1 tag;
- *          NPC rounds at the held weapon's muzzle (41b5a0, rf_scene_npc_muzzle).
- *   Orientation: 4fcea0 basis from the flight direction
- *          (rf_entity_navigation_basis).
- * Tracer01.VFX (meshes.vpp, version 40006) holds two static planes, a
- * Tracer01.tga streak trailing about 5 units behind the round and a
- * LightCorona01.tga glow at it, both additive, visible for effect frames
- * 0..10 (looped). They are drawn by the shared projectile VFX emitter
- * (scene_vfx_emit), the same path as rockets and lasers.
- * Port policy: the port resolves these shots as instant rays, so a tracer is a
- * presentation-only round flying from the muzzle to the ray's end point (first
- * world surface) at the tracer speed. Damage still lands instantly with the
- * ray, not when the tracer arrives; ammunition and RNG are untouched. */
-#define SCENE_TRACER_CAPACITY 16u
+ *          frequency: decrement the counter, reload it below zero (frequency
+ *          4: one tracer in five rounds; 0: every round).
+ *   4c754e..4c75ee a tracer round with a tracer effect advances that VFX by the
+ *          frame time, looping (503360), and draws it at the round's position
+ *          and orientation (503100); orientation from 4fcea0.
+ *   41b5a0 NPC rounds leave the held weapon's muzzle (rf_scene_npc_muzzle).
+ * Tracer01.VFX (meshes.vpp, version 40006): two static planes, a Tracer01.tga
+ * streak trailing about 5 units behind the round and a LightCorona01.tga glow,
+ * additive, visible for effect frames 0..10 (looped); drawn by the shared
+ * projectile emitter scene_vfx_emit.
+ * Port policy: each update re-runs the established enemy ray resolution over
+ * the round's remaining path from its current position (scene_npc_round_step)
+ * and commits only a contact that update reaches. Vauss/Tankbot penetration,
+ * NPC shotgun and melee stay instant; a round whose shooter no longer exists
+ * ends (the selection needs its registration); deferred vehicle hits do not
+ * raise the vehicle hit event. */
+#define SCENE_NPC_ROUND_CAPACITY 64u
 #define SCENE_TRACER_NPC_COUNTERS 512u
-typedef struct scene_tracer {
-    float position[3],basis[9],speed,remaining,age;uint32_t active;
-} scene_tracer;
+typedef struct scene_npc_round {
+    scene_ai_pistol_shot pistol;const rf_weapon_primary_definition *definition;
+    float origin[3],path[3],basis[9],speed,flown_fraction,damage,age;
+    uint32_t slot,source,intended,penetrates_world,tracer,active;int32_t weapon;
+} scene_npc_round;
+typedef struct scene_npc_round_result {float amount,player_amount;uint32_t vehicle_applied,victim_slot,victim_handle,vehicle_handle;} scene_npc_round_result;
 static int scene_vfx_emit(scene_stream *s,scene_rocket_visual *v,const float position[3],const float *basis,float time);
+static int scene_npc_round_step(scene_stream *stream,uint32_t frame,scene_npc_round *r,const float start[3],
+    const float ray[3],float limit,const float player_eye[3],scene_npc_round_result *out,uint32_t *done);
+static scene_npc_round scene_npc_rounds[SCENE_NPC_ROUND_CAPACITY];
+static float scene_npc_round_player_eye[3];static uint32_t scene_npc_round_player_eye_valid;
 /* Tracer01.VFX with its textures merged into the stream materials. */
 static scene_rocket_visual *scene_tracer_visual;static float scene_tracer_loop_frames;
-static scene_tracer scene_tracers[SCENE_TRACER_CAPACITY];
 /* speed: tracer flight (0.275 x $Velocity); velocity/lifetime: the round itself. */
 static struct {uint8_t enabled;int32_t frequency;float speed,velocity,lifetime;} scene_tracer_weapons[64];
-static int32_t scene_tracer_player_counter,scene_tracer_npc_counter[SCENE_TRACER_NPC_COUNTERS];
-/* launched, active, VFX emissions drawn (total), weapons with tracers (+0x10000 = Tracer01.VFX loaded),
- * rounds seen (any weapon), tracers refused (path under .01 or no basis), player rounds seen, last path length *16 */
+static int32_t scene_tracer_npc_counter[SCENE_TRACER_NPC_COUNTERS];
+/* NPC rounds launched, tracer rounds, VFX emissions drawn (total), weapons with tracers (+0x10000 = Tracer01.VFX loaded),
+ * rounds completed, instant fallbacks (no table entry or pool full), active rounds, rounds that hit */
 uint32_t rf_scene_tracers[8];
 /* Plain decimal ("275.0"); NXDK's strtof/atof are unimplemented asserts. */
 static float scene_tracer_number(const char *s)
@@ -51,12 +57,12 @@ static float scene_tracer_number(const char *s)
     if(*s=='.')for(++s;*s>='0' && *s<='9';++s){scale*=.1f;value+=(float)(*s-'0')*scale;}
     return negative?-value:value;
 }
-/* Level load: weapons.tbl tracer fields for every supplied weapon name. */
+/* Level load: weapons.tbl round fields for every supplied weapon name. */
 static int scene_tracers_load(rf_vpp *tables)
 {
     rf_vpp_entry entry;char *text,*line,*next;int32_t weapon=-1;int status;
-    memset(scene_tracer_weapons,0,sizeof(scene_tracer_weapons));memset(scene_tracers,0,sizeof(scene_tracers));
-    memset(scene_tracer_npc_counter,0,sizeof(scene_tracer_npc_counter));scene_tracer_player_counter=0;rf_scene_tracers[3]=0;
+    memset(scene_tracer_weapons,0,sizeof(scene_tracer_weapons));memset(scene_npc_rounds,0,sizeof(scene_npc_rounds));
+    memset(scene_tracer_npc_counter,0,sizeof(scene_tracer_npc_counter));rf_scene_tracers[3]=0;scene_npc_round_player_eye_valid=0;
     if(!tables || !campaign_weapon_supply.names.count)return RF_OK;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status==RF_NOT_FOUND?RF_OK:status;
     if(!entry.size || entry.size>256u*1024u)return RF_RANGE;
@@ -118,60 +124,69 @@ static int scene_tracer_visual_open(rf_vpp *meshes,rf_vpp *maps,uint32_t map_cou
     }
     rf_scene_tracers[3]|=0x10000u;return RF_OK;
 }
-/* One created round (4c7871 + 4c7c5e). counter: the owner's tracer counter;
- * start: the muzzle; end: the resolved ray end, clipped here to the first
- * world surface from the muzzle. Non-tracer weapons still run the counter. */
-static void scene_tracer_fire(scene_stream *stream,int32_t *counter,int32_t weapon,const float start[3],const float end[3])
+/* Fire: run the owner's tracer counter (4c7871 + 4c7c5e) and queue the round.
+ * RF_NOT_FOUND (no $Velocity/$Lifetime) or RF_RANGE (pool full): the caller
+ * resolves the round at once. */
+static int scene_npc_round_launch(const scene_npc_round *source,const float direction[3])
 {
-    float delta[3],length=0,clipped[3],direction[3],matrix[3][3];uint32_t k,slot,best=0;int tracer;
-    if(weapon<0 || weapon>=64)return;
-    ++rf_scene_tracers[4];if(counter==&scene_tracer_player_counter)++rf_scene_tracers[6];
-    tracer=scene_tracer_weapons[weapon].enabled && *counter<=0;
-    if(--*counter<0)*counter=scene_tracer_weapons[weapon].frequency;
-    if(!tracer || !(scene_tracer_weapons[weapon].speed>0))return;
-    memcpy(clipped,end,12);
-    if(stream && stream->collision) {
-        rf_collision_solid_hit surface;uint32_t matched=0;
-        if(!rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x26,&surface,&matched) && matched)
-            memcpy(clipped,surface.hit.point,12);
-    }
-    for(k=0;k<3;k++){delta[k]=clipped[k]-start[k];length+=delta[k]*delta[k];}
-    length=sqrtf(length);rf_scene_tracers[7]=isfinite(length)?(uint32_t)(length*16):UINT32_MAX;
-    if(!(length>.01f) || !isfinite(length)){++rf_scene_tracers[5];return;}
-    for(k=0;k<3;k++)direction[k]=delta[k]/length;
-    if(rf_entity_navigation_basis(direction,matrix)){++rf_scene_tracers[5];return;}
-    for(slot=0;slot<SCENE_TRACER_CAPACITY;slot++){
-        if(!scene_tracers[slot].active){best=slot;break;}
-        if(scene_tracers[slot].remaining<scene_tracers[best].remaining)best=slot;
-    }
-    {scene_tracer *t=scene_tracers+best;memset(t,0,sizeof(*t));
-     memcpy(t->position,start,12);memcpy(t->basis,matrix,36);
-     t->speed=scene_tracer_weapons[weapon].speed;t->remaining=length;t->active=1;}
-    ++rf_scene_tracers[0];
+    scene_npc_round *r=NULL;float length=0,dir[3],range,matrix[3][3];uint32_t i,k;int32_t *counter;int tracer;
+    if(source->weapon<0 || source->weapon>=64){++rf_scene_tracers[5];return RF_NOT_FOUND;}
+    counter=scene_tracer_npc_counter+source->slot%SCENE_TRACER_NPC_COUNTERS;
+    tracer=scene_tracer_weapons[source->weapon].enabled && *counter<=0;
+    if(--*counter<0)*counter=scene_tracer_weapons[source->weapon].frequency;
+    if(!(scene_tracer_weapons[source->weapon].velocity>0) || !(scene_tracer_weapons[source->weapon].lifetime>0)){++rf_scene_tracers[5];return RF_NOT_FOUND;}
+    for(k=0;k<3;k++)length+=direction[k]*direction[k];
+    length=sqrtf(length);if(!(length>0) || !isfinite(length))return RF_RANGE;
+    for(k=0;k<3;k++)dir[k]=direction[k]/length;
+    if(rf_entity_navigation_basis(dir,matrix))return RF_RANGE;
+    for(i=0;i<SCENE_NPC_ROUND_CAPACITY;i++)if(!scene_npc_rounds[i].active){r=scene_npc_rounds+i;break;}
+    if(!r){++rf_scene_tracers[5];return RF_RANGE;}
+    *r=*source;r->tracer=(uint32_t)tracer;
+    r->speed=tracer?scene_tracer_weapons[source->weapon].speed:scene_tracer_weapons[source->weapon].velocity;
+    range=r->speed*scene_tracer_weapons[source->weapon].lifetime;
+    for(k=0;k<3;k++)r->path[k]=dir[k]*range;
+    memcpy(r->basis,matrix,36);r->flown_fraction=0;r->age=0;r->active=1;
+    ++rf_scene_tracers[0];if(tracer)++rf_scene_tracers[1];return RF_OK;
 }
-/* One game update: fly, and retire on reaching the end point. */
-static void scene_tracers_tick(void)
+/* The enemy tick publishes the player eye it aimed with; rounds use the latest. */
+static void scene_npc_rounds_player_eye(const float eye[3]){memcpy(scene_npc_round_player_eye,eye,12);scene_npc_round_player_eye_valid=1;}
+/* One game update for every flying NPC round, with the instant shot's hit
+ * bookkeeping when a round lands. */
+static int scene_npc_rounds_tick(scene_stream *stream,uint32_t frame)
 {
-    uint32_t i,k,active=0;
-    for(i=0;i<SCENE_TRACER_CAPACITY;i++){
-        scene_tracer *t=scene_tracers+i;float step;
-        if(!t->active)continue;
-        step=t->speed*scene_step_seconds;
-        if(step>=t->remaining){t->active=0;continue;}
-        for(k=0;k<3;k++)t->position[k]+=t->basis[6+k]*step;
-        t->remaining-=step;t->age+=scene_step_seconds;++active;
+    uint32_t i,k,active=0,done;int status;
+    if(!scene_npc_round_player_eye_valid)return RF_OK;
+    for(i=0;i<SCENE_NPC_ROUND_CAPACITY;i++) {
+        scene_npc_round *r=scene_npc_rounds+i;scene_npc_round_result result;float position[3],delta[3],remaining,step,limit,left=0;
+        if(!r->active)continue;
+        remaining=1-r->flown_fraction;
+        for(k=0;k<3;k++){position[k]=r->origin[k]+r->path[k]*r->flown_fraction;delta[k]=r->path[k]*remaining;left+=delta[k]*delta[k];}
+        step=r->speed*scene_step_seconds;left=sqrtf(left);limit=left>step?step/left:1;
+        status=scene_npc_round_step(stream,frame,r,position,delta,limit,scene_npc_round_player_eye,&result,&done);if(status)return status;
+        if(done || limit>=1) {
+            r->active=0;++rf_scene_tracers[4];
+            if(result.amount>0) {
+                float player_amount=result.player_amount;
+                ++rf_scene_enemy_combat[3];++rf_scene_tracers[7];
+                if(!r->pistol.active && result.victim_slot==UINT32_MAX && !result.vehicle_applied)player_amount=result.amount;
+                if(player_amount>0)campaign_combat_event(frame,1,r->source,player_amount,campaign_player_damage.state.effects.health);
+            }
+            continue;
+        }
+        r->flown_fraction+=remaining*limit;r->age+=scene_step_seconds;++active;
     }
-    rf_scene_tracers[1]=active;
+    rf_scene_tracers[6]=active;return RF_OK;
 }
-/* Draw: Tracer01.VFX at each round, effect time looping from creation. */
+/* Draw: Tracer01.VFX at each flying tracer round, effect time looping from launch. */
 static int scene_tracers_draw(scene_stream *stream)
 {
-    uint32_t i;int status;
+    uint32_t i,k;int status;
     if(!scene_tracer_visual)return RF_OK;
-    for(i=0;i<SCENE_TRACER_CAPACITY;i++){
-        const scene_tracer *t=scene_tracers+i;
-        if(!t->active)continue;
-        status=scene_vfx_emit(stream,scene_tracer_visual,t->position,t->basis,fmodf(t->age*15,scene_tracer_loop_frames));
+    for(i=0;i<SCENE_NPC_ROUND_CAPACITY;i++){
+        const scene_npc_round *r=scene_npc_rounds+i;float position[3];
+        if(!r->active || !r->tracer)continue;
+        for(k=0;k<3;k++)position[k]=r->origin[k]+r->path[k]*r->flown_fraction;
+        status=scene_vfx_emit(stream,scene_tracer_visual,position,r->basis,fmodf(r->age*15,scene_tracer_loop_frames));
         if(status==RF_RANGE)return RF_OK; /* stream full this frame: skip, never fail */
         if(status)return status;
         ++rf_scene_tracers[2];
