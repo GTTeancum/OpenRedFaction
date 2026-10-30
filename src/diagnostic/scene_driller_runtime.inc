@@ -606,8 +606,8 @@ static int scene_driller_runtime_open(scene_stream *s)
     if((!rf_scene_dev_room_enabled && !campaign_authored_vehicle_uid) ||
        (rf_scene_dev_npc_enabled && !(rf_scene_vehicle_enabled==4 && rf_scene_dev_npc_enabled==7) &&
         /* Crash hunt: one grenade/rocket attacker against the ctf06 Driller,
-         * APC or Jeep for occupied damage and destruction coverage. */
-        !(rf_scene_vehicle_enabled<=3 && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4))))return RF_RANGE;
+         * APC, Jeep or Fighter for occupied damage and destruction coverage. */
+        !((rf_scene_vehicle_enabled<=3 || rf_scene_vehicle_enabled==5) && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4))))return RF_RANGE;
     r=calloc(1,sizeof(*r));if(!r)return RF_IO;r->last_frame=UINT32_MAX;
     /*464010 applies instance vitals after the class factory, for vehicles too.
      * Stage before registration; retain the class prototype for other owners

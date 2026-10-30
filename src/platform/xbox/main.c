@@ -1527,7 +1527,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             fclose(scenario_file);if(invalid)return RF_FORMAT;}
         FILE *loadout_file=tester_profile?NULL:fopen("D:\\crash-loadout.bin","rb");
         if(loadout_file){int invalid=fread(&rf_scene_crash_loadout,4,1,loadout_file)!=1 ||
-            fgetc(loadout_file)!=EOF || !rf_scene_crash_loadout || rf_scene_crash_loadout==3 || (rf_scene_crash_loadout>6 && rf_scene_crash_loadout!=8);
+            fgetc(loadout_file)!=EOF || !rf_scene_crash_loadout || rf_scene_crash_loadout==3 || rf_scene_crash_loadout>8;
             fclose(loadout_file);if(invalid)return RF_FORMAT;}
         FILE *exit_file=fopen("D:\\campaign-exit.bin","rb");
         if(exit_file){int invalid=fread(&campaign_exit_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
@@ -1659,7 +1659,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         FILE *checkpoint;
         const char *vehicle_level=rf_scene_vehicle_enabled==4?"L5S3.rfl":"ctf06.rfl";
         if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,vehicle_level) ||
-           (rf_scene_dev_npc_enabled && !(rf_scene_vehicle_enabled==4 && rf_scene_dev_npc_enabled==7)) ||
+           (rf_scene_dev_npc_enabled && !(rf_scene_vehicle_enabled==4 && rf_scene_dev_npc_enabled==7) &&
+            !(rf_scene_vehicle_enabled==5 && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4))) ||
            (rf_scene_vehicle_enabled==4 && rf_scene_player_checkpoint_enabled))return RF_FORMAT;
         if(rf_scene_vehicle_enabled==4){
         /* The separate DEV GeoMod checkpoint profile remains unsupported for

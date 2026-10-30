@@ -126,7 +126,7 @@ def main():
     parser.add_argument('--world-arrays', action='store_true', help='Draw the retained world with draw arrays instead of inline indices')
     parser.add_argument('--load-only', action='store_true', help='With --save-load-every: save once, then only load')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')
-    parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/railgun start; ordinary finite ammunition')
+    parser.add_argument('--loadout', type=int, choices=(1,2,4,5,6,7,8), help='Diagnostic pistol/rifle/shotgun/rocket/grenade/sniper/railgun start; ordinary finite ammunition')
     parser.add_argument('--aim', action='store_true', help='Process-local bounded look input toward live hostile actors')
     parser.add_argument('--aim-actor', type=int, help='Prioritize this authored UID through bounded look input; nearest-hostile fallback after loss')
     parser.add_argument('--aim-point', type=float, nargs=3, metavar=('X','Y','Z'),
@@ -352,11 +352,13 @@ def main():
             elif args.input == 'vehicle-hold':
                 # DEV vehicle fixtures start 8.5 units away facing the host:
                 # walk up, board once, then stay occupied under attack while
-                # driving, turning and using both fire controls.
-                if 20 <= frame < 100: move[2] = .65
-                buttons[2] = int(frame == 110)
-                if frame >= 160:
-                    phase = (frame-160) % 360
+                # driving, turning and using both fire controls. The Fighter
+                # and submarine fixtures are within reach, so they board at once.
+                board = 12 if args.dev_vehicle in (4, 5) else 110
+                if board == 110 and 20 <= frame < 100: move[2] = .65
+                buttons[2] = int(frame == board)
+                if frame >= board+50:
+                    phase = (frame-board-50) % 360
                     move[2] = .5 if phase < 240 else -.4
                     if 60 <= phase < 150: look[1] = .2
                     elif 180 <= phase < 270: look[1] = -.2
@@ -365,9 +367,10 @@ def main():
             elif args.input == 'vehicle-cycle':
                 # DEV vehicle fixtures: walk up, board, drive/turn with both
                 # fire controls (Jeep: via the gunner seat), exit with Use, board again.
-                if 20 <= frame < 100: move[2] = .65
-                if frame >= 110:
-                    phase = (frame-110) % 720
+                board = 12 if args.dev_vehicle in (4, 5) else 110
+                if board == 110 and 20 <= frame < 100: move[2] = .65
+                if frame >= board:
+                    phase = (frame-board) % 720
                     buttons[2] = int(phase in (0, 560))
                     if 50 <= phase < 500:
                         # Parked 250..470: the Jeep seat switch needs a stop.

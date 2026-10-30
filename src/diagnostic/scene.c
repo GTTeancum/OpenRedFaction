@@ -17551,7 +17551,7 @@ static int campaign_inventory_initialize(void)
         for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
         campaign_item_pending_count=0;
         if(rf_scene_crash_loadout && !campaign_import_applied) {
-            if((rf_scene_crash_loadout>6 && rf_scene_crash_loadout!=8) || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
+            if(rf_scene_crash_loadout>8 || rf_scene_crash_loadout==3 || rf_scene_dev_room_enabled)return RF_RANGE;
             /* Explicit fixture only: ordinary acquisition, finite authored ammo,
              * no changes to health, damage, firing or enemy population. */
             for(i=0;i<4;i++)if(i!=2) {
@@ -23427,7 +23427,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
             record->position[0]=-24.7f;record->position[1]=-15.9f;record->position[2]=5.f;
             record->orientation[0][2]=1;record->orientation[2][0]=-1;
         }
-        if(rf_scene_vehicle_enabled>=1 && rf_scene_vehicle_enabled<=3 &&
+        if(((rf_scene_vehicle_enabled>=1 && rf_scene_vehicle_enabled<=3) || rf_scene_vehicle_enabled==5) &&
            (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4)){
             /* Crash-hunt attacker 10 units behind the ctf06 vehicle fixture
              * (player start 30,5,-158.5 facing the host at z-167). */

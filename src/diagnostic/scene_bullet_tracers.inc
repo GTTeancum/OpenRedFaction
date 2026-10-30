@@ -52,6 +52,7 @@ static int32_t scene_tracer_npc_counter[SCENE_TRACER_NPC_COUNTERS];
 /* NPC rounds launched, tracer rounds, VFX emissions drawn (total), weapons with tracers (+0x10000 = Tracer01.VFX loaded),
  * rounds completed, instant fallbacks (no table entry or pool full), active rounds, rounds that hit */
 uint32_t rf_scene_tracers[8];
+uint32_t rf_scene_npc_round_kinds[4]; /* launched NPC rounds: pistol, shotgun pellet, piercing, other */
 /* Plain decimal ("275.0"); NXDK's strtof/atof are unimplemented asserts. */
 static float scene_tracer_number(const char *s)
 {
@@ -66,7 +67,7 @@ static int scene_tracers_load(rf_vpp *tables)
 {
     rf_vpp_entry entry;char *text,*line,*next;int32_t weapon=-1;int status;
     memset(scene_tracer_weapons,0,sizeof(scene_tracer_weapons));memset(scene_npc_rounds,0,sizeof(scene_npc_rounds));
-    memset(scene_tracer_npc_counter,0,sizeof(scene_tracer_npc_counter));rf_scene_tracers[3]=0;scene_npc_round_player_eye_valid=0;
+    memset(scene_tracer_npc_counter,0,sizeof(scene_tracer_npc_counter));rf_scene_tracers[3]=0;memset(rf_scene_npc_round_kinds,0,sizeof(rf_scene_npc_round_kinds));scene_npc_round_player_eye_valid=0;
     if(!tables || !campaign_weapon_supply.names.count)return RF_OK;
     status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status==RF_NOT_FOUND?RF_OK:status;
     if(!entry.size || entry.size>256u*1024u)return RF_RANGE;
@@ -151,7 +152,8 @@ static int scene_npc_round_launch(const scene_npc_round *source,const float dire
     for(k=0;k<3;k++)r->path[k]=dir[k]*range;
     if(r->piercing && scene_sniper_penetration_begin(r->actor.enabled,r->actor.power,r->origin,r->path,&r->penetration)){r->active=0;return RF_RANGE;}
     memcpy(r->basis,matrix,36);r->flown_fraction=0;r->age=0;r->active=1;
-    ++rf_scene_tracers[0];if(tracer)++rf_scene_tracers[1];return RF_OK;
+    ++rf_scene_tracers[0];if(tracer)++rf_scene_tracers[1];
+    ++rf_scene_npc_round_kinds[r->pistol.active?0:r->shotgun?1:r->piercing?2:3];return RF_OK;
 }
 /* The enemy tick publishes the player eye it aimed with; rounds use the latest. */
 static void scene_npc_rounds_player_eye(const float eye[3]){memcpy(scene_npc_round_player_eye,eye,12);scene_npc_round_player_eye_valid=1;}
