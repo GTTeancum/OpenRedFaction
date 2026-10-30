@@ -38,7 +38,7 @@ typedef struct scene_npc_round {
     float origin[3],path[3],basis[9],speed,flown_fraction,damage,age;
     uint32_t slot,source,intended,penetrates_world,tracer,shotgun,piercing,active;int32_t weapon;
 } scene_npc_round;
-typedef struct scene_npc_round_result {float amount,player_amount;uint32_t vehicle_applied,victim_slot,victim_handle,vehicle_handle;} scene_npc_round_result;
+typedef struct scene_npc_round_result {float amount,player_amount;uint32_t vehicle_applied,victim_slot,victim_handle,vehicle_handle;float vehicle_amount;} scene_npc_round_result;
 static int scene_vfx_emit(scene_stream *s,scene_rocket_visual *v,const float position[3],const float *basis,float time);
 static int scene_npc_round_step(scene_stream *stream,uint32_t frame,scene_npc_round *r,const float start[3],
     const float ray[3],float limit,const float player_eye[3],scene_npc_round_result *out,uint32_t *done);
@@ -175,6 +175,12 @@ static int scene_npc_rounds_tick(scene_stream *stream,uint32_t frame)
                 ++rf_scene_enemy_combat[3];++rf_scene_tracers[7];
                 if(!r->pistol.active && !r->piercing && !r->shotgun && result.victim_slot==UINT32_MAX && !result.vehicle_applied)player_amount=result.amount;
                 if(player_amount>0)campaign_combat_event(frame,1,r->source,player_amount,campaign_player_damage.state.effects.health);
+                if(result.vehicle_applied) {
+                    /* The instant shot's vehicle hit event, raised when the round lands. */
+                    float hit_eye[3],hit_health=0;
+                    (void)scene_campaign_vehicle_target(stream,result.vehicle_handle,hit_eye,&hit_health);
+                    campaign_combat_event(frame,2,r->source,result.vehicle_amount,hit_health);
+                }
             }
             continue;
         }

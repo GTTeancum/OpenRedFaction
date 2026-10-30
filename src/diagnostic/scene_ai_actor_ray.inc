@@ -23,20 +23,19 @@ static uint32_t scene_ai_actor_ray_related(uint32_t source,uint32_t candidate)
         scene_turret_operator_excludes(candidate,source);
 }
 
-static int scene_ai_actor_ray_select(scene_stream *stream,const campaign_npc_body *shooter,
+/* Selection by the shooter's handle: a flying round outlives its shooter
+ * (4c77a0 weapon objects keep only the parent handle), so the removed
+ * shooter is excluded by handle rather than by its body. */
+static int scene_ai_actor_ray_select_source(scene_stream *stream,uint32_t source,const campaign_npc_body *shooter,
     const float start[3],const float delta[3],const float player_eye[3],
     scene_ai_actor_ray_selection *out)
 {
-    scene_ai_actor_ray_selection selected={0};float end[3];uint32_t source,i;int status;
-    if(!stream || !shooter || !start || !delta || !player_eye || !out)return RF_RANGE;
+    scene_ai_actor_ray_selection selected={0};float end[3];uint32_t i;int status;
+    if(!stream || !start || !delta || !player_eye || !out)return RF_RANGE;
     for(i=0;i<3;i++) {
         if(!isfinite(start[i]) || !isfinite(delta[i]) || !isfinite(player_eye[i]))return RF_RANGE;
         end[i]=start[i]+delta[i];if(!isfinite(end[i]))return RF_RANGE;
     }
-    source=shooter->registration.handle;
-    if(shooter->registration.view!=&shooter->view ||
-       rf_object_registry_lookup(&campaign_registry,source)!=&shooter->registration ||
-       rf_entity_lookup(&campaign_entities,(int32_t)source)!=&shooter->view)return RF_NOT_FOUND;
     selected.victim_slot=UINT32_MAX;selected.fraction=selected.body_fraction=1;
     /* Match the existing physical player body/shield path, including the
      * shield's independent query outside coarse body spheres. player_eye must
@@ -76,6 +75,18 @@ static int scene_ai_actor_ray_select(scene_stream *stream,const campaign_npc_bod
         memset(&selected.player_shield,0,sizeof(selected.player_shield));
     }
     *out=selected;return RF_OK;
+}
+static int scene_ai_actor_ray_select(scene_stream *stream,const campaign_npc_body *shooter,
+    const float start[3],const float delta[3],const float player_eye[3],
+    scene_ai_actor_ray_selection *out)
+{
+    uint32_t source;
+    if(!shooter)return RF_RANGE;
+    source=shooter->registration.handle;
+    if(shooter->registration.view!=&shooter->view ||
+       rf_object_registry_lookup(&campaign_registry,source)!=&shooter->registration ||
+       rf_entity_lookup(&campaign_entities,(int32_t)source)!=&shooter->view)return RF_NOT_FOUND;
+    return scene_ai_actor_ray_select_source(stream,source,shooter,start,delta,player_eye,out);
 }
 /* On rejected shield commit, body_hit/body_fraction are the selected actor's
  * original fallback. Recheck cover to body_fraction before body damage; a
