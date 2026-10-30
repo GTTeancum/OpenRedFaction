@@ -13,7 +13,7 @@ typedef struct retained_model_entry {
     rf_model_box posed_bounds;uint32_t posed_valid;
 } retained_model_entry;
 typedef struct retained_model_draw {
-    uint32_t entry,at_vertex,material,front_face,view_model;float rows[3][4],screen[4],palette[150][4];
+    uint32_t entry,at_vertex,material,front_face,view_model,glow;float rows[3][4],screen[4],palette[150][4];
 } retained_model_draw;
 static retained_model_entry retained_models[RETAINED_MODEL_LIMIT];
 static retained_model_draw *retained_draws;
@@ -197,6 +197,7 @@ static int retained_model_queue(const rf_model_geometry *geometry,uint32_t batch
     if(retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
     if(retained_draw_count && retained_draws[retained_draw_count-1].at_vertex>at_vertex)return RF_RANGE;
     draw=retained_draws+retained_draw_count;draw->entry=slot;draw->at_vertex=at_vertex;draw->material=material;
+    draw->glow=batch<geometry->batch_count && geometry->batches[batch].render_mode==RF_MODEL_RENDER_GLOW;
     draw->view_model=view_model!=0;
     /* Original accepts dot(camera-a, cross(b-a,c-b)) > 0. Screen Y is
      * downward: a positive signed screen area is clockwise on NV2A. */
@@ -287,7 +288,9 @@ static int retained_model_render(uint32_t request,uint32_t previous,const rf_mat
     /* One command block per draw: constants and state share it. */
     p=pb_push1(p,NV097_SET_FRONT_FACE,draw->front_face);
     if(install_program)p=pb_push1(p,NV097_SET_CULL_FACE,NV097_SET_CULL_FACE_V_BACK);
-    p=pb_push1(p,NV097_SET_BLEND_ENABLE,texture->transparent);p=pb_push1(p,NV097_SET_DEPTH_MASK,!texture->transparent);
+    /* Glow batches (RF_MODEL_RENDER_GLOW): additive, depth read only. */
+    p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,draw->glow?NV097_SET_BLEND_FUNC_DFACTOR_V_ONE:NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,texture->transparent||draw->glow);p=pb_push1(p,NV097_SET_DEPTH_MASK,!texture->transparent&&!draw->glow);
     if(!previous_texture ||
        (((uint32_t)previous_texture->pixels^(uint32_t)texture->pixels)&0x03ffffffu) ||
        previous_texture->format!=texture->format) {

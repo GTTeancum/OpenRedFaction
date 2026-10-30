@@ -145,8 +145,15 @@ int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *
 /* Resolve batch texture slot through LOD table to the flattened material
  * index used by rf_model_materials. Negative original slots return NOT_FOUND. */
 int rf_model_file_batch_material(const rf_model_file *model,uint32_t lod,uint32_t batch,uint32_t *material);
+/* render_mode: the batch's packed gr mode from the LOD batch table (+14 of
+ * each 18-byte entry). Installed models use exactly two values: 0x518c41
+ * (1714 batches: texture x vertex light, alpha blend, full depth) and
+ * RF_MODEL_RENDER_GLOW 0x110c21 (23 batches: lamp/corona/volume-light glow:
+ * texture only, additive, depth read only). Field reading (blend at bits
+ * 15..19, depth at 20..24) is inferred from those two values. */
+#define RF_MODEL_RENDER_GLOW 0x110c21u
 typedef struct rf_model_draw_batch {
-    uint32_t first_vertex,vertices,first_triangle,triangles,material;
+    uint32_t first_vertex,vertices,first_triangle,triangles,material,render_mode;
 } rf_model_draw_batch;
 typedef struct rf_model_part_metadata {
     float offset[3],radius,minimum[3],maximum[3];uint32_t first_lod,lod_count;

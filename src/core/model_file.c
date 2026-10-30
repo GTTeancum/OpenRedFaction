@@ -730,6 +730,9 @@ int rf_model_geometry_open(rf_model_geometry *g,const rf_model_file *model,uint3
         draw->first_vertex=(uint32_t)vertices;draw->vertices=batch.vertices;
         draw->first_triangle=(uint32_t)triangles;draw->triangles=batch.triangles;draw->material=UINT32_MAX;
         status=rf_model_file_batch_material(model,lod,i,&draw->material);if(status && status!=RF_NOT_FOUND)goto fail;
+        {uint8_t mode[4];const rf_model_lod *info=model->lods+lod;
+         status=rf_vpp_read(model->archive,&model->entry,info->batch_offset+i*18+14,mode,4);if(status)goto fail;
+         draw->render_mode=(uint32_t)mode[0]|(uint32_t)mode[1]<<8|(uint32_t)mode[2]<<16|(uint32_t)mode[3]<<24;}
         for(j=0;j<batch.vertices;++j) {
             status=rf_model_file_vertex(model,&batch,j,next.vertices+(size_t)vertices+j);if(status)goto fail;
             status=rf_model_file_vertex_reuse(model,&batch,j,next.reuse+(size_t)vertices+j);if(status)goto fail;

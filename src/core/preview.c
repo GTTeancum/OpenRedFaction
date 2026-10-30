@@ -685,7 +685,9 @@ static int preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
             p->position[2]=(1000.0f/999.9f)*(1-.1f*q)*16777215;
             p->color[0]=p->color[1]=p->color[2]=1;
             p->texture[0]=uv[0]*q;p->texture[1]=uv[1]*q;p->texture[2]=q;p->material=draw->material;
-            p->lightmap_texture[0]=p->lightmap_texture[1]=0;p->lightmap_texture[2]=q;p->lightmap=UINT32_MAX;
+            p->lightmap_texture[0]=p->lightmap_texture[1]=0;p->lightmap_texture[2]=q;
+            /* Glow batches add their unlit texture over what is behind them. */
+            p->lightmap=draw->render_mode==RF_MODEL_RENDER_GLOW?RF_PREVIEW_ADDITIVE_FADE_TAG|255u:UINT32_MAX;
             if(sink && n%3==2){status=sink(context,triangle);if(status)return status;}
         }
         if(mesh){mesh->count+=output.index_count;mesh->bytes=mesh->count*sizeof(rf_preview_vertex);}

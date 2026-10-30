@@ -134,7 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-siege','driller-dig','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-siege','driller-dig','combat','approach','approach-jump'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -236,6 +236,12 @@ def main():
         # Generated DXT texture pack (tools/dds_pack.c); relink when rebuilt.
         pack = ROOT / 'build/data/rfdds.vpp'
         dest = disc / 'rfdds.vpp'
+        if not pack.exists():
+            # Cleanup prunes the pack; without it 720p textures do not fit.
+            tool = ROOT / 'build/pc/Release/rf_dds_pack.exe'
+            if not tool.is_file(): parser.error('Missing build/data/rfdds.vpp and build/pc/Release/rf_dds_pack.exe')
+            pack.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([str(tool), str(ROOT / 'Installed_Game'), str(pack)], check=True)
         if pack.exists() and (not dest.exists() or not dest.samefile(pack)):
             dest.unlink(missing_ok=True); dest.hardlink_to(pack)
         run = confined_path(ROOT, run)
@@ -356,6 +362,22 @@ def main():
                     elif 180 <= phase < 270: look[1] = -.2
                     buttons[3] = int(90 <= phase < 160 or 210 <= phase < 280)
                     buttons[6] = int(170 <= phase < 195 or 290 <= phase < 315)
+            elif args.input == 'vehicle-cycle':
+                # DEV vehicle fixtures: walk up, board, drive/turn with both
+                # fire controls (Jeep: via the gunner seat), exit with Use, board again.
+                if 20 <= frame < 100: move[2] = .65
+                if frame >= 110:
+                    phase = (frame-110) % 720
+                    buttons[2] = int(phase in (0, 560))
+                    if 50 <= phase < 500:
+                        # Parked 250..470: the Jeep seat switch needs a stop.
+                        if not 250 <= phase < 470: move[2] = .5 if phase < 200 else -.4
+                        if 120 <= phase < 200: look[1] = .2
+                        elif 300 <= phase < 380: look[1] = -.2
+                        buttons[3] = int(150 <= phase < 220 or 330 <= phase < 400)
+                        buttons[6] = int(240 <= phase < 265 or 420 <= phase < 445)
+                        # Jeep: move to the gunner seat for the second burst and back.
+                        buttons[5] = int(phase in (300, 450))
             elif args.input == 'vehicle-siege':
                 # On-foot destruction of an empty DEV vehicle: back away from
                 # the host the fixture faces, cycle to the rocket launcher

@@ -1318,7 +1318,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
                 for(j=retained_next;j<run_end;j++) {
                     const retained_model_draw *d=retained_draws+j;
                     uint32_t shader=(retained_models[d->entry].bones!=0)|(d->view_model<<1);
-                    uint32_t clear=d->material<materials->count && textures[d->material].pixels && textures[d->material].transparent;
+                    uint32_t clear=d->glow || (d->material<materials->count && textures[d->material].pixels && textures[d->material].transparent);
                     order[n]=j;key[n]=clear?0x80000000u:(shader<<24)|(d->material&0xffffffu);
                     {uint32_t k=n++;while(k && key[k-1]>key[k]){uint32_t t=key[k];key[k]=key[k-1];key[k-1]=t;t=order[k];order[k]=order[k-1];order[k-1]=t;--k;}}
                 }
