@@ -122,7 +122,7 @@ def main():
     parser.add_argument('--authored-source', type=int, help='ctf06 developer destruction source UID (requires --dev-room)')
     parser.add_argument('--dev-driller', action='store_true', help='ctf06 developer room with the Driller (authored source 148)')
     parser.add_argument('--dev-vehicle', type=int, choices=(1,2,3,4,5), help='Developer vehicle fixture: 1 Driller, 2 APC, 3 Jeep, 5 Fighter (ctf06); 4 submarine (L5S3)')
-    parser.add_argument('--dev-npc', choices=tuple('23456789AB'), help='Developer NPC fixture mode (3 grenade, 4 rocket, 5 riot shield, ...)')
+    parser.add_argument('--dev-npc', choices=tuple('23456789ABC'), help='Developer NPC fixture mode (3 grenade, 4 rocket, 5 riot shield, C shotgun, ...)')
     parser.add_argument('--world-arrays', action='store_true', help='Draw the retained world with draw arrays instead of inline indices')
     parser.add_argument('--load-only', action='store_true', help='With --save-load-every: save once, then only load')
     parser.add_argument('--quick-actions', type=lambda v: int(v,0), nargs=2, metavar=('SAVE','LOAD'), help='Replay frames that press quick-save and quick-load (0xffffffff = never)')

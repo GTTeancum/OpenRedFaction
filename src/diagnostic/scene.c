@@ -17889,15 +17889,17 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         /* Base inventory was prepared before startup events. Reinitializing it
          * here would erase an authored frame-zero weapon/form grant. */
         campaign_ammo_publish();
-        if((rf_scene_dev_npc_enabled>=3 && rf_scene_dev_npc_enabled<=5) && campaign_npc_body_count==1){
+        if(((rf_scene_dev_npc_enabled>=3 && rf_scene_dev_npc_enabled<=5) || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){
             campaign_npc_body *npc=campaign_npc_bodies;
-            int32_t weapon=rf_scene_dev_npc_enabled==5?scene_npc_shields.weapon:rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
+            /* Mode12: crash-hunt shotgun attacker (one loaded magazine). */
+            int32_t weapon=rf_scene_dev_npc_enabled==12?campaign_shotgun_id:rf_scene_dev_npc_enabled==5?scene_npc_shields.weapon:rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
             int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
             npc->inventory.owned[weapon]=1;if(ammo>=0 && ammo<32)npc->inventory.reserve[ammo]=3;
             /* Vehicle crash-hunt attacker: the weapon's authored capacity, so it can
              * keep attacking a hull for the whole run (fixture setup only). */
             if(rf_scene_vehicle_enabled && ammo>=0 && ammo<32)npc->inventory.reserve[ammo]=campaign_weapon_supply.definitions[weapon].capacity;
             if(rf_scene_dev_npc_enabled==4)npc->inventory.loaded[weapon]=1;
+            if(rf_scene_dev_npc_enabled==12)npc->inventory.loaded[weapon]=campaign_weapon_supply.definitions[weapon].magazine;
             npc->view.weapons[0]=weapon;
             status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,
                 campaign_seeds.items[0].class_index,weapon,&npc->selection);if(status)return scene_player_failure_return(status,__LINE__,frame);
@@ -17914,7 +17916,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
     if(!frame && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)campaign_select_primary(12);
     if(!frame && !campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)campaign_select_primary(12+rf_scene_firearms_enabled);
-    if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
+    if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
