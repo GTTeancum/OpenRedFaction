@@ -13,8 +13,8 @@
  *          then drawn over the four 32x32 quadrants, mirrored in x and/or y,
  *          rounding the picture off, and the frame becomes player bitmap +1088.
  *   4324ec..432603 HUD: with the scanner on (player+fb0), that bitmap is
- *          drawn white at full intensity as a centred square whose side is
- *          half the viewport height (single player).
+ *          drawn white, additively (blend ONE/ONE), as a centred square whose
+ *          side is half the viewport height (single player).
  *   43260a..432856 overlay, viewport centre (cx,cy), width W, height H:
  *          opaque black rectangles (x,y,w,h): thin horizontals
  *          (cx+10,cy,W/3,1) and (cx-W/3-10,cy,W/3,1); thin verticals
@@ -131,7 +131,7 @@ static int scene_rail_scope_update(scene_stream *s,const float eye[3],const floa
     rf_scene_rail_scope[1]=live;rf_scene_rail_scope[2]=dead;++rf_scene_rail_scope[0];
     return RF_OK;
 }
-static int scene_rail_scope_quad(rf_scene_particle_sink sink,void *context,const rf_image *image,float x,float y,float w,float h)
+static int scene_rail_scope_quad(rf_scene_particle_sink sink,void *context,const rf_image *image,float x,float y,float w,float h,uint32_t mode)
 {
     rf_particle_draw_vertex v[4]={{0}};uint32_t i;
     for(i=0;i<4;i++){
@@ -139,7 +139,7 @@ static int scene_rail_scope_quad(rf_scene_particle_sink sink,void *context,const
         v[i].screen[0]=x+(right?w:0);v[i].screen[1]=y+(bottom?h:0);
         v[i].reciprocal_w=1;v[i].argb=0xffffffffu;v[i].uv[0]=(float)right;v[i].uv[1]=(float)bottom;
     }
-    return sink(context,v,4,image,RF_PARTICLE_NORMAL_MODE);
+    return sink(context,v,4,image,mode);
 }
 /* 4324ec..432603: centred square, side half the 480-line HUD, white; then
  * the 43260a..432856 overlay on the 640x480 HUD (cx 320, cy 240, W/3 213,
@@ -152,12 +152,16 @@ static int scene_rail_scope_draw(rf_scene_particle_sink sink,void *context)
     uint32_t i;int status;
     if(!scene_rail_scope.ready || !rf_scene_rail_scope[0])return RF_OK;
     ++rf_scene_rail_scope[6];
-    status=scene_rail_scope_quad(sink,context,&scene_rail_scope.picture,200,120,240,240);if(status)return status;
+    /* gr mode blend field 1 (411e00 args 2,1,2,1,0,3): 5502d7 sets SRCBLEND
+     * ONE / DESTBLEND ONE, so the black background adds nothing and only the
+     * heat figures show over the view. The overlay below uses blend 3
+     * (550344: SRCALPHA / INVSRCALPHA). */
+    status=scene_rail_scope_quad(sink,context,&scene_rail_scope.picture,200,120,240,240,RF_PARTICLE_GLOW_MODE);if(status)return status;
     for(i=0;i<6;i++){status=combat_hud_rect(sink,context,bars[i][0],bars[i][1],bars[i][2],bars[i][3],0xff000000u);if(status)return status;}
     if(scene_rail_scope.text_frames){
         uint32_t frame=(uint32_t)(((uint64_t)combat_frame*scene_rail_scope.text_rate/60u)%scene_rail_scope.text_frames);
         const rf_image *text=scene_rail_scope.text+frame;
-        status=scene_rail_scope_quad(sink,context,text,415,245,(float)text->width,(float)text->height);if(status)return status;
+        status=scene_rail_scope_quad(sink,context,text,415,245,(float)text->width,(float)text->height,RF_PARTICLE_NORMAL_MODE);if(status)return status;
     }
     for(i=0;i<4;i++){status=combat_hud_rect(sink,context,box[i][0],box[i][1],box[i][2],box[i][3],0x41000000u);if(status)return status;}
     return RF_OK;

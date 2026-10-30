@@ -411,14 +411,16 @@ static int scene_particle_present(void *context,const rf_particle_draw_vertex *v
  * camera scope, or reciprocal-world-depth conversion to these overlays. */
 static int scene_hud_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
-    uint32_t normal=RF_PARTICLE_NORMAL_MODE&~(31u<<20);
+    uint32_t normal=RF_PARTICLE_NORMAL_MODE&~(31u<<20),glow=RF_PARTICLE_GLOW_MODE&~(31u<<20);
     (void)context;
     rf_particle_draw_vertex wide[8];
-    if(mode!=0x18000u && mode!=RF_PARTICLE_NORMAL_MODE && mode!=normal)return RF_NOT_FOUND;
+    /* Additive for the Rail Driver scanner picture (4324ec, blend ONE/ONE). */
+    if(mode!=0x18000u && mode!=RF_PARTICLE_NORMAL_MODE && mode!=normal &&
+       mode!=RF_PARTICLE_GLOW_MODE && mode!=glow)return RF_NOT_FOUND;
     return rf_xbox_particle_draw(hud_widen(vertices,count,wide),count,image,mode&~(31u<<20),1,0,0,0);
 }
 /* Original457870/50bc60 selected menu artwork uses additive blending.
- * The ordinary gameplay HUD callback retains its normal-alpha-only contract. */
+ * The gameplay HUD callback also admits additive art (Rail Driver scanner). */
 static int scene_menu_present(void *context,const rf_particle_draw_vertex *vertices,
     uint32_t count,const rf_image *image,uint32_t mode)
 {
