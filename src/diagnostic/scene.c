@@ -790,11 +790,12 @@ uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
 static uint32_t scene_extra_pickups_resource_limit(void);
-static uint32_t scene_weapon_slots(void){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
+static uint32_t scene_weapon_slots(void){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return rf_scene_vehicle_enabled==4?6:5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
     uint32_t extra=scene_extra_pickups_selection_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_resource_slots(void){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
+static uint32_t scene_weapon_resource_slots(void){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return rf_scene_vehicle_enabled==4?6:5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
     uint32_t extra=scene_extra_pickups_resource_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return slot<5;return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
+/* The submarine fixture adds slot5 Grenade: the explosive that fires underwater. */
+static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return slot<(rf_scene_vehicle_enabled==4?6u:5u);return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
     (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
     (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled) || scene_extra_pickups_available(slot);}
@@ -17858,6 +17859,7 @@ static int scene_player_round_step(scene_stream *stream,uint32_t frame,scene_pla
     }
     return RF_OK;
 }
+uint32_t rf_scene_underwater_fire[4]; /* refused frames, last weapon, last frame, status */
 static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3],scene_weapon_empty_request *empty_request)
 {
     if(!frame)memset(rf_scene_player_failure,0,sizeof(rf_scene_player_failure));
@@ -17874,6 +17876,18 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         position=mounted_eye;orientation=(const float (*)[3])actor_look.eye_orientation;
     }
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
+    /* 4ad51b..4ad52c: with the eye in water (4ce080), a weapon lacking the
+     * weapons.tbl "underwater" flag (0x200; 4c8c00) does not fire. Only the
+     * handguns, grenade, remote charge/detonator, riot stick and torpedo have it. */
+    if(on_foot && campaign_equipped_slot<SCENE_WEAPON_SLOTS && (player_input.fire || player_input.alt_fire) && stream->liquid_rooms) {
+        int32_t d=rf_weapon_name_find(&campaign_weapon_reset.names,campaign_weapon_names[campaign_view_slot()]);
+        if(d>=0 && !(campaign_weapon_reset.definitions[d].flags_264&0x200u)) {
+            uint32_t wet=0;float level;
+            status=scene_player_water_audio_wet(stream,1,position,&wet,&level);rf_scene_underwater_fire[3]=(uint32_t)status;
+            if(status)return scene_player_failure_return(status,__LINE__,frame);
+            if(wet){player_input.fire=player_input.alt_fire=0;++rf_scene_underwater_fire[0];rf_scene_underwater_fire[1]=(uint32_t)d;rf_scene_underwater_fire[2]=frame;}
+        }
+    }
     if(!frame){scene_player_rocket_lock_reset(stream,0);memset(rf_scene_rocket_lock,0,sizeof(rf_scene_rocket_lock));memset(rf_scene_rocket_contacts,0,sizeof(rf_scene_rocket_contacts));dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));if(scene_rocket_trail_ready)scene_rocket_trail_forget();memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));combat_surface_frame=UINT32_MAX;}
@@ -23951,7 +23965,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
               scene_tankbot_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_TANKBOT);
               scene_drone_missile_resources|=!!(saved_npc_projectiles&SCENE_AI_SECONDARY_RESOURCE_DRONE);
               saved_direct_resources=saved_npc_projectiles&(SCENE_AI_DIRECT_RESOURCE_LASER|SCENE_AI_DIRECT_RESOURCE_SONAR|SCENE_AI_DELAYED_RESOURCES);
-              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | (rf_scene_crash_loadout>=5 && rf_scene_crash_loadout<=8?1u<<(rf_scene_crash_loadout-1):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
+              if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_special_save_mode==1||rf_scene_special_save_mode==3?((1u<<11)|(1u<<12)):0) | (rf_scene_nano_test_mode==3?((1u<<8)|(1u<<9)):rf_scene_nano_test_mode==2?1u<<5:rf_scene_nano_test_mode==1?1u<<4:0) | (rf_scene_burning_test_uid?(1u<<10):0) | (rf_scene_crash_loadout>=5 && rf_scene_crash_loadout<=8?1u<<(rf_scene_crash_loadout-1):0) | saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?(rf_scene_vehicle_enabled==4?0x3fu:0x1fu):0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand));
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]));
                   /* NPC-only demand loads flights and effects without player views or ownership. */

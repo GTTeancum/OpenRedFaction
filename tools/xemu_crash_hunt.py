@@ -134,7 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -381,12 +381,25 @@ def main():
                         buttons[6] = int(240 <= phase < 265 or 420 <= phase < 445)
                         # Jeep: move to the gunner seat for the second burst and back.
                         buttons[5] = int(phase in (300, 450))
+            elif args.input == 'vehicle-scuttle':
+                # Occupied-hull destruction attempt: board at once, pitch the
+                # nose down, then drive hard and keep firing at close range.
+                buttons[2] = int(frame == 12)
+                if frame >= 60:
+                    phase = (frame-60) % 240
+                    if phase < 30: look[0] = .25
+                    move[2] = 1. if phase < 180 else -.6
+                    buttons[3] = int(frame % 20 < 10)
             elif args.input == 'vehicle-siege':
                 # On-foot destruction of an empty DEV vehicle: back away from
                 # the host the fixture faces, cycle to the rocket launcher
                 # (slot 4 of 5), fire once a second, refill with Use+Reload.
-                if 20 <= frame < 80: move[2] = -.65
-                buttons[5] = int(frame in (100, 120, 140, 160))
+                if 20 <= frame < 80 and args.dev_vehicle != 4: move[2] = -.65
+                # Submarine fixture: one more cycle reaches the Grenade (slot 5 of 6),
+                # the explosive that fires underwater (weapons.tbl flag 0x200).
+                buttons[5] = int(frame in ((100, 120, 140, 160, 180) if args.dev_vehicle == 4 else (100, 120, 140, 160)))
+                # (Thrown grenades only reached the submarine hull from beside it:
+                # use --aim-point at the hull; the player's own blasts can kill them.)
                 if frame >= 200:
                     phase = (frame-200) % 240
                     buttons[3] = int(phase % 60 == 0 and phase < 200)
