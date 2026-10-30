@@ -294,7 +294,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     scene_remote_checkpoint_publish();
     if(composed.vehicle_bytes){s->vehicle_record=vehicle;s->vehicle_checkpoint=vehicle.value.vehicle;s->vehicle_checkpoint_pending=1;}
     s->weapon_modes_checkpoint=modes;s->weapon_modes_pending=modes_present;
-    scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
+    scene_actor_body.state=body;scene_player_drag_refresh();s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
     scene_machine_carry_reset();
     scene_undercover_carry_reset_all();scene_player_holster_carry_reset();

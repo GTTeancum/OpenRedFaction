@@ -869,7 +869,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
      * not campaign history or its persistence-slot rebinding. */
     scene_world_environment_assign(environment);
     scene_remote_checkpoint_publish();
-    scene_actor_body.state=player.body;rf_scene_actor_room_state=player.room;
+    scene_actor_body.state=player.body;rf_scene_actor_room_state=player.room;scene_player_drag_refresh();
     memcpy(actor_look.state.body_angles,player.player.body_angles,12);memcpy(actor_look.state.eye_angles,player.player.eye_angles,12);
     memset(actor_look.state.command,0,12);memset(actor_look.state.angular_velocity,0,12);actor_look.state.pending_pitch=actor_look.state.pending_yaw=0;
     memcpy(campaign_position,player.player.position,12);memcpy(campaign_orientation,player.eye,36);

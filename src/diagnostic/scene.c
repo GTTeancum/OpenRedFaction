@@ -9767,6 +9767,17 @@ done:
     free(text);free(palette);return status;
 }
 uint32_t rf_scene_actor_movement_frames[64][3]; /* response, speed, numeric mode */
+/*422ef0 class drag for the live player body. Restores copy a saved body
+ * state; saves written before this drag existed carried the physics default
+ * 10, so restore re-derives it (fixed per class unless flag 0x800 makes the
+ * speed-mode setter own it). */
+static void scene_player_drag_refresh(void)
+{
+    if(!campaign_spawn || (rf_scene_actor_movement_config.flags&0x800u))return;
+    scene_actor_body.state.coefficients[1]=rf_entity_class_drag(scene_actor_body.state.mass,
+        rf_scene_actor_movement_values.speed,rf_scene_actor_movement_values.acceleration,rf_scene_actor_movement_config.flags);
+    rf_scene_actor_movement_settings.response=scene_actor_body.state.coefficients[1];
+}
 static int actor_set_speed_mode(int crouched)
 {
     int status=rf_movement_set_mode(&rf_scene_actor_movement_settings,&rf_scene_actor_movement_config,
