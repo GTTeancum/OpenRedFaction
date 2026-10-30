@@ -18757,8 +18757,7 @@ static int scene_scanner_draw(rf_scene_particle_sink sink,void *context)
     if(!scene_scanner_enabled)return RF_OK;
     status=scene_scanner_collect(particle_draw_stream,&scene_scanner_result);rf_scene_scanner[3]=(uint32_t)status;if(status)return status;
     rf_scene_scanner[1]=scene_scanner_result.count;rf_scene_scanner[2]=scene_scanner_result.truncated;
-    status=scene_rail_scope_draw(sink,context);if(status)return status;
-    return combat_hud_centered(sink,context,24,"SCANNER",0xff60ff90);
+    return scene_rail_scope_draw(sink,context);
 }
 #include "scene_hud_assets.inc"
 #include "scene_hud_scope.inc"

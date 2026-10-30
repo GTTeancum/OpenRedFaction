@@ -15,10 +15,18 @@
  *   4324ec..432603 HUD: with the scanner on (player+fb0), that bitmap is
  *          drawn white at full intensity as a centred square whose side is
  *          half the viewport height (single player).
- * Not reconstructed yet: the crosshair lines and railgun_text.vbm drawn after
- * it (43260a..432856); the existing "SCANNER" label stands in. Visibility is
- * the eye-forward test, not 5186a0's frustum sphere; the rasterizer clips. */
-static struct {rf_image picture,circle;uint32_t ready;} scene_rail_scope;
+ *   43260a..432856 overlay, viewport centre (cx,cy), width W, height H:
+ *          opaque black rectangles (x,y,w,h): thin horizontals
+ *          (cx+10,cy,W/3,1) and (cx-W/3-10,cy,W/3,1); thin verticals
+ *          (cx,cy+10,1,H/4) and (cx,cy-H/4-10,1,H/4); thick outer bars
+ *          (cx+10+W/3-W/5,cy-1,W/5,3) and (cx-W/3-10,cy-1,W/5,3);
+ *          railgun_text.vbm (128x32, 11 frames at 10/s) at
+ *          (cx+10+W/3-W/5,cy+5); then black at alpha 0x41, a box outline
+ *          W/6 x H/7 centred on (cx,cy) from four 1-pixel rectangles.
+ * Visibility is the eye-forward test, not 5186a0's frustum sphere; the
+ * rasterizer clips. The text animates on the game clock (60 updates/s). */
+#define SCENE_RAIL_TEXT_FRAMES 16u
+static struct {rf_image picture,circle,text[SCENE_RAIL_TEXT_FRAMES];uint32_t ready,text_frames,text_rate;} scene_rail_scope;
 /* renders, actors drawn, corpses drawn, lit pixels, errors, last error, HUD draws, circle loaded */
 uint32_t rf_scene_rail_scope[8];
 static int scene_rail_scope_open(rf_vpp *maps,uint32_t map_count)
@@ -34,10 +42,21 @@ static int scene_rail_scope_open(rf_vpp *maps,uint32_t map_count)
         status=rf_image_open(&scene_rail_scope.circle,maps+i,&entry,32*32*4+64);
         if(!status)rf_scene_rail_scope[7]=1;
         break;}
+    for(i=0;i<map_count;i++){rf_vpp_entry entry;uint32_t count=0,rate=0,frame;
+        if(rf_vpp_find(maps+i,"railgun_text.vbm",&entry)!=RF_OK)continue;
+        for(frame=0;frame<SCENE_RAIL_TEXT_FRAMES && (!frame || frame<count);frame++){
+            status=rf_image_vbm_frame(scene_rail_scope.text+frame,maps+i,&entry,frame,128*32*4,frame?NULL:&count,frame?NULL:&rate);
+            if(status)break;
+            scene_rail_scope.text_frames=frame+1;
+        }
+        scene_rail_scope.text_rate=rate?rate:10;
+        break;}
     return RF_OK;
 }
 static void scene_rail_scope_close(void)
 {
+    uint32_t i;
+    for(i=0;i<SCENE_RAIL_TEXT_FRAMES;i++)rf_image_close(scene_rail_scope.text+i);
     rf_image_close(&scene_rail_scope.picture);rf_image_close(&scene_rail_scope.circle);
     memset(&scene_rail_scope,0,sizeof(scene_rail_scope));
 }
@@ -112,17 +131,35 @@ static int scene_rail_scope_update(scene_stream *s,const float eye[3],const floa
     rf_scene_rail_scope[1]=live;rf_scene_rail_scope[2]=dead;++rf_scene_rail_scope[0];
     return RF_OK;
 }
-/* 4324ec..432603: centred square, side half the 480-line HUD, white. */
-static int scene_rail_scope_draw(rf_scene_particle_sink sink,void *context)
+static int scene_rail_scope_quad(rf_scene_particle_sink sink,void *context,const rf_image *image,float x,float y,float w,float h)
 {
     rf_particle_draw_vertex v[4]={{0}};uint32_t i;
-    if(!scene_rail_scope.ready || !rf_scene_rail_scope[0])return RF_OK;
     for(i=0;i<4;i++){
         uint32_t right=i==1||i==2,bottom=i>=2;
-        v[i].screen[0]=right?440.f:200.f;v[i].screen[1]=bottom?360.f:120.f;
+        v[i].screen[0]=x+(right?w:0);v[i].screen[1]=y+(bottom?h:0);
         v[i].reciprocal_w=1;v[i].argb=0xffffffffu;v[i].uv[0]=(float)right;v[i].uv[1]=(float)bottom;
     }
+    return sink(context,v,4,image,RF_PARTICLE_NORMAL_MODE);
+}
+/* 4324ec..432603: centred square, side half the 480-line HUD, white; then
+ * the 43260a..432856 overlay on the 640x480 HUD (cx 320, cy 240, W/3 213,
+ * W/5 128, H/4 120, W/6 106, H/7 68, all integer as in the original). */
+static int scene_rail_scope_draw(rf_scene_particle_sink sink,void *context)
+{
+    static const float bars[6][4]={{330,240,213,1},{97,240,213,1},{320,250,1,120},{320,110,1,120},
+        {415,239,128,3},{97,239,128,3}};
+    static const float box[4][4]={{267,206,106,1},{267,206+68,106,1},{267,206,1,68},{267+106,206,1,68}};
+    uint32_t i;int status;
+    if(!scene_rail_scope.ready || !rf_scene_rail_scope[0])return RF_OK;
     ++rf_scene_rail_scope[6];
-    return sink(context,v,4,&scene_rail_scope.picture,RF_PARTICLE_NORMAL_MODE);
+    status=scene_rail_scope_quad(sink,context,&scene_rail_scope.picture,200,120,240,240);if(status)return status;
+    for(i=0;i<6;i++){status=combat_hud_rect(sink,context,bars[i][0],bars[i][1],bars[i][2],bars[i][3],0xff000000u);if(status)return status;}
+    if(scene_rail_scope.text_frames){
+        uint32_t frame=(uint32_t)(((uint64_t)combat_frame*scene_rail_scope.text_rate/60u)%scene_rail_scope.text_frames);
+        const rf_image *text=scene_rail_scope.text+frame;
+        status=scene_rail_scope_quad(sink,context,text,415,245,(float)text->width,(float)text->height);if(status)return status;
+    }
+    for(i=0;i<4;i++){status=combat_hud_rect(sink,context,box[i][0],box[i][1],box[i][2],box[i][3],0x41000000u);if(status)return status;}
+    return RF_OK;
 }
 #endif
