@@ -22933,8 +22933,11 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             campaign_passive_vehicle_motion_active=0;campaign_passive_vehicle_motion_frame=frame;
             /* The final puzzle is terminal on either outcome. Keep presenting
              * the level, but do not advance its physics, events, NPCs or
-             * particles while the modal input owner holds the player. */
-            if(campaign_defuse.active){++rf_scene_defuse[12];goto modal_step_done;}
+             * particles while the modal input owner holds the player, nor
+             * after a timeout: every L20S3 face carries 0x2000, which ordinary
+             * movement queries skip (rf_collision_face_accept), so a resumed
+             * body falls out of the room. Death screen/restart run before this. */
+            if(campaign_defuse.active||campaign_defuse.failed){++rf_scene_defuse[12];goto modal_step_done;}
             if(stream->particles.state) {
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
                     particle_now,scene_rocket_trail_lookup,stream,&stream->particle_first);if(status)return scene_frame_late_failure(status,__LINE__,frame);
