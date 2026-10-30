@@ -197,12 +197,16 @@ static int scene_civilian_flight_cancel(campaign_npc_body *o,int32_t now,uint32_
 }
 static uint32_t scene_medic_flight_live(const campaign_npc_body *o)
 {return scene_medic_live(o)&&o->flight.qualified==1;}
+/* controller_handle is not an order: it is the door/mover backlink a group
+ * activation writes for whichever actor set it off (campaign_link_effect),
+ * so a fleeing actor running through a door must keep fleeing. Counting it
+ * here turned that door into a fatal RF_NOT_FOUND (L8S3 actor 6802). */
 static int scene_medic_flight_overlap(const campaign_npc_body *o)
 {
     return o->patrol.enabled||o->script_move.active||o->script_move.path.count||
         o->script_move.path.indices||o->navigation.retained.count||o->script_look.active||
         o->script_shoot.active||o->script_once.count||o->combat_alert||o->combat_scripted||
-        o->combat_target||o->controller_handle||o->view.linked_handle!=-1||
+        o->combat_target||o->view.linked_handle!=-1||
         o->ai_mode.state_2b4!=0||o->view.weapons[0]!=-1||o->view.weapons[1]!=-1;
 }
 static int scene_medic_flight_threat(campaign_npc_body *o,uint32_t frame,scene_medic_flight_threat_view *out)

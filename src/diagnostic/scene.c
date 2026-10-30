@@ -1084,6 +1084,7 @@ static const rf_particle_animation *scene_rocket_trail_animation(uint32_t);
 static scene_stream *particle_draw_stream;
 static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float basis[3][3]);
 static int scene_rail_scope_update(scene_stream *s,const float eye[3],const float basis[3][3]);
+static int scene_frame_late_failure(int status,uint32_t line,uint32_t frame);
 static int scene_rail_scope_draw(rf_scene_particle_sink sink,void *context);
 static scene_stream *scene_actor_collision_owner;
 static int scene_runtime_material_rows(scene_stream *,const rf_geometry_runtime_surface **,uint32_t *);
@@ -20760,7 +20761,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
 {
     uint32_t i,j,landing_epoch=scene_npc_landing_epoch;
     scene_npc_landing_receipt landing_audio={0};rf_scene_script_movement[4]=0;
-    {int status=scene_waypoint_boundary();if(status)return status;}
+    {int status=scene_waypoint_boundary();if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
     for(i=0;;i++) {
         /* Finish the preceding actor's copied one-shot before acquiring the
          *next actor. Includes the terminal boundary; no retained owner is used
@@ -20771,46 +20772,46 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         if(!campaign_npc_bodies)return RF_OK;
         campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn,vehicle_aim[3];int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked,sub_pursuit,xyz_pursuit;
-        status=scene_blind_age(o,frame);if(status)return status;
-        status=scene_pursuit_delay_age(o,scene_patrol_now(frame));if(status)return status;
+        status=scene_blind_age(o,frame);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+        status=scene_pursuit_delay_age(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         if(o->flight.qualified==1&&o->flight.entered&&o->registration.view&&o->damage.effects.health>0&&
            !(o->view.flags_810&1u)&&!(o->object_flags&(2u|0x4000u))&&o->ai_mode.action_280!=7){
             /* Next actual AI service resets714/708 even after default2.
              * The outgoing interval remains represented in RFNC25. */
             memset(o->command_714,0,12);memset(o->look.command_708,0,12);
-            if(o->ai_mode.action_280==2){status=scene_medic_flight_locomotion(stream,o,i);if(status)return status;}
-            status=scene_civilian_flight_cancel(o,scene_medic_now(frame),0);if(status)return status;
+            if(o->ai_mode.action_280==2){status=scene_medic_flight_locomotion(stream,o,i);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
+            status=scene_civilian_flight_cancel(o,scene_medic_now(frame),0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         }
         if(o->medic.pending&&o->ai_mode.action_280!=14){o->medic.pending=0;++rf_scene_medic_action[6];}
         if(o->ai_mode.action_280==14&&o->medic.pending){
             uint32_t steer=!scene_npc_seat_attached(o->registration.handle)&&!campaign_npc_physics_suspended(o);
-            if(steer){status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;}
-            status=scene_medic_tick(o,i,frame,elapsed,steer);if(status)return status;
+            if(steer){status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
+            status=scene_medic_tick(o,i,frame,elapsed,steer);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             continue;
         }
         if(o->guard_retreat_fault)return RF_FORMAT;
         if(scene_guard_retreat_active(o)){
-            status=scene_guard_retreat_tick(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+            status=scene_guard_retreat_tick(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             continue;
         }
         if(o->alarm_fault)return RF_FORMAT;
         if(o->alarm.present){
-            uint32_t owned;status=scene_alarm_runner_tick(stream,o,i,elapsed,frame,&landing_audio,&owned);if(status)return status;
+            uint32_t owned;status=scene_alarm_runner_tick(stream,o,i,elapsed,frame,&landing_audio,&owned);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             if(owned)continue;
         }
         if(scene_noise_active(o)){
             status=scene_noise_live(i);
             if(status==RF_NOT_FOUND){scene_noise_cancel(o);status=RF_OK;}
-            if(status)return status;
+            if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         }
         if(o->patrol.dwell_present&&!scene_patrol_dwell_owner(o))scene_patrol_dwell_clear(o);
         if(scene_npc_seat_attached(o->registration.handle) || campaign_npc_physics_suspended(o))continue;
         if(o->flight.qualified==1&&o->flight.entered&&o->ai_mode.action_280==7){
-            status=scene_medic_flight_tick(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+            status=scene_medic_flight_tick(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             continue;
         }
         if(o->patrol.enabled&&o->ai_mode.action_280==3&&!o->combat_alert&&!o->combat_scripted){
-            status=scene_patrol_return(o,scene_patrol_now(frame));if(status)return status;
+            status=scene_patrol_return(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         }
         if(rf_scene_dev_npc_enabled==9 && campaign_npc_body_count==1 && frame==440) {
             /* Exercise Goto-style walking while the DEV platform
@@ -20826,11 +20827,11 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             scene_stand_ground_stop_route(o);
         if(o->ai_mode.action_280==1 && o->script_move.active&&!scene_tactical_route_owned(o)){o->script_move.active=0;o->script_move.stop=1;}
         if(o->script_move.stop) {
-            if(o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)){status=campaign_script_locomotion(i,0);if(status)return status;}o->script_move.stop=0;
+            if(o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)){status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}o->script_move.stop=0;
         }
         if(o->ai_mode.action_280==1){
             if(scene_secondary_vehicle_supports(o->support.handle)){
-                status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+                status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             }
             continue;
         }
@@ -20848,9 +20849,9 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             }
             if(aim && (o->combat_scripted || campaign_player_damage.state.effects.health>0)) {
                 memcpy(o->body.state.next_position,o->body.state.position,12);
-                status=rf_scene_npc_steer(o->registration.handle,aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
-                status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
-                status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
+                status=rf_scene_npc_steer(o->registration.handle,aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 ++rf_scene_enemy_aim[0];rf_scene_enemy_aim[2]=o->registration.handle;
             }
         }
@@ -20871,9 +20872,9 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             if(target){
                 float previous_basis[9];memcpy(previous_basis,campaign_model_owners[i].basis,sizeof(previous_basis));
                 memcpy(o->body.state.next_position,o->body.state.position,12);
-                status=rf_scene_npc_steer(o->registration.handle,target,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
-                status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
-                status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
+                status=rf_scene_npc_steer(o->registration.handle,target,elapsed,rf_scene_npc_playback[0],&turn);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 ++rf_scene_script_look_at[2];
                 if(memcmp(previous_basis,campaign_model_owners[i].basis,sizeof(previous_basis)))++rf_scene_script_look_at[8];
             } else ++rf_scene_script_look_at[3];
@@ -20881,12 +20882,12 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         if(scene_tactical_route_owned(o)&&!scene_tactical_service_allowed(o)){
             /* Temporary suppression retains the route/timers but cannot turn
              * it into a generic script movement owner. Ground support remains. */
-            status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+            status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             continue;
         }
         if(!o->script_move.active) {
-            status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
-            {uint32_t held;status=scene_npc_use_facing_service(o,i,elapsed,frame,&held);if(status)return status;if(held)continue;}
+            status=campaign_npc_idle_ground_step(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+            {uint32_t held;status=scene_npc_use_facing_service(o,i,elapsed,frame,&held);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);if(held)continue;}
             scene_npc_rotating_fixture_tick(o,i,frame);
             continue;
         }
@@ -20895,31 +20896,31 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         xyz_pursuit=sub_pursuit || (o->script_move.follow==2 &&
             (scene_drone_pursuit_owner(o) || scene_capek_pursuit_owner(o)));
         if(xyz_pursuit && !scene_xyz_pursuit_live(o))continue;
-        status=campaign_script_ground(stream,o,i,elapsed,frame,&landing_audio);if(status)return status;
+        status=campaign_script_ground(stream,o,i,elapsed,frame,&landing_audio);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         /* Landing/contact work can retire an actor or target after combat's
          * early timer service. Reconcile that ordinary transition before a
          * route can be captured or translated; this performs no LOS work. */
-        if(o->tactical.flags){status=scene_tactical_maintain(o,scene_patrol_now(frame));if(status)return status;}
+        if(o->tactical.flags){status=scene_tactical_maintain(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
         if(o->damage.effects.health<=0 || !o->script_move.active)continue;
-        {uint32_t held;status=scene_npc_use_facing_service(o,i,elapsed,frame,&held);if(status)return status;if(held)continue;}
+        {uint32_t held;status=scene_npc_use_facing_service(o,i,elapsed,frame,&held);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);if(held)continue;}
         if(o->patrol.dwell_present){
             if(!scene_patrol_dwell_owner(o))scene_patrol_dwell_clear(o);
             else if(scene_patrol_remaining(o,frame)){
                 uint32_t reached;float point[3];
                 status=scene_patrol_reached(&o->script_move.path,o->script_move.path_index,
-                    o->script_move.path_mode,o->script_move.path_reverse,&reached);if(status)return status;
+                    o->script_move.path_mode,o->script_move.path_reverse,&reached);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 status=scene_patrol_node_facing(campaign_navigation.nodes+reached,point);
-                if(status!=RF_OK&&status!=RF_NOT_FOUND)return status;
+                if(status!=RF_OK&&status!=RF_NOT_FOUND)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 if(!status){
                     /*40b71b..40b75b turns only while the existing wait is pending.
                      * Ground/support has already stepped; stop route translation
                      * and use the ordinary angular owner, never script_look. */
                     memcpy(o->body.state.next_position,o->body.state.position,12);
-                    status=rf_scene_npc_steer(o->registration.handle,point,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
-                    status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
-                    status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
+                    status=rf_scene_npc_steer(o->registration.handle,point,elapsed,rf_scene_npc_playback[0],&turn);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                    status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                    status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 }
-                status=campaign_script_locomotion(i,0);if(status)return status;continue;
+                status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
             }else scene_patrol_dwell_clear(o);
         }
         ++rf_scene_script_movement[4];
@@ -20932,17 +20933,17 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         const float *target=o->script_move.target;
         if(scene_noise_active(o)&&o->script_move.retry){
             --o->script_move.retry;o->ai_mode.state_2b4=o->script_move.retry?12:1;
-            status=campaign_script_locomotion(i,0);if(status)return status;continue;
+            status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
         }
         if(o->script_move.retry)--o->script_move.retry;
         if(scene_tactical_route_owned(o)&&!o->navigation.retained.count){
-            status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return status;
-            status=campaign_script_locomotion(i,0);if(status)return status;continue;
+            status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+            status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
         }
         if(!o->navigation.retained.count && !o->script_move.retry) {
-            uint32_t found;status=campaign_script_route(stream,o,&found);rf_scene_script_routes[6]=(uint32_t)status;if(status)return status;
+            uint32_t found;status=campaign_script_route(stream,o,&found);rf_scene_script_routes[6]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             if(!found){
-                if(scene_noise_active(o)){scene_noise_cancel(o);status=campaign_script_locomotion(i,0);if(status)return status;continue;}
+                if(scene_noise_active(o)){scene_noise_cancel(o);status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;}
                 o->script_move.retry=60;
             }
         }
@@ -20956,8 +20957,8 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         }
         if(o->navigation.retained.count && o->script_move.route_index>=o->navigation.retained.count) {
             if(scene_tactical_route_owned(o)){
-                status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return status;
-                status=campaign_script_locomotion(i,0);if(status)return status;continue;
+                status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
             }
             o->navigation.retained.count=0;o->script_move.retry=0;
         }
@@ -20982,13 +20983,13 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                     uint32_t generation=scene_waypoint_events.generation,handle=o->registration.handle;
                     uint32_t reverse=o->script_move.path_reverse;
                     unsigned char move[sizeof(o->script_move)];
-                    status=scene_patrol_complete_prepare(o,scene_patrol_now(frame),&path,&action);if(status)return status;
+                    status=scene_patrol_complete_prepare(o,scene_patrol_now(frame),&path,&action);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                     /* Stop before dispatch even for an empty tag list. This
                      * changes locomotion state, never the accepted action slot. */
-                    status=campaign_script_locomotion(i,0);if(status)return status;
+                    status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                     memcpy(move,&o->script_move,sizeof(move));
                     status=scene_waypoint_arrival_begin(o,rf_level_waypoint_node(&path,next),
-                        campaign_blackout_now,&stream->particles);if(status)return status;
+                        campaign_blackout_now,&stream->particles);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                     if(owners!=campaign_npc_bodies||generation!=scene_waypoint_events.generation||
                        rf_object_registry_lookup(&campaign_registry,handle)!=&o->registration||
                        o->registration.handle!=handle||!scene_patrol_dwell_owner(o)||
@@ -21001,10 +21002,10 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                     scene_patrol_default_assign(o,&path,0,&action);
                     scene_waypoint_arrival_end();++rf_scene_script_movement[2];continue;
                 }
-                status=scene_patrol_node_wait(rf_level_waypoint_node(&o->script_move.path,next),&dwell);if(status)return status;
-                if(dwell){status=scene_patrol_resources(i,&o->selection,1);if(status)return status;}
+                status=scene_patrol_node_wait(rf_level_waypoint_node(&o->script_move.path,next),&dwell);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                if(dwell){status=scene_patrol_resources(i,&o->selection,1);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
                 status=scene_waypoint_arrival_begin(o,rf_level_waypoint_node(&o->script_move.path,next),
-                    campaign_blackout_now,&stream->particles);if(status)return status;
+                    campaign_blackout_now,&stream->particles);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             }
             if(o->script_move.path_reverse) {if(next)--next;
                 else if(o->patrol.enabled&&o->script_move.path_mode==1)next=o->script_move.path.count-1;
@@ -21025,7 +21026,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                     o->patrol.dwell_present=1;o->patrol.dwell_deadline=frame+dwell;
                     status=campaign_script_locomotion(i,0);if(status){
                         if(scene_waypoint_events.servicing)scene_waypoint_events.fault=(uint32_t)status;
-                        scene_waypoint_arrival_end();return status;}
+                        scene_waypoint_arrival_end();return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
                 }
                 scene_waypoint_arrival_end();++rf_scene_script_movement[2];continue;
             }
@@ -21045,25 +21046,25 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                 if(o->patrol.enabled&&o->script_move.origin==SCENE_MOVE_ORIGIN_EVENT&&
                    o->ai_mode.action_280==2){
                     scene_patrol_clear_move(o);
-                    status=scene_patrol_return(o,scene_patrol_now(frame));if(status)return status;
+                    status=scene_patrol_return(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 }
             }++rf_scene_script_movement[2];
-            status=campaign_script_locomotion(i,0);if(status)return status;continue;}
+            status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;}
         /*427450 already resolved the class/slow/alternate speed. Scripted
          * approach must consume it rather than erase Make_Fly26 with1.5m/s. */
         if(!isfinite(o->movement.speed)||o->movement.speed<0)return RF_FORMAT;
         step=fminf(o->movement.speed*elapsed,distance);proposal=o->body.state;
         for(j=0;j<3;j++)proposal.next_position[j]=proposal.position[j]+delta[j]*(step/distance);
-        status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
-        status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+        status=rf_physics_body_prepare_sweep(&proposal);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+        status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         if(!xyz_pursuit && blocked && hit.contact.normal[1]>=.5f) {
             /* Project an uphill step along a walkable support plane, then
              * recheck the full body; a wall/ceiling still rejects the step. */
             float rise=-(delta[0]*hit.contact.normal[0]+delta[2]*hit.contact.normal[2])*(step/distance)/hit.contact.normal[1];
             if(rise>0) {
                 proposal.next_position[1]=proposal.position[1]+rise+.001f;
-                status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
-                status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+                status=rf_physics_body_prepare_sweep(&proposal);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             }
         }
         if(!xyz_pursuit && blocked && fabsf(hit.contact.normal[1])<.5f) {
@@ -21079,8 +21080,8 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                     proposal.next_position[0]=proposal.position[0]+dx;
                     proposal.next_position[1]=proposal.position[1];
                     proposal.next_position[2]=proposal.position[2]+dz;
-                    status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
-                    status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+                    status=rf_physics_body_prepare_sweep(&proposal);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                    status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 }
             }
         }
@@ -21098,9 +21099,9 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
            !(proposal.flags&0x4000u) && hit.contact.fraction<1) {
             /* Flag4000 selects a different original translation path; keep the existing stop there. */
             rf_physics_body_state advanced=proposal;float remaining;
-            status=rf_physics_contact_advance(&advanced,elapsed,hit.contact.fraction,&remaining);if(status)return status;
+            status=rf_physics_contact_advance(&advanced,elapsed,hit.contact.fraction,&remaining);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             memcpy(proposal.next_position,advanced.position,12);
-            status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
+            status=rf_physics_body_prepare_sweep(&proposal);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             ++rf_scene_drone_player_response[0];memcpy(rf_scene_drone_player_response+1,&hit.contact.fraction,4);
             memcpy(rf_scene_drone_player_response+2,&advanced.scalar_144,4);
             if(!advanced.scalar_144)++rf_scene_drone_player_response[3];
@@ -21109,15 +21110,15 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
         /* First-playable failure policy: after both slope and wall-slide
          * attempts fail, end6 rather than retaining an unbounded blocked owner. */
         if(blocked){
-            if(scene_tactical_route_owned(o)){status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return status;}
-            scene_noise_cancel(o);rf_scene_script_obstacle[0]=hit.solid;rf_scene_script_obstacle[1]=hit.room;rf_scene_script_obstacle[2]=hit.face;memcpy(rf_scene_script_obstacle+3,hit.contact.normal,12);memcpy(rf_scene_script_obstacle+6,&hit.contact.fraction,4);rf_scene_script_obstacle[7]=hit.contact.object_id;++rf_scene_script_movement[3];status=campaign_script_locomotion(i,0);if(status)return status;continue;}
+            if(scene_tactical_route_owned(o)){status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
+            scene_noise_cancel(o);rf_scene_script_obstacle[0]=hit.solid;rf_scene_script_obstacle[1]=hit.room;rf_scene_script_obstacle[2]=hit.face;memcpy(rf_scene_script_obstacle+3,hit.contact.normal,12);memcpy(rf_scene_script_obstacle+6,&hit.contact.fraction,4);rf_scene_script_obstacle[7]=hit.contact.object_id;++rf_scene_script_movement[3];status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;}
         {
             float steering_target[3];const float *movement_aim=target;
             if(scene_tactical_route_owned(o)){
                 uint32_t victim_slot;
                 if(!scene_blind_target_live(o->tactical.target)){
-                    status=scene_tactical_cancel(o,scene_patrol_now(frame));if(status)return status;
-                    status=campaign_script_locomotion(i,0);if(status)return status;continue;
+                    status=scene_tactical_cancel(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+                    status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
                 }
                 if(o->tactical.target==campaign_player_object.handle)
                     movement_aim=scene_actor_body.state.position;
@@ -21131,16 +21132,16 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                 /* Original40b8af..40b910 flattens descriptor9/7 or
                  * class0x400000. Drone fly11 and Capek hover12 retain the full target.
                  * Explicit Look and standalone combat aim remain untouched. */
-                status=campaign_npc_eye_update(i);if(status)return status;
+                status=campaign_npc_eye_update(i);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 memcpy(steering_target,target,12);steering_target[1]=o->eye_position[1];movement_aim=steering_target;
             }
-            status=rf_scene_npc_steer(o->registration.handle,movement_aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
+            status=rf_scene_npc_steer(o->registration.handle,movement_aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         }
-        status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
+        status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         memcpy(o->body.state.next_position,proposal.next_position,12);o->body.state.flags|=0x40000000u;
-        status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
-        status=rf_scene_npc_publish_position(o->registration.handle);if(status)return status;
-        status=campaign_script_locomotion(i,1);if(status)return status;
+        status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+        status=rf_scene_npc_publish_position(o->registration.handle);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+        status=campaign_script_locomotion(i,1);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         ++rf_scene_script_movement[1];
         rf_scene_script_actor[0]=campaign_seeds.records.items[i].record.uid;
         memcpy(rf_scene_script_actor+1,o->body.state.position,12);memcpy(rf_scene_script_actor+4,o->script_move.target,12);
@@ -22709,6 +22710,10 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
 #include "scene_moving_support_test.inc"
 #include "scene_event_gameplay.inc"
 
+/* Line, status and frame of the first failing return after presentation (stage6). */
+uint32_t rf_scene_frame_late_failure[3];
+static int scene_frame_late_failure(int status,uint32_t line,uint32_t frame)
+{if(!rf_scene_frame_late_failure[0]){rf_scene_frame_late_failure[0]=line;rf_scene_frame_late_failure[1]=(uint32_t)status;rf_scene_frame_late_failure[2]=frame;}return status;}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -22927,7 +22932,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(campaign_defuse.active){++rf_scene_defuse[12];goto modal_step_done;}
             if(stream->particles.state) {
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
-                    particle_now,scene_rocket_trail_lookup,stream,&stream->particle_first);if(status)return status;
+                    particle_now,scene_rocket_trail_lookup,stream,&stream->particle_first);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             }
             step_profile_mark(0,&step_clock);
             {} uint32_t physics_clock=step_clock; /* physics split rows */
@@ -22938,7 +22943,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                  * the world and unseated NPC support still advance once. */
                 if(!occupied){
                     status=campaign_force_tick(&next,&stream->particles,particle_now);
-                    rf_scene_force_ticks[11]=(uint32_t)status;if(status)return status;
+                    rf_scene_force_ticks[11]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 }
                 if(rf_scene_world_controller_steps[0]&&rf_scene_world_controller_steps[5]==frame)
                     ++rf_scene_world_controller_steps[6];
@@ -22946,30 +22951,30 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++rf_scene_world_controller_steps[occupied?3:4];
                 physics_profile_mark(0,&physics_clock);
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
-                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return status;
+                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 ++rf_scene_world_controller_steps[1];
                 physics_profile_mark(1,&physics_clock);
-                status=scene_secondary_vehicle_tick(stream,frame);if(status)return status;
+                status=scene_secondary_vehicle_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 if(!occupied){
-                    status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return status;
-                    status=scene_passive_vehicle_player_push(stream,&next);if(status)return status;
+                    status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                    status=scene_passive_vehicle_player_push(stream,&next);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 }
-                status=scene_passive_vehicle_npc_push_tick(stream,frame);if(status)return status;
+                status=scene_passive_vehicle_npc_push_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 if(!occupied){
-                    status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return status;
+                    status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 }
                 physics_profile_mark(2,&physics_clock);
-                status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
-                status=campaign_npc_refresh_support_tick();if(status)return status;
+                status=campaign_npc_refresh_support_fixture(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_npc_refresh_support_tick();if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 if(!occupied){
                     physics_profile_mark(3,&physics_clock);
-                    status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return status;
+                    status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                     scene_player_impact_frame_begin(frame,0);
-                    status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+                    status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 }
                 physics_profile_mark(4,&physics_clock);
                 status=campaign_controller_commit();
-                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return status;
+                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 ++rf_scene_world_controller_steps[2];
                 physics_profile_mark(7,&physics_clock); /* row7: mover controller commit */
                 if(!occupied){
@@ -22977,7 +22982,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
                         0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
                     if(route==RF_PLAYER_SUPPORT_QUERY) {
-                        status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return status;
+                        status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                         ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
                     }
                 }
@@ -22992,12 +22997,12 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             } else if(route==RF_PLAYER_SUPPORT_QUERY) {
                 if(rf_scene_actor_landing[1]==3 && walkable) {
                     memcpy(landing_velocity,next.velocity,12);
-                    status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return status;
+                    status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;landed=1;
                     ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
                 } else if(rf_scene_actor_landing[1]==1 && (campaign_spawn || moved)) {
                     if(walkable) {
-                        status=actor_support_commit(&next,ground,contact,0,piece_support);if(status)return status;
+                        status=actor_support_commit(&next,ground,contact,0,piece_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                         ++rf_scene_actor_landing[6];
                     } else {
                         next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
@@ -23010,58 +23015,58 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                  * motion request remains part of the unfinished weapon lifecycle. */
                 rf_scene_actor_stance_flags&=~2u;
             } else {
-                status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
+                status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             }
-            status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return status;
+            status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
             if(campaign_spawn && landed)scene_player_landing_audio_commit(frame,landing_velocity,
                 &scene_actor_body.state,(int32_t)contact->contact.material);
-            if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return status;}
+            if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
             if(campaign_spawn)scene_player_footsteps_tick(stream,frame,(uint32_t)walkable,
                 walkable?(int32_t)contact->contact.material:-1);
             scene_moving_support_record(frame);
             physics_profile_mark(5,&physics_clock);
-            if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return status;}
-            if(campaign_spawn){status=scene_player_outside_damage_tick(stream,frame,particle_now);if(status)return status;}
+            if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
+            if(campaign_spawn){status=scene_player_outside_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
             if(campaign_spawn)scene_player_outside_audio_tick(stream,frame);
             physics_profile_mark(6,&physics_clock);
             step_profile_mark(1,&step_clock);
             /* 433260 dispatches authored light timers after physics, before events.
              * Owned replay timing; complete original frame gates/RNG order remain. */
-            if(campaign_spawn){status=scene_lights_tick(stream,scene_step_seconds);if(status)return status;}
+            if(campaign_spawn){status=scene_lights_tick(stream,scene_step_seconds);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
             step_profile_mark(2,&step_clock);
             if(campaign_spawn) {
                 rf_startup_events_report tick_report;uint32_t pending,j,words[9];
                 uint64_t elapsed=((uint64_t)frame+1)*1000/60;
                 int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
                 campaign_blackout_now=now;
-                status=campaign_cutscene_tick(stream,now,frame);if(status)return status;
-                status=campaign_alarm_tick(now);if(status)return status;
+                status=campaign_cutscene_tick(stream,now,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_alarm_tick(now);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
-                status=scene_group_control_fixture_tick(frame,now,&stream->particles);if(status)return status;
-                status=campaign_trigger_contacts(stream->collision,&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?scene_use_trigger_input():0);if(status)return status;
-                status=campaign_watch_fixture(frame);if(status)return status;
-                status=campaign_vehicle_blast_fixture(stream,frame);if(status)return status;
-                status=rf_campaign_countdown_step(&rf_scene_campaign_countdown,scene_step_seconds);if(status)return status;
+                status=scene_group_control_fixture_tick(frame,now,&stream->particles);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_trigger_contacts(stream->collision,&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?scene_use_trigger_input():0);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_watch_fixture(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_vehicle_blast_fixture(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=rf_campaign_countdown_step(&rf_scene_campaign_countdown,scene_step_seconds);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 campaign_triggers.vehicle_player_present=campaign_spawn && campaign_player_view.handle>=0;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
-                if(status)return status;
+                if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 scene_skybox_tick(now);
                 if(campaign_endgame.phase==1){
                     int expired;int32_t remaining;
                     status=rf_timer_expired(campaign_endgame.deadline,now,&expired);
-                    if(status)return status;
+                    if(status)return scene_frame_late_failure(status,__LINE__,frame);
                     if(expired){campaign_endgame.phase=2;++rf_scene_endgame[1];}
                     status=rf_timer_remaining(campaign_endgame.deadline,now,&remaining);
-                    if(status)return status;
+                    if(status)return scene_frame_late_failure(status,__LINE__,frame);
                     rf_scene_endgame[5]=remaining>0?(uint32_t)remaining:0;
                 }
                 rf_scene_endgame[4]=campaign_endgame.phase;
-                status=scene_turret_death_effects_tick(stream,frame);if(status)return status;
-                status=scene_script_explode_effects_tick(stream,frame);if(status)return status;
+                status=scene_turret_death_effects_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=scene_script_explode_effects_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 scene_play_vclip_tick(now);
                 scene_weapon_impact_visual_tick(stream);
                 campaign_hit_flags_clear();
@@ -23069,7 +23074,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                  * Runtime events, hit clearing and tick counters stay live;
                  * keep initial snapshots and an explicitly requested watch. */
                 if(!frame || rf_scene_diagnostic_checksums_enabled || rf_scene_watch_test_uid) {
-                    status=campaign_watch_snapshot();if(status)return status;
+                    status=campaign_watch_snapshot();if(status)return scene_frame_late_failure(status,__LINE__,frame);
                     campaign_force_snapshot();campaign_switch_snapshot();
                 }
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
@@ -23081,9 +23086,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_level_particle_tick_result step,last;uint32_t particle_index,byte_index,hash=2166136261u;
                 uint32_t *record=rf_scene_particles_frames[(frame+1)%64],*summary=rf_scene_particles_summary;
                 status=rf_level_particles_simulate_world(&stream->particles,&stream->visibility.state,1,scene_step_seconds,scene_rocket_trail_lookup,stream,&step,stream->collision);
-                if(status)return status;
+                if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
-                    particle_now,NULL,NULL,&last);if(status)return status;
+                    particle_now,NULL,NULL,&last);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 if(rf_scene_diagnostic_checksums_enabled)for(particle_index=0;particle_index<RF_PARTICLE_CAPACITY;particle_index++)if(stream->particles.state->records[particle_index].flags&1u) {
                     const unsigned char *payload=(const unsigned char*)(stream->particles.state->records+particle_index);
                     for(byte_index=0;byte_index<sizeof(rf_particle);byte_index++)hash=(hash^payload[byte_index])*16777619u;
@@ -23112,7 +23117,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     if(frame%60==0)printf("DEV_NPC %u %.9g %.9g %.9g %u\n",frame,npc->body.state.position[0],npc->body.state.position[1],npc->body.state.position[2],scene_dev_npc_contacts);
                 }
                 status=campaign_script_step(stream,scene_step_seconds,frame);
-                rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
+                rf_scene_script_movement[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(7,&npc_clock); /* row7: NPC script/AI step; row0: samplers after it. */
                 scene_passive_vehicle_npc_fixture_probe();
                 scene_passive_vehicle_support_live_probe(frame,rf_scene_actor_landing[1]);
@@ -23121,43 +23126,43 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 scene_script_physics_sample(frame);
                 npc_step_profile_mark(0,&npc_clock);
                 scene_npc_speech_tick(campaign_blackout_now);
-                status=campaign_npc_playback_tick(stream,scene_step_seconds,frame);if(status)return status;
+                status=campaign_npc_playback_tick(stream,scene_step_seconds,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 scene_nano_visual_tick(stream,scene_step_seconds,frame);
                 scene_cane_warmup_tick(stream,scene_step_seconds,frame);
                 scene_nano_hit_tick(stream,scene_step_seconds,frame);
                 scene_npc_footsteps_tick(frame);
                 scene_npc_chatter_tick(frame);
-                status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return status;
-                status=scene_medic_syringe_tick();if(status)return status;
-                status=scene_masako_runtime_tick(stream);if(status)return status;
+                status=campaign_live_corpses_tick(scene_step_seconds,campaign_blackout_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=scene_medic_syringe_tick();if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=scene_masako_runtime_tick(stream);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(1,&npc_clock);
-                status=campaign_npc_rooms_pass(frame);if(status)return status;
-                status=scene_npc_liquid_damage_tick(stream,frame,particle_now);if(status)return status;
+                status=campaign_npc_rooms_pass(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=scene_npc_liquid_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(2,&npc_clock);
-                status=campaign_glare_loss_inject(frame);if(status)return status;
-                status=scene_clutter_break_tick(stream,frame);if(status)return status;
-                status=campaign_glare_retirement_pass(frame);if(status)return status;
-                status=campaign_glare_loss_verify(frame);if(status)return status;
+                status=campaign_glare_loss_inject(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=scene_clutter_break_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_glare_retirement_pass(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_glare_loss_verify(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(3,&npc_clock);
-                status=scene_vehicle_headlamp_tick(stream);if(status)return status;
-                status=campaign_attachments_pass();if(status)return status;
+                status=scene_vehicle_headlamp_tick(stream);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=campaign_attachments_pass();if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(4,&npc_clock);
-                status=campaign_attachment_motion_fixture(frame);if(status)return status;
+                status=campaign_attachment_motion_fixture(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(5,&npc_clock);
-                status=campaign_glare_rooms_pass(frame);if(status)return status;
-                status=scene_occupied_mover_fixture_tick(stream,frame,particle_now);if(status)return status;
+                status=campaign_glare_rooms_pass(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                status=scene_occupied_mover_fixture_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);
                 npc_step_profile_mark(6,&npc_clock);
             }
         }
         /* All combat, event, impact and liquid callers have returned. A death
          * chain may enqueue more receipts, but never recursively drains. */
-        if(campaign_spawn){status=scene_robot_death_tick(stream,frame);if(status)return status;}
+        if(campaign_spawn){status=scene_robot_death_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
         if(campaign_teleport_pending){scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);scene_player_riot_cancel();scene_player_outside_audio_forget();scene_player_impact_relocated();}
-        status=campaign_teleport_begin();if(status)return status;
+        status=campaign_teleport_begin();if(status)return scene_frame_late_failure(status,__LINE__,frame);
         step_profile_mark(5,&step_clock);
-        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
+        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);status=campaign_alpha_check(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
-                status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
+                status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return scene_frame_late_failure(status,__LINE__,frame);}}
         step_profile_mark(6,&step_clock);profile_mark(7);
 modal_step_done:
         scene_player_outside_audio_reconcile(stream);
@@ -23169,7 +23174,7 @@ modal_step_done:
                 if(scene_world_load_live_fallback(status)){
                     if(rf_scene_follow_level_exits)campaign_life_request_restart(frame);
                     status=RF_OK;}}
-            if(status)return status;}
+            if(status)return scene_frame_late_failure(status,__LINE__,frame);}
         scene_player_support_save_fixture_tick(frame);
         if(campaign_spawn)scene_nano_visual_admit(stream,frame);
         if(!frame)scene_cane_warmup_admit(stream);
