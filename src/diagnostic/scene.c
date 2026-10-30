@@ -6644,6 +6644,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             status=rf_entity_body_open(&config,spheres,count,record->position,record->orientation[0],
                 campaign_seeds.items[actor].spawn.creation_flags,
                 budget-(uint32_t)bytes+(uint32_t)sizeof(*body),body);if(status){rf_scene_npc_body_failure[0]=(uint32_t)status;rf_scene_npc_body_failure[1]=__LINE__;goto done;}
+            /*422ef0: the created entity's drag replaces the physics default. */
+            body->state.coefficients[1]=rf_entity_class_drag(body->state.mass,movement_values.speed,movement_values.acceleration,config.authored.flags);
             {
                 campaign_npc_body *owner=campaign_npc_bodies+actor;
                 owner->model_radius_78=model_radius;owner->death_item_extent_7c4=death_item_extent;
@@ -10844,6 +10846,7 @@ static int campaign_force_tick(rf_physics_body_state *body,rf_level_particles *p
 #include "scene_player_npc_contact.inc"
 #include "scene_npc_player_contact.inc"
 static int actor_trace_contacts=1;
+uint32_t rf_scene_swim_drive[6]; /* last swim: response(drag), speed, class acceleration, mass, base speed (float bits), config flags (float) */
 static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_state *state,const float command[3],const float ground_normal[3])
 {
     float remaining=scene_step_seconds,support[3]={0},normal[3];uint32_t pass=0,contacts=0;int status;
@@ -10861,6 +10864,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
                 rf_scene_actor_movement_values.acceleration,input,support);
         } else if(campaign_spawn && rf_scene_actor_landing[1]==4) {
             rf_swim_controls controls={0};rf_swim_motion motion;
+            {float v[6]={rf_scene_actor_movement_settings.response,rf_scene_actor_movement_settings.speed,rf_scene_actor_movement_values.acceleration,state->mass,rf_scene_actor_movement_config.base_speed,(float)rf_scene_actor_movement_config.flags};memcpy(rf_scene_swim_drive,v,sizeof(v));}
             controls.right=command[0];controls.up=command[1];controls.forward=command[2];
             controls.jump=player_poll?(float)player_input.jump:0;controls.crouch=player_poll?(float)player_input.crouch:0;
             /*4a6060 enables held jump-ascent only while eyes are submerged. */
@@ -22734,6 +22738,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_pose.radius=scene_actor_body.state.bounds.radius;
         status=rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);if(status)return status;
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));rf_scene_actor_tick_stats[0]=0x5246544b;
+        /*422ef0: the created entity's drag replaces the physics default. */
+        if(campaign_spawn)scene_actor_body.state.coefficients[1]=rf_entity_class_drag(scene_actor_body.state.mass,
+            rf_scene_actor_movement_values.speed,rf_scene_actor_movement_values.acceleration,rf_scene_actor_movement_config.flags);
         rf_scene_actor_movement_settings.response=scene_actor_body.state.coefficients[1];
         status=actor_set_speed_mode(0);if(status)return status;
         memset(rf_scene_actor_clearance_diagnostic,0,sizeof(rf_scene_actor_clearance_diagnostic));

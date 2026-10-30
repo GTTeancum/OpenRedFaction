@@ -153,6 +153,13 @@ int rf_entity_class_stance_build(const rf_model_file *model,const rf_model_bone 
     }
     free(matrices);free(copied);if(!status) {*result=value;if(eye_offsets)memcpy(eye_offsets,offsets,sizeof(offsets));}return status;
 }
+float rf_entity_class_drag(float mass,float speed,float acceleration,uint32_t class_flags)
+{
+    double value;
+    if(!isfinite(mass) || !isfinite(speed) || !isfinite(acceleration) || speed==0)return 100.0f;
+    value=((double)mass*acceleration)/(((class_flags&0x40u)?2.0:1.0)*speed);
+    return isfinite(value)?(float)value:100.0f;
+}
 int rf_entity_body_open_accounted(const rf_entity_physics_config *config,const rf_physics_sphere *spheres,
     uint32_t count,const float position[3],const float orientation[9],uint32_t creation_flags,
     uint32_t budget,rf_physics_body *result,const rf_prepare_memory *memory)

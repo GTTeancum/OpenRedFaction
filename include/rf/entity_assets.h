@@ -341,6 +341,12 @@ typedef struct rf_entity_movement_values {
 /* Numeric class +50..5c fields at 41be39..41bea0; absent factors default to 1.
  * Also retains authored $Movement Radius separately from collision spheres. */
 int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result);
+/* Entity creation 422ef0..422f2f: body drag (physics +8c) is 100 when the class
+ * speed (+50) is zero, else mass * acceleration (+5c) / (k * speed), k = 2 when
+ * class flags (+724) have 0x40, else 1. The physics body default (10) is
+ * replaced by this for every created entity; swim resistance and the speed-mode
+ * setter read it. Nonfinite inputs return 100. */
+float rf_entity_class_drag(float mass,float speed,float acceleration,uint32_t class_flags);
 typedef struct rf_entity_class_physics {
     float mass;
     char material[64];

@@ -247,6 +247,8 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_vehicle_switch_boot_failure[3];RAM_ARRAY(rf_scene_vehicle_switch_boot_failure,3);}
     {extern uint32_t rf_scene_medic_syringe[12],rf_scene_medic_syringe_close_refused[3];RAM_ARRAY(rf_scene_medic_syringe,12);RAM_ARRAY(rf_scene_medic_syringe_close_refused,3);}
     {extern uint32_t rf_scene_clutter_bodies[10],rf_scene_glare_instances[10];RAM_ARRAY(rf_scene_clutter_bodies,10);RAM_ARRAY(rf_scene_glare_instances,10);}
+    {extern uint32_t rf_scene_swim_drive[6];RAM_ARRAY(rf_scene_swim_drive,6);}
+    {extern uint32_t rf_scene_player_swim[12],rf_scene_actor_landing[8];RAM_ARRAY(rf_scene_player_swim,12);RAM_ARRAY(rf_scene_actor_landing,8);}
     {extern uint32_t rf_scene_liquid_damage[8],rf_scene_player_impact[8];RAM_ARRAY(rf_scene_liquid_damage,8);RAM_ARRAY(rf_scene_player_impact,8);}
     {extern uint32_t rf_xbox_flip_waits[4];RAM_ARRAY(rf_xbox_flip_waits,4);}
     {extern uint64_t rf_renderer_model_split[4];RAM_ARRAY(rf_renderer_model_split,8);}
