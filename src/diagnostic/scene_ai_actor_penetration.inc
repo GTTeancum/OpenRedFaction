@@ -91,16 +91,23 @@ static int scene_ai_actor_penetration_actor_select(scene_stream *stream,
     *out=selected;*handle=selected_handle;return RF_OK;
 }
 
+/* Flying round (scene_bullet_tracers.inc): eye/ray are the round's whole path
+ * from its origin; `state` (begun at launch) carries power and visited handles
+ * between updates; contacts are taken in order up to `limit` (fraction of the
+ * whole path reached this update) and actor queries start at `flown`. A
+ * contact beyond `limit` leaves *done=0 for the next update. */
 static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
     const campaign_npc_body *accepted_owner,uint32_t accepted_slot,
     const scene_ai_actor_penetration_shot *shot,const float eye[3],const float ray[3],
     const float player_eye[3],uint32_t clock_bits,const rf_damage_effect_backend *effects,
     combat_feedback *feedback,uint32_t current_player_difficulty,
+    scene_sniper_penetration *state,float flown,float limit,uint32_t *done,
     scene_ai_actor_penetration_result *out)
 {
     scene_ai_actor_penetration_shot accepted;
-    scene_sniper_penetration penetration;float start[3],delta[3],end[3],physical_eye[3];uint32_t i;int status;
-    if(!stream || !shot || !eye || !ray || !player_eye || !effects || !feedback || !out ||
+    float start[3],delta[3],end[3],physical_eye[3];uint32_t i;int status;
+    if(!done)return RF_RANGE;*done=1;
+    if(!stream || !shot || !eye || !ray || !player_eye || !effects || !feedback || !out || !state ||
        current_player_difficulty>1 || shot->enabled!=1 ||
        shot->weapon<0 || shot->weapon>=64 || shot->kind!=1 ||
        !isfinite(shot->base) || shot->base<0)return RF_RANGE;
@@ -113,23 +120,34 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
         end[i]=start[i]+delta[i];
         if(!isfinite(end[i]) || !isfinite(physical_eye[i]))return RF_RANGE;
     }
-    status=scene_sniper_penetration_begin(shot->enabled,shot->power,start,delta,&penetration);if(status)return status;
+    /* Actor queries begin at the round, not behind it. */
+    if(state->cursor<flown) {
+        state->cursor=flown;
+        for(i=0;i<3;i++){state->start[i]=start[i]+delta[i]*flown;state->delta[i]=end[i]-state->start[i];}
+    }
     for(;;) {
         scene_ai_actor_ray_selection actor;rf_weapon_flight_contact vehicle_contact;
-        uint32_t handle,vehicle_hit=0,blocked=0,more=0;
+        uint32_t handle,vehicle_hit=0,blocked=0,more=0,pending=0;
         float fraction,query_fraction,damage,applied=0;
-        const float *actor_start=penetration.start,*actor_delta=penetration.delta;
-        status=scene_sniper_penetration_damage(&penetration,shot->base,&damage);if(status)return status;
-        status=scene_ai_actor_penetration_actor_select(stream,shot->source,&penetration,end,
+        const float *actor_start=state->start,*actor_delta=state->delta;
+        status=scene_sniper_penetration_damage(state,shot->base,&damage);if(status)return status;
+        status=scene_ai_actor_penetration_actor_select(stream,shot->source,state,end,
             physical_eye,&actor,&handle);if(status)return status;
         query_fraction=actor.fraction;
-        fraction=actor.actor_hit?penetration.cursor+(1-penetration.cursor)*query_fraction:1;
+        fraction=actor.actor_hit?state->cursor+(1-state->cursor)*query_fraction:1;
         /* Actor queries advance. All competing cover keeps the ORIGINAL ray
          * on EVERY pass, so radius advance cannot skip a wall/prop/host/chunk.
          * Terminal objects receive fresh pre-contact power-scaled damage. */
         status=scene_driller_firearm_select(shot->source,start,delta,fraction,
             &vehicle_contact,&vehicle_hit);if(status)return status;
         if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
+        /* Flying round: props and fragments only up to this update's reach;
+         * a farther contact waits for a later update. */
+        {uint32_t walled=0;
+         if(limit<1){rf_collision_solid_hit wall;float from[3],to[3];
+            for(i=0;i<3;i++){from[i]=start[i]+delta[i]*flown;to[i]=start[i]+delta[i]*limit;}
+            status=rf_geometry_collision_ray(stream->collision,&campaign_movers,from,to,0x26,&wall,&walled);if(status)return status;}
+         if(limit<1 && !walled && fraction>limit){pending=1;fraction=limit;}}
         {uint32_t consumed;float contact_fraction;
             status=campaign_clutter_enemy_fire_contact(stream,start,delta,fraction,
                 damage,shot->kind,0,&consumed,&contact_fraction);if(status)return status;
@@ -141,6 +159,7 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
             scene_npc_bullet_impact_stop(stream,shot->weapon,start,delta,&contact);
         }
         if(blocked){++rf_scene_enemy_spread[4];return RF_OK;}
+        if(pending){*done=0;return RF_OK;}
         if(vehicle_hit) {
             uint32_t handled,impact_live;
             status=combat_shot_obstructed(stream,start,delta,fraction,&blocked);if(status)return status;
@@ -156,7 +175,7 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
             }
             return RF_OK;
         }
-        if(!actor.actor_hit){if(!penetration.count)++rf_scene_enemy_spread[3];return RF_OK;}
+        if(!actor.actor_hit){if(!state->count)++rf_scene_enemy_spread[3];return RF_OK;}
         /* Cover callbacks may retire/rebind candidates. Revalidate the exact
          * winning generation before shields, then again before body damage. */
         if(actor.victim?!scene_ai_actor_penetration_npc_live(actor.victim_slot,handle):
@@ -174,9 +193,9 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
              * fresh AI-scaled base, stop immediately and never spend power. */
             if(shield_accepted)return RF_OK;
             if(!actor.body_hit || actor.body_fraction>query_fraction) {
-                if(!penetration.count)++rf_scene_enemy_spread[3];return RF_OK;
+                if(!state->count)++rf_scene_enemy_spread[3];return RF_OK;
             }
-            fraction=penetration.cursor+(1-penetration.cursor)*actor.body_fraction;
+            fraction=state->cursor+(1-state->cursor)*actor.body_fraction;
             if(shield_contact) {
                 /* Rejected protection may use only its retained real body
                  * within the already-arbitrated limit, never a farther body. */
@@ -203,7 +222,7 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
              * radius and advances that radius along incoming direction. Save
              * point/radius/material and prepare continuation BEFORE callbacks.
              * Zero applied damage still spends; exhausting contact still hits. */
-            status=scene_sniper_penetration_body(&penetration,handle,radius,fraction,point,end,&more);if(status)return status;
+            status=scene_sniper_penetration_body(state,handle,radius,fraction,point,end,&more);if(status)return status;
             if(actor.victim) {
                 campaign_npc_body *victim=campaign_npc_bodies+actor.victim_slot;uint32_t entered;
                 status=rf_scene_npc_damage(handle,&request,1,clock_bits,effects,&applied);

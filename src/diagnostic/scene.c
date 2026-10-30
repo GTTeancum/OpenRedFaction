@@ -13079,6 +13079,21 @@ static int scene_npc_round_step(scene_stream *stream,uint32_t frame,scene_npc_ro
     campaign_npc_body *owner=scene_ai_pistol_identity(r->slot,r->source),*victim=NULL;
     memset(out,0,sizeof(*out));out->victim_slot=UINT32_MAX;*done=1;
     memcpy(&clock_bits,&seconds,4);memcpy(spread_ray,ray,12);
+    if(r->piercing) {
+        /* Vauss/Tankbot: the accepted shot pierces with power carried on the round;
+         * the shooter is observation only (4c9b20). */
+        scene_ai_actor_penetration_result pierce;
+        float flown=r->flown_fraction,reach=r->flown_fraction+limit*(1-r->flown_fraction);
+        status=campaign_enemy_vauss_primary_weapon(r->actor.weapon)?
+            scene_ai_vauss_penetration_fire(stream,frame,owner,r->slot,&r->actor,r->origin,r->path,player_eye,clock_bits,&effects,&feedback,&r->penetration,flown,reach,done,&pierce):
+            scene_ai_tankbot_penetration_fire(stream,frame,owner,r->slot,&r->actor,r->origin,r->path,player_eye,clock_bits,&effects,&feedback,&r->penetration,flown,reach,done,&pierce);
+        if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+        out->amount=pierce.total_applied;out->player_amount=pierce.player_applied;out->vehicle_applied=pierce.vehicle_applied>0;
+        (void)melee;(void)blocked;(void)pending;(void)vehicle_damage_applied;(void)victim_slot;(void)amount;(void)player_amount;
+        (void)bullet_point;(void)bullet_material;(void)weapon;(void)intended_handle;(void)definition;(void)shot_damage;
+        (void)pistol_contact;(void)npc_shield;(void)vehicle_hit;(void)victim;(void)impact_start;(void)fraction;(void)body_fraction;(void)end;
+        return RF_OK;
+    }
     /* A round whose shooter is gone ends here (its registration backs the selection). */
     if(!owner)return RF_OK;
             if(pistol_shot.active)memcpy(pistol_shot.start,start,12);
@@ -13200,7 +13215,8 @@ static int scene_npc_round_step(scene_stream *stream,uint32_t frame,scene_npc_ro
              }
          } else {
              uint32_t target=campaign_player_object.handle;float difficulty;
-             status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+             if(r->shotgun)difficulty=1; /* campaign_enemy_shotgun_fire applied pellets at 1 */
+             else{status=combat_enemy_player_difficulty(stream,target,&request,&difficulty);if(status)return scene_enemy_failure(status,__LINE__,frame,i);}
              status=rf_scene_player_damage(target,&request,difficulty,clock_bits,&effects,&amount);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
              if(pistol_shot.active)player_amount=amount;
          }
@@ -13725,6 +13741,29 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 &campaign_enemy_spread_random,point_spread_ray);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
             point_spread_ready=1;
         }
+        if(weapon==campaign_shotgun_id && definition && definition->projectiles && definition->projectiles<=32 &&
+           definition->damage_kind>=0 && definition->damage_kind<=8 && distance>.0001f){
+            /* 4c77a0: every pellet of the shell is its own flying round from the
+             * muzzle (41b5a0), sampled with the shell's AI spread as before. */
+            float range=point_target?fmaxf(shot_range,sqrtf(distance)+1.0f):shot_range,ray[3],origin[3],muzzle_basis[9];uint32_t pellet;
+            if(rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,origin,muzzle_basis))memcpy(origin,owner->eye_position,12);
+            for(j=0;j<3;j++)ray[j]=delta[j]*(range/sqrtf(distance));
+            for(pellet=0;pellet<definition->projectiles;pellet++){
+                scene_npc_round round={0};scene_npc_round_result result;uint32_t round_done;float spread[3];
+                ++rf_scene_enemy_spread[0];
+                status=rf_weapon_spread_ray(ray,definition->ai_spread_degrees,&campaign_enemy_spread_random,spread);
+                rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
+                rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
+                round.slot=i;round.source=owner->registration.handle;round.weapon=weapon;round.definition=definition;
+                round.damage=combat_enemy_primary_damage(definition);round.intended=intended_handle;round.shotgun=1;
+                memcpy(round.origin,origin,12);
+                if(scene_npc_round_launch(&round,spread)==RF_OK)continue;
+                status=scene_npc_round_step(stream,frame,&round,origin,spread,1,player_eye,&result,&round_done);if(status)return status;
+                amount+=result.amount;player_amount+=result.player_amount;
+            }
+            goto enemy_shot_done;
+        }
         if(weapon==campaign_shotgun_id){
             status=campaign_enemy_shotgun_fire(stream,owner,victim,victim_slot,
                 definition,delta,player_eye,point_target,
@@ -13787,15 +13826,18 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
             if(actor_shot.enabled) {
-                if(campaign_enemy_vauss_primary_weapon(actor_shot.weapon))
-                    status=scene_ai_vauss_penetration_fire(stream,frame,owner,i,&actor_shot,
-                        actor_eye,spread_ray,player_eye,clock_bits,&effects,&feedback,&actor_result);
-                else status=scene_ai_tankbot_penetration_fire(stream,frame,owner,i,&actor_shot,
-                    actor_eye,spread_ray,player_eye,clock_bits,&effects,&feedback,&actor_result);
-                if(status)return scene_enemy_failure(status,__LINE__,frame,i);
-                actor_penetrated=1;amount=actor_result.total_applied;
-                player_amount=actor_result.player_applied;
-                vehicle_damage_applied=actor_result.vehicle_applied>0;
+                /* 4c77a0: the piercing round flies from the muzzle (41b5a0), its
+                 * 4c9b20 power carried on the round between updates. */
+                scene_npc_round round={0};scene_npc_round_result result;uint32_t round_done;float muzzle_basis[9];
+                round.slot=i;round.source=owner->registration.handle;round.weapon=weapon;round.definition=definition;
+                round.damage=shot_damage;round.intended=intended_handle;round.piercing=1;round.actor=actor_shot;
+                if(rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,round.origin,muzzle_basis))memcpy(round.origin,actor_eye,12);
+                actor_penetrated=1;
+                if(scene_npc_round_launch(&round,spread_ray)==RF_OK)goto enemy_shot_done;
+                memcpy(round.path,spread_ray,12);
+                status=scene_sniper_penetration_begin(actor_shot.enabled,actor_shot.power,round.origin,round.path,&round.penetration);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+                status=scene_npc_round_step(stream,frame,&round,round.origin,spread_ray,1,player_eye,&result,&round_done);if(status)return status;
+                amount=result.amount;player_amount=result.player_amount;vehicle_damage_applied=result.vehicle_applied;
                 goto enemy_shot_done;
             }
             /* 4c77a0: the round leaves the held weapon's muzzle (41b5a0; a pistol
@@ -19196,6 +19238,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
     status=scene_player_rounds_tick(stream,frame);if(status)return status;
     status=scene_npc_rounds_tick(stream,frame);if(status)return status;
+    status=scene_precision_rounds_tick(stream,frame);if(status)return status;
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
     scene_vehicle_attack_player_sync(stream,0);
@@ -23924,7 +23967,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                   if(!status && scene_tankbot_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_primary_load(&tables,"Tankbot Missile",128*1024,&campaign_tankbot_missile_primary));
                   if(!status && scene_drone_missile_resources)status=(rf_scene_campaign_load_detail=__LINE__,scene_ai_drone_missile_resources_open(&tables));
                   if(!status)status=(rf_scene_campaign_load_detail=__LINE__,scene_tracers_load(&tables));
-                  scene_player_rounds_reset();
+                  scene_player_rounds_reset();scene_precision_rounds_reset();
                   if(!status && scene_remote_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote));
                   if(!status && scene_grenade_resources)status=(rf_scene_campaign_load_detail=__LINE__,rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade));
                   scene_fusion_resources=!!((demand.mask|npc_projectiles)&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);

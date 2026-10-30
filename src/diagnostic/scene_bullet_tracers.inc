@@ -29,10 +29,14 @@
  * raise the vehicle hit event. */
 #define SCENE_NPC_ROUND_CAPACITY 64u
 #define SCENE_TRACER_NPC_COUNTERS 512u
+/* shotgun: one pellet of an NPC shotgun shell (player damage at difficulty 1,
+ * as campaign_enemy_shotgun_fire applied); piercing: Vauss/Tankbot round with
+ * its accepted shot and 4c9b20 power state (scene_ai_actor_penetration_fire). */
 typedef struct scene_npc_round {
     scene_ai_pistol_shot pistol;const rf_weapon_primary_definition *definition;
+    scene_ai_actor_penetration_shot actor;scene_sniper_penetration penetration;
     float origin[3],path[3],basis[9],speed,flown_fraction,damage,age;
-    uint32_t slot,source,intended,penetrates_world,tracer,active;int32_t weapon;
+    uint32_t slot,source,intended,penetrates_world,tracer,shotgun,piercing,active;int32_t weapon;
 } scene_npc_round;
 typedef struct scene_npc_round_result {float amount,player_amount;uint32_t vehicle_applied,victim_slot,victim_handle,vehicle_handle;} scene_npc_round_result;
 static int scene_vfx_emit(scene_stream *s,scene_rocket_visual *v,const float position[3],const float *basis,float time);
@@ -145,6 +149,7 @@ static int scene_npc_round_launch(const scene_npc_round *source,const float dire
     r->speed=tracer?scene_tracer_weapons[source->weapon].speed:scene_tracer_weapons[source->weapon].velocity;
     range=r->speed*scene_tracer_weapons[source->weapon].lifetime;
     for(k=0;k<3;k++)r->path[k]=dir[k]*range;
+    if(r->piercing && scene_sniper_penetration_begin(r->actor.enabled,r->actor.power,r->origin,r->path,&r->penetration)){r->active=0;return RF_RANGE;}
     memcpy(r->basis,matrix,36);r->flown_fraction=0;r->age=0;r->active=1;
     ++rf_scene_tracers[0];if(tracer)++rf_scene_tracers[1];return RF_OK;
 }
@@ -168,7 +173,7 @@ static int scene_npc_rounds_tick(scene_stream *stream,uint32_t frame)
             if(result.amount>0) {
                 float player_amount=result.player_amount;
                 ++rf_scene_enemy_combat[3];++rf_scene_tracers[7];
-                if(!r->pistol.active && result.victim_slot==UINT32_MAX && !result.vehicle_applied)player_amount=result.amount;
+                if(!r->pistol.active && !r->piercing && !r->shotgun && result.victim_slot==UINT32_MAX && !result.vehicle_applied)player_amount=result.amount;
                 if(player_amount>0)campaign_combat_event(frame,1,r->source,player_amount,campaign_player_damage.state.effects.health);
             }
             continue;
