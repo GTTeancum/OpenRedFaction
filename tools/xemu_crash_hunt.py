@@ -134,7 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-siege','driller-dig','combat','approach','approach-jump'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -431,6 +431,10 @@ def main():
                     random_state['held'] = [int(rng.random() < p) for p in (.1,.05,.03,.35,.03,.04,.15)]
                 move = list(random_state['move']); look = list(random_state['look'])
                 buttons = [h if rng.random() < .85 else 0 for h in random_state['held']]
+            elif args.input == 'scanner':
+                # Rail Driver scanner: one alternate-fire edge turns it on,
+                # then hold still (aim modes still steer the view).
+                buttons[6] = int(frame == 90)
             elif args.input == 'combat':
                 phase = frame % 360
                 move[0] = .35 if 60 <= phase < 150 else -.35 if 150 <= phase < 240 else 0

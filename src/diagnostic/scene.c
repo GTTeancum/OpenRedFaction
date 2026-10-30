@@ -1082,6 +1082,8 @@ static const rf_particle_animation *scene_rocket_trail_animation(uint32_t);
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static int scene_ir_screen_update(scene_stream *s,const float eye[3],const float basis[3][3]);
+static int scene_rail_scope_update(scene_stream *s,const float eye[3],const float basis[3][3]);
+static int scene_rail_scope_draw(rf_scene_particle_sink sink,void *context);
 static scene_stream *scene_actor_collision_owner;
 static int scene_runtime_material_rows(scene_stream *,const rf_geometry_runtime_surface **,uint32_t *);
 unsigned char *rf_scene_geomod_checkpoint_data;
@@ -18745,24 +18747,15 @@ static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
     return RF_OK;
 }
 #include "scene_scanner_select.inc"
-#include "scene_scanner_silhouette.inc"
-/* Shared through-wall silhouette fill, retaining center brackets on fallback. */
+/* Rail Driver scanner HUD: the original's centred heat picture (4adc60/4324ec)
+ * replaces the port's earlier through-wall green silhouettes. */
 static int scene_scanner_draw(rf_scene_particle_sink sink,void *context)
 {
-    uint32_t i;int status;rf_scene_scanner[0]=scene_scanner_enabled;rf_scene_scanner[1]=rf_scene_scanner[2]=rf_scene_scanner[3]=0;
-    memset(rf_scene_scanner_silhouette,0,sizeof(rf_scene_scanner_silhouette));
+    int status;rf_scene_scanner[0]=scene_scanner_enabled;rf_scene_scanner[1]=rf_scene_scanner[2]=rf_scene_scanner[3]=0;
     if(!scene_scanner_enabled)return RF_OK;
     status=scene_scanner_collect(particle_draw_stream,&scene_scanner_result);rf_scene_scanner[3]=(uint32_t)status;if(status)return status;
     rf_scene_scanner[1]=scene_scanner_result.count;rf_scene_scanner[2]=scene_scanner_result.truncated;
-    for(i=0;i<scene_scanner_result.count;i++){
-        const rf_weapon_scanner_marker *m=scene_scanner_result.markers+i;uint32_t fallback;
-        status=scene_scanner_silhouette_draw(particle_draw_stream,m,sink,context,&fallback);if(status)return status;
-        if(!fallback)continue;++rf_scene_scanner_silhouette[4];
-        float x=m->screen[0],y=m->screen[1],r=fminf(22,fmaxf(8,120/m->depth));
-        const float bars[8][4]={{-r,-r,6,2},{-r,-r,2,6},{r-6,-r,6,2},{r-2,-r,2,6},
-            {-r,r-2,6,2},{-r,r-6,2,6},{r-6,r-2,6,2},{r-2,r-6,2,6}};
-        uint32_t j;for(j=0;j<8;j++){status=combat_hud_rect(sink,context,x+bars[j][0],y+bars[j][1],bars[j][2],bars[j][3],0xff60ff90);if(status)return status;}
-    }
+    status=scene_rail_scope_draw(sink,context);if(status)return status;
     return combat_hud_centered(sink,context,24,"SCANNER",0xff60ff90);
 }
 #include "scene_hud_assets.inc"
@@ -19523,6 +19516,8 @@ world_build_done:
     /* Infrared weapon screen (4aeef0), drawn frames only, from the eye. */
     if(campaign_spawn && !(rf_scene_present_query && !rf_scene_present_query())) {
         status=scene_ir_screen_update(stream,position,(const float (*)[3])orientation);if(status)return status;
+        /* Rail Driver scanner picture (4adc60), from the same eye. */
+        status=scene_rail_scope_update(stream,position,(const float (*)[3])orientation);if(status)return status;
     }
     memcpy(view->camera,position,12);memcpy(view->rotation,view_basis,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
@@ -21392,6 +21387,7 @@ static int scene_view_model_retain(scene_stream *stream,const rf_model_geometry 
 }
 #include "scene_monitor_render.inc"
 #include "scene_weapon_ir_screen.inc"
+#include "scene_rail_scope.inc"
 #include "scene_weapon_ammo_digits.inc"
 /* True when this frame's lightmap/terrain/monitor update will rewrite
  * GPU-read texels, so the renderer must let the previous frame retire first. */
@@ -24273,6 +24269,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
         }
         status=scene_tracer_visual_open(&archive,maps,map_count,materials);if(status)goto done;
+        status=scene_rail_scope_open(maps,map_count);if(status)goto done;
         if((rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4) ||
            (campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl")) ||
            (campaign_spawn && !rf_scene_dev_room_enabled && rf_scene_vehicle_enabled==1 &&
@@ -24610,7 +24607,7 @@ done:
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);
     if(stream->fusion_visual){rf_vfx_asset_materials_close(&stream->fusion_visual->materials);rf_vfx_geometry_asset_close(&stream->fusion_visual->geometry);free(stream->fusion_visual);}
     if(stream->fighter_rocket_visual){rf_vfx_asset_materials_close(&stream->fighter_rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->fighter_rocket_visual->geometry);free(stream->fighter_rocket_visual);}
-    scene_tracer_visual_close();
+    scene_tracer_visual_close();scene_rail_scope_close();
     if(stream->laser_visual){rf_vfx_asset_materials_close(&stream->laser_visual->materials);rf_vfx_geometry_asset_close(&stream->laser_visual->geometry);free(stream->laser_visual);}
     if(stream->tribeam_visual){rf_vfx_asset_materials_close(&stream->tribeam_visual->materials);rf_vfx_geometry_asset_close(&stream->tribeam_visual->geometry);free(stream->tribeam_visual);}
     scene_sonar_visual_close(&stream->sonar_visual);
