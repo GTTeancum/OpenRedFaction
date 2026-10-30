@@ -80,6 +80,7 @@ static int scene_vehicle_switch_boot_seats_read(const rf_level *level,const unsi
 }
 /* Read-only ordinary-save resource demand. This does not grant inventory or
  * publish gameplay; the normal world transaction still validates every owner. */
+uint32_t rf_scene_vehicle_switch_boot_failure[3]; /* status, live load, step (1 identity,2 open,3 load+validate,4 decode,5 peek,6 later) */
 static int scene_vehicle_switch_boot_select(const rf_level *level,const char *tables_path)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -103,24 +104,24 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
 #else
     if(!path||!*path)return RF_OK;
 #endif
-    status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
+    rf_scene_vehicle_switch_boot_failure[2]=1;status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=sizeof(identity.level)){status=RF_RANGE;goto done;}
     memset(identity.level,0,sizeof(identity.level));strcpy(identity.level,campaign_current_level);
     data=malloc(RF_CHECKPOINT_FILE_MAX);if(!data){status=RF_IO;goto done;}
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(fixture)status=rf_checkpoint_file_load(SCENE_WORLD_FIXTURE_BASE,data,RF_CHECKPOINT_FILE_MAX,&bytes,
         scene_world_snapshot_validate,&identity,&selection);
-    else {status=scene_live_load_active&&scene_live_load_auto_source?
+    else {rf_scene_vehicle_switch_boot_failure[2]=2;status=scene_live_load_active&&scene_live_load_auto_source?
         rf_xbox_checkpoint_storage_open_world_auto(&storage,0):rf_xbox_checkpoint_storage_open_world(&storage,0);
-        if(!status)status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);}
+        if(!status){rf_scene_vehicle_switch_boot_failure[2]=3;status=rf_xbox_checkpoint_storage_load(&storage,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);}}
 #else
     status=rf_checkpoint_file_load(path,data,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
 #endif
     if(status)goto done;
     /* No wrapper is a normal legacy save, including an empty vehicle slice. */
-    status=rf_world_checkpoint_decode(data,bytes,0,&world);if(status)goto done;
+    rf_scene_vehicle_switch_boot_failure[2]=4;status=rf_world_checkpoint_decode(data,bytes,0,&world);if(status)goto done;
     const rf_world_checkpoint_slice *slice=world.sections+RF_WORLD_VEHICLE-1;
-    status=scene_vehicle_switch_checkpoint_peek(slice->data,slice->bytes,&uid,&profile,&count);if(status||!uid)goto done;
+    rf_scene_vehicle_switch_boot_failure[2]=5;status=scene_vehicle_switch_checkpoint_peek(slice->data,slice->bytes,&uid,&profile,&count);if(status||!uid)goto done;rf_scene_vehicle_switch_boot_failure[2]=6;
     if(!campaign_authored_vehicle_uid||(scene_history_word((const unsigned char *)slice->data+4)==1&&profile!=rf_scene_vehicle_enabled)||profile<1||profile>5||
        uid>0x7fffffffu||!count||count>RF_OBJECT_CAPACITY){status=RF_FORMAT;goto done;}
     status=rf_level_entity_find(level,(int32_t)uid,&selected);if(status)goto done;
@@ -171,6 +172,7 @@ static int scene_vehicle_switch_boot_select(const rf_level *level,const char *ta
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int closed=scene_world_storage_close(&storage);if(!status)status=closed;}
 #endif
+    if(status){rf_scene_vehicle_switch_boot_failure[0]=(uint32_t)status;rf_scene_vehicle_switch_boot_failure[1]=scene_live_load_active;}
     free(data);return status;
 }
 /* Restore the saved slot order before any checkpoint stage sees indexed

@@ -88,26 +88,27 @@ static int scene_undercover_resources_close(scene_undercover_resources **owner,r
     rf_model_materials_close(&o->materials);rf_static_render_resource_close(&o->render);
     free(o);*owner=NULL;return RF_OK;
 }
+uint32_t rf_scene_undercover_open_failure[2]; /* step, status of the last failed resource open */
 static int scene_undercover_resources_open(rf_player_weapon *w,rf_vpp *meshes,rf_vpp *motions,
     rf_vpp *maps,uint32_t map_count,uint32_t initially_attached,uint32_t budget,scene_undercover_resources **result)
 {
     scene_undercover_resources *o;rf_model_file *file;uint32_t used;int status;
     if(!w || !meshes || !motions || !maps || !map_count || !result || *result ||
-        budget<sizeof(*o)+sizeof(*file))return RF_RANGE;
+        budget<sizeof(*o)+sizeof(*file)){rf_scene_undercover_open_failure[0]=1;rf_scene_undercover_open_failure[1]=(uint32_t)RF_RANGE;return RF_RANGE;}
     o=calloc(1,sizeof(*o));file=malloc(sizeof(*file));if(!o || !file){free(o);free(file);return RF_IO;}
     used=sizeof(*o)+sizeof(*file);
-    status=scene_undercover_mode_init(&o->mode,w,meshes,initially_attached);if(status)goto fail;
-    status=scene_weapon_custom_actions_open(w,motions,2,budget-used,&o->actions);if(status)goto fail;
+    rf_scene_undercover_open_failure[0]=2;status=scene_undercover_mode_init(&o->mode,w,meshes,initially_attached);if(status)goto fail;
+    rf_scene_undercover_open_failure[0]=3;status=scene_weapon_custom_actions_open(w,motions,2,budget-used,&o->actions);if(status)goto fail;
     used+=o->actions->resident_bytes;
-    status=rf_model_file_open(file,meshes,"silencer.v3m");if(status)goto fail;
-    status=rf_static_render_resource_open(file,budget-used,&o->render);if(status)goto fail;
+    rf_scene_undercover_open_failure[0]=4;status=rf_model_file_open(file,meshes,"silencer.v3m");if(status)goto fail;
+    rf_scene_undercover_open_failure[0]=5;status=rf_static_render_resource_open(file,budget-used,&o->render);if(status)goto fail;
     used+=o->render.allocated_bytes;
-    status=rf_model_materials_open(&o->materials,file,maps,map_count,budget-used);if(status)goto fail;
+    rf_scene_undercover_open_failure[0]=6;status=rf_model_materials_open(&o->materials,file,maps,map_count,budget-used);if(status)goto fail;
     o->peak_bytes=used+o->materials.peak_bytes;
     o->resident_bytes=used+o->materials.resident_bytes-sizeof(*file);
-    free(file);*result=o;return RF_OK;
+    free(file);*result=o;rf_scene_undercover_open_failure[0]=0;return RF_OK;
 fail:
-    free(file);scene_undercover_resources_close(&o,w);return status;
+    rf_scene_undercover_open_failure[1]=(uint32_t)status;free(file);scene_undercover_resources_close(&o,w);return status;
 }
 #endif
 

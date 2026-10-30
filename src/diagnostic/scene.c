@@ -6831,26 +6831,27 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
 done:
     rf_vpp_close(&tables);if(status){memset(&scene_guard_retreat_class,0,sizeof(scene_guard_retreat_class));memset(&scene_noise_classes,0,sizeof(scene_noise_classes));memset(&scene_blind_classes,0,sizeof(scene_blind_classes));campaign_npc_bodies_close();}return status;
 }
+uint32_t rf_scene_close_movers_failure[2]; /* line, status of the release step that stopped level close */
 static void campaign_close_movers(void)
 {
     int closed;
     if(campaign_player_feedback_sink)campaign_player_feedback_sink(campaign_player_feedback_context,0,0);
     closed=scene_player_water_audio_close();
-    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;rf_scene_close_movers_failure[0]=__LINE__;rf_scene_close_movers_failure[1]=(uint32_t)closed;return;}
     closed=scene_weapon_loop_audio_drain();
-    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;rf_scene_close_movers_failure[0]=__LINE__;rf_scene_close_movers_failure[1]=(uint32_t)closed;return;}
     closed=scene_npc_loop_audio_drain();
-    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;rf_scene_close_movers_failure[0]=__LINE__;rf_scene_close_movers_failure[1]=(uint32_t)closed;return;}
     closed=scene_turret_audio_drain();
-    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;rf_scene_close_movers_failure[0]=__LINE__;rf_scene_close_movers_failure[1]=(uint32_t)closed;return;}
     scene_credits_close();
     campaign_alpha_close();
     closed=campaign_glare_instances_close();
-    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;rf_scene_close_movers_failure[0]=__LINE__;rf_scene_close_movers_failure[1]=(uint32_t)closed;return;}
     rf_glare_materials_close(&campaign_glare_materials);
     rf_glare_classes_close(&campaign_glare_classes);
     closed=scene_medic_syringe_children_close();
-    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;return;}
+    if(closed){if(!scene_session_retire_status)scene_session_retire_status=closed;rf_scene_close_movers_failure[0]=__LINE__;rf_scene_close_movers_failure[1]=(uint32_t)closed;return;}
     scene_medic_syringe_resources_close();
     campaign_clutter_render_close();
     rf_level_owned_clutter_close(&campaign_clutter_records);
@@ -11819,6 +11820,10 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
     if((!pressed && !restart) || frame-rf_scene_player_life[3]<60)return RF_OK;
     if(rf_scene_follow_level_exits){
+        /* One death-screen choice per death: a later press must not overwrite
+         * an accepted load/restart (a restart over a pending death load kept
+         * the live-load flag and its reload failed, L6S1). */
+        if(rf_scene_level_transition.pending || rf_scene_quickload_pending())return RF_OK;
         if(pressed && !restart){scene_death_quickload_request();return RF_OK;}
         campaign_life_request_restart(frame);
         return RF_NOT_FOUND;

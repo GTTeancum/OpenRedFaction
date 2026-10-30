@@ -278,6 +278,9 @@ static int scene_guard_retreat_live_present(uint32_t frame,uint32_t *present)
 }
 static uint32_t scene_guard_retreat_section_wait(void)
 {
+    /* Like the airlock/medic hand-off waits: a death load or restart discards
+     * the outgoing world, so an alarm runner must not hold it (L6S1). */
+    if(scene_live_load_active||campaign_endgame.restart_requested)return 0;
     for(uint32_t i=0;i<campaign_npc_body_count;i++)if(scene_guard_retreat_active(campaign_npc_bodies+i)||campaign_npc_bodies[i].alarm.present||campaign_npc_bodies[i].alarm_fault)return 1;
     return 0;
 }

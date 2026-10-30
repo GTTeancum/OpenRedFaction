@@ -344,9 +344,11 @@ static int scene_medic_syringe_children_close(void)
     }
     return scene_medic_syringe_candidates.count?RF_RANGE:RF_OK;
 }
+uint32_t rf_scene_medic_syringe_close_refused[3]; /* references, body bytes, candidates when close was refused */
 static void scene_medic_syringe_resources_close(void)
 {
-    if(scene_medic_syringe_resource.shared.references||scene_medic_syringe_resource.body_bytes||scene_medic_syringe_candidates.count){rf_scene_medic_syringe[8]=RF_RANGE;return;}
+    if(scene_medic_syringe_resource.shared.references||scene_medic_syringe_resource.body_bytes||scene_medic_syringe_candidates.count){rf_scene_medic_syringe[8]=RF_RANGE;
+        rf_scene_medic_syringe_close_refused[0]=scene_medic_syringe_resource.shared.references;rf_scene_medic_syringe_close_refused[1]=(uint32_t)scene_medic_syringe_resource.body_bytes;rf_scene_medic_syringe_close_refused[2]=scene_medic_syringe_candidates.count;return;}
     rf_model_materials_close(&scene_medic_syringe_resource.materials);
     rf_model_collision_resource_close(&scene_medic_syringe_resource.model.collision);
     rf_static_render_resource_close(&scene_medic_syringe_resource.model.resource);
