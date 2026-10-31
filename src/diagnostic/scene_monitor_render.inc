@@ -84,8 +84,7 @@ static void scene_monitor_close(scene_stream *s)
 static int scene_monitor_camera_pose(uint32_t uid,rf_level *view)
 {
     uint32_t i,j;const campaign_npc_body *body=NULL;
-    for(i=0;i<campaign_seeds.records.count;i++)if(campaign_seeds.records.items[i].record.uid==(int32_t)uid)break;
-    if(i==campaign_seeds.records.count)return RF_NOT_FOUND;
+    if(!scene_seed_uid_find(uid,&i))return RF_NOT_FOUND;
     if(i<campaign_npc_body_count && campaign_npc_bodies){
         body=campaign_npc_bodies+i;
         if(body->persistence_registered && rf_scene_defeated_actors.items[body->persistence_slot].retired)return RF_NOT_FOUND;

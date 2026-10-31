@@ -59,7 +59,7 @@ static void scene_vehicle_attack_close(void)
 static int scene_vehicle_attack_seed(uint32_t uid,uint32_t *slot)
 {
     uint32_t found=0;
-    for(uint32_t i=0;i<campaign_seeds.records.count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){*slot=i;++found;}
+    found=scene_seed_uid_find(uid,slot);
     if(found!=1)return RF_NOT_FOUND;
     const rf_level_entity *record=&campaign_seeds.records.items[*slot].record;
     if(strcmp(record->class_name,"Fighter01"))return RF_NOT_FOUND;

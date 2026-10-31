@@ -1743,6 +1743,25 @@ static rf_level_owned_groups campaign_groups;
 static rf_group_runtime_collection campaign_group_runtime;
 static rf_group_registration campaign_group_registration;
 static rf_geometry_collision_movers campaign_movers;
+/* Port-owned broad phase: true when the swept segment start..start+delta
+ * passes farther than reach from center. A mover's pose radius bounds every
+ * face about its origin (rf_collision_vertex_bounds origin_radius), so any
+ * solid this rejects could not have produced a contact; results are unchanged. */
+static int scene_segment_misses_sphere(const float *start,const float *delta,const float center[3],float reach)
+{
+    double d2=0,t=0,dist2=0;uint32_t k;
+    if(!isfinite(reach) || reach<=0)return 0;
+    for(k=0;k<3;k++){d2+=(double)delta[k]*delta[k];t+=((double)center[k]-start[k])*delta[k];}
+    t=d2>0?t/d2:0;if(t<0)t=0;else if(t>1)t=1;
+    for(k=0;k<3;k++){double e=(double)start[k]+delta[k]*t-center[k];dist2+=e*e;}
+    return dist2>(double)reach*reach;
+}
+/* Mover i (campaign_movers) cannot be touched by this sweep of the given radius. */
+static int scene_mover_sweep_misses(uint32_t i,const float *start,const float *delta,float radius)
+{
+    return campaign_movers.poses && i<campaign_movers.count &&
+        scene_segment_misses_sphere(start,delta,campaign_movers.views[i].input_origin,campaign_movers.poses[i].radius*1.001f+radius+.01f);
+}
 #include "scene_mover_intervals.inc"
 static rf_group_registered_mover *campaign_mover_wrappers;
 static rf_level_uid_object *campaign_mover_objects;
@@ -1795,6 +1814,50 @@ static int campaign_passive_vehicle_detach(void *context,uint32_t handle);
 static uint32_t campaign_mover_count;
 static rf_entity_registry campaign_entities;
 static rf_entity_seeds campaign_seeds;
+/* Port-owned UID index over campaign_seeds.records: per-frame owner lookups
+ * scanned every record, often from inside a loop over every record (vehicle
+ * AI: records squared per update). Records are fixed for a level; the table
+ * is rebuilt whenever the record array or its count changes. Answers match
+ * the scans exactly: first matching index and the number of matches. */
+static struct {const void *items;uint32_t count,capacity;uint32_t *keys,*first,*matches;} scene_seed_uid_table;
+static uint32_t scene_seed_uid_slot(uint32_t uid,uint32_t mask)
+{return (uid*2654435761u)&mask;}
+static int scene_seed_uid_build(void)
+{
+    uint32_t n=campaign_seeds.records.count,capacity=16,i;
+    if(scene_seed_uid_table.items==(const void *)campaign_seeds.records.items && scene_seed_uid_table.count==n && scene_seed_uid_table.keys)return RF_OK;
+    while(capacity<2*n)capacity*=2;
+    if(capacity>scene_seed_uid_table.capacity){
+        uint32_t *keys=realloc(scene_seed_uid_table.keys,capacity*12u);if(!keys)return RF_IO;
+        scene_seed_uid_table.keys=keys;scene_seed_uid_table.capacity=capacity;
+    } else capacity=scene_seed_uid_table.capacity;
+    scene_seed_uid_table.first=scene_seed_uid_table.keys+capacity;scene_seed_uid_table.matches=scene_seed_uid_table.first+capacity;
+    memset(scene_seed_uid_table.matches,0,capacity*4u);
+    for(i=0;i<n;i++){
+        uint32_t uid=(uint32_t)campaign_seeds.records.items[i].record.uid,k=scene_seed_uid_slot(uid,capacity-1);
+        while(scene_seed_uid_table.matches[k] && scene_seed_uid_table.keys[k]!=uid)k=(k+1)&(capacity-1);
+        if(!scene_seed_uid_table.matches[k]){scene_seed_uid_table.keys[k]=uid;scene_seed_uid_table.first[k]=i;}
+        ++scene_seed_uid_table.matches[k];
+    }
+    scene_seed_uid_table.items=campaign_seeds.records.items;scene_seed_uid_table.count=n;return RF_OK;
+}
+/* Number of records with this UID; *first receives the lowest such index. */
+static uint32_t scene_seed_uid_find(uint32_t uid,uint32_t *first)
+{
+    uint32_t k,mask;
+    if(!campaign_seeds.records.items || !campaign_seeds.records.count)return 0;
+    if(scene_seed_uid_build()) {
+        uint32_t i,count=0;
+        for(i=0;i<campaign_seeds.records.count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){if(!count)*first=i;++count;}
+        return count;
+    }
+    mask=scene_seed_uid_table.capacity-1;k=scene_seed_uid_slot(uid,mask);
+    while(scene_seed_uid_table.matches[k]){
+        if(scene_seed_uid_table.keys[k]==uid){*first=scene_seed_uid_table.first[k];return scene_seed_uid_table.matches[k];}
+        k=(k+1)&mask;
+    }
+    return 0;
+}
 #include "scene_masako_seed.inc"
 #include "scene_turret_dependent_classes.inc"
 #include "scene_turret_models.inc"
@@ -6872,7 +6935,7 @@ static void campaign_close_movers(void)
         uint32_t actor;for(actor=0;actor<campaign_poses.count;++actor)if(campaign_poses.items[actor].skeleton!=UINT32_MAX)
             (void)rf_entity_pose_release(campaign_poses.items+actor,&campaign_playback_resources);
     }
-    rf_entity_seeds_close(&campaign_seeds);
+    rf_entity_seeds_close(&campaign_seeds);scene_seed_uid_table.items=NULL;
     (void)scene_turret_dependent_classes_close();
     rf_entity_poses_close(&campaign_poses);
     if(campaign_npc_motion_data){uint32_t i;for(i=0;i<campaign_npc_motion_count;++i)free(campaign_npc_motion_data[i]);free(campaign_npc_motion_data);}
@@ -19304,8 +19367,11 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     prestep_profile_mark(2,&prestep_clock);
     scene_vehicle_attack_player_sync(stream,1);
     scene_vehicle_ai_player_sync(stream,1);
+    {uint32_t t0=profile_clock&&profile_active?profile_clock():0;
     status=scene_vehicle_attack_tick(stream,frame);if(status)return status;
+    if(profile_clock&&profile_active){uint32_t t1=profile_clock();rf_scene_vehicle_ai_profile[0]+=t1-t0;t0=t1;}
     status=scene_vehicle_ai_tick(stream,frame);if(status)return status;
+    if(profile_clock&&profile_active){rf_scene_vehicle_ai_profile[1]+=profile_clock()-t0;++rf_scene_vehicle_ai_profile[7];}}
     scene_vehicle_loop_audio_end();
     prestep_profile_mark(3,&prestep_clock);
     status=scene_turret_player_tick(stream,frame);if(status)return status;
@@ -23521,7 +23587,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     campaign_seeds.classes[0]=campaign_seeds.classes[cls];campaign_seeds.classes[0].record_index=0;
     campaign_seeds.items[0].class_index=0;campaign_seeds.records.count=campaign_seeds.class_count=1;
     campaign_seeds.items[0].spawn.creation_flags=0;
-    campaign_seeds.records.items[0].record.uid=0x70000001;
+    campaign_seeds.records.items[0].record.uid=0x70000001;scene_seed_uid_table.items=NULL;
     campaign_seeds.records.items[0].record.position[0]=-4.97f;
     campaign_seeds.records.items[0].record.position[1]=-.4f;
     campaign_seeds.records.items[0].record.position[2]=5.5f;
@@ -23777,6 +23843,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"ctf06.rfl"))status=RF_FORMAT;
             else status=scene_dev_npc_seeds(tables_path,&tables);
         } else if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
+        scene_seed_uid_table.items=NULL; /* records (re)opened below */
         if(!status && collision && campaign_spawn)status=scene_masako_seeds_open(&campaign_seeds,level,2*1024*1024);
         if(!status && collision && campaign_spawn)status=scene_turret_dependent_classes_open(&campaign_seeds,&tables,2*1024*1024);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);

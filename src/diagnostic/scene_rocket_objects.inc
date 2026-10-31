@@ -35,6 +35,7 @@ static int scene_rocket_objects_sweep(scene_stream *s,const float start[3],const
     for(i=0;i<campaign_movers.count;i++) {
         const rf_collision_solid_view *solid=campaign_movers.views+i;
         rf_collision_sweep_room_hit hit;rf_collision_ray_hit world;
+        if(scene_mover_sweep_misses(i,start,delta,radius))continue;
         /* World queries carry bit4 (already local). Movers require their pose
          * transform; they also must not enter the world liquid-room branch. */
         status=rf_collision_solid_preferred(solid,NULL,flags&~0x1004u,start,delta,radius,

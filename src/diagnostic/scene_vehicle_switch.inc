@@ -45,9 +45,7 @@ static void scene_vehicle_switch_reset(void)
 {memset(rf_scene_vehicle_switch,0,sizeof(rf_scene_vehicle_switch));memset(rf_scene_vehicle_switch_apply,0,sizeof(rf_scene_vehicle_switch_apply));memset(rf_scene_vehicle_switch_history,0,sizeof(rf_scene_vehicle_switch_history));memset(rf_scene_vehicle_switch_wreck,0,sizeof(rf_scene_vehicle_switch_wreck));}
 static int scene_vehicle_switch_seed(uint32_t uid,uint32_t *index)
 {
-    uint32_t matches=0;
-    for(uint32_t i=0;i<campaign_seeds.records.count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){*index=i;++matches;}
-    return matches==1?RF_OK:RF_NOT_FOUND;
+    return scene_seed_uid_find(uid,index)==1?RF_OK:RF_NOT_FOUND;
 }
 /* The one supported occupied transfer is the original living authored Jeep
  * driver in slot0. Every word must agree with the real host and actor; no

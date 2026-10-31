@@ -109,6 +109,7 @@ static int scene_ai_laser_sweep(void *context,const float *start,const float *de
         if(*matched){out->hit=world.hit;out->room=world.room;out->face=world.face;out->object=UINT32_MAX;}
         for(i=0;i<campaign_movers.count;i++){
             const rf_collision_solid_view *solid=campaign_movers.views+i;rf_collision_sweep_room_hit local;rf_collision_ray_hit hit;
+            if(scene_mover_sweep_misses(i,start,delta,radius))continue;
             status=rf_collision_solid_preferred(solid,NULL,flags&~0x1004u,start,delta,radius,*matched?out->hit.fraction:1,&local,&found);if(status)return status;
             if(!found || (*matched && local.tree.hit.fraction>=out->hit.fraction))continue;
             status=rf_collision_contact_world(&local.tree.hit,solid->output_origin,solid->output_matrix,&hit);if(status)return status;

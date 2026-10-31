@@ -64,7 +64,7 @@ static int scene_vehicle_ai_owner_read(scene_stream *s,uint32_t uid,scene_vehicl
 {
     scene_vehicle_ai_owner v={0};uint32_t count=0,cls;int32_t weapons[2];int status;
     if(!s||!out)return RF_RANGE;
-    for(uint32_t i=0;i<campaign_seeds.records.count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){v.slot=i;++count;}
+    count=scene_seed_uid_find(uid,&v.slot);
     if(count!=1)return RF_NOT_FOUND;
     const rf_level_owned_entity *record=campaign_seeds.records.items+v.slot;
     v.profile=!strcmp(record->record.class_name,"APC")?2:!strcmp(record->record.class_name,"sub")?4:!strcmp(record->record.class_name,"Fighter01")?5:
@@ -238,11 +238,11 @@ static int scene_vehicle_ai_flights(scene_stream *s,scene_vehicle_ai_state *a,ui
 }
 static uint32_t scene_vehicle_ai_source_admits(uint32_t uid)
 {
-    for(uint32_t i=0;i<campaign_seeds.records.count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){
+    {uint32_t i;if(scene_seed_uid_find(uid,&i)){
         const rf_level_owned_entity *r=campaign_seeds.records.items+i;rf_level_entity_ai ai;
         if(strcmp(r->record.class_name,"APC")&&strcmp(r->record.class_name,"sub")&&strcmp(r->record.class_name,"Fighter01")&&strcmp(r->record.class_name,"masako_fighter"))return 0;
         return !rf_level_entity_ai_read(r,&ai)&&ai.enabled&&ai.mode==1;
-    }
+    }}
     return 0;
 }
 static int scene_vehicle_ai_claim(scene_stream *s,const scene_vehicle_ai_owner *owner)
@@ -361,6 +361,10 @@ static int scene_vehicle_ai_fire(scene_stream *s,scene_vehicle_ai_state *a,const
      status=scene_projectile_trail_start(s,SCENE_TRAIL_VEHICLE_AI,a->trail_id*4+slot,weapon,&a->missiles[slot].flight,basis,frame);if(status)return status;}
     combat_sound(a->profile==4?"TorpedoLaunch":"Fighter Rocket Launch",launch+9);return RF_OK;
 }
+/* ms totals: attack tick, AI tick, AI flights, AI visibility, AI acquire,
+ * AI fire, owner reads; [7] profiled updates. */
+uint32_t rf_scene_vehicle_ai_profile[8];
+#define VEHICLE_AI_TIME(row,expr) do{uint32_t vt0_=profile_clock&&profile_active?profile_clock():0;expr;if(profile_clock&&profile_active)rf_scene_vehicle_ai_profile[row]+=profile_clock()-vt0_;}while(0)
 static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
 {
     if(!frame||!scene_vehicle_ai_ready)return RF_OK;
@@ -369,7 +373,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
     for(uint32_t i=0;i<campaign_seeds.records.count;i++){
         uint32_t uid=(uint32_t)campaign_seeds.records.items[i].record.uid;scene_vehicle_ai_owner owner;int status;
         if(!scene_vehicle_ai_source_admits(uid))continue;
-        status=scene_vehicle_ai_owner_read(s,uid,&owner);if(status==RF_NOT_FOUND)continue;if(status)return status;
+        VEHICLE_AI_TIME(6,status=scene_vehicle_ai_owner_read(s,uid,&owner));if(status==RF_NOT_FOUND)continue;if(status)return status;
         scene_vehicle_ai_state *a=scene_vehicle_ai_find(owner.handle);
         if(!a){
             if(!owner.allowed||!owner.mask||scene_vehicle_switch_parked_uid(uid))continue;
@@ -389,7 +393,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
         if(a->target!=UINT32_MAX){uint32_t kind,uid;
             if(scene_vehicle_attack_target_key(a->target,&kind,&uid)||kind!=a->target_kind||uid!=a->target_uid)scene_vehicle_ai_cancel(a->handle);
         }
-        status=scene_vehicle_ai_flights(s,a,frame);if(status)return status;
+        VEHICLE_AI_TIME(2,status=scene_vehicle_ai_flights(s,a,frame));if(status)return status;
         scene_secondary_vehicle_runtime *motion=owner.selected?NULL:scene_secondary_vehicle_find(owner.handle);
         uint32_t route=owner.selected?campaign_vehicle_route.active:motion&&motion->route.active;
         uint32_t chase=route&&(owner.selected?campaign_vehicle_route.pursuit==2:motion->route.kind==SCENE_SECONDARY_ORDER_PLAYER);
@@ -413,7 +417,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
             if(!scene_vehicle_attack_target(a->target,point,&hull)||!scene_vehicle_ai_target_affiliation(a->target,&affiliation)||
                !scene_vehicle_ai_opposed(owner.affiliation,affiliation))scene_vehicle_ai_cancel(a->handle);
             else{
-                status=scene_vehicle_ai_visible(s,&owner,a->target,0,point,&distance,&visible);if(status)return status;
+                VEHICLE_AI_TIME(3,status=scene_vehicle_ai_visible(s,&owner,a->target,0,point,&distance,&visible));if(status)return status;
                 if(visible)a->unseen_seconds=0;else a->unseen_seconds+=scene_step_seconds;
                 status=rf_entity_ai_blind_pursuit_expired(a->unseen_seconds,0,scene_vehicle_ai_blind_seconds[scene_vehicle_ai_blind_index(a->profile)],0,0,&expired);if(status)return status;
                 if(expired)scene_vehicle_ai_cancel(a->handle);
@@ -422,8 +426,8 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
         scene_vehicle_attack_state *attack=scene_vehicle_attack_find(owner.handle);
         if(attack)a->primary_reserve=attack->reserve;
         if(!a->engaged&&!a->scan_ticks){a->scan_ticks=27; /* Original normal difficulty450ms. */
-            status=scene_vehicle_ai_acquire(s,a,&owner);if(status)return status;}
-        status=scene_vehicle_ai_fire(s,a,&owner,frame);if(status)return status;
+            VEHICLE_AI_TIME(4,status=scene_vehicle_ai_acquire(s,a,&owner));if(status)return status;}
+        VEHICLE_AI_TIME(5,status=scene_vehicle_ai_fire(s,a,&owner,frame));if(status)return status;
         if(attack)attack->reserve=a->primary_reserve;
         if(owner.selected){if(owner.profile==2)s->apc_primary.reserve=a->primary_reserve;else if(owner.profile==4)s->submarine_weapon.reserve=a->missile_reserve;
             else{s->fighter_weapon.primary_reserve=a->primary_reserve;s->fighter_weapon.rocket_reserve=a->missile_reserve;}}

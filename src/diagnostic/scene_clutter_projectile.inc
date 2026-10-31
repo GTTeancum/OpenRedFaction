@@ -12,10 +12,11 @@ static int scene_clutter_projectile_compose(uint32_t source,const float start[3]
         uint32_t accepted;float limit=*matched?out->hit.fraction:1;
         if(!owner||owner->state.handle==source||(owner->state.flags&(2u|0x4000u))||
            !owner->state.definition||!(owner->state.definition->flags&6u))continue;
-        if(rf_object_registry_lookup(&campaign_registry,owner->state.handle)!=&owner->state)continue;
         bounds=owner->body.state.bounds;
         for(j=0;j<3;j++){bounds.minimum[j]-=radius;bounds.maximum[j]+=radius;}
+        /* Cheap box rejection first; both are pure filters. */
         if(!combat_box(start,delta,&bounds,limit,&broad))continue;
+        if(rf_object_registry_lookup(&campaign_registry,owner->state.handle)!=&owner->state)continue;
         memcpy(query.input.start,start,12);memcpy(query.input.displacement,delta,12);
         memcpy(query.input.origin,owner->state.position,12);memcpy(query.input.matrix,owner->matrix,36);query.input.radius=radius;
         status=rf_scene_clutter_collision_query(owner->state.handle,&query,&hit,1,&accepted);if(status)return status;

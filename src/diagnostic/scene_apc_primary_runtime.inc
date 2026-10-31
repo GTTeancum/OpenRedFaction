@@ -78,6 +78,7 @@ static int scene_apc_primary_sweep_all(void *context,const float *start,const fl
     if(*matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
     for(i=0;i<campaign_movers.count;i++){
         const rf_collision_solid_view *solid=campaign_movers.views+i;rf_collision_sweep_room_hit local;rf_collision_ray_hit world;
+        if(scene_mover_sweep_misses(i,start,delta,radius))continue;
         status=rf_collision_solid_preferred(solid,NULL,flags&~0x1004u,start,delta,radius,*matched?out->hit.fraction:1,&local,&found);if(status)return status;
         if(!found || (*matched && local.tree.hit.fraction>=out->hit.fraction))continue;
         status=rf_collision_contact_world(&local.tree.hit,solid->output_origin,solid->output_matrix,&world);if(status)return status;
