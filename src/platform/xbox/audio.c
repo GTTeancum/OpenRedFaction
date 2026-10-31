@@ -30,6 +30,14 @@ static struct {
 volatile uint32_t rf_xbox_music_diagnostic[12];
 extern void *g_hw_ac97_buffer;
 uint32_t rf_xbox_audio_diagnostic[12],rf_xbox_audio_close_phase;
+/* Main-thread time in sound calls, in 1024-cycle units (~1.4 us): play,
+ * stop, poll, and the longest single play or stop. nxAudioVoiceDestroy spins
+ * until the APU reports the voice idle, so replacing or stopping a voice
+ * stalls the game thread. */
+uint32_t rf_xbox_audio_time[4];
+static inline uint64_t audio_clock(void){uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;}
+static void audio_time(uint32_t row,uint64_t start)
+{uint32_t spent=(uint32_t)((audio_clock()-start)>>10);rf_xbox_audio_time[row]+=spent;if(row<2 && spent>rf_xbox_audio_time[3])rf_xbox_audio_time[3]=spent;}
 uint16_t rf_xbox_audio_snapshot[4096];
 static int ordinary_gain(audio_slot *slot)
 {
@@ -132,8 +140,8 @@ int rf_xbox_audio_release_voice(uint32_t handle)
     uint32_t i;
     if(!initialized)return RF_NOT_FOUND;
     for(i=0;i<VOICES;i++)if(slots[i].created && slots[i].handle==handle) {
-        if(!nxAudioVoiceStop(&slots[i].voice) || !stopped(&slots[i].voice,1000))return RF_IO;
-        nxAudioVoiceDestroy(&slots[i].voice);memset(slots+i,0,sizeof(slots[i]));
+        if(!nxAudioVoiceStop(&slots[i].voice))return RF_IO;
+        nxAudioVoiceDestroy(&slots[i].voice); /* waits for the APU to idle the voice */memset(slots+i,0,sizeof(slots[i]));
         paused_slots&=~(1u<<i);return RF_OK;
     }
     return RF_NOT_FOUND;
@@ -347,18 +355,21 @@ fail:
     if(slot->created){nxAudioVoiceDestroy(&slot->voice);memset(slot,0,sizeof(*slot));}
     return RF_IO;
 }
+static int play_mode_timed(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right,uint32_t looping)
+{uint64_t start=audio_clock();int status=play_mode(context,handle,pcm,left,right,looping);audio_time(0,start);return status;}
 static void play(void *context,uint32_t handle,const rf_wave_pcm *pcm,float left,float right)
-{(void)play_mode(context,handle,pcm,left,right,0);}
+{(void)play_mode_timed(context,handle,pcm,left,right,0);}
 static void stop(void *context,uint32_t handle)
 {
-    int status;(void)context;
-    status=rf_xbox_audio_release_voice(handle);
+    int status;uint64_t start=audio_clock();(void)context;
+    status=rf_xbox_audio_release_voice(handle);audio_time(1,start);
     if(status==RF_OK)++rf_xbox_audio_diagnostic[2];
     else if(status!=RF_NOT_FOUND)++rf_xbox_audio_diagnostic[3];
 }
 static void poll(void *context)
 {
     uint32_t i,active=0,nonzero=0;const volatile int16_t *output=g_hw_ac97_buffer;
+    uint64_t start=audio_clock();
     (void)context;if(!initialized)return;
     if(audio_gain_pending)(void)apply_options();
     for(i=0;i<VOICES;i++)if(slots[i].created && nxAudioVoiceGetState(&slots[i].voice)!=NX_STOPPED)++active;
@@ -370,6 +381,7 @@ static void poll(void *context)
             rf_xbox_audio_diagnostic[5]=nonzero;
         }
     }
+    audio_time(2,start);
 }
 static void gain(void *context,uint32_t handle,float left,float right)
 {
@@ -394,4 +406,4 @@ static uint32_t playing(void *context,uint32_t handle)
 static void reset(void *context){(void)context;rf_xbox_audio_close();}
 static int release_idle_sample(void *context,const uint8_t *samples)
 {(void)context;return rf_xbox_audio_release_idle_sample(samples);}
-const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain,play_mode,release_idle_sample,playing,music_poll};
+const rf_scene_audio_events rf_xbox_audio_events={play,stop,poll,reset,gain,play_mode_timed,release_idle_sample,playing,music_poll};
