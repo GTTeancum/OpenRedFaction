@@ -17658,6 +17658,7 @@ static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float
 static int scene_remote_selection_after_world(scene_stream *,uint32_t,uint32_t,uint32_t *);
 static void scene_remote_hud_counts(uint32_t *ready,uint32_t *pending);
 #include "scene_clutter_precision.inc"
+#include "scene_player_muzzle.inc"
 #include "scene_rail_trail.inc"
 #include "scene_precision_gameplay.inc"
 #include "scene_handheld_penetration.inc"
@@ -18232,12 +18233,25 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(!fire)return RF_OK;
     /* Keep this real shot's player generation across launch/audio callbacks. */
     accepted_source=campaign_player_object.handle;accepted_epoch=scene_continuous_charge_runtime.epoch;
+    memcpy(scene_fire_basis,orientation,36);
     if(campaign_equipped_slot==4) {
         for(i=0;i<SCENE_ROCKETS && stream->rockets[i].active;i++);
         if(i==SCENE_ROCKETS){++rf_scene_rockets[6];return RF_OK;}
         scene_projectile_flight_audio_stop(SCENE_FLIGHT_AUDIO_PLAYER_ROCKET,i);
-        status=rf_weapon_flight_launch(stream->rockets+i,position,orientation[2],campaign_rocket.speed,
-            campaign_rocket.lifetime,campaign_rocket.collision_radius);
+        /* 425dab: not from_eye, so the rocket leaves the Muzzle_1 barrel point,
+         * aimed at where the eye ray lands (port: within 1000 units). */
+        {float muzzle[3],aim[3],path[3],heading[3],length=0;uint32_t k;
+         for(k=0;k<3;k++)path[k]=orientation[2][k]*1000.0f;
+         memcpy(heading,orientation[2],12);
+         if(scene_player_muzzle_world(position,muzzle)) {
+             scene_player_aim_point(stream,position,path,aim);
+             for(k=0;k<3;k++){heading[k]=aim[k]-muzzle[k];length+=heading[k]*heading[k];}
+             length=sqrtf(length);
+             if(length>.5f && isfinite(length))for(k=0;k<3;k++)heading[k]/=length;
+             else memcpy(heading,orientation[2],12);
+         }
+         status=rf_weapon_flight_launch(stream->rockets+i,muzzle,heading,campaign_rocket.speed,
+            campaign_rocket.lifetime,campaign_rocket.collision_radius);}
         stream->rocket_liquid[i].query_flags=0x1004u|(campaign_rocket.collision_radius<.05f?0x100u:0);
         memcpy(stream->rocket_basis[i],orientation,36);
         rf_scene_rockets[7]=(uint32_t)status;if(status)return scene_player_failure_return(status,__LINE__,frame);
@@ -18339,6 +18353,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
      * weapons never make tracers, 4c785f/48aa30). Riot reach stays instant. */
     round.body_shot=body_shot;round.handheld=handheld;round.fire=fire;round.pellet=pellet;
     memcpy(round.origin,position,12);
+    if(body_shot.slot!=2 && pellet==0){memcpy(scene_fire_basis,orientation,36);scene_player_tracer_start(stream,body_shot.weapon,position,delta);}
     if(body_shot.slot==2 || scene_player_round_launch(&round,body_shot.weapon,delta)!=RF_OK) {
         memcpy(round.path,delta,12);
         if(handheld.enabled){status=scene_sniper_penetration_begin(handheld.enabled,handheld.power,position,delta,&round.penetration);if(status)return status;}
@@ -22040,7 +22055,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
     uint32_t batch,k,start=stream->mesh->count;int status;
     memset(rf_scene_player_weapon_view,0,sizeof(rf_scene_player_weapon_view));
-    rf_scene_player_weapon[7]=0;rf_scene_player_weapon_view[0]=frame+1;
+    rf_scene_player_weapon[7]=0;rf_scene_player_weapon_view[0]=frame+1;scene_player_muzzle_slot=UINT32_MAX;
     rf_scene_player_weapon_view[1]=(uint32_t)campaign_slot_weapon(campaign_equipped_slot);
     rf_scene_player_weapon_view[2]=view_slot;
     if(scene_turret_player_active())return RF_OK;
@@ -22048,6 +22063,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     if(scene_player_weapon_holstered() || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)] || !w)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
     status=scene_player_weapon_view_prepare(w,&view,&projection);if(status)goto done;
+    scene_player_muzzle_update(stream,w,&view,view_slot);
     memcpy(rf_scene_player_weapon_view+3,w->position,12);
     memcpy(rf_scene_player_weapon_view+6,&w->fov,4);
     memcpy(rf_scene_player_weapon_view+7,view.camera,12);
@@ -22721,7 +22737,7 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
     if(campaign_endgame.credits)return RF_OK;
     if(!stream || !campaign_spawn || !stream->particle_workspace)return RF_OK;
     /* Fresh owners have no room or samples before the first room refresh. */
-    if(!campaign_glare_rooms){++rf_scene_corona_draw[0];return scene_rail_trail_draw(stream,sink,context);}
+    if(!campaign_glare_rooms){++rf_scene_corona_draw[0];status=scene_rail_trail_draw(stream,sink,context);return status?status:scene_player_tracers_draw(stream,sink,context);}
     c.stream=stream;c.sink=sink;c.context=context;
     rf_scene_corona_draw[6]=0;
     if(rf_scene_diagnostic_checksums_enabled || rf_scene_volume_test_enabled) {
@@ -22731,7 +22747,8 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
     views[0]=&stream->particle_camera;
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
     if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];
-    if(!status)status=scene_rail_trail_draw(stream,sink,context);return status;
+    if(!status)status=scene_rail_trail_draw(stream,sink,context);
+    if(!status)status=scene_player_tracers_draw(stream,sink,context);return status;
 }
 #include "scene_moving_support_test.inc"
 #include "scene_event_gameplay.inc"
@@ -22885,7 +22902,6 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         }
         status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
         status=scene_tracers_draw(stream);if(status)return status;
-        status=scene_player_tracers_draw(stream);if(status)return status;
         status=scene_submarine_weapon_draw(stream);if(status)return status;
         status=scene_fighter_weapon_draw(stream);if(status)return status;
         status=scene_vehicle_attack_draw(stream);if(status)return status;

@@ -239,6 +239,9 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_tracers[8];RAM_ARRAY(rf_scene_tracers,8);}
     {extern uint32_t rf_scene_player_tracer_stats[4];RAM_ARRAY(rf_scene_player_tracer_stats,4);}
     {extern uint32_t rf_scene_rail_trail[4];RAM_ARRAY(rf_scene_rail_trail,4);}
+    {extern uint32_t rf_scene_beam_draws[4];RAM_ARRAY(rf_scene_beam_draws,4);}
+    {extern uint32_t rf_scene_player_muzzle[4];RAM_ARRAY(rf_scene_player_muzzle,4);}
+    {extern float rf_scene_player_muzzle_point[8];RAM_ARRAY(rf_scene_player_muzzle_point,8);}
     {extern uint32_t rf_scene_npc_round_kinds[4];RAM_ARRAY(rf_scene_npc_round_kinds,4);}
     {extern uint32_t rf_scene_rail_scope[8];RAM_ARRAY(rf_scene_rail_scope,8);}
     {extern uint32_t rf_scene_crash_enemy_state[12];RAM_ARRAY(rf_scene_crash_enemy_state,12);}

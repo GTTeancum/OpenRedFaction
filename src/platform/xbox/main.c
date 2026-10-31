@@ -1635,6 +1635,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     {extern uint32_t rf_scene_ripple_test_enabled;FILE *ripple_flag=fopen("D:\\ripple-test.flag","rb");
      rf_scene_ripple_test_enabled=ripple_flag!=NULL;if(ripple_flag)fclose(ripple_flag);}
     stream_flag=fopen("D:\\vehicle-test.flag","rb");rf_scene_vehicle_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4' || mode=='5')rf_scene_vehicle_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
+    {extern uint32_t rf_scene_tracer_hold;FILE *hold=fopen("D:\\tracer-hold.flag","rb");rf_scene_tracer_hold=hold!=NULL;if(hold)fclose(hold);}
     {extern uint32_t rf_scene_dev_start_slot;FILE *slot=fopen("D:\\dev-slot.bin","rb");rf_scene_dev_start_slot=0;
      if(slot){int invalid=fread(&rf_scene_dev_start_slot,4,1,slot)!=1 || fgetc(slot)!=EOF || rf_scene_dev_start_slot>18;fclose(slot);if(invalid)return RF_FORMAT;}}
     stream_flag=fopen("D:\\firearms-test.flag","rb");rf_scene_firearms_enabled=0;if(stream_flag){int mode=fgetc(stream_flag);fclose(stream_flag);if(mode<'1' || mode>'4')return RF_FORMAT;rf_scene_firearms_enabled=(uint32_t)(mode-'0');}

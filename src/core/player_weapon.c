@@ -90,7 +90,7 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
         /* Muzzle_1 (5a0ea0); compared without case, as authored tag names vary in case. */
         if(!w->has_muzzle && tag.parent>=0 && (uint32_t)tag.parent<w->bone_count) {
             const char *a=tag.name,*b="muzzle_1";
-            while(*a && *b && (*a|0x20)==*b){++a;++b;}
+            while(*a && *b && (*a>='A' && *a<='Z'?*a+32:*a)==*b){++a;++b;}
             if(!*a && !*b){w->muzzle_tag=tag;w->has_muzzle=1;}
         }
      }
