@@ -3,7 +3,7 @@
 void rf_settings_defaults(rf_settings *s)
 {
     memset(s,0,sizeof(*s));
-    s->frame_rate=RF_FRAME_RATE_60;s->fallback=RF_FRAME_RATE_30_SMOOTH;s->smooth_characters=1;s->flicker_filter=UINT32_MAX;s->compressed_textures=1;s->resolution=480;s->color_depth=0;
+    s->frame_rate=RF_FRAME_RATE_60;s->fallback=RF_FRAME_RATE_30_SMOOTH;s->smooth_characters=1;s->flicker_filter=UINT32_MAX;s->compressed_textures=1;s->resolution=480;s->color_depth=0;s->player_tracers=1;
 }
 static int lower(int c){return c>='A' && c<='Z'?c-'A'+'a':c;}
 static int same(const char *a,uint32_t n,const char *b)
@@ -58,6 +58,10 @@ void rf_settings_parse(rf_settings *s,const char *text,uint32_t bytes)
         } else if(same(key,kn,"textures")) {
             if(same(value,vn,"compressed"))s->compressed_textures=1;
             else if(same(value,vn,"original"))s->compressed_textures=0;
+            else ++s->invalid;
+        } else if(same(key,kn,"tracers")) {
+            if(same(value,vn,"on"))s->player_tracers=1;
+            else if(same(value,vn,"off"))s->player_tracers=0;
             else ++s->invalid;
         } else if(same(key,kn,"flicker_filter")) {
             if(same(value,vn,"auto"))s->flicker_filter=UINT32_MAX;

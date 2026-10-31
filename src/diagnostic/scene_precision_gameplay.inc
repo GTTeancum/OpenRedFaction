@@ -239,6 +239,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
     else {for(i=0;i<3;i++)round.path[i]=forward[i]*100.0f;++rf_scene_precision_rounds[2];}
     if(!rail){status=scene_sniper_penetration_begin(campaign_pistol.piercing_enabled,
         campaign_pistol.piercing_power,round.origin,round.path,&round.sniper);if(status)return status;}
+    if(rail)scene_rail_trail_fire(stream,weapon,position,round.path);
     if(!r)return scene_precision_step(stream,frame,&round,0,1,&done);
     round.active=1;*r=round;++rf_scene_precision_rounds[0];return RF_OK;
 }

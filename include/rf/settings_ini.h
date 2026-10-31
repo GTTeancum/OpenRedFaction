@@ -13,6 +13,8 @@
  *             auto     60 while it keeps up, otherwise the fallback below
  * fallback:   30_smooth | 30 | none   (used by auto; none keeps dropping pictures)
  * smooth_characters: on | off  move characters and vehicles in in-between pictures
+ * tracers:   on | off  tracer streaks on the player's own shots, for weapons
+ *             whose weapons.tbl entry has $Tracers (the original draws none)
  * flicker_filter: auto | 0..5  TV encoder vertical blur (auto: 0 progressive, 2 interlaced)
  * textures: compressed | original  use the DXT texture pack (rfdds.vpp) when present
  * resolution: 480 | 720 | auto  720 needs the dashboard's 720p setting; the
@@ -23,6 +25,7 @@ enum { RF_FRAME_RATE_60, RF_FRAME_RATE_30, RF_FRAME_RATE_30_SMOOTH, RF_FRAME_RAT
 typedef struct rf_settings {
     uint32_t frame_rate,fallback,smooth_characters,flicker_filter; /* flicker: 0..5, or UINT32_MAX auto */
     uint32_t compressed_textures,resolution; /* resolution: 480, 720, or 0 auto */
+    uint32_t player_tracers; /* 1: player shots draw tracers like NPC rounds */
     uint32_t color_depth; /* 32, 16 (R5G6B5 frame buffers, dithered), or 0 auto: 16 at 720p, 32 at 480 */
     uint32_t unknown,invalid; /* ignored lines, for the RAM log */
 } rf_settings;

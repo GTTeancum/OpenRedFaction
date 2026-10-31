@@ -112,6 +112,7 @@ static void pacing_settings_load(void)
     rf_settings_defaults(&xbox_settings);
     if(f){n=(uint32_t)fread(text,1,sizeof(text),f);fclose(f);rf_settings_parse(&xbox_settings,text,n);}
     rf_xbox_pacing[7]=xbox_settings.unknown|(xbox_settings.invalid<<16);
+    {extern uint32_t rf_scene_player_tracers;rf_scene_player_tracers=xbox_settings.player_tracers;}
 }
 /* Start a paced session in the configured mode. Recorded input is consumed
  * one record per update, so a harness disc without openrf.ini stays at 60. */
@@ -1634,6 +1635,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     {extern uint32_t rf_scene_ripple_test_enabled;FILE *ripple_flag=fopen("D:\\ripple-test.flag","rb");
      rf_scene_ripple_test_enabled=ripple_flag!=NULL;if(ripple_flag)fclose(ripple_flag);}
     stream_flag=fopen("D:\\vehicle-test.flag","rb");rf_scene_vehicle_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode=='2' || mode=='3' || mode=='4' || mode=='5')rf_scene_vehicle_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
+    {extern uint32_t rf_scene_dev_start_slot;FILE *slot=fopen("D:\\dev-slot.bin","rb");rf_scene_dev_start_slot=0;
+     if(slot){int invalid=fread(&rf_scene_dev_start_slot,4,1,slot)!=1 || fgetc(slot)!=EOF || rf_scene_dev_start_slot>18;fclose(slot);if(invalid)return RF_FORMAT;}}
     stream_flag=fopen("D:\\firearms-test.flag","rb");rf_scene_firearms_enabled=0;if(stream_flag){int mode=fgetc(stream_flag);fclose(stream_flag);if(mode<'1' || mode>'4')return RF_FORMAT;rf_scene_firearms_enabled=(uint32_t)(mode-'0');}
     stream_flag=fopen("D:\\fusion-test.flag","rb");rf_scene_fusion_enabled=stream_flag!=NULL;if(stream_flag)fclose(stream_flag);
     stream_flag=fopen("D:\\dev-npc.flag","rb");rf_scene_dev_npc_enabled=stream_flag!=NULL;if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2' && mode<='9')rf_scene_dev_npc_enabled=(uint32_t)(mode-'0');else if(mode>='A' && mode<='C')rf_scene_dev_npc_enabled=(uint32_t)(mode-'A'+10);fclose(stream_flag);}

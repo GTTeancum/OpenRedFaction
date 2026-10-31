@@ -134,6 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
+    parser.add_argument('--dev-slot', type=int, choices=range(18), help='Developer room starts holding this weapon slot (0 pistol .. 10 flamethrower)')
     parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner','live'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
@@ -266,7 +267,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -471,6 +472,7 @@ def main():
         if args.dev_vehicle: (disc / 'vehicle-test.flag').write_text(str(args.dev_vehicle))
         if args.dev_npc: (disc / 'dev-npc.flag').write_text(args.dev_npc)
         if args.firearms: (disc / 'firearms-test.flag').write_text(str(args.firearms))
+        if args.dev_slot is not None: (disc / 'dev-slot.bin').write_bytes(struct.pack('<I', args.dev_slot + 1))
         if args.actor is not None and args.distance is None:
             (disc / 'campaign-actor.bin').write_bytes(struct.pack('<I',args.actor))
         if args.loadout:
@@ -499,7 +501,14 @@ def main():
         if args.target == 'hardware':
             import xbox_hw
             remote = 'E:' + chr(92) + 'RFCrash' + chr(92)
-            sent = xbox_hw.sync_disc(args.xbox_host, disc, remote, ROOT/'build/xbox/hardware-sync.json')
+            try:
+                sent = xbox_hw.sync_disc(args.xbox_host, disc, remote, ROOT/'build/xbox/hardware-sync.json')
+            except RuntimeError as e:
+                # A title still running from the last session holds its run files open
+                # (xbdm 413); reboot to the dashboard and copy once more.
+                if '413' not in str(e): raise
+                xbox_hw.reboot(args.xbox_host)
+                sent = xbox_hw.sync_disc(args.xbox_host, disc, remote, ROOT/'build/xbox/hardware-sync.json')
             result['hardware'] = {'host': args.xbox_host, 'folder': remote, 'bytes_sent': sent}
             reader_path=ROOT/'tools/vendor/openjkdf2/poll_xemu_ram_log.py'
             spec=importlib.util.spec_from_file_location('jkdf2_ram_log',reader_path)

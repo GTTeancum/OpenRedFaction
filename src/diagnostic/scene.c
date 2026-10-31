@@ -780,7 +780,7 @@ typedef struct scene_particle_workspace {
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 #include "scene_player_rocket_lock_types.inc"
-uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
+uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled,rf_scene_dev_start_slot;
 uint32_t rf_scene_crash_loadout;
 uint32_t rf_scene_crash_aim,rf_scene_crash_aim_uid;
 float rf_scene_crash_aim_point[3];
@@ -17658,6 +17658,7 @@ static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float
 static int scene_remote_selection_after_world(scene_stream *,uint32_t,uint32_t,uint32_t *);
 static void scene_remote_hud_counts(uint32_t *ready,uint32_t *pending);
 #include "scene_clutter_precision.inc"
+#include "scene_rail_trail.inc"
 #include "scene_precision_gameplay.inc"
 #include "scene_handheld_penetration.inc"
 #include "scene_player_rounds.inc"
@@ -17951,6 +17952,9 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
     if(!frame && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)campaign_select_primary(12);
     if(!frame && !campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)campaign_select_primary(12+rf_scene_firearms_enabled);
+    /* Developer start weapon (dev-slot.bin): slot+1, an owned developer slot. */
+    if(!frame && !campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_dev_start_slot && scene_weapon_available(rf_scene_dev_start_slot-1))
+        campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
@@ -19271,6 +19275,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     scene_vehicle_ai_player_sync(stream,0);
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
     status=scene_player_rounds_tick(stream,frame);if(status)return status;
+    scene_player_tracers_tick();scene_rail_trail_tick();
     status=scene_npc_rounds_tick(stream,frame);if(status)return status;
     status=scene_precision_rounds_tick(stream,frame);if(status)return status;
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
@@ -22716,7 +22721,7 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
     if(campaign_endgame.credits)return RF_OK;
     if(!stream || !campaign_spawn || !stream->particle_workspace)return RF_OK;
     /* Fresh owners have no room or samples before the first room refresh. */
-    if(!campaign_glare_rooms){++rf_scene_corona_draw[0];return RF_OK;}
+    if(!campaign_glare_rooms){++rf_scene_corona_draw[0];return scene_rail_trail_draw(stream,sink,context);}
     c.stream=stream;c.sink=sink;c.context=context;
     rf_scene_corona_draw[6]=0;
     if(rf_scene_diagnostic_checksums_enabled || rf_scene_volume_test_enabled) {
@@ -22725,7 +22730,8 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
     ++rf_scene_corona_draw[0];
     views[0]=&stream->particle_camera;
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
-    if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
+    if(c.snapshot_owned)free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];
+    if(!status)status=scene_rail_trail_draw(stream,sink,context);return status;
 }
 #include "scene_moving_support_test.inc"
 #include "scene_event_gameplay.inc"
@@ -22879,6 +22885,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         }
         status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
         status=scene_tracers_draw(stream);if(status)return status;
+        status=scene_player_tracers_draw(stream);if(status)return status;
         status=scene_submarine_weapon_draw(stream);if(status)return status;
         status=scene_fighter_weapon_draw(stream);if(status)return status;
         status=scene_vehicle_attack_draw(stream);if(status)return status;
@@ -24316,6 +24323,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         status=scene_tracer_visual_open(&archive,maps,map_count,materials);if(status)goto done;
         status=scene_rail_scope_open(maps,map_count);if(status)goto done;
+        status=scene_rail_trail_open(maps,map_count);if(status)goto done;
         if((rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4) ||
            (campaign_spawn && !strcmp(level->entry.name,"L1S1.rfl")) ||
            (campaign_spawn && !rf_scene_dev_room_enabled && rf_scene_vehicle_enabled==1 &&
@@ -24677,7 +24685,7 @@ done:
     scene_script_explode_optional_unbind(stream);
     scene_weapon_impact_visual_reset(stream,0);
     rf_level_particles_close(&stream->particles);
-    scene_weapon_impact_visual_resources_close();
+    scene_weapon_impact_visual_resources_close();scene_rail_trail_close();
     scene_turret_death_effects_close();
     scene_script_explode_effects_close();
     scene_play_vclip_close();

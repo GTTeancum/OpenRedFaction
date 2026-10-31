@@ -173,6 +173,11 @@ static void scene_weapon_impact_visual_open(rf_vpp *tables,rf_vpp *maps,uint32_t
         status=scene_weapon_impact_visual_profile_read(text,entry.size,scene_weapon_impact_visual_names[i],v->profiles+weapon);
         if(status)goto done;
     }
+    /* Port stand-in: rail_gun's authored "rail_rifle_hit" clip is outside this
+     * FGatE family, so its world impact uses the big spark until that clip
+     * is reconstructed. */
+    {int32_t rail=rf_weapon_name_find(weapons,"rail_gun");
+     if(rail>=0 && rail<64){v->profiles[rail].count=1;v->profiles[rail].kinds[0]=2;v->profiles[rail].radii[0]=.3f;}}
     free(text);text=NULL;
     for(i=0;i<3;i++){
         rf_vclip_definition clip;rf_explosion_definition *d=v->definitions+i;
