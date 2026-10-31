@@ -1,5 +1,12 @@
 /* Private renderer implementation; included once after vertex_program(). */
-#define RETAINED_MODEL_LIMIT 128u
+/* Cached geometry batches, queued draws per frame, and skinned draws per
+ * frame (each needs a 150-row bone palette). A whole-map view (ctf06 from
+ * the fighter) queues well over 128 prop/pickup draws; overflow used to fall
+ * back to the CPU transform path at ~0.2 ms per batch on hardware. Rigid
+ * draws carry no palette, so the draw list stays small. */
+#define RETAINED_MODEL_LIMIT 384u
+#define RETAINED_DRAW_LIMIT 768u
+#define RETAINED_PALETTE_LIMIT 128u
 #define RETAINED_MODEL_BUDGET (4u*1024u*1024u)
 typedef struct retained_skin_vertex {float position[3],weights[4],bones[4],uv[2];} retained_skin_vertex;
 _Static_assert(sizeof(retained_skin_vertex)==52,"Retained skin attribute stride");
@@ -13,11 +20,12 @@ typedef struct retained_model_entry {
     rf_model_box posed_bounds;uint32_t posed_valid;
 } retained_model_entry;
 typedef struct retained_model_draw {
-    uint32_t entry,at_vertex,material,front_face,view_model,glow;float rows[3][4],screen[4],palette[150][4];
+    uint32_t entry,at_vertex,material,front_face,view_model,glow,palette;float rows[3][4],screen[4];
 } retained_model_draw;
 static retained_model_entry retained_models[RETAINED_MODEL_LIMIT];
 static retained_model_draw *retained_draws;
-static uint32_t retained_model_count,retained_model_bytes;
+static float (*retained_palettes)[150][4];
+static uint32_t retained_model_count,retained_model_bytes,retained_palette_count;
 /* queued, rendered, cached batches, resident bytes, submitted vertices,
  * submitted draw parts, frame fallbacks, cache misses. */
 uint32_t rf_xbox_retained_models[8];
@@ -29,7 +37,7 @@ uint32_t rf_xbox_model_visibility[8],rf_xbox_model_culling_disabled;
 uint32_t rf_xbox_bounds_poses[2]; /* Full bounds evaluations, reused poses this frame. */
 static void retained_models_begin(void)
 {
-    retained_draw_count=0;memset(rf_xbox_texture_reuse,0,sizeof(rf_xbox_texture_reuse));
+    retained_draw_count=retained_palette_count=0;memset(rf_xbox_texture_reuse,0,sizeof(rf_xbox_texture_reuse));
     memset(rf_xbox_bounds_poses,0,sizeof(rf_xbox_bounds_poses));
     memset(rf_xbox_model_visibility,0,5*sizeof(uint32_t));rf_xbox_model_visibility[6]=0;
     rf_xbox_model_visibility[7]=rf_xbox_model_culling_disabled;
@@ -43,8 +51,8 @@ static void retained_models_close(void)
         if(retained_models[i].gpu)MmFreeContiguousMemory(retained_models[i].gpu);
         free(retained_models[i].parts);free(retained_models[i].bounds);
     }
-    free(retained_draws);retained_draws=NULL;memset(retained_models,0,sizeof(retained_models));
-    retained_model_count=retained_draw_count=retained_model_bytes=0;
+    free(retained_draws);retained_draws=NULL;free(retained_palettes);retained_palettes=NULL;memset(retained_models,0,sizeof(retained_models));
+    retained_model_count=retained_draw_count=retained_model_bytes=retained_palette_count=0;
     memset(rf_xbox_retained_models,0,sizeof(rf_xbox_retained_models));
     memset(rf_xbox_model_visibility,0,sizeof(rf_xbox_model_visibility));
     memset(rf_xbox_retained_model_kinds,0,sizeof(rf_xbox_retained_model_kinds));
@@ -172,8 +180,10 @@ static int retained_model_queue(const rf_model_geometry *geometry,uint32_t batch
     determinant*=view->screen[0]*view->screen[1];
     if(!isfinite(determinant) || determinant==0)goto fallback;
     if(!retained_draws) {
-        retained_draws=calloc(RETAINED_MODEL_LIMIT,sizeof(*retained_draws));if(!retained_draws)goto fallback;
-        retained_model_bytes=RETAINED_MODEL_LIMIT*sizeof(*retained_draws)+sizeof(retained_models);
+        retained_draws=calloc(RETAINED_DRAW_LIMIT,sizeof(*retained_draws));if(!retained_draws)goto fallback;
+        retained_palettes=calloc(RETAINED_PALETTE_LIMIT,sizeof(*retained_palettes));
+        if(!retained_palettes){free(retained_draws);retained_draws=NULL;goto fallback;}
+        retained_model_bytes=RETAINED_DRAW_LIMIT*sizeof(*retained_draws)+RETAINED_PALETTE_LIMIT*sizeof(*retained_palettes)+sizeof(retained_models);
         rf_xbox_retained_models[3]=retained_model_bytes;
     }
     status=retained_model_cache(geometry,batch,bones,&slot);
@@ -194,11 +204,11 @@ static int retained_model_queue(const rf_model_geometry *geometry,uint32_t batch
         }
     } else ++rf_xbox_model_visibility[6];
     /* Culled requests consume no draw slot; only visible overflow falls back. */
-    if(retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
+    if(retained_draw_count==RETAINED_DRAW_LIMIT || (bones && retained_palette_count==RETAINED_PALETTE_LIMIT))goto fallback;
     if(retained_draw_count && retained_draws[retained_draw_count-1].at_vertex>at_vertex)return RF_RANGE;
     draw=retained_draws+retained_draw_count;draw->entry=slot;draw->at_vertex=at_vertex;draw->material=material;
     draw->glow=batch<geometry->batch_count && geometry->batches[batch].render_mode==RF_MODEL_RENDER_GLOW;
-    draw->view_model=view_model!=0;
+    draw->view_model=view_model!=0;draw->palette=bones?retained_palette_count:UINT32_MAX;
     /* Original accepts dot(camera-a, cross(b-a,c-b)) > 0. Screen Y is
      * downward: a positive signed screen area is clockwise on NV2A. */
     draw->front_face=determinant<0?NV097_SET_FRONT_FACE_V_CW:NV097_SET_FRONT_FACE_V_CCW;
@@ -208,10 +218,11 @@ static int retained_model_queue(const rf_model_geometry *geometry,uint32_t batch
     }
     memcpy(draw->screen,view->screen,16);
     for(i=0;i<bones;i++)for(j=0;j<3;j++) {
-        float *row=draw->palette[i*3+j];uint32_t k;
+        float *row=retained_palettes[draw->palette][i*3+j];uint32_t k;
         row[0]=matrices[i][j];row[1]=matrices[i][3+j];row[2]=matrices[i][6+j];row[3]=matrices[i][9+j];
         for(k=0;k<4;k++)if(!isfinite(row[k]))return RF_RANGE;
     }
+    if(bones)++retained_palette_count;
     ++retained_draw_count;rf_xbox_retained_models[0]=retained_draw_count;
     ++rf_xbox_retained_model_kinds[bones?0:1];return RF_OK;
 fallback:
@@ -318,7 +329,7 @@ static int retained_model_render(uint32_t request,uint32_t previous,const rf_mat
     pb_end(p);
     for(part_index=0;part_index<entry->part_count;part_index++) {
         const retained_skin_part *part=entry->parts+part_index;float palette[84][4];uint32_t start=part->start,remaining=part->count;
-        for(i=0;i<part->bones;i++)memcpy(palette+i*3,draw->palette+part->ids[i]*3,48);
+        for(i=0;i<part->bones;i++)memcpy(palette+i*3,retained_palettes[draw->palette]+part->ids[i]*3,48);
         for(i=0;i<part->bones*3;) {
             /* The constant method window is 32 dwords (eight float4 rows). */
             uint32_t count=part->bones*3-i;if(count>8)count=8;

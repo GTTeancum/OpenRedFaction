@@ -1318,7 +1318,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         for (i = 0; i < mesh->count || retained_next<retained_total;) {
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex<i)return RF_FORMAT;
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex==i) {
-                uint32_t loaded=UINT32_MAX,j,run_end=retained_next,order[RETAINED_MODEL_LIMIT],key[RETAINED_MODEL_LIMIT],n=0,previous=UINT32_MAX;
+                static uint32_t order[RETAINED_DRAW_LIMIT],key[RETAINED_DRAW_LIMIT];
+                uint32_t loaded=UINT32_MAX,j,run_end=retained_next,n=0,previous=UINT32_MAX;
                 uint64_t t0=gpu_wait_clock();
                 while(run_end<retained_total && retained_draws[run_end].at_vertex==i)++run_end;
                 /* Opaque draws in a run are order-independent under the depth
@@ -1399,7 +1400,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             }
             pb_end(p); i += count;++draws;methods+=3;
         }
-        if(model==4)retained_draw_count=0;
+        if(model==4)retained_draw_count=retained_palette_count=0;
         rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
         rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
         rf_renderer_model_split[1]+=gpu_wait_clock()-stream_t0;
