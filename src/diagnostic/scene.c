@@ -22062,6 +22062,9 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     status=scene_player_weapon_advance(stream,frame);if(status)goto done;
     if(scene_player_weapon_holstered() || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)] || !w)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
+    /* Looking through the sniper or scoped-rifle sight shows only the scope
+     * picture: the first-person weapon is not drawn while it is up. */
+    if(scene_scope.active && (campaign_equipped_slot==6 || campaign_equipped_slot==15))return RF_OK;
     status=scene_player_weapon_view_prepare(w,&view,&projection);if(status)goto done;
     scene_player_muzzle_update(stream,w,&view,view_slot);
     memcpy(rf_scene_player_weapon_view+3,w->position,12);

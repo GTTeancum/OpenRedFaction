@@ -20,6 +20,11 @@ static int scene_hud_scope_draw(rf_scene_particle_sink sink,void *context,uint32
     kind=campaign_equipped_slot==6?RF_HUD_SCOPE_SNIPER:RF_HUD_SCOPE_ASSAULT;
     status=rf_hud_scope_compose(particle_draw_stream->hud_scope,kind,640,480,quads,RF_HUD_SCOPE_QUADS,&count);
     if(status){rf_hud_scope_diagnostic[6]=(uint32_t)status;return status;}
+    /* Widescreen (port): the virtual screen is the centred 4:3 area, so the
+     * original margin masks (quads 5/6, 4ac562..4ac599) stop at its edges and
+     * the full-frame tint shows beside them. Run both masks a further 640
+     * units outward; at 4:3 the extra lies off screen. */
+    if(count>6){quads[5].xywh[0]-=640;quads[5].xywh[2]+=640;quads[6].xywh[2]+=640;}
     for(i=0;i<count;i++){
         const rf_hud_scope_quad *q=quads+i;rf_particle_draw_vertex v[4]={{0}};
         if(q->xywh[2]<=0 || q->xywh[3]<=0)continue;
