@@ -21587,7 +21587,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
     rf_scene_npc_draw[3]=scene_diagnostic_hash(2166136261u,stream->mesh->vertices+start_all,rf_scene_npc_draw[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
-uint32_t rf_scene_clutter_draw[6]; /* frame, contributing placements, vertices, hash, room bytes, submitted batches */
+uint32_t rf_scene_clutter_draw[7]; /* frame, contributing placements, vertices, hash, room bytes, submitted batches, outside the view volume */
 uint32_t rf_scene_clutter_render_dispatch[6];
 typedef struct scene_clutter_render_context {
     scene_stream *stream;uint32_t placement;
@@ -21671,6 +21671,17 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
         if(model==UINT32_MAX)continue;if(model>=campaign_clutter_model_count)return RF_FORMAT;
         if(!owner)return RF_FORMAT;room=owner->state.first_word?owner->state.first_word-1:UINT32_MAX;
         if(room<stream->visibility.state.count && !stream->visibility.state.rooms[room].visible)continue;
+        /* Port-owned: skip a prop wholly outside this frame's view volume
+         * (rf_scene_clutter_draw[6]). The model's bound sphere is reduced to
+         * one about the origin (centre distance + radius), so any orientation
+         * stays conservative; the GPU still clips whatever is submitted. */
+        if(stream->visibility.storage && stream->particle_frame==frame) {
+            const float *b=campaign_clutter_models[model].resource.bound;uint32_t rejected=0;
+            float radius=sqrtf(b[0]*b[0]+b[1]*b[1]+b[2]*b[2])+b[3];
+            if(isfinite(radius) && radius>0 &&
+               !rf_visibility_sphere_reject(&stream->particle_camera.frustum,owner->state.position,radius,&rejected) && rejected){
+                ++rf_scene_clutter_draw[6];continue;}
+        }
         before=owner->state.flags;++rf_scene_clutter_render_dispatch[1];
         status=rf_object_render_dispatch(&owner->state.flags,4,i+1,&backend);
         if(status){++rf_scene_clutter_render_dispatch[5];return status;}
