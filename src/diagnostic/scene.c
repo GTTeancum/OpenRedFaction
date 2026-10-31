@@ -22099,6 +22099,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
         }
     }
     status=scene_ammo_digits_draw(stream,w,&view);if(status){rf_scene_weapon_digits[3]=(uint32_t)status;goto done;}
+    status=scene_remote_hand_draw(stream,w,&view);if(status)goto done;
     rf_scene_player_weapon[2]=stream->mesh->count-start;
 done:
     rf_scene_player_weapon_view[13]=stream->mesh->count-start;

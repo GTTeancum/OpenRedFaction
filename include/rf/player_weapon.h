@@ -24,6 +24,9 @@ typedef struct rf_player_weapon {
     /* 425dab..425dc7: player rounds start at the view model's Muzzle_1 tag
      * (player+40); has_muzzle only when it exists with a valid parent bone. */
     rf_model_attachment muzzle_tag;uint32_t has_muzzle;
+    /* 4c8ca0 (cached at info+0x518): the view model's "weapon" tag, where
+     * 4abd12..4abd89 draws the remote charge held in the hand. */
+    rf_model_attachment weapon_tag;uint32_t has_weapon_tag;
 } rf_player_weapon;
 int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     const rf_weapon_view_definition *definition,uint32_t budget,rf_player_weapon **result);

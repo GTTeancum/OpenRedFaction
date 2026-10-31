@@ -93,6 +93,11 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
             while(*a && *b && (*a>='A' && *a<='Z'?*a+32:*a)==*b){++a;++b;}
             if(!*a && !*b){w->muzzle_tag=tag;w->has_muzzle=1;}
         }
+        if(!w->has_weapon_tag && tag.parent>=0 && (uint32_t)tag.parent<w->bone_count) {
+            const char *a=tag.name,*b="weapon";
+            while(*a && *b && (*a>='A' && *a<='Z'?*a+32:*a)==*b){++a;++b;}
+            if(!*a && !*b){w->weapon_tag=tag;w->has_weapon_tag=1;}
+        }
      }
      w->ammo_digits=found==3;}
     status=rf_model_geometry_open(&w->geometry,model,0,budget-used-scratch);if(status)goto done;

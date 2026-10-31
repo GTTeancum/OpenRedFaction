@@ -168,6 +168,44 @@ static int scene_remote_input(scene_stream *s,uint32_t frame,const float positio
     }
     return RF_OK;
 }
+/* The charge held in the hand (RF.exe 4abd00..4abd89): when the view weapon
+ * is the remote charge (4c90a0 flag bit 6) and player+0x1044 is set, the
+ * charge model is drawn at the view model's "weapon" tag (4c8ca0, 5034f0,
+ * 503100). +0x1044 is set on selecting the charge (4a4c27 -> 4ab180) and when
+ * the post-throw timer at player+0xb8 ends with the charge still selected
+ * (4a27c4..4a27f9); a throw clears it (4a2843..4a2861). Port: the throw's
+ * pending delay and 45-tick cooldown stand in for that timer, and an empty
+ * carried stock leaves the hand empty. Drawn in the view-model pass. */
+uint32_t rf_scene_remote_hand[4]; /* frames drawn, batches queued, batches refused, last status */
+static int scene_remote_hand_draw(scene_stream *s,const rf_player_weapon *w,const rf_model_projection *view)
+{
+    const rf_static_render_resource *r;rf_model_projection local;float tag[12],pose[12];
+    uint32_t model,part,batch,first,slot;int32_t ammo;int status;
+    if(campaign_equipped_slot!=8 || !w || !w->has_weapon_tag || campaign_remote_id<0 || scene_remote_pending || scene_remote_cooldown)return RF_OK;
+    ammo=campaign_weapon_supply.definitions[campaign_remote_id].ammo_type;
+    if(ammo<0 || ammo>=32 || campaign_player_inventory.reserve[ammo]<=0)return RF_OK;
+    model=campaign_weapon_models.weapons[campaign_remote_id].model;if(!model || model>campaign_weapon_models.count)return RF_OK;
+    status=rf_model_attachment_transform(w->weapon_tag.rotation,w->weapon_tag.position,tag);if(status)return status;
+    status=rf_model_compose_transform(tag,w->pose[w->weapon_tag.parent],pose);if(status)return status;
+    status=rf_model_local_view(view,pose+9,pose,&local);if(status)return status;
+    r=&campaign_weapon_models.items[model-1].render;first=campaign_weapon_material_offsets[model-1];
+    for(part=0;part<r->part_count;++part) {
+        uint32_t li=r->parts[part].first_lod;const rf_model_geometry *g;
+        if(li>=r->lod_count)return RF_FORMAT;g=&r->lods[li].geometry;
+        for(batch=0;batch<g->batch_count;++batch) {
+            const rf_model_draw_batch *b=g->batches+batch;
+            if(b->material==UINT32_MAX)continue;if(b->material>=r->material_count)return RF_FORMAT;
+            memcpy(&slot,campaign_weapon_materials.items[first+b->material].record.bytes+0x10,4);
+            if(slot>=s->weapon_textures)return RF_FORMAT;
+            status=scene_view_model_retain(s,g,batch,NULL,0,&local,s->weapon_base+slot);
+            rf_scene_remote_hand[3]=(uint32_t)status;
+            if(status==RF_NOT_FOUND){++rf_scene_remote_hand[2];continue;} /* no CPU static view-model path */
+            if(status)return status;
+            ++rf_scene_remote_hand[1];
+        }
+    }
+    ++rf_scene_remote_hand[0];return RF_OK;
+}
 static int scene_remote_draw(scene_stream *stream)
 {
     scene_weapon_context c={0};uint32_t i,state[20]={0},model;int status;
