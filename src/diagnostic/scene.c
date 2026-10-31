@@ -21206,6 +21206,19 @@ _Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache
  * cost; visible nearby NPCs keep the original every-tick advance. */
 #define NPC_POSE_CARRY_SLOTS 512u
 static float npc_pose_carry[NPC_POSE_CARRY_SLOTS];
+/* Port-owned: true when a sphere lies wholly outside this frame's view
+ * volume (the frame camera built in world preparation; frames that skipped
+ * it test nothing). The original culls objects by sphere before queueing
+ * (4d3560); the GPU still clips whatever is submitted. */
+uint32_t rf_scene_view_culled[4]; /* enemies/corpses, enemy weapons, pickups/drops, enemy poses deferred off-screen */
+static int scene_view_sphere_outside(const scene_stream *s,const float position[3],float radius)
+{
+    uint32_t rejected=0;
+    return s->visibility.storage && s->particle_frame==rf_scene_profile_stage[0] &&
+        !rf_visibility_sphere_reject(&s->particle_camera.frustum,position,radius,&rejected) && rejected;
+}
+/* Generous enough for the largest walking actors (mechs, tankbots). */
+#define SCENE_ACTOR_CULL_RADIUS 10.0f
 uint32_t rf_scene_npc_pose_lod[2]; /* advances done, advances deferred */
 #endif
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_t frame)
@@ -21291,11 +21304,19 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             float step=elapsed;
 #ifdef RF_IMAGE_XBOX_NATIVE
             if(!frame && i<NPC_POSE_CARRY_SLOTS)npc_pose_carry[i]=0;
-            if(advance && i<NPC_POSE_CARRY_SLOTS && !pose->playback.completion.frozen &&
-               ((gate.descriptor_present && !(gate.descriptor_flag&255u)) || gate.distance>20.0f)) {
-                if((i^scene_tick_serial)&1u){npc_pose_carry[i]+=elapsed;advance=0;++rf_scene_npc_pose_lod[1];}
-                else{step+=npc_pose_carry[i];npc_pose_carry[i]=0;}
-            } else if(i<NPC_POSE_CARRY_SLOTS){step+=npc_pose_carry[i];npc_pose_carry[i]=0;}
+            /* Pose rate tiers (port-owned): every update within 20 units;
+             * every 2nd beyond 20, every 3rd beyond 40; every 4th in a hidden
+             * room or wholly off-screen. Skipped time is carried into the
+             * next advance, so clips keep their real duration. */
+            {uint32_t interval=1,offscreen=0;
+             if(advance && i<NPC_POSE_CARRY_SLOTS && !pose->playback.completion.frozen) {
+                offscreen=scene_view_sphere_outside(stream,campaign_model_owners[i].position,SCENE_ACTOR_CULL_RADIUS);
+                if((gate.descriptor_present && !(gate.descriptor_flag&255u)) || offscreen)interval=4;
+                else if(gate.distance>40.0f)interval=3;
+                else if(gate.distance>20.0f)interval=2;
+             }
+             if(interval>1 && (i+scene_tick_serial)%interval){npc_pose_carry[i]+=elapsed;advance=0;++rf_scene_npc_pose_lod[1];if(offscreen)++rf_scene_view_culled[3];}
+             else if(i<NPC_POSE_CARRY_SLOTS){step+=npc_pose_carry[i];npc_pose_carry[i]=0;}}
             if(advance)++rf_scene_npc_pose_lod[0];
 #endif
             if(advance) {
@@ -21557,6 +21578,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)continue;
         if(owner->owned)continue;
         if(owner->room<stream->visibility.state.count && !stream->visibility.state.rooms[owner->room].visible)continue;
+        if(scene_view_sphere_outside(stream,owner->position,SCENE_ACTOR_CULL_RADIUS)){++rf_scene_view_culled[0];continue;}
         if(actor>=campaign_npc_body_count || !campaign_npc_bodies[actor].registration.view)return RF_RANGE;
         body=campaign_npc_bodies+actor;context.pose=pose;before=body->object_flags;
         ++rf_scene_npc_render_dispatch[1];
@@ -21576,6 +21598,7 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         slot=model-1;
         if(campaign_model_owners[slot].room<stream->visibility.state.count &&
            !stream->visibility.state.rooms[campaign_model_owners[slot].room].visible)continue;
+        if(scene_view_sphere_outside(stream,campaign_model_owners[slot].position,SCENE_ACTOR_CULL_RADIUS)){++rf_scene_view_culled[0];continue;}
         status=campaign_model_pose(slot,&pose);if(status)return status;
         if(!pose || !campaign_model_owners[slot].owned)return RF_RANGE;
         context=(scene_npc_render_context){stream,slot,pose,&buffers,&lights,&attributes,&planes,&projection};
@@ -22139,6 +22162,7 @@ static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
         if(body->object_flags&(2|0x4000))continue;
         if(body->persistence_registered && rf_scene_defeated_actors.drops[body->persistence_slot].state)continue;
         if(campaign_model_owners[i].room<stream->visibility.state.count && !stream->visibility.state.rooms[campaign_model_owners[i].room].visible)continue;
+        if(scene_view_sphere_outside(stream,campaign_model_owners[i].position,SCENE_ACTOR_CULL_RADIUS)){++rf_scene_view_culled[1];continue;}
         cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
         draw.view.flags_810=body->view.flags_810;draw.view.class_flags_724=campaign_seeds.classes[cls].physics.flags;
         draw.view.inventory_flags_7d0=body->view.flags_7d0;draw.view.weapon=body->view.weapons[0];draw.view.attachment_75c=body->attachment_75c;
@@ -22174,6 +22198,7 @@ static int scene_pickups_draw(scene_stream *stream)
             if(room<stream->visibility.state.count && !stream->visibility.state.rooms[room].visible){++rf_scene_pickup_room_cache[4];continue;}
         }
         ++rf_scene_pickup_room_cache[3];
+        if(scene_view_sphere_outside(stream,stream->pickups.items[i].position,2.0f)){++rf_scene_view_culled[2];continue;}
         if((!kind&&!model)||(kind&&!stream->pickup_resources))return RF_NOT_FOUND;
         c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
@@ -22183,6 +22208,7 @@ static int scene_pickups_draw(scene_stream *stream)
         campaign_npc_body *owner=campaign_npc_bodies+i;const rf_campaign_weapon_drop *drop;rf_weapon_hand_placement pose={0};
         if(!owner->persistence_registered)continue;drop=rf_scene_defeated_actors.drops+owner->persistence_slot;if(drop->state!=1)continue;
         model=campaign_weapon_models.weapons[drop->weapon].model;if(!model)continue;
+        if(scene_view_sphere_outside(stream,drop->position,2.0f)){++rf_scene_view_culled[2];continue;}
         memcpy(pose.position,drop->position,12);pose.basis[0]=pose.basis[4]=pose.basis[8]=1;
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
     }
