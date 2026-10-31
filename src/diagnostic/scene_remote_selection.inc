@@ -72,7 +72,7 @@ static void scene_remote_selection_input_tick(scene_stream *s,uint32_t mode)
     if(mode!=expected || !scene_remote_selection_admitted(s)){
         scene_remote_selection_cancel();return;
     }
-    if(scene_remote_followup_ticks)--scene_remote_followup_ticks;
+    RF_TICK_DOWN(scene_remote_followup_ticks);
 }
 
 /* Exact selection-remap subset4a4aeb..4a4b32: matching owner/type, positive

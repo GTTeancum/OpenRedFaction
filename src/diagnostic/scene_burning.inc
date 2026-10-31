@@ -72,7 +72,8 @@ static int scene_burning_tick(scene_stream *stream,uint32_t frame)
                    owner->body.state.position[1]<=liquid->minimum_y+liquid->depth){scene_burning_retire(i);continue;}
             }
         }
-        if(++r->phase==15){rf_damage_request request={0};r->phase=0;
+        r->phase+=rf_tick_frames;
+        if(r->phase>=15){rf_damage_request request={0};r->phase-=15;
             request.amount=owner->damage.effects.class_health*(.25f/6.5f);request.kind=4;request.source=r->source;request.auxiliary_uid=UINT32_MAX;
             owner->damage.burn_source=r->source;
             status=rf_scene_npc_damage(r->target,&request,1,bits,&effects,&amount);if(status)return status;if(feedback.status)return feedback.status;
@@ -83,7 +84,7 @@ static int scene_burning_tick(scene_stream *stream,uint32_t frame)
                 continue;
             }
         }
-        if(r->left==1)scene_burning_retire(i);else --r->left;
+        if(r->left<=rf_tick_frames)scene_burning_retire(i);else r->left-=rf_tick_frames;
     }
     return RF_OK;
 }

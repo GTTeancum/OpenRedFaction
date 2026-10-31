@@ -399,7 +399,7 @@ static int scene_vehicle_ai_tick(scene_stream *s,uint32_t frame)
             scene_vehicle_attack_state *attack=scene_vehicle_attack_find(owner.handle);if(attack)a->primary_reserve=attack->reserve;
             continue;
         }
-        if(a->scan_ticks)--a->scan_ticks;
+        RF_TICK_DOWN(a->scan_ticks);
         if(chase){
             a->engaged=0;
             if(!a->scan_ticks){float point[3],distance=0;uint32_t clear;

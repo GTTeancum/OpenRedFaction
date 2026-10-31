@@ -46,7 +46,7 @@ static int scene_flame_canister_tick(scene_stream *s,uint32_t frame,const float 
     supply=campaign_weapon_supply.definitions+weapon;ammo=supply->ammo_type;
     if(ammo<0 || ammo>=32 || supply->magazine<=0 || campaign_player_inventory.reserve[ammo]<0)return RF_RANGE;
     edge=alternate&&!scene_flame_canister_held;scene_flame_canister_held=alternate;
-    if(scene_flame_canister_cooldown)--scene_flame_canister_cooldown;
+    RF_TICK_DOWN(scene_flame_canister_cooldown);
     rf_scene_flame_canister[3]=0;
     for(i=0;i<SCENE_FLAME_CANISTER_CAPACITY;i++)if(scene_flame_canisters[i].flight.lifecycle.active){
         scene_grenade_projectile *p=scene_flame_canisters+i;rf_grenade_flight_event event;

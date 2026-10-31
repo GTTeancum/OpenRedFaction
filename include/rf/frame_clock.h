@@ -11,6 +11,9 @@
  * millisecond conversions keep their meaning; only the step size changes.
  * rf_tick_frames_next is the request applied at the next update boundary. */
 extern uint32_t rf_tick_frames,rf_tick_frames_next;
+/* Count a 60ths countdown down by one game update (rf_tick_frames 60ths),
+ * stopping at zero. Countdowns stay in 60ths so 30 Hz keeps their duration. */
+#define RF_TICK_DOWN(x) ((x)=(x)>rf_tick_frames?(x)-rf_tick_frames:0)
 typedef struct rf_frame_clock {
     uint32_t initialized,last_ms,credit,skipped;
     uint32_t steps,presentations;

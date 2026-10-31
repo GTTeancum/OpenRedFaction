@@ -145,7 +145,7 @@ static int scene_remote_input(scene_stream *s,uint32_t frame,const float positio
     uint32_t edges=triggers&~scene_remote_held,spawned,any,followup_ticks;int32_t ammo;int status;
     if(mode>2 || triggers>3)return RF_RANGE;scene_remote_held=triggers;
     scene_remote_selection_input_tick(s,mode);
-    if(scene_remote_cooldown)--scene_remote_cooldown;
+    RF_TICK_DOWN(scene_remote_cooldown);
     if(mode!=1)scene_remote_pending=scene_remote_delay=0;
     if(mode==2 && edges && !scene_remote_followup_target){
         status=scene_remote_selection_prepare(s,1,0,&followup_ticks);if(status)return status;
@@ -155,7 +155,7 @@ static int scene_remote_input(scene_stream *s,uint32_t frame,const float positio
     if(mode!=1 || campaign_remote_id<0)return RF_OK;
     ammo=campaign_weapon_supply.definitions[campaign_remote_id].ammo_type;if(ammo<0 || ammo>=32)return RF_RANGE;
     if(scene_remote_pending){
-        if(scene_remote_delay)--scene_remote_delay;
+        RF_TICK_DOWN(scene_remote_delay);
         if(!scene_remote_delay){status=scene_remote_launch(s,frame,position,forward,scene_remote_pending==2,&spawned);if(status)return status;
             scene_remote_pending=0;if(spawned)scene_remote_cooldown=45;
             else scene_remote_selection_cancel();}

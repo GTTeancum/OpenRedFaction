@@ -1,4 +1,5 @@
 #include "rf/weapon.h"
+#include "rf/frame_clock.h"
 #include "rf/timer.h"
 #include "rf/effect.h"
 #include "rf/physics.h"
@@ -284,7 +285,7 @@ int rf_weapon_trigger_step(rf_weapon_trigger_state *state,const rf_weapon_trigge
         (rules->burst_count>1 && !rules->burst_ticks) || rules->semi_automatic>1 ||
         state->remaining>=rules->burst_count || state->cooldown>3600 || state->delay>3600)return RF_RANGE;
     pressed=trigger && (!rules->semi_automatic || !state->held);state->held=!!trigger;*event=0;
-    if(state->cooldown)--state->cooldown;if(state->delay)--state->delay;
+    RF_TICK_DOWN(state->cooldown);RF_TICK_DOWN(state->delay);
     if(blocked){state->remaining=state->delay=0;return RF_OK;}
     if(state->remaining) {
         if(state->delay)return RF_OK;

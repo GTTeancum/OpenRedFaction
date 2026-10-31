@@ -47,11 +47,11 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
         return scene_flame_tick(stream,frame,position,forward,weapon,definition,0,&pulse,NULL);
     }
     if(scene_flame_input.reload_left) {
-        scene_flame_input_stop(position);++scene_flame_input.reload_elapsed;
+        scene_flame_input_stop(position);scene_flame_input.reload_elapsed+=rf_tick_frames;
         if(!scene_flame_input.drained && scene_flame_input.reload_elapsed>=drain_tick) {
             campaign_player_inventory.loaded[weapon]=0;scene_flame_input.drained=1;campaign_ammo_publish();
         }
-        if(!--scene_flame_input.reload_left) {
+        if(!RF_TICK_DOWN(scene_flame_input.reload_left)) {
             uint32_t moved;status=rf_weapon_reload_transfer(&campaign_player_inventory,supply,weapon,&moved);
             if(status)return status;
             rf_scene_player_ammo[3]+=moved;++rf_scene_player_ammo[4];campaign_ammo_publish();
@@ -68,7 +68,7 @@ static int scene_flame_input_tick(scene_stream *stream,uint32_t frame,const floa
             scene_flame_input.ignition=1;scene_flame_input.delay=start_ticks;
             scene_continuous_charge_accept(weapon,0);
             combat_sound("Flame Thrower Ignite 1",position);
-        } else if(scene_flame_input.delay)--scene_flame_input.delay;
+        } else RF_TICK_DOWN(scene_flame_input.delay);
         if(!scene_flame_input.delay) {
             /* Reconcile a restored ignition2 on its next admitted live tick,
              * without replaying ignition1 or changing saved fuel/cadence. */

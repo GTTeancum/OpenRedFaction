@@ -210,7 +210,7 @@ static int scene_credits_frame(scene_stream *stream,uint32_t frame)
      * camera/weapon tick, event tick or save capture is advanced for this modal. */
     empty.count=empty.bytes=0;
     if(scene_credits.presented && scene_credits.ticks<scene_credits.finish_ticks)++scene_credits.ticks;
-    if(scene_credits.notice_ticks)--scene_credits.notice_ticks;
+    RF_TICK_DOWN(scene_credits.notice_ticks);
     if(scene_live_save_pending || scene_live_load_pending){
         scene_live_save_pending=scene_live_load_pending=scene_live_load_death_recovery=0;
         scene_live_save_status=RF_NOT_FOUND;scene_credits.notice_ticks=180;
