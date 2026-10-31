@@ -57,6 +57,10 @@ static rf_settings xbox_settings;
  * switches to fallback, switches back to 60, last busy ms per update,
  * busy-over-budget streak, busy-under streak, ini unknown|invalid<<16. */
 uint32_t rf_xbox_pacing[8];
+/* Pacing sleep per update: total ms slept, updates, longest single update's
+ * sleep, ms slept in the last update. With the profile's row 0 it splits the
+ * time between scene updates into waiting and unmeasured work. */
+uint32_t rf_xbox_pacing_sleep[4];
 static uint32_t pacing_mode;
 /* Recorded inputs consumed so far. At 60 this equals campaign_total_frames;
  * at 30 one record covers two 60ths, so the recording position and its
@@ -147,6 +151,13 @@ static void pacing_update(void)
         if(rf_xbox_pacing[5]>=120 && !pacing_dwell){rf_tick_frames_next=1;++rf_xbox_pacing[6];rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;pacing_dwell=120;}
     }
     rf_xbox_pacing[1]=rf_tick_frames_next;
+}
+static void pacing_sleep(void)
+{
+    uint32_t wait,start=GetTickCount(),slept;
+    while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+    slept=GetTickCount()-start;rf_xbox_pacing_sleep[0]+=slept;++rf_xbox_pacing_sleep[1];
+    if(slept>rf_xbox_pacing_sleep[2])rf_xbox_pacing_sleep[2]=slept;rf_xbox_pacing_sleep[3]=slept;
 }
 static void pacing_wait_done(void)
 {extern uint32_t rf_xbox_wait_total;pacing_last=pacing_clock();pacing_wait_last=rf_xbox_wait_total;}
@@ -1031,8 +1042,7 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
     }
     if(player_replay) {
         if(player_pacing) {
-            uint32_t wait;pacing_update();
-            while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+            pacing_update();pacing_sleep();
             pacing_wait_done();
         }
         {uint32_t kind=0;
@@ -1046,8 +1056,7 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         if(!status){++rf_player_replay_diagnostic[2];++replay_records;}return status;
     }
     if(player_pacing) {
-        uint32_t wait;pacing_update();
-        while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+        pacing_update();pacing_sleep();
         pacing_wait_done();
     }
     {

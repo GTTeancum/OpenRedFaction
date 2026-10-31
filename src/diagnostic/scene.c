@@ -476,7 +476,9 @@ static void profile_mark(uint32_t stage)
     rf_scene_profile_stage[1]=stage;
     if(!profile_clock)return;
     now=profile_clock();elapsed=now-profile_last;profile_last=now;
-    if(!profile_active || !stage)return;
+    /* Row 0: from the previous update's last mark to this update's start
+     * (pacing wait, input poll and everything between scene updates). */
+    if(!profile_active)return;
     row=rf_scene_profile[stage];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
     ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
     if(elapsed>row[3])row[3]=elapsed;
