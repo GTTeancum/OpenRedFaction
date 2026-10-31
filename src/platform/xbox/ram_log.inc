@@ -99,7 +99,9 @@ static void rf_ram_log_sample(uint32_t force)
         if(enabled && (f=fopen("D:\\crash-run-nonce.bin","rb"))!=NULL){
             if(fread(rf_xbox_run_nonce,4,1,f)!=1)rf_xbox_run_nonce[0]=0;fclose(f);}}
     if(!enabled)return;
-    uint32_t frame=rf_player_replay_diagnostic[2];
+    /* Replay position paces the log; a live-controller session has none, so it
+     * follows game frames instead (else the host sees no writes and calls it stalled). */
+    uint32_t frame=player_replay?rf_player_replay_diagnostic[2]:campaign_total_frames;
     if(!force && (frame==previous || frame%60))return;
     previous=frame;g_XboxBootPhase=rf_diagnostic[2];
     {MM_STATISTICS m={0};m.Length=sizeof(m);if(NT_SUCCESS(MmQueryStatistics(&m))){rf_xbox_live_memory[0]=m.AvailablePages;
