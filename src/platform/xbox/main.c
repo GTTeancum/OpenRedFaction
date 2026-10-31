@@ -126,6 +126,12 @@ static void pacing_begin(void)
     pacing_mode=mode;pacing_last=0;pacing_dwell=0;
     rf_tick_frames=1;rf_tick_frames_next=mode==RF_FRAME_RATE_30 || mode==RF_FRAME_RATE_30_SMOOTH?2:1;
     rf_xbox_pacing[0]=mode;rf_xbox_pacing[1]=rf_tick_frames_next;rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;
+    /* The game thread outranks the system's ordinary threads. A thread woken
+     * from a timed wait gets no priority boost, so at equal priority a busy
+     * system/debug thread can hold it for whole quanta after each sleep; the
+     * console then lost far more time between updates than it spent working
+     * (October 30 logs: ~12 ms busy, 80+ ms per update). */
+    SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_HIGHEST);
 }
 /* Once per game update, before its pacing wait. Busy time is the CPU time
  * since the previous update's wait ended, minus GPU/VBlank waits. Auto mode
@@ -152,12 +158,19 @@ static void pacing_update(void)
     }
     rf_xbox_pacing[1]=rf_tick_frames_next;
 }
+/* Wait for the next tick in short sleeps (at most 2 ms, as the PC pacer),
+ * re-reading the clock after each, so one late wake-up costs little; the
+ * last millisecond yields instead of sleeping. Pacing debt the frame clock
+ * discarded (stalls beyond its 8-tick limit) is published in milliseconds. */
+uint32_t rf_xbox_pacing_discarded_ms;
 static void pacing_sleep(void)
 {
     uint32_t wait,start=GetTickCount(),slept;
-    while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0)Sleep(wait);
+    while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0){
+        if(wait>1)Sleep(wait>2?2:1);else SwitchToThread();}
     slept=GetTickCount()-start;rf_xbox_pacing_sleep[0]+=slept;++rf_xbox_pacing_sleep[1];
     if(slept>rf_xbox_pacing_sleep[2])rf_xbox_pacing_sleep[2]=slept;rf_xbox_pacing_sleep[3]=slept;
+    rf_xbox_pacing_discarded_ms=(uint32_t)(rf_player_frame_clock.discarded_units/60u);
 }
 static void pacing_wait_done(void)
 {extern uint32_t rf_xbox_wait_total;pacing_last=pacing_clock();pacing_wait_last=rf_xbox_wait_total;}
