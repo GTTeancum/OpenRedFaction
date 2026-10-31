@@ -134,7 +134,7 @@ def main():
     parser.add_argument('--scenario', choices=('combat','explosives','mobile','advance'), help='Game-owned live-tick phases; advance adds forward input to mobile strafing, explosives recovers the requested weapon through ordinary cycle inputs')
     parser.add_argument('--dev-room', action='store_true')
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner','live'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -462,7 +462,8 @@ def main():
                 if phase == 300: buttons[1] = 1
             rows.append(struct.pack('<5f7I',*move,*look,*buttons))
         replay = b'RFI6'+struct.pack('<I',48)+b''.join(rows)
-        (disc / 'player-replay.bin').write_bytes(replay)
+        # live: no replay file, so the title reads the console controller (unpaced replay off).
+        if args.input != 'live': (disc / 'player-replay.bin').write_bytes(replay)
         result['replay_sha256'] = hashlib.sha256(replay).hexdigest()
         if args.dev_room: (disc / 'dev-room.flag').write_bytes(b'1')
         if args.authored_source is not None: (disc / 'authored-source.bin').write_bytes(struct.pack('<I', args.authored_source))
@@ -484,7 +485,7 @@ def main():
             (disc / 'crash-scenario.flag').write_bytes({'combat':b'', 'explosives':b'2', 'mobile':b'3', 'advance':b'4'}[args.scenario])
         if args.log_protocol=='jkdf2-hmp' or args.target=='hardware':
             (disc / 'crash-ram-log.flag').write_bytes(b'')
-        if args.paced: (disc / 'crash-paced.flag').write_bytes(b'')
+        if args.paced and args.input != 'live': (disc / 'crash-paced.flag').write_bytes(b'')
         if args.render_sync: (disc / 'render-overlap.bin').write_bytes(struct.pack('<I',args.render_sync))
         if args.experiment: (disc / 'crash-experiment.bin').write_bytes(struct.pack('<I',args.experiment))
         if args.world_arrays: (disc / 'renderer-world-indices-off.flag').write_bytes(b'')
