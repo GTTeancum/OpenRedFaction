@@ -13,9 +13,10 @@
  * vehicles, fragments, world impacts and penetration keep their established
  * behaviour, now at the moment of arrival. Riot reach and the precision rifles
  * (slots 6/7) stay instant.
- * Port option (openrf.ini tracers, default on): weapons with $Tracers also
- * show Tracer01.VFX on the player's rounds, one per +Tracer Frequency like
- * NPC rounds. It is cosmetic only: the round keeps full speed and its own
+ * Port option (openrf.ini tracers, default on): every player bullet weapon
+ * shows Tracer01.VFX on its rounds. A weapon with an authored $Tracers keeps
+ * its +Tracer Frequency (NPC counter rule); the rest trace every shot, one
+ * streak per shotgun shell (pellet 0). It is cosmetic only: the round keeps full speed and its own
  * contact; the streak leaves the flame muzzle point at the tracer speed
  * (0.275 x $Velocity) and stops at the distance where the round ended. */
 #define SCENE_PLAYER_ROUND_CAPACITY 48u
@@ -49,10 +50,10 @@ static int scene_player_round_launch(const scene_player_round *source,int32_t we
     for(k=0;k<3;k++)r->path[k]=direction[k]/length*range;
     r->flown_fraction=0;r->tracer=0;
     /* Same counter rule as NPC rounds (4c7871 + 429f60), one player owner. */
-    if(scene_tracer_weapons[weapon].enabled) {
+    if(rf_scene_player_tracers && r->pellet==0) {
         int tracer=scene_player_tracer_counter<=0;
-        if(--scene_player_tracer_counter<0)scene_player_tracer_counter=scene_tracer_weapons[weapon].frequency;
-        if(tracer && rf_scene_player_tracers && scene_tracer_visual) {
+        if(--scene_player_tracer_counter<0)scene_player_tracer_counter=scene_tracer_weapons[weapon].enabled?scene_tracer_weapons[weapon].frequency:0;
+        if(tracer && scene_tracer_visual) {
             scene_player_tracer *t=NULL;float dir[3],matrix[3][3];
             for(i=0;i<SCENE_PLAYER_TRACER_CAPACITY;i++)if(!scene_player_tracers[i].active){t=scene_player_tracers+i;break;}
             for(k=0;k<3;k++)dir[k]=direction[k]/length;

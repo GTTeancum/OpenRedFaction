@@ -172,7 +172,7 @@ def main():
     if args.dev_room and args.dev_vehicle == 4:
         if args.level != 'L5S3.rfl' or args.archive != 'levels1.vpp':
             parser.error('The developer submarine fixture uses L5S3.rfl from levels1.vpp')
-    elif args.dev_room and (args.level != 'ctf06.rfl' or args.archive != 'levelsm.vpp'):
+    elif args.dev_room and (args.level not in ('ctf06.rfl','glass_house.rfl') or args.archive != 'levelsm.vpp'):
         parser.error('This crash-hunt developer profile uses ctf06.rfl from levelsm.vpp')
     if args.firearms and not args.dev_room:
         parser.error('--firearms requires --dev-room')

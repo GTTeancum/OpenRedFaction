@@ -13,8 +13,8 @@
  *             auto     60 while it keeps up, otherwise the fallback below
  * fallback:   30_smooth | 30 | none   (used by auto; none keeps dropping pictures)
  * smooth_characters: on | off  move characters and vehicles in in-between pictures
- * tracers:   on | off  tracer streaks on the player's own shots, for weapons
- *             whose weapons.tbl entry has $Tracers (the original draws none)
+ * tracers:   on | off  tracer streaks on the player's own bullet weapons
+ *             (port option; the original draws none on the player's shots)
  * flicker_filter: auto | 0..5  TV encoder vertical blur (auto: 0 progressive, 2 interlaced)
  * textures: compressed | original  use the DXT texture pack (rfdds.vpp) when present
  * resolution: 480 | 720 | auto  720 needs the dashboard's 720p setting; the

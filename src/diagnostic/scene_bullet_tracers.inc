@@ -108,7 +108,7 @@ static int scene_tracer_visual_open(rf_vpp *meshes,rf_vpp *maps,uint32_t map_cou
 {
     scene_rocket_visual *v;uint32_t i,n;rf_material *combined;
     scene_tracer_visual_close();rf_scene_tracers[3]&=0xffffu;scene_tracer_loop_frames=0;
-    if(!rf_scene_tracers[3])return RF_OK;
+    {extern uint32_t rf_scene_player_tracers;if(!rf_scene_tracers[3] && !rf_scene_player_tracers)return RF_OK;} /* player option traces every bullet weapon */
     v=calloc(1,sizeof(*v));if(!v)return RF_IO;scene_tracer_visual=v;
     if(rf_vfx_geometry_asset_open(meshes,"Tracer01.VFX",64*1024,&v->geometry) ||
        rf_vfx_asset_materials_open(v->geometry,maps,map_count,64*1024,&v->materials)){scene_tracer_visual_close();return RF_OK;}
