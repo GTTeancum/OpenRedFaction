@@ -152,7 +152,7 @@ def main():
                         help='write openrf.ini with this frame_rate (absent: no file, fixed 60)')
     parser.add_argument('--textures', choices=('compressed','original'), default='compressed',
                         help='original writes textures = original into openrf.ini (pack still staged)')
-    parser.add_argument('--resolution', choices=('480','720'), default='480',
+    parser.add_argument('--resolution', choices=('480','720'), default='720',
                         help='720: openrf.ini resolution = 720; xemu also gets an HDTV pack and 720p/480p enabled in its EEPROM')
     parser.add_argument('--color-depth', choices=('auto','32','16'), default='auto',
                         help='32/16 write color_depth into openrf.ini (auto: game default)')
@@ -544,15 +544,25 @@ def main():
               subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
           shutil.copyfile(emu/'EEPROM/eeprom.bin',run/'eeprom.bin')
           if args.resolution == '720':
-              # Dashboard video settings (user section, 0x94): 480p|720p|60Hz,
+              # Dashboard video settings (user section, 0x94): widescreen|480p|720p|60Hz,
               # then the user-section checksum at 0x60 over 0x64..0xbf.
               e=bytearray((run/'eeprom.bin').read_bytes())
-              e[0x94:0x98]=struct.pack('<I',0x00080000|0x00020000|0x00400000)
+              e[0x94:0x98]=struct.pack('<I',0x00010000|0x00080000|0x00020000|0x00400000)
               high=low=0
               for i in range(0x64,0x64+0x5c,4):
                   v=struct.unpack('<I',e[i:i+4])[0];total=((high<<32)|low)+v;high=(total>>32)&0xffffffff;low=total&0xffffffff
               e[0x60:0x64]=struct.pack('<I',(~(high+low))&0xffffffff)
               (run/'eeprom.bin').write_bytes(bytes(e))
+          # 720p: a 1280x720 window showing the 16:9 picture 1:1 (xemu's default
+          # is a 640x480 window with the picture fitted to 4:3).
+          display = '''[display.window]
+startup_size = '1280x720'
+[display.ui]
+fit = 'scale'
+aspect_ratio = '16x9'
+[display.quality]
+surface_scale = 1
+''' if args.resolution == '720' else ''
           config = f'''[general]
 show_welcome = false
 skip_boot_anim = true
@@ -565,7 +575,7 @@ background_input_capture = false
 enable = false
 [audio]
 use_dsp = true
-[sys]
+{display}[sys]
 avpack = 'hdtv'
 [sys.files]
 bootrom_path = '{emu.as_posix()}/MCPX/mcpx_1.0.bin'
