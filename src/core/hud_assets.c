@@ -128,6 +128,7 @@ void rf_hud_assets_close(rf_hud_assets *a){if(a){rf_image_close(&a->atlas);free(
 int rf_hud_assets_open(rf_hud_assets **out,rf_vpp *ui,rf_vpp *maps,uint32_t count,rf_vpp *tables,uint32_t budget)
 {
     rf_hud_assets *a=NULL;hud_plan *p=NULL;uint64_t used;uint32_t i,j,k,layout_bytes=0;int status=RF_RANGE;
+    unsigned char *staging=NULL; /* Xbox: cached RGBA build buffer (see below). */
     if(!out || *out || !ui || !tables || (!maps && count) || count>16)return RF_RANGE;
     used=sizeof(*a)+sizeof(*p)+HUD_SCRATCH;if(used+(uint64_t)HUD_WIDTH*HUD_HEIGHT*4>budget)return RF_RANGE;
     a=calloc(1,sizeof(*a));p=calloc(1,sizeof(*p));if(!a || !p){status=RF_IO;goto done;}
@@ -153,7 +154,14 @@ int rf_hud_assets_open(rf_hud_assets **out,rf_vpp *ui,rf_vpp *maps,uint32_t coun
     a->atlas.bytes=HUD_WIDTH*a->atlas.height*4;a->atlas.source_format=7;
     used+=a->atlas.bytes;if(used>budget){status=RF_RANGE;goto done;}
     if(used>a->peak)a->peak=(uint32_t)used;a->resident=(uint32_t)sizeof(*a)+a->atlas.bytes;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    /* Build the RGBA atlas in cached memory: image pixels are write-combined
+     * GPU memory, and the gutters and the 4444 pass below read every texel
+     * back (~1 s on hardware). Same bytes, same swizzled layout. */
+    staging=calloc(1,a->atlas.bytes);if(!staging){status=RF_IO;goto done;}a->atlas.rgba=staging;
+#else
     status=rf_image_allocate_pixels(&a->atlas);if(status)goto done;memset(a->atlas.rgba,0,a->atlas.bytes);
+#endif
     for(i=0;i<RF_HUD_SPRITE_COUNT;i++){
         const hud_rect *r=a->sprites+i;
         status=rf_image_tga_into(&a->atlas,r->x,r->y,r->w,r->h,p->sources[i].archive,&p->sources[i].entry);if(status)goto done;
@@ -181,10 +189,12 @@ int rf_hud_assets_open(rf_hud_assets **out,rf_vpp *ui,rf_vpp *maps,uint32_t coun
         uint32_t texel=(uint32_t)(s[3]+8)/17u<<12|(uint32_t)(s[0]+8)/17u<<8|(uint32_t)(s[1]+8)/17u<<4|(uint32_t)(s[2]+8)/17u;
         d[0]=(unsigned char)texel;d[1]=(unsigned char)(texel>>8);
      }
-     rf_image_close(&a->atlas);a->atlas=packed;a->resident=(uint32_t)sizeof(*a)+a->atlas.bytes;}
+     free(staging);staging=NULL;a->atlas=packed;a->resident=(uint32_t)sizeof(*a)+a->atlas.bytes;}
 #endif
     *out=a;a=NULL;status=RF_OK;
- done:if(p){for(i=0;i<RF_HUD_FONT_COUNT;i++)free(p->font_data[i]);free(p);}rf_hud_assets_close(a);return status;
+ done:if(p){for(i=0;i<RF_HUD_FONT_COUNT;i++)free(p->font_data[i]);free(p);}
+    if(staging){free(staging);if(a)a->atlas.rgba=NULL;}
+    rf_hud_assets_close(a);return status;
 }
 static void sprite(const rf_hud_assets *a,const hud_rect *r,rf_hud_sprite *out)
 {

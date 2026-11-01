@@ -368,7 +368,7 @@ uint32_t rf_scene_fragment_profile[24]; /* v,ticks,active ticks,bodies,max bodie
 /* Large runtime payload hashes are for replay parity, never gameplay input.
  * Keep them on by default for existing probes; an interactive port can opt out
  * before starting a scene without disabling counters, timings or state rings. */
-uint32_t rf_scene_diagnostic_checksums_enabled=1;
+uint32_t rf_scene_diagnostic_checksums_enabled=1; /* Also gates load-time texture pixel hashes: they read write-combined texture memory (~1 s per load on hardware). */
 void rf_scene_set_diagnostic_checksums(uint32_t enabled)
 {rf_scene_diagnostic_checksums_enabled=enabled!=0;}
 static uint32_t scene_diagnostic_hash(uint32_t hash,const void *data,uint32_t bytes)
@@ -4920,7 +4920,7 @@ static int campaign_glare_resources_open(const char *tables_path,rf_vpp *archive
             const rf_image *image=animation->images+f;uint32_t pixel_bytes=rf_image_is_packed_1555(image)?2:4;
             h=npc_hash_bytes(h,&image->width,4);h=npc_hash_bytes(h,&image->height,4);
             h=npc_hash_bytes(h,&image->bytes,4);h=npc_hash_bytes(h,&image->source_format,4);
-            p=rf_image_hash_pixels(p,image,pixel_bytes);
+            if(rf_scene_diagnostic_checksums_enabled)p=rf_image_hash_pixels(p,image,pixel_bytes);
             rf_scene_glare_resources[7]+=image->bytes;
         }
     }
@@ -5015,7 +5015,7 @@ static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archi
     for(i=0;i<campaign_clutter_materials.textures.count;++i) {
         const rf_image *image=&campaign_clutter_materials.textures.items[i].image;
         p=npc_hash_bytes(p,&image->width,4);p=npc_hash_bytes(p,&image->height,4);p=npc_hash_bytes(p,&image->source_format,4);
-        p=rf_image_hash_pixels(p,image,4);
+        if(rf_scene_diagnostic_checksums_enabled)p=rf_image_hash_pixels(p,image,4);
         rf_scene_clutter_materials[6]+=image->bytes;
     }
     rf_scene_clutter_materials[5]=h;rf_scene_clutter_materials[7]=p;return RF_OK;
@@ -5279,7 +5279,7 @@ static void campaign_npc_materials_digest(void)
     for(i=0;i<owner->materials.textures.count;++i) {
         const rf_image *image=&owner->materials.textures.items[i].image;
         p=npc_hash_bytes(p,&image->width,4);p=npc_hash_bytes(p,&image->height,4);
-        p=rf_image_hash_pixels(p,image,4);
+        if(rf_scene_diagnostic_checksums_enabled)p=rf_image_hash_pixels(p,image,4);
         bytes+=image->bytes;
     }
     rf_scene_npc_materials[5]=h;rf_scene_npc_materials[6]=bytes;rf_scene_npc_materials[7]=p;
@@ -5819,7 +5819,7 @@ static int campaign_weapon_materials_open(rf_vpp *maps,uint32_t map_count)
     for(i=0;i<campaign_weapon_materials.textures.count;++i) {
         const rf_image *image=&campaign_weapon_materials.textures.items[i].image;
         p=npc_hash_bytes(p,&image->width,4);p=npc_hash_bytes(p,&image->height,4);p=npc_hash_bytes(p,&image->source_format,4);
-        p=rf_image_hash_pixels(p,image,4);
+        if(rf_scene_diagnostic_checksums_enabled)p=rf_image_hash_pixels(p,image,4);
         rf_scene_weapon_materials[5]+=image->bytes;
     }
     rf_scene_weapon_materials[6]=h;rf_scene_weapon_materials[7]=p;return RF_OK;
