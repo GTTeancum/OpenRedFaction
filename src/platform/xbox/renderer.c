@@ -1083,7 +1083,9 @@ int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
  * surface sharing the depth buffer's top-left region, stretched to the full
  * frame with bilinear filtering, and the HUD is drawn on top at full
  * resolution. If that is still GPU-bound it steps to 1/2 size. Each level is
- * held for LOWRES_HOLD_FRAMES pictures after the last slow frame, then steps
+ * held for LOWRES_HOLD_FRAMES pictures after the last slow frame (a picture
+ * later than its update budget whose GPU wait reached LOWRES_TRIGGER_MS;
+ * waiting alone is normal when the CPU finishes early), then steps
  * back up one level; menus and non-streaming pictures never use it. The GPU
  * wait is measured at frame start and in the HUD flush (where it moves once
  * the reduced picture is composited). */
@@ -1092,6 +1094,8 @@ void pb_target_buffer(DWORD address,DWORD width,DWORD height,DWORD pitch);
 #define LOWRES_HOLD_FRAMES 45u
 static unsigned char *lowres_color;static rf_preview_vertex *lowres_quad;
 static uint32_t lowres_width,lowres_height,lowres_pitch,lowres_hold,lowres_failed,lowres_backlog,lowres_level;
+static uint32_t lowres_last_start,lowres_late; /* previous picture start (ms), last picture over budget */
+extern uint32_t rf_tick_frames;
 static const float lowres_scales[3]={1,.75f,.5f};
 /* pictures at 3/4, entries into reduced mode, allocation failures, last GPU wait ms,
  * pictures at 1/2, steps down to 1/2, current level, HUD-flush wait ms */
@@ -1100,7 +1104,9 @@ static int lowres_choose(void)
 {
     uint32_t level;
     if(lowres_failed || !screen_wide)return 0;
-    if(lowres_backlog>=LOWRES_TRIGGER_MS || ((rf_xbox_experiment&16u) && !lowres_level)) {
+    {uint32_t now=GetTickCount(),budget=rf_tick_frames*1000u/60u+3u;
+     lowres_late=lowres_last_start && now-lowres_last_start>budget;lowres_last_start=now;}
+    if((lowres_backlog>=LOWRES_TRIGGER_MS && lowres_late) || ((rf_xbox_experiment&16u) && !lowres_level)) {
         if(!lowres_level)++rf_xbox_lowres[1];else if(lowres_level==1)++rf_xbox_lowres[5];
         if(lowres_level<2)++lowres_level;
         lowres_hold=LOWRES_HOLD_FRAMES;
