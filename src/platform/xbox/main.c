@@ -1459,9 +1459,12 @@ static int sweep_check(void)
     rf_sweep_diagnostic[1]=rf_sweep_diagnostic[5]?(uint32_t)RF_FORMAT:1;
     return rf_sweep_diagnostic[5]?RF_FORMAT:RF_OK;
 }
+static uint32_t GetTickCount_ms(void){return GetTickCount();}
 static int collision_check(const rf_level *level)
 {
     uint32_t i,j,k,hash=2166136261u;MM_STATISTICS memory={0};int status;
+    {extern uint32_t (*rf_geometry_profile_clock)(void),rf_geometry_world_open_ms[5];
+     rf_geometry_profile_clock=GetTickCount_ms;memset(rf_geometry_world_open_ms,0,sizeof(rf_geometry_world_open_ms));}
     status=rf_geometry_collision_world_open(&resident_geometry,8u*1024u*1024u,&resident_collision);rf_xbox_reload_ms[8]=GetTickCount();
     if(status) {rf_collision_diagnostic[1]=(uint32_t)status;return status;}
     rf_collision_diagnostic[2]=resident_collision.allocated_bytes;rf_collision_diagnostic[3]=resident_collision.peak_bytes;

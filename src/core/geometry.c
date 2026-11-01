@@ -918,17 +918,29 @@ void rf_geometry_collision_room_close(rf_geometry_collision_room *room)
 {
     if(room) {rf_collision_tree_close(&room->tree);free(room->vertices);memset(room,0,sizeof(*room));}
 }
-int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
+/* list: this room's face indices in increasing order (NULL: scan all
+ * faces). The world open buckets faces by room once; scanning every face
+ * for every room cost rooms x faces reads (~5.6 s on a 424-room level). */
+/* Load-time profile, set by the platform: ms in face scans, buffer
+ * allocation, collision face build, tree build; rooms opened. */
+uint32_t (*rf_geometry_profile_clock)(void);
+uint32_t rf_geometry_world_open_ms[5];
+#define GEOMETRY_LAP(n) do{if(rf_geometry_profile_clock){uint32_t now_=rf_geometry_profile_clock();rf_geometry_world_open_ms[n]+=now_-lap_;lap_=now_;}}while(0)
+static int collision_room_open(const rf_geometry *geometry,uint32_t room,const uint32_t *list,uint32_t listed,
     uint32_t budget,rf_geometry_collision_room *result)
 {
     rf_geometry_collision_room value={0};rf_collision_face *faces=NULL;
-    uint32_t *indices=NULL,count=0,i,at=0,vertex=0;uint64_t corners=0,base,temporary;
-    rf_geometry_face face;int status;
+    uint32_t *indices=NULL,count=0,i,at=0,vertex=0,n,scan;uint64_t corners=0,base,temporary;
+    rf_geometry_face face;int status;uint32_t lap_=rf_geometry_profile_clock?rf_geometry_profile_clock():0;
     if(!geometry || !geometry->data || !result || room>=geometry->rooms)return RF_RANGE;
-    for(i=0;i<geometry->faces;i++) {
+    ++rf_geometry_world_open_ms[4];
+    scan=list?listed:geometry->faces;
+    for(n=0;n<scan;n++) {
+        i=list?list[n]:n;
         status=rf_geometry_get_face(geometry,i,&face);if(status)return status;
         if(face.room==room) {count++;corners+=face.corners;}
     }
+    GEOMETRY_LAP(0);
     base=sizeof(value)+corners*12;temporary=(uint64_t)count*(sizeof(*faces)+sizeof(*indices));
     if(base+temporary>budget)return RF_RANGE;
     value.room=room;
@@ -942,8 +954,10 @@ int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
         if(!value.vertices || !faces) {status=RF_IO;goto done;}
         indices=(uint32_t*)(faces+count);
     }
-    for(i=0;i<geometry->faces;i++) {
+    GEOMETRY_LAP(1);
+    for(n=0;n<scan;n++) {
         rf_collision_face_filter filter;
+        i=list?list[n]:n;
         status=rf_geometry_get_face(geometry,i,&face);if(status)goto done;
         if(face.room!=room)continue;
         status=rf_geometry_initial_collision_filter(geometry,i,0,&filter);if(status)goto done;
@@ -954,7 +968,9 @@ int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
         }}
         indices[at++]=i;vertex+=face.corners;
     }
+    GEOMETRY_LAP(2);
     status=rf_collision_tree_open(faces,count,(uint32_t)(budget-base-temporary+sizeof(value.tree)),&value.tree);
+    GEOMETRY_LAP(3);
     if(status)goto done;
     for(i=0;i<count;i++)value.tree.source_indices[i]=indices[value.tree.source_indices[i]];
     value.allocated_bytes=(uint32_t)(base+value.tree.allocated_bytes-sizeof(value.tree));
@@ -964,6 +980,9 @@ int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
     if(status) {rf_geometry_collision_room_close(&value);return status;}
     *result=value;return RF_OK;
 }
+int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
+    uint32_t budget,rf_geometry_collision_room *result)
+{return collision_room_open(geometry,room,NULL,0,budget,result);}
 void rf_geometry_collision_overlay_close(rf_geometry_collision_overlay *overlay)
 {if(overlay){free(overlay->storage);memset(overlay,0,sizeof(*overlay));}}
 int rf_geometry_collision_overlay_open(const rf_geometry_collision_world *base,
@@ -1029,7 +1048,7 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
     rf_geometry_collision_world *world)
 {
     rf_geometry_collision_world value={0};uint64_t links=0,bytes,retained,peak;
-    const unsigned char *p;uint32_t i,at=0;int status;
+    const unsigned char *p;uint32_t i,at=0,*bucket_start=NULL,*bucket_list=NULL;int status;
     if(!geometry || !geometry->data || !world)return RF_RANGE;
     p=geometry->data+geometry->room_links_offset;
     for(i=0;i<geometry->room_link_records;i++) {uint32_t n=u32(p+4);links+=n;p+=8+(size_t)n*4;}
@@ -1054,9 +1073,37 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
     }
     if(geometry->vertices)for(i=0;i<3;++i) {value.minimum[i]-=.0001f;value.maximum[i]+=.0001f;}
     status=rf_geometry_primary_rooms(geometry,value.primary,geometry->rooms,&value.primary_count);if(status)goto fail;
+    /* Bucket face indices by room once (counting sort keeps face order).
+     * Any face read failure falls back to the per-room scan, which reports
+     * the same error at the same point. */
+    {
+        rf_geometry_face face;uint32_t f;
+        bucket_start=(uint32_t *)calloc((size_t)geometry->rooms+1,sizeof(uint32_t));
+        bucket_list=geometry->faces?(uint32_t *)malloc((size_t)geometry->faces*sizeof(uint32_t)):NULL;
+        if(bucket_start && (bucket_list || !geometry->faces)) {
+            for(f=0;f<geometry->faces;f++) {
+                if(rf_geometry_get_face(geometry,f,&face)){free(bucket_list);bucket_list=NULL;break;}
+                if(face.room<geometry->rooms)bucket_start[face.room+1]++;
+            }
+            if(bucket_list || !geometry->faces) {
+                uint32_t *cursor;
+                for(f=0;f<geometry->rooms;f++)bucket_start[f+1]+=bucket_start[f];
+                cursor=(uint32_t *)malloc(((size_t)geometry->rooms+1)*sizeof(uint32_t));
+                if(cursor) {
+                    memcpy(cursor,bucket_start,((size_t)geometry->rooms+1)*sizeof(uint32_t));
+                    for(f=0;f<geometry->faces;f++){rf_geometry_get_face(geometry,f,&face);if(face.room<geometry->rooms)bucket_list[cursor[face.room]++]=f;}
+                    free(cursor);
+                } else {free(bucket_list);bucket_list=NULL;}
+            }
+        }
+        if(!bucket_list && geometry->faces){free(bucket_start);bucket_start=NULL;}
+        if(bucket_start){bytes=retained+((uint64_t)geometry->rooms+1+geometry->faces)*4;if(bytes>peak)peak=bytes;}
+    }
     for(i=0;i<geometry->rooms;i++) {
         rf_geometry_collision_room *room=value.rooms+i;rf_collision_room_view *view=value.views+i;
-        status=rf_geometry_collision_room_open(geometry,i,(uint32_t)(budget-retained+sizeof(*room)),room);if(status)goto fail;
+        status=bucket_start?collision_room_open(geometry,i,bucket_list?bucket_list+bucket_start[i]:NULL,bucket_start[i+1]-bucket_start[i],
+                (uint32_t)(budget-retained+sizeof(*room)),room):
+            rf_geometry_collision_room_open(geometry,i,(uint32_t)(budget-retained+sizeof(*room)),room);if(status)goto fail;
         bytes=retained+room->peak_bytes-sizeof(*room);if(bytes>peak)peak=bytes;
         retained+=room->allocated_bytes-sizeof(*room);
         memcpy(view->minimum,room->minimum,24);view->tree=&room->tree;
@@ -1067,8 +1114,10 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
         status=rf_geometry_room_children(geometry,i,value.children+at,value.child_count-at,&view->child_count);if(status)goto fail;
         at+=view->child_count;
     }
+    free(bucket_start);free(bucket_list);
     value.allocated_bytes=(uint32_t)retained;value.peak_bytes=(uint32_t)peak;*world=value;return RF_OK;
  fail:
+    free(bucket_start);free(bucket_list);
     rf_geometry_collision_world_close(&value);return status;
 }
 int rf_geometry_collision_world_locate(const rf_geometry_collision_world *world,
