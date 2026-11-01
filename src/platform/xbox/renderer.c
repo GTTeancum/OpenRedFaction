@@ -611,8 +611,12 @@ static void retained_world_indices_close(void);
 static void retained_world_indices_open(void);
 static void retained_movers_close(void);
 static void retained_movers_enable(void);
+static void retained_terrain_close(void);
+static int retained_terrain_prepare(uint32_t,const rf_geomod_mesh_view *,const rf_collision_face *,
+    uint32_t,const float (*)[3],const rf_geometry *,const rf_preview_surface_lightmap *);
 static void retained_world_close(void)
 {
+    retained_terrain_close();
     retained_movers_close();
     retained_world_indices_close();
     liquid_waves_close();
@@ -721,7 +725,8 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
  * where the retained model queue normally restarts; restart it here. */
 void rf_xbox_frame_skipped(void){retained_models_begin();}
 void rf_xbox_enable_retained_world(void){rf_scene_set_static_world_backend(retained_world_prepare);rf_scene_set_model_backend(retained_model_prepare);
-    rf_scene_set_view_model_backend(retained_view_model_prepare);retained_movers_enable();}
+    rf_scene_set_view_model_backend(retained_view_model_prepare);retained_movers_enable();
+    rf_scene_set_terrain_backend(retained_terrain_prepare);}
 static void vertex_program(const uint32_t *program,uint32_t words)
 {
     uint32_t i,*p=pb_begin();
@@ -921,6 +926,7 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
 }
 #include "retained_models.h"
 #include "retained_movers.h"
+#include "retained_terrain.h"
 void rf_xbox_scene_stream_close(void)
 {
     if(rf_xbox_draw_audit[1])MmFreeContiguousMemory((void *)rf_xbox_draw_audit[1]);
@@ -1298,6 +1304,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(model==4 && retained_world.ready==1) {
             int status=retained_world_draw(materials,lightmaps,textures);if(status)return status;
             status=retained_movers_draw(materials,lightmaps,textures);if(status)return status;
+            status=retained_terrain_draw(materials,lightmaps,textures);if(status)return status;
             vertex_program(program,sizeof(program)/4);
             p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
             p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);pb_end(p);

@@ -741,6 +741,22 @@ void rf_scene_set_view_model_backend(rf_scene_model_backend backend){view_model_
 static uint32_t static_world_retained;
 void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend)
 {static_world_backend=backend;static_world_retained=0;}
+static rf_scene_terrain_backend terrain_backend;
+void rf_scene_set_terrain_backend(rf_scene_terrain_backend backend){terrain_backend=backend;}
+/* Carved terrain: the platform's retained draw when it accepts this mesh
+ * (only with the retained static world), else the CPU vertex path. */
+static int scene_terrain_world_lit(uint32_t slot,rf_preview_mesh *out,uint32_t capacity,const rf_geomod_mesh_view *mesh,
+    const rf_collision_face *bound,uint32_t material_count,const rf_level *camera,const float (*colors)[3],
+    const rf_geometry *authored,const rf_preview_surface_lightmap *bindings,uint32_t lightmapped)
+{
+    if(terrain_backend && static_world_retained && campaign_spawn && (bindings || !lightmapped)) {
+        int status=terrain_backend(slot,mesh,bound,material_count,colors,authored,bindings);
+        if(status==RF_OK){out->count=0;out->bytes=0;return RF_OK;}
+        if(status!=RF_NOT_FOUND)return status;
+    }
+    return lightmapped?rf_preview_geomod_lightmapped(out,capacity,mesh,bound,material_count,camera,colors,authored,bindings):
+        rf_preview_geomod_world_lit(out,capacity,mesh,bound,material_count,camera,colors,authored);
+}
 static int scene_world_dispatch_camera(const rf_scene_world_geometry *geometry,
     rf_group_attached_pose *poses,uint32_t pose_count,const float position[3],
     const float orientation[3][3],rf_preview_mesh *mesh,uint32_t capacity_bytes,
@@ -19620,6 +19636,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
      world_build_profile_mark(1,&build_clock);
+     if(terrain_backend)(void)terrain_backend(UINT32_MAX,NULL,NULL,0,NULL,NULL,NULL);
      if(terrain_cuts) {
         rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
@@ -19627,9 +19644,9 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,view_basis,36);
         if(stream->campaign_geomod && stream->campaign_geomod->active){
             const scene_campaign_geomod_owner *owner=stream->campaign_geomod;
-            status=rf_preview_geomod_world_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+            status=scene_terrain_world_lit(0,&generated,stream->capacity-1024*1024-world_mesh.bytes,
                 &owner->mesh,owner->bound,stream->materials->count,&camera,owner->colors,
-                stream->geometry);if(status)return status;
+                stream->geometry,NULL,0);if(status)return status;
         }
         if(stream->campaign_wall && stream->campaign_wall->active){
             uint32_t side;
@@ -19641,10 +19658,10 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
                  * its identical polygons once to avoid coplanar overdraw. */
                 if(side==1)draw.face_count=room->retained_faces;
                 next.vertices=generated.vertices+generated.count;
-                status=rf_preview_geomod_world_lit(&next,
+                status=scene_terrain_world_lit(1+side,&next,
                     stream->capacity-1024*1024-world_mesh.bytes-generated.bytes,
                     &draw,room->bound,stream->materials->count,&camera,
-                    room->colors,stream->geometry);if(status)return status;
+                    room->colors,stream->geometry,NULL,0);if(status)return status;
                 generated.count+=next.count;generated.bytes+=next.bytes;
             }
         }
@@ -19652,19 +19669,19 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             status=stream->terrain_authored?scene_terrain_publication_view(stream,&terrain):
                 rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
             status=scene_terrain_lighting(stream,&terrain,frame);if(status)return status;
-            status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+            status=scene_terrain_world_lit(3,&generated,stream->capacity-1024*1024-world_mesh.bytes,
                 &stream->terrain_draw->view,stream->terrain_draw->bound,stream->materials->count,
-                &camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
+                &camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings,1);if(status)return status;
             if(stream->terrain_publication && stream->terrain_publication->detail &&
                stream->terrain_publication->detail->published &&
                stream->collision==&stream->terrain_publication->detail->overlay.world) {
                 const scene_l1s2_detail_bank *detail=
                     stream->terrain_publication->detail->banks+stream->terrain_publication->detail->active;
                 rf_preview_mesh next={0};next.vertices=generated.vertices+generated.count;
-                status=rf_preview_geomod_world_lit(&next,
+                status=scene_terrain_world_lit(4,&next,
                     stream->capacity-1024*1024-world_mesh.bytes-generated.bytes,
                     &detail->mesh,detail->bound,stream->materials->count,
-                    &camera,detail->colors,stream->geometry);if(status)return status;
+                    &camera,detail->colors,stream->geometry,NULL,0);if(status)return status;
                 generated.count+=next.count;generated.bytes+=next.bytes;
             }
         }

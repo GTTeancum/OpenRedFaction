@@ -823,6 +823,13 @@ struct rf_visibility;
 typedef int (*rf_scene_static_world_backend)(const rf_scene_world_geometry *,const float *,
     const float (*)[3],const struct rf_visibility *);
 void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend);
+/* Optional carved-terrain backend (retained GPU draw of a generated mesh,
+ * same inputs as rf_preview_geomod_world_lit/_lightmapped). Slot UINT32_MAX
+ * starts a world rebuild. RF_OK: drawn by the platform this frame;
+ * RF_NOT_FOUND: emit CPU vertices as before; other: error. */
+typedef int (*rf_scene_terrain_backend)(uint32_t slot,const rf_geomod_mesh_view *source,const rf_collision_face *bound,
+    uint32_t material_count,const float (*vertex_colors)[3],const rf_geometry *authored,const rf_preview_surface_lightmap *bindings);
+void rf_scene_set_terrain_backend(rf_scene_terrain_backend backend);
 /* Optional model draw backend: copy stack-owned matrices/view before return.
  * Bone count0 and NULL matrices denote a rigid mesh; otherwise apply skinning.
  * at_vertex preserves ordering among CPU-stream draws. OK replaces this batch;
