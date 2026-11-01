@@ -265,6 +265,13 @@ static const uint32_t *particle_batch_pixels;
 /* Last streaming pass: fans, command-buffer resets, omitted image texels, reused states. */
 uint32_t rf_xbox_particle_batch[4];
 uint32_t rf_xbox_particle_texture_switches;
+/* Last streaming pass: world effect draws with a packed mip chain, single-level draws. */
+uint32_t rf_xbox_particle_mips[2];
+/* Last streaming pass, 640x480 units: on-screen bounding-box area summed over
+ * effect fans, largest single fan, fans covering at least a whole screen,
+ * fans with a vertex at reciprocal-w above 1 (nearer than one unit). */
+uint32_t rf_xbox_particle_area[4];
+static uint32_t particle_corona_pass; /* nonzero while coronas/glares draw */
 uint32_t rf_renderer_fx_split[3];
 /* Stream pass split: [0] retained model render cycles, [1] whole stream loop cycles, [2] model renders, [3] CPU runs. */
 uint64_t rf_renderer_model_split[4]; /* ms in particles, ms in coronas, profiled frames */ /* texture-only state changes in world particle passes */
@@ -283,6 +290,7 @@ static void particle_batch_flush(void)
 static void particle_batch_begin(void)
 {
     memset(rf_xbox_particle_batch,0,sizeof(rf_xbox_particle_batch));
+    memset(rf_xbox_particle_mips,0,sizeof(rf_xbox_particle_mips));memset(rf_xbox_particle_area,0,sizeof(rf_xbox_particle_area));
     particle_batch_ready=particle_program_loaded=0;particle_batch_pixels=NULL;
     particle_batch_flush();particle_batch_active=1;
 }
@@ -441,17 +449,200 @@ static int scene_menu_present(void *context,const rf_particle_draw_vertex *verti
         return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
     return scene_hud_present(context,vertices,count,image,mode);
 }
+/* Screen-covering layer merge. Standing inside authored mist (L18S1's
+ * waterfall emitter: a puff every 0.1 s, 5 s life, 3 m/s growth) stacks ~40
+ * normal-blend puffs that each cover the whole screen; blending them held the
+ * GPU at 12-17 pictures/s even at half resolution. Covering puffs are
+ * buffered per blend mode in draw order (far to near); smaller effects draw
+ * at once and do not end a group. Beyond the nearest COVER_KEEP, the farther
+ * ones become one textured layer plus one flat layer (white texel), together
+ * as opaque as the stack they replace: each layer's alpha and colour are its
+ * vertex values times the mean of the part of its image on screen,
+ * composited in order ("over"). Console screenshots against the full stack
+ * (L18S1 mist, November 1) match in density; the merged mist is slightly
+ * greyer with fewer bright patches. Depth testing uses the nearest merged
+ * puff's quad. Experiment bit 128 draws every layer. */
+#define COVER_KEEP 3u
+#define COVER_LIMIT 48u
+#define COVER_GROUPS 3u
+typedef struct cover_layer {rf_particle_draw_vertex v[12];uint32_t count,mode;const rf_image *image;} cover_layer;
+/* One open group per blend/depth mode: the mist alternates between modes. */
+static struct {uint32_t mode,count;cover_layer e[COVER_LIMIT];} cover_groups[COVER_GROUPS];
+/* Last particle pass: groups merged, layers merged, layers in largest group,
+ * image decodes (total), group flushes, layers drawn unmerged, flushes with
+ * every group open, flushes of a full group. */
+uint32_t rf_xbox_cover_merge[8];
+/* Small decoded copy (<=16x16, RGBA8) of each merged image, for region means. */
+static struct {const unsigned char *pixels;uint32_t w,h;uint8_t texels[16*16][4];} cover_means[64];static uint32_t cover_mean_next;
+static rf_image cover_white;
+/* Decode one DXT1/DXT5 block (b: 8 or 16 bytes) to 16 texels R G B A, 0..1. */
+static void dxt_block_decode(const unsigned char *b,int dxt5,float out[16][4])
+{
+    const unsigned char *cb=dxt5?b+8:b;uint32_t c[2],i,k,bits;float pal[4][4];
+    c[0]=cb[0]|cb[1]<<8;c[1]=cb[2]|cb[3]<<8;bits=cb[4]|cb[5]<<8|cb[6]<<16|(uint32_t)cb[7]<<24;
+    for(i=0;i<2;i++){pal[i][0]=(float)(c[i]>>11)/31;pal[i][1]=(float)(c[i]>>5&63)/63;pal[i][2]=(float)(c[i]&31)/31;pal[i][3]=1;}
+    for(k=0;k<3;k++) {
+        if(dxt5 || c[0]>c[1]){pal[2][k]=(2*pal[0][k]+pal[1][k])/3;pal[3][k]=(pal[0][k]+2*pal[1][k])/3;}
+        else {pal[2][k]=(pal[0][k]+pal[1][k])/2;pal[3][k]=0;}
+    }
+    pal[2][3]=1;pal[3][3]=dxt5 || c[0]>c[1]?1:0;
+    for(i=0;i<16;i++)for(k=0;k<4;k++)out[i][k]=pal[bits>>(2*i)&3][k];
+    if(dxt5) {
+        float a[8];uint64_t abits=0;
+        a[0]=b[0];a[1]=b[1];
+        if(b[0]>b[1])for(i=1;i<7;i++)a[i+1]=((7-i)*a[0]+i*a[1])/7;
+        else {for(i=1;i<5;i++)a[i+1]=((5-i)*a[0]+i*a[1])/5;a[6]=0;a[7]=255;}
+        for(i=0;i<6;i++)abits|=(uint64_t)b[2+i]<<(8*i);
+        for(i=0;i<16;i++)out[i][3]=a[abits>>(3*i)&7]/255;
+    }
+}
+/* The image's decoded small copy: packs decode their last level of at most
+ * 16x16 (blocks in linear order); plain images are point-sampled once. */
+static int image_small(const rf_image *image)
+{
+    uint32_t i,k,x,y;
+    for(i=0;i<64;i++)if(cover_means[i].pixels==image->rgba)return (int)i;
+    ++rf_xbox_cover_merge[3];
+    k=cover_mean_next++%64;cover_means[k].pixels=image->rgba;
+    if(image->compressed) {
+        uint32_t block=image->compressed==1?8:16,levels=image->mip_levels?image->mip_levels:1,w=image->width,h=image->height,level=0,offset=0,bx,by;
+        float texels[16][4];
+        while(level+1<levels && (w>16 || h>16)){offset+=((w+3)/4)*((h+3)/4)*block;if(w>1)w/=2;if(h>1)h/=2;++level;}
+        if(w>16)w=16;if(h>16)h=16;
+        cover_means[k].w=w;cover_means[k].h=h;
+        for(by=0;by<(h+3)/4;by++)for(bx=0;bx<(w+3)/4;bx++) {
+            uint32_t at=offset+(by*((w+3)/4)+bx)*block;
+            if(at+block>image->bytes){memset(texels,0,sizeof(texels));}
+            else dxt_block_decode(image->rgba+at,image->compressed!=1,texels);
+            for(i=0;i<16;i++){x=bx*4+i%4;y=by*4+i/4;if(x<w && y<h)
+                for(uint32_t c=0;c<4;c++)cover_means[k].texels[y*w+x][c]=(uint8_t)(texels[i][c]*255+.5f);}
+        }
+    } else {
+        uint32_t w=image->width<16?image->width:16,h=image->height<16?image->height:16;
+        int p1555=rf_image_is_packed_1555(image),p4444=rf_image_is_packed_4444(image);
+        cover_means[k].w=w;cover_means[k].h=h;
+        for(y=0;y<h;y++)for(x=0;x<w;x++) {
+            const unsigned char *px=rf_image_pixel(image,(2*x+1)*image->width/(2*w),(2*y+1)*image->height/(2*h));uint8_t *o=cover_means[k].texels[y*w+x];
+            if(p1555||p4444){uint16_t q;memcpy(&q,px,2);
+                if(p4444){o[0]=(uint8_t)((q>>8&15)*17);o[1]=(uint8_t)((q>>4&15)*17);o[2]=(uint8_t)((q&15)*17);o[3]=(uint8_t)((q>>12)*17);}
+                else {o[0]=(uint8_t)((q>>10&31)*255/31);o[1]=(uint8_t)((q>>5&31)*255/31);o[2]=(uint8_t)((q&31)*255/31);o[3]=q>>15?255:0;}}
+            else {o[0]=px[0];o[1]=px[1];o[2]=px[2];o[3]=px[3];}
+        }
+    }
+    return (int)k;
+}
+/* Mean R G B A (0..1) of the part of a layer's image that lies on screen.
+ * A camera-facing billboard maps screen to UV affinely; three vertices give
+ * that map, the screen corners give the visible UV rectangle. */
+static void cover_region_mean(const cover_layer *layer,float out[4])
+{
+    const rf_particle_draw_vertex *v=layer->v;int k=image_small(layer->image);
+    double x1=v[1].screen[0]-v[0].screen[0],y1=v[1].screen[1]-v[0].screen[1],x2=v[2].screen[0]-v[0].screen[0],y2=v[2].screen[1]-v[0].screen[1];
+    double det=x1*y2-x2*y1,u0=1,u1=0,w0=1,w1=0;uint32_t c,x,y,n=0,w=cover_means[k].w,h=cover_means[k].h;double sum[4]={0};
+    memset(out,0,16);
+    if(fabs(det)>1e-6) {
+        double du1=v[1].uv[0]-v[0].uv[0],du2=v[2].uv[0]-v[0].uv[0],dv1=v[1].uv[1]-v[0].uv[1],dv2=v[2].uv[1]-v[0].uv[1];
+        double ux=(du1*y2-du2*y1)/det,uy=(du2*x1-du1*x2)/det,vx=(dv1*y2-dv2*y1)/det,vy=(dv2*x1-dv1*x2)/det;
+        for(c=0;c<4;c++){double sx=c&1?640:0,sy=c&2?480:0,u=v[0].uv[0]+ux*(sx-v[0].screen[0])+uy*(sy-v[0].screen[1]),t=v[0].uv[1]+vx*(sx-v[0].screen[0])+vy*(sy-v[0].screen[1]);
+            if(u<u0)u0=u;if(u>u1)u1=u;if(t<w0)w0=t;if(t>w1)w1=t;}
+    } else {u0=w0=0;u1=w1=1;}
+    if(u0<0)u0=0;if(w0<0)w0=0;if(u1>1)u1=1;if(w1>1)w1=1;
+    for(y=0;y<h;y++)for(x=0;x<w;x++){double cu=(x+.5)/w,cv=(y+.5)/h;
+        if(cu>=u0 && cu<=u1 && cv>=w0 && cv<=w1){for(c=0;c<4;c++)sum[c]+=cover_means[k].texels[y*w+x][c];++n;}}
+    if(!n){x=(uint32_t)((u0+u1)/2*w);y=(uint32_t)((w0+w1)/2*h);if(x>=w)x=w-1;if(y>=h)y=h-1;
+        for(c=0;c<4;c++)sum[c]=cover_means[k].texels[y*w+x][c];n=1;}
+    for(c=0;c<4;c++)out[c]=(float)(sum[c]/n/255);
+}
+static int cover_flush_group(uint32_t group)
+{
+    cover_layer *cover_pending=cover_groups[group].e;
+    uint32_t n=cover_groups[group].count,merge=0,i,k;int status;const float *mean=NULL;float region[4];
+    cover_groups[group].count=0;++rf_xbox_cover_merge[4];
+    if(n>rf_xbox_cover_merge[2])rf_xbox_cover_merge[2]=n;
+    if(n>COVER_KEEP+1 && !(rf_xbox_experiment&128)) {
+        cover_region_mean(cover_pending+n-COVER_KEEP-1,region);mean=region;
+        if(!cover_white.rgba) {
+            cover_white.rgba=MmAllocateContiguousMemoryEx(4,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+            if(cover_white.rgba){memset(cover_white.rgba,255,4);cover_white.width=cover_white.height=1;cover_white.bytes=4;cover_white.source_format=7;}
+        }
+        if(mean[3]>1.f/255 && mean[0]+mean[1]+mean[2]>0 && cover_white.rgba)merge=n-COVER_KEEP;
+    }
+    if(merge) {
+        /* Per layer: vertex alpha/colour x the on-screen region's mean (puffs
+         * cycle animation frames, so images differ within a group). */
+        float t=mean[3],color[3]={0},textured,flat;double P[3]={0},A=0;
+        rf_particle_draw_vertex v[12];uint32_t argb,count=cover_pending[merge-1].count;
+        for(i=0;i<merge;i++) {
+            float m[4];uint32_t c=cover_pending[i].v[0].argb;
+            cover_region_mean(cover_pending+i,m);double a=(double)(c>>24)/255*m[3];
+            P[0]=(double)(c>>16&255)/255*m[0]*a+(1-a)*P[0];P[1]=(double)(c>>8&255)/255*m[1]*a+(1-a)*P[1];
+            P[2]=(double)(c&255)/255*m[2]*a+(1-a)*P[2];A=a+(1-a)*A;
+        }
+        for(k=0;k<3;k++)color[k]=A>0?(float)(P[k]/A):0;
+        /* The textured layer (nearest merged puff's image) reaches at most t;
+         * the flat layer supplies the rest: 1-(1-t*textured)(1-flat) = A. */
+        textured=(float)A/t;if(textured>1)textured=1;
+        flat=t*textured<1?(float)(1-(1-A)/(1-t*textured)):0;if(flat<0)flat=0;
+        memcpy(v,cover_pending[merge-1].v,count*sizeof(*v));
+        {float tint[3];for(k=0;k<3;k++){tint[k]=mean[k]>0?color[k]/mean[k]:1;if(tint[k]>1)tint[k]=1;}
+        argb=(uint32_t)(textured*255+.5f)<<24|(uint32_t)(tint[0]*255+.5f)<<16|(uint32_t)(tint[1]*255+.5f)<<8|(uint32_t)(tint[2]*255+.5f);}
+        for(i=0;i<count;i++)v[i].argb=argb;
+        status=scene_particle_present(NULL,v,count,cover_pending[merge-1].image,cover_pending[0].mode);if(status)return status;
+        if(flat>=.5f/255) {
+            /* White texel: the flat layer carries the mean colour directly. */
+            argb=(uint32_t)(flat*255+.5f)<<24|(uint32_t)(color[0]*255+.5f)<<16|
+                (uint32_t)(color[1]*255+.5f)<<8|(uint32_t)(color[2]*255+.5f);
+            for(i=0;i<count;i++){v[i].argb=argb;v[i].uv[0]=v[i].uv[1]=0;}
+            status=scene_particle_present(NULL,v,count,&cover_white,cover_pending[0].mode);if(status)return status;
+        }
+        ++rf_xbox_cover_merge[0];rf_xbox_cover_merge[1]+=merge;
+    }
+    rf_xbox_cover_merge[5]+=n-merge;
+    for(i=merge;i<n;i++){status=scene_particle_present(NULL,cover_pending[i].v,cover_pending[i].count,cover_pending[i].image,cover_pending[i].mode);if(status)break;}
+    return status;
+}
+static int cover_flush(void)
+{
+    uint32_t g;int status;
+    for(g=0;g<COVER_GROUPS;g++)if(cover_groups[g].count){status=cover_flush_group(g);if(status)return status;}
+    return RF_OK;
+}
+/* Normal-blend world puffs that cover the screen are buffered; the test is
+ * the clamped-area one the coverage counter uses. */
+static int cover_submit(const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    float x0=1e9f,y0=1e9f,x1=-1e9f,y1=-1e9f;uint32_t i;int status,covering;
+    for(i=0;i<count && i<12;i++){x0=fminf(x0,vertices[i].screen[0]);x1=fmaxf(x1,vertices[i].screen[0]);
+        y0=fminf(y0,vertices[i].screen[1]);y1=fmaxf(y1,vertices[i].screen[1]);}
+    x0=fmaxf(x0,0);y0=fmaxf(y0,0);x1=fminf(x1,640);y1=fminf(y1,480);
+    covering=x1>x0 && y1>y0 && (uint32_t)((x1-x0)*(y1-y0))>=640u*480u;
+    covering=covering && !particle_corona_pass && image && image->rgba && count>=3 && count<=12 &&
+        (mode&~(31u<<20))==(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) && ((mode>>20)&31u)<=1;
+    /* Smaller effects sort between the covering puffs; they draw at once and
+     * keep the group open, so the merged far layers land after them (a small
+     * reordering: effects inside thick mist read slightly more fogged). */
+    if(!covering)return scene_particle_present(NULL,vertices,count,image,mode);
+    {uint32_t g;cover_layer *e;
+    for(g=0;g<COVER_GROUPS;g++)if(cover_groups[g].count && cover_groups[g].mode==mode)break;
+    if(g==COVER_GROUPS)for(g=0;g<COVER_GROUPS;g++)if(!cover_groups[g].count)break;
+    if(g==COVER_GROUPS){++rf_xbox_cover_merge[6];status=cover_flush();if(status)return status;g=0;}
+    else if(cover_groups[g].count==COVER_LIMIT){++rf_xbox_cover_merge[7];status=cover_flush_group(g);if(status)return status;}
+    cover_groups[g].mode=mode;e=cover_groups[g].e+cover_groups[g].count++;
+    memcpy(e->v,vertices,count*sizeof(*vertices));e->count=count;e->image=image;e->mode=mode;}
+    return RF_OK;
+}
 /* Only world particles/coronas use this sink. HUD has its separate screen-space
  * adapter above; standalone effects retain scene_particle_present semantics. */
 static int scene_world_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     rf_particle_draw_vertex zoomed[12];uint32_t i;float scale=rf_scene_scope_projection;
+    (void)context;
     if(!rf_finite_float(scale) || scale<1 || !vertices || count>12)return RF_RANGE;
-    if(scale==1)return scene_particle_present(context,vertices,count,image,mode);
+    if(scale==1)return cover_submit(vertices,count,image,mode);
     memcpy(zoomed,vertices,count*sizeof(*vertices));
     for(i=0;i<count;i++){zoomed[i].screen[0]=320+(vertices[i].screen[0]-320)*scale;
         zoomed[i].screen[1]=240+(vertices[i].screen[1]-240)*scale;}
-    return scene_particle_present(context,zoomed,count,image,mode);
+    return cover_submit(zoomed,count,image,mode);
 }
 static rf_preview_vertex *stream_gpu;
 static gpu_texture *stream_textures;
@@ -1566,8 +1757,9 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(streaming) {int status;particle_batch_begin();
             renderer_draw_mark(3,&draw_profile_previous,profiling);
             {DWORD t0=GetTickCount(),t1;
-            status=rf_scene_draw_particles(scene_world_particle_present,NULL);t1=GetTickCount();
-            if(!status)status=rf_scene_draw_coronas(scene_world_particle_present,NULL);
+            {uint32_t g;for(g=0;g<COVER_GROUPS;g++)cover_groups[g].count=0;}{uint32_t lookups=rf_xbox_cover_merge[3];memset(rf_xbox_cover_merge,0,sizeof(rf_xbox_cover_merge));rf_xbox_cover_merge[3]=lookups;}
+            status=rf_scene_draw_particles(scene_world_particle_present,NULL);if(!status)status=cover_flush();t1=GetTickCount();
+            particle_corona_pass=1;if(!status)status=rf_scene_draw_coronas(scene_world_particle_present,NULL);particle_corona_pass=0;
             if(profiling){rf_renderer_fx_split[0]+=t1-t0;rf_renderer_fx_split[1]+=GetTickCount()-t1;++rf_renderer_fx_split[2];}}
             particle_batch_end();
             renderer_draw_mark(4,&draw_profile_previous,profiling);
@@ -1672,7 +1864,16 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
            (!image->compressed && (uint64_t)image->width*image->height*(rf_image_is_packed_1555(image) || rf_image_is_packed_4444(image)?2u:4u)!=image->bytes))return RF_RANGE;
     }
     if(!solid){status=upload(&texture,image,0,0);if(status!=RF_OK)return status;
-        if(particle_batch_active)rf_xbox_particle_batch[2]+=image->width*image->height;}
+        if(particle_batch_active){rf_xbox_particle_batch[2]+=image->width*image->height;
+            ++rf_xbox_particle_mips[image->compressed&&image->mip_levels>1?0:1];
+            {float x0=1e9f,y0=1e9f,x1=-1e9f,y1=-1e9f;uint32_t a,near=0;
+            for(i=0;i<count;i++){x0=fminf(x0,vertices[i].screen[0]);x1=fmaxf(x1,vertices[i].screen[0]);
+                y0=fminf(y0,vertices[i].screen[1]);y1=fmaxf(y1,vertices[i].screen[1]);near|=vertices[i].reciprocal_w>1;}
+            x0=fmaxf(x0,0);y0=fmaxf(y0,0);x1=fminf(x1,640);y1=fminf(y1,480);
+            a=x1>x0&&y1>y0?(uint32_t)((x1-x0)*(y1-y0)):0;
+            rf_xbox_particle_area[0]+=a;if(a>rf_xbox_particle_area[1])rf_xbox_particle_area[1]=a;
+            rf_xbox_particle_area[2]+=a>=640u*480u;rf_xbox_particle_area[3]+=near;
+}}}
     /* Only immediate vertex commands can intervene inside this private pass.
      * Fog/depth conversion are encoded in those vertices; the setup block is
      * completely determined by exact mode and texture address/format. */
@@ -1685,7 +1886,8 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     if(!reuse_state && particle_batch_active && particle_batch_ready && particle_batch_mode==mode && !solid) {
         p=pb_begin();
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture.pixels&0x03ffffff);
-        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);pb_end(p);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);
+        p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,TEXTURE_CONTROL(&texture));pb_end(p);
         particle_batch_pixels=texture.pixels;particle_batch_format=texture.format;
         reuse_state=1;++rf_xbox_particle_texture_switches;
     }
@@ -1747,7 +1949,11 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);
     }
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,corona?0x00030101:0x00030303);
-    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,solid?0:NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    /* World effects sample their packed mip chain like world materials; a
+     * closed LOD clamp read distant smoke from the full-size level and made
+     * texture fetch the GPU bottleneck (L18S2/L19S3 rocket fights). HUD art
+     * keeps level 0 only. */
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,solid?0:hud_batch_active?NV097_SET_TEXTURE_CONTROL0_ENABLE:TEXTURE_CONTROL(&texture));
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+i*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
