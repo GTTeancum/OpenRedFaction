@@ -2378,6 +2378,49 @@ int rf_vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
 {
     return vfx_lights_box(lights,count,minimum,maximum,include_class,include_other,indices,capacity,selected,1);
 }
+int rf_vfx_lights_box_prepare(const rf_vfx_light_candidate *lights,uint32_t count,uint32_t include_class,uint32_t include_other,
+    rf_vfx_lights_box_set *set,uint32_t *storage,uint32_t capacity)
+{
+    uint32_t i,j,n=0;float radius=0;
+    if(!set)return RF_RANGE;memset(set,0,sizeof(*set));
+    if((count && (!lights || !storage)) || capacity<count || include_class>1 || include_other>1)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
+        if(c->reserved[0] || c->reserved[1] || !isfinite(l->radius) || l->radius<0)return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(l->color[j]) || !isfinite(l->position[j]) || (l->type==4 && !isfinite(l->end[j])))return RF_RANGE;
+        if(l->radius>radius)radius=l->radius;
+    }
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
+        if(!c->enabled || !(l->color[0]!=0 || l->color[1]!=0 || l->color[2]!=0) ||
+           (!include_class && c->light_class) || (!include_other && !c->light_class))continue;
+        if(l->type<1 || l->type>4)continue;
+        storage[n++]=i;
+    }
+    set->lights=lights;set->count=count;set->candidates=storage;set->candidate_count=n;set->max_radius=radius;
+    set->include_class=include_class;set->include_other=include_other;set->ready=1;return RF_OK;
+}
+int rf_vfx_lights_box_select(const rf_vfx_lights_box_set *set,const float minimum[3],const float maximum[3],
+    uint32_t *indices,uint32_t capacity,uint32_t *selected)
+{
+    uint32_t i,j,n=0;
+    if(!set || !set->ready || !minimum || !maximum || !selected || (set->count && !indices))return RF_RANGE;
+    /* Exact fallback whenever a bound could make the per-light finite tests
+     * of vfx_lights_box differ: same result and same errors. */
+    for(j=0;j<3;++j)if(!isfinite(minimum[j]) || !isfinite(maximum[j]) || minimum[j]>maximum[j] ||
+        fabsf(minimum[j])>1e37f || fabsf(maximum[j])>1e37f || set->max_radius>1e37f || capacity<set->count)
+        return vfx_lights_box(set->lights,set->count,minimum,maximum,set->include_class,set->include_other,indices,capacity,selected,1);
+    for(i=0;i<set->candidate_count;++i) {
+        uint32_t k=set->candidates[i];const rf_vfx_light_source *l=&set->lights[k].source;
+        float lo[3],hi[3],scratch[3];uint32_t hit=1;
+        if(l->type==1){indices[n++]=k;continue;}
+        for(j=0;j<3;++j){lo[j]=minimum[j]-l->radius;hi[j]=maximum[j]+l->radius;}
+        if(l->type==4)rf_collision_segment_box(lo,hi,l->position,l->end,scratch,&hit);
+        else for(j=0;j<3;++j)if(l->position[j]<lo[j] || l->position[j]>hi[j])hit=0;
+        if(hit)indices[n++]=k;
+    }
+    *selected=n;return RF_OK;
+}
 int rf_vfx_light_cache_refresh(rf_vfx_light_cache *cache,uint32_t generation,
     const rf_vfx_light_candidate *lights,uint32_t count,const float minimum[3],const float maximum[3])
 {

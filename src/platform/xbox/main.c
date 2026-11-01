@@ -166,6 +166,7 @@ uint32_t rf_xbox_pacing_discarded_ms;
 static void pacing_sleep(void)
 {
     uint32_t wait,start=GetTickCount(),slept;
+    extern uint32_t rf_xbox_reload_ms[12];if(!rf_xbox_reload_ms[7])rf_xbox_reload_ms[7]=start; /* first paced update after a load */
     while((wait=rf_frame_clock_step(&rf_player_frame_clock,GetTickCount()))!=0){
         if(wait>1)Sleep(wait>2?2:1);else SwitchToThread();}
     slept=GetTickCount()-start;rf_xbox_pacing_sleep[0]+=slept;++rf_xbox_pacing_sleep[1];
@@ -188,6 +189,10 @@ uint32_t rf_xbox_transition_failure[3];
  * pool, cache, stack and image pages. */
 #define RELOAD_MEMORY_ROWS 16u
 uint32_t rf_xbox_reload_memory[RELOAD_MEMORY_ROWS][8];
+/* GetTickCount at reload milestones: transition seen, level opened, load
+ * section, geometry, collision, lightmaps, scene entry, input/pacing setup;
+ * then collision world open, ray probes, sweep probes. */
+uint32_t rf_xbox_reload_ms[12];
 /* First failing scene_frame return: source line, status, frame. */
 uint32_t rf_xbox_frame_failure[3];
 #define FRAME_FAIL(expr) do{int frame_status_=(expr);if(frame_status_&&!rf_xbox_frame_failure[1]){rf_xbox_frame_failure[0]=__LINE__;rf_xbox_frame_failure[1]=(uint32_t)frame_status_;rf_xbox_frame_failure[2]=frame;}return frame_status_;}while(0)
@@ -1457,7 +1462,7 @@ static int sweep_check(void)
 static int collision_check(const rf_level *level)
 {
     uint32_t i,j,k,hash=2166136261u;MM_STATISTICS memory={0};int status;
-    status=rf_geometry_collision_world_open(&resident_geometry,8u*1024u*1024u,&resident_collision);
+    status=rf_geometry_collision_world_open(&resident_geometry,8u*1024u*1024u,&resident_collision);rf_xbox_reload_ms[8]=GetTickCount();
     if(status) {rf_collision_diagnostic[1]=(uint32_t)status;return status;}
     rf_collision_diagnostic[2]=resident_collision.allocated_bytes;rf_collision_diagnostic[3]=resident_collision.peak_bytes;
     for(i=0;i<resident_collision.room_count;i++) {
@@ -1475,7 +1480,7 @@ static int collision_check(const rf_level *level)
     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_collision_diagnostic[8]=memory.AvailablePages;
     rf_collision_diagnostic[1]=rf_collision_diagnostic[6]?(uint32_t)RF_FORMAT:1;
     if(rf_collision_diagnostic[6])return RF_FORMAT;
-    status=sweep_check();return status?status:mover_check(level);
+    rf_xbox_reload_ms[9]=GetTickCount();status=sweep_check();rf_xbox_reload_ms[10]=GetTickCount();return status?status:mover_check(level);
 }
 static rf_materials resident_materials;
 static rf_lightmaps resident_lightmaps;
@@ -1507,7 +1512,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     (void)context;
     if(frame<scene_simulation_frames)return RF_FORMAT; /* Updates may cover two 60ths. */
-    if(!frame)rf_vpp_io_stage(9); /* load finished: first world frame */
+    if(!frame){rf_vpp_io_stage(9);rf_xbox_reload_ms[11]=GetTickCount();} /* load finished: first world frame */
     campaign_total_frames+=frame?frame+1-scene_simulation_frames:1;scene_simulation_frames=frame+1;
     if(frame==(rf_scene_actor_live_enabled?663u:63u) && actor_body_preview) {
         memcpy(rf_actor_world_diagnostic,rf_scene_actor_initial_world,sizeof(rf_actor_world_diagnostic));
@@ -1771,6 +1776,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         rf_scene_set_diagnostic_checksums(!player_pacing);
         if(player_pacing)rf_scene_set_profile(profile_milliseconds);
         rf_scene_present_query=player_pacing?scene_present_query:NULL;present_decided=0;
+        rf_xbox_reload_ms[6]=GetTickCount();
         if(player_pacing)pacing_begin();else{rf_tick_frames=rf_tick_frames_next=1;pacing_mode=RF_FRAME_RATE_60;}
         campaign_frame_limit=limit;
         if(limit && replay_position()>=limit){player_input_close();return RF_RANGE;}
@@ -2233,7 +2239,7 @@ static int player_campaign_run(const char *saved_level)
                     result=invalid || !uid?RF_FORMAT:rf_scene_stage_trigger(&level,uid);}
             }
 campaign_load_section:
-            rf_xbox_load_stage=1;startup_trace(6,result);
+            rf_xbox_reload_ms[2]=GetTickCount();rf_xbox_load_stage=1;startup_trace(6,result);
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);
@@ -2251,7 +2257,7 @@ campaign_load_section:
                 if(!campaign_total_frames)debugPrint("%s: %u sections, %u bytes\n", level.name, level.section_count, level.entry.size);
                 OutputDebugStringA("RF_LEVEL_DIRECTORY_VALIDATED\n");
                 rf_xbox_load_stage=2;
-                result = rf_geometry_open(&resident_geometry, &level, 8u * 1024u * 1024u);
+                result = rf_geometry_open(&resident_geometry, &level, 8u * 1024u * 1024u);rf_xbox_reload_ms[3]=GetTickCount();
                 if (result == RF_OK) {
                     float vertex[3];
                     rf_diagnostic[16] = resident_geometry.textures;
@@ -2270,7 +2276,7 @@ campaign_load_section:
                     if(!campaign_total_frames)debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
                     {
                         rf_preview_mesh mesh={0};uint32_t scene_mode=tester_profile;FILE *scene_flag;
-                        rf_xbox_load_stage=3;result = collision_check(&level);
+                        rf_xbox_load_stage=3;result = collision_check(&level);rf_xbox_reload_ms[4]=GetTickCount();
                         rf_xbox_load_stage=4;
                         if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, RF_CAMPAIGN_LIGHTMAP_BUDGET);
                         if (result == RF_OK) {
@@ -2292,6 +2298,7 @@ campaign_load_section:
                         if (result == RF_OK && !scene_mode) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
                         if (result == RF_OK) {
                             rf_xbox_load_stage=7;startup_trace(7,result);
+                            rf_xbox_reload_ms[5]=GetTickCount();
                             if(scene_mode)result=scene_preview(&level,&mesh);
                             else {
                                 FILE *model_flag=fopen("D:\\model-preview.flag","rb");
@@ -2308,6 +2315,7 @@ campaign_load_section:
                (!campaign_frame_limit || replay_position()<campaign_frame_limit)) {
                 rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
                 uint32_t reload=rf_scene_quickload_pending(),restart=rf_scene_restart_pending(),fresh=reload||restart;
+                memset(rf_xbox_reload_ms,0,sizeof(rf_xbox_reload_ms));rf_xbox_reload_ms[0]=GetTickCount();
                 memset(&state,0,sizeof(state));memset(departing_position,0,sizeof(departing_position));memset(departing_orientation,0,sizeof(departing_orientation));
                 uint32_t step=1;
                 {uint32_t h=2166136261u,k;for(k=0;k<sizeof(next.level)&&next.level[k];k++)h=(h^(unsigned char)next.level[k])*16777619u;rf_xbox_transition_failure[2]=h;}
@@ -2326,6 +2334,7 @@ campaign_load_section:
                         if(result==RF_NOT_FOUND){rf_vpp_close(&archive);result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);}
                         memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
                     else result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
+                    rf_xbox_reload_ms[1]=GetTickCount();
                     if(result==RF_OK)memcpy(rf_xbox_transition_target,next.level,sizeof(rf_xbox_transition_target));
                     if(result==RF_OK && !fresh && next.uid!=campaign_forced_exit_uid) {
                         step=4;result=rf_level_transition_place(&next,&level,departing_position,departing_orientation);

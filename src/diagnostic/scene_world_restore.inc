@@ -294,6 +294,7 @@ static inline int scene_world_restore_place(void *context,uint32_t actor_slot,ui
  * world. Never fit against the old live door/retired-prop state. Failure leaves
  * output and live gameplay unchanged. Budget includes temporary decoded rows
  * and private staged collision scratch, not caller-owned envelope/resources. */
+static const char *scene_world_load_phase(const char *name);
 static inline int scene_world_restore_prepare_with_passive_storage_accounted(const void *data,uint32_t bytes,
     const unsigned char identity[32],uint32_t required_mask,const rf_npc_checkpoint_catalog *catalog,
     int32_t now,const scene_checkpoint_world_context *world,uint32_t budget,scene_world_restore_stage **out,
@@ -305,7 +306,7 @@ static inline int scene_world_restore_prepare_with_passive_storage_accounted(con
     rf_mover_checkpoint_record *mover_rows=NULL;rf_npc_checkpoint_record *npc_rows=NULL;rf_npc_checkpoint_rng flight_rng={0};uint32_t tactical_cursor=0;
     const rf_world_checkpoint_slice *npc,*mover,*clutter;
     unsigned char clutter_identity[32];uint32_t npc_count,mover_count,prop_count,i,slot;
-    uint64_t fixed,temp,resident;const char *phase="allocation";int status;
+    uint64_t fixed,temp,resident;const char *phase=scene_world_load_phase("restore:allocation");int status;
     memset(rf_scene_world_restore_reject,0,sizeof(rf_scene_world_restore_reject));
     rf_scene_world_restore_reject[6]=rf_scene_world_restore_reject[7]=UINT32_MAX;
     if(!out||*out||!identity||!catalog||!world||!world->world||!world->metadata||
@@ -345,9 +346,9 @@ static inline int scene_world_restore_prepare_with_passive_storage_accounted(con
         {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,NULL,(size_t)campaign_movers.count*sizeof(*s->scratch),&allocation);
          if(status)goto fail;s->scratch=allocation;}
     }
-    phase="clutter_stage";status=scene_clutter_checkpoint_prepare_storage_accounted(identity,clutter->data,clutter->bytes,now,0,&s->clutter,memory,storage);if(status)goto fail;
+    phase=scene_world_load_phase("restore:clutter_stage");status=scene_clutter_checkpoint_prepare_storage_accounted(identity,clutter->data,clutter->bytes,now,0,&s->clutter,memory,storage);if(status)goto fail;
     s->allocated_bytes+=(uint32_t)resident;
-    phase="clutter_copy";
+    phase=scene_world_load_phase("restore:clutter_copy");
     if(s->clutter->count!=prop_count){status=RF_FORMAT;goto fail;}
     for(i=0;i<prop_count;i++){
         const scene_clutter_restore_entry *e=s->clutter->entries+i;slot=e->slot;
@@ -365,16 +366,16 @@ static inline int scene_world_restore_prepare_with_passive_storage_accounted(con
         {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,&mover_rows,(size_t)temp,&allocation);
          if(status)goto fail;mover_rows=allocation;}
     }
-    phase="mover_decode";status=rf_mover_checkpoint_decode(mover->data,mover->bytes,identity,mover_rows,mover_count,&mover_count);if(status)goto fail;
-    phase="mover_stage";
+    phase=scene_world_load_phase("restore:mover_decode");status=rf_mover_checkpoint_decode(mover->data,mover->bytes,identity,mover_rows,mover_count,&mover_count);if(status)goto fail;
+    phase=scene_world_load_phase("restore:mover_stage");
     status=scene_mover_checkpoint_prepare_storage_accounted(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,
         &campaign_movers,mover_rows,mover_count,now,budget-s->allocated_bytes-(uint32_t)temp,&s->movers,memory,storage);if(status)goto fail;
     s->allocated_bytes+=s->movers.allocated_bytes;status=rf_prepare_storage_release(storage,memory,&mover_rows,mover_rows,RF_OK);mover_rows=NULL;if(status)goto fail;
-    phase="control_stage";
+    phase=scene_world_load_phase("restore:control_stage");
     status=campaign_group_control_children_prepare_storage_accounted(s->movers.bindings,s->movers.controller_count,
         world->world,budget-s->allocated_bytes,&s->controls,memory,storage);if(status)goto fail;
     s->allocated_bytes+=s->controls->allocated_bytes;
-    phase="control_props";
+    phase=scene_world_load_phase("restore:control_props");
     for(i=0;i<prop_count;i++){
         uint32_t matched=0;
         status=campaign_group_control_stage_apply_prop(s->controls,s->candidate_props+i,&matched);if(status)goto fail;
@@ -391,9 +392,9 @@ static inline int scene_world_restore_prepare_with_passive_storage_accounted(con
         {void *allocation=NULL;status=rf_prepare_storage_allocate(storage,memory,&npc_rows,(size_t)temp,&allocation);
          if(status)goto fail;npc_rows=allocation;}
     }
-    phase="npc_decode";status=rf_npc_checkpoint_decode_with_speech_motion(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng,&tactical_cursor);if(status)goto fail;
+    phase=scene_world_load_phase("restore:npc_decode");status=rf_npc_checkpoint_decode_with_speech_motion(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count,&flight_rng,&tactical_cursor);if(status)goto fail;
     s->placement_rows=npc_rows;s->placement_count=npc_count;
-    phase="npc_stage";
+    phase=scene_world_load_phase("restore:npc_stage");
     status=scene_npc_checkpoint_restore_prepare_mode_storage_accounted(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,
         budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs,seats,&flight_rng,(checkpoint_u32((const unsigned char*)npc->data+4)>=30?2u:checkpoint_u32((const unsigned char*)npc->data+4)>=25?1u:0u),memory,storage);if(status)goto fail;
     if(campaign_npc_body_count?tactical_cursor>=campaign_npc_body_count:tactical_cursor!=0){status=RF_FORMAT;goto fail;}

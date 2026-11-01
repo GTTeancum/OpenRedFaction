@@ -115,6 +115,13 @@ static void rf_ram_log_sample(uint32_t force)
     RAM_ARRAY(rf_vpp_io_stats,16);
     RAM_ARRAY(rf_vpp_io_stages,48);
     {extern uint32_t rf_scene_load_stage_ms[96];RAM_ARRAY(rf_scene_load_stage_ms,96);}
+    {extern uint32_t rf_scene_audio_open_ms[16];RAM_ARRAY(rf_scene_audio_open_ms,16);}
+    {extern uint32_t rf_xbox_reload_ms[12];RAM_ARRAY(rf_xbox_reload_ms,12);}
+    {extern uint32_t rf_xbox_frame_image_ms[5];RAM_ARRAY(rf_xbox_frame_image_ms,5);}
+    {extern uint32_t rf_scene_lightmap_slowest[7];RAM_ARRAY(rf_scene_lightmap_slowest,7);}
+    {extern uint32_t rf_scene_frame0_ms[24];RAM_ARRAY(rf_scene_frame0_ms,24);}
+    {extern uint32_t rf_scene_world_load_phase_ms[48],rf_scene_world_load_phase_hash[48],rf_scene_world_load_phase_count;
+     RAM_ARRAY(rf_scene_world_load_phase_ms,48);RAM_ARRAY(rf_scene_world_load_phase_hash,48);RAM_ARRAY(&rf_scene_world_load_phase_count,1);}
     RAM_ARRAY(&rf_scene_campaign_load_stage,1);
     RAM_ARRAY(&rf_scene_campaign_load_detail,1);
     RAM_ARRAY(rf_scene_npc_body_admission,4);

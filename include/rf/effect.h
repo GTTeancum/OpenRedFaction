@@ -108,6 +108,18 @@ int rf_vfx_lights_sphere(const rf_vfx_light_candidate *,uint32_t count,
 int rf_vfx_lights_box(const rf_vfx_light_candidate *,uint32_t count,
     const float minimum[3],const float maximum[3],uint32_t include_class,uint32_t include_other,
     uint32_t *indices,uint32_t capacity,uint32_t *selected);
+/* Repeated box queries against one unchanged pool (port-owned): prepare
+ * validates every light once and keeps the lights the filter admits; select
+ * then returns exactly what rf_vfx_lights_box would for that box, falling
+ * back to it whenever a bound could change its finite-value checks. */
+typedef struct rf_vfx_lights_box_set {
+    const rf_vfx_light_candidate *lights;const uint32_t *candidates;
+    uint32_t count,candidate_count,include_class,include_other,ready;float max_radius;
+} rf_vfx_lights_box_set;
+int rf_vfx_lights_box_prepare(const rf_vfx_light_candidate *lights,uint32_t count,uint32_t include_class,uint32_t include_other,
+    rf_vfx_lights_box_set *set,uint32_t *storage,uint32_t capacity);
+int rf_vfx_lights_box_select(const rf_vfx_lights_box_set *set,const float minimum[3],const float maximum[3],
+    uint32_t *indices,uint32_t capacity,uint32_t *selected);
 /*4d96c0/4d9870 room/object candidate cache with caller-owned index storage.
  * Initialize count/valid to0 and provide capacity for the complete source list.
  * On generation change, refresh geometric membership without enabled/color/

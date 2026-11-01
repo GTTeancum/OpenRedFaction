@@ -236,8 +236,11 @@ int rf_vpp_read_raw(rf_vpp *archive, uint32_t offset, void *data, uint32_t size)
 #define RF_VPP_DIRECT_CHUNK 131072u
 #endif
 #ifndef RF_VPP_DIRECTORY_BUDGET
-/* All 15 retail archives together need about 320 KiB with 16-bit buckets. */
-#define RF_VPP_DIRECTORY_BUDGET 393216u
+/* All 16 Xbox disc archives (15 retail plus rfdds.vpp, 209 KiB alone) need
+ * about 540 KiB with 16-bit buckets. Under the former 384 KiB cap audio.vpp
+ * (2568 entries) got no index and every sound registration scanned it,
+ * ~4.4 s of each level load on hardware. */
+#define RF_VPP_DIRECTORY_BUDGET 655360u
 #endif
 #ifndef RF_VPP_UNBUFFERED
 #define RF_VPP_UNBUFFERED 1

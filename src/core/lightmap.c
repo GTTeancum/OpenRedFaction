@@ -1244,10 +1244,20 @@ int rf_lightmap_upload_image_1555(rf_image *image,const unsigned char *rgb,uint3
        (image->width&(image->width-1)) || (image->height&(image->height-1)) ||
        (uint64_t)x+width>image->width || (uint64_t)y+height>image->height ||
        (uint64_t)width*3>pitch || (uint64_t)(height-1)*pitch+(uint64_t)width*3>bytes)return RF_RANGE;
-    for(j=0;j<height;j++)for(i=0;i<width;i++) {
-        const unsigned char *source=rgb+(size_t)j*pitch+i*3;unsigned char *target=rf_image_pixel(image,x+i,y+j);
-        value=0x8000u|((uint32_t)(source[0]>>3)<<10)|((uint32_t)(source[1]>>3)<<5)|(source[2]>>3);
-        target[0]=(unsigned char)value;target[1]=(unsigned char)(value>>8);
+    {
+        /* A texel's offset is its column offset plus its row offset in both
+         * the linear and the Xbox swizzled layout (disjoint interleaved bits),
+         * so each is computed once per rectangle instead of per texel. */
+        static uint32_t column[4096];unsigned char *origin=rf_image_pixel(image,0,0);
+        for(i=0;i<width;i++)column[i]=(uint32_t)(rf_image_pixel(image,x+i,0)-origin);
+        for(j=0;j<height;j++) {
+            const unsigned char *source=rgb+(size_t)j*pitch;unsigned char *row=rf_image_pixel(image,0,y+j);
+            for(i=0;i<width;i++,source+=3) {
+                unsigned char *target=row+column[i];
+                value=0x8000u|((uint32_t)(source[0]>>3)<<10)|((uint32_t)(source[1]>>3)<<5)|(source[2]>>3);
+                target[0]=(unsigned char)value;target[1]=(unsigned char)(value>>8);
+            }
+        }
     }
     *dirty=0;return RF_OK;
 }

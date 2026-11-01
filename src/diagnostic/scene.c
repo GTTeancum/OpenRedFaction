@@ -456,9 +456,12 @@ static void world_profile_mark(uint32_t phase,uint32_t *previous)
     ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
     if(elapsed>row[3])row[3]=elapsed;
 }
+extern uint32_t rf_scene_frame0_ms[24];
+static uint32_t scene_frame0_presenting;
 static void presentation_mark(uint32_t phase,uint32_t *previous)
 {
     uint32_t now,elapsed,*row;uint64_t total;
+    if(scene_frame0_presenting && profile_clock && phase<8)rf_scene_frame0_ms[12+phase]=profile_clock();
     if(!profile_clock || !profile_active)return;
     now=profile_clock();elapsed=now-*previous;*previous=now;
     row=rf_scene_presentation_profile[phase];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
@@ -1100,6 +1103,8 @@ uint32_t rf_scene_lightmap_regeneration[8]; /* jobs,ambient,shadow callbacks,wor
 uint32_t rf_scene_lightmap_regeneration_test;
 static int scene_light_regenerate(scene_stream *,uint32_t,const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,unsigned char *,uint32_t *,rf_vfx_light_source *);
 uint32_t rf_scene_lightmap_updates[8]; /* frames,visits,uploads,lit regions,RGB bytes,work bytes,deferred base,status */
+/* Slowest single update: ms, lit regions, summed lights, lit texels, plain uploads, regenerations, mappings. */
+uint32_t rf_scene_lightmap_slowest[7];
 static void scene_terrain_dirty(scene_stream *s,uint32_t x,uint32_t y,uint32_t width,uint32_t height)
 {
     if(!s->terrain_atlas_pending) {
@@ -1147,6 +1152,10 @@ int rf_scene_update_lightmaps(rf_lightmaps *maps)
     if(!maps || maps->count!=stream->light_rgb.count+stream->terrain_atlas_registered || !stream->light_overlay_work)return RF_RANGE;
     ids=stream->light_overlay_work;sources=(rf_vfx_light_source *)(ids+1100);
     ++rf_scene_lightmap_updates[0];rf_scene_lightmap_updates[6]=0;
+    uint32_t call_regions=0,call_lights=0,call_texels=0,call_uploads=0,call_regen=0,call_start=profile_clock?profile_clock():0;
+    /* The light pool is unchanged for the whole pass: validate it once and
+     * box-test only the lights the filter admits (same selection, same errors). */
+    static uint32_t light_candidates[1100];rf_vfx_lights_box_set light_set;uint32_t light_set_state=0; /* 0 untried, 1 ready, 2 use direct */
     for(i=0;i<stream->light_storage->dirty_count;i++) {
         unsigned char *dirty=stream->light_storage->dirty+i;rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;
         rf_lightmap_rgb_image *base;rf_image *image;
@@ -1163,20 +1172,28 @@ int rf_scene_update_lightmaps(rf_lightmaps *maps)
         status=rf_geometry_lightmap_sample_binding(stream->geometry,maps,i,&mapping,&sample);if(status)break;
         if(!mapping.width || !mapping.height)continue;
         if((*dirty&6u) && !mapping.inhibit) {
-            status=scene_light_regenerate(stream,i,&mapping,&sample,dirty,ids,sources);
+            ++call_regen;status=scene_light_regenerate(stream,i,&mapping,&sample,dirty,ids,sources);
             if(status==RF_NOT_FOUND){++rf_scene_lightmap_updates[6];status=RF_OK;continue;}
             if(status)break;
         }
         base=stream->light_rgb.images+mapping.image;image=maps->images+mapping.image;count=0;
         if((*dirty&1u) && stream->lights) {
-            status=rf_vfx_lights_box(stream->lights->pool.sources,stream->lights->pool.capacity,
-                mapping.minimum,mapping.maximum,1,0,ids,1100,&count);if(status)break;
+            if(!light_set_state) {
+                status=rf_vfx_lights_box_prepare(stream->lights->pool.sources,stream->lights->pool.capacity,1,0,
+                    &light_set,light_candidates,1100);
+                light_set_state=status?2:1;status=RF_OK;
+            }
+            if(light_set_state==1)status=rf_vfx_lights_box_select(&light_set,mapping.minimum,mapping.maximum,ids,1100,&count);
+            else status=rf_vfx_lights_box(stream->lights->pool.sources,stream->lights->pool.capacity,
+                mapping.minimum,mapping.maximum,1,0,ids,1100,&count);
+            if(status)break;
             for(j=0;j<count;j++)sources[j]=stream->lights->pool.sources[ids[j]].source;
         }
         if((*dirty&1u) && count) {
             rf_lightmap_sample_lighting lighting={0};
             lighting.sample=sample;lighting.width=mapping.width;lighting.height=mapping.height;
             lighting.lights=sources;lighting.light_count=count;lighting.directional_scale=.25f; /* original5a38e0 initial value */
+            ++call_regions;call_lights+=count;call_texels+=mapping.width*mapping.height;
             status=rf_lightmap_live_image(&lighting,base,image,dirty);if(status)break;
             ++rf_scene_lightmap_updates[3];++rf_scene_lightmap_updates[2];
         } else if(*dirty&9u) {
@@ -1184,10 +1201,13 @@ int rf_scene_update_lightmaps(rf_lightmaps *maps)
             if(base->width!=image->width || base->height!=image->height || offset>=base->bytes){status=RF_RANGE;break;}
             status=rf_lightmap_upload_image_1555(image,base->pixels+offset,base->bytes-(uint32_t)offset,base->width*3,
                 mapping.x,mapping.y,mapping.width,mapping.height,&upload_dirty);if(status)break;
-            ++rf_scene_lightmap_updates[2];
+            ++rf_scene_lightmap_updates[2];++call_uploads;
         }
         *dirty=0;
     }
+    {uint32_t ms=profile_clock?profile_clock()-call_start:0;
+     if(ms>=rf_scene_lightmap_slowest[0]){rf_scene_lightmap_slowest[0]=ms;rf_scene_lightmap_slowest[1]=call_regions;rf_scene_lightmap_slowest[2]=call_lights;
+         rf_scene_lightmap_slowest[3]=call_texels;rf_scene_lightmap_slowest[4]=call_uploads;rf_scene_lightmap_slowest[5]=call_regen;rf_scene_lightmap_slowest[6]=stream->light_storage->dirty_count;}}
     rf_scene_lightmap_updates[7]=(uint32_t)status;return status;
 }
 
@@ -1509,6 +1529,8 @@ uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured de
 uint32_t rf_scene_campaign_load_stage;
 /* Clock reading (platform ms) when each campaign load stage began; zero if unset. */
 uint32_t rf_scene_load_stage_ms[96];
+/* Frame-zero milestones: collision/alpha checks begin, glare pass begins, glare pass ends, world load begins, frame entry, initial checks done. */
+uint32_t rf_scene_frame0_ms[24];
 void rf_scene_load_mark(uint32_t stage);
 static void campaign_load_stage_set(uint32_t stage)
 {
@@ -3272,12 +3294,16 @@ static int campaign_ambient_schedule(int32_t now,uint32_t initial)
     rf_scene_ambient_schedule[5]=scene_diagnostic_hash(rf_scene_ambient_schedule[5],campaign_ambient_slots,sizeof(campaign_ambient_slots));
     return RF_OK;
 }
+/* Clock reading at each campaign_audio_open milestone (load-time profile). */
+uint32_t rf_scene_audio_open_ms[16];
+#define AUDIO_OPEN_MARK(n) (rf_scene_audio_open_ms[n]=profile_clock?profile_clock():0)
 static int campaign_audio_open(const char *tables_path,const char *level_name,const char *player_class)
 {
     char path[1024];size_t prefix=0,n;uint32_t i,j,index,capacity;
     rf_vpp archive={0},tables={0};rf_audio_declaration *declarations=NULL;uint32_t declared=0,foley_groups,foley_samples,foley_bank_bytes,global_hash=2166136261u;
     rf_vpp_entry foley_entry,entity_entry;void *foley_text=NULL,*entity_text=NULL;
     campaign_foley_registration foley_registration={0};int status;
+    AUDIO_OPEN_MARK(0);
     status=scene_player_water_audio_close();if(status)return status;
     status=scene_weapon_loop_audio_drain();if(status)return status;
     status=scene_npc_loop_audio_drain();if(status)return status;
@@ -3316,10 +3342,12 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     if(prefix+sizeof("bluebeard.bty")>sizeof(path))return RF_RANGE;
     memcpy(path,tables_path,prefix);memcpy(path+prefix,"bluebeard.bty",sizeof("bluebeard.bty"));
     status=campaign_metadata_open(path);if(status)return status;
+    AUDIO_OPEN_MARK(1);
     memcpy(path,tables_path,prefix);memcpy(path+prefix,"audio.vpp",sizeof("audio.vpp"));
     status=rf_vpp_open(&archive,path);if(status)return status;
     status=rf_vpp_open(&tables,tables_path);if(status)goto audio_done;
     status=rf_sound_table_load(&tables,65536,NULL,0,&declared);if(status)goto audio_done;
+    AUDIO_OPEN_MARK(2);
     if(declared) {
         declarations=malloc((size_t)declared*sizeof(*declarations));if(!declarations){status=RF_RANGE;goto audio_done;}
         status=rf_sound_table_load(&tables,65536,declarations,declared,&declared);if(status)goto audio_done;
@@ -3339,6 +3367,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     /* L17's 309434-byte reactor blast must coexist with authored resident
      * samples; the former 1 MiB cap rejected the mission warning. */
     status=rf_audio_bank_open(&archive,capacity,1280*1024,&campaign_audio_bank);
+    AUDIO_OPEN_MARK(3);
     if(status)goto audio_done;
     for(i=0;i<declared;i++) {
         const rf_audio_declaration *row=declarations+i;
@@ -3348,6 +3377,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         if(index!=i){status=RF_FORMAT;goto audio_done;}
     }
     rf_scene_sound_bank[0]=declared;
+    AUDIO_OPEN_MARK(4);
     free(declarations);declarations=NULL;
     for(i=0;i<declared;++i)global_hash=npc_hash_bytes(global_hash,&campaign_audio_bank.samples[i].parameters,sizeof(rf_audio_parameters));
     foley_bank_bytes=campaign_audio_bank.bytes;
@@ -3364,6 +3394,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     for(i=0;i<declared;++i)rf_scene_foley[6]=npc_hash_bytes(rf_scene_foley[6],&campaign_audio_bank.samples[i].parameters,sizeof(rf_audio_parameters));
     if(global_hash!=rf_scene_foley[6]){status=RF_FORMAT;goto audio_done;}
     rf_scene_foley[7]=npc_hash_bytes(2166136261u,campaign_foley.samples,campaign_foley.sample_count*4);
+    AUDIO_OPEN_MARK(5);
     free(foley_text);foley_text=NULL;
     {
         const uint32_t initial_flags[64]={0}; /* Original4c2990 fresh global array. */
@@ -3389,6 +3420,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             campaign_squash_groups=malloc(campaign_seeds.class_count*sizeof(*campaign_squash_groups));
             if(!campaign_squash_groups){status=RF_RANGE;goto audio_done;}
         }
+        AUDIO_OPEN_MARK(6);
         status=rf_vpp_find(&tables,"entity.tbl",&entity_entry);if(status)goto audio_done;
         if(!entity_entry.size || entity_entry.size>1024*1024){status=RF_RANGE;goto audio_done;}
         entity_text=malloc(entity_entry.size);if(!entity_text){status=RF_RANGE;goto audio_done;}
@@ -3412,6 +3444,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             status=rf_entity_damage_sound_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
             if(status)goto audio_done;
         }
+        AUDIO_OPEN_MARK(7);
         scene_npc_landing_audio_load(entity_text,entity_entry.size);
         scene_npc_fatal_audio_load(entity_text,entity_entry.size);
         scene_npc_use_dialogue_load(&tables,entity_text,entity_entry.size);
@@ -3436,8 +3469,10 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     /* All installed section500 records precede section3000 controllers. Their
      * first successful metadata registration must retain parameter precedence.
      * The deterministic port sound bank is enabled even without a host device. */
+    AUDIO_OPEN_MARK(8);
     status=rf_ambient_instances_open(&campaign_ambient,65536,campaign_ambient_register,
         &campaign_audio_bank,&campaign_ambient_instances);if(status)goto audio_done;
+    AUDIO_OPEN_MARK(9);
     rf_scene_ambient_instances[0]=campaign_ambient_instances.count;
     rf_scene_ambient_instances[1]=campaign_ambient_instances.rejected;
     rf_scene_ambient_instances[2]=campaign_ambient_instances.allocated_bytes;
@@ -3463,6 +3498,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     }
     {
         uint32_t before=campaign_audio_bank.bytes,rejection=0;
+        AUDIO_OPEN_MARK(10);
         for(i=0;i<campaign_events.count;i++) {
             const rf_runtime_event *event=campaign_events.items+i;int loaded;
             if(!event->switch_state)continue;
@@ -3489,6 +3525,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         status=rf_audio_bank_reload(&campaign_audio_bank,&archive,0x53);if(status)goto audio_done;
         break;
     }
+    AUDIO_OPEN_MARK(11);
     scene_weapon_impact_audio_load(&tables,&archive);
     scene_projectile_flight_audio_load(&archive);
     scene_tankbot_burst_audio_load(&archive);
@@ -3499,6 +3536,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[i].bytes;
     }
     rf_scene_sound_bank[3]=campaign_audio_bank.bytes-rf_scene_sound_bank[2];
+    AUDIO_OPEN_MARK(12);
     for(i=0;i<campaign_audio_bank.count;++i) {
         const rf_sound_metadata *metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,
             campaign_audio_metadata.order,campaign_audio_bank.samples[i].name);
@@ -3510,6 +3548,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     }
 audio_done:
     free(foley_text);free(entity_text);
+    AUDIO_OPEN_MARK(13);
     free(declarations);rf_vpp_close(&tables);
     if(!status) {
         campaign_audio_archive=archive;memset(&archive,0,sizeof(archive));
@@ -22873,6 +22912,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     scene_stream *stream=context;uint32_t i,slot;
     if(campaign_endgame.credits)return scene_credits_frame(stream,frame);
     profile_mark(4);
+    if(!frame){extern uint32_t rf_scene_frame0_ms[24];rf_scene_frame0_ms[4]=profile_clock?profile_clock():0;}
     if(stream->collision && frame==0) {
         int status=rf_scene_actor_world_check(stream->collision,rf_scene_actor_initial_world);if(status)return status;
         status=rf_scene_actor_fall_check(stream->collision,rf_scene_actor_initial_fall);if(status)return status;
@@ -22906,6 +22946,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         /* Save initialized locomotion and pose, not the earlier camera-preparation state. */
         if(campaign_spawn){status=campaign_life_capture();if(status)return status;}
     }
+    if(!frame){extern uint32_t rf_scene_frame0_ms[24];rf_scene_frame0_ms[5]=profile_clock?profile_clock():0;}
     if(stream->collision){int status=scene_player_kill_fixture(frame);if(status)return status;}
     uint64_t bytes=(uint64_t)stream->world*sizeof(rf_preview_vertex)+(rf_scene_actor_eye_enabled?0:actor->bytes);
     if(actor->count%3 || actor->bytes!=(uint64_t)actor->count*sizeof(rf_preview_vertex) ||
@@ -22967,7 +23008,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
-        int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5);
+        int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5); if(!frame)rf_scene_frame0_ms[6]=profile_clock?profile_clock():0;scene_frame0_presenting=!frame;
         if(profile_clock && profile_active)presentation_clock=profile_clock();
         status=scene_npc_seats_tick(frame,(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD));if(status)return status;
         scene_monitor_begin(stream,frame);
@@ -23070,7 +23111,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             rf_scene_profile_stage[1]=206;return status;
         }
         if(campaign_spawn)campaign_player_export_capture();
-        presentation_mark(6,&presentation_clock);profile_mark(6);
+        presentation_mark(6,&presentation_clock);profile_mark(6); if(!frame)rf_scene_frame0_ms[7]=profile_clock?profile_clock():0;scene_frame0_presenting=0;
         if(profile_clock && profile_active)step_clock=profile_clock();
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             uint64_t particle_elapsed=((uint64_t)frame+1)*1000/60;
@@ -23094,7 +23135,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
                     particle_now,scene_rocket_trail_lookup,stream,&stream->particle_first);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             }
-            step_profile_mark(0,&step_clock);
+            step_profile_mark(0,&step_clock); if(!frame)rf_scene_frame0_ms[8]=profile_clock?profile_clock():0;
             {} uint32_t physics_clock=step_clock; /* physics split rows */
             if(campaign_spawn) {
                 uint32_t occupied=scene_driller_active(stream);
@@ -23192,7 +23233,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(campaign_spawn){status=scene_player_outside_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
             if(campaign_spawn)scene_player_outside_audio_tick(stream,frame);
             physics_profile_mark(6,&physics_clock);
-            step_profile_mark(1,&step_clock);
+            step_profile_mark(1,&step_clock); if(!frame)rf_scene_frame0_ms[9]=profile_clock?profile_clock():0;
             /* 433260 dispatches authored light timers after physics, before events.
              * Owned replay timing; complete original frame gates/RNG order remain. */
             if(campaign_spawn){status=scene_lights_tick(stream,scene_step_seconds);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
@@ -23260,7 +23301,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            step_profile_mark(4,&step_clock);
+            step_profile_mark(4,&step_clock); if(!frame)rf_scene_frame0_ms[10]=profile_clock?profile_clock():0;
             if(campaign_spawn) {
                 uint32_t npc_clock=profile_clock && profile_active?profile_clock():0;
                 if(rf_scene_dev_npc_enabled==1 && campaign_npc_body_count==1) {
@@ -23319,14 +23360,18 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         if(campaign_spawn){status=scene_robot_death_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
         if(campaign_teleport_pending){scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);scene_player_riot_cancel();scene_player_outside_audio_forget();scene_player_impact_relocated();}
         status=campaign_teleport_begin();if(status)return scene_frame_late_failure(status,__LINE__,frame);
-        step_profile_mark(5,&step_clock);
+        step_profile_mark(5,&step_clock); if(!frame)rf_scene_frame0_ms[11]=profile_clock?profile_clock():0;
+        if(!frame){extern uint32_t rf_scene_frame0_ms[24];rf_scene_frame0_ms[0]=profile_clock?profile_clock():0;}
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);status=campaign_alpha_check(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
+                {extern uint32_t rf_scene_frame0_ms[24];rf_scene_frame0_ms[1]=profile_clock?profile_clock():0;}
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return scene_frame_late_failure(status,__LINE__,frame);}}
+        if(!frame){extern uint32_t rf_scene_frame0_ms[24];rf_scene_frame0_ms[2]=profile_clock?profile_clock():0;}
         step_profile_mark(6,&step_clock);profile_mark(7);
 modal_step_done:
         scene_player_outside_audio_reconcile(stream);
         scene_player_landing_audio_end();
+        if(!frame){extern uint32_t rf_scene_frame0_ms[24];rf_scene_frame0_ms[3]=profile_clock?profile_clock():0;}
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
             if(scene_live_load_active){scene_live_load_active=scene_live_load_auto_source=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;
                 /* Rejected live load before any publication: the fresh level is

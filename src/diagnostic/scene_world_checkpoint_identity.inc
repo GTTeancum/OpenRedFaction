@@ -123,6 +123,14 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
  * weapon catalog hash additionally binds its loader policy. This does NOT hash
  * external model/motion/texture/audio payloads. A new resource manifest/version
  * is required before claiming cross-install asset compatibility. No DEV data. */
+/* Port-owned memo: the digest covers read-only disc files (one level entry
+ * and tables.vpp), so a repeat with the same entry, archive, tables path and
+ * weapon catalog returns the same bytes. Each digest read ~1 MiB in 4 KiB
+ * pieces, ~0.7 s on hardware, on every save, load request and load. */
+static struct {
+    uint32_t valid,weapon,entry_offset,entry_size,archive_length;char name[sizeof(((rf_level *)0)->entry.name)],tables[260];
+    unsigned char digest[32];
+} scene_source_identity_memo;
 static int scene_world_checkpoint_source_identity_accounted(const rf_level *level,const char *tables_path,
     uint32_t weapon_catalog_hash,unsigned char out[32],const rf_checkpoint_file_admission *admission)
 {
@@ -132,6 +140,12 @@ static int scene_world_checkpoint_source_identity_accounted(const rf_level *leve
        !memchr(level->entry.name,0,sizeof(level->entry.name)))return RF_RANGE;
     if(admission){if(!admission->before_open)return RF_RANGE;
         status=rf_vpp_checked_idle_status();if(status)return status;}
+    if(scene_source_identity_memo.valid && scene_source_identity_memo.weapon==weapon_catalog_hash &&
+       scene_source_identity_memo.entry_offset==level->entry.offset && scene_source_identity_memo.entry_size==level->entry.size &&
+       scene_source_identity_memo.archive_length==level->archive->length &&
+       !strcmp(scene_source_identity_memo.name,level->entry.name) && !strcmp(scene_source_identity_memo.tables,tables_path)) {
+        memcpy(out,scene_source_identity_memo.digest,32);return RF_OK;
+    }
     position=ftell(level->archive->stream);if(position<0)return RF_IO;
     if(admission){status=admission->before_open(admission->context,tables_path);if(status)return status;}
     status=admission?rf_vpp_open_checked(&tables,tables_path):rf_vpp_open(&tables,tables_path);
@@ -154,6 +168,13 @@ done:
     if(admission){if(rf_vpp_close_checked(&tables))status=RF_IO;}
     else rf_vpp_close(&tables);
     if(fseek(level->archive->stream,position,SEEK_SET))status=RF_IO;
+    if(!status && strlen(tables_path)<sizeof(scene_source_identity_memo.tables)) {
+        scene_source_identity_memo.weapon=weapon_catalog_hash;scene_source_identity_memo.entry_offset=level->entry.offset;
+        scene_source_identity_memo.entry_size=level->entry.size;scene_source_identity_memo.archive_length=level->archive->length;
+        memcpy(scene_source_identity_memo.name,level->entry.name,sizeof(scene_source_identity_memo.name));
+        strcpy(scene_source_identity_memo.tables,tables_path);memcpy(scene_source_identity_memo.digest,result,32);
+        scene_source_identity_memo.valid=1;
+    }
     if(!status)memcpy(out,result,32);return status;
 }
 static int scene_world_checkpoint_source_identity(const rf_level *level,const char *tables_path,

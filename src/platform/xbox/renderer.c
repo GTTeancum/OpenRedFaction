@@ -397,6 +397,9 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
 extern float rf_scene_scope_projection;
 int rf_scene_gpu_image_writes_pending(void);
 void rf_scene_load_mark(uint32_t stage);
+/* Longest per-frame: lightmap update, monitor update, frame entry to the
+ * stage-87 mark, frame entry to vertex upload done; and frame total (ms). */
+uint32_t rf_xbox_frame_image_ms[5];static uint32_t frame_entry_ms;
 static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     (void)context;
@@ -1157,18 +1160,23 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             free(textures); MmFreeContiguousMemory(gpu); pb_kill();device_lost(); return result;
         }
     }
+    rf_scene_load_mark(88); /* Texture upload finished (stage 87 repeats every frame). */
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
         stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;stream_fallback=materials->count;}
     }
     rf_xbox_renderer_stage[0]=5;rf_scene_load_mark(87);
+    {uint32_t now=GetTickCount();if(frame_entry_ms && now-frame_entry_ms>rf_xbox_frame_image_ms[2])rf_xbox_frame_image_ms[2]=now-frame_entry_ms;}
     if(model==4) {
         int status;
         /* Lightmap/terrain/monitor texels are GPU-read: wait for the last frame
          * only when this frame will actually rewrite them. */
         if(!overlap_frame)GPU_WAIT(4,while(pb_busy()) {});
         else if(rf_scene_gpu_image_writes_pending())fence_wait(gpu_fence_issued,4);
-        status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;
-        rf_scene_update_monitor_images(lightmaps);
+        {uint32_t t0=GetTickCount(),t1,t2;
+         status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;t1=GetTickCount();
+         rf_scene_update_monitor_images(lightmaps);t2=GetTickCount();
+         if(t1-t0>rf_xbox_frame_image_ms[0])rf_xbox_frame_image_ms[0]=t1-t0;
+         if(t2-t1>rf_xbox_frame_image_ms[1])rf_xbox_frame_image_ms[1]=t2-t1;}
         __asm__ volatile("sfence" ::: "memory");
     }
     renderer_mark(1,&profile_previous,profiling);
@@ -1194,6 +1202,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(mesh->count>rf_xbox_stream_peak[0])rf_xbox_stream_peak[0]=mesh->count;
         rf_xbox_stream_peak[1]=vertex_bytes/(uint32_t)sizeof(rf_preview_vertex);
     }
+    {uint32_t now=GetTickCount();if(frame_entry_ms && now-frame_entry_ms>rf_xbox_frame_image_ms[3])rf_xbox_frame_image_ms[3]=now-frame_entry_ms;}
     renderer_mark(2,&profile_previous,profiling);
     p = pb_begin();
     p = pb_push1(p, NV097_SET_TRANSFORM_PROGRAM_START, 0);
@@ -1475,8 +1484,12 @@ int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materi
 int rf_xbox_scene_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
     uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3])
 {
+    int status;uint32_t done;
     if(!mesh || world_vertices>mesh->count || world_vertices%3 || world_vertices>(7u*1024u*1024u)/sizeof(rf_preview_vertex))return RF_RANGE;
-    return preview(mesh,materials,lightmaps,capture,memory,4,world_vertices,0);
+    frame_entry_ms=GetTickCount();
+    status=preview(mesh,materials,lightmaps,capture,memory,4,world_vertices,0);
+    done=GetTickCount();if(done-frame_entry_ms>rf_xbox_frame_image_ms[4])rf_xbox_frame_image_ms[4]=done-frame_entry_ms;
+    frame_entry_ms=0;return status;
 }
 
 int rf_xbox_scene_stream_frame_sized(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
