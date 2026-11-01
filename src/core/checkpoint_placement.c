@@ -13,6 +13,8 @@ typedef struct placement_work {
     rf_physics_ground_probe ground;float fraction,normal[3];
     const rf_collision_face *classification_face;
 } placement_work;
+/* Port-owned switch for the culled/full equivalence test; always 1 in the game. */
+int rf_checkpoint_placement_tree_cull=1;
 static double dot3(const double a[3],const double b[3])
 {return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
 static int basis_valid(const float *b)
@@ -74,7 +76,7 @@ static int visit_faces(placement_work *w,const rf_collision_face *faces,uint32_t
              * box; a face whose box is already farther than the best found
              * cannot lower the minimum. Only for moderate coordinates, where
              * face_distance cannot fail; small margin covers rounding. */
-            if(w->distance<DBL_MAX && fabs(w->center[0])<1e18 && fabs(w->center[1])<1e18 && fabs(w->center[2])<1e18) {
+            if(rf_checkpoint_placement_tree_cull && w->distance<DBL_MAX && fabs(w->center[0])<1e18 && fabs(w->center[1])<1e18 && fabs(w->center[2])<1e18) {
                 double box=0;
                 for(k=0;k<3;k++){
                     double below=(double)f->minimum[k]-w->center[k],above=w->center[k]-(double)f->maximum[k];
@@ -99,6 +101,87 @@ static int visit_faces(placement_work *w,const rf_collision_face *faces,uint32_t
     }
     return RF_OK;
 }
+/* Tree-culled visit (port-owned). A node's box covers its own faces and its
+ * whole subtree, which is one contiguous run of the face array (own faces,
+ * then left, then right). Walking own/left/right keeps array order, so
+ * order-dependent tie rules are unchanged; a run is skipped only when its
+ * padded box cannot be reached by this pass's test, where every face in it
+ * would have been rejected by its own (smaller) box. Mode 0 validates and
+ * always visits everything. */
+#define VISIT_STACK 96u
+static double node_pad(const rf_collision_node *n,uint32_t k)
+{return 1e-3+1e-6*(fabs((double)n->minimum[k])+fabs((double)n->maximum[k]));}
+static int node_reachable(const placement_work *w,const rf_collision_node *n)
+{
+    uint32_t k,hit=1;float lo[3],hi[3],scratch[3],end[3];
+    if(w->mode==1) {
+        double box=0;
+        for(k=0;k<3;k++){
+            double pad=node_pad(n,k),below=(double)n->minimum[k]-pad-w->center[k],above=w->center[k]-((double)n->maximum[k]+pad);
+            double gap=below>0?below:above>0?above:0;box+=gap*gap;
+        }
+        return !(box>w->distance*1.000001+1e-12);
+    }
+    if(w->mode==2) {
+        for(k=0;k<3;k++){double pad=node_pad(n,k);lo[k]=(float)((double)n->minimum[k]-pad);hi[k]=(float)((double)n->maximum[k]+pad);}
+        if(rf_collision_segment_box(lo,hi,w->query.start,w->query.endpoint,scratch,&hit))return 1;
+        return hit!=0;
+    }
+    /* mode 3: the face test expands each face box by the sweep radius. */
+    for(k=0;k<3;k++){
+        double pad=node_pad(n,k)+w->ground.sphere.radius;
+        lo[k]=(float)((double)n->minimum[k]-pad);hi[k]=(float)((double)n->maximum[k]+pad);
+        end[k]=(float)((double)w->ground.end[k]+w->ground.sphere.center[k]);
+    }
+    {float start[3];for(k=0;k<3;k++)start[k]=(float)((double)w->ground.start[k]+w->ground.sphere.center[k]);
+     if(rf_collision_segment_box(lo,hi,start,end,scratch,&hit))return 1;}
+    return hit!=0;
+}
+static int cull_allowed(const placement_work *w)
+{
+    uint32_t k;
+    if(w->mode==1){
+        if(w->distance>=DBL_MAX)return 0;
+        for(k=0;k<3;k++)if(!(fabs(w->center[k])<1e18))return 0;return 1;
+    }
+    if(w->mode==2){
+        for(k=0;k<3;k++)if(!isfinite(w->query.start[k])||!isfinite(w->query.direction[k])||!isfinite(w->query.endpoint[k]))return 0;
+        return isfinite(w->query.distance)&&w->query.distance>=0&&w->query.front<=1;
+    }
+    if(w->mode==3){
+        if(!(w->ground.sphere.radius>=.0001f)||!isfinite(w->ground.sphere.radius)||(w->ground.query_flags&0x180u))return 0;
+        if(!isfinite(w->fraction)||w->fraction<0||w->fraction>1)return 0;
+        for(k=0;k<3;k++){
+            double a=(double)w->ground.start[k]+w->ground.sphere.center[k],b=(double)w->ground.end[k]-w->ground.start[k];
+            if(!isfinite(a)||!isfinite(b)||fabs(a)>1e30||fabs(b)>1e30||!isfinite(w->ground.end[k]))return 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+static int visit_tree(placement_work *w,const rf_collision_face *faces,uint32_t count,const rf_collision_tree *tree)
+{
+    uint32_t stack[VISIT_STACK],used=0;placement_work saved;int status;
+    if(!rf_checkpoint_placement_tree_cull||!tree||tree->faces!=faces||tree->face_count!=count||!tree->node_count||!tree->nodes||w->mode==0||!cull_allowed(w))
+        return visit_faces(w,faces,count);
+    saved=*w;stack[used++]=0;
+    while(used) {
+        uint32_t index=stack[--used];const rf_collision_node *n;
+        if(index>=tree->node_count)goto plain;
+        n=tree->nodes+index;
+        if(n->first_face>count||n->face_count>count-n->first_face)goto plain;
+        /* Mode 1 may have tightened the bound since the parent; mode 2 may
+         * have shortened the ray: re-test each node when it is reached. */
+        if(!node_reachable(w,n))continue;
+        status=visit_faces(w,faces+n->first_face,n->face_count);if(status)return status;
+        if(used+2>VISIT_STACK)goto plain;
+        if(n->right!=UINT32_MAX)stack[used++]=n->right;
+        if(n->left!=UINT32_MAX)stack[used++]=n->left;
+    }
+    return RF_OK;
+plain:
+    *w=saved;return visit_faces(w,faces,count);
+}
 static int visit_world(placement_work *w)
 {
     const rf_geometry_collision_world *world=w->placement->world;uint32_t i,j;int status;
@@ -107,8 +190,8 @@ static int visit_world(placement_work *w)
         if(parent->skip&&!(w->placement->query_flags&8u))continue;
         for(j=0;;j++){
             uint32_t id=j?world->children[parent->first_child+j-1]:parent_id;
-            if(id==w->placement->replaced_room){w->replaced=1;status=visit_faces(w,w->candidate->faces,w->candidate->mesh.face_count);}
-            else{const rf_collision_tree *tree=world->views[id].tree;status=visit_faces(w,tree->faces,tree->face_count);}
+            if(id==w->placement->replaced_room){w->replaced=1;status=visit_tree(w,w->candidate->faces,w->candidate->mesh.face_count,w->candidate->tree);}
+            else{const rf_collision_tree *tree=world->views[id].tree;status=visit_tree(w,tree->faces,tree->face_count,tree);}
             if(status)return status;if(j==parent->child_count)break;
         }
     }
