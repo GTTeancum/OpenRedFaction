@@ -133,7 +133,7 @@ static int retained_terrain_prepare(uint32_t slot,const rf_geomod_mesh_view *sou
     uint32_t i,hash;int status;
     if(slot==UINT32_MAX){for(i=0;i<RETAINED_TERRAIN_SLOTS;i++)retained_terrain[i].active=0;return RF_OK;}
     if(slot>=RETAINED_TERRAIN_SLOTS || !source || !vertex_colors || !authored)return RF_RANGE;
-    if(retained_world.ready!=1 || (rf_xbox_experiment&4)){++rf_xbox_retained_terrain[4];return RF_NOT_FOUND;}
+    if(retained_world.ready!=1 || (rf_xbox_experiment&8)){++rf_xbox_retained_terrain[4];return RF_NOT_FOUND;}
     status=retained_terrain_validate(source,bound,material_count,vertex_colors,bindings);if(status)return status;
     hash=retained_terrain_data_hash(source,bound,vertex_colors,bindings);
     if(!retained_terrain[slot].ready || retained_terrain[slot].vertices!=source->vertices || retained_terrain[slot].faces!=source->faces ||
