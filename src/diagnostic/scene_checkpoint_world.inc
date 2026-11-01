@@ -291,9 +291,13 @@ static int scene_checkpoint_world_static_support(void *context,const rf_physics_
  * every query succeeds. An optional candidate static-prop provider supplies
  * floor only; all world/mover/prop volume guards still run unchanged. Ordinary
  * player saves can separately name one exact authored dynamic support. */
+/* Load-time profile (ms): volume check, obstacles, floor sweep, locate. */
+uint32_t rf_scene_checkpoint_place_ms[4];
+#define CHECKPOINT_PLACE_LAP(n) do{uint32_t now_=profile_clock?profile_clock():0;rf_scene_checkpoint_place_ms[n]+=now_-lap_;lap_=now_;}while(0)
 static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint_placement *input,
     rf_entity_room_state *room,rf_physics_support_contact *support)
 {
+    uint32_t lap_=profile_clock?profile_clock():0;
     const scene_checkpoint_world_context *c=context;rf_checkpoint_placement p;
     rf_physics_ground_probe probe;rf_collision_body_query query={0};rf_collision_body_sphere sphere;
     rf_geometry_body_hit hit;rf_collision_room_location location;rf_entity_room_state next_room={0};
@@ -348,8 +352,9 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
          rf_scene_checkpoint_world_reject[2]=reason.sphere;
          rf_scene_checkpoint_world_reject[3]=reason.retries;
          rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}}
+    CHECKPOINT_PLACE_LAP(0);
     rf_scene_checkpoint_world_reject[0]=2;
-    status=scene_checkpoint_world_obstacles(c,&p);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
+    status=scene_checkpoint_world_obstacles(c,&p);CHECKPOINT_PLACE_LAP(1);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
     /* Original487f82..487f98 never queries support for nonfalling non-run
      * descriptors. The NPC adapter proves exact unbroken Capek hover12 or
      * RFNC19 ordinary Drone fly11 candidate ownership and absent
@@ -366,7 +371,7 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
     rf_scene_checkpoint_world_reject[0]=4;
     status=rf_geometry_collision_body_sweep(c->world,c->movers,&query,c->scratch,c->scratch_count,
-        c->metadata,c->metadata_context,&hit,&matched);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
+        c->metadata,c->metadata_context,&hit,&matched);CHECKPOINT_PLACE_LAP(2);if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}
     if(c->static_support){status=c->static_support(c->static_support_context,&query,&hit,&matched);
         if(status){rf_scene_checkpoint_world_reject[4]=(uint32_t)status;return status;}}
     if(matched&&(!isfinite(hit.contact.fraction)||!isfinite(hit.contact.normal[1])||hit.contact.material>INT32_MAX))return RF_FORMAT;
@@ -402,7 +407,7 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
         if(found!=1)return RF_NOT_FOUND;
     }
 locate:
-    status=rf_geometry_collision_world_locate(c->world,p.position,&location);if(status)return status;
+    status=rf_geometry_collision_world_locate(c->world,p.position,&location);CHECKPOINT_PLACE_LAP(3);if(status)return status;
     if(location.room==UINT32_MAX||location.room>=c->world->room_count)return RF_NOT_FOUND;
     next_room.room=location.room+1;memcpy(next_room.query_position,p.position,12);
     *room=next_room;*support=next_support;return RF_OK;

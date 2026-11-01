@@ -145,6 +145,8 @@ static int scene_world_restore_fallback(const scene_checkpoint_world_context *wo
         rf_scene_npc_place_fallback[1]=6;return RF_OK;}
     rf_scene_npc_place_fallback[0]=__LINE__;return RF_NOT_FOUND;
 }
+/* Load-time profile: fit ms, fit placements, fallback ms, fallbacks, slowest fallback ms. */
+uint32_t rf_scene_restore_place_ms[5];
 static inline int scene_world_restore_place(void *context,uint32_t actor_slot,uint32_t actor_handle,
     uint32_t actor_uid,const rf_checkpoint_placement *placement,
     rf_entity_room_state *room,rf_physics_support_contact *support)
@@ -254,6 +256,7 @@ static inline int scene_world_restore_place(void *context,uint32_t actor_slot,ui
         world.class_speed=scene_npc_effective_base_speed(campaign_npc_bodies+i,cls,saved->capek_shield_broken);
     }
     if(saved->airborne.present&&!world.npc_airborne_no_support)SCENE_WORLD_RESTORE_REFUSE(RF_FORMAT);
+    {uint32_t t0=profile_clock?profile_clock():0;
     status=scene_world_restore_fit_at(&world,placement,placement->position,room,support);
     /* An NPC saved mid-step or touching a mover can lack a strict floor
      * contact; accept the saved volume and let physics settle. */
@@ -262,12 +265,15 @@ static inline int scene_world_restore_place(void *context,uint32_t actor_slot,ui
         status=scene_world_restore_fit_at(&world,placement,placement->position,room,support);
         if(!status)rf_scene_npc_place_fallback[1]=1;
     }
+    {uint32_t t1=profile_clock?profile_clock():0;rf_scene_restore_place_ms[0]+=t1-t0;++rf_scene_restore_place_ms[1];t0=t1;}
     if(status==RF_NOT_FOUND){
         const campaign_npc_body *owner=campaign_npc_bodies+actor_slot;
         uint32_t movable=!saved->airborne.present&&!saved->drone.kind&&!saved->physics.present&&
             !saved->reload_present&&!saved->crouch.flags&&!owner->crouch.flags&&!(owner->view.flags_810&0x400u);
         status=scene_world_restore_fallback(&world,placement,actor_slot,movable,room,support);
-    }else if(status)rf_scene_npc_place_fallback[0]=__LINE__;
+        {uint32_t t1=profile_clock?profile_clock():0;rf_scene_restore_place_ms[2]+=t1-t0;++rf_scene_restore_place_ms[3];
+         if(t1-t0>rf_scene_restore_place_ms[4])rf_scene_restore_place_ms[4]=t1-t0;}
+    }else if(status)rf_scene_npc_place_fallback[0]=__LINE__;}
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(status){const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
         if(enabled&&!strcmp(enabled,"1")){

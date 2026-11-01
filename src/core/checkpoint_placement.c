@@ -69,7 +69,21 @@ static int visit_faces(placement_work *w,const rf_collision_face *faces,uint32_t
             if(norm<.999||norm>1.001)return RF_FORMAT;
             for(j=0;j<f->count;j++)for(k=0;k<3;k++)if(!isfinite(f->vertices[j][k]))return RF_FORMAT;
             if(w->faces==UINT32_MAX)return RF_RANGE;w->faces++;
-        }else if(w->mode==1){status=face_distance(f,w->center,&w->distance);if(status)return status;}
+        }else if(w->mode==1){
+            /* The squared distance to a face is at least that to its bounds
+             * box; a face whose box is already farther than the best found
+             * cannot lower the minimum. Only for moderate coordinates, where
+             * face_distance cannot fail; small margin covers rounding. */
+            if(w->distance<DBL_MAX && fabs(w->center[0])<1e18 && fabs(w->center[1])<1e18 && fabs(w->center[2])<1e18) {
+                double box=0;
+                for(k=0;k<3;k++){
+                    double below=(double)f->minimum[k]-w->center[k],above=w->center[k]-(double)f->maximum[k];
+                    double gap=below>0?below:above>0?above:0;box+=gap*gap;
+                }
+                if(box>w->distance*1.000001+1e-12)continue;
+            }
+            status=face_distance(f,w->center,&w->distance);if(status)return status;
+        }
         else if(w->mode==3){
             rf_collision_face face=*f;rf_collision_sweep_hit hit;float start[3],delta[3];uint32_t matched;
             face.filter.query_flags=w->ground.query_flags;
