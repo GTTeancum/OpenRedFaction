@@ -146,8 +146,8 @@ def main():
     parser.add_argument('--xbox-host', default='10.0.0.231', help='Debug-kit address for --target hardware')
     parser.add_argument('--paced', action='store_true',
                         help='Consume replay input on the live 60 Hz frame clock with presentation skipping')
-    parser.add_argument('--experiment', type=int, choices=range(16), default=0,
-                        help='Bottleneck experiment bits: 1 issue no draws, 2 quarter-screen raster clip, 4 1x1 textures, 8 CPU carved terrain')
+    parser.add_argument('--experiment', type=int, choices=range(64), default=0,
+                        help='Bottleneck experiment bits: 1 issue no draws, 2 quarter-screen raster clip, 4 1x1 textures, 8 CPU carved terrain, 16 force 3/4-size 3D, 32 force 1/2-size 3D')
     parser.add_argument('--frame-rate', choices=('60','30','30_smooth','auto'),
                         help='write openrf.ini with this frame_rate (absent: no file, fixed 60)')
     parser.add_argument('--textures', choices=('compressed','original'), default='compressed',

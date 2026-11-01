@@ -1075,6 +1075,119 @@ int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
     show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;
 }
+/* Reduced-resolution 3D for GPU-bound frames (port-owned; approved visual
+ * trade-off). Large overlapping explosion/smoke quads at 720p made the GPU
+ * the bottleneck: the CPU waited up to ~28 ms at frame start for the
+ * previous frame. When that wait exceeds LOWRES_TRIGGER_MS the 3D scene
+ * (sky, world, models, particles) is drawn at 3/4 size into an off-screen
+ * surface sharing the depth buffer's top-left region, stretched to the full
+ * frame with bilinear filtering, and the HUD is drawn on top at full
+ * resolution. If that is still GPU-bound it steps to 1/2 size. Each level is
+ * held for LOWRES_HOLD_FRAMES pictures after the last slow frame, then steps
+ * back up one level; menus and non-streaming pictures never use it. The GPU
+ * wait is measured at frame start and in the HUD flush (where it moves once
+ * the reduced picture is composited). */
+void pb_target_buffer(DWORD address,DWORD width,DWORD height,DWORD pitch);
+#define LOWRES_TRIGGER_MS 6u
+#define LOWRES_HOLD_FRAMES 45u
+static unsigned char *lowres_color;static rf_preview_vertex *lowres_quad;
+static uint32_t lowres_width,lowres_height,lowres_pitch,lowres_hold,lowres_failed,lowres_backlog,lowres_level;
+static const float lowres_scales[3]={1,.75f,.5f};
+/* pictures at 3/4, entries into reduced mode, allocation failures, last GPU wait ms,
+ * pictures at 1/2, steps down to 1/2, current level, HUD-flush wait ms */
+uint32_t rf_xbox_lowres[8];
+static int lowres_choose(void)
+{
+    uint32_t level;
+    if(lowres_failed || !screen_wide)return 0;
+    if(lowres_backlog>=LOWRES_TRIGGER_MS || ((rf_xbox_experiment&16u) && !lowres_level)) {
+        if(!lowres_level)++rf_xbox_lowres[1];else if(lowres_level==1)++rf_xbox_lowres[5];
+        if(lowres_level<2)++lowres_level;
+        lowres_hold=LOWRES_HOLD_FRAMES;
+    } else if(lowres_hold)--lowres_hold;
+    else if(lowres_level && !(rf_xbox_experiment&16u)){--lowres_level;lowres_hold=lowres_level?LOWRES_HOLD_FRAMES:0;}
+    if(rf_xbox_experiment&32u){lowres_level=2;lowres_hold=LOWRES_HOLD_FRAMES;} /* forced 1/2 comparison */
+    else if((rf_xbox_experiment&16u) && lowres_level>1)lowres_level=1; /* forced comparison stays at 3/4 */
+    rf_xbox_lowres[6]=lowres_level;
+    if(!lowres_level)return 0;
+    if(!lowres_color) {
+        uint32_t w=screen_width*3/4,h=screen_height*3/4,i,q;
+        lowres_pitch=(w*4+63)&~63u;
+        lowres_color=MmAllocateContiguousMemoryEx(lowres_pitch*h,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        lowres_quad=MmAllocateContiguousMemoryEx(12*sizeof(rf_preview_vertex),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        if(!lowres_color || !lowres_quad) {
+            if(lowres_color)MmFreeContiguousMemory(lowres_color);
+            if(lowres_quad)MmFreeContiguousMemory(lowres_quad);
+            lowres_color=NULL;lowres_quad=NULL;lowres_failed=1;lowres_level=0;++rf_xbox_lowres[2];return 0;
+        }
+        for(q=0;q<2;q++) {
+            static const float corner[6][2]={{0,0},{640,0},{640,480},{0,0},{640,480},{0,480}};
+            float tw=(float)screen_width*lowres_scales[q+1],th=(float)screen_height*lowres_scales[q+1];
+            for(i=0;i<6;i++){rf_preview_vertex v={0};
+                v.position[0]=corner[i][0];v.position[1]=corner[i][1];v.position[2]=0;
+                v.color[0]=v.color[1]=v.color[2]=.5f; /* fragment doubles base x colour x white */
+                v.texture[0]=corner[i][0]/640.f*tw;v.texture[1]=corner[i][1]/480.f*th;v.texture[2]=1;
+                v.lightmap_texture[2]=1;lowres_quad[q*6+i]=v;}
+        }
+        __asm__ volatile("sfence" ::: "memory");
+    }
+    level=lowres_level;
+    lowres_width=(uint32_t)((float)screen_width*lowres_scales[level]);lowres_height=(uint32_t)((float)screen_height*lowres_scales[level]);
+    ++rf_xbox_lowres[level==1?0:4];return 1;
+}
+static void lowres_target(void)
+{
+    uint32_t *p,c;
+    pb_target_buffer((DWORD)(uintptr_t)lowres_color,lowres_width,lowres_height,lowres_pitch);
+    screen_c95(screen_scale_x*lowres_scales[lowres_level],screen_scale_y*lowres_scales[lowres_level],0);
+    p=pb_begin();
+    for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,(lowres_width-1)<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,(lowres_height-1)<<16);}
+    pb_end(p);
+}
+/* Stretch the reduced 3D picture over the whole back buffer. */
+static void lowres_composite(const uint32_t *program,uint32_t words,const gpu_texture *white)
+{
+    uint32_t *p,i;
+    p=pb_begin();p=pb_push1(p,NV097_WAIT_FOR_IDLE,0);pb_end(p); /* 3D done before it is sampled */
+    target_back_buffer();screen_constants();
+    vertex_program(program,words);
+    p=pb_begin();
+#include "preview_fragment.inl"
+    p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0); /* c1 opacity */
+    p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,0);
+    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)(uintptr_t)lowres_color&0x03ffffff);
+    p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
+        field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
+        field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY,2)|
+        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8)|
+        field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS,1));
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL1,lowres_pitch<<16);
+    p=pb_push1(p,NV097_SET_TEXTURE_IMAGE_RECT,(lowres_width<<16)|lowres_height);
+    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00030303);
+    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);
+    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)white->pixels&0x03ffffff);
+    p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,white->format);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
+    for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+    pb_end(p);p=pb_begin();
+    for(i=0;i<4;i++) {
+        uint32_t attribute=i==0?0:i==1?3:i==2?9:10;
+        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute*4,
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)|
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,3)|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,sizeof(rf_preview_vertex)));
+        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)(uintptr_t)(lowres_quad+(lowres_level-1)*6)+(i==3?40:i*12))&0x03ffffff);
+    }
+    p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);
+    p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,5)|field(NV097_DRAW_ARRAYS_START_INDEX,0));
+    p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);
+    p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+    pb_end(p);
+}
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
     uint32_t *p, i, frame;
@@ -1263,6 +1376,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(!overlap_frame || !ring_head)pb_reset();
         else {uint32_t *ensure=pb_begin();pb_end(ensure);} /* ring space for pbkit's own setup */
         target_back_buffer();screen_constants();
+        uint32_t lowres=streaming && lowres_choose();
+        if(lowres)lowres_target();
         if(rf_xbox_experiment&2){uint32_t c;p=pb_begin();
             /* Quarter-area fill experiment: every window clip to 320x240. */
             for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,319u<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,239u<<16);}
@@ -1270,14 +1385,15 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         {uint32_t shown=*(volatile uint32_t *)0xFD600800u&0x03ffffffu;
          ++rf_xbox_scanout_hazard[0];rf_xbox_scanout_hazard[2]=shown;
          if(shown==((uint32_t)pb_back_buffer()&0x03ffffffu))++rf_xbox_scanout_hazard[1];}
-        screen_erase_depth();
-        screen_fill(0xff101018);
+        if(lowres){pb_erase_depth_stencil_buffer(0,0,(int)lowres_width,(int)lowres_height);pb_fill(0,0,(int)lowres_width,(int)lowres_height,0xff101018);}
+        else {screen_erase_depth();screen_fill(0xff101018);}
         /* The clear and draws share one ordered pushbuffer. Preserve GPU idle
          * before drawing without spinning the CPU: it can submit following
          * commands while clear completes. No CPU framebuffer access, resource
          * reuse or pb_reset intervenes; end-of-frame lifetime fences remain. */
         p=pb_begin();p=pb_push1(p,NV097_WAIT_FOR_IDLE,0);pb_end(p);
-        {uint32_t now=GetTickCount();rf_renderer_frame_split[1]+=now-split_t0;split_t0=now;}
+        {uint32_t now=GetTickCount();rf_renderer_frame_split[1]+=now-split_t0;lowres_backlog=now-split_t0;rf_xbox_lowres[3]=lowres_backlog;split_t0=now;}
+        uint32_t frame_gpu_wait=lowres_backlog;
         if(streaming && rf_scene_skybox_ready()) {
             int status;particle_batch_begin();
             status=rf_scene_draw_skybox(scene_world_particle_present,NULL);particle_batch_end();
@@ -1452,7 +1568,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             /* On success, the HUD's final fence owns all remaining commands.
              * Errors must still finish this pass before any owner can retire. */
             if(status){GPU_WAIT(7,while(pb_busy()) {});return status;}}
+        if(lowres)lowres_composite(program,sizeof(program)/4,textures+materials->count);
+        {uint32_t hud_t0=GetTickCount();
         if(streaming) {int status;hud_batch_begin();
+            rf_xbox_lowres[7]=GetTickCount()-hud_t0;frame_gpu_wait+=rf_xbox_lowres[7];
             renderer_draw_mark(5,&draw_profile_previous,profiling);
             hud_widen_active=1; /* Gameplay HUD only; menus keep 4:3 art. */
             status=rf_scene_draw_player_flash(scene_hud_present,NULL);
@@ -1461,6 +1580,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             if(!status)status=rf_scene_draw_endgame(scene_hud_present,NULL);
             renderer_draw_mark(6,&draw_profile_previous,profiling);
             hud_widen_active=0;hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}
+        lowres_backlog=frame_gpu_wait;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();

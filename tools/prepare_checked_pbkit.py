@@ -65,6 +65,23 @@ def main():
          "        }\n"
          "        else ++pb_deferred_swap_count;\n"
          "    }\n"),
+        # OpenRF reduced-resolution 3D: draw into a caller-owned colour
+        # surface (same format, own width/height/pitch) sharing the depth
+        # buffer's top-left region; pb_target_back_buffer restores the frame.
+        ("    width=pb_FrameBuffersWidth;\n    height=pb_FrameBuffersHeight;\n    pitch=pb_FrameBuffersPitch;\n",
+         "    width=pb_override_width?pb_override_width:pb_FrameBuffersWidth;\n"
+         "    height=pb_override_height?pb_override_height:pb_FrameBuffersHeight;\n"
+         "    pitch=pb_override_pitch?pb_override_pitch:pb_FrameBuffersPitch;\n"),
+        ("void pb_target_back_buffer(void)\n{\n",
+         "void pb_target_buffer(DWORD address,DWORD width,DWORD height,DWORD pitch)\n{\n"
+         "    pb_override_width=width;pb_override_height=height;pb_override_pitch=pitch;\n"
+         "    set_draw_buffer(address&0x03FFFFFF);\n"
+         "    pb_override_width=pb_override_height=pb_override_pitch=0;\n"
+         "}\n\n"
+         "void pb_target_back_buffer(void)\n{\n"),
+        ("static void set_draw_buffer(DWORD buffer_addr)\n{\n",
+         "static DWORD pb_override_width,pb_override_height,pb_override_pitch; /* OpenRF: pb_target_buffer */\n"
+         "static void set_draw_buffer(DWORD buffer_addr)\n{\n"),
     ]
     for before, after in edits:
         if text.count(before) != 1:

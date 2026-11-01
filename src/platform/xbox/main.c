@@ -1548,7 +1548,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
                 fgetc(actor_file)!=EOF || rf_scene_crash_aim_uid>INT32_MAX;
             fclose(actor_file);if(invalid)return RF_FORMAT;rf_scene_crash_aim=3;}
         {extern uint32_t rf_xbox_experiment;FILE *experiment=tester_profile?NULL:fopen("D:\\crash-experiment.bin","rb");
-         rf_xbox_experiment=0;if(experiment){uint32_t bits=0;int invalid=fread(&bits,4,1,experiment)!=1 || fgetc(experiment)!=EOF || bits>15;
+         rf_xbox_experiment=0;if(experiment){uint32_t bits=0;int invalid=fread(&bits,4,1,experiment)!=1 || fgetc(experiment)!=EOF || bits>63;
           fclose(experiment);if(invalid)return RF_FORMAT;rf_xbox_experiment=bits;}}
         FILE *scenario_file=tester_profile?NULL:fopen("D:\\crash-scenario.flag","rb");
         rf_scene_crash_scenario=0;
