@@ -122,6 +122,7 @@ static void rf_ram_log_sample(uint32_t force)
     {extern uint32_t rf_scene_restore_place_ms[5];RAM_ARRAY(rf_scene_restore_place_ms,5);}
     {extern uint32_t rf_scene_checkpoint_place_ms[4];RAM_ARRAY(rf_scene_checkpoint_place_ms,4);}
     {extern uint32_t rf_geometry_world_open_ms[5];RAM_ARRAY(rf_geometry_world_open_ms,5);}
+    {extern uint32_t rf_renderer_frame_split[4];RAM_ARRAY(rf_renderer_frame_split,4);}
     {extern uint32_t rf_scene_frame0_ms[24];RAM_ARRAY(rf_scene_frame0_ms,24);}
     {extern uint32_t rf_scene_world_load_phase_ms[48],rf_scene_world_load_phase_hash[48],rf_scene_world_load_phase_count;
      RAM_ARRAY(rf_scene_world_load_phase_ms,48);RAM_ARRAY(rf_scene_world_load_phase_hash,48);RAM_ARRAY(&rf_scene_world_load_phase_count,1);}

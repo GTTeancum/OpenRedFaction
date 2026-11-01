@@ -400,6 +400,8 @@ void rf_scene_load_mark(uint32_t stage);
 /* Longest per-frame: lightmap update, monitor update, frame entry to the
  * stage-87 mark, frame entry to vertex upload done; and frame total (ms). */
 uint32_t rf_xbox_frame_image_ms[5];static uint32_t frame_entry_ms;
+/* Frame start split (ms totals): VBlank gate, reset/target/clear, skybox; frames. */
+uint32_t rf_renderer_frame_split[4];
 static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     (void)context;
@@ -1241,6 +1243,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         /* Allow one frame start per observed VBlank. Slow simulation may
          * already have crossed it; do not force an additional refresh delay.
          * pb_finished retains its full-queue check and all GPU waits remain. */
+        uint32_t split_t0=GetTickCount();
         {uint32_t vblank=pb_get_vbl_counter();
          if(!streaming || !stream_start_valid || vblank==stream_start_vblank) {
             /* A prior skipped wait may leave a signalled event. Consume it
@@ -1250,6 +1253,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             if(streaming)++rf_renderer_vblank[0];
          } else ++rf_renderer_vblank[1];
          if(streaming){stream_start_vblank=vblank;stream_start_valid=1;rf_renderer_vblank[2]=vblank;}}
+        {uint32_t now=GetTickCount();rf_renderer_frame_split[0]+=now-split_t0;split_t0=now;}
         if(!overlap_frame || !ring_head)pb_reset();
         else {uint32_t *ensure=pb_begin();pb_end(ensure);} /* ring space for pbkit's own setup */
         target_back_buffer();screen_constants();
@@ -1267,6 +1271,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
          * commands while clear completes. No CPU framebuffer access, resource
          * reuse or pb_reset intervenes; end-of-frame lifetime fences remain. */
         p=pb_begin();p=pb_push1(p,NV097_WAIT_FOR_IDLE,0);pb_end(p);
+        {uint32_t now=GetTickCount();rf_renderer_frame_split[1]+=now-split_t0;split_t0=now;}
         if(streaming && rf_scene_skybox_ready()) {
             int status;particle_batch_begin();
             status=rf_scene_draw_skybox(scene_world_particle_present,NULL);particle_batch_end();
@@ -1287,6 +1292,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
             p=pb_push1(p,NV097_SET_DEPTH_FUNC,NV097_SET_DEPTH_FUNC_V_LESS);pb_end(p);
         }
+        {uint32_t now=GetTickCount();rf_renderer_frame_split[2]+=now-split_t0;++rf_renderer_frame_split[3];}
         renderer_mark(4,&profile_previous,profiling);
         uint32_t draw_profile_previous=profile_previous;
         if(model==4 && retained_world.ready==1) {
@@ -1586,7 +1592,14 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     }
     p=pb_push1(p,NV097_SET_SPECULAR_ENABLE,1);
     p=pb_push1(p,NV097_SET_CONTROL0,NV097_SET_CONTROL0_Z_FORMAT_FIXED|NV097_SET_CONTROL0_TEXTURE_PERSPECTIVE_ENABLE);
-    p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
+    /* Blended draws write no depth, and with SRC_ALPHA/(1-SRC_ALPHA or ONE)
+     * a fragment of alpha 0 leaves colour and alpha unchanged. Rejecting
+     * exactly those fragments (alpha > 0) gives the same frame while
+     * skipping their framebuffer read/blend/write: overlapping explosion and
+     * smoke quads at 720p made the GPU the bottleneck. */
+    p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,!opaque&&!sky);
+    p=pb_push1(p,NV097_SET_ALPHA_FUNC,NV097_SET_ALPHA_FUNC_V_GREATER);
+    p=pb_push1(p,NV097_SET_ALPHA_REF,0);
     p=pb_push1(p,NV097_SET_FOG_ENABLE,0);
     p=pb_push1(p,NV097_SET_BLEND_EQUATION,NV097_SET_BLEND_EQUATION_V_FUNC_ADD);
     p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);
