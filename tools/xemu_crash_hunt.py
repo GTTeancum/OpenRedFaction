@@ -693,9 +693,9 @@ dvd_path = '{iso.as_posix()}'
                                 info=xbox_hw.save_framebuffer(args.xbox_host,str(run/name),screen[0] or 640,screen[1] or 480,hazard[2],
                                     16 if len(screen)>3 and (screen[3]>>8)==16 else 32)
                             else:
-                                # XEMU's QMP has no screendump: pause the guest and save the
+                                # XEMU's QMP has no screendump: save the
                                 # scanout buffer the game reports (rf_xbox_scanout_hazard[2])
-                                # straight from guest memory, then resume.
+                                # straight from guest memory.
                                 from PIL import Image
                                 name=f'shot_{shots_taken:02d}.png'
                                 screen=sample.get('rf_xbox_screen') or [640,480]
@@ -704,9 +704,11 @@ dvd_path = '{iso.as_posix()}'
                                 raw=run/f'shot_{shots_taken:02d}.raw';phys=hazard[2]&0x03FFFFFF
                                 diag=sample.get('rf_diagnostic') or []
                                 if not phys and len(diag)>35:phys=diag[32]&0x03FFFFFF # last drawn back buffer
-                                monitor.command('stop')
-                                try:monitor.command('pmemsave',{'val':phys,'size':w*h*(bpp//8),'filename':str(raw)})
-                                finally:monitor.command('cont')
+                                # XEMU stops responding after a pmemsave of this size (with or
+                                # without stop/cont), so an XEMU capture ends the run: the
+                                # harness then closes the emulator. One frame per run.
+                                monitor.command('pmemsave',{'val':phys,'size':w*h*(bpp//8),'filename':str(raw)})
+                                deadline=time.monotonic();result['capture_ended_run']=True
                                 data=raw.read_bytes();raw.unlink()
                                 Image.frombytes('RGB',(w,h),data,'raw','BGR;16' if bpp==16 else 'BGRX').save(run/name)
                                 info={'phys':phys,'width':w,'height':h,'bpp':bpp}

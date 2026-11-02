@@ -21,15 +21,19 @@ Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the b
 
 | Area | Fault |
 |---|---|
-| Remote charge | The detonator view was reported drawn wrong; not yet examined |
-| Sniper scope | Pickups seen through the scope are not tinted red |
-| Rockets | Launch from the barrel by the counters, but not yet seen in flight on screen |
 | GeoMod | A wall takes at most 8 stacked cuts (original 25); shots into doorways make no cut |
 | 30 FPS smooth mode | The in-between pictures are not drawn yet (it behaves like steady 30) |
 
 Fixed November 1: see-through walls. Railings, lattices and glass now draw in the blended pass; console screenshots of the ctf06 railings and glass_house glass confirm it.
 
 Fixed November 1: flamethrower stream. Original path traced in Ghidra: primary fire of a flame weapon (4c90f0, weapons.tbl Flags2 "flame") goes to 41a870, which creates the shooter's stream once (48edc0) and aims it every frame (41ac60 -> 48f2a0; on/off 48f130). In single player the stream is two continuous emitters.tbl emitters, "youfired" (Fire01) at the muzzle and "youfiredtoo" (Flame01_02) 0.2 units ahead; multiplayer uses the _multi variants. Port: scene_flame_visual.inc drives them through the trail entries. Their particle damage flags are cleared because the particle step refuses damaging particles (that refusal halted the game); damage stays with the port's flame volume. The "dont_move_with_parent" emitters get the muzzle and aim written into their own storage each update, as 48f2a0 does. XEMU glass_house capture shows a full fire stream from the barrel. Not checked: NPC flamethrowers on screen; the player muzzle is still the port's eye-offset point, not the view-model tag. Harness: new --input fire-hold; XEMU screenshots now come from guest memory (QMP pmemsave of the last drawn back buffer). Under qmp-telemetry the log stalls after a capture or two.
+
+Fixed (accepted by you November 1): remote charge and detonator view.
+
+Checked November 1 on XEMU:
+- Sniper scope: pickups are tinted like everything else. The original's tint (4ac3b0) is one full-screen red overlay (RGB 180, alpha 90; blend 3, i.e. source-alpha over), and the port draws the same quad. A battery-pack yellow measured 205,136,21 under it, which is the expected result, so yellow simply stays orange-yellow. Not a fault.
+- Rockets: a capture shows the smoke trail starting at the launcher barrel and running to the crosshair. The rocket body itself was not in the captured frame.
+- Harness: an XEMU capture (QMP pmemsave of the 720p back buffer) leaves XEMU unresponsive, paused or not, so each XEMU capture now ends the run and the harness closes the emulator. One frame per run.
 
 ## Speed and loading
 
