@@ -87,7 +87,7 @@ static int retained_world_indices_prepare(void)
         retained_indices.valid=retained_indices.count=retained_indices.group_count=retained_indices.faces=retained_indices.ranges=0;
         for(i=0;i<retained_world.face_count;i++) {
             const retained_face *face=retained_world.faces+i;retained_index_group *group;
-            if(face->translucent || !retained_face_index_visible(face))continue;
+            if(face->translucent || face->clear || !retained_face_index_visible(face))continue;
             if(face->start>retained_world.count || face->count>retained_world.count-face->start ||
                face->count%3 || face->count>retained_world.count-retained_indices.count)return RF_FORMAT;
             group=retained_indices.group_count?retained_indices.groups+retained_indices.group_count-1:NULL;

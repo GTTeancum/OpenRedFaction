@@ -340,6 +340,8 @@ static uint32_t field(uint32_t mask, uint32_t value)
 }
 /* control: stage-0 TEXTURE_CONTROL0 for this texture (0 = plain enable);
  * compressed packs open their LOD clamp so the GPU samples every mip. */
+/* transparent: 0 opaque, 1 cutout (or any non-opaque texel of a decoded
+ * image), 2 smooth alpha (packed DXT5 recorded at packing). */
 typedef struct gpu_texture { uint32_t *pixels, format,transparent,control; } gpu_texture;
 #define TEXTURE_CONTROL(t) ((t)->control?(t)->control:NV097_SET_TEXTURE_CONTROL0_ENABLE)
 uint32_t rf_xbox_texture_budget[12]; /* materials,lightmaps,total,unique,aliases,null,mismatch,max,budget,unique materials,unique lightmaps,cross aliases */
@@ -375,7 +377,7 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback,uint32_t
     if(image->compressed) {
         /* Offline pack: DXT blocks with their own mip chain; alpha policy was
          * recorded at packing. MAX_LOD_CLAMP open lets every level sample. */
-        out->transparent=image->alpha_mode!=0;
+        out->transparent=image->alpha_mode; /* 0 opaque, 1 cutout, 2 smooth */
         out->control=NV097_SET_TEXTURE_CONTROL0_ENABLE|NV097_SET_TEXTURE_CONTROL0_MAX_LOD_CLAMP;
         out->format=field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
             field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
@@ -760,6 +762,7 @@ typedef struct retained_face {
     uint32_t translucent; /* Liquid surface drawn in the liquid pass (blended or panned). */
     uint32_t blended;float pan[2]; /* Alpha blend; texture mover pan, UV units/second. */
     uint32_t animated; /* Room liquid waveform 0..2: procedural surface (4e6550). */
+    uint32_t clear; /* Wall texture alpha class (gpu_texture.transparent): drawn in the blended pass. */
 } retained_face;
 uint32_t rf_xbox_liquid_faces[4]; /* opaque liquid faces, liquid-pass faces, liquid-pass faces drawn last frame, panned faces */
 /* Procedural liquid surfaces (original 4e6550/4e6780). Each owns a cached
@@ -781,7 +784,7 @@ static void liquid_waves_close(void)
 static struct {
     const rf_geometry *source;const rf_visibility *visibility;
     rf_preview_vertex *vertices;retained_face *faces;
-    uint32_t count,bytes,face_count;int ready;
+    uint32_t count,bytes,face_count,clear_faces;int ready,classified;
     float position[3],orientation[3][3];
 } retained_world;
 /* state, GPU bytes, descriptor bytes, cached vertices, visible vertices,
@@ -944,6 +947,24 @@ static int retained_face_visible(const retained_face *face)
     if(v && !face->detail && face->room<v->count && !v->rooms[face->room].visible)return 0;
     return rf_preview_plane_visible(face->plane,retained_world.position)!=0;
 }
+/* See-through wall textures (railings, lattices, glass): their faces leave
+ * the opaque passes and draw in the blended pass after models, alpha-tested
+ * so clear texels write nothing. Classified once per level, when the level's
+ * textures are resident. */
+uint32_t rf_xbox_clear_faces[2]; /* see-through wall faces: cut-out, smooth */
+static void retained_world_classify(const rf_materials *materials,const gpu_texture *textures)
+{
+    uint32_t f;
+    if(retained_world.classified || retained_world.ready!=1)return;
+    retained_world.clear_faces=0;memset(rf_xbox_clear_faces,0,sizeof(rf_xbox_clear_faces));
+    for(f=0;f<retained_world.face_count;f++) {
+        retained_face *face=retained_world.faces+f;
+        face->clear=!face->translucent && face->count && face->material<materials->count && textures[face->material].pixels?
+            textures[face->material].transparent:0;
+        retained_world.clear_faces+=face->clear!=0;if(face->clear)++rf_xbox_clear_faces[face->clear==1?0:1];
+    }
+    retained_world.classified=1;
+}
 /* Optional visible-only element stream; the array path below stays intact. */
 #include "retained_world_indices.h"
 /* Shared static-world draw state: world vertex program, camera rows,
@@ -1017,23 +1038,28 @@ static const gpu_texture *liquid_wave_texture(const rf_materials *materials,cons
 }
 static int retained_world_draw_liquid(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
 {
-    uint32_t f,*p,drawn=0,blending=1,now=GetTickCount();
+    uint32_t f,*p,drawn=0,blending=1,now=GetTickCount(); /* blending: blend | depth mask<<1 */
     rf_xbox_liquid_faces[2]=0;
-    if(retained_world.ready!=1 || (!rf_xbox_liquid_faces[1] && !rf_xbox_liquid_faces[3] && !rf_xbox_liquid_waves[0]) || (rf_xbox_experiment&1))return RF_OK;
+    if(retained_world.ready!=1 || (rf_xbox_experiment&1))return RF_OK;
+    retained_world_classify(materials,textures);
+    if(!rf_xbox_liquid_faces[1] && !rf_xbox_liquid_faces[3] && !rf_xbox_liquid_waves[0] && !retained_world.clear_faces)return RF_OK;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
     if(liquid_pan_tick)liquid_pan_clock+=fmin((double)(now-liquid_pan_tick)*.001,.1);
     liquid_pan_tick=now?now:1;++liquid_wave_frame;
     retained_world_setup();
     p=pb_begin();
 #include "preview_fragment.inl"
-    p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
+    /* Alpha 0 adds nothing under SRC_ALPHA blending; rejecting it also keeps
+     * cut-out texels out of the depth buffer. */
+    p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,1);
+    p=pb_push1(p,NV097_SET_ALPHA_FUNC,NV097_SET_ALPHA_FUNC_V_GREATER);p=pb_push1(p,NV097_SET_ALPHA_REF,0);
     p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_FUNC,NV097_SET_DEPTH_FUNC_V_LESS);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
     p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
     p=pb_push1(p,NV097_SET_BLEND_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,0);pb_end(p);
     for(f=0;f<retained_world.face_count;f++) {
-        const retained_face *face=retained_world.faces+f;const gpu_texture *texture,*lighting;uint32_t textured,start,count;
-        if(!face->translucent || !retained_face_visible(face))continue;
+        const retained_face *face=retained_world.faces+f;const gpu_texture *texture,*lighting;uint32_t textured,start,count,blend,depth;
+        if((!face->translucent && !face->clear) || !retained_face_visible(face))continue;
         if(face->lightmap!=UINT32_MAX && face->lightmap>=lightmaps->count)return RF_FORMAT;
         textured=face->material<materials->count && textures[face->material].pixels;
         texture=textured?textures+face->material:textures+materials->count;
@@ -1049,8 +1075,11 @@ static int retained_world_draw_liquid(const rf_materials *materials,const rf_lig
         /* uv += pan * clock, wrapped like 55f5e0's whole-unit subtraction. */
         p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,102);
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,(float)fmod(face->pan[0]*liquid_pan_clock,1.0),(float)fmod(face->pan[1]*liquid_pan_clock,1.0),0,0);
-        if(face->blended!=blending){blending=face->blended;
-            p=pb_push1(p,NV097_SET_BLEND_ENABLE,blending);p=pb_push1(p,NV097_SET_DEPTH_MASK,!blending);}
+        /* Liquids: blended faces write no depth. Cut-out walls keep their
+         * depth (alpha test leaves only solid texels); smooth glass does not. */
+        blend=face->blended || face->clear;depth=face->clear?face->clear==1:!face->blended;
+        if((blend|depth<<1)!=blending){blending=blend|depth<<1;
+            p=pb_push1(p,NV097_SET_BLEND_ENABLE,blend);p=pb_push1(p,NV097_SET_DEPTH_MASK,depth);}
         p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);
         for(start=face->start,count=face->count;count;) {
             uint32_t batch=count>252?252:count;
@@ -1059,7 +1088,7 @@ static int retained_world_draw_liquid(const rf_materials *materials,const rf_lig
         }
         p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);++drawn;
     }
-    p=pb_begin();p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+    p=pb_begin();p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,102);p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,0,0,0);pb_end(p);
     rf_xbox_liquid_faces[2]=drawn;return RF_OK;
 }
@@ -1070,17 +1099,18 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
     if(retained_world.ready!=1 || (rf_xbox_experiment&1))return RF_OK;
     if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
+    retained_world_classify(materials,textures);
     indexed=retained_world_indices_prepare();
     if(indexed!=RF_OK && indexed!=RF_NOT_FOUND)return indexed;
     retained_world_setup();
     if(indexed==RF_OK)return retained_world_indices_draw(materials,lightmaps,textures);
     for(i=0;i<retained_world.face_count;) {
         const retained_face *face=retained_world.faces+i;uint32_t start,count,material,lightmap,textured;const gpu_texture *texture,*lighting;
-        if(face->translucent || !retained_face_visible(face)){++i;continue;}
+        if(face->translucent || face->clear || !retained_face_visible(face)){++i;continue;}
         start=face->start;count=face->count;material=face->material;lightmap=face->lightmap;++i;++faces;
         while(i<retained_world.face_count) {
             const retained_face *next=retained_world.faces+i;
-            if(next->start!=start+count || next->material!=material || next->lightmap!=lightmap || next->translucent || !retained_face_visible(next))break;
+            if(next->start!=start+count || next->material!=material || next->lightmap!=lightmap || next->translucent || next->clear || !retained_face_visible(next))break;
             count+=next->count;++i;++faces;
         }
         if(lightmap!=UINT32_MAX && lightmap>=lightmaps->count) {
