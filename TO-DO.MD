@@ -19,7 +19,6 @@ Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the b
 
 | Area | Fault |
 |---|---|
-| GeoMod | Each wall holds up to 16 stacked cuts on Xbox (8 in the PC build); the original's limit for ordinary craters isn't known (its 25 is the Driller's, 421310, and Driller bites now merge into one tunnel cut). A rocket into one L1S2 doorway (131,-2,4) made no cut on October 24; not compared with the original |
 | 30 FPS smooth mode | The in-between pictures are not drawn yet (it behaves like steady 30) |
 
 Fixed November 1: see-through walls. Railings, lattices and glass now draw in the blended pass; console screenshots of the ctf06 railings and glass_house glass confirm it.
@@ -32,6 +31,8 @@ Checked November 1 on XEMU:
 - Sniper scope: pickups are tinted like everything else. The original's tint (4ac3b0) is one full-screen red overlay (RGB 180, alpha 90; blend 3, i.e. source-alpha over), and the port draws the same quad. A battery-pack yellow measured 205,136,21 under it, which is the expected result, so yellow simply stays orange-yellow. Not a fault.
 - Rockets: a capture shows the smoke trail starting at the launcher barrel and running to the crosshair. The rocket body itself was not in the captured frame.
 - Harness: an XEMU capture (QMP pmemsave of the 720p back buffer) leaves XEMU unresponsive, paused or not, so each XEMU capture now ends the run and the harness closes the emulator. One frame per run.
+
+Closed by you November 1: GeoMod cut limit and doorway cuts (Xbox walls hold 16 cuts; one L1S2 doorway shot made no cut, not compared with the original).
 
 ## Speed and loading
 
