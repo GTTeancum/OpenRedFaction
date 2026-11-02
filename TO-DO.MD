@@ -9,21 +9,13 @@ The full working notes follow under **Detailed notes**, newest first; nothing ha
 
 Things only you can judge, mostly by looking at the console on the TV.
 
+Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the black flash gone; bullet tracers; the drone missile impact; glowing lamps; the Rail Driver scanner; compressed wall textures; the L1S2 pool, Driller tunnel and cockpit and rocket smoke trail; the softer picture in heavy explosions.
+
 | # | What to check | Where |
 |---|---|---|
-| 1 | 720p overall, and whether the 16-bit HUD looks right | any level |
-| 2 | Black bands and the 1–2 frame flicker are gone | any level |
-| 3 | The once-a-second black flash is gone | any level |
-| 4 | Bullet tracers: enemy rifle, Tankbot, Vauss | L3S4, L7S4 |
-| 5 | Drone missile impact (white/yellow flash) | L7S1 |
-| 6 | Lamps and lanterns now glow instead of showing a black card; anything else see-through that still looks solid | ctf06 |
-| 7 | Rail Driver scanner: red figures, crosshair, railgun readout | L3S4 |
-| 8 | Compressed wall textures | L1S2, L3S2 |
-| 9 | L1S2 pool water and ripple; Driller tunnel and cockpit; rocket smoke trail | L1S2 |
-| 10 | The softer picture during heavy explosions (half-resolution fallback) | L1S2 |
-| 11 | Turn on 480p in the Xbox dashboard (the cable is component; 480p and 720p are off there) | dashboard |
-| 12 | Old request: approve a whole-disk backup before saved-HDD continuation checks | — |
-| 13 | PS2 side-by-side comparison, once scenes are representative | — |
+| 1 | Turn on 480p in the Xbox dashboard (the cable is component; 480p and 720p are off there) | dashboard |
+| 2 | Old request: approve a whole-disk backup before saved-HDD continuation checks | — |
+| 3 | PS2 side-by-side comparison, once scenes are representative | — |
 
 ## Known faults still open
 
