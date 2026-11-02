@@ -4423,6 +4423,32 @@ int rf_entity_poses_open(const rf_entity_seeds *seeds,const rf_entity_skeletons 
     }
     *result=v;return RF_OK;
 }
+static int seed_class_read(const void *text,uint32_t bytes,const char *name,rf_entity_seed_class *c)
+{
+    rf_entity_assets assets;int status;
+    status=rf_entity_vitals_config_read(text,bytes,name,&c->vitals);if(status)return status;
+    status=rf_entity_eye_limits_read(text,bytes,name,&c->eye_limits);if(status)return status;
+    status=rf_entity_unholster_delay_read(text,bytes,name,&c->unholster_delay);if(status)return status;
+    status=rf_entity_rotation_values_read(text,bytes,name,&c->rotation);if(status)return status;
+    status=rf_entity_corpse_config_read(text,bytes,name,&c->corpse);if(status)return status;
+    status=rf_entity_damage_factors_read(text,bytes,name,c->damage_factors);if(status)return status;
+    status=rf_entity_class_physics_read(text,bytes,name,&c->physics);if(status)return status;
+    status=rf_entity_lod_distances_read(text,bytes,name,&c->lod);if(status)return status;
+    status=rf_entity_assets_read(text,bytes,name,"",&assets);if(status)return status;
+    memcpy(c->model,assets.model,sizeof(assets.model));
+    return rf_entity_model_kind(assets.model,&c->model_kind);
+}
+int rf_entity_seed_class_read(rf_vpp *tables,const char *name,rf_entity_seed_class *result)
+{
+    rf_vpp_entry entry;rf_entity_seed_class value={0};void *text;int status;
+    if(!tables || !name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
+    if(!entry.size)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=seed_class_read(text,entry.size,name,&value);
+    free(text);if(!status)*result=value;return status;
+}
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result)
 {
     rf_entity_seeds v={0};rf_vpp_entry entry;void *text=NULL;
@@ -4469,21 +4495,8 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
         v.classes=calloc(v.class_count,sizeof(*v.classes));
         if(!v.classes){status=RF_RANGE;goto done;}
         for(i=0,j=0;i<v.records.count;++i)if(v.items[i].class_index==j) {
-            rf_entity_assets assets;
-            const char *name=v.records.items[i].record.class_name;
-            v.classes[j].record_index=i;
-            status=rf_entity_vitals_config_read(text,entry.size,name,&v.classes[j].vitals);if(status)goto done;
-            status=rf_entity_eye_limits_read(text,entry.size,name,&v.classes[j].eye_limits);if(status)goto done;
-            status=rf_entity_unholster_delay_read(text,entry.size,name,&v.classes[j].unholster_delay);if(status)goto done;
-            status=rf_entity_rotation_values_read(text,entry.size,name,&v.classes[j].rotation);if(status)goto done;
-            status=rf_entity_corpse_config_read(text,entry.size,name,&v.classes[j].corpse);if(status)goto done;
-            status=rf_entity_damage_factors_read(text,entry.size,name,v.classes[j].damage_factors);if(status)goto done;
-            status=rf_entity_class_physics_read(text,entry.size,name,&v.classes[j].physics);if(status)goto done;
-            status=rf_entity_lod_distances_read(text,entry.size,name,&v.classes[j].lod);if(status)goto done;
-            status=rf_entity_assets_read(text,entry.size,name,"",&assets);if(status)goto done;
-            memcpy(v.classes[j].model,assets.model,sizeof(assets.model));
-            status=rf_entity_model_kind(assets.model,&v.classes[j].model_kind);if(status)goto done;
-            ++j;
+            status=seed_class_read(text,entry.size,v.records.items[i].record.class_name,v.classes+j);if(status)goto done;
+            v.classes[j].record_index=i;++j;
         }
     }
     if(text && bytes+entry.size>v.peak_bytes)v.peak_bytes=(uint32_t)(bytes+entry.size);

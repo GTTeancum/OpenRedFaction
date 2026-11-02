@@ -503,6 +503,9 @@ typedef struct rf_entity_seeds {
  * ASCII case. Archives may close after success. Failure preserves destination. */
 int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf_entity_seeds *result);
 void rf_entity_seeds_close(rf_entity_seeds *seeds);
+/* One class's seeds_open fields read from tables' entity.tbl by name;
+ * record_index is left zero. Failure preserves output. */
+int rf_entity_seed_class_read(rf_vpp *tables,const char *name,rf_entity_seed_class *result);
 typedef struct rf_entity_skeleton {
     char model[64];rf_model_bone *bones;uint32_t count;
 } rf_entity_skeleton;

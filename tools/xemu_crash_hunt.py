@@ -158,6 +158,10 @@ def main():
                         help='720: openrf.ini resolution = 720; xemu also gets an HDTV pack and 720p/480p enabled in its EEPROM')
     parser.add_argument('--color-depth', choices=('auto','32','16'), default='auto',
                         help='32/16 write color_depth into openrf.ini (auto: game default)')
+    parser.add_argument('--shot-range', type=int, default=99999, help='with --shot-on-actor: largest aim distance in cm')
+    parser.add_argument('--shot-after', type=int, default=300, help='with --shot-on-actor: earliest replay input for a capture')
+    parser.add_argument('--shot-on-actor', action='store_true',
+                        help='with --screenshots: capture once the aim input lines up on a visible character (needs --aim)')
     parser.add_argument('--shot-on-ir', action='store_true',
                         help='with --screenshots: capture when the infrared weapon screen shows a warm body')
     parser.add_argument('--screenshots', type=int, default=0,
@@ -248,6 +252,11 @@ def main():
             subprocess.run([str(tool), str(ROOT / 'Installed_Game'), str(pack)], check=True)
         if pack.exists() and (not dest.exists() or not dest.samefile(pack)):
             dest.unlink(missing_ok=True); dest.hardlink_to(pack)
+        # PS2 menu/arena pack (tools/build_ps2_menu_pack.py); relink when rebuilt.
+        ps2 = ROOT / 'build/data/ps2menu.vpp'
+        dest = disc / 'ps2menu.vpp'
+        if ps2.exists() and (not dest.exists() or not dest.samefile(ps2)):
+            dest.unlink(missing_ok=True); dest.hardlink_to(ps2)
         run = confined_path(ROOT, run)
         run.mkdir(parents=True)
         runtime_env = child_environment(ROOT, run)
@@ -618,7 +627,12 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_crash_terrain']=8
           counts['rf_scene_mp']=8
           counts['rf_scene_mp_seed_trace']=2
-          counts['rf_xbox_mp_paths']=4
+          counts['rf_xbox_mp_paths']=6
+          counts['rf_scene_mp_routes']=6
+          counts['rf_scene_crash_aim_range']=1
+          counts['rf_scene_weapon_draw']=6
+          counts['rf_scene_weapon_hands']=4
+          counts['rf_scene_weapon_models']=8
           counts['rf_scene_mp_bot_deaths']=3
           counts['rf_scene_mp_roster']=128
           counts['rf_scene_enemy_opposed']=15
@@ -694,7 +708,8 @@ dvd_path = '{iso.as_posix()}'
                     ir=(sample.get('rf_scene_weapon_ir') or [0,0])[1]
                     # --shot-on-ir: capture only while the weapon screen shows heat,
                     # at least 120 inputs apart; otherwise evenly through the replay.
-                    if (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                    actor=(sample.get('rf_scene_crash_aim_trace') or [0,0,0,0])[3]*(((sample.get('rf_scene_crash_aim_range') or [0])[0] or 99999)<args.shot_range) # aligned fire on a visible character in range
+                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
                         last_shot_input=consumed
                         try:
                             if args.target=='hardware':
@@ -718,6 +733,7 @@ dvd_path = '{iso.as_posix()}'
                                 # XEMU stops responding after a pmemsave of this size (with or
                                 # without stop/cont), so an XEMU capture ends the run: the
                                 # harness then closes the emulator. One frame per run.
+                                monitor.sock.settimeout(60) # a 720p frame takes several seconds
                                 monitor.command('pmemsave',{'val':phys,'size':w*h*(bpp//8),'filename':str(raw)})
                                 deadline=time.monotonic();result['capture_ended_run']=True
                                 data=raw.read_bytes();raw.unlink()
@@ -812,6 +828,15 @@ dvd_path = '{iso.as_posix()}'
                 else:time.sleep(args.poll_seconds)
         if result['status']=='TIMEOUT' and process.poll() is not None:
             result['status']='PROCESS_EXITED'
+        # A timeout may be a guest hang: record a few CPU register samples so
+        # the stuck code can be found in main.map.
+        if result['status']=='TIMEOUT' and monitor:
+            try:
+                samples=[]
+                for _ in range(8):
+                    samples.append(monitor.command('human-monitor-command',{'command-line':'info registers'}));time.sleep(.25)
+                (run/'hang-registers.txt').write_text('\n----\n'.join(str(x) for x in samples))
+            except Exception as exc:result['hang_registers_error']=str(exc)
         print(json.dumps({'run':str(run),'status':result['status'],'observed':result.get('observed'),'enemy_failure':result.get('last',{}).get('rf_scene_enemy_failure')}),flush=True)
     except Exception as exc:
         result['exception']=str(exc)

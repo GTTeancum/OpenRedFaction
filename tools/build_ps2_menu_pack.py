@@ -38,7 +38,8 @@ TABLES = ('strings.tbl', 'ps2_multi.tbl')
 # PS2 arenas built from PC multiplayer maps (respawn points identical or the
 # majority shared): their authored bot paths (RFL section 0x20000, same layout
 # in PS2 v175 and PC v180) are packed as <pc map>.nav and their bot
-# characters (section 0x30000) as <pc map>.ent for the Xbox bots.
+# characters (section 0x30000) as <pc map>.ent and their named waypoint lists
+# (section 0x10000) as <pc map>.wpt for the Xbox bots.
 PS2_ARENAS = {'m_ps201.rfl': 'dm01', 'm_ps202.rfl': 'dm02', 'm_ps203.rfl': 'dm03',
               'm_ps204.rfl': 'dm04', 'm_ps205.rfl': 'dm05', 'm_ps207.rfl': 'dm06',
               'm_ps208.rfl': 'dm07', 'm_ps210.rfl': 'ctf02'}
@@ -308,6 +309,12 @@ def main():
         ent = rfl_section(archive[arena], 0x30000)
         if ent and len(ent) > 4:
             out.append((pc_map + '.ent', ent))
+        # Named waypoint lists (section 0x10000) the bots walk: the PS2 picks
+        # one by name prefix ("weapon", "" for any) in 12e2a0. They index the
+        # PS2 path nodes above, so they travel with the .nav.
+        wpt = rfl_section(archive[arena], 0x10000)
+        if wpt and len(wpt) > 4:
+            out.append((pc_map + '.wpt', wpt))
     for name in TABLES:
         out.append((name, tables[name]))
     out_path.parent.mkdir(parents=True, exist_ok=True)

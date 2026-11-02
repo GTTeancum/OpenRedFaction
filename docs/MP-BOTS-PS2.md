@@ -1,98 +1,346 @@
-# PS2 multiplayer bots and match rules (SLUS-20073)
+# PS2 multiplayer (SLUS-20073), full trace
 
 Traced 2026-11-02 from the PS2 executable (Ghidra project `local/ghidra-ps2`,
 whole-program decompile `artifacts/analysis/ps2_slus20073/all.c`; EE-only
 `lq/sq/por/paddub` patched to MIPS64 equivalents, `$gp` = 0x2b36f0,
 non-returning-function discovery disabled). Addresses are PS2 virtual
-addresses. The Xbox port uses these as the reference for one-player
-multiplayer against bots.
+addresses. Where Ghidra stops at an EE three-operand `mult` (encoded like
+`mult` with a nonzero rd: rd = rs * rt), the routine was read from the
+disassembly of `local/ps2-iso/SLUS_200.73.patched` (capstone, MIPS64).
 
-## Maps
+Scope: every function that tests the multiplayer flag `2ac530` (about 100),
+the match module (1db9d0..1ddf20), the bot roster (272f80..274c50) and the
+code they call. Split-screen HUD layout and the second human player are noted
+but not detailed; the Xbox has one human player for now.
 
-- The PS2 arenas are the PC multiplayer maps with authored bot data added.
-  m_ps201 = dm01 and m_ps202 = dm02 have byte-identical respawn sections;
-  m_ps203 dm03, m_ps204 dm04, m_ps205 dm05, m_ps207 dm06, m_ps208 dm07 and
-  m_ps210 ctf02 share most respawn points (edited for the PS2).
-- Each adds a navigation section (0x20000, same layout as PC v180) and a small
-  entity section (0x30000) holding the bot characters (e.g. m_ps201: `elite`,
-  `guard1` with `Machine Pistol`).
-- Respawn points (section 0x700, reader 174040): uid, position, orientation,
-  name, one byte, team (int), then three flags. 274280 stores up to 32 points
-  (0x40 bytes each at 0x1edd320): flags at +0x3c (player 1), +0x3d
-  (player 2), +0x3e (bot).
+The Xbox port status is in the last section.
 
-## Respawn point choice (274620)
+## 1. Mode flags and options
 
-Candidates are points whose flag matches the spawner: +0x3c for player 1,
-+0x3d for player 2, +0x3e for a bot (an entity for which 188c40 is false,
-i.e. not a human player). Passes with a distance threshold of 2.1, 1.1, 0.1
-(274a40/2744f0 measures the point against nearby objects); the first pass with
-any candidates picks one at random (25b740). With no candidates, point 0.
+- `2ac534` = multiplayer requested (set by the menu). Level start 165d20 calls
+  1dbf20 when it is set; 1dbf20 sets `2ac530` = 1 (multiplayer on) and clears
+  `2ac534`. Leaving (1657f0) clears `2ac530`.
+- Options at 925490 (1ddaa0 stores, 1ddaf0 returns the block):
+  +0 bots, +4 skill (0..3, also copied to the global difficulty `2abeec`),
+  +8 kill limit, +0xc time limit in minutes, +0x10 start with gun.
+  Defaults 1ddb20: 2 bots, skill 2, 15 kills, 15 minutes, start with gun.
+- `2ab9e8` = number of human players (1 or 2); `2ac2b0`/`2ac2b4` the player
+  records; `2ac2b8` their count.
+- `ps2_multi.tbl` (TABLES.VPP): per arena `$Num bots: A B` (A = most bots in a
+  player-vs-player game, B = most in a player-vs-bots game; 4 6 on most
+  arenas, 5 6 on one, 0 0 on one). Characters the player can pick: screen
+  name, picture, `$EntityType` and `$SkinName`: Miner Parker (miner2/parker),
+  Envirosuit Parker (miner1/parker), Scientist Parker (parker_sci), Exec
+  Parker (parker_suit), Miner (miner2), Envirosuit Miner (miner1 skin d),
+  Ultor Guard 1/2 (guard1, skin c), Envirosuit Guard 1/2 (env_guard, skin b),
+  Elite Guard 1/2 (elite, skin e), Riot Guard 1 (riot_guard).
 
-## Bots
+## 2. Match start (1dbf20)
 
-- Match start 2740e0: walks the entity list; every non-human entity becomes a
-  bot (273f70) until the chosen bot count (options +0, 1ddb00) is reached; the
-  rest are destroyed (thunk 184850).
-- Roster 0x1edcdd0, 16 slots of 0x54: +0 used, +4 kills, +8 kills of human
-  players, +0xc deaths, +0x10 kill streak, +0x14 longest streak, +0x20 entity,
-  +0x24 character (table 293be0), +0x28..+0x4c copies of entity fields
-  444/478/66c/670/6ec/6f0/43c/664/34/38 (skill settings), +0x50 name (table
-  293ba0, starting "Myles"). 273f70 also sets entity+12fc = slot and
-  entity+734 |= 0x100000 (bot flag); in multiplayer without "start with gun"
-  it calls 15d9a0.
-- Respawn 2748f0, called from the entity death/cleanup path (~1bxxxx, after
-  corpse handling) when the dead entity is not human and multiplayer is on:
-  picks a bot point (274620), creates a new entity of class `miner1` (154340,
-  1524e0) named as the bot, links it to the same roster slot, sets
-  entity+204 = 3, restores the roster's copied fields and the bot flag.
+1. Multiplayer on; viewports set (1a5ba0: one player full screen, two players
+   split top/bottom).
+2. Each human player spawns (1dd930, below); a failure hangs (debug trap).
+3. Time left `2ac54c` = minutes * 60 (`2ac550` = no time limit when 0);
+   `2ac554` = no kill limit when the limit is 0; match-over `2ac548` = 0.
+4. Player stats cleared (1a24a0, 1a6ba0: kills, deaths, etc. at player
+   stats +0..+0x18).
+5. All 16 roster slots' scores cleared (2740b0: +4..+0x1c).
 
-## Scoring (274c50, per death)
+Level creation (165d20) then runs 2740e0 (bots, section 4).
 
-- Victim is a bot: roster deaths +1, streak reset (274250).
-- Killer (entity+12cc) is the victim: suicide; a bot loses a kill (274230), a
-  human player's record loses one (1a6b40).
-- Killer is a bot: kills +1, streak +1, longest streak updated (2741f0); if
-  the victim is human, kills of humans +1 (274240).
-- Killer is a human player: player record kills +1 (1a6af0); victim human:
-  1a6b80.
+## 3. Level entities in multiplayer (177010)
 
-## Match (1dbf20 setup, 1dc0e0 per frame)
+While the level's entities are created, in multiplayer every entity whose
+class mesh is a skinned character (class field +0x94 == 2, set by the
+entity.tbl parser at 35349 for a `.vcm` V3D filename; `.vfx` is 3, other 1)
+is created as class `miner1` instead of its authored class (1524e0 gets the
+authored class index as an extra argument). Its authored fields still apply:
+name, life/armour overrides, AI mode, flags, and its authored weapon
+(record weapon name -> +0x66c weapon, +0x670 ammo; 17e050/17e0e0).
 
-- Options (925490, 1ddaa0): bots, skill (also global difficulty 2abeec), kill
-  limit, time limit in minutes, start with gun. Defaults 1ddb20: 2, 2, 15, 15,
-  yes.
-- Time: minutes x 60, decremented by the frame time when not paused; below 0
-  ends the match. 0 minutes = no limit.
-- Kill limit: ends the match when any human player or any bot reaches it;
-  messages at limit-5 and limit-1 (1dbb60 8/9). 0 = no limit.
-- End: ranks the player (1ddb60) and shows the end messages (28f54c/28f588).
+So every PS2 bot is the `miner1` model (Envirosuit Miner) with default skin,
+holding the arena's authored weapon (m_ps201: Machine Pistol).
 
-## Bot AI (ordinary AI plus multiplayer branches)
+## 4. Bots
 
-There is no separate bot brain. Entity+204 is the affiliation; bots get 3.
-The AI (0x128000-0x138000) has ~25 functions with multiplayer
-(`DAT_002ac530`) branches. Traced so far:
+- 2740e0 (level start): walks the entity list; for each non-human entity
+  (188c40 false), the first N (options +0) become bots via 273f70; the rest
+  (up to 8 remembered) are destroyed (thunk 184850). Human entities get
+  +0x12fc = -1.
+- 273f30 clears the roster (0x1edcdd0, 16 x 0x54) and names the slots from
+  293ba0: Myles, Willis, Tyler, Abraham, Lance, Jared, Benedict, Butch, Logan,
+  Bryce, Tristan, Connor, Mason, Lucas, Sergio, Adrian.
+- 273f70 (make bot): first free slot; +0 used, +0x20 entity, +4..+0x1c scores
+  zeroed, entity +0x12fc = slot, entity +0x734 |= 0x100000 (bot flag),
+  roster +0x24 = character 293be0[slot] (= slot, so bot i uses weapon
+  preference row i), roster +0x28..+0x4c copy entity fields 444, 478, 66c
+  (weapon), 670 (ammo), 6ec, 6f0, 43c, 664, 34 (life), 38 (armour). Without
+  "start with gun", 15d9a0 removes every weapon (0x2d slots) and sets the
+  current weapon to none.
+- Roster +4 kills, +8 kills of human players, +0xc deaths, +0x10 streak,
+  +0x14 longest streak, +0x18 hits landed (1ca3c0), +0x50 name.
 
-- Target choice 129410: walks every entity except itself; skips dead,
-  flagged (+7c bit 2), state 440 == 1 and non-hostile (1291f0) entities;
-  weights distance by 1 - skill/5 for human players in multiplayer; picks the
-  nearest that passes the visibility/route checks. In multiplayer, if no
-  human was picked and a previous target (+480) exists, keeps it 2 times in 3.
-- Hit by an attacker 132fb0: in multiplayer a 1-in-3 chance to switch to the
-  attacker at once; above 25 health a 1-in-5 chance to set flag 0x1000000
-  (seek); the same-affiliation exclusion applies only outside multiplayer.
-- Ally alert 133d80: alerting same-affiliation allies is skipped in
-  multiplayer.
-- Idle in AI mode 4 (12e520): in multiplayer searches every live entity for
-  the nearest target.
-- Mode change 132de0: in multiplayer mode 2 becomes 3 and bits 0x0f800000 of
-  +484 clear.
-- Seek / wander 12f5f0, 12f750, 12f8e0, 131ac0, 132ba0, 137aa0: multiplayer
-  goal selection (random roams, item seeking); 131b70 sets a seek flag with
-  probability 1/(8 - skill) when hit by someone other than the current target.
-- Skill (options +4) also sets the global difficulty (2abeec).
+### Respawn (2748f0)
 
-Not yet traced: the goal choice inside 12f5f0 (paths or items) and the
-remaining branches (12a960, 12ae50, 12b830, 12bbb0, 12d290, 12fc60, 12ffd0,
-1373c0).
+Called from the entity death path 148860 when the dead entity is not human
+(188c40 false). Picks a bot point (274620), creates a new `miner1` named as
+the bot (154340/1524e0), links it to the same roster slot, sets +0x204
+affiliation = 3, restores the copied fields (444, 478, weapon 66c, ammo 670,
+6ec, 6f0, 43c, 664) and the stored life/armour (+0x34/+0x38; the decompile
+shows them written to the dead entity, most likely a register mix-up in the
+decompile); bot flag set; without "start with gun" strips weapons
+(15d9a0). The corpse stays (ordinary corpse handling). There is no delay:
+the new bot exists at once.
+
+### Respawn points (174040, 274280, 274620)
+
+- Section 0x700 records: uid, position, orientation, name, one byte, team
+  (int), three flags. Up to 32 points (0x40 bytes at 0x1edd320): +0x3c player
+  1, +0x3d player 2, +0x3e bot.
+- 274620(entity, out pos, out orient, player): candidates are points whose
+  flag matches (player 1, player 2, or bot for a non-human entity) and whose
+  nearest live entity (2744f0) is beyond 2.1, then 1.1, then 0.1 units; the
+  first pass with candidates picks one at random. None: point 0.
+
+## 5. Human player
+
+- Spawn 1dd930: point via 274620 (player flag), entity created by 1a3000 with
+  the class chosen in the character menu (player +0x18) and skin (+0x134,
+  158ab0; single player forces `parker`), player flag +0x7c |= 8, given the
+  12mm handgun (`2ac464`) with the default ammo 8f4930 (1a2e90/1a2f40).
+  Respawn fade state reset (+0x6442c..+0x6443d).
+- Death (148860 -> 1a5f00): player entity cleared; in multiplayer the 12mm
+  handgun view model is reloaded (1afae0).
+- Respawn input (1a51b0): with no entity, primary or secondary fire after more
+  than 1.0 s since death starts the respawn (1dd8f0: sound 0x40, fade timer).
+  1ddd90 fades to white (alpha up to 165) over 0.15 s, respawns (1dd930), then
+  fades back over 0.5 s.
+- Dead prompt 1ddc00: the screen darkens to 192/255 over the first second,
+  then "Press %s to respawn" (string 1f4c87c with the button name 292560) at
+  y 350 (175 in split screen).
+- Run speed in multiplayer: the walk/run cap +7e4 is a fixed 8.0 (156980)
+  instead of the class value.
+
+## 6. Scoring (274c50, from the death path 14c570)
+
+Skipped once the match is over. For the dead entity: a bot gains a death and
+loses its streak (274250). Credit goes to the killer handle +0x12cc:
+- killer == victim: bot loses a kill (274230); human: 1a6b40 (suicide).
+- killer is a bot: kill and streak (2741f0, longest streak kept); +8 human
+  kills when the victim is human (274240).
+- killer is a human: 1a6af0 (kill), 1a6b80 when the victim is human.
+Hits landed (1ca3c0): each hit on a character adds one to the shooter's
+roster +0x18 (bot) or player stats +0x14 (human).
+
+## 7. Match update (1dc1a0, every frame) and end
+
+- Scores 1db9d0: every human and every bot score, sorted descending (9254b0,
+  count 2ac558). Leader = the top score (1ddbb0); rank of a score = 1ddb60.
+- Time: when not paused, time left -= frame time; below zero ends the match
+  (unless no limit).
+- Kill limit: any human or bot at or above the limit ends the match.
+- Announcer (1dbb60 -> 26e210, flat 2D voice; lines loaded in 1dbc50 from
+  28f510: 0 mp_ann_01, 1 _02, 2 _03, 3 _04, 4 _05, 5 _07, 6 _08, 7 _09,
+  8 _10, 9 _11, 10 mp_ann_allyourbase):
+  - leader score changes to limit-5 -> line 8 (mp_ann_10); to limit-1 ->
+    line 9 (mp_ann_11);
+  - under one minute left -> line 0 once; under 31 s -> line 1 once; under
+    15 s -> mp_ann_03 once (26e180, the long countdown); under 11 s -> line 2
+    once (when not already played);
+  - match over -> line 4 (mp_ann_05), then after it: one player ranked first
+    -> line 5 (mp_ann_07); two players: both first -> allyourbase, player 1
+    first -> line 6, player 2 first -> line 7.
+- Match over: players' weapons put away, zoom and scanner off.
+- HUD while running: clock at bottom left (multi_hud_time.tga at (17,400),
+  m:ss at (47,402) and right-aligned at 41); split screen draws the divider
+  bars at y 0xde..0xe2.
+- End screen: fades in over 0.7..1.0 s; per player: name (+0x144) at
+  (240 or centred, 40), labels 1f4ce70/1f4ce74 at (240,62)/(240,84), kills
+  at (340,62), "rank/total" (`%d/%d`, total = humans + bots) at (340,84);
+  winner art (winner_trim.tga, winner_win.vbm) when ranked first. Continue
+  prompt 1f4ce78 at y 350; the continue button (pad 0xe) fades out over 1 s,
+  then leaves to the multiplayer menu (163b30 0xc). Pause/quit in a match
+  also returns to that menu (1b2b20 case 0xc -> 0x1a).
+- Debug roster list 274a80 (flag 2acd14): name, kills, deaths per bot.
+
+## 8. Items
+
+- Touch pickup 16c2f0: outside multiplayer only the human picks items up; in
+  multiplayer any character (type 0) does (16cba0).
+- 16cba0: skips items flagged +0x28c bit 0, entities in vehicles/turrets and
+  pickups blocked by geometry; runs the item's handler (class +0x38, default
+  16e0e0). A non-human picker runs 16cb00: a bot in AI mode 7 or 4 whose
+  life and armour are both above 95% returns to fighting (133d80).
+- Respawn: item +0x27c (authored respawn time, ms): negative = removed; zero
+  = stays taken; positive = hidden (189ff0) and shown again when the timer
+  +0x280 expires (16ce10 checks every 100 ms, sound 1).
+- Spin: in multiplayer, items whose class has flag 2 rotate 0.75*pi rad/s
+  (16c5e0).
+- Dropped items (+0x28c bit 8): every 1.5 s, if more than 2 (multiplayer) or
+  6 (single player) exist, the oldest fades out over 1 s (16d000/16d080/
+  16c560).
+- Handlers: weapons/ammo 16d970 (adds to inventory 1327e0; a bot then picks
+  its preferred usable weapon, 154a20 -> 12a700); health 16dfb0 and armour
+  16de80 add the item amount, scaled by difficulty only outside multiplayer;
+  envirosuit 16dde0.
+
+## 9. Damage
+
+- 1888d0: in multiplayer, damage from a non-human attacker is scaled by
+  28e980[skill] = 0.5, 0.6, 0.8, 1.0 (single player scales damage *to* the
+  player by 28e970 instead).
+- Weapon damage (1ce890): weapons.tbl `$Damage:` has two values (single
+  player +0xf0, multiplayer +0xf4; `$Alt Damage:` +0xf8/+0xfc). Multiplayer
+  uses the second value; an AI shooter's damage is also multiplied by the
+  weapon's +0x108 scale.
+- Friendly rules: collision filter 18bd00 ignores the 0x4000 no-collide
+  pairing in multiplayer and character-vs-type-1 contacts are off; same
+  affiliation does not protect anyone (132fb0, 133d80).
+
+## 10. Bot AI
+
+There is no separate bot brain: bots run the ordinary AI with multiplayer
+branches. The AI struct is entity +0x270; fields below are AI-relative
+(mode +0x1d0, target +0x210, weapon +4, flags +0x484, route list +0x358,
+route cursor +0x35c, route mode +0x364).
+
+### Targets
+
+- 129410 (target choice, called by 12b580 every 28e9b0[skill] = 600, 450,
+  300, 200 ms): every other live, visible entity; distance to human players
+  weighted by 1 - skill/5 in multiplayer; nearest passing the line-of-sight
+  check wins. If no human was chosen and a previous target (+0x480) exists,
+  it is kept 2 times in 3.
+- 12b830: in multiplayer "no human players" means none of the two player
+  records has an entity.
+- Hit by an attacker 132fb0: in multiplayer a 1-in-3 chance to react to the
+  attacker at once (1339e0); otherwise, above 25 life, 1 in 5 sets +0x484
+  bit 0x1000000 (seek next update, 131ac0). Same affiliation never protects.
+- 131b70: hit by someone other than the current target: 1 in (8 - skill)
+  sets the seek bit 0x1000000.
+- 1339e0 (react to attacker): single player switches to mode 7 (charge the
+  attacker); multiplayer instead runs to a `health` route (12e3f0).
+- 133d80 (resume fighting): in multiplayer allies are not alerted; mode 3.
+- 12bbb0 (mode 2): multiplayer goes straight to mode 3; 132de0 turns mode 2
+  into 3 and clears +0x484 bits 0x0f800000 on every mode change.
+
+### Routes (named waypoint lists)
+
+- PS2 arenas carry named lists in RFL section 0x10000 (m_ps201 has 20; the
+  PC maps have none): `weapon...`, `ammo...`, `health...` and free names. They
+  index the PS2 path nodes (section 0x20000).
+- 12e2a0(ai, prefix): lists whose name starts with prefix (up to 32), one at
+  random; 12e210 sets list, cursor 0, mode 0 (one way); 136900 plans a path to
+  the list's current node (fails when the plan has fewer than 2 nodes); on
+  success mode 4 and +0x484 |= 0x800008. Wrappers: 12e3e0 `ammo`, 12e3f0
+  `health`, 12e400 any list, 12e410 `weapon`.
+- Mode 4 (12eed0): while bit 0x800000 is set no new target is looked for.
+- Node reached (12e520): next node; at the end of a one-way list in
+  multiplayer, if any other live entity is within 3 units the cursor goes
+  back to node 1 (walk the list again), else the bot resumes fighting its
+  last target (133d80, mode 3, which clears the bit).
+- 1373c0 (path step) in multiplayer re-runs target choice (12b580) and stops
+  following when it fires.
+
+### Attack update (12ffd0, mode 3, every frame)
+
+In order:
+1. Target gone: multiplayer roams at once (12f8e0 forced).
+2. Multiplayer: unless +0x484 bit 0x2000000, 12f5f0 (1 in 64): move to the
+   path point near the target whose straight route keeps farthest from the
+   target (12f460 over the list 7aac40, 2abee4 points); on success sets
+   0x2000008 and skips the rest of the frame; while 0x2000000 is set the move
+   is stepped (1373c0) until done.
+3. Multiplayer: when the target is visible (12fa00) and timer +0x180 fires,
+   1 in 4 reacts as if hit (1339e0 -> `health` route).
+4. Ordinary movement/attack positioning (12b310, 128f60, 136bb0).
+5. 12f810: weapon record 8f41dc/8f4240 + weapon * 0x530 gives the ammo type
+   and its maximum; below a third of it, 1 in 64 runs an `ammo` route.
+6. 12f750: 1 in 4, then rank = position of the current weapon in the bot's
+   preference row (12a5d0; -2 when absent): rank -2 runs a `weapon` route;
+   rank >= 0 runs one when rand % (rank + 2) == 0.
+7. 12f8e0: 1 in 64 roams any list.
+8. Fire (12ae50/12adc0) in movement states 2, 3 and 0xb, the same frame.
+   12ae50 in multiplayer also flags +0x6f4 bit 0x8000000 when the target is
+   within 3 units (12f960, melee range).
+
+Steps 5-7 are skipped while bit 0x800000 is set. The random function 25b740
+is newlib `rand` (31-bit; disassembled: seed * 0x41c64e6d + 0x3039), so the
+rates above are per frame. A bot therefore fights in short bursts: it fires
+on the first attack frame and usually leaves for a route within a fraction of
+a second, picking items up along the way.
+
+### Weapon preference (12a5d0, 12a700, 12a680)
+
+Rows 28e760, 8 weapons per row, row = bot slot:
+0-1 Shotgun, Machine Pistol, Sniper Rifle, Assault Rifle, Flamethrower,
+Rocket Launcher, rail_gun, 12mm handgun; 2 Sniper, rail, Assault, MP,
+Shotgun, Rocket, Flame, 12mm; 3 Assault, MP, Flame, Shotgun, Rocket, Sniper,
+rail, 12mm; 4 MP, Assault, Shotgun, rail, Rocket, Flame, Sniper, 12mm;
+5 Shotgun, Assault, Flame, Rocket, MP, Sniper, rail, 12mm; 6 Assault, Sniper,
+rail, Rocket, Shotgun, Flame, MP, 12mm; 7 Assault, Flame, Rocket, Shotgun,
+rail, Sniper, MP, 12mm; 8 Flame, rail, Rocket, Assault, Sniper, Shotgun, MP,
+12mm; 9-10 rail, Rocket, Flame, Assault, Sniper, Shotgun, MP, 12mm; 11 rail,
+Shotgun, Rocket, Flame, Assault, Sniper, MP, 12mm; 12 Rocket, rail, Flame,
+Assault, Sniper, Shotgun, MP, 12mm; 13-15 Rocket, rail, Shotgun, Flame,
+Assault, Sniper, MP, 12mm.
+
+12a700 (choose weapon; 1 in 8 unless forced): first weapon of the row the
+bot owns (1327e0 inventory) with clip or reserve ammo (12a680); switches to
+it. No usable weapon: forced retry. A bot with no weapon gets the 12mm
+handgun (12a590). After any weapon pickup in multiplayer the choice is forced
+(154a20).
+
+### Other multiplayer branches
+
+- 185e20: entities never sleep by distance in multiplayer (single player
+  idles AI beyond 900 units of the player).
+- 1d8fb0 (aim assist candidates): 100 units in multiplayer (30 single
+  player), any affiliation.
+- 137aa0: on a failed path step, 1 in 2 toggles the crouch bit of the blocker.
+- 149830/149cd0: multiplayer forces the movement animation set (3, 5).
+- 176590: multiplayer traps (hangs) on malformed authored objects (debug).
+
+## 11. Not traced
+
+- Split-screen HUD/viewmodel offsets (1a9c20, 1abd00, 1acc70, 1af170,
+  160f40 multiplayer parts) and the second player's controls.
+- The multiplayer menus' character and arena screens (the Xbox already draws
+  them from the PS2 art; the character choice is not wired).
+- Exact meaning of entity +0x66c/+0x670 beyond weapon and ammo.
+
+## 12. Xbox port status (2026-11-02)
+
+In (scene_mp.inc, main.c): arenas with PS2 path, bot and route data; bot
+count, roster and names; bots created as `miner1` (skinned-character classes
+swapped as in 177010, authored weapon kept; scene_mp_bot_seeds); held guns
+shown after a bot respawns (the drop record of its previous life no longer
+hides the live gun); bot and player respawn points; scoring; kill and
+time limits; respawn on Fire; results screen; route picking and the
+target-lost roam; the kill-limit announcer lines (but keyed to the player's
+score, not the leader's).
+
+Differs from the PS2 or missing:
+1. Bot skin: `miner1` uses its default skin as on the PS2 (no change).
+2. Respawn: the port revives the same body after its corpse becomes
+   ownerless and deletes the corpse; the PS2 makes a new `miner1` at once and
+   leaves the corpse. Respawned bots keep their authored affiliation.
+3. Combat timing: port bots need about a second of alert before the first
+   shot; PS2 bots fire on the first attack frame. Because of this the
+   per-frame route rules (attack-update steps 2, 3, 5, 6, 7 and the hit
+   reaction's `health` route) are held off (`SCENE_MP_WEAPON_SEEK` 0): with
+   them, port bots stopped shooting (dm01 tests: 359 bot shots without, 0
+   and 21 with).
+4. Items: port bots do not pick items up; items do not respawn or spin;
+   dropped-item cap not applied.
+5. Damage: bot damage is not scaled by skill; multiplayer weapon damage
+   values are not used.
+6. Player: no character choice (always the single-player Parker), the run
+   speed cap is not 8.0, no respawn fade or "Press Fire to respawn" prompt,
+   1 s respawn delay not enforced.
+7. Announcer: only the kill-limit lines, keyed to the player; time callouts,
+   match-over and winner lines missing.
+8. End screen: the port shows its own results list, not the PS2 layout
+   (rank/total, winner art, continue fade).
+9. Bot weapon choice by preference and the hits-landed stat are not
+   ported; bots never change weapons.

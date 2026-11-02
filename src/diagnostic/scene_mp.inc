@@ -20,9 +20,26 @@
  *    limit ends the match when the player or any bot reaches it (0 = none).
  *  - The player respawns on Fire ("Press Fire to respawn", strings.tbl 3) at
  *    a player point.
+ *  - Routes (12e2a0): a bot walks one of the arena's named waypoint lists
+ *    (PS2 section 0x10000, carried in by main.c) whose name starts with a
+ *    prefix, picked at random among up to 32, one way, in waypoint mode 4;
+ *    while it runs (+484 bit 0x800000) it takes no new target (12eed0).
+ *    From the attack update (12ffd0, every frame outside mode 7): weapon
+ *    seek 12f750 (1 in 4; then always when the bot's weapon is not in its
+ *    preference row 28e760, else 1 in rank+2) and roam 12f8e0 (1 in 64,
+ *    any list); losing the target roams at once (12f8e0 forced).
+ *  - Announcer (1dc0e0 -> 1dbb60 8/9): when the human player's kills reach
+ *    limit-5 / limit-1, mp_ann_10 / mp_ann_11 play once (PC audio.vpp holds
+ *    the same lines as the PS2 .vse files).
  * Port deviations: respawned bots keep their authored affiliation instead of
- * 3 (the port AI has no multiplayer affiliation rules yet); the limit-5 and
- * limit-1 announcements (1dbb60 8/9) are not shown. */
+ * 3 (the port AI has no multiplayer affiliation rules yet); bots do not pick
+ * items up yet, so a weapon route never changes the bot's weapon; the ammo
+ * seek 12f810 (below a third of the clip's ammo, 1 in 64) is left out because
+ * port bots do not count ammo; the attack-update weapon seek and 1-in-64 roam
+ * are held off (SCENE_MP_WEAPON_SEEK) until the PS2 firing on a route is
+ * traced; bots with no target and no route roam at once
+ * (the PS2 idle mode is not ported); the hurt-bot health route of the
+ * MP branch of 1339e0 is not wired. */
 uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit;
 /* active, bots, player kills, player deaths, bot respawns, seconds left, match over, player respawns */
 uint32_t rf_scene_mp[8];
@@ -89,11 +106,13 @@ static const float *scene_mp_pick(uint32_t flag)
     }
     return scene_mp_spawn[0].position;
 }
-/* 2740e0: the arena's characters, first N kept. Classes are compacted to
- * those the kept records use (each class needs its first record). */
+/* 2740e0: the arena's characters, first N kept. 177010: in multiplayer a
+ * character whose class model is skinned (.vcm, kind 2) is created as
+ * `miner1`, keeping its authored fields and weapon. Classes are rebuilt for
+ * the kept records by name (each class needs its first record). */
 static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
 {
-    uint32_t count,k,c,remap[256],classes=0;int status;
+    uint32_t count,k,j,classes=0,miner=UINT32_MAX;int status;rf_entity_seed_class *rebuilt;
     memset(rf_scene_mp,0,sizeof(rf_scene_mp));memset(rf_scene_mp_roster,0,sizeof(rf_scene_mp_roster));
     memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));scene_mp_clock=0;scene_mp_player_dead=0;
     rf_scene_mp_seed_trace[0]=1;
@@ -103,18 +122,25 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     if(status)return status;
     count=rf_scene_mp_bots<campaign_seeds.records.count?rf_scene_mp_bots:campaign_seeds.records.count;
     if(count>SCENE_MP_BOTS)count=SCENE_MP_BOTS;
-    if(campaign_seeds.class_count>256)return RF_RANGE;
-    for(c=0;c<campaign_seeds.class_count;c++)remap[c]=UINT32_MAX;
+    rebuilt=calloc(count?count:1,sizeof(*rebuilt));if(!rebuilt)return RF_IO;
     for(k=0;k<count;k++){
-        c=campaign_seeds.items[k].class_index;if(c>=campaign_seeds.class_count)return RF_RANGE;
-        if(remap[c]==UINT32_MAX){
-            remap[c]=classes;
-            if(classes!=c){rf_entity_seed_class keep=campaign_seeds.classes[c];campaign_seeds.classes[classes]=keep;}
-            campaign_seeds.classes[classes].record_index=k;++classes;
+        uint32_t c=campaign_seeds.items[k].class_index;rf_level_entity *record=&campaign_seeds.records.items[k].record;
+        if(c>=campaign_seeds.class_count){free(rebuilt);return RF_RANGE;}
+        if(campaign_seeds.classes[c].model_kind==2){
+            if(miner==UINT32_MAX){
+                status=rf_entity_seed_class_read(tables,"miner1",rebuilt+classes);
+                if(status){free(rebuilt);return status;}
+                rebuilt[classes].record_index=k;miner=classes++;
+            }
+            strcpy(record->class_name,"miner1");campaign_seeds.items[k].class_index=miner;
+        }else{
+            for(j=0;j<k;j++)if(!strcmp(campaign_seeds.records.items[j].record.class_name,record->class_name))break;
+            if(j<k)campaign_seeds.items[k].class_index=campaign_seeds.items[j].class_index;
+            else{rebuilt[classes]=campaign_seeds.classes[c];rebuilt[classes].record_index=k;campaign_seeds.items[k].class_index=classes++;}
         }
-        campaign_seeds.items[k].class_index=remap[c];
         rf_scene_mp_roster[k].used=1;
     }
+    free(campaign_seeds.classes);campaign_seeds.classes=rebuilt;
     campaign_seeds.records.count=count;campaign_seeds.class_count=classes;
     scene_seed_uid_table.items=NULL;rf_scene_mp_seed_trace[0]=3;
     rf_scene_mp[0]=1;rf_scene_mp[1]=count;rf_scene_mp[5]=rf_scene_mp_time_limit;
@@ -217,8 +243,8 @@ static float scene_mp_goal_score(const float *target,const float *self,const flo
 /* 12f5f0 + 12f460: one time in 64 (or when forced) pick a goal among the
  * path point nearest the player and its neighbours (the list 2abee4 is built
  * around the player, 1ddxxx at 28285) and walk there. The PS2 runs this from
- * the combat update; until the idle path-following (12e520) is ported, idle
- * Xbox bots run it as well. */
+ * the combat update; the Xbox uses it only for idle bots on an arena with no
+ * waypoint lists. */
 static void scene_mp_seek(campaign_npc_body *npc,uint32_t forced)
 {
     const float *target=scene_actor_body.state.position,*self=npc->body.state.position;
@@ -243,6 +269,102 @@ static void scene_mp_seek(campaign_npc_body *npc,uint32_t forced)
     npc->script_move.route_index=1;npc->script_move.retry=0;npc->navigation.retained.count=0;
     memcpy(npc->script_move.target,campaign_navigation.nodes[best_node].candidate.position,12);
 }
+/* 28e760: eight preferred weapons per roster slot (273f70 gives slot i row
+ * i), PS2 weapons.tbl indices resolved by name. */
+static const char *const scene_mp_weapon_names[]={"Shotgun","Machine Pistol","Sniper Rifle","Assault Rifle",
+    "Flamethrower","Rocket Launcher","rail_gun","12mm handgun"};
+static const uint8_t scene_mp_preference_rows[SCENE_MP_BOTS][8]={
+    {0,1,2,3,4,5,6,7},{0,1,2,3,4,5,6,7},{2,6,3,1,0,5,4,7},{3,1,4,0,5,2,6,7},
+    {1,3,0,6,5,4,2,7},{0,3,4,5,1,2,6,7},{3,2,6,5,0,4,1,7},{3,4,5,0,6,2,1,7},
+    {4,6,5,3,2,0,1,7},{6,5,4,3,2,0,1,7},{6,5,4,3,2,0,1,7},{6,0,5,4,3,2,1,7},
+    {5,6,4,3,2,0,1,7},{5,6,0,4,3,2,1,7},{5,6,0,4,3,2,1,7},{5,6,0,4,3,2,1,7}};
+static int32_t scene_mp_weapon_ids[8];
+#define SCENE_MP_WEAPON_SEEK 0 /* attack-update seeks; see scene_mp_route_tick */
+/* Bot on a route (1 seek, +484 0x800000; 2 idle walk), bot had a target last update. */
+static uint8_t scene_mp_routing[SCENE_MP_BOTS],scene_mp_had_target[SCENE_MP_BOTS];
+/* Routes started: weapon, roam, target-lost roam, finished; announcements, last route status. */
+uint32_t rf_scene_mp_routes[6];
+static uint32_t scene_mp_announced;
+/* 12a5d0: rank of the bot's weapon in its row, -2 when absent. */
+static int32_t scene_mp_weapon_rank(uint32_t slot,int32_t weapon)
+{
+    uint32_t i;
+    for(i=0;i<8;i++)if(scene_mp_weapon_ids[scene_mp_preference_rows[slot][i]]==weapon)return (int32_t)i;
+    return -2;
+}
+/* 12e2a0: lists whose name starts with prefix, one at random, walked one
+ * way in waypoint mode 4. A seek (+484 0x800000) takes no target on the way;
+ * an idle walk (port stand-in for the idle mode) runs as an actor default
+ * route, which the ordinary acquisition may interrupt. */
+static int scene_mp_route(uint32_t slot,const char *prefix,uint32_t idle)
+{
+    campaign_npc_body *npc=campaign_npc_bodies+slot;rf_level_waypoint_path found[32];
+    uint32_t count,lists,cursor=4,i,n=0,length,nodes,plen=(uint32_t)strlen(prefix);int status;
+    const unsigned char *w=campaign_waypoints;
+    if(!w || campaign_waypoint_bytes<4)return RF_NOT_FOUND;
+    lists=(uint32_t)w[0]|(uint32_t)w[1]<<8|(uint32_t)w[2]<<16|(uint32_t)w[3]<<24;
+    for(i=0;i<lists && n<32;i++){
+        if(cursor+2>campaign_waypoint_bytes)return RF_FORMAT;
+        length=(uint32_t)w[cursor]|(uint32_t)w[cursor+1]<<8;
+        if(cursor+2+length+4>campaign_waypoint_bytes)return RF_FORMAT;
+        memcpy(&count,w+cursor+2+length,4);nodes=cursor+6+length;
+        if(count>(campaign_waypoint_bytes-nodes)/4)return RF_FORMAT;
+        if(count && length>=plen && !memcmp(w+cursor+2,prefix,plen)){found[n].indices=w+nodes;found[n].count=count;++n;}
+        cursor=nodes+count*4;
+    }
+    if(!n)return RF_NOT_FOUND;
+    i=scene_mp_next()%n;
+    npc->script_move.event=0;npc->script_move.origin=idle?SCENE_MOVE_ORIGIN_ACTOR_DEFAULT:SCENE_MOVE_ORIGIN_EVENT;
+    npc->script_move.path=found[i];npc->script_move.path_index=0;
+    npc->script_move.path_mode=0;npc->script_move.path_reverse=0;
+    status=campaign_ai_mode_apply(npc,4,scene_patrol_now(rf_scene_profile_stage[0]));
+    rf_scene_mp_routes[5]=(uint32_t)status;
+    if(status){npc->script_move.path.indices=NULL;npc->script_move.path.count=0;return status==RF_NOT_FOUND?RF_RANGE:status;}
+    scene_mp_routing[slot]=(uint8_t)(idle?2:1);return RF_OK;
+}
+/* 12ffd0 tail for one live bot: 12f750 weapon seek, 12f8e0 roam. */
+static int scene_mp_route_tick(uint32_t slot)
+{
+    campaign_npc_body *npc=campaign_npc_bodies+slot;uint32_t target=npc->combat_alert!=0;int status=RF_NOT_FOUND;int32_t rank;
+    if(scene_mp_routing[slot]){
+        uint32_t walking=npc->script_move.active && npc->script_move.path.count &&
+            npc->script_move.origin==(scene_mp_routing[slot]==2?SCENE_MOVE_ORIGIN_ACTOR_DEFAULT:SCENE_MOVE_ORIGIN_EVENT);
+        if(walking && scene_mp_routing[slot]==2 && target){npc->script_move.active=0;npc->navigation.retained.count=0;walking=0;}
+        if(walking)return RF_OK;
+        scene_mp_routing[slot]=0;++rf_scene_mp_routes[3];
+    }
+    if(npc->combat_scripted==1 || campaign_player_damage.state.effects.health<=0){scene_mp_had_target[slot]=(uint8_t)target;return RF_OK;}
+    if(target){
+        /* Held off (with the 1-in-64 roam below): alone, the per-frame
+         * 12f750/12f8e0 rates pull bots off every fight (dm01 matches: 0 and
+         * 21 bot shots against 359 without them); the PS2 behaviour that
+         * keeps them shooting (fire on the route, item pickup) is not traced
+         * yet. */
+        if(SCENE_MP_WEAPON_SEEK && !(scene_mp_next()%4)){
+            rank=scene_mp_weapon_rank(slot,npc->view.weapons[0]);
+            if(rank==-2 || (rank>=0 && !(scene_mp_next()%(uint32_t)(rank+2)))){
+                status=scene_mp_route(slot,"weapon",0);if(!status)++rf_scene_mp_routes[0];
+            }
+        }
+        if(SCENE_MP_WEAPON_SEEK && status==RF_NOT_FOUND && !(scene_mp_next()%64)){status=scene_mp_route(slot,"",0);if(!status)++rf_scene_mp_routes[1];}
+    }else if(!npc->script_move.active){
+        status=scene_mp_route(slot,"",!scene_mp_had_target[slot]);if(!status)++rf_scene_mp_routes[scene_mp_had_target[slot]?2:1];
+    }
+    scene_mp_had_target[slot]=(uint8_t)target;
+    if(status==RF_NOT_FOUND && !target && !npc->script_move.active)scene_mp_seek(npc,0); /* arena without lists */
+    return status==RF_NOT_FOUND?RF_OK:status;
+}
+/* 1dbb60(8/9): mp_ann_10 / mp_ann_11, played flat. */
+static void scene_mp_announce(const char *name)
+{
+    uint32_t index=0;
+    if(rf_audio_bank_declare(&campaign_audio_bank,name,1,1,1,&index))return;
+    if(!rf_audio_bank_sample(&campaign_audio_bank,index)){
+        if(campaign_ambient_reload(index))return;
+        if(index<sizeof(campaign_audio_evictable))campaign_audio_evictable[index]=1;
+    }
+    if(campaign_sound_start((int32_t)index,scene_actor_body.state.position,1,0,0,0)>=0)++rf_scene_mp_routes[4];
+}
 /* Per update, after frame-zero setup. */
 static int scene_mp_tick(uint32_t frame)
 {
@@ -260,6 +382,9 @@ static int scene_mp_tick(uint32_t frame)
             }
         }
         scene_mp_random=0x9e3779b9u;
+        for(i=0;i<8;i++)scene_mp_weapon_ids[i]=rf_weapon_name_find(&campaign_weapon_supply.names,scene_mp_weapon_names[i]);
+        memset(scene_mp_routing,0,sizeof(scene_mp_routing));memset(scene_mp_had_target,0,sizeof(scene_mp_had_target));
+        memset(rf_scene_mp_routes,0,sizeof(rf_scene_mp_routes));scene_mp_announced=0;
         return RF_OK;
     }
     if(rf_scene_mp[6])return RF_OK;
@@ -270,10 +395,10 @@ static int scene_mp_tick(uint32_t frame)
         }
         if(b->dead && !b->respawn_pending && (!npc->registration.view ||
            (campaign_model_owners && i<campaign_model_owner_count && campaign_model_owners[i].owned)))b->respawn_pending=1;
-        if(b->respawn_pending){status=scene_mp_bot_respawn(i);if(status)return status;}
-        else if(!b->dead && npc->registration.view && npc->damage.effects.health>0 &&
-                !npc->combat_alert && !npc->combat_scripted && !npc->script_move.active &&
-                campaign_player_damage.state.effects.health>0)scene_mp_seek(npc,0);
+        if(b->respawn_pending){status=scene_mp_bot_respawn(i);if(status)return status;scene_mp_routing[i]=scene_mp_had_target[i]=0;}
+        else if(!b->dead && npc->registration.view && npc->damage.effects.health>0){
+            status=scene_mp_route_tick(i);if(status)return status;
+        }
     }
     if(!scene_mp_player_dead && campaign_player_damage.state.effects.health<=0){
         scene_mp_player_dead=1;
@@ -287,6 +412,11 @@ static int scene_mp_tick(uint32_t frame)
         if(left<0)rf_scene_mp[6]=1;
     }
     if(rf_scene_mp_kill_limit){
+        if(rf_scene_mp[2]!=scene_mp_announced){
+            if(rf_scene_mp_kill_limit>5 && rf_scene_mp[2]==rf_scene_mp_kill_limit-5)scene_mp_announce("mp_ann_10.wav");
+            else if(rf_scene_mp_kill_limit>1 && rf_scene_mp[2]==rf_scene_mp_kill_limit-1)scene_mp_announce("mp_ann_11.wav");
+            scene_mp_announced=rf_scene_mp[2];
+        }
         if(rf_scene_mp[2]>=rf_scene_mp_kill_limit)rf_scene_mp[6]=1;
         for(i=0;i<count;i++)if(rf_scene_mp_roster[i].used && rf_scene_mp_roster[i].kills>=(int32_t)rf_scene_mp_kill_limit)rf_scene_mp[6]=1;
     }

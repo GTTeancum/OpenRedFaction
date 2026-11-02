@@ -187,10 +187,11 @@ static char player_mp_selection[128];
 static uint32_t player_mp_level;
 /* PS2 arena data for the PC multiplayer maps the arenas were built from
  * (tools/build_ps2_menu_pack.py): <map>.nav bot paths (section 0x20000) and
- * <map>.ent bot characters (section 0x30000), served in place of the map's
+ * <map>.ent bot characters (section 0x30000) and <map>.wpt named waypoint
+ * lists (section 0x10000), served in place of the map's
  * own sections (docs/MP-BOTS-PS2.md). */
-static unsigned char player_mp_nav[16384],player_mp_ent[16384];
-uint32_t rf_xbox_mp_paths[4]; /* path bytes, status, bot-character bytes, status */
+static unsigned char player_mp_nav[16384],player_mp_ent[16384],player_mp_wpt[4096];
+uint32_t rf_xbox_mp_paths[6]; /* bytes and status for paths, bot characters, waypoint lists */
 static void player_mp_section(rf_vpp *pack,const char *name,size_t stem,const char *suffix,
     unsigned char *buffer,uint32_t capacity,uint32_t type,rf_level *level,uint32_t *report)
 {
@@ -206,6 +207,7 @@ static void player_mp_paths(rf_level *level,const char *name)
     if(n>60 || rf_vpp_open(&pack,"D:\\ps2menu.vpp"))return;
     player_mp_section(&pack,name,n,".nav",player_mp_nav,sizeof(player_mp_nav),0x20000,level,rf_xbox_mp_paths);
     player_mp_section(&pack,name,n,".ent",player_mp_ent,sizeof(player_mp_ent),0x30000,level,rf_xbox_mp_paths+2);
+    player_mp_section(&pack,name,n,".wpt",player_mp_wpt,sizeof(player_mp_wpt),0x10000,level,rf_xbox_mp_paths+4);
     rf_vpp_close(&pack);
 }
 uint32_t rf_xbox_load_stage;

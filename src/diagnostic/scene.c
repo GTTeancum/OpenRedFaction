@@ -12152,6 +12152,7 @@ static int scene_player_kill_fixture(uint32_t frame)
 uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
 float rf_scene_gameplay_eye[3]; /* Last gameplay camera, read-only harness telemetry. */
 uint32_t rf_scene_crash_aim_trace[4]; /* input frames,target UID,target changes,aligned fire inputs */
+uint32_t rf_scene_crash_aim_range; /* distance to the chosen character, cm */
 uint32_t rf_scene_crash_visibility[4]; /* world rays,blocked candidates,query errors,last status */
 static int combat_obstructed(scene_stream *,const float *,const float *,uint32_t *);
 #include "scene_crash_scenario.inc"
@@ -12177,7 +12178,7 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
            (uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_crash_aim_uid &&
            o->damage.effects.health<=0)priority_dead=1;
         if(!o->registration.view || !o->body.allocated_bytes || o->damage.effects.health<=0 ||
-           o->damage.effects.affiliation!=0 || (o->object_flags&(2u|0x4000u)))continue;
+           (o->damage.effects.affiliation!=0 && !rf_scene_mp[0]) || (o->object_flags&(2u|0x4000u)))continue;
         for(uint32_t k=0;k<3;k++){float d=o->eye_position[k]-rf_scene_gameplay_eye[k];distance+=d*d;}
         if(!isfinite(distance) || distance<=.01f || distance>=30.f*30.f)continue;
         /* Test input chooses a visible target using the same world/mover ray
@@ -12197,6 +12198,7 @@ static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
         if(isfinite(distance) && distance>.01f && distance<nearest){nearest=distance;target=o;}
     }
     if(target) {
+        rf_scene_crash_aim_range=(uint32_t)(sqrtf(nearest)*100);
         uid=(uint32_t)campaign_seeds.records.items[target-campaign_npc_bodies].record.uid;
         for(uint32_t k=0;k<3;k++)delta[k]=target->eye_position[k]-rf_scene_gameplay_eye[k];
     }
@@ -22289,7 +22291,10 @@ static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
         campaign_npc_body *body=campaign_npc_bodies+i;const rf_entity_view *linked;rf_weapon_world_draw draw={0};uint32_t scratch[20]={0},cls;
         if(!body->registration.view || i>=campaign_model_owner_count)continue;
         if(body->object_flags&(2|0x4000))continue;
-        if(body->persistence_registered && rf_scene_defeated_actors.drops[body->persistence_slot].state)continue;
+        /* A dropped weapon replaces the held one only while its owner is dead;
+         * a multiplayer bot revived in the same slot keeps its old drop record. */
+        if(body->persistence_registered && rf_scene_defeated_actors.drops[body->persistence_slot].state &&
+           body->damage.effects.health<=0)continue;
         if(campaign_model_owners[i].room<stream->visibility.state.count && !stream->visibility.state.rooms[campaign_model_owners[i].room].visible)continue;
         if(scene_view_sphere_outside(stream,campaign_model_owners[i].position,SCENE_ACTOR_CULL_RADIUS)){++rf_scene_view_culled[1];continue;}
         cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
