@@ -3,6 +3,8 @@
 /local/
 /reference/
 /artifacts/
+# Original game disc images (e.g. the PS2 ISO): private inputs, never tracked.
+*.iso
 *.gpr
 *.rep/
 __pycache__/
