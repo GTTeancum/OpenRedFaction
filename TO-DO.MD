@@ -14,14 +14,12 @@ Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the b
 | # | What to check | Where |
 |---|---|---|
 | 1 | Turn on 480p in the Xbox dashboard (the cable is component; 480p and 720p are off there) | dashboard |
-| 2 | Old request: approve a whole-disk backup before saved-HDD continuation checks | — |
-| 3 | PS2 side-by-side comparison, once scenes are representative | — |
 
 ## Known faults still open
 
 | Area | Fault |
 |---|---|
-| GeoMod | A wall takes at most 8 stacked cuts (original 25); shots into doorways make no cut |
+| GeoMod | Each wall holds up to 16 stacked cuts on Xbox (8 in the PC build); the original's limit for ordinary craters isn't known (its 25 is the Driller's, 421310, and Driller bites now merge into one tunnel cut). A rocket into one L1S2 doorway (131,-2,4) made no cut on October 24; not compared with the original |
 | 30 FPS smooth mode | The in-between pictures are not drawn yet (it behaves like steady 30) |
 
 Fixed November 1: see-through walls. Railings, lattices and glass now draw in the blended pass; console screenshots of the ctf06 railings and glass_house glass confirm it.
