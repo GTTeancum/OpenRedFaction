@@ -21,13 +21,16 @@ Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the b
 
 | Area | Fault |
 |---|---|
-| See-through walls | Railings, lattices and glass draw their clear parts black or solid (the world pass draws with blending and alpha test off); lattice panels flicker with the lighting |
-| Flamethrower | The stream looks like a thin smear, not the original flame |
+| Flamethrower | The stream looks like a thin smear, not the original flame. The original stream's look is set in code, not in the data tables; that code isn't found yet (notes below) |
 | Remote charge | The detonator view was reported drawn wrong; not yet examined |
 | Sniper scope | Pickups seen through the scope are not tinted red |
 | Rockets | Launch from the barrel by the counters, but not yet seen in flight on screen |
 | GeoMod | A wall takes at most 8 stacked cuts (original 25); shots into doorways make no cut |
 | 30 FPS smooth mode | The in-between pictures are not drawn yet (it behaves like steady 30) |
+
+Fixed November 1: see-through walls. Railings, lattices and glass now draw in the blended pass; console screenshots of the ctf06 railings and glass_house glass confirm it.
+
+Flamethrower research (November 1): the port's stream is a stand-in (scene_flame_visual.inc: eight `flamethrower fire` sprites along the jet every 3 ticks; radius 0.1 growing 0.7/s, alpha 100, life 0.15-0.23 s, hence thin). In the original, the weapons.tbl Flamethrower entry has no trail emitter or bitmap; explosion.tbl uses the flame emitters only for `flamethrower-alt` (canister: head `flamethrower head` Flame01_02.tga, tail `flamethrower tail`) and `rocket hit` (`flamethrower fire_large`). RF.exe has no emitter-name strings for the stream. Emitter name lookup is 497550; its callers resolve only entity/breath/geomod/humanoid-fire names. The flamethrower type id is at 87243c (set 4c664f) and is used for damage type (4c5376, 4c62bd, 4c6c5f), ammo (42c34d, 4a5170) and fire (4a2890). Flags2 bit 0x40 is `flame` (table 5a2534, weapon_info+0x268); no direct byte test was found. Next: trace the flame weapon object's render path in Ghidra.
 
 ## Speed and loading
 
