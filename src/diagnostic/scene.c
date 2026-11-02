@@ -1985,7 +1985,7 @@ void campaign_models_close(void)
 }
 static int campaign_models_open(void)
 {
-    uint32_t i;uint64_t bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_model_owners),cache_bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_collision_caches);int status=RF_OK;
+    uint32_t i,spare;uint64_t bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_model_owners),cache_bytes=(uint64_t)campaign_poses.count*sizeof(*campaign_collision_caches);int status=RF_OK;
     if(campaign_model_owners || campaign_model_head || campaign_collision_caches)return RF_RANGE;
     for(i=0;i<campaign_poses.count;++i)if(campaign_poses.items[i].skeleton!=UINT32_MAX) {
         if(!campaign_poses.items[i].bone_count || campaign_poses.items[i].bone_count>50)return RF_RANGE;
@@ -1995,12 +1995,15 @@ static int campaign_models_open(void)
     memset(rf_scene_npc_collision_cache,0,sizeof(rf_scene_npc_collision_cache));rf_scene_npc_collision_cache[3]=2166136261u;
     memset(rf_scene_npc_models,0,sizeof(rf_scene_npc_models));
     if(bytes>32*1024)return RF_RANGE;if(!campaign_poses.count)return RF_OK;
-    campaign_model_owners=calloc(campaign_poses.count,sizeof(*campaign_model_owners));if(!campaign_model_owners)return RF_RANGE;
-    campaign_model_owner_count=campaign_poses.count;rf_scene_npc_models[1]=(uint32_t)bytes;
-    campaign_collision_caches=calloc(campaign_poses.count,sizeof(*campaign_collision_caches));
+    /* Multiplayer adds one empty owner per corpse: a bot's corpse keeps its
+     * model there while the bot is made again in its own slot (2748f0). */
+    spare=rf_scene_mp[0]?RF_CORPSE_CAPACITY:0;
+    campaign_model_owners=calloc(campaign_poses.count+spare,sizeof(*campaign_model_owners));if(!campaign_model_owners)return RF_RANGE;
+    campaign_model_owner_count=campaign_poses.count+spare;rf_scene_npc_models[1]=(uint32_t)bytes;
+    campaign_collision_caches=calloc(campaign_poses.count+spare,sizeof(*campaign_collision_caches));
     if(!campaign_collision_caches){campaign_models_close();return RF_IO;}
     rf_scene_npc_collision_cache[1]=(uint32_t)cache_bytes;
-    for(i=0;i<campaign_model_owner_count;++i) {
+    for(i=0;i<campaign_poses.count;++i) {
         campaign_model_owner *owner=campaign_model_owners+i;rf_entity_pose *pose=campaign_poses.items+i;
         if(pose->skeleton==UINT32_MAX)continue;
         if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count){status=RF_RANGE;break;}

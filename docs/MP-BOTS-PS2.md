@@ -322,9 +322,12 @@ score, not the leader's).
 
 Differs from the PS2 or missing:
 1. Bot skin: `miner1` uses its default skin as on the PS2 (no change).
-2. Respawn: the port revives the same body after its corpse becomes
-   ownerless and deletes the corpse; the PS2 makes a new `miner1` at once and
-   leaves the corpse. Respawned bots keep their authored affiliation.
+2. Respawn: as on the PS2 the bot is back the moment its corpse forms and the
+   corpse stays (it fades by the ordinary corpse rules). Port mechanism: the
+   corpse's model moves to a spare model owner (multiplayer adds one per
+   corpse slot) and the bot's slot is restored and registered again, rather
+   than a new entity being created. Respawned bots keep their authored
+   affiliation (PS2: 3).
 3. Combat timing: port bots need about a second of alert before the first
    shot; PS2 bots fire on the first attack frame. Because of this the
    per-frame route rules (attack-update steps 2, 3, 5, 6, 7 and the hit

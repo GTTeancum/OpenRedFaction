@@ -160,6 +160,7 @@ def main():
                         help='32/16 write color_depth into openrf.ini (auto: game default)')
     parser.add_argument('--shot-range', type=int, default=99999, help='with --shot-on-actor: largest aim distance in cm')
     parser.add_argument('--shot-after', type=int, default=300, help='with --shot-on-actor: earliest replay input for a capture')
+    parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
     parser.add_argument('--shot-on-actor', action='store_true',
                         help='with --screenshots: capture once the aim input lines up on a visible character (needs --aim)')
     parser.add_argument('--shot-on-ir', action='store_true',
@@ -634,6 +635,8 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_weapon_hands']=4
           counts['rf_scene_weapon_models']=8
           counts['rf_scene_mp_bot_deaths']=3
+          counts['rf_scene_mp_corpse_trace']=4
+          counts['rf_scene_live_corpses']=8
           counts['rf_scene_mp_roster']=128
           counts['rf_scene_enemy_opposed']=15
           counts['rf_scene_frame_late_failure']=3
@@ -709,7 +712,8 @@ dvd_path = '{iso.as_posix()}'
                     # --shot-on-ir: capture only while the weapon screen shows heat,
                     # at least 120 inputs apart; otherwise evenly through the replay.
                     actor=(sample.get('rf_scene_crash_aim_trace') or [0,0,0,0])[3]*(((sample.get('rf_scene_crash_aim_range') or [0])[0] or 99999)<args.shot_range) # aligned fire on a visible character in range
-                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                    if args.shot_on_corpse:actor=(sample.get('rf_scene_live_corpses') or [0]*4)[3] # corpse vertices drawn this frame
+                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
                         last_shot_input=consumed
                         try:
                             if args.target=='hardware':

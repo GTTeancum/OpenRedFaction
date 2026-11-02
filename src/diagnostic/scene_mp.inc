@@ -9,9 +9,9 @@
  *  - A bot respawns when its actor becomes a corpse (2748f0 runs from the
  *    actor cleanup path), as a new body at a bot point. Port mechanism: when
  *    the actor's model passes to a corpse owner (rf_scene_model_detach) its
- *    identity is released, the corpse deleted, the slot restored from its
- *    first-frame snapshot and its model and registration made again. The
- *    corpse goes with it (the PS2 corpse stays).
+ *    identity is released, the corpse's model moved to a spare owner (so the
+ *    corpse stays and fades by the ordinary corpse rules), the slot restored
+ *    from its first-frame snapshot and its model and registration made again.
  *  - Scoring per death (274c50) from the lethal credit (responsible handle):
  *    a bot victim gains a death and loses its streak; a suicide loses a kill;
  *    a bot killer gains a kill and streak (and a human kill when the victim
@@ -47,6 +47,8 @@ uint32_t rf_scene_mp[8];
 uint32_t rf_scene_mp_seed_trace[2];
 /* Bot deaths, kills scored by bots, bot suicides. */
 uint32_t rf_scene_mp_bot_deaths[3];
+/* Corpses kept on a spare model owner when their bot was made again. */
+uint32_t rf_scene_mp_corpse_trace[4]; /* kept, last refusal, respawns, corpses found */
 #define SCENE_MP_SPAWNS 32u
 #define SCENE_MP_BOTS 16u
 scene_mp_bot rf_scene_mp_roster[SCENE_MP_BOTS];
@@ -114,7 +116,7 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
 {
     uint32_t count,k,j,classes=0,miner=UINT32_MAX;int status;rf_entity_seed_class *rebuilt;
     memset(rf_scene_mp,0,sizeof(rf_scene_mp));memset(rf_scene_mp_roster,0,sizeof(rf_scene_mp_roster));
-    memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));scene_mp_clock=0;scene_mp_player_dead=0;
+    memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));memset(rf_scene_mp_corpse_trace,0,sizeof(rf_scene_mp_corpse_trace));scene_mp_clock=0;scene_mp_player_dead=0;
     rf_scene_mp_seed_trace[0]=1;
     status=scene_mp_spawns_read(level);rf_scene_mp_seed_trace[1]=(uint32_t)status;if(status)return status;
     rf_scene_mp_seed_trace[0]=2;
@@ -176,6 +178,30 @@ static int scene_mp_model_revive(uint32_t slot,const float position[3])
     rf_scene_mp_seed_trace[1]=0x430+slot;
     return rf_entity_collision_cache_open(pose,(uint32_t)sizeof(*campaign_collision_caches)+pose->bone_count*50,campaign_collision_caches+slot);
 }
+/* Move a corpse's model from its actor's owner to a free spare owner (added
+ * after the level's actors by campaign_models_open in multiplayer), relinking
+ * the registration ring, so the actor's slot is free for the new body. */
+static int scene_mp_corpse_keep(uint32_t slot,rf_corpse *corpse)
+{
+    campaign_model_owner *from,*to;uint32_t s;
+    if(!campaign_model_owners || slot>=campaign_poses.count || !campaign_collision_caches){rf_scene_mp_corpse_trace[1]=1;return RF_RANGE;}
+    from=campaign_model_owners+slot;
+    if(!from->owned || !from->registration.loaded || !from->registration.next){rf_scene_mp_corpse_trace[1]=2+!from->owned*4+!from->registration.loaded*8+!from->registration.next*16;return RF_RANGE;}
+    for(s=campaign_poses.count;s<campaign_model_owner_count;++s){
+        to=campaign_model_owners+s;
+        if(!to->registration.loaded && !to->pose && !to->owned)break;
+    }
+    if(s>=campaign_model_owner_count){rf_scene_mp_corpse_trace[1]=0x100+campaign_model_owner_count-campaign_poses.count;return RF_NOT_FOUND;}
+    *to=*from;
+    if(from->registration.next==&from->registration)to->registration.next=to->registration.previous=&to->registration;
+    else{to->registration.previous->next=&to->registration;to->registration.next->previous=&to->registration;}
+    if(campaign_model_head==&from->registration)campaign_model_head=&to->registration;
+    campaign_collision_caches[s]=campaign_collision_caches[slot];
+    memset(campaign_collision_caches+slot,0,sizeof(*campaign_collision_caches));
+    memset(from,0,sizeof(*from));
+    corpse->update.model=s+1;++rf_scene_mp_corpse_trace[0];
+    return RF_OK;
+}
 static int scene_mp_bot_respawn(uint32_t slot)
 {
     campaign_npc_body *npc=campaign_npc_bodies+slot;const float *p=scene_mp_pick(2);int status;
@@ -188,11 +214,14 @@ static int scene_mp_bot_respawn(uint32_t slot)
     if(npc->registration.view){status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&npc->registration);if(status)return status;}
     rf_scene_mp_seed_trace[1]=0x300+slot;
     {
-        /* Delete the corpse that holds this actor's model (its update.model is
-         * slot+1), the way campaign_live_corpses_close retires corpses. */
-        uint32_t c;
+        /* The corpse holding this actor's model (its update.model is slot+1)
+         * stays, as on the PS2: its model moves to a spare owner. With no spare
+         * free it is deleted the way campaign_live_corpses_close retires corpses. */
+        uint32_t c;++rf_scene_mp_corpse_trace[2];
         for(c=0;c<RF_CORPSE_CAPACITY;++c)
             if((campaign_live_corpses.pool.active_mask&(1u<<c)) && campaign_live_corpses.slots[c].corpse.update.model==slot+1){
+                ++rf_scene_mp_corpse_trace[3];
+                if(scene_mp_corpse_keep(slot,&campaign_live_corpses.slots[c].corpse)==RF_OK)continue;
                 status=rf_corpse_owned_delete(&campaign_live_corpses,c,&campaign_registry,&campaign_live_corpse_count,
                     &campaign_live_corpse_object_count,0,&campaign_live_corpse_delete_backend);
                 if(status)return status;
