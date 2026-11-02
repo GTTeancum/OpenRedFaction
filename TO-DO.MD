@@ -20,12 +20,10 @@ Updated November 2. Open items only, one line each. Finished work and the full w
 | Driller | Digging loses about 0.4 s to hitches (world rebuild after each bite); the tunnel after loading a save not yet seen on the console |
 | Loading | A quick-load takes about 12 s; the rest is weapon textures, glare, the HUD and disc reads |
 | Props | Off-screen props are now skipped; whether they pop in at the screen edge has not been checked |
-| 30 FPS smooth mode | Optional: the in-between pictures are not drawn yet (it behaves like steady 30, the shipped default) |
 
 ## Test coverage gaps
 
 - No submarine or APC has been seen fully destroyed: the test can't stage it, because the driver dies from their own blasts first.
-- 28 older PC tests fail because their fixtures are out of date (listed in the October 25 notes in the history file).
 
 ## Not started
 
