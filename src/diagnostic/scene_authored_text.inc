@@ -31,6 +31,7 @@ static const char *scene_text_language_name(void)
     return scene_text_language==RF_TEXT_GERMAN?"DEUTSCH":
         scene_text_language==RF_TEXT_FRENCH?"FRANCAIS":"ENGLISH";
 }
+const char *rf_scene_text_language_name_public(void){return scene_text_language_name();}
 typedef struct scene_text_reader {
     rf_vpp *archive;rf_vpp_entry *entry;uint32_t position,at,count;unsigned char bytes[512];
 } scene_text_reader;

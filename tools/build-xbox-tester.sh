@@ -32,7 +32,7 @@ for path in "$disc"/*; do
     fi
     case "${path##*/}" in
         default.xbe|tester-profile.flag|openrf.ini|rfdds.vpp|bluebeard.bty|geomod-template.bin|driller-single.bin|driller-double.bin) ;;
-        tables.vpp|levels1.vpp|levels2.vpp|levels3.vpp|levelsm.vpp|maps1.vpp|maps2.vpp|maps3.vpp|maps4.vpp|maps_en.vpp|meshes.vpp|motions.vpp|audio.vpp|music.vpp|ui.vpp|ps2mainmenu.vpp) ;;
+        tables.vpp|levels1.vpp|levels2.vpp|levels3.vpp|levelsm.vpp|maps1.vpp|maps2.vpp|maps3.vpp|maps4.vpp|maps_en.vpp|meshes.vpp|motions.vpp|audio.vpp|music.vpp|ui.vpp|ps2mainmenu.vpp|ps2menu.vpp) ;;
         *) echo "Refusing unexpected tester package file: $path" >&2; exit 1 ;;
     esac
 done
@@ -74,6 +74,23 @@ borrow_asset "$root/Installed_Game/bluebeard.bty" bluebeard.bty
 for shape in geomod-template driller-single driller-double; do
     borrow_asset "$root/build/data/$shape.bin" "$shape.bin"
 done
+# Optional PS2 menus (Xbox only), converted from the user's own PS2 disc image
+# by tools/build_ps2_menu_pack.py; an absent pack keeps the PC menus.
+ps2_iso="${RF_PS2_ISO:-$root/Red Faction (USA) (v2.00).iso}"
+ps2_pack="$root/build/data/ps2menu.vpp"
+if [[ -f "$ps2_iso" && ( ! -f "$ps2_pack" || "$ps2_iso" -nt "$ps2_pack" || "$root/tools/build_ps2_menu_pack.py" -nt "$ps2_pack" || "$root/tools/ps2_peg.py" -nt "$ps2_pack" ) ]]; then
+    # Needs Pillow, numpy and PyAV: prefer the Windows Python over MSYS's.
+    ps2_python="${RF_PS2_PYTHON:-}"
+    if [[ -z "$ps2_python" ]]; then
+        # A login MSYS shell drops the Windows user variables; search the usual install path.
+        for candidate in /c/Users/*/AppData/Local/Programs/Python/Python3*/python.exe python python3; do
+            if "$candidate" -c 'import PIL, numpy, av' >/dev/null 2>&1; then ps2_python="$candidate"; break; fi
+        done
+    fi
+    if [[ -z "$ps2_python" ]]; then echo "PS2 menu pack needs a Python with Pillow, numpy and PyAV (set RF_PS2_PYTHON)." >&2; exit 1; fi
+    "$ps2_python" -I "$root/tools/build_ps2_menu_pack.py" "$ps2_iso" "$ps2_pack"
+fi
+if [[ -f "$ps2_pack" ]]; then borrow_asset "$ps2_pack" ps2menu.vpp; fi
 # Optional full-size DXT texture pack generated from the same archives.
 if [[ -f "$root/build/data/rfdds.vpp" ]]; then borrow_asset "$root/build/data/rfdds.vpp" rfdds.vpp; fi
 # Recreate the owned marker instead of writing through a possible hardlink.

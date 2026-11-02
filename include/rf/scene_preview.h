@@ -777,6 +777,8 @@ enum {RF_SCENE_BUTTON_ACTION_COUNT=10u,RF_SCENE_BUTTON_DEFAULTS=10u,
     RF_SCENE_BUTTON_BACK=11u,RF_SCENE_BUTTON_COUNT=12u};
 int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags,const char *const *actions,const char *const *controls);
+/* Current text language as shown in Options ("ENGLISH", "DEUTSCH", "FRANCAIS"). */
+const char *rf_scene_text_language_name_public(void);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet

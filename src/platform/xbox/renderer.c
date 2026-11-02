@@ -5,6 +5,7 @@
 #include "rf/resource_budget.h"
 #include "rf/menu_assets.h"
 #include "renderer.h"
+#include "ps2_frontend.h"
 #include "rf/model_bounds.h"
 #include "rf/scene_preview.h"
 #include "rf/finite.h"
@@ -668,10 +669,59 @@ static void show_front_screen(void){if(!front_screen_shown){pb_show_front_screen
  * Resident world/HUD ownership is independent even for suspended Options. */
 static rf_menu_assets *menu_assets;
 uint32_t rf_xbox_menu_resources[8]; /* opens,status,active,resident,peak,page,prepares,draws */
+/* Pause backdrop (port feature, PS2 menus): the picture on screen when the
+ * game paused, read once from the scanned-out surface (PCRTC_START), halved
+ * at 720p and darkened while copied, then drawn behind the pause screens.
+ * About 2 MB while paused; 16-bit frame buffers or no memory keep black. */
+#define PAUSE_BACKDROP_LEVEL 100u /* of 256: darkened to about 40% */
+static rf_image pause_backdrop;static float pause_backdrop_u,pause_backdrop_v;
+static void pause_backdrop_capture(void)
+{
+    const unsigned char *front;uint32_t pitch,step,w,h,x,y;
+    if(pause_backdrop.rgba || XVideoGetMode().bpp!=32)return;
+    front=(const unsigned char *)(uintptr_t)((*(volatile uint32_t *)0xFD600800u&0x03ffffffu)|0x80000000u);
+    pitch=pb_back_buffer_pitch();step=screen_width>640?2:1;w=screen_width/step;h=screen_height/step;
+    if(w>1024 || h>512)return;
+    pause_backdrop.width=1024;pause_backdrop.height=512;pause_backdrop.bytes=1024u*512u*4u;pause_backdrop.source_format=7;
+    if(rf_image_allocate_pixels(&pause_backdrop)){memset(&pause_backdrop,0,sizeof(pause_backdrop));return;}
+    for(y=0;y<h;y++)for(x=0;x<w;x++){
+        const unsigned char *p=front+(size_t)y*step*pitch+(size_t)x*step*4;
+        unsigned char *d=rf_image_pixel(&pause_backdrop,x,y);
+        uint32_t b=p[0],g=p[1],r=p[2];
+        if(step==2){
+            const unsigned char *q=p+pitch;
+            b=(b+p[4]+q[0]+q[4])/4;g=(g+p[5]+q[1]+q[5])/4;r=(r+p[6]+q[2]+q[6])/4;
+        }
+        d[0]=(unsigned char)(r*PAUSE_BACKDROP_LEVEL>>8);d[1]=(unsigned char)(g*PAUSE_BACKDROP_LEVEL>>8);
+        d[2]=(unsigned char)(b*PAUSE_BACKDROP_LEVEL>>8);d[3]=255;
+    }
+    pause_backdrop_u=(float)w/1024.0f;pause_backdrop_v=(float)h/512.0f;
+}
+static void pause_backdrop_release(void)
+{
+    rf_image_close(&pause_backdrop);memset(&pause_backdrop,0,sizeof(pause_backdrop));
+}
 int rf_xbox_menu_open(void)
 {
     int status;DWORD attributes,error;const char *overlay="D:\\ps2mainmenu.vpp";
     rf_xbox_menu_resources[1]=RF_OK;
+    if(rf_xbox_ps2_available()){
+        /* PS2 menus (ps2_frontend.c). A world in memory means a paused game:
+         * load the small in-game set; otherwise the full front end. */
+        if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+        {int opened=device_open();if(opened)return opened;}
+        while(pb_busy()) {}
+        ++rf_xbox_menu_resources[0];
+        {
+            uint32_t in_game=stream_gpu || stream_textures || stream_materials || stream_lightmaps;
+            if(in_game && !rf_xbox_ps2_active())pause_backdrop_capture();
+            status=rf_xbox_ps2_open(!in_game);
+            if(status && !rf_xbox_ps2_active())pause_backdrop_release();
+        }
+        rf_xbox_menu_resources[1]=(uint32_t)status;rf_xbox_menu_resources[2]=(uint32_t)rf_xbox_ps2_active();
+        rf_xbox_menu_resources[3]=rf_xbox_menu_resources[4]=rf_xbox_ps2_resident_bytes();
+        return status;
+    }
     if(menu_assets || hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
     {int opened=device_open();if(opened)return opened;}
     while(pb_busy()) {}
@@ -703,6 +753,12 @@ int rf_xbox_menu_close(void)
 {
     int status;
     if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+    if(rf_xbox_ps2_active()){
+        while(pb_busy()) {}
+        status=rf_xbox_ps2_close();rf_xbox_menu_resources[2]=(uint32_t)rf_xbox_ps2_active();
+        if(!rf_xbox_ps2_active())pause_backdrop_release();
+        return status;
+    }
     if(!menu_assets)return RF_OK;
     while(pb_busy()) {}
     status=rf_menu_assets_close(menu_assets);
@@ -713,11 +769,14 @@ int rf_xbox_menu_close(void)
     rf_xbox_menu_resources[5]=UINT32_MAX;return RF_OK;
 }
 int rf_xbox_menu_begin_departure(uint32_t shell)
-{return rf_menu_assets_begin_departure(menu_assets,shell,GetTickCount());}
+{
+    if(rf_xbox_ps2_active()){rf_xbox_ps2_begin_departure();return RF_OK;}
+    return rf_menu_assets_begin_departure(menu_assets,shell,GetTickCount());
+}
 int rf_xbox_menu_departure_done(void)
-{return rf_menu_assets_departure_done(menu_assets);}
+{return rf_xbox_ps2_active()?rf_xbox_ps2_departure_done():rf_menu_assets_departure_done(menu_assets);}
 int rf_xbox_menu_redraw_due(void)
-{return rf_menu_assets_redraw_due(menu_assets,GetTickCount());}
+{return rf_xbox_ps2_active()?rf_xbox_ps2_redraw_due():rf_menu_assets_redraw_due(menu_assets,GetTickCount());}
 static int menu_prepare(uint32_t page)
 {
     int status;uint32_t text_profile=page==RF_MENU_PAGE_LOAD?RF_SCENE_TEXT_PROFILE_LOAD:
@@ -1189,9 +1248,70 @@ int rf_xbox_frontend_exit_status(void)
     }
     return RF_OK;
 }
+/* PS2 menus (ps2_frontend.c): one picture through the HUD path. */
+typedef int (*ps2_draw_fn)(rf_scene_particle_sink sink,void *context,const void *args);
+static int ps2_frame(ps2_draw_fn draw,const void *args)
+{
+    int status;
+    {int opened=device_open();if(opened)return opened;}
+    if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
+    hud_batch_begin();
+    if(pause_backdrop.rgba){
+        /* Pillarboxed with the menu: the middle 4:3 of the picture fills the
+         * 4:3 menu area; the sides stay black at 16:9. */
+        rf_particle_draw_vertex v[4];uint32_t i,widen=hud_widen_active;
+        float crop=pause_backdrop_v*512.0f*4.0f/3.0f/1024.0f,u0,u1;
+        if(crop>pause_backdrop_u)crop=pause_backdrop_u;
+        u0=(pause_backdrop_u-crop)*.5f;u1=u0+crop;
+        memset(v,0,sizeof(v));
+        for(i=0;i<4;i++){
+            uint32_t right=i==1||i==2,bottom=i>=2;
+            v[i].screen[0]=right?640.0f:0.0f;v[i].screen[1]=bottom?480.0f:0.0f;v[i].reciprocal_w=1;
+            v[i].argb=0xffffffffu;v[i].uv[0]=right?u1:u0;v[i].uv[1]=bottom?pause_backdrop_v:0;
+        }
+        hud_widen_active=0;status=scene_hud_present(NULL,v,4,&pause_backdrop,RF_PARTICLE_NORMAL_MODE&~(31u<<20));
+        hud_widen_active=widen;
+        if(status){hud_batch_end();return status;}
+    }
+    status=draw(scene_hud_present,NULL,args);hud_batch_end();
+    if(status)return status;
+    ++rf_xbox_menu_resources[7];
+    show_front_screen();while(pb_finished()) {}
+    stream_start_valid=0;return RF_OK;
+}
+typedef struct ps2_args {
+    uint32_t a[8];int session_status,load_status;const char *const *actions,*const *controls;
+    const rf_xbox_ps2_multi *multi;
+} ps2_args;
+static int ps2_frontend_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{
+    const ps2_args *x=p;
+    return rf_xbox_ps2_draw_frontend(sink,context,x->a[0],x->session_status,x->a[1],x->a[2],x->a[3],x->a[4],x->load_status);
+}
+static int ps2_session_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_session(sink,context,x->a[0],x->a[1]);}
+static int ps2_options_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_options(sink,context,x->a[0],x->a[1],x->a[2],x->a[3],x->a[4],x->a[5]);}
+static int ps2_audio_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_audio(sink,context,x->a[0],x->a[1],x->a[2],x->a[3],x->a[4]);}
+static int ps2_buttons_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_buttons(sink,context,x->a[0],x->a[1],x->actions,x->controls);}
+static int ps2_multi_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_multi(sink,context,x->multi);}
+int rf_xbox_ps2_multi_frame(const rf_xbox_ps2_multi *state)
+{
+    ps2_args x={.a={0}};x.multi=state;
+    if(!rf_xbox_ps2_active())return RF_RANGE;
+    return ps2_frame(ps2_multi_cb,&x);
+}
 int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
 {
     int status;
+    if(rf_xbox_ps2_active()){
+        ps2_args x={.a={selection,flags}};return ps2_frame(ps2_session_cb,&x);
+    }
     /* Input may discover a missing controller before the first world frame.
      * The normal preview reuses this same pbkit device when play starts. */
     {int opened=device_open();if(opened)return opened;}
@@ -1230,6 +1350,11 @@ int rf_xbox_frontend_draw(uint32_t flags,int session_status,uint32_t page,uint32
         page==RF_SCENE_FRONTEND_DIFFICULTY?RF_MENU_PAGE_DIFFICULTY:
         page==RF_SCENE_FRONTEND_LOAD?RF_MENU_PAGE_LOAD:RF_MENU_PAGE_EXIT;
     if(stream_gpu || stream_textures || stream_materials || stream_lightmaps)return RF_RANGE;
+    if(rf_xbox_ps2_active()){
+        ps2_args x={.a={flags,page,selection,difficulty,load_outcome}};
+        x.session_status=session_status;x.load_status=load_status;
+        return ps2_frame(ps2_frontend_cb,&x);
+    }
     /* After terminal cleanup/Dashboard failure the owner is already retired.
      * Keep the original allocation-free error screen available on that path. */
     if(!menu_assets && !session_status)return RF_RANGE;
@@ -1262,6 +1387,10 @@ int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
 {
     int status;uint32_t art_page;
     if(page>RF_SCENE_OPTIONS_PAGE_CONTROLS)return RF_RANGE;
+    if(rf_xbox_ps2_active()){
+        ps2_args x={.a={page,selection,flags,sensitivity_percent,invert_y,deadzone_percent}};
+        return ps2_frame(ps2_options_cb,&x);
+    }
     art_page=page==RF_SCENE_OPTIONS_PAGE_ROOT?RF_MENU_PAGE_OPTIONS:
         page==RF_SCENE_OPTIONS_PAGE_GAME?RF_MENU_PAGE_GAME:RF_MENU_PAGE_CONTROLS;
     status=menu_prepare(art_page);if(status)return status;
@@ -1276,7 +1405,12 @@ int rf_xbox_options_page_draw(uint32_t page,uint32_t selection,uint32_t flags,
 int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
     uint32_t master_percent,uint32_t effects_percent,uint32_t music_percent)
 {
-    int status=menu_prepare(RF_MENU_PAGE_AUDIO);if(status)return status;
+    int status;
+    if(rf_xbox_ps2_active()){
+        ps2_args x={.a={selection,flags,master_percent,effects_percent,music_percent}};
+        return ps2_frame(ps2_audio_cb,&x);
+    }
+    status=menu_prepare(RF_MENU_PAGE_AUDIO);if(status)return status;
     pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_authored_audio_options(scene_menu_present,NULL,menu_assets,selection,flags,
@@ -1288,7 +1422,12 @@ int rf_xbox_audio_options_draw(uint32_t selection,uint32_t flags,
 int rf_xbox_button_mapping_draw(uint32_t selection,uint32_t flags,
     const char *const *actions,const char *const *controls)
 {
-    int status=menu_prepare(RF_MENU_PAGE_BUTTONS);if(status)return status;
+    int status;
+    if(rf_xbox_ps2_active()){
+        ps2_args x={.a={selection,flags}};x.actions=actions;x.controls=controls;
+        return ps2_frame(ps2_buttons_cb,&x);
+    }
+    status=menu_prepare(RF_MENU_PAGE_BUTTONS);if(status)return status;
     pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
     hud_batch_begin();
     status=rf_scene_draw_authored_button_mapping(scene_menu_present,NULL,menu_assets,selection,flags,actions,controls);

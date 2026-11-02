@@ -14,14 +14,14 @@ Updated November 2. Open items only, one line each. Finished work and the full w
 
 | Area | What is left |
 |---|---|
-| PS2 menus (next) | Port every PS2 menu to Xbox (main, new game, load, options, pause, multiplayer), from the user's PS2 disc; PC keeps its PC menus; multiplayer starts as one player alone in a multiplayer map |
+| PS2 menus (next) | First pass in (Xbox only; PC keeps PC menus): main menu, difficulty, load, quit, extras, options (game, controls, sound, buttons), pause and multiplayer setup are drawn from the PS2 art; menu text uses Orbitron Bold. The pause screen shows the paused game darkened behind it. Left: menu sounds are still the PC ones; Training, Credits and Trailer are greyed out; popup and options-row layouts are not traced from the PS2 code |
+| Multiplayer | START GAME loads the chosen PC multiplayer map with you alone; no bots, scoring, rules or split screen yet |
 | Flamethrower | Enemy flamethrowers not yet seen on screen; the player's flame starts at an eye-offset point, not the gun's barrel tag |
 | Rail Driver | Its impact uses a stand-in spark; the original rail hit effect is not reconstructed |
 | Rockets | The rocket body itself has not been seen in flight (the smoke trail has) |
 | Driller | Digging loses about 0.4 s to hitches (world rebuild after each bite); the tunnel after loading a save not yet seen on the console |
 | Loading | A quick-load takes about 12 s; the rest is weapon textures, glare, the HUD and disc reads |
 | Props | Off-screen props are now skipped; whether they pop in at the screen edge has not been checked |
-| Pause menu | Still the placeholder 8-bit style; replaced by the PS2 pause screen in the PS2 menus item |
 
 ## Test coverage gaps
 
@@ -29,4 +29,4 @@ Updated November 2. Open items only, one line each. Finished work and the full w
 
 ## Not started
 
-- Multiplayer (after single-player).
+- Multiplayer bots, match rules and split screen (after single-player).

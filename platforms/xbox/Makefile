@@ -4,7 +4,7 @@ NXDK_SDL = y
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 OUTPUT_DIR = $(PROJECT_ROOT)/build/xbox/disc
 GEN_XISO = redfaction-diagnostic.iso
-SRCS = $(PROJECT_ROOT)/src/core/audio.c $(PROJECT_ROOT)/src/core/music.c $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT_ROOT)/src/core/checksum.c $(PROJECT_ROOT)/src/core/level.c $(PROJECT_ROOT)/src/core/editor_brush.c $(PROJECT_ROOT)/src/core/geometry.c $(PROJECT_ROOT)/src/core/preview.c $(PROJECT_ROOT)/src/core/image.c $(PROJECT_ROOT)/src/core/hud_assets.c $(PROJECT_ROOT)/src/core/menu_assets.c $(PROJECT_ROOT)/src/core/hud_scope.c $(PROJECT_ROOT)/src/core/material.c $(PROJECT_ROOT)/src/platform/xbox/menu_audio.c $(PROJECT_ROOT)/src/platform/xbox/main.c $(PROJECT_ROOT)/src/platform/xbox/renderer.c
+SRCS = $(PROJECT_ROOT)/src/core/audio.c $(PROJECT_ROOT)/src/core/music.c $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT_ROOT)/src/core/checksum.c $(PROJECT_ROOT)/src/core/level.c $(PROJECT_ROOT)/src/core/editor_brush.c $(PROJECT_ROOT)/src/core/geometry.c $(PROJECT_ROOT)/src/core/preview.c $(PROJECT_ROOT)/src/core/image.c $(PROJECT_ROOT)/src/core/hud_assets.c $(PROJECT_ROOT)/src/core/menu_assets.c $(PROJECT_ROOT)/src/core/ps2_menu.c $(PROJECT_ROOT)/src/core/hud_scope.c $(PROJECT_ROOT)/src/core/material.c $(PROJECT_ROOT)/src/platform/xbox/menu_audio.c $(PROJECT_ROOT)/src/platform/xbox/ps2_frontend.c $(PROJECT_ROOT)/src/platform/xbox/main.c $(PROJECT_ROOT)/src/platform/xbox/renderer.c
 SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/particle_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/particle_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/preview_fragment.inl
 SHADER_OBJS += $(PROJECT_ROOT)/src/platform/xbox/solid_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/world_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/skinned_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/rigid_vertex.inl
 SRCS += $(PROJECT_ROOT)/src/core/geomod.c
@@ -89,6 +89,10 @@ SRCS += $(PROJECT_ROOT)/src/diagnostic/scene.c
 CFLAGS += -O2
 # Language, project macros/includes and stack reports belong to project objects.
 RF_PROJECT_CFLAGS := -DRF_IMAGE_XBOX_NATIVE -std=c11 -fstack-usage -I$(PROJECT_ROOT)/include
+# Capture aid: open one PS2 menu screen directly (see player_frontend in main.c).
+ifdef RF_PS2_MENU_PREVIEW
+RF_PROJECT_CFLAGS += -DRF_PS2_MENU_PREVIEW=$(RF_PS2_MENU_PREVIEW)
+endif
 RF_GEOMOD_EXPANDED_PROFILE ?= 0
 ifeq ($(RF_GEOMOD_EXPANDED_PROFILE),1)
 RF_PROJECT_CFLAGS += -DRF_GEOMOD_CUT_LIMIT=16 -DRF_GEOMOD_WORK_VERTICES=9216 -DRF_GEOMOD_WORK_FACES=2048 -DRF_GEOMOD_PUBLICATION_VERTICES=9216 -DRF_GEOMOD_PUBLICATION_FACES=2048 -DRF_CHECKPOINT_FILE_MAX=294912 -DRF_GEOMOD_LIGHTMAP_LIMIT=2048 -DSCENE_TERRAIN_SOURCE_VERTICES=9216 -DSCENE_TERRAIN_FACES=2048 -DSCENE_TERRAIN_DRAW_BUDGET=1048576 -DSCENE_TERRAIN_CORE_BUDGET=2359296 -DSCENE_TERRAIN_ATLAS_BUDGET=1572864 -DSCENE_AUTHORED_DIGEST_BUDGET=1048576 -DSCENE_AUTHORED_WRITER_BUDGET=2097152 -DSCENE_DESTRUCTION_BUDGET=16777216

@@ -19,6 +19,7 @@
 #include "rf/frame_clock.h"
 #include "rf/particle_pool.h"
 #include "renderer.h"
+#include "ps2_frontend.h"
 #include "file_io.h"
 #include "input.h"
 #include "settings_storage.h"
@@ -179,6 +180,9 @@ static void pacing_wait_done(void)
  * path, with no injected input, level override, event or inventory changes.
  * The packager admits only stock assets and this marker in its separate disc. */
 static uint32_t tester_profile;
+/* Multiplayer level chosen in the PS2 front end: archive name, then level
+ * name, 64 bytes each (the campaign-level.bin layout). Empty: campaign. */
+static char player_mp_selection[128];
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_startup_trace[4]; /* sequence,stage,GetTickCount,status */
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
@@ -743,11 +747,59 @@ static int player_frontend_present(uint32_t flags,int session_status,
     rf_xbox_frontend_trace[6]=(uint32_t)status;++rf_xbox_frontend_trace[5];
     return status;
 }
+/* PS2 Multiplayer (Xbox PS2 menus): Choose Mode, then the setup screen.
+ * Player vs. Player needs split screen and stays disabled. *start is set
+ * when START GAME is accepted; otherwise the caller returns to the main menu. */
+static int player_ps2_multi(uint32_t *start)
+{
+    rf_xbox_ps2_multi m;uint32_t drawn=0;int status;
+    memset(&m,0,sizeof(m));m.selection=1;m.values[RF_XBOX_PS2_MP_SKILL]=1;
+    *start=0;
+    for(;;){
+        rf_scene_input input;uint32_t pressed;
+        rf_xbox_menu_audio_poll();
+        status=rf_xbox_input_poll(NULL,0,&input);
+        if(status && status!=RF_NOT_FOUND)return status;
+        if(!drawn || rf_xbox_menu_redraw_due()){status=rf_xbox_ps2_multi_frame(&m);if(status)return status;drawn=1;}
+        if(status || !rf_xbox_input_connected() || rf_xbox_input_connection_lost()){Sleep(10);continue;}
+        pressed=rf_xbox_input_menu_pressed();
+        if(m.step==RF_XBOX_PS2_MP_MODE){
+            if(pressed&RF_XBOX_MENU_CANCEL){rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);return RF_OK;}
+            if((pressed&RF_XBOX_MENU_ACCEPT) && m.selection==1){
+                rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
+                m.step=RF_XBOX_PS2_MP_SETUP;m.selection=0;drawn=0;
+            }
+        }else if(pressed&RF_XBOX_MENU_CANCEL){
+            rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
+            m.step=RF_XBOX_PS2_MP_MODE;m.selection=1;drawn=0;
+        }else if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
+            uint32_t down=!!(pressed&RF_XBOX_MENU_DOWN);
+            if(down!=!!(pressed&RF_XBOX_MENU_UP)){
+                m.selection=(m.selection+(down?1:RF_XBOX_PS2_MP_ROWS-1))%RF_XBOX_PS2_MP_ROWS;drawn=0;
+                rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);
+            }
+        }else if((pressed&(RF_XBOX_MENU_LEFT|RF_XBOX_MENU_RIGHT)) && m.selection<RF_XBOX_PS2_MP_START){
+            uint32_t n=rf_xbox_ps2_multi_count(m.selection),right=!!(pressed&RF_XBOX_MENU_RIGHT);
+            if(right!=!!(pressed&RF_XBOX_MENU_LEFT)){
+                m.values[m.selection]=(m.values[m.selection]+(right?1:n-1))%n;drawn=0;
+                rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);
+            }
+        }else if((pressed&RF_XBOX_MENU_ACCEPT) && m.selection==RF_XBOX_PS2_MP_START){
+            rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
+            m.loading=1;status=rf_xbox_ps2_multi_frame(&m);if(status)return status;
+            memset(player_mp_selection,0,sizeof(player_mp_selection));
+            strcpy(player_mp_selection,"levelsm.vpp");
+            strncpy(player_mp_selection+64,rf_xbox_ps2_multi_level(m.values[RF_XBOX_PS2_MP_ENVIRONMENT]),63);
+            *start=1;return RF_OK;
+        }
+        Sleep(10);
+    }
+}
 static int player_frontend(uint32_t ended,int session_status,char saved_level[64],uint32_t *dashboard_exit)
 {
     rf_scene_input input;uint32_t drawn=UINT32_MAX,i,page=RF_SCENE_FRONTEND_MAIN,selection=0;
     uint32_t difficulty=rf_scene_session_get_difficulty(),load_notice=0,load_outcome=RF_SCENE_FRONTEND_LOAD_READY;
-    uint32_t input_owned=0,audio_owned=0,visual_owned=0;
+    uint32_t input_owned=0,audio_owned=0,visual_owned=0,ps2=0;
     int status,load_status=RF_OK;
     if(!saved_level || !dashboard_exit)return RF_RANGE;saved_level[0]=0;*dashboard_exit=0;
     memset((void *)rf_xbox_frontend_load,0,sizeof(rf_xbox_frontend_load));
@@ -758,8 +810,44 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
     if(!session_status){
         status=player_frontend_audio_admit();if(status)return status;
         status=rf_xbox_menu_open();if(status)return status;visual_owned=1;
+        ps2=(uint32_t)rf_xbox_ps2_active();if(ps2)rf_xbox_ps2_main_enter();
         status=player_frontend_audio_begin(&audio_owned);if(status)goto frontend_close;
     }
+#ifdef RF_PS2_MENU_PREVIEW
+    /* Capture aid (build-time only): draw one PS2 screen without input.
+     * High nibble: 1 difficulty, 2 options pages 0-2, 3 load, 4 quit,
+     * 5 extras, 6 multiplayer (0 mode, 1 setup), 7 pause, 8 audio, 9 buttons,
+     * 10 multiplayer START GAME on environment arg (as accepted in the menu). */
+    if(ps2)for(;;){
+        uint32_t preview=RF_PS2_MENU_PREVIEW,kind=preview>>4,arg=preview&15;
+        if(kind==10){
+            memset(player_mp_selection,0,sizeof(player_mp_selection));strcpy(player_mp_selection,"levelsm.vpp");
+            strncpy(player_mp_selection+64,rf_xbox_ps2_multi_level(arg),63);
+            ++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;status=RF_OK;goto frontend_close;
+        }
+        static const char *const actions[RF_SCENE_BUTTON_ACTION_COUNT]={"Fire","Alt Fire","Jump","Use","Reload","Crouch","Next","Prev","Fine Aim","Holster"};
+        static const char *const controls[RF_SCENE_BUTTON_ACTION_COUNT]={"Right Trigger","Left Trigger","A","X","B","Y","White","Black","Click Right","Click Left"};
+        if(kind==1)status=player_frontend_present(0,RF_OK,RF_SCENE_FRONTEND_DIFFICULTY,1,1,0,RF_OK);
+        else if(kind==3)status=player_frontend_present(0,RF_OK,RF_SCENE_FRONTEND_LOAD,0,1,0,RF_OK);
+        else if(kind==4)status=player_frontend_present(0,RF_OK,RF_SCENE_FRONTEND_EXIT,1,1,0,RF_OK);
+        else if(kind==5)status=player_frontend_present(0,RF_OK,RF_XBOX_PS2_PAGE_EXTRAS,2,1,0,RF_OK);
+        else{
+            if(kind==2)status=rf_xbox_options_page_draw(arg,arg==RF_SCENE_OPTIONS_PAGE_ROOT?1:
+                arg==RF_SCENE_OPTIONS_PAGE_GAME?RF_SCENE_OPTIONS_LANGUAGE:RF_SCENE_OPTIONS_SENSITIVITY,0,100,1,10);
+            else if(kind==6){
+                rf_xbox_ps2_multi m;memset(&m,0,sizeof(m));m.step=arg;m.selection=arg?1:1;
+                m.values[RF_XBOX_PS2_MP_ENVIRONMENT]=23;m.values[RF_XBOX_PS2_MP_BOTS]=3;m.values[RF_XBOX_PS2_MP_SKILL]=1;
+                status=rf_xbox_ps2_multi_frame(&m);
+            }else if(kind==7)status=rf_xbox_session_menu_draw(RF_SCENE_SESSION_LOAD,arg?RF_SCENE_SESSION_CONFIRM:0);
+            else if(kind==8)status=rf_xbox_audio_options_draw(RF_SCENE_AUDIO_EFFECTS,0,80,70,60);
+            else status=rf_xbox_button_mapping_draw(2,0,actions,controls);
+            ++rf_xbox_frontend_trace[5];
+        }
+        if(status)goto frontend_close;
+        Sleep(30);
+    }
+#endif
+    memset(player_mp_selection,0,sizeof(player_mp_selection));
     status=rf_xbox_input_open();if(status)goto frontend_close;input_owned=1;
     rf_xbox_input_set_paused(1);
     for(;;){
@@ -793,8 +881,17 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
             pressed=rf_xbox_input_menu_pressed();start=rf_xbox_input_pause_pressed();
             if(page!=RF_SCENE_FRONTEND_MAIN && (start || (pressed&RF_XBOX_MENU_CANCEL))){
                 rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
-                selection=page==RF_SCENE_FRONTEND_LOAD?2:page==RF_SCENE_FRONTEND_EXIT?3:0;
+                selection=ps2?(page==RF_SCENE_FRONTEND_LOAD?RF_XBOX_PS2_LOAD:
+                    page==RF_SCENE_FRONTEND_DIFFICULTY?RF_XBOX_PS2_NEW_GAME:RF_XBOX_PS2_EXTRAS):
+                    page==RF_SCENE_FRONTEND_LOAD?2:page==RF_SCENE_FRONTEND_EXIT?3:0;
                 page=RF_SCENE_FRONTEND_MAIN;load_notice=0;drawn=UINT32_MAX;
+            }else if(ps2 && page==RF_SCENE_FRONTEND_MAIN &&
+                     (pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN|RF_XBOX_MENU_LEFT|RF_XBOX_MENU_RIGHT))){
+                /* PS2 main menu: six slots with d-pad neighbours (1e5e60). */
+                uint32_t direction=(pressed&RF_XBOX_MENU_LEFT)?0:(pressed&RF_XBOX_MENU_RIGHT)?1:
+                    (pressed&RF_XBOX_MENU_UP)?2:3;
+                selection=rf_xbox_ps2_slot_neighbor(selection,direction);drawn=UINT32_MAX;
+                rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);
             }else if(pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN)){
                 uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
                 uint32_t count=page==RF_SCENE_FRONTEND_DIFFICULTY?5:
@@ -805,7 +902,25 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                 }
             }else if((pressed&RF_XBOX_MENU_ACCEPT) || (start&&page==RF_SCENE_FRONTEND_MAIN)){
                 rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
-                if(page==RF_SCENE_FRONTEND_MAIN){
+                if(ps2 && page==RF_SCENE_FRONTEND_MAIN){
+                    if(selection==RF_XBOX_PS2_NEW_GAME){page=RF_SCENE_FRONTEND_DIFFICULTY;selection=difficulty;drawn=UINT32_MAX;}
+                    else if(selection==RF_XBOX_PS2_MULTIPLAYER){
+                        uint32_t go=0;
+                        status=player_ps2_multi(&go);if(status)break;
+                        if(go){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;break;}
+                        rf_xbox_ps2_main_enter();drawn=UINT32_MAX;
+                    }else if(selection==RF_XBOX_PS2_LOAD){page=RF_SCENE_FRONTEND_LOAD;selection=0;load_notice=0;drawn=UINT32_MAX;}
+                    else if(selection==RF_XBOX_PS2_OPTIONS){
+                        uint32_t resume=0;
+                        rf_xbox_frontend_menu[0]=RF_SCENE_FRONTEND_OPTIONS;rf_xbox_frontend_trace[7]=8;
+                        status=player_options_menu(NULL,0,0,&resume);if(status)break;
+                        rf_xbox_ps2_main_enter();drawn=UINT32_MAX;
+                    }else if(selection==RF_XBOX_PS2_EXTRAS){page=RF_XBOX_PS2_PAGE_EXTRAS;selection=2;drawn=UINT32_MAX;}
+                    /* TRAINING: the PS2 training levels exist only in PS2 formats. */
+                }else if(page==RF_XBOX_PS2_PAGE_EXTRAS){
+                    /* Credits and the trailer are not available; QUIT asks first. */
+                    if(selection==2){page=RF_SCENE_FRONTEND_EXIT;selection=0;drawn=UINT32_MAX;}
+                }else if(page==RF_SCENE_FRONTEND_MAIN){
                     /* Difficulty is an Xbox-only adapted page: commit its
                      * navigation immediately instead of draining a stock shell. */
                     if(selection==1 || selection==2){
@@ -823,7 +938,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                     }else if(selection==2){page=RF_SCENE_FRONTEND_LOAD;selection=0;load_notice=0;drawn=UINT32_MAX;}
                     else {page=RF_SCENE_FRONTEND_EXIT;selection=0;load_notice=0;drawn=UINT32_MAX;}
                 }else if(page==RF_SCENE_FRONTEND_EXIT){
-                    if(!selection){page=RF_SCENE_FRONTEND_MAIN;selection=3;drawn=UINT32_MAX;}
+                    if(!selection){page=RF_SCENE_FRONTEND_MAIN;selection=ps2?RF_XBOX_PS2_EXTRAS:3;drawn=UINT32_MAX;}
                     else {
                         /* Fresh A on the second row is the only confirmation.
                          * Do not launch here: frontend still owns its input. */
@@ -833,7 +948,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                         break;
                     }
                 }else if(page==RF_SCENE_FRONTEND_LOAD){
-                    if(selection==2){page=RF_SCENE_FRONTEND_MAIN;selection=2;load_notice=0;drawn=UINT32_MAX;}
+                    if(selection==2){page=RF_SCENE_FRONTEND_MAIN;selection=ps2?RF_XBOX_PS2_LOAD:2;load_notice=0;drawn=UINT32_MAX;}
                     else {
                         /* A source is opened only for this fresh acceptance.
                          * Menu display/navigation never scans saved storage. */
@@ -860,7 +975,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                             rf_xbox_frontend_diagnostic[3]=(uint32_t)session_status;
                         }
                     }
-                }else if(selection==4){page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;}
+                }else if(selection==4){page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;if(ps2)rf_xbox_ps2_main_enter();}
                 else {
                     status=rf_scene_session_set_difficulty(selection);if(status)break;
                     difficulty=selection;rf_xbox_frontend_menu[2]=difficulty;
@@ -895,9 +1010,21 @@ static int player_session_ended_draw(void)
 }
 /* Session actions reuse the ordinary save/load and fresh-section owners. No
  * gameplay tick occurs while this menu owns the input-provider call. */
+static int player_pause_menu_body(void *context,uint32_t frame,rf_scene_input *input);
+/* PS2 menus: the paused screen owns the small in-game picture set (buttons,
+ * PAUSED, popup, options frame) for its whole lifetime; Options reuses it. */
 static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
 {
-    uint32_t selection=RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0,options_unavailable=0;
+    int status,closed;uint32_t owned=0;
+    /* Without the PS2 set (e.g. too little memory) the plain pause runs. */
+    if(rf_xbox_ps2_available() && !rf_xbox_menu_open())owned=1;
+    status=player_pause_menu_body(context,frame,input);
+    if(owned){closed=rf_xbox_menu_close();if(!status)status=closed;}
+    return status;
+}
+static int player_pause_menu_body(void *context,uint32_t frame,rf_scene_input *input)
+{
+    uint32_t selection=rf_xbox_ps2_active()?RF_SCENE_SESSION_SAVE:RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0,options_unavailable=0;
     uint32_t drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
     int status;
     ++rf_xbox_pause_diagnostic[0];rf_xbox_pause_diagnostic[4]=frame;
@@ -914,7 +1041,7 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
         uint32_t pressed;
         /* Redraw only changed menu state. USB hotplug keeps pumping at10ms;
          * the ordinary world, deadlines and sound remain suspended. */
-        if(selection!=drawn_selection || flags!=drawn_flags){
+        if(selection!=drawn_selection || flags!=drawn_flags || (rf_xbox_ps2_active() && rf_xbox_menu_redraw_due())){
             status=rf_xbox_session_menu_draw(selection,flags);
             rf_xbox_pause_diagnostic[3]=(uint32_t)status;if(status)return status;
             drawn_selection=selection;drawn_flags=flags;
@@ -935,6 +1062,13 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
         if(rf_xbox_input_pause_pressed())break;
         pressed=rf_xbox_input_menu_pressed();
         if(pressed&RF_XBOX_MENU_CANCEL){if(confirm){confirm=0;continue;}break;}
+        if(!confirm && rf_xbox_ps2_active() &&
+           (pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN|RF_XBOX_MENU_LEFT|RF_XBOX_MENU_RIGHT))){
+            uint32_t direction=(pressed&RF_XBOX_MENU_LEFT)?0:(pressed&RF_XBOX_MENU_RIGHT)?1:
+                (pressed&RF_XBOX_MENU_UP)?2:3;
+            selection=rf_xbox_ps2_pause_item(rf_xbox_ps2_slot_neighbor(rf_xbox_ps2_pause_slot(selection),direction));
+            unavailable=0;continue;
+        }
         if(!confirm && (pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN))){
             uint32_t up=!!(pressed&RF_XBOX_MENU_UP),down=!!(pressed&RF_XBOX_MENU_DOWN);
             if(up!=down)selection=(selection+(down?1:RF_SCENE_SESSION_COUNT-1))%RF_SCENE_SESSION_COUNT;
@@ -1088,6 +1222,10 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         }
         /* Only open-ended live play waits for a controller. Bounded native
          * input diagnostics retain their existing headless/no-pad behavior. */
+#ifdef RF_PS2_MENU_PREVIEW
+        /* Capture aid: play 4 s before the missing-controller pause. */
+        if(frame<240)return RF_OK;
+#endif
         if(rf_xbox_input_pause_pressed() || (player_pacing &&
            (!rf_xbox_input_connected() || rf_xbox_input_connection_lost())))
             return player_pause_menu(context,frame,input);
@@ -2155,6 +2293,11 @@ static int player_campaign_run(const char *saved_level)
                !selection[64] || (strcmp(selection,"levels1.vpp") && strcmp(selection,"levels2.vpp") &&
                strcmp(selection,"levels3.vpp") && strcmp(selection,"levelsm.vpp") && strcmp(selection,"fragment-platform.vpp") && strcmp(selection,"scene-fixture.vpp")))result=RF_FORMAT;
             fclose(selection_file);
+        }
+        /* PS2 front end, Multiplayer: one player alone in the chosen map
+         * (no bots or match rules yet). */
+        if(tester_profile && !cold_load && player_mp_selection[64]){
+            memcpy(selection,player_mp_selection,sizeof(selection));selected=1;
         }
         if(result==RF_OK && !cold_load) {
             snprintf(archive_path,sizeof(archive_path),"D:\\%s",selected?selection:"levels1.vpp");
