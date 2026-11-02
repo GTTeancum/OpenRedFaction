@@ -20,6 +20,7 @@ Updated November 2. Open items only, one line each. Finished work and the full w
 | Driller | Digging loses about 0.4 s to hitches (world rebuild after each bite); the tunnel after loading a save not yet seen on the console |
 | Loading | A quick-load takes about 12 s; the rest is weapon textures, glare, the HUD and disc reads |
 | Props | Off-screen props are now skipped; whether they pop in at the screen edge has not been checked |
+| Pause menu | Still the placeholder 8-bit style; needs writing to match the original's look |
 
 ## Test coverage gaps
 
