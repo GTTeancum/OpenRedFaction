@@ -136,7 +136,7 @@ def main():
     parser.add_argument('--firearms', type=int, choices=(1,2,3,4))
     parser.add_argument('--tracer-hold', action='store_true', help='Player tracers stay where they start (capture aid)')
     parser.add_argument('--dev-slot', type=int, choices=range(18), help='Developer room starts holding this weapon slot (0 pistol .. 10 flamethrower)')
-    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner','live','fire','fire-once'), default='neutral')
+    parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner','live','fire','fire-once','fire-hold'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
@@ -453,6 +453,10 @@ def main():
             elif args.input == 'fire-once':
                 # One shot after the draw animation has settled (capture aid).
                 buttons[3] = int(300 <= frame < 306)
+            elif args.input == 'fire-hold':
+                # Held trigger in 3 s bursts: continuous weapons (flamethrower) need
+                # the trigger down past their start delay.
+                buttons[3] = int(frame >= 60 and frame % 240 < 180)
             elif args.input == 'fire':
                 # Held weapon only: repeated fire edges, no movement or switching.
                 buttons[3] = int(frame >= 60 and frame % 12 < 6)
@@ -689,8 +693,23 @@ dvd_path = '{iso.as_posix()}'
                                 info=xbox_hw.save_framebuffer(args.xbox_host,str(run/name),screen[0] or 640,screen[1] or 480,hazard[2],
                                     16 if len(screen)>3 and (screen[3]>>8)==16 else 32)
                             else:
-                                name=f'shot_{shots_taken:02d}.ppm';info=None
-                                monitor.command('screendump',{'filename':str(run/name)})
+                                # XEMU's QMP has no screendump: pause the guest and save the
+                                # scanout buffer the game reports (rf_xbox_scanout_hazard[2])
+                                # straight from guest memory, then resume.
+                                from PIL import Image
+                                name=f'shot_{shots_taken:02d}.png'
+                                screen=sample.get('rf_xbox_screen') or [640,480]
+                                hazard=sample.get('rf_xbox_scanout_hazard') or [0,0,0]
+                                w,h=screen[0] or 640,screen[1] or 480;bpp=16 if len(screen)>3 and (screen[3]>>8)==16 else 32
+                                raw=run/f'shot_{shots_taken:02d}.raw';phys=hazard[2]&0x03FFFFFF
+                                diag=sample.get('rf_diagnostic') or []
+                                if not phys and len(diag)>35:phys=diag[32]&0x03FFFFFF # last drawn back buffer
+                                monitor.command('stop')
+                                try:monitor.command('pmemsave',{'val':phys,'size':w*h*(bpp//8),'filename':str(raw)})
+                                finally:monitor.command('cont')
+                                data=raw.read_bytes();raw.unlink()
+                                Image.frombytes('RGB',(w,h),data,'raw','BGR;16' if bpp==16 else 'BGRX').save(run/name)
+                                info={'phys':phys,'width':w,'height':h,'bpp':bpp}
                             result.setdefault('screenshots',[]).append({'file':name,'input':consumed,'screen':sample.get('rf_xbox_screen'),'xbdm':info})
                         except (RuntimeError,OSError) as exc: result['screenshot_error']=str(exc)
                         shots_taken+=1

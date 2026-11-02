@@ -18,9 +18,9 @@
 #define SCENE_ROCKET_TRAIL_TAG 0x70000000u
 #define SCENE_TRAIL_HANDLE 0x7e000000u /* | generation<<6 | entry */
 #define SCENE_TRAIL_ENTRIES 64u
-#define SCENE_TRAIL_TYPES 4u
+#define SCENE_TRAIL_TYPES 6u /* four trail templates plus the two flame-stream emitters */
 enum { SCENE_TRAIL_PLAYER_ROCKET=1, SCENE_TRAIL_AI_ROCKET, SCENE_TRAIL_APC, SCENE_TRAIL_FIGHTER,
-    SCENE_TRAIL_SUBMARINE, SCENE_TRAIL_VEHICLE_AI, SCENE_TRAIL_VEHICLE_ATTACK };
+    SCENE_TRAIL_SUBMARINE, SCENE_TRAIL_VEHICLE_AI, SCENE_TRAIL_VEHICLE_ATTACK, SCENE_TRAIL_FLAME };
 typedef struct scene_trail_entry {
     uint32_t key,slot,handle;rf_particle_emitter_parent parent;uint32_t room;
 } scene_trail_entry;
@@ -30,6 +30,8 @@ static char scene_trail_names[SCENE_TRAIL_TYPES][64];
 static uint32_t scene_trail_type_count,scene_trail_weapon[64],scene_trail_generation;
 static scene_trail_entry scene_trail_entries[SCENE_TRAIL_ENTRIES];
 static uint32_t scene_rocket_trail_ready;
+/* Flame-stream templates ("youfired", "youfiredtoo"), see scene_flame_visual.inc. */
+static uint32_t scene_flame_stream_type[2]={UINT32_MAX,UINT32_MAX};
 /* types loaded, emitters created, create misses (pool/entries full), updates,
  * particles created, releases, last status, texture resident bytes */
 uint32_t rf_scene_rocket_trail[8];
@@ -42,6 +44,7 @@ static void scene_rocket_trail_close(void)
     memset(scene_trail_images,0,sizeof(scene_trail_images));memset(scene_trail_names,0,sizeof(scene_trail_names));
     scene_trail_type_count=0;scene_rocket_trail_ready=0;
     for(i=0;i<64;i++)scene_trail_weapon[i]=UINT32_MAX;
+    scene_flame_stream_type[0]=scene_flame_stream_type[1]=UINT32_MAX;
     scene_rocket_trail_forget();
 }
 /* $Trail emitter of the named weapons.tbl block, if authored. */
@@ -73,7 +76,7 @@ static int scene_trail_template(rf_vpp *tables,const char *name,rf_vpp *maps,uin
     if(scene_trail_type_count==SCENE_TRAIL_TYPES)return RF_RANGE;
     status=rf_emitter_definition_load(tables,name,128*1024,&p);if(status)return status;
     i=scene_trail_type_count;
-    status=rf_particle_animation_open(scene_trail_images+i,&p,maps,map_count,128*1024);if(status)return status;
+    status=rf_particle_animation_open(scene_trail_images+i,&p,maps,map_count,320*1024);if(status)return status;
     for(k=0;k<3;k++){t.position[k]=p.position[k];t.direction[k]=p.direction[k];}
     t.direction_random=p.direction_random;t.min_velocity=p.min_velocity;t.max_velocity=p.max_velocity;
     t.spawn_radius=p.spawn_radius;t.min_spawn_delay=p.min_spawn_delay;t.max_spawn_delay=p.max_spawn_delay;
@@ -103,6 +106,18 @@ static int scene_rocket_trail_open(const char *tables_path,rf_vpp *maps,uint32_t
         loaded=scene_trail_template(&tables,name,maps,map_count,&type);
         if(loaded){printf("TRAIL_UNAVAILABLE %s %s %d\n",campaign_weapon_supply.names.names[i],name,loaded);continue;}
         scene_trail_weapon[i]=type;
+    }
+    /* 48edc0 single-player flame stream: two continuous emitters per shooter. */
+    if(!status && (scene_flame_resources || scene_ai_flame_resources || rf_scene_dev_room_enabled)) {
+        static const char *const stream[2]={"youfired","youfiredtoo"};
+        for(i=0;i<2;i++){uint32_t type;int loaded=scene_trail_template(&tables,stream[i],maps,map_count,&type);
+            if(loaded)printf("FLAME_STREAM_UNAVAILABLE %s %d\n",stream[i],loaded);
+            else {
+                /* Port: the authored "damages, fire_damage" particle damage is
+                 * not simulated (the particle step refuses secondary bit 1);
+                 * flame damage stays with scene_flame_tick's volume test. */
+                scene_trail_templates[type].secondary&=~(1u|8u);scene_flame_stream_type[i]=type;
+            }}
     }
     free(text);rf_vpp_close(&tables);rf_scene_rocket_trail[6]=(uint32_t)status;
     if(status){printf("TRAIL_TABLE_UNAVAILABLE %d\n",status);scene_rocket_trail_close();return RF_OK;}

@@ -18243,7 +18243,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
          for(k=0;k<3;k++){muzzle[k]=position[k]+orientation[2][k]*.4f+orientation[0][k]*.18f-orientation[1][k]*.2f;delta[k]=orientation[2][k]*length;}
          if(scene_flame_active){status=scene_rocket_sweep(stream,muzzle,delta,.01f,4u,&contact,&liquid,&matched);if(status){printf("FLAME_SWEEP_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}
              if(matched)length*=contact.hit.fraction;}
-         status=scene_flame_visual_tick(stream,frame,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}}
+         status=scene_flame_visual_tick(stream,frame,0,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}}
     }
     {uint32_t changed=0;status=scene_remote_selection_after_world(stream,frame,on_foot,&changed);
      if(status)return scene_player_failure_return(status,__LINE__,frame);if(changed)return RF_OK;}

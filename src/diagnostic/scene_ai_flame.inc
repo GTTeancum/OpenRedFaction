@@ -100,7 +100,7 @@ static int scene_ai_flame_fire(scene_stream *stream,uint32_t slot,uint32_t frame
      for(uint32_t j=0;j<3;j++)ray[j]=direction[j]*SCENE_FLAME_RANGE;
      status=scene_ai_projectile_sweep(&visual,origin,ray,.01f,4u,&hit,&liquid,&matched);if(status)return status;
      if(matched)visible*=hit.hit.fraction;
-     status=scene_flame_visual_tick(stream,frame,origin,direction,visible,1);if(status)return status;}
+     status=scene_flame_visual_tick(stream,frame,1+(source&0x7fffu),origin,direction,visible,1);if(status)return status;}
     if(!scene_ai_flame_source_live(slot,source,weapon,epoch))return RF_OK;
     {uint32_t host_contact;float host_amount;
      status=scene_driller_flame_pulse(stream,frame,origin,direction,&request,&host_contact,&host_amount);if(status)return status;}

@@ -21,7 +21,6 @@ Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the b
 
 | Area | Fault |
 |---|---|
-| Flamethrower | The stream looks like a thin smear, not the original flame. The original stream's look is set in code, not in the data tables; that code isn't found yet (notes below) |
 | Remote charge | The detonator view was reported drawn wrong; not yet examined |
 | Sniper scope | Pickups seen through the scope are not tinted red |
 | Rockets | Launch from the barrel by the counters, but not yet seen in flight on screen |
@@ -30,7 +29,7 @@ Accepted by you on November 1: 720p and the 16-bit HUD; bands, flicker and the b
 
 Fixed November 1: see-through walls. Railings, lattices and glass now draw in the blended pass; console screenshots of the ctf06 railings and glass_house glass confirm it.
 
-Flamethrower research (November 1): the port's stream is a stand-in (scene_flame_visual.inc: eight `flamethrower fire` sprites along the jet every 3 ticks; radius 0.1 growing 0.7/s, alpha 100, life 0.15-0.23 s, hence thin). In the original, the weapons.tbl Flamethrower entry has no trail emitter or bitmap; explosion.tbl uses the flame emitters only for `flamethrower-alt` (canister: head `flamethrower head` Flame01_02.tga, tail `flamethrower tail`) and `rocket hit` (`flamethrower fire_large`). RF.exe has no emitter-name strings for the stream. Emitter name lookup is 497550; its callers resolve only entity/breath/geomod/humanoid-fire names. The flamethrower type id is at 87243c (set 4c664f) and is used for damage type (4c5376, 4c62bd, 4c6c5f), ammo (42c34d, 4a5170) and fire (4a2890). Flags2 bit 0x40 is `flame` (table 5a2534, weapon_info+0x268); no direct byte test was found. Next: trace the flame weapon object's render path in Ghidra.
+Fixed November 1: flamethrower stream. Original path traced in Ghidra: primary fire of a flame weapon (4c90f0, weapons.tbl Flags2 "flame") goes to 41a870, which creates the shooter's stream once (48edc0) and aims it every frame (41ac60 -> 48f2a0; on/off 48f130). In single player the stream is two continuous emitters.tbl emitters, "youfired" (Fire01) at the muzzle and "youfiredtoo" (Flame01_02) 0.2 units ahead; multiplayer uses the _multi variants. Port: scene_flame_visual.inc drives them through the trail entries. Their particle damage flags are cleared because the particle step refuses damaging particles (that refusal halted the game); damage stays with the port's flame volume. The "dont_move_with_parent" emitters get the muzzle and aim written into their own storage each update, as 48f2a0 does. XEMU glass_house capture shows a full fire stream from the barrel. Not checked: NPC flamethrowers on screen; the player muzzle is still the port's eye-offset point, not the view-model tag. Harness: new --input fire-hold; XEMU screenshots now come from guest memory (QMP pmemsave of the last drawn back buffer). Under qmp-telemetry the log stalls after a capture or two.
 
 ## Speed and loading
 
