@@ -1,4 +1,62 @@
-## Open now (October 25 summary; details below)
+# Red Faction Xbox — to-do
+
+Updated November 1. This page is the short version: what is open, in one line each.
+The full working notes follow under **Detailed notes**, newest first; nothing has been removed from them.
+
+---
+
+## Waiting on you (USER)
+
+Things only you can judge, mostly by looking at the console on the TV.
+
+| # | What to check | Where |
+|---|---|---|
+| 1 | 720p overall, and whether the 16-bit HUD looks right | any level |
+| 2 | Black bands and the 1–2 frame flicker are gone | any level |
+| 3 | The once-a-second black flash is gone | any level |
+| 4 | Bullet tracers: enemy rifle, Tankbot, Vauss | L3S4, L7S4 |
+| 5 | Drone missile impact (white/yellow flash) | L7S1 |
+| 6 | Lamps and lanterns now glow instead of showing a black card; anything else see-through that still looks solid | ctf06 |
+| 7 | Rail Driver scanner: red figures, crosshair, railgun readout | L3S4 |
+| 8 | Compressed wall textures | L1S2, L3S2 |
+| 9 | L1S2 pool water and ripple; Driller tunnel and cockpit; rocket smoke trail | L1S2 |
+| 10 | The softer picture during heavy explosions (half-resolution fallback) | L1S2 |
+| 11 | Turn on 480p in the Xbox dashboard (the cable is component; 480p and 720p are off there) | dashboard |
+| 12 | Old request: approve a whole-disk backup before saved-HDD continuation checks | — |
+| 13 | PS2 side-by-side comparison, once scenes are representative | — |
+
+## Known faults still open
+
+| Area | Fault |
+|---|---|
+| See-through walls | Railings, lattices and glass draw their clear parts black or solid (the world pass draws with blending and alpha test off); lattice panels flicker with the lighting |
+| Flamethrower | The stream looks like a thin smear, not the original flame |
+| Remote charge | The detonator view was reported drawn wrong; not yet examined |
+| Sniper scope | Pickups seen through the scope are not tinted red |
+| Rockets | Launch from the barrel by the counters, but not yet seen in flight on screen |
+| GeoMod | A wall takes at most 8 stacked cuts (original 25); shots into doorways make no cut |
+| 30 FPS smooth mode | The in-between pictures are not drawn yet (it behaves like steady 30) |
+
+## Speed and loading
+
+- **Frame rate:** the slowdown sweep is finished. Every campaign section holds 30 FPS except during the busiest close-range rocket smoke (worst: 20 FPS in an L9S2 firefight). You chose to keep the smoke as authored.
+- **Loading:** a quick-load takes about 12 seconds; the remaining time is weapon textures, glare, the HUD and disc reads.
+- **Digging:** the Driller loses about 0.4 s to hitches while digging (the world rebuild after each bite).
+
+## Test coverage gaps
+
+- No submarine or APC has been seen fully destroyed: the test can't stage it, because the driver dies from their own blasts first.
+- 28 older PC tests fail because their fixtures are out of date (listed in the October 25 notes).
+
+## Not started
+
+- Multiplayer (after single-player).
+
+---
+
+# Detailed notes
+
+## Open items, detailed (October 25 onward)
 
 Needs you (USER):
 - USER: look on the console at the L1S2 pool (water look and ripple), Driller tunnel and cockpit, rocket smoke trail, and whether the once-a-second black flash is gone.
@@ -5489,7 +5547,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - XEMU is the primary emulator; CXBX-R may assist with diagnosis.
 - Never control the desktop or send host input; use source, files, logs, non-interactive commands, and process-contained test harnesses.
 
-## Milestone 0 â€” evidence and toolchains
+## Milestone 0 — evidence and toolchains
 
 - [x] Set the persistent project goal.
 - [x] Inspect the initial workspace: only an empty Git repository was present.
@@ -5499,7 +5557,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [x] Evaluate Open Faction and Dash Faction as references, recording provenance and reuse terms.
 - [x] Compile and validate minimal PC and Xbox artifacts; distinguish scaffolding from recovered game behavior.
 
-## Milestone 1 â€” reconstruction foundation
+## Milestone 1 — reconstruction foundation
 
 - [x] Create a reproducible headless Ghidra project from a hash-identified executable.
 - [ ] Map startup, filesystem/archive loading, memory allocation, game loop, rendering, audio, input, and level transitions.
@@ -5511,14 +5569,14 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [ ] Establish native emulator visual capture without any desktop capture or window input.
 - [ ] Establish memory accounting that includes executable, heaps, stacks, GPU surfaces, audio, and transient loads.
 
-## Milestone 2 â€” playable campaign slice
+## Milestone 2 — playable campaign slice
 
 - [ ] Load and draw the first campaign area on both platforms.
 - [ ] Restore collision, player movement, controller mapping, weapons, enemies, events, and Geo-Mod.
 - [ ] Restore HUD, sound, dialogue, cutscenes, saves, and level transitions needed by that slice.
 - [ ] Compare matched PS2 scenes and capture native emulator output for review.
 
-## Milestone 3 â€” campaign completion and validation
+## Milestone 3 — campaign completion and validation
 
 - [ ] Extend subsystem coverage through every campaign level and document completion evidence.
 - [ ] Run memory stress, loading, save/reload, destruction, AI, and frame-time regression scenarios.
