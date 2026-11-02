@@ -183,6 +183,31 @@ static uint32_t tester_profile;
 /* Multiplayer level chosen in the PS2 front end: archive name, then level
  * name, 64 bytes each (the campaign-level.bin layout). Empty: campaign. */
 static char player_mp_selection[128];
+/* The current level is a multiplayer map (levelsm.vpp). */
+static uint32_t player_mp_level;
+/* PS2 arena data for the PC multiplayer maps the arenas were built from
+ * (tools/build_ps2_menu_pack.py): <map>.nav bot paths (section 0x20000) and
+ * <map>.ent bot characters (section 0x30000), served in place of the map's
+ * own sections (docs/MP-BOTS-PS2.md). */
+static unsigned char player_mp_nav[16384],player_mp_ent[16384];
+uint32_t rf_xbox_mp_paths[4]; /* path bytes, status, bot-character bytes, status */
+static void player_mp_section(rf_vpp *pack,const char *name,size_t stem,const char *suffix,
+    unsigned char *buffer,uint32_t capacity,uint32_t type,rf_level *level,uint32_t *report)
+{
+    rf_vpp_entry e;char file[72];
+    memcpy(file,name,stem);strcpy(file+stem,suffix);
+    if(rf_vpp_find(pack,file,&e) || e.size>capacity || rf_vpp_read(pack,&e,0,buffer,e.size))return;
+    report[0]=e.size;report[1]=(uint32_t)rf_level_override_section(level,type,buffer,e.size);
+}
+static void player_mp_paths(rf_level *level,const char *name)
+{
+    rf_vpp pack={0};size_t n=strcspn(name,".");
+    memset(rf_xbox_mp_paths,0,sizeof(rf_xbox_mp_paths));
+    if(n>60 || rf_vpp_open(&pack,"D:\\ps2menu.vpp"))return;
+    player_mp_section(&pack,name,n,".nav",player_mp_nav,sizeof(player_mp_nav),0x20000,level,rf_xbox_mp_paths);
+    player_mp_section(&pack,name,n,".ent",player_mp_ent,sizeof(player_mp_ent),0x30000,level,rf_xbox_mp_paths+2);
+    rf_vpp_close(&pack);
+}
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_startup_trace[4]; /* sequence,stage,GetTickCount,status */
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
@@ -753,7 +778,9 @@ static int player_frontend_present(uint32_t flags,int session_status,
 static int player_ps2_multi(uint32_t *start)
 {
     rf_xbox_ps2_multi m;uint32_t drawn=0;int status;
-    memset(&m,0,sizeof(m));m.selection=1;m.values[RF_XBOX_PS2_MP_SKILL]=1;
+    /* PS2 defaults 1ddb20: 2 bots, skill 2, 15 kills, 15 minutes. */
+    memset(&m,0,sizeof(m));m.selection=1;m.values[RF_XBOX_PS2_MP_BOTS]=2;m.values[RF_XBOX_PS2_MP_SKILL]=2;
+    m.values[RF_XBOX_PS2_MP_KILLS]=2;m.values[RF_XBOX_PS2_MP_TIME]=3;
     *start=0;
     for(;;){
         rf_scene_input input;uint32_t pressed;
@@ -790,6 +817,9 @@ static int player_ps2_multi(uint32_t *start)
             memset(player_mp_selection,0,sizeof(player_mp_selection));
             strcpy(player_mp_selection,"levelsm.vpp");
             strncpy(player_mp_selection+64,rf_xbox_ps2_multi_level(m.values[RF_XBOX_PS2_MP_ENVIRONMENT]),63);
+            rf_xbox_ps2_multi_rules(&m,&rf_scene_mp_bots,&rf_scene_mp_kill_limit,&rf_scene_mp_time_limit);
+            /* The skill also sets the game difficulty (1ddaa0 copies it to 2abeec). */
+            (void)rf_scene_session_set_difficulty(m.values[RF_XBOX_PS2_MP_SKILL]%4);
             *start=1;return RF_OK;
         }
         Sleep(10);
@@ -848,6 +878,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
     }
 #endif
     memset(player_mp_selection,0,sizeof(player_mp_selection));
+    rf_scene_mp_bots=rf_scene_mp_kill_limit=rf_scene_mp_time_limit=0;
     status=rf_xbox_input_open();if(status)goto frontend_close;input_owned=1;
     rf_xbox_input_set_paused(1);
     for(;;){
@@ -1024,7 +1055,7 @@ static int player_pause_menu(void *context,uint32_t frame,rf_scene_input *input)
 }
 static int player_pause_menu_body(void *context,uint32_t frame,rf_scene_input *input)
 {
-    uint32_t selection=rf_xbox_ps2_active()?RF_SCENE_SESSION_SAVE:RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0,options_unavailable=0;
+    uint32_t selection=rf_xbox_ps2_active()?(rf_scene_mp[0]?RF_SCENE_SESSION_OPTIONS:RF_SCENE_SESSION_SAVE):RF_SCENE_SESSION_RESUME,confirm=0,unavailable=0,options_unavailable=0;
     uint32_t drawn_selection=UINT32_MAX,drawn_flags=UINT32_MAX;
     int status;
     ++rf_xbox_pause_diagnostic[0];rf_xbox_pause_diagnostic[4]=frame;
@@ -1067,6 +1098,8 @@ static int player_pause_menu_body(void *context,uint32_t frame,rf_scene_input *i
             uint32_t direction=(pressed&RF_XBOX_MENU_LEFT)?0:(pressed&RF_XBOX_MENU_RIGHT)?1:
                 (pressed&RF_XBOX_MENU_UP)?2:3;
             selection=rf_xbox_ps2_pause_item(rf_xbox_ps2_slot_neighbor(rf_xbox_ps2_pause_slot(selection),direction));
+            /* Multiplayer: OPTIONS and QUIT only; any direction swaps them. */
+            if(rf_scene_mp[0])selection=selection==RF_SCENE_SESSION_OPTIONS?RF_SCENE_SESSION_EXIT:RF_SCENE_SESSION_OPTIONS;
             unavailable=0;continue;
         }
         if(!confirm && (pressed&(RF_XBOX_MENU_UP|RF_XBOX_MENU_DOWN))){
@@ -1222,6 +1255,15 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         }
         /* Only open-ended live play waits for a controller. Bounded native
          * input diagnostics retain their existing headless/no-pad behavior. */
+        /* Multiplayer: the kill or time limit ended the match. Show the
+         * results for 5 s, then end the session (main menu in the tester). */
+        if(rf_scene_mp_match_over()){
+            int shown=rf_xbox_mp_results_draw();
+            if(shown)return shown;
+            Sleep(5000);
+            shown=player_session_ended_draw();
+            return shown?shown:RF_NOT_FOUND;
+        }
 #ifdef RF_PS2_MENU_PREVIEW
         /* Capture aid: play 4 s before the missing-controller pause. */
         if(frame<240)return RF_OK;
@@ -1870,7 +1912,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     }
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     if(rf_scene_vehicle_enabled){status=rf_scene_vehicle_test_place(level);if(status){if(stream_flag)fclose(stream_flag);return status;}}
-    rf_scene_follow_level_exits=(tester_profile || stream_flag!=NULL) && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;
+    rf_scene_follow_level_exits=(tester_profile || stream_flag!=NULL) && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled &&
+        !player_mp_level; /* multiplayer: respawn in place, no level exits */
     if(tester_profile || stream_flag){if(stream_flag)fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
     else if(rf_scene_swim_test_enabled)status=rf_scene_set_campaign_spawn(level);
     else status=rf_scene_preview_camera(level,9858);
@@ -2299,6 +2342,11 @@ static int player_campaign_run(const char *saved_level)
         if(tester_profile && !cold_load && player_mp_selection[64]){
             memcpy(selection,player_mp_selection,sizeof(selection));selected=1;
         }
+        /* Harness: mp-match.bin (bots, kill limit, seconds) with a levelsm map. */
+        if(!tester_profile && selected){
+            FILE *mp=fopen("D:\\mp-match.bin","rb");uint32_t rules[3];
+            if(mp){if(fread(rules,4,3,mp)==3){rf_scene_mp_bots=rules[0];rf_scene_mp_kill_limit=rules[1];rf_scene_mp_time_limit=rules[2];}fclose(mp);}
+        }
         if(result==RF_OK && !cold_load) {
             snprintf(archive_path,sizeof(archive_path),"D:\\%s",selected?selection:"levels1.vpp");
             result = rf_vpp_open(&archive, archive_path);
@@ -2335,6 +2383,8 @@ static int player_campaign_run(const char *saved_level)
             result = cold_load?rf_level_campaign_open(&level,&archive,"D:\\",saved_level):
                 selected && staged_climb?RF_FORMAT:
                 rf_level_open(&level, &archive, selected?selection+64:staged_climb?"L1S2.rfl":"L1S1.rfl");
+            player_mp_level=selected && !strcmp(selection,"levelsm.vpp");
+            if(result==RF_OK && player_mp_level)player_mp_paths(&level,selection+64);
             if(result==RF_OK && staged_climb) {
                 result=rf_scene_stage_climb(&level,(uint32_t)climb_mode);
             }

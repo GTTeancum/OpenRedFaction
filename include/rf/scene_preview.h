@@ -777,6 +777,19 @@ enum {RF_SCENE_BUTTON_ACTION_COUNT=10u,RF_SCENE_BUTTON_DEFAULTS=10u,
     RF_SCENE_BUTTON_BACK=11u,RF_SCENE_BUTTON_COUNT=12u};
 int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
     uint32_t selection,uint32_t flags,const char *const *actions,const char *const *controls);
+/* One-player multiplayer against bots (scene_mp.inc). Set before the level
+ * opens: bot count (0 = solo), kill limit (0 none), time limit in seconds
+ * (0 none). rf_scene_mp: active, bots, kills, deaths, bot respawns, seconds
+ * left, match over, player respawns. */
+extern uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit,rf_scene_mp[8];
+uint32_t rf_scene_mp_match_over(void);
+int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context);
+typedef struct scene_mp_bot scene_mp_bot;
+/* PS2 bot roster (docs/MP-BOTS-PS2.md): used, human kills, deaths, streak,
+ * longest streak, dead, respawn pending, kills. */
+struct scene_mp_bot {uint32_t used,human_kills,deaths,streak,longest,dead,respawn_pending;int32_t kills;};
+extern scene_mp_bot rf_scene_mp_roster[16];
+const char *rf_scene_mp_bot_name(uint32_t slot);
 /* Current text language as shown in Options ("ENGLISH", "DEUTSCH", "FRANCAIS"). */
 const char *rf_scene_text_language_name_public(void);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */

@@ -29,6 +29,8 @@ uint32_t rf_xbox_ps2_multi_count(uint32_t row);
 int rf_xbox_ps2_multi_frame(const rf_xbox_ps2_multi *state);
 /* Environment level file (levelsm.vpp) for a setup value. */
 const char *rf_xbox_ps2_multi_level(uint32_t environment);
+/* Bot count, kill limit (0 none) and time limit in seconds (0 none). */
+void rf_xbox_ps2_multi_rules(const rf_xbox_ps2_multi *m,uint32_t *bots,uint32_t *kills,uint32_t *seconds);
 
 /* True when D:\ps2menu.vpp exists (checked once). */
 int rf_xbox_ps2_available(void);

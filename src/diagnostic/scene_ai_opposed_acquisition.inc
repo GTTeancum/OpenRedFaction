@@ -123,7 +123,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     owner=campaign_npc_bodies+slot;
     if(campaign_npc_ai_suppressed(owner)||owner->combat_alert||owner->combat_scripted||owner->script_once.count||
        owner->script_shoot.active||!campaign_enemy_opposed_live(owner)||
-       (owner->damage.effects.affiliation!=0&&owner->damage.effects.affiliation!=2)||
+       (!rf_scene_mp[0]&&owner->damage.effects.affiliation!=0&&owner->damage.effects.affiliation!=2)||
        owner->view.weapons[0]<0||
        (frame%30+campaign_enemy_sight_phase_offset)%30!=slot%30)return RF_OK;
     /* Candidate-specific motion is checked below. Passing moving1 here only
@@ -164,9 +164,10 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     for(uint32_t i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *candidate=campaign_npc_bodies+i;uint32_t clutter;float fraction;
         if(i==slot||!campaign_enemy_opposed_live(candidate))continue;
-        if(candidate->damage.effects.affiliation==1){++rf_scene_enemy_opposed[14];continue;}
-        if(!((owner->damage.effects.affiliation==0&&candidate->damage.effects.affiliation==2)||
-             (owner->damage.effects.affiliation==2&&candidate->damage.effects.affiliation==0))||
+        /* Multiplayer (scene_mp.inc): every bot is opposed to every other. */
+        if(!rf_scene_mp[0]&&candidate->damage.effects.affiliation==1){++rf_scene_enemy_opposed[14];continue;}
+        if((!rf_scene_mp[0]&&!((owner->damage.effects.affiliation==0&&candidate->damage.effects.affiliation==2)||
+             (owner->damage.effects.affiliation==2&&candidate->damage.effects.affiliation==0)))||
            scene_npc_seat_related(owner->registration.handle,candidate->registration.handle)||
            scene_turret_generated_related(owner->registration.handle,candidate->registration.handle))continue;
         if(!campaign_enemy_mode_admits(owner,campaign_enemy_opposed_moving(candidate->body.state.velocity),0)){

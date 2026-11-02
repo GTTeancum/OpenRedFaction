@@ -603,6 +603,14 @@ int rf_level_read(const rf_level *level, const rf_level_section *section,
                   uint32_t offset, void *data, uint32_t size)
 {
     if (!level || !level->archive || !section) return RF_RANGE;
+    {
+        uint32_t k;
+        for (k = 0; k < 4; ++k) if (level->overrides[k].data && section->type == level->overrides[k].type) {
+            if (offset > level->overrides[k].size || size > level->overrides[k].size - offset) return RF_RANGE;
+            memcpy(data, level->overrides[k].data + offset, size);
+            return RF_OK;
+        }
+    }
     if (offset > section->size || size > section->size - offset ||
         (uint64_t)section->offset + 8 + section->size > level->entry.size) return RF_RANGE;
     return rf_vpp_read(level->archive, &level->entry, section->offset + 8 + offset, data, size);
@@ -697,6 +705,21 @@ int rf_level_lighting_read(const rf_level *level,rf_level_lighting *out)
     memcpy(value.color,data,4);value.directional=data[4];*out=value;return RF_OK;
 }
 
+int rf_level_override_section(rf_level *level,uint32_t type,const void *data,uint32_t size)
+{
+    uint32_t i, k;
+    if (!level || !data || !size) return RF_RANGE;
+    for (k = 0; k < 4 && level->overrides[k].data && level->overrides[k].type != type; ++k) {}
+    if (k == 4) return RF_RANGE;
+    for (i = 0; i < level->section_count && level->sections[i].type != type; ++i) {}
+    if (i == level->section_count) {
+        if (i >= RF_LEVEL_MAX_SECTIONS) return RF_RANGE;
+        level->sections[i].type = type;level->sections[i].offset = 0;++level->section_count;
+    }
+    level->sections[i].size = size;
+    level->overrides[k].data = data;level->overrides[k].type = type;level->overrides[k].size = size;
+    return RF_OK;
+}
 int rf_level_open(rf_level *level, rf_vpp *archive, const char *name)
 {
     int result;

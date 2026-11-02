@@ -19,7 +19,14 @@ typedef struct rf_level {
     rf_level_section sections[RF_LEVEL_MAX_SECTIONS];
     float player_position[3];
     float player_orientation[3][3]; /* Rows reordered from disk 2,0,1. */
+    /* Replacement payloads (rf_level_override_section); borrowed, the caller
+     * keeps them alive while the level is in use. */
+    struct {const unsigned char *data;uint32_t type,size;} overrides[4];
 } rf_level;
+/* Serve section `type` from `data` instead of the file (e.g. the PS2 bot
+ * paths and bots for a PC multiplayer map). A section the file lacks is
+ * added. Up to four overrides; data is borrowed. */
+int rf_level_override_section(rf_level *level,uint32_t type,const void *data,uint32_t size);
 
 typedef struct rf_level_geomod_settings {char texture[64];uint32_t hardness;} rf_level_geomod_settings;
 /* v180 section900 prefix: owned texture name and stored hardness, unchanged

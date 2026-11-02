@@ -213,6 +213,9 @@ static int scene_alarm_runner_sight(scene_stream *stream,uint32_t slot,uint32_t 
     uint64_t epoch;int status;
     if(!handled||!stream||!player_eye||slot>=campaign_npc_body_count)return RF_RANGE;
     *handled=0;o=campaign_npc_bodies+slot;
+    /* Multiplayer bots are campaign guard copies; their authored alarm
+     * links do not exist in the multiplayer map. */
+    if(rf_scene_mp[0])return RF_OK;
     if(stream!=scene_actor_collision_owner||!stream->collision||scene_medic_flight_restoring||
        campaign_cutscene_runtime.active||campaign_endgame.phase||
        (frame%30+campaign_enemy_sight_phase_offset)%30!=slot%30||

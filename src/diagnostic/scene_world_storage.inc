@@ -20,12 +20,14 @@ uint32_t rf_scene_section_autosave[4]; /* attempts, successes, last status, sect
  * hands off to the next; an explicit live quick-load is still permitted. */
 static uint32_t scene_world_startup_snapshot_consumed;
 uint32_t rf_scene_quickload_pending(void){return scene_live_load_active;}
+/* Multiplayer (scene_mp.inc) has no saving, as on the PS2. */
 void rf_scene_load_button(uint32_t held)
-{if(held&&!scene_live_load_held)scene_live_load_pending=1;scene_live_load_held=!!held;}
+{if(rf_scene_mp[0])held=0;if(held&&!scene_live_load_held)scene_live_load_pending=1;scene_live_load_held=!!held;}
 static void scene_death_quickload_request(void)
 {scene_live_load_pending=1;scene_live_load_death_recovery=1;}
 void rf_scene_save_button(uint32_t held)
 {
+    if(rf_scene_mp[0])held=0;
     if(held&&!scene_live_save_held)scene_live_save_pending=1;
     scene_live_save_held=!!held;
 }

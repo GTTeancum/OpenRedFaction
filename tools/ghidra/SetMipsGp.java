@@ -15,5 +15,8 @@ public class SetMipsGp extends GhidraScript {
             currentProgram.getProgramContext().setValue(reg, block.getStart(), block.getEnd(), BigInteger.valueOf(gp));
         }
         println("gp set to 0x" + Long.toHexString(gp));
+        // The discovered-non-returning analyzer misjudges small PS2 helpers
+        // (e.g. 1004f0 returns its argument) and truncates their callers.
+        setAnalysisOption(currentProgram, "Non-Returning Functions - Discovered", "false");
     }
 }

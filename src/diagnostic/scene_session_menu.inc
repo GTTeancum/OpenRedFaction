@@ -284,3 +284,23 @@ int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
     return combat_hud_centered(sink,context,442,
         (flags&RF_SCENE_OPTIONS_PAUSED)?"B BACK   START RESUME":"B OR START BACK",0xffb8c0d0);
 }
+
+/* Multiplayer match results (scene_mp.inc): the player and every bot sorted
+ * by kills, as the PS2 ranks them (1dba..: kill counts sorted descending). */
+int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context)
+{
+    char line[64];uint32_t order[17],n=0,i,j;int32_t kills[17];int status;
+    if(!sink || particle_draw_stream)return RF_RANGE;
+    order[n]=UINT32_MAX;kills[n++]=(int32_t)rf_scene_mp[2];
+    for(i=0;i<16;i++)if(rf_scene_mp_roster[i].used){order[n]=i;kills[n++]=rf_scene_mp_roster[i].kills;}
+    for(i=0;i<n;i++)for(j=i+1;j<n;j++)if(kills[j]>kills[i]){
+        int32_t k=kills[i];uint32_t o=order[i];kills[i]=kills[j];order[i]=order[j];kills[j]=k;order[j]=o;}
+    status=combat_hud_centered(sink,context,70,"MP STATS",0xffeeeeee);if(status)return status;
+    status=combat_hud_centered(sink,context,110,"PLAYER     KILLS   DEATHS",0xffb8c0d0);if(status)return status;
+    for(i=0;i<n;i++){
+        uint32_t deaths=order[i]==UINT32_MAX?rf_scene_mp[3]:rf_scene_mp_roster[order[i]].deaths;
+        snprintf(line,sizeof(line),"%-10s %5d %8u",order[i]==UINT32_MAX?"YOU":rf_scene_mp_bot_name(order[i]),kills[i],deaths);
+        status=combat_hud_centered(sink,context,140+i*28,line,order[i]==UINT32_MAX?0xffffff9e:0xffdcdcdc);if(status)return status;
+    }
+    return combat_hud_centered(sink,context,400,"RETURNING TO MAIN MENU",0xffb8c0d0);
+}

@@ -35,6 +35,34 @@ BACKDROP = 'interface-bg-mm.peg'
 FONTS = ('bigfont.vf', 'font-small.vf', 'font01.vf', 'font02.vf', 'message.vf',
          'smallfont.vf', 'standard.vf', 'title.vf')
 TABLES = ('strings.tbl', 'ps2_multi.tbl')
+# PS2 arenas built from PC multiplayer maps (respawn points identical or the
+# majority shared): their authored bot paths (RFL section 0x20000, same layout
+# in PS2 v175 and PC v180) are packed as <pc map>.nav and their bot
+# characters (section 0x30000) as <pc map>.ent for the Xbox bots.
+PS2_ARENAS = {'m_ps201.rfl': 'dm01', 'm_ps202.rfl': 'dm02', 'm_ps203.rfl': 'dm03',
+              'm_ps204.rfl': 'dm04', 'm_ps205.rfl': 'dm05', 'm_ps207.rfl': 'dm06',
+              'm_ps208.rfl': 'dm07', 'm_ps210.rfl': 'ctf02'}
+
+
+def rfl_section(data, kind):
+    """Payload of one RFL section; the PS2 v175 header length differs, so the
+    section chain is located by walking from each candidate start."""
+    count = struct.unpack_from('<I', data, 20)[0]
+    for start in range(20, 200):
+        pos, found = start, None
+        try:
+            for _ in range(count):
+                t, size = struct.unpack_from('<II', data, pos)
+                if t == 0 or pos + 8 + size > len(data):
+                    raise ValueError
+                if t == kind:
+                    found = data[pos + 8:pos + 8 + size]
+                pos += 8 + size
+            if struct.unpack_from('<II', data, pos) == (0, 0):
+                return found
+        except (struct.error, ValueError):
+            continue
+    return None
 BACKDROP_SIZE = (512, 256)
 
 
@@ -271,6 +299,15 @@ def main():
             stem = name[:-3]
             out.append((stem + '_2x.tga', sharp[0]))
             out.append((stem + '_2x.fnt', sharp[1]))
+    for arena, pc_map in PS2_ARENAS.items():
+        nav = rfl_section(archive[arena], 0x20000)
+        if nav and len(nav) > 4:
+            out.append((pc_map + '.nav', nav))
+        # The arena's characters are its bots (PS2 2740e0 turns the first N
+        # non-player entities into bots); same v180 entity record layout.
+        ent = rfl_section(archive[arena], 0x30000)
+        if ent and len(ent) > 4:
+            out.append((pc_map + '.ent', ent))
     for name in TABLES:
         out.append((name, tables[name]))
     out_path.parent.mkdir(parents=True, exist_ok=True)

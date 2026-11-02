@@ -68,13 +68,18 @@ static const struct {const char *name,*picture;} characters[13]={
     {"Envirosuit Guard 1","multichar08.tga"},{"Envirosuit Guard 2","multichar09.tga"},
     {"Elite Guard 1","multichar07.tga"},{"Elite Guard 2","multichar10.tga"},
     {"Riot Guard 1","multichar11.tga"}};
-/* The PS2 arenas (m_ps2xx) exist only in PS2 formats, so the list is the
- * PC multiplayer levels in levelsm.vpp, which the Xbox loads. */
-static const char *const environments[]={
-    "dm01.rfl","dm02.rfl","dm03.rfl","dm04.rfl","dm05.rfl","dm06.rfl","dm07.rfl","dm08.rfl",
-    "dm09.rfl","dm10.rfl","dm12.rfl","dm13.rfl","dm14.rfl","dm15.rfl","dm16.rfl","dm17.rfl",
-    "dm19.rfl","dm20.rfl","ctf01.rfl","ctf02.rfl","ctf03.rfl","ctf04.rfl","ctf05.rfl",
-    "ctf06.rfl","ctf07.rfl","glass_house.rfl"};
+/* The PS2 arenas (ps2_multi.tbl) that are PC multiplayer maps with authored
+ * bot data (docs/MP-BOTS-PS2.md): PS2 screen name, picture and the PC map the
+ * Xbox loads (the menu pack carries each arena's bot paths and bots). */
+static const struct {const char *name,*picture,*level;} environments[]={
+    {"The Lobby","multienv_m_ps201.tga","dm01.rfl"},
+    {"Installation XJ5","multienv01.tga","dm02.rfl"},
+    {"Waste Disposal Plant","multienv02.tga","dm03.rfl"},
+    {"The Badlands","multienv03.tga","dm04.rfl"},
+    {"Hangar 18","multienv04.tga","dm05.rfl"},
+    {"Waterlogged","multienv_m_ps207.tga","dm06.rfl"},
+    {"Mine Warfare","multienv07.tga","dm07.rfl"},
+    {"Warlords","multienv_m_ps210.tga","ctf02.rfl"}};
 #define ENVIRONMENT_COUNT (sizeof(environments)/sizeof(environments[0]))
 static const uint16_t bot_ids[7]={78,79,80,81,82,83,84};
 static const uint16_t skill_ids[4]={85,86,87,88};
@@ -86,7 +91,16 @@ uint32_t rf_xbox_ps2_multi_count(uint32_t row)
     return row<RF_XBOX_PS2_MP_ROWS?counts[row]:0;
 }
 const char *rf_xbox_ps2_multi_level(uint32_t environment)
-{return environments[environment%ENVIRONMENT_COUNT];}
+{return environments[environment%ENVIRONMENT_COUNT].level;}
+void rf_xbox_ps2_multi_rules(const rf_xbox_ps2_multi *m,uint32_t *bots,uint32_t *kills,uint32_t *seconds)
+{
+    /* Same order as the value strings above (<no limit> first). */
+    static const uint16_t kill_values[8]={0,10,15,20,25,30,40,50};
+    static const uint16_t minutes[8]={0,5,10,15,20,25,30,50};
+    *bots=m->values[RF_XBOX_PS2_MP_BOTS]%7;
+    *kills=kill_values[m->values[RF_XBOX_PS2_MP_KILLS]%8];
+    *seconds=minutes[m->values[RF_XBOX_PS2_MP_TIME]%8]*60u;
+}
 
 /* ---- owner ---- */
 int rf_xbox_ps2_available(void)
@@ -359,15 +373,20 @@ int rf_xbox_ps2_draw_multi(rf_scene_particle_sink sink,void *context,const rf_xb
     status=options_frame(sink,context,str(105));if(status)return status;
     {
         rf_hud_sprite portrait;char value[48];
-        status=rf_ps2_menu_feature(ps2,characters[m->values[RF_XBOX_PS2_MP_CHARACTER]%13].picture,&portrait);
-        if(status)return status;
-        status=quad(sink,context,&portrait,372,110,(float)portrait.width,(float)portrait.height,0xffffffffu,0);if(status)return status;
+        /* The arena's picture while Environment is selected, else the portrait. */
+        const char *shown=m->selection==RF_XBOX_PS2_MP_ENVIRONMENT?
+            environments[m->values[RF_XBOX_PS2_MP_ENVIRONMENT]%ENVIRONMENT_COUNT].picture:
+            characters[m->values[RF_XBOX_PS2_MP_CHARACTER]%13].picture;
+        float w,h;
+        status=rf_ps2_menu_feature(ps2,shown,&portrait);if(status)return status;
+        w=(float)portrait.width;h=(float)portrait.height;
+        if(w>243.0f){h*=243.0f/w;w=243.0f;}
+        status=quad(sink,context,&portrait,372,110,w,h,0xffffffffu,0);if(status)return status;
         for(i=0;i<RF_XBOX_PS2_MP_ROWS;i++){
             const char *label,*v=value;uint32_t x=m->values[i];
             switch(i){
             case RF_XBOX_PS2_MP_CHARACTER:label=str(62);v=characters[x%13].name;break;
-            case RF_XBOX_PS2_MP_ENVIRONMENT:label=str(63);snprintf(value,sizeof(value),"%s",rf_xbox_ps2_multi_level(x));
-                {char *dot=strrchr(value,'.');if(dot)*dot=0;}break;
+            case RF_XBOX_PS2_MP_ENVIRONMENT:label=str(63);v=environments[x%ENVIRONMENT_COUNT].name;break;
             case RF_XBOX_PS2_MP_BOTS:label=str(98);v=str(bot_ids[x%7]);break;
             case RF_XBOX_PS2_MP_SKILL:label=str(99);v=str(skill_ids[x%4]);break;
             case RF_XBOX_PS2_MP_KILLS:label=str(100);v=str(kill_ids[x%8]);break;
@@ -395,7 +414,8 @@ int rf_xbox_ps2_draw_session(rf_scene_particle_sink sink,void *context,uint32_t 
     if(flags&RF_SCENE_SESSION_ENDED)
         return text(sink,context,RF_PS2_FONT_STANDARD,CENTER,200,str(11),RF_PS2_COLOR_TEXT);
     for(i=0;i<RF_XBOX_PS2_SLOTS;i++){
-        ids[i]=pause_text[i].id;offsets[i][0]=pause_text[i].x;offsets[i][1]=pause_text[i].y;
+        /* Multiplayer pause is OPTIONS and QUIT only (PS2 table 28f680). */
+        ids[i]=rf_scene_mp[0] && i!=3 && i!=5?0:pause_text[i].id;offsets[i][0]=pause_text[i].x;offsets[i][1]=pause_text[i].y;
     }
     status=picture(sink,context,RF_PS2_PAUSED,192,208,0xffffffffu,0);if(status)return status;
     {

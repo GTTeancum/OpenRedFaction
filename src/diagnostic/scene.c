@@ -6387,6 +6387,7 @@ static int campaign_script_look_at(void *context,const rf_level_event *event,
 static int scene_turret_generated_remove(uint32_t actor,int32_t now,uint32_t *handled);
 static uint32_t scene_turret_generated_retired(uint32_t head);
 #include "scene_npc_retirement_orders.inc"
+static void scene_mp_bot_removed(uint32_t slot);
 static int campaign_remove_object(void *context,uint32_t handle)
 {
     uint32_t i,handled;int status;(void)context;
@@ -6402,6 +6403,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
         status=scene_npc_seat_unbind(handle,0);if(status)return status;
         status=scene_medic_syringe_unavailable(owner);if(status)return status;
         status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);if(status)return status;
+        scene_mp_bot_removed(i);
         scene_ai_drone_smash_cancel_handle(handle);scene_ai_tribeam_cancel_source(handle);scene_ai_cane_cancel_source(handle);scene_ai_spit_cancel_source(handle); /* Unregister zeroed the wrapper. */
         scene_npc_loop_audio_remove(handle);
         scene_nano_visual_remove(handle);
@@ -11936,6 +11938,7 @@ int rf_scene_session_restart(void)
     printf("SESSION_RESTART %s %u\n",campaign_current_level,combat_frame);
     return RF_OK;
 }
+#include "scene_mp.inc"
 static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 {
     uint32_t pressed=input->use && !life_use,restart=input->crouch && !life_restart_held,i,has_weapon=0;int status;
@@ -11953,6 +11956,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
         for(i=0;i<campaign_npc_body_count;i++)campaign_pursuit_stop(campaign_npc_bodies+i);
         memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
     }
+    if(scene_mp_respawn_pressed(input))pressed=1;
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
     if((!pressed && !restart) || frame-rf_scene_player_life[3]<60)return RF_OK;
     if(rf_scene_follow_level_exits){
@@ -11990,6 +11994,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     scene_continuous_charge_reset_player();
     scene_player_riot_reset();scene_ai_drone_smash_reset();scene_ai_drone_secondary_reset();scene_ai_tankbot_secondary_reset();scene_ai_drone_missile_reset();scene_ai_laser_reset();scene_ai_tribeam_reset();scene_ai_cane_reset();scene_ai_spit_reset();scene_ai_sonar_reset();
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
+    scene_mp_player_respawned();
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
     return RF_OK;
 }
@@ -12029,6 +12034,7 @@ static void campaign_enemy_reaction(campaign_npc_body *owner,uint32_t s)
        (owner->view.flags_810&1) || owner->view.weapons[0]<0)return;
     /* Authored Attack orders retain priority. Mode2 is reactive targeting. */
     if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
+    if(scene_mp_keep_target(owner,s))return;
     if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
        (!owner->combat_scripted && s==campaign_player_object.handle && owner->combat_target==s)))return;
     scene_pursuit_token_invalidate_owner(owner); /* accepted reactive target change */
@@ -18078,6 +18084,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(!frame && !campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_dev_start_slot && scene_weapon_available(rf_scene_dev_start_slot-1))
         campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
+    status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
@@ -23901,6 +23908,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"L5S3.rfl") ||
                (rf_scene_dev_npc_enabled && rf_scene_dev_npc_enabled!=7))status=RF_FORMAT;
             else if(rf_scene_dev_npc_enabled==7)status=scene_dev_npc_seeds(tables_path,&tables);
+        } else if(!status && collision && campaign_spawn && rf_scene_mp_bots) {
+            status=scene_mp_bot_seeds(level,&tables);
         } else if(!status && collision && campaign_spawn && rf_scene_dev_npc_enabled) {
             if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"ctf06.rfl"))status=RF_FORMAT;
             else status=scene_dev_npc_seeds(tables_path,&tables);

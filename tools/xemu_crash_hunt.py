@@ -138,6 +138,8 @@ def main():
     parser.add_argument('--dev-slot', type=int, choices=range(18), help='Developer room starts holding this weapon slot (0 pistol .. 10 flamethrower)')
     parser.add_argument('--input', choices=('neutral','exercise','random','vehicle','vehicle-quick','vehicle-land','vehicle-stress','vehicle-hold','vehicle-cycle','vehicle-scuttle','vehicle-siege','driller-dig','combat','approach','approach-jump','scanner','live','fire','fire-once','fire-hold'), default='neutral')
     parser.add_argument('--frames', type=int, default=1800)
+    parser.add_argument('--mp', type=int, nargs=3, metavar=('BOTS','KILLS','SECONDS'),
+                        help='Multiplayer match on a levelsm.vpp map: bot count, kill limit, time limit (0 = none)')
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--log-protocol', choices=('qmp-telemetry','jkdf2-hmp'), default='jkdf2-hmp',
                         help='Default uses the unchanged OpenJKDF2 RAM log reader over HMP')
@@ -268,7 +270,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -482,6 +484,7 @@ def main():
         if args.dev_driller: (disc / 'vehicle-test.flag').write_text('1')
         if args.dev_vehicle: (disc / 'vehicle-test.flag').write_text(str(args.dev_vehicle))
         if args.dev_npc: (disc / 'dev-npc.flag').write_text(args.dev_npc)
+        if args.mp: (disc / 'mp-match.bin').write_bytes(struct.pack('<3I', *args.mp))
         if args.firearms: (disc / 'firearms-test.flag').write_text(str(args.firearms))
         if args.tracer_hold: (disc / 'tracer-hold.flag').write_bytes(b'')
         if args.dev_slot is not None: (disc / 'dev-slot.bin').write_bytes(struct.pack('<I', args.dev_slot + 1))
@@ -613,6 +616,14 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_crash_aim_point']=3
           counts['rf_scene_crash_aim']=1
           counts['rf_scene_crash_terrain']=8
+          counts['rf_scene_mp']=8
+          counts['rf_scene_mp_seed_trace']=2
+          counts['rf_xbox_mp_paths']=4
+          counts['rf_scene_mp_bot_deaths']=3
+          counts['rf_scene_mp_roster']=128
+          counts['rf_scene_enemy_opposed']=15
+          counts['rf_scene_frame_late_failure']=3
+          counts['rf_scene_player_failure']=4
           for name,count in counts.items():
               match=re.search(r'_'+name+r'\s+([0-9a-fA-F]+)',mapping)
               if match:symbols[name]=(int(match[1],16),count)
