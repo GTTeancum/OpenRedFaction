@@ -15,6 +15,7 @@ Updated November 2. Open items only, one line each. Finished work and the full w
 | Area | What is left |
 |---|---|
 | PS2 menus (next) | First pass in (Xbox only; PC keeps PC menus): main menu, difficulty, load, quit, extras, options (game, controls, sound, buttons), pause and multiplayer setup are drawn from the PS2 art; menu text uses Orbitron Bold. The pause screen shows the paused game darkened behind it. Left: menu sounds are still the PC ones; Training, Credits and Trailer are greyed out; popup and options-row layouts are not traced from the PS2 code |
+| Installer | Player-facing installer that requires the player's own PC game files and PS2 disc image, then builds the Xbox disc (texture pack, PS2 menu pack) locally; only our code and the Orbitron font (with its licence) ship |
 | Multiplayer | START GAME loads the chosen PC multiplayer map with you alone; no bots, scoring, rules or split screen yet |
 | Flamethrower | Enemy flamethrowers not yet seen on screen; the player's flame starts at an eye-offset point, not the gun's barrel tag |
 | Rail Driver | Its impact uses a stand-in spark; the original rail hit effect is not reconstructed |

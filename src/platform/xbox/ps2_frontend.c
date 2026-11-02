@@ -236,7 +236,7 @@ static int popup(rf_scene_particle_sink sink,void *context,const char *title,con
     if(note){status=text(sink,context,RF_PS2_FONT_STANDARD,CENTER,y+s.height+8,note,RF_PS2_COLOR_TEXT);if(status)return status;}
     return RF_OK;
 }
-/* 1e25d0 options frame with the page title (port: title text position). */
+/* 1e25d0 options frame with the page title. */
 static int options_frame(rf_scene_particle_sink sink,void *context,const char *title)
 {
     static const uint32_t edge[5]={0x6e3c3c,0x5a2222,0x410000,0x350000,0x1e0000};
@@ -252,7 +252,9 @@ static int options_frame(rf_scene_particle_sink sink,void *context,const char *t
     status=picture(sink,context,RF_PS2_OPTIONS_STRIPSCORNER,598,333,0xffffffffu,0);if(status)return status;
     status=picture(sink,context,RF_PS2_OPTIONS_TITLEBAR1,270,60,0xffffffffu,0);if(status)return status;
     status=picture(sink,context,RF_PS2_OPTIONS_TITLEBAR2,568,60,0xffffffffu,0);if(status)return status;
-    return text(sink,context,RF_PS2_FONT_TITLE,300,52,title,RF_PS2_COLOR_TEXT);
+    /* Every options page (1e9xxx..1f2xxx) draws its title in title.vf at
+     * (287,58) in colour 2ac5d0 (230,230,230). */
+    return text(sink,context,RF_PS2_FONT_TITLE,287,58,title,0xffe6e6e6u);
 }
 /* Port layout rows inside the options body (0,98)-(626,333). */
 static int option_row(rf_scene_particle_sink sink,void *context,uint32_t row,const char *label,
