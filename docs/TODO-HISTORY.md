@@ -1,0 +1,6688 @@
+# Red Faction Xbox — to-do history
+
+Completed work and working notes moved out of TO-DO.MD on November 2, 2026, verbatim. TO-DO.MD lists open items only.
+
+## Fixed and checked notes (front page, November 1)
+
+Fixed November 1: see-through walls. Railings, lattices and glass now draw in the blended pass; console screenshots of the ctf06 railings and glass_house glass confirm it.
+
+Fixed November 1: flamethrower stream. Original path traced in Ghidra: primary fire of a flame weapon (4c90f0, weapons.tbl Flags2 "flame") goes to 41a870, which creates the shooter's stream once (48edc0) and aims it every frame (41ac60 -> 48f2a0; on/off 48f130). In single player the stream is two continuous emitters.tbl emitters, "youfired" (Fire01) at the muzzle and "youfiredtoo" (Flame01_02) 0.2 units ahead; multiplayer uses the _multi variants. Port: scene_flame_visual.inc drives them through the trail entries. Their particle damage flags are cleared because the particle step refuses damaging particles (that refusal halted the game); damage stays with the port's flame volume. The "dont_move_with_parent" emitters get the muzzle and aim written into their own storage each update, as 48f2a0 does. XEMU glass_house capture shows a full fire stream from the barrel. Not checked: NPC flamethrowers on screen; the player muzzle is still the port's eye-offset point, not the view-model tag. Harness: new --input fire-hold; XEMU screenshots now come from guest memory (QMP pmemsave of the last drawn back buffer). Under qmp-telemetry the log stalls after a capture or two.
+
+Fixed (accepted by you November 1): remote charge and detonator view.
+
+Checked November 1 on XEMU:
+- Sniper scope: pickups are tinted like everything else. The original's tint (4ac3b0) is one full-screen red overlay (RGB 180, alpha 90; blend 3, i.e. source-alpha over), and the port draws the same quad. A battery-pack yellow measured 205,136,21 under it, which is the expected result, so yellow simply stays orange-yellow. Not a fault.
+- Rockets: a capture shows the smoke trail starting at the launcher barrel and running to the crosshair. The rocket body itself was not in the captured frame.
+- Harness: an XEMU capture (QMP pmemsave of the 720p back buffer) leaves XEMU unresponsive, paused or not, so each XEMU capture now ends the run and the harness closes the emulator. One frame per run.
+
+Closed by you November 1: GeoMod cut limit and doorway cuts (Xbox walls hold 16 cuts; one L1S2 doorway shot made no cut, not compared with the original).
+- **Frame rate:** the slowdown sweep is finished. Every campaign section holds 30 FPS except during the busiest close-range rocket smoke (worst: 20 FPS in an L9S2 firefight). You chose to keep the smoke as authored.
+- **Loading:** a quick-load takes about 12 seconds; the remaining time is weapon textures, glare, the HUD and disc reads.
+- **Digging:** the Driller loses about 0.4 s to hitches while digging (the world rebuild after each bite).
+
+# Detailed notes
+
+## Open items, detailed (October 25 onward)
+
+Needs you (USER):
+- USER: look on the console at the L1S2 pool (water look and ripple), Driller tunnel and cockpit, rocket smoke trail, and whether the once-a-second black flash is gone.
+- USER: old request still pending: whole-disk backup approval before saved-HDD continuation checks.
+- USER: PS2 visual comparison once scenes are representative.
+- USER (TV review batch, collected October 30): 720p overall and the 16-bit HUD; whether the black bands / 1-2 frame flicker are gone; bullet tracers (enemy rifle, Tankbot, Vauss); the drone missile impact (white/yellow flash); the ctf06 lantern and other glowing lamps/coronas now drawn as glows; whether any other see-through thing still draws as a solid block; the Rail Driver scanner (red figures, crosshair, railgun readout); L1S2/L3S2 compressed wall textures.
+
+Engine work still open:
+- In-game slowdowns (October 31, console heavy-action batch: L15S4 208 enemy shots, APC 37 rockets, ctf06 rocket fights, L6S3/L14S1/L12S1 all 30 FPS). Fixed with identical output: liquid wave surface rebuilt with per-texel swizzle math (L1S2 water ~8 ms -> <3 ms per frame; host test identical over 300 frames on five sizes), carved-terrain draw ran its whole clip/project/light pass twice (count then write), blended particles reject alpha-0 fragments. Follow-up (November 1, user-approved trade-off): carved terrain now uses a retained GPU path (retained_terrain.h; Driller run below-28 time 12 s -> 2 s; screenshots match the CPU path; experiment bit 8 forces the CPU path); GPU-bound frames drop the 3D scene to 3/4 then 1/2 size in an off-screen surface stretched to the frame with the HUD at full resolution (rf_xbox_lowres; experiment 16/32 force 3/4 and 1/2). L1S2 explosions: worst stretch ~15 -> 25.6 pictures/s, below-28 time 8-10 s -> 4 s, remaining cost CPU. Not yet seen live by the user: the softer picture during heavy explosions. rf_renderer_frame_split splits frame start into VBlank gate, reset/clear (GPU backlog) and skybox. November 1 rocket sweep (L2S1, L4S2, L4S5, L5S2, L7S1, L8S1, L9S1, L10S1, L12S2, L13S1, L17S1, L18S1, L19S1, L20S2, L3S2 grenades): all 30 FPS; the only dips are the frames around the scripted death reload. There is no L16. Full sweep of the remaining 41 campaign sections (November 1): all 30 FPS except L18S2/L19S3 runs that die and quick-load an L18S1 save into the authored waterfall mist (watermist emitter: a puff every 0.1 s, 5 s life, 3 m/s growth; lifetime matches the level file) where ~40 normal-blend puffs each cover the screen (12-17 pictures/s even at half resolution). Fixed with an approved visual approximation: screen-covering puffs beyond the nearest 3 are merged into one textured plus one flat layer of equal opacity (renderer.c cover_*; experiment bit 128 disables). Mist runs: below-28 time ~60 s -> 16-26 s, worst ~10-12 -> 18-25 pictures/s; screenshots match density, merged mist slightly greyer. Also: world effects now sample their packed mip levels (no measured speed change). Tried and removed: per-frame mip chain for the animated water surface (cost 4-6 s of L1S2 below-28 time, no gain). L17S4/L19S2A dips checked (November 1): both runs die early and quick-load the same L18S1 waterfall save as L18S2 (same save id and identical effect counters), so their dips are the waterfall mist (now 24-28 pictures/s, ~23 on the reload frames); their own sections hold 27-30 apart from the first 2 s after load. L7S3/L9S2 periodic between-update stretches did not recur on the current build (November 1 reruns: no row-0 stretch); their remaining dips are draw-bound (rf_renderer_draw5 10-16 ms): L7S3 6 s below 28 (worst 25.8), L9S2 18 s (worst 20.0 at a busy firefight). L9S2 firefight cause (November 1 console A/B, temporary switches removed): GPU fill in effects only. Already at half-size 3D; 20-38 effect fans per frame covering ~15 screens of area, 5 of them whole-screen (too few for the merge, which keeps 3). Effects skipped: 30 FPS at full size, 2 s below 28 (load only). Whole-screen fans skipped: 8 s below 28, worst 25.8. Remaining cost is close-range rocket smoke; further cuts are visual trade-offs; user declined thinning the smoke (November 1), so it stays as authored.
+- Load/reload time (October 31, console, glass_house exercise quick-loading a large campaign save): quick-load to play went ~19.5 s -> ~13.7 s (first load of a small level ~5 s). Fixed: archive index budget (audio.vpp had no index; sound setup 6 s -> 0.6-0.9 s), save identity memo (0.7 s per save/load), prepared light queries (first-frame lightmap pass 2.45 s -> 0.04 s, also every lit frame), nearest-face box cull in checkpoint placement (NPC restore 2.1 s -> 1.2 s; RAM-log state identical to the previous build at 42 shared samples). NPC placement now walks the room collision trees in face order, skipping subtrees whose padded box the pass cannot reach (NPC restore 1.2 s -> 0.67 s; host equivalence test over 56,000 placement and standing checks on L1S1, L3S4, L5S4, L7S4, L14S3, ctf06 and glass_house: zero differences, 5x faster). Collision world open scanned every level face twice per room (rooms x faces reads); faces are now bucketed by room once (host: identical trees on nine levels): 424-room L3S4-area save 5.6 s -> 0.1 s on the console; quick-load to play ~12.6 s there. The HUD atlas is now built in cached memory (the 4444 pass and gutters read every texel back from write-combined memory): 1.15 s -> 0.73 s; load-time texture pixel hashes follow the diagnostic-checksum switch (off in paced play). Quick-load to play ~12 s on the L3S4-area save. Remaining per load: weapon textures ~1.1 s, glare ~0.7 s, HUD ~0.7 s, ~33 MB of disc reads (~3.5 s native I/O); bigger cuts need resident shared assets across loads or a packed load format, diagnostic collision probes ~0.9 s (rays, sweeps, mover check), stages 1->86 ~8-10 s on campaign levels (weapon materials 1.2-2 s, stage 40->41 1.1 s, NPC bodies, glare resources), 1.4 s between scene entry and stage 1. Milestones are in the RAM log (rf_xbox_reload_ms, rf_scene_audio_open_ms, rf_scene_frame0_ms, rf_scene_world_load_phase_*, rf_scene_checkpoint_place_ms).
+- Console speed batch (October 31, 23 hardware runs, 720p/30): 21 levels and all vehicle types hold 30 updates/s with no game time lost and longest gaps 16-52 ms, except: Fighter (ctf06 dev vehicle 5) dropped to ~17 pictures/s and lost ~9.8 s of game time: from altitude ctf06 queues up to 292 retained prop/pickup draws per frame and everything past the 128-draw limit fell back to the CPU transform path (clutter 42 ms, pickups 34 ms per picture). Fixed: 768 draws, 384 cached batches, bone palettes in a separate 128-slot pool (same memory); now ~30 pictures/s and 0.46 s lost. Per-model bounds culling stays opt-in (renderer-cull-on.flag); Driller/APC lose 0.3-0.5 s; L1S3 one 871 ms stall; L9S2 one dip to ~13 updates/s; quick-load/reload takes ~23 s even on glass_house (stage 10->11 ~6 s, renderer upload after stage 86 ~7 s). Follow-up on the fixed build: L1S3 878 ms and L9S2 dips are the first frames after a load/reload, not play; L13S1, L14S3, L15S2, L17S3, L18S3, L19S3 (explosives, rocket loadout) hold 30 with no game time lost during play, but only L14S3 saw enemies/fired (the others are movement-only coverage). Driller hitches (~0.4 s lost) come from world rebuild while digging (world build ~17 ms per picture, one 461 ms step): GeoMod rebuild cost, not yet optimized. Note stage 87 is re-marked every frame, so it is not a load milestone.
+- Game speed at 30 FPS (October 31, user: "feels like slow-mo"): (a) per-update countdowns kept in 60ths but decremented by one each update ran at half speed in the 30 FPS mode (rf_tick_frames 2): player refire and burst (rf_weapon_trigger_step), reload, remote charge throw delay/cooldown/follow-up, flamethrower ignition/reload, canister cooldown, NPC burning, credits notice, vehicle AI scan; the first-person weapon animation, doors/lifts (rotation/translation ticks, mover propagation) and the defuse timer stepped 1/60 s per update. All now advance by the update length (RF_TICK_DOWN, scene_step_seconds); unverified on the console. Remaining fixed-1/60 calls are bind-pose/restore/fixture paths. (b) The game clock is fixed-step: below 30 FPS game time slows (720p logs: glass_house 25-28 FPS, ctf06 20-27 dipping to ~10, L1S2/L5S3/L5S4/L20S2 7-12). (c) ctf06 drawing CPU per frame ~19 ms: clutter 6.6, first-person weapon advance+draw 5.4, renderer submission 5.1, pickups 1.5; glass_house is ~4 ms CPU yet 25-28 FPS, so 720p GPU/flip waits also limit. Next: profile those draw costs on the console. (d) Game clock (rf_xbox_frame_rate, GetTickCount-based) confirms glass_house 18-28 updates/s on the console with 4-10 ms of measured scene work and negligible GPU/VBlank waits; idle runs reach 28, fire runs 18-23. The unmeasured time lies between updates. Instrumented (unverified, console unavailable): rf_scene_profile row 0 = gap between updates, rf_xbox_pacing_sleep = pacing sleep, rf_xbox_audio_time = main-thread time in sound play/stop/poll. Suspect: nxAudioVoiceDestroy spins until the APU idles the voice and runs on every stop and every voice replacement; the redundant Sleep(1) stop poll in rf_xbox_audio_release_voice is removed. Harness RAM-log formatting and xbdm polling may also cost frames in harness runs only. (e) Props (clutter) were drawn for every placement in a visible room; they are now skipped when wholly outside the view volume (bound sphere about the origin vs the frame camera frustum, as the original culls before queueing at 4d3560). XEMU ctf06: 88 props skipped per frame, 20-91 drawn; console timing and on-screen pop-in not yet checked. First-person weapon (5.4 ms in ctf06) is mostly animation sampling (rf_model_evaluate_playback); profile on the console before changing it. (f) Main finding across ~140 slow console runs (October 25-30): measured work per update is 10-20 ms and GPU/VBlank waits are ~0, yet updates take 35-170 ms; rf_xbox_pacing busy time (~12 ms in L3S4 at 12 FPS) shows the remainder is inside the pacing sleep loop, and the frame clock only loses time to stalls beyond its 8-tick debt limit. XEMU shows no loss (ctf06 30 FPS, gap = pacing sleep). Suspected: the game thread, woken from timed waits without a priority boost, is held off by system/debug threads on hardware. Rewrite (unverified on the console): game thread THREAD_PRIORITY_HIGHEST in pacing_begin; pacing sleeps at most 2 ms per step and yields for the last millisecond; rf_xbox_pacing_discarded_ms publishes discarded debt. USB input is interrupt/DPC driven, so the priority cannot starve the controller. Remaining simulation costs (NPC step ~4 ms, NPC playback ~2 ms, renderer submission ~4 ms) are second-order until the pacing loss is confirmed gone. (g) Sweep (October 31, unverified on the console): catch-up presentation (rf_frame_clock_present skips a picture while a whole tick is owed, up to 3 in a row and 100 ms between pictures, so game time keeps pace instead of slowing); NPC pose rate tiers (every update within 20 units, 2nd beyond 20, 3rd beyond 40, 4th hidden or off-screen; skipped time carried); enemies, corpses, enemy-held weapons, pickups and drops skipped when wholly off-screen (scene_view_sphere_outside, rf_scene_view_culled). XEMU 720p/30: glass_house, ctf06, L3S4, L5S4 completed (L5S4 exercise-input death predates this). (h) Exact-result optimizations (October 31): projectile sweeps (vehicle AI rounds, AI projectiles, AI lasers, rockets) now skip a mover whose pose radius sphere the swept segment misses (scene_mover_sweep_misses), and the clutter projectile test does its box rejection before the registry lookup; campaign_seeds UID lookups use a per-level index (scene_seed_uid_find). XEMU L5S4: vehicle step 6.8 -> 3.2 ms per update, and two runs with identical input matched the previous build at every shared sample (vehicle AI, combat, ammo, activity, player eye). rf_scene_vehicle_ai_profile (RAM log) splits vehicle attack/AI/flights/visibility/acquire/fire time. XEMU relative profile also shows NPC script/AI step 3-4 ms on L3S4/L5S4; moving NPCs already run full ground physics only while moving and idle ones every 8th frame, so no exact-result cut remains there. Not done, measured too small: NPC AI on alternate frames (script/AI step ~0.9 ms median, high risk), renderer submission (already grouped by shader/texture with state de-duplication; whole draw pass ~2.5 ms on L3S4), per-frame diagnostic hashing (tiny; large hashes run at level load only).
+- Barrel point (October 30, after live session 2): the view model's Muzzle_1 tag was never found (case-folding turned '_' into DEL); fixed. scene_player_muzzle.inc re-projects the tag from the 70-degree view-model view onto the world view (console: barrel pixel 383,292 matches the drawn assault-rifle tip; ammo digits land correctly). Player tracers now: every shot, camera-facing tracer01.tga streak (0.35 wide, 5 long) from the barrel to where the eye ray lands, at the round's own $Velocity; seen on the console leaving the barrel tip toward the target (frozen with --tracer-hold). Tracer01.VFX itself is two planes along the flight line, edge-on from the shooter's eye (the cause of the sideways look). Rockets (not from_eye, 425dab) launch from the barrel toward the eye-ray landing point (counter: 1 of 1 from the barrel); not yet seen in flight. Rail trail uses the same barrel point and streak geometry. Sniper scope at 16:9 (October 30): the margin masks now run past the 4:3 area and the first-person weapon is hidden while the sniper/scoped-rifle sight is up; console 720p capture shows black outside the circle and no gun. Pickup models drawn in the scope view (the glass_house battery pack) are not tinted red. Remote charge in hand (October 30): RF.exe 4abd00..4abd89 draws the charge model at the view model's "weapon" tag while player+0x1044 is set (set on selecting the charge 4a4c27->4ab180 and when the post-throw timer ends 4a27c4..4a27f9, cleared by a throw 4a2843..4a2861); ported with the throw delay/cooldown standing in for the timer. Console capture: charge held in the hand on first selection. The detonator view (reported as drawn wrong) is not yet examined.
+- User live session 2 (October 30, glass_house developer room, 720p/30): FAILED. Player tracers lag the fire rate, draw at a sideways angle and do not leave the barrel (the eye-offset muzzle guess and the Tracer01 basis are wrong; the 0.275x tracer speed makes them trail the shots). Player rockets do not leave the barrel. Sniper scope at 16:9 covers only the 4:3 centre: the side strips show the unmasked red-tinted view. Remote charges still start with an empty hand.
+- User live session (October 30, ctf06 developer room, 720p/30, live controller). Passed: bands/flicker gone, widescreen HUD. Reported faults: (1) see-through world faces (sld_siderailing01 lattice) draw their cut-out texels black: the retained world pass draws with blend and alpha test off; (2) lattice panels flicker with the lighting; (3) Rail Driver fires nothing visible; (4) no GeoMod from rockets anywhere tried; (5) glow/transparent effects show a square card (wall lamp halo); (6) game feels too slow at 30 FPS though smooth; (7) remote charges: drawn wrong, and on first selection no charge is in hand (only the detonator). Status after the weapons pass (October 30, console 720p): (3) Rail Driver fired and damaged all along (14 rounds in a scripted cycle) but drew nothing; now a port approximation draws a railrifle1TrailAlpha.tga beam from the gun to the first wall for 0.4 s and that wall takes the rail impact sound and a big-spark stand-in (rail_rifle_hit is not reconstructed; the bitmap-object draw path read at 4c33b7 is not RE'd); counters: 9 shots, 9 wall contacts, beams drawn; not yet seen on screen. (4) Destruction works: glass_house developer room, 4 rockets -> 2 craters, floor hole and wall hole seen in a console capture. The glass_house glass panes draw solid pale green, not see-through (same world-alpha fault as the lattice). ctf06 stores default GeoMod hardness 100 (indestructible) with five hardness-65 box regions (UIDs 11228-11231, 14092: the middle trench and both base pits), so rockets elsewhere correctly leave no crater. (7) Confirmed on the console with --dev-slot 8: remote charges selected (20 carried) show the empty hand only; fp_rmt_chrg.v3d draws but the charge itself (rmt_explosive.v3d) is not attached; the original attachment path is not yet found. Rocket launcher's side screen draws as a solid black square (seen in captures). Player tracers: new openrf.ini option tracers = on|off (default on) draws Tracer01.VFX on every player bullet weapon (authored +Tracer Frequency where $Tracers exists, else every shot, one per shotgun shell) (cosmetic; original draws none); console: 4 tracers, 44 emissions in a scripted cycle. (8) flamethrower stream looks like a thin smear, not the original flame; (9) frame rate sometimes grinds to a halt. Live tool: tools/xemu_crash_hunt.py --input live (no replay; console controller) keeps the RAM counters on, but the stage profiles stay zero in this mode. Player weapons never make tracers in the original (4c785f), so "no tracers on own weapons" is expected.
+- Story-level crash hunt (October 30, 720p/30 FPS, --input exercise --aim --loadout 2, 3600 frames each): batch 1 L4S1a, L4S2, L4S3, L4S4, L5S1, L5S2, L5S4, L6S2, L7S2, L7S3 all COMPLETED with no faults (shots 0-28, enemy shots up to 50, weapon switches up to 8, deaths 0-1). Swimming speed FIXED (October 30, found via the L5S4 cold start): every created entity's body drag is set by 422ef0..422f2f to mass*acceleration/(k*speed) (100 if speed is 0; k=2 with class flag 0x40), but the port kept the physics default 10, so swim resistance 2*drag/mass was 0.2 and swimmers kept accelerating (14-23 units/s under water vs 6-7 walking; L5S4 player rammed a wall for 263 damage). rf_entity_class_drag now sets it for the player and NPC bodies (miner1: 333.3). Console: swimming 3-4 units/s in L5S3 and L5S4; L3S4 combat run unchanged, no faults. rf_scene_swim_drive (drag, speed, acceleration, mass, base speed, flags) and rf_scene_player_swim are in the RAM log. Drag readers audited: player swim (rf_swim_motion_prepare) is the only character consumer; the solid-body drag in rf_physics_solid_propose/angular_propose serves GeoMod fragments only (their own 0.2*radius drag); NPC movement.response only stores it (rf_movement_set_mode recomputes it solely for class flag 0x800) and NPCs have no swim step. Saves copy the body state, so world loads and player checkpoint restores now re-derive the player's class drag (scene_player_drag_refresh), healing saves written with the old default; console L5S3 with 13 save/load cycles kept drag 333.3, no faults. rf_scene_liquid_damage and rf_scene_player_impact are now in the RAM log. Batch 2: L8S1, L9S1, L9S2, L10S1, L10S3, L11S1, L12S2, L14S1 (106 enemy shots), L15S2, L17S4 COMPLETED with no faults (L10S3/L17S4 deaths were landing impacts). FIXED L8S3 fatal RF_NOT_FOUND at frame 2466: fleeing actor 6802 ran through a door, the group activation wrote its controller_handle backlink, and scene_medic_flight_overlap counted that as a competing order; the backlink is no longer an overlap (console rerun completes, 34 shots, 28 enemy shots). New rf_scene_frame_late_failure (line, status, frame of the first failing return after presentation and in campaign_script_step) is in the RAM log. L20S3 finale fall-through FIXED (October 30): all six faces of that 4-unit room carry face flag 0x2000, which ordinary movement queries skip (rf_collision_face_accept), so the room has no floor for physics by the original data; the defuse modal already froze physics while active, and it now stays frozen after a timeout too (death screen/restart run before the modal skip). Console rerun: timeout death, body stays at eye -12.75, restart/reload continued, no OUTSIDE_WORLD. Batch 3: L1S3, L2S3, L3S1, L3S3, L4S1b (85 enemy shots), L4S5, L6S3, L8S2, L8S4, L9S3, L10S2, L10S4 COMPLETED with no faults. FIXED L6S1 fatal death-screen reload: Use (load last save) then crouch (restart) on the same death let the restart overwrite the accepted death load while scene_live_load_active stayed set, so the restart's reload ran the live-load save read and failed validation (RF_FORMAT in scene_vehicle_switch_boot_select). The death screen now accepts one choice per death (ignores input while a transition or load is pending), and scene_guard_retreat_section_wait no longer holds a death load or restart (an alarm runner kept the load waiting forever; the airlock/medic waits already stepped aside). Console rerun: death, save reloaded, play continued, no faults. New RAM-log diagnostics: rf_scene_vehicle_switch_boot_failure, rf_scene_close_movers_failure, rf_scene_undercover_open_failure, rf_scene_medic_syringe(_close_refused), rf_scene_clutter_bodies, rf_scene_glare_instances. Final batch (all remaining story levels, current build): L11S2, L11S3 (109 enemy shots), L12S1, L13S1, L13S3, L14S2, L14S3, L15S1, L15S4, L17S1, L17S2, L17S3, L18S1, L18S2, L18S3, L19S1, L1S1, L1S2, L2S1, L2S2a, L3S2, L3S4, L5S3, L7S1, L7S4, L9S4, L19S2A, L19S2B, L19S3, L20S1, L20S2 all COMPLETED with no faults. Long death-screen stretches (L14S2/L14S3/L15S4) were repeated deaths with working death-screen reloads; L15S1's 359 enemy shots were an authored firefight (no alerts, player untouched); L18S1 death was a landing impact. Story crash hunt total: every campaign level (66) run once on the current build; 3 fatal faults found and fixed (L8S3 fleeing actor through a door, L6S1 death-screen load+restart, the guard wait holding a death load).
+- Widescreen HUD (October 30, user request): at 16:9 the health/armor panel (and vehicle health panel) and the ammo/turret/remote/reload panel move out by the side margin (rf_scene_hud_anchor set around them; Xbox scene_hud_present shifts anchored quads by hud_offset_x/hud_scale) so they keep their 4:3 distance from the screen edge; the reticle and all centred HUD stay in the uniformly scaled centred 4:3 area (only edge-to-edge full-screen quads widen). Console 720p screenshot: health dial ~15 px from the left edge, ammo ~15 px from the right, reticle centred, nothing stretched.
+- Model glow parts (October 30, user report of a black card behind a ctf06 wall lamp): each model batch carries a packed draw mode in its LOD batch table (+14 of each 18-byte entry) that the loader skipped. Installed models use only 0x518c41 (1714 batches, ordinary) and 0x110c21 (23 batches: Chinese lamps/lanterns, generator and control-panel coronas, tram lights, volume lights, flamethrower pilot light), the latter texture-only, additive, depth read only; their 24-bit glow textures have black backgrounds. rf_model_draw_batch.render_mode now keeps it; the CPU model emitter and the Xbox retained model path draw RF_MODEL_RENDER_GLOW additively without depth writes. Console 720p ctf06: lantern box now a warm glow instead of a black card (debug-kit screenshot). Bit-field reading of the mode is inferred from the two values. USER: say whether other see-through things still look solid.
+- Vehicle crash hunt (October 30, 720p, ctf06 developer fixtures, new --input vehicle-cycle: walk up, board, drive, fire, Jeep seat switch while parked, exit): Jeep entry/drive/gunner fire (19 rounds)/2 seat switches/exit and seated death under rockets (destroyed, forced exit); APC entry/drive/30 shells/exit, player killed by own shell splash after exit, and seated APC player killed by attacker rocket splash with the hull intact (original radial damage 488f2f..4892c0 has no occupant exclusion, so treated as faithful); Driller entry/drive/exit and seated death; all with no faults. Fighter (boards at once: its fixture is 1.5 units from the start): 2 entries/2 exits, flight, 138 cannon rounds and 3 rockets; with a rocket attacker (developer fixture now admits modes 3/4 with the Fighter) 46 rounds and a rocket fired, hull hit 10 times, seated player killed by splash. Submarine (L5S3, boards at once): entry/exit, movement, 2 and 10 torpedoes, player drowned after exiting; submarine hull destruction still unobserved. October 30: the seated driver dies to their own torpedo splash before the hull (hull 700 -> 457 while the player died; radial damage has no occupant exclusion, 488f2f..4892c0). Underwater fire rule added (4ad51b..4ad52c with 4c8c00): with the eye in water a weapon lacking weapons.tbl "underwater" (0x200) does not fire; only handguns, grenade, remote charge/detonator, riot stick and torpedo have it, so the earlier "17 underwater rockets" were never legal (console L5S3: rocket refused 12 times, rf_scene_underwater_fire). The submarine fixture now carries the Grenade (slot 5 of 6); grenades thrown from beside the empty hull damage it (console: 700 -> 438 -> 175 with --aim-point -25 -15 0 and no back-away) but the player died to their own blast before a third; from a few units back the sinking grenades did no hull damage. Full submarine destruction remains unobserved; no crash or invalid state in any of these runs. No crashes or invalid states in any vehicle run. Sniper rifle (new --loadout 7): console L2S2a, one player sniper round flew and completed. Enemy shotgun: L2S2a riot guards authored with Shotgun (5666, 5676, 5693, 5709, 5722, 8326, 8382..8386, 8462; guards 8390, 8490) never fired in three runs beside them (new rf_scene_npc_round_kinds: all launched NPC rounds were pistol rounds). Cause (October 30): rf_scene_crash_enemy_state (now in the RAM log) shows riot guard 5722 holding the Shotgun but never alerted before the nearby pistol guards killed the player (~frame 200); a test-setup limit, not a weapon fault. Developer shotgun attacker (new --dev-npc C, alerted at start, one loaded magazine) on the console: 8 shotgun pellet rounds flew from the muzzle, 5 hits, player killed, no faults. A run without the DXT pack ends in a 720p texture-memory RF_RANGE; the harness now rebuilds a missing pack.
+- GeoMod: a wall takes at most 8 stacked cuts (original 25); doorway shots make no cut; Driller tunnel after a load not yet seen on the console.
+- Drone/effects (source-written October 25, unverified until the console build): white/yellow screen traced to the Drone Missile's own authored impact (big_charge_explode radius 7, the Fusion "shoulder mounted geomod" white flare then fireball), now used instead of the scaled rocket blast; Drone moving into the player now stops at contact and keeps pursuing (docs/DRONE-EFFECTS-CONTACT.md). USER: say whether the effect still looks wrong on screen.
+- Frame rate: openrf.ini beside default.xbe now selects 60 / 30 / 30_smooth / auto (shipped default steady 30; no file = fixed 60 for harness replays). Console: steady 30 holds 30 FPS in L1S2; auto drops L1S2 to 30 after ~2 s (17-20 ms per update) and runs the next level at 60. Still open: 30_smooth in-between pictures (currently same as steady 30) and moving characters in them.
+- Black banding / 1-2 frame flicker (October 25, user report on the TV): fix ported from Perfect-Dark-X issue 3. pbkit's VBlank DPC could retire a finished frame the ISR never put on screen (tools/prepare_checked_pbkit.py now retires a frame only when PCRTC_START selects it, else keeps it queued; pb_deferred_swaps counts these), and the renderer now waits (bounded to 4 VBlanks) before targeting a buffer that is being scanned out. Console 720p: 0 draws into the displayed buffer in 2394 + 1788 frames; 5-8 deferred swaps per run. USER: confirm the bands are gone on the TV.
+- Flying bullets (October 29, user request "make them fly"): player firearm rounds are now weapon objects as in RF.exe 4c77a0 (scene_player_rounds.inc): each pellet flies at weapons.tbl $Velocity for $Lifetime (rifle 275 m/s, 550 units; machine pistol 320 m/s) and each game update re-runs the existing selection over its remaining path from its current position (scene_player_round_step, split out of campaign_combat_input_tick), committing only a contact that update reaches; piercing rifle rounds keep power and visited handles on the round (projectile+2f0). The player's own from_eye weapons never make tracers (4c785f..4c787b, 48aa30: tracers skip local-player owners), so player tracers are removed. Console L3S4 720p: 3 rifle rounds launched and completed, 2 hits, 1 kill, no instant fallbacks, no faults. NPC rounds (October 29): the enemy rifle/pistol/machine-gun shot now launches a flying round from the held weapon's muzzle (41b5a0; pistol shots keep their own start) at $Velocity for $Lifetime; scene_npc_round_step (split out of campaign_enemy_tick_body) re-runs the established enemy resolution over the remaining path each update and commits only a contact that update reaches, with the hit bookkeeping (hits, player hit events) done on landing. Tracer rounds are the rounds themselves: 0.275 x speed and range, drawn as Tracer01.VFX. Console L3S4 720p: guard 24 rounds -> 24 flying (0 instant fallbacks), 5 tracers, 21 hits, player killed, no faults; L1S2 with 38 actors ran clean (no fire happened). Remaining weapons converted (October 29): precision rifles (scene_precision_step: sniper carries 4c9b20 power on the round and waits for contacts beyond the step; Rail Driver hits everything on each step's stretch once per body, pierces walls, flies its full 600 m/s x 0.5 s range), NPC shotgun (each pellet its own flying round from the muzzle, player damage at difficulty 1 as before), Vauss/Tankbot piercing (scene_ai_actor_penetration_fire carries power/visited state between updates). Console L7S4 720p: Tankbot chaingun 85 rounds all flying and all tracers (frequency 0), 465 VFX draws, 40 hits, player killed; 1 Rail Driver round flew and completed; no fallbacks, no faults. NOT yet exercised on the console: NPC shotgun shells (L2S2a riot guards fired single rounds) and the sniper rifle. Only Riot reach (melee) stays instant. Gaps closed (October 29): NPC rounds keep flying after their shooter is removed (selection by the round's source handle, scene_ai_actor_ray_select_source, as 4c77a0 weapon objects keep only the parent handle); landed NPC rounds on vehicles raise the vehicle hit event (type 2) like the instant shot, and the instant piercing fallback now reports its vehicle; a robot death between updates no longer ends pistol rounds (epoch re-stamped per update). Console L3S4 720p after the change: 24 rounds, 5 tracers, 21 hits, no faults (same as before); the shooter-removed and vehicle-hit paths were not exercised.
+- Bullet tracers (October 25): weapons.tbl $Tracers/+Tracer Frequency now drive tracer rounds for player and NPC hitscan shots (4c7871/429f40/429f60: one tracer every frequency+1 rounds, speed $Velocity*0.275), drawn as the APC streak (scene_bullet_tracers.inc). Original tracer weapons: Assault Rifle, Machine Pistol Special, scope AR (every 5th), Vauss, Tankbot Chaingun, HEAP (every round), APC/Fighter minigun; pistol, shotgun, sniper have none. Console: NPC rifle fire launched and drew 5 tracers from 24 shots; player tracers not exercised by the harness yet. Canonical rework (October 29): a tracer round is now drawn as the Tracer01.VFX model itself through the shared projectile emitter (scene_vfx_emit, split out of scene_rockets_draw), looping its effect time like 503360/503100, oriented by the 4fcea0 basis (rf_entity_navigation_basis) from the flight direction; player rounds start at the view model's Muzzle_1 tag placed in the world (425dab..425dc7, eye fallback when the eye cannot see it), NPC rounds at the held weapon's muzzle (41b5a0, rf_scene_npc_muzzle); every round of any weapon runs the 429f60 counter. The player rifle path (bullet penetration) previously returned before the hook, so player tracers never launched; fixed. Console L3S4 (720p): player 3 rounds -> 1 tracer drawn 3 times; guard 24 rounds -> 5 tracers (rounds 1/6/11/16/21) drawn 19 times; 0 refused, no faults. Remaining difference: in the original the tracer is the bullet (damage on arrival at 0.275 x speed); the port's damage is instant with the ray. USER: decide whether bullets should become flying rounds; look at tracers on the TV.
+- 720p (October 25): now the shipped default (openrf.ini resolution = auto: 16:9 720p when the dashboard allows it, else 480). 16-bit colour at 720p is impossible (kernel programs 640x480 timing), so 720p is 32-bit. Memory audit (make RF_HEAP_AUDIT=1, RAM log rf_heap_audit_totals/sites) found 720p's extra ~12 MiB mostly in pbkit's fixed triple buffering. Cuts made: 720p double buffering through a source-pinned pbkit copy (tools/prepare_checked_pbkit.py; the renderer waits for the queued flip before targeting the next buffer) 3.7 MiB; effect animations from the DXT pack (every VBM frame as <name>~n.dds, one alpha mode per animation) 2.7 -> 0.8 MiB; HUD atlas stored A4R4G4B4 2 -> 1 MiB (its shelves fill 1018 of 1024 rows, so it could not shrink); GPU copy of the stream buffer 3 -> 2 MiB (peak use ~20500 of 37449 vertices; a larger frame is skipped, not fatal). Console at 720p, minimum free during the run: L19S2B 7.8 MiB with combat (was 0.2), L19S3 12.9, L17S4 17.4 (both without shots), L1S2 10.3; 30 FPS unchanged (1281 vs 1292 pictures per 2400 updates). Double buffering: the displayed buffer was targeted 5 times in 2000 frames, all around level load (triple buffering showed 1). USER: look at 720p on the TV (HUD in 16-bit, effects compressed).
+- Rocket launcher / shoulder cannon infrared screen implemented (4aeef0/4af8a0: 64x48 or 64x64 heat-coloured model silhouettes within 13 units, interlace overlay, black standby, every other frame, 0.7 brightness; eye camera instead of the weapon tag). Console: a guard 12 units ahead shows as a purple interlaced figure (screenshot October 25). Assault rifle magazine readout implemented (4abbd0: assault_digits.vbm on the ammo_digit_1/2 tags, red, 0.013-unit quads); console screenshot shows 42 on the side panel. Rail Driver scanner picture implemented (October 30, scene_rail_scope.inc; 4adc60 render, 4324ec..432603 HUD): 64x64 view from the eye at half-angle atan(tan 15 deg x 240/640), flesh-material actors (object +1fc == 3) within squared distance 900 drawn flat red 255*(1-d2/900), corpses magenta at 127, black elsewhere, 128BlackCircle.tga mirrored over the four quadrants, shown as a centred 240x240 square (half the 480-line height) drawn additively (gr blend field 1 -> 5502d7 SRCBLEND ONE / DESTBLEND ONE, so its black adds nothing; user report October 30 of a black card fixed; the Xbox gameplay HUD path now admits the glow mode); the port's green through-wall silhouettes are removed. Console L3S4 720p screenshot: a guard 8 units ahead appears as a red figure in the centred square. Main-view zoom checked (October 30): the original's rail alternate fire only toggles player+fb0 (4ad5be); the zoom fields f94/f95/f98 belong to the scope toggle 4ad5e0, so the main view does not magnify with the scanner and the enlarged centre picture is expected to look larger than its target. Overlay added (October 30, 43260a..432856): opaque black thin crosshair (W/3 horizontals, H/4 verticals, 10-pixel centre gap), 3-pixel outer bars W/5 long, railgun_text.vbm (128x32, 11 frames at 10/s on the game clock) under the right bar, and an alpha-0x41 black W/6 x H/7 box outline; the port's SCANNER label is removed. Console L3S4 720p screenshot shows the crosshair, bars and text around the centred heat picture. Harness: --input scanner (one alternate-fire edge).
+- Picture clarity (October 25): full-size textures via an offline DXT pack (rfdds.vpp, built by rf_dds_pack from the user's own map archives: 3674 textures, DXT1/cutout/DXT5 with full mip chains, 35.7 dB vs originals). Console: L1S2 and L3S2 now load every world and character texture at full size (previously capped at 128 px), with more memory free (L1S2 14.3 MiB vs 7.8; L3S2 19.5 vs 4.5), 30 FPS, no faults. Liquids and the level's GeoMod substrate stay decoded (CPU-written / save identity). USER: look at L1S2/L3S2 walls on the TV (compressed colours and mipmapping not visually verified). Next: check whether 720p now fits in the heaviest levels. Encoder flicker filter lowered from NXDK's 5 to 2 on 480i and 0 on 480p. 720p does not fit stock 64 MiB (needs ~10 MiB more frame buffer; campaign levels have 3-6 MiB free).
+- USER: the console reports a component (HDTV) cable with 480p and 720p disabled in the dashboard; enable 480p there to get progressive output.
+- 28 older PC tests fail from fixture drift (listed in the October 25 entry).
+- Crash hunting: broad ongoing coverage (paused at your request).
+- Multiplayer: not started (after single-player).
+
+- USER (October 25): Installed_Game was accidentally emptied (a scratch worktree removal followed a junction into it) and restored from local/stock-reference-game with all 22 SHA-256 checks matching; RED.exe (the level editor, used only by the finished research script tools/future_re/red_brush_contract.py) had no other copy; the user declined restoring it (October 30), nothing current needs it.
+- October 24 late: liquid surfaces with room waveform 0-2 now draw the original procedural wave texture (4e6550/4e6780 warp, updated once per drawn frame, own copy so shared wall images are untouched); console L1S2 run: 16 pool faces, 1 surface, 291 updates, no fault. USER: look at the L1S2 pool on the console. Submarine destruction observed (L5S3, siege input aimed at the hull: 700 -> destroyed after 3 rockets, 16 more hit the wreck, no fault). Driller tunnel continuation after load verified on the host (driller_tunnel_roundtrip: restored kernel identical; 4 further merged bites give the identical wall); not seen on the console. Seven host tests fixed (October 25): three GeoMod tests hard-coded the pre-115cd5ff 32-face source/star support ids; two needed a larger terrain budget for the bigger cut scratch (PC default SCENE_TERRAIN_CORE_BUDGET 1152 -> 1536 KiB; Xbox already 2.25 MiB); the worst-case authored save layout no longer fit, so RF_CHECKPOINT_FILE_MAX is 160 KiB (PC 8-cut) / 288 KiB (Xbox 16-cut). Console L1S2 smoke after the change: quick-save 70 KB written and loaded, no fault. L1S2 frame trims not done: per-step NPC cost is about 4.5 ms (script/AI 1.8 ms across 38 actors, pose/playback 2.6 ms; distant-pose skipping already active), no single wasteful pass found; a further trim means AI level-of-detail for distant actors, deferred (new NPC profile row 7 splits the script/AI step). Full PC suite after these fixes: 309/337 pass; 28 older scene-harness tests fail from fixture drift (tests not updated after later scene changes, e.g. scene_ai_rocket predates the Sep 29 weapon-supply launch check): mission_message_reader, npc_checkpoint, scene_ai_extra_weapons_integration, scene_ai_grenade, scene_ai_mode_gameplay, scene_ai_precision, scene_ai_rocket, scene_ai_script_movement, scene_ai_unsupported_weapon, scene_authored_digest_capture, scene_checkpoint_world, scene_clutter_chain, scene_firearms_checkpoint, scene_flame_gameplay, scene_monitor_binding, scene_mover_checkpoint, scene_npc_checkpoint_capture, scene_npc_checkpoint_restore, scene_pickup_class_names, scene_pickup_grant, scene_player_checkpoint, scene_player_import, scene_player_snapshot, scene_player_weapon_catalog, scene_precision_gameplay, scene_switch_objects, scene_weapon_resource_demand, scene_world_environment_checkpoint.
+- GeoMod deeper cuts (October 24): a crater refused by authored-cut admission (cutter overlapping a neighbouring brush or missing the supported wall windows) is retried at 75/55/40% scale with the same basis, and crater history stores the applied scale. L1S2 wall at (120,-1,-17) now takes its second, deeper cut (two cuts at 75% where one was accepted before; saves/loads restore 2-3 cuts with no load rejection). Cavity admission now tests neighbouring air brushes against their actual face boxes (not their bounding box) and portal brushes against their compiled doorway faces, so the L1S2 wall at (124,-1,4) beside air room 8221 and portals 10001/10004 takes a full-size crater; a doorway shot at (131,-2,4) still makes no cut. Adding 8221 as a third paired source was infeasible (non-convex, 220 faces). ctf06 console re-run: source 66 (developer room, combat input) committed three full-size cuts with no admission refusal (a fourth returned RF_RANGE from the edit, not admission); source 148 is still unchecked after the change because the plain Driller replay never drilled the wall (its two hits were refused at the hardness/region stage); rerun done (October 24, console): the developer-room Driller was unboardable under the harness's campaign start (Use only scored campaign vehicles); it is now scored by its own interface tags. With the new `--input driller-dig` it boards, drives into the wall 148 patch and drills for the whole run with no fatal. Previously a refused drill cut stopped the session (RF_FORMAT from the cutter was returned as a frame failure); a refused cut is now a non-fatal refused contact (`rf_scene_drill_reject`). Only the first bite is accepted: every later overlapping drill cut (13 of 14) is refused during the chronological GeoMod rebuild at cut 2 (`rf_geomod_prepare_failure` stage 2, RF_FORMAT, centre about (43.5,6.7,-167.1)). Follow-up (October24): the overlapping-bite geometry refusals are fixed in the shared core (face validity uses an unrounded plane with a magnitude-scaled tolerance; repaired faces fall back to spike removal and ear clipping; tied seam points and coincident corners are skipped), so close bites now take 2-3 cuts on the PC probe (`rf_driller_second_bite_probe`), and the exact console second bite now fails only on capacity (RF_RANGE: two tilted double bits fragment the wall to about 900 faces against the 4096-vertex/1024-face buffers). Remaining design limit: each source holds at most 8 stacked cuts while the original Driller allows 25 (421310 cap); next step is merging successive overlapping bites into one growing tunnel cut instead of stacking cuts. Done (October24): a Driller bite within 1.5 bit radii of the previous accepted bite on a similar heading now replaces that bite's cutter with one convex tunnel cutter circumscribing both (rf_geomod_terrain_merge_template_checked; welded, sealed, at most 64 triangles), so a tunnel stays one cut and the wall stays near 150-175 faces; host probe accepts 190/192 bites across spacings and spins. Admission also accepts a bite touching the live tunnel past the original air brush. Console run 211632: 4 bites accepted (1 new + 3 merged), Driller drove from x36 to x42.6, tunnel reached x47.8 and stopped at the edge of the developer soft patch (radius 7; the rest of the wall is retail hardness 100). A freeze in the first build (stale per-source terrain alias read after the edit) was fixed before this run. Not yet checked: merged-tunnel save/load and the L1S2 campaign Driller pair 8123/8219. USER: look at the drilled tunnel on the console. Follow-up (October24): ctf06 cannot be world-saved by design (world saves admit authored terrain only for L1S2 8123/8219). L1S2 campaign Driller (console 213641, actor 8122 distance 6, driller-dig, save 1300/load 1450): boarded, first bite now cuts rock face x140 (previously every bite was refused because cavity admission treated detail rails 162/169 inside the 8123 air volume as obstacles; obstacles wholly inside the convex source are now skipped), the save stored and the load restored the identical wall (1424 vertices, 1 cut) with the player seated. The scripted Driller is held at x132.7 by the floor rail, so later bites repeat the same spot (refused as repeats) and no multi-bite tunnel formed in L1S2 under straight-line input. Merged tunnel save format verified on the host (driller_tunnel_roundtrip: identical cuts/faces/vertices after encode/decode). Tunnel continuation state is not saved: the first bite after a load starts a new cutter instead of extending. Pre-existing host failures also include authored_checkpoint_layout and authored_capacity_layout (RFDS size bound). Driller cockpit now uses the player-weapon near depth band so rock the chassis noses into no longer draws over the cockpit frame (USER: check the Driller cockpit on the console; not visually verified).
+- USER: confirm the L1S2 quarry pool now draws as translucent green water instead of the lilac grid. Liquid surfaces (USERBMAP, face bit 4) now take their room's authored liquid texture with the authored alpha baked in (lava stays opaque) and draw in a blended pass after the opaque world and models on the Xbox retained-world path. Still open: animated liquid frames, UV scrolling [October 24: liquid motion traced in the original. Room liquid pan (RFL pan_u/pan_v) feeds a texture mover only when BOTH speeds are nonzero (4f0c00 x87 test at 4f0c9e..4f0cc2, constant 0.0 at 5893e0); every retail liquid sets V=0 (muddyrapids 0.25/-0.5, lava -0.02), so none pans in the original. Face texture movers (static-geometry scroll records, matched by face id in 4e60c0) are empty in every retail level. All liquid VBMs are single-frame. The mover path is now reproduced (RFL pan read, face scroll records exposed via rf_geometry_scroll, per-face UV offset c6 in the world shader using the 55f5e0 accumulated-frametime clock) and is inert for retail data. Remaining liquid motion source: the liquid waveform procedural surface texture (GRoom liquid_surface_proctex_id), not yet reverse-engineered.] (rapids/lava), wave motion, underwater tint, and the CPU-projected/PC path.
+- Console test list October 24 (stock64 debug kit): repeated save/load (14 saves and loads per run in L3S2 and L1S2, 60 in a 15-minute L2S3 random session) now saves and loads every time after relaxing save refusals (look motion, weapon timing, transient NPC states) and adding NPC/player placement, crouch and blind-pursuit fallbacks; a 73-minute L2S3 random-input session with 64 saves/loads and 123 level loads ran without crash or freeze; eight random-input levels complete after fixing a fatal level exit during an NPC alarm (L11S2).
+- Per-reload memory leak fixed October 24: NXDK PDCLib fopen creates a kernel mutant per stream (mtx_init -> NtCreateMutant) that upstream fclose never destroyed, leaking one handle and about 70 bytes of kernel pool per fopen (~55 per level load); tools/prepare_checked_stdio.py now adds mtx_destroy to the patched fclose, and a 28-reload console loop holds kernel pool at 6 pages and free pages flat at 9052 after the heap high-water settles.
+- Occupied vehicle runs October 24 evening (ctf06 developer room, stock64 console, new harness --dev-vehicle/--dev-npc/--input vehicle-hold; the developer vehicle runtime now admits one grenade/rocket attacker, placed 10 units behind the vehicle fixture): the Jeep took rocket fire while occupied (400 -> 96) and the seated player died at frame 1776 with a forced exit (first seated Jeep death); the Driller hull went 900 -> 713 under 68 enemy shots and then stopped changing (later shots apparently bullets, authored bullet factor 0) with the player surviving 2400 frames; the APC seated player died at frame 337. Death leaves the restart prompt until Use/crouch, so dead input frames are expected with this input. Fixed on the way: a fatal RF_FORMAT at frame 1830 when the developer attacker lost its target and the alarm-runner lookup parsed its copied multiplayer record (developer room now has no authored alarms); harness abort on a torn RAM-log line. Still unobserved: submarine chassis destruction (player rockets fired underwater at the L5S3 fixture did no hull damage; needs a different attacker). Seated Driller death observed October 24 (run 230914: hull 900 -> 77 under a developer rocket attacker given its authored launcher capacity; player died seated at frame 1530 with the forced exit). Follow-up (October 24, `--input vehicle-siege`: back away, cycle to the rocket launcher, one rocket per second, Use+Reload refill): empty APC destroyed (5000 -> -136 after 17 hits, first observed), Jeep destroyed on the first hit, Driller after 3, Fighter after 6; rockets kept striking the wrecks with no fatal. L5S3 submarine (harness now admits the developer submarine profile on L5S3): 17 underwater rockets did no hull damage and the player died (likely drowning or own splash); no fatal. Purple rocket flare checked against data: MissileFlare01.tga and Dmissile_Parts02/03 are authored violet, so the colour is original. Rocket smoke trail added (canonical 4c77a0 path: weapon info +0x98 trail emitter -> 497ca0 with the projectile as owner/parent, 4972f0 updates while it flies, 497d80 release on impact; emitters.tbl "missile"): console siege run 223854 created 14 emitters, 406 updates/particles, 14 releases, no fatal. USER: check the rocket smoke trail on screen. Trails now cover every weapons.tbl $Trail emitter owner through one module (scene_rocket_trail.inc): player and AI/drone/tankbot rockets ("missile"), APC rockets ("ballistic"), Fighter rockets ("missile"), submarine torpedoes and AI vehicle missiles ("torpedo"/per weapon); console: AI rockets 4/287, APC 1/5, Fighter 2/7, torpedoes 5/179 (trails/updates), no fatal. Drone/tankbot missile trails share the AI rocket path but were not fired in these runs. Driller tunnel continuation after a load (reseed from the restored last cutter and bite) is written but unverified: ctf06 cannot save and the L1S2 Driller is held by the floor rail. Harness: out-of-world now needs two consecutive escaped samples (a stale ctf06 RAM line falsely stopped an L5S3 run). Root cause fixed: RAM-log lines from earlier runs persisted in console memory and were read as new samples (mixed telemetry, a false TIMEOUT); each run now writes a random crash-run-nonce.bin that the game prints as rf_xbox_run_nonce, and the reader drops lines with another value.
+- Vehicle coverage October 24: player rockets destroyed the L10S1 Jeep and the L1S2 Driller; the L12S1 Jeep was destroyed under enemy fire with ejection; the Driller was boarded and drilled (360 contacts); its unchanged health under bullets is authored (entity.tbl Driller01 bullet factor 0.0, armor-piercing 0.1). Remaining unobserved cases need long explosive barrages the harness cannot stage: APC destruction (Life 5000, bullet 0.1, staging dies to its guards within seconds), Fighter and submarine destruction (bullet 0.0; no floor-supported staging near the L18S2 pad or the L5S3 underwater hull), and a seated player death in the Jeep (Life 400 chassis is destroyed first and ejects the player) and Driller (bullet-immune hull).
+- Console level crash sweep October 24: all 68 campaign levels now complete a paced 1800-input exercise run on the stock64 debug kit after fixes for the empty-world finale (L20S3), tactical cover moves (L15S4), a harness exit latch (L17S4/L10S3) and death reloads (L14S3, L19S2A/B, L19S3) that rejected saves because the save-format check counted remote-charge data left over from earlier scenes; death recovery now restarts the current level instead of loading another level's newest save, and a rejected live load restarts the level instead of stopping. Death reload and quick-load use the newest save of either kind, whichever level it belongs to; a console test saved in L1S2, started L2S1, loaded and resumed in L1S2 at the saved spot. Quick-save now waits up to 3 s for the player to settle instead of refusing mid-action, and the world-load staging cap rose from 2 to 6 MiB (L1S2 saves exhausted it).
+- Xbox frame rate and loading (console): L1S2, L2S1 and L3S2 now run at full 60 game steps per second (L1S2 slowest 43) and load to the first frame in 14-19 s (was ~80 s); L1S2 drawn frame rate median 19 -> 25 fps after staggered corona occlusion and NPC animation level of detail (October 24); remaining costs are recorded in docs/XBOX-PERFORMANCE-PLAN-20261023.md, and USER: confirm the rocket flare and black-flash fixes on screen.
+- Retest pass after the 5.6 Sol move completed October 23: 108 prior recipes on stock64 produced 70 completions, 36 watchdog timeouts that kept advancing through ordinary lethal death/restart cycles, zero guest errors or emulator exits and identical vehicle counters; L3S4 actor 844 distance 4 and L17S3 actor 14435 have no floor-supported staging distance.
+- Crash-hunt XEMU replay runs about 23-25 fps with every frame missing its VBlank, so the game runs slowed during harness runs; profile the heaviest per-frame costs before claiming 30/60 fps on hardware.
+- USER: Confirm the intermittent one-frame black flash (about once per second during runs) is gone: the Xbox renderer re-pointed scanout at pbkit framebuffer 0 every frame (pbkit never advances pb_front_index), exposing the buffer being cleared/drawn whenever no flip was pending at that VBlank; scanout is now left to pbkit's VBlank ISR after one initial front-screen switch per pbkit lifetime.
+- Crash-hunt coverage must capture per-NPC world-position and skeletal-animation changes in every applicable action scenario, so stationary actors, actual locomotion and visually suspicious poses remain distinguishable alongside crash/combat evidence.
+- Additional stock64 crash coverage: L2S3 completed 2400 frames with 2069 live inputs, 13 player shots, 57 enemy shots, three simultaneous alerts and repeated ordinary death/restart cycles; L4S1b completed 2400 frames with 1809 live inputs, 18 player shots, 37 enemy shots, five simultaneous alerts, six ordinary death/restart cycles and tracked guard locomotion/animation; neither logged a player, enemy, presentation or guest failure. L19S3 reached its watchdog after 1274 live inputs and only five-shot exchanges/one alert, so it remains partial rather than sustained multi-enemy coverage.
+- L6S1's duplicate authored `wibble` waypoint paths caused a deterministic Xbox RF_FORMAT startup fatal because the reconstructed lookup rejected repeated names; first-record ordered lookup now matches existing source evidence, and the identical stock64 scenario completed 2400 live frames with 19 player shots, 16 enemy shots, six weapon switches, three simultaneous alerted enemies and tracked guard locomotion/animation without a logged failure.
+- L10S2's deterministic first-frame Xbox RF_RANGE fatal was a conservative renderer reference cap rejecting 23,152,452 bytes of already resident unique materials/lightmaps despite 3,652 free stock-memory pages before its 3 MiB vertex buffer; the 24 MiB cap build completed the identical 1800-frame action recipe with 18 player shots, 14 enemy shots, three simultaneous alerted enemies and no player, enemy, presentation or guest failure.
+- L5S2's previously untested four-enemy handgun/assault-rifle group completed 2400 live frames with 19 enemy shots, four player shots, six weapon switches and three simultaneous alerted enemies without a death or logged failure.
+- L3S1's previously untested five-enemy rifle/handgun group completed 1800 live frames with 25 player shots, 23 enemy shots, five weapon switches and three simultaneous alerted enemies without a death or logged failure; L14S1 separately exercised heavy-machine-gun/rail pressure across two ordinary combat deaths before its watchdog, with no logged failure.
+- Stock64 per-NPC telemetry confirms live locomotion and skeletal playback: in L3S1 human guard UID897 moved about 3.1 world units with 18 body-position and 18 pose changes, guard UID407 moved about 2.7 units with 11 body-position and 118 pose changes, and L9S3 Baby Reeper UID1054 changed position 30 times and playback/bone pose on 418 of 419 live frames without a logged failure; L11S3 guard UID10491 stayed stationary while its playback/bone pose changed on 418 of 419 live frames, so USER review of that guard's rigid-looking weapon stance and failure to move remains open.
+- L7S1's Drone/Spike pocket completed 2400 frames with 2309 live inputs, a normal death/restart and active flash effects without a logged failure; a direct 900-frame approach also left Drone player-contact hits, smash and secondary fire at zero, so the observed Drone/player overlap remains unreproduced and the flash cannot be attributed to a Drone attack.
+- L5S1's Vauss/turret group completed 1800 frames with 1709 live inputs, 15 player shots, 29 enemy shots and one normal death/restart without a logged player, enemy or guest failure.
+- Vehicle coverage: all selected classes now have entry/movement/fire and voluntary exit evidence; APC, submarine and armed Fighter have occupied-player death/recovery, the Jeep has authored-enemy chassis destruction with live ejection, and the Driller completed 2400 occupied frames with 220 drill contacts/136 enemy shots but its authored bullet response left health unchanged. Driller must start beyond its forward interface tag; remaining occupied deaths and chassis destruction stay open where unobserved.
+- L7S2's previously untested four-turret/two-guard pocket exercised four combat starts/deaths, per-life turret acquisition/turning and thirteen turret shots without a logged subsystem or guest failure; the 360-second watchdog ended before the full replay budget.
+- L17S3's laser/rail/scoped-rifle/melee/turret group exercised five combat starts/deaths under normal shotgun return fire without a logged subsystem or guest failure; extreme lethality limited live coverage and the 480-second watchdog ended the run.
+- Broad exercise inputs completed L18S1 near an authored Jeep (boarding unverified, no enemy fire); L6S3 shotgun run exercised two combat lives/recovery before watchdog without a reported fatal. Continue varied ordinary gameplay and vehicle use.
+- L11S2 movement/grenade/weapon-switching run reached three combat lives and normal recoveries without a reported fatal error; continue broad ordinary gameplay, including Use/alternate fire and vehicles where available.
+- Continue crash hunting across authored action-heavy scenarios, including interrupted throws and weapon switching; L19S1 mobile grenade run exercised cancellation without a reported fatal error (667 live inputs/four lives, watchdog timeout).
+- L19S1 grenade replay reached four combat lives/three recoveries, three player releases/two detonations and repeated flame hits without logged fatal error; watchdog ended at593 live inputs. Retain as ordinary combat/recovery coverage; broaden actions and environments.
+- Crash hunt resumed October22 under repository confinement: L20S2 completed three combat lives/two recoveries without a logged fatal error, but the360-second watchdog expired before the full input budget; continue broader sustained action.
+- Crash harness now uses ignored repository-local XEMU/firmware/packer copies and per-run temp/profile/cache paths; direct and junction escapes are rejected, with XEMU's actual base path confirmed inside the repository.
+- L18S3 turret targeting and bounded pain-audio bank refusal are exercised; the former second-life fatal no longer reproduces, while short-life survival and broader stress coverage remain open.
+- L19S1 flame-facing start produced1085 live inputs/three recoveries with player return fire,flame hits and grenades in all four lives;660 sampled inputs included enemy action. No fatal error,watchdog timeout; retain mixed-weapon coverage and continue broader sustained hunt.
+- Optional advance-input profile builds/runs but L19S2B lives last only82/74 inputs; repeated enemy grenades and seven alerted actors observed, no fatal error. Keep mobile profile available; forward input alone does not solve sustained engagement or route reachability.
+- L19S2B fatal NPC pain-audio error fixed for full30-voice pool: two identical43-input failures now complete1800 inputs with four logged capacity declines and later successful pain playback. Sparse player fire/quiet tail remain; continue sustained crash hunting.
+- L20S2 startup fatal fixed: generated hidden Masako has no authored patrol record. Identical stock64 replay reached830 live inputs/one recovery with600 sampled inputs containing enemy action and repeated shoulder-cannon impacts; broader hunt remains active.
+- Visibility-filtered input builds/runs on Xbox but L8S2 still goes quiet after local kills:180 sampled live inputs with enemy action versus900 quiet. Add grounded pursuit/repositioning or select connected active encounter space; no sustained-pass claim.
+- L8S2 rifle/mobile follow-up produced1109 live inputs,two recoveries and per-life direct kills1/0/4;420 sampled live inputs included enemy action but540 were quiet. Continue sustained encounters; no fatal/void event, no full stress pass.
+- L8S2 supported rocket probe retained standing height through three lives/two recoveries;360-second watchdog ended at374 live inputs, max two rockets/three enemy attacks per life. No fatal error, terrain edits or sustained-pass claim; broaden useful live action next.
+- L17S3 void traced to unsupported actor-offset starts. Floor preflight rejects both bad starts; supported distance4 replay stayed at standing height with16 player shots/22 enemy attacks maximum per life. Continue broader stress; no collision-engine fix claimed.
+- Mobile priority-kill cycle now uses normal weapon selection and improved L19S2A shots to3/9/2 across lives; watchdog still ended at613 live inputs. Retain mixed-weapon evidence and broaden authored combat coverage without counting this as a completed stress pass.
+- Crash hunt resumed October17. L19S2A fallback aim tolerance did not increase shots; automatic reload already works. Next use ordinary weapon switching after the priority kill to sustain return fire.
+- L19S2A mixed-weapon group remains unqualified: priority rocket now fires but669.375-damage hits end45-input lives before grenade/flame action. Next use finite railgun priority against11890 with all authored opponents retained.
+- L6S3 mobile aiming stops improved per-life shots9/18/1/7 versus9/1/1/2;360-second run timed out at1513 live inputs/four deaths with no guest error. Investigate sparse third-life fire and phase continuation after recovery; sustained hunt remains open.
+- L6S3 active elite cluster produced repeated enemy fire and three recoveries, but360-second watchdog ended at1375 live inputs/four deaths; improve mobile aim/fire opportunities without reducing authored pressure.
+- L13S1 mercenary placement had no enemy action: authored creation flag2 maps to inactive object flag0x4000. Select initially active authored opponents or exercise their real activation event before further stress runs; quiet intervals do not count.
+- Mobile L13S1 run completed1800 live inputs with16 player shots,finite railgun reserve4->2 and reloads;13 early turret shots then no enemy fire, so sustained/multiple-enemy coverage remains unmet. Continue action-heavy crash hunting without counting the quiet tail.
+- Finite railgun and actor-priority input now build/run on Xbox: L14S2 priority target killed each cycle, then nearest-hostile fallback;223 live inputs/three deaths before watchdog. Improve movement/follow-up fire for sustained pressure; no stability pass claimed.
+- L14S2 lethal-event trace shows two19.6875 hits then669.375 at input31, matching HMG/railgun authored damage ratios; no cannon fire. Next prioritize the railgun target through ordinary bounded aiming, retaining all enemies and damage.
+- L14S2 close rocket run also timed out after three rapid deaths/two reloads; focused90-input trace rules out shoulder-cannon fire. Trace ordinary HMG/railgun damage attribution before further repetitions; sustained combat coverage remains open.
+- L14S2 heavy-mercenary rifle probes at8/20 units hit360-second watchdogs after three deaths/two reloads each, with106/402 live inputs; no guest error, but sustained/multiple-enemy gates remain unmet. Next use finite rockets against the close authored group.
+- L11S2 rocket stress completed1800 inputs with repeated rockets,19 enemy attacks,three alerted enemies and one death/reload recovery; all encounter gates passed. Broader destruction coverage and Drone/effect issues remain open.
+- Grenade steep-contact settling fixed for the zero-spin flight model: identical L9S4 run reduced contacts1445 to41 and capped ticks354 to2; three detonations/one recovery retained. L11S2 extended3600-input combat passed; broader hunt and Drone/effect issues remain open.
+- L9S4 grenade replay reproduced354 capped ticks and962 zero-distance incoming contacts against steep faces; investigate multi-surface settling and repeated bounce sounds.1800-input run completed with three detonations and one recovery.
+- L9S4 creature stress completed rifle and grenade1800-input runs:44 rifle shots/eight enemy attacks; three grenade detonations/six enemy attacks/one recovery. High grenade-contact count, Drone/effect issues and broader destruction coverage remain open.
+- L11S2 startup and noise-investigation crashes fixed: identical1800-live-input run completed with57 player shots/18 enemy attacks/two alerted actors; navpoint wait preservation was exercised three times. Continue broader authored stress and unresolved Drone/effect issues.
+- Airborne Drone contact now admits normal player mode3: identical jump replay changed from zero to two accepted contacts and stopped the player1.77m earlier; 600-input mixed-combat regression completed; NPC-first contact and white/yellow effect diagnosis remain open.
+- Pink L3S4 floor traced to authored invisible surfaces6117/6118; render filters now exclude0x2000 and Xbox600-input check passed. USER visual confirmation remains.
+- Drone authored radius2 proxy has scoped airborne player-contact evidence; retain animated-shape, NPC-first response and original user-observed visual overlap as unverified limitations.
+- L1S2 completed1800 inputs with committed terrain cuts/debris under enemy fire across reload; deeper cuts reject authored-brush overlap, so repeated-cut coverage remains open. User still reports security interruption with the verified OpenJKDF2 HMP reader.
+- L2S2a grenade run completed2400 inputs with2069 live inputs and three normal recoveries; repeated grenades, blast kills and four alerted enemies observed, but generic12-shot gate and destruction coverage remain unmet.
+- L17S1 combat follow-up completed1800 inputs on stock64 using OpenJKDF2 HMP logs, with1229 live inputs and five normal death/reload recoveries; continue completed explosive scenarios and unresolved destruction coverage.
+- Active crash hunt: exercise authored combat environments under representative enemy, weapon and effect loads; two fixes and small passing probes do not establish stability.
+- L1S2 stress: two1800-input wall runs completed with repeated rockets,54/55 enemy shots and normal reload; terrain mutation succeeds but publication declines with RF_NOT_FOUND, so joint destruction/debris combat coverage remains open.
+- User-selected logging path: unchanged OpenJKDF2ogx HMP RAM-log reader is now the default and completed a stock64 transport check; continue through game-written logs, with broad gameplay and destruction coverage still open.
+- October 15 follow-up: the600-second explosive run still timed out in reload; measure the prepared lower telemetry polling rate and use the supported L1S2 terrain path for destruction stress instead of L2S2a's unconnected cutter.
+- Current workflow revision: game-owned combat phases passed one stock64 encounter and explosive focus exercised two normal death/reloads; next complete sustained explosive scenarios and extend to declared encounter sequencing and application logs.
+- October 15 explosive stress: grenade focus produced repeated releases/detonations and eleven bounces with active enemies, but timed out during repeated death/reloads; completed sustained explosive scenarios and destruction/debris under combat load remain open.
+- October 15 local crash hunt: L2S2a completed1800 virtual inputs with1346 live frames, two normal death/reload cycles and four simultaneously alerted actors; continue different authored combat mixes, with visuals/audio still unverified and no overall stability claim.
+- October 15 16:07 UTC: full enabled speech integration passed native stock64 compile/link/package and ordinary startup12 simulation/10 presentation on0d5149c1; clean postcheck/proof preserved. First-tester implementation now moves to delivery packaging/handoff; functional and hardware coverage remains tester-owned, FMVs assigned to local Codex.
+- October 15 15:52 UTC: full speech gesture ownership/runtime/RFNC42 save/publication and lifecycle integration is source-reviewed and enabled for the next native hourly build; no compiled or functional result yet. FMVs are assigned to Codex using the user's local Xbox Bink library.
+- October 15 15:35 UTC: finish speech gesture scene ownership/publication/lifecycle joins before activation; RFNC42 codec scaffolding is source-reviewed but uncompiled, and delivery prerequisites are documented in docs/CODEX-DELIVERY-HANDOFF.md.
+- October 15 15:08 UTC: combined menu caches and NPC medic/chatter/Use-facing changes passed stock64 native compile/link/package and ordinary startup10 simulation/10 presentation frames on670bdf36. Clean shutdown/postcheck and proof preserved; broader functionality remains tester-owned. Speech gestures remain disabled pending explicit residual save ownership. See docs/HOURLY-20261015-1500.md.
+- October 15 14:44 UTC: ordinary Use facing and default-patrol pause are source-integrated with qualified motion resets, continuous ground-supported turning and unchanged route/action ownership; optional24-byte sidecar stays within existing NPC cap. Review in progress, next hourly build pending; speech gestures retain their explicit save-ownership dependency.
+- October 15 14:38 UTC: Game/Controls/Buttons moving artwork caches are source-integrated with full-decoder nonzero-alpha admission, transparent margins only, rotated pieces and composition fallback for other valid art; source review underway, native compilation pending.
+- October 15 14:35 UTC: Main and Audio full-source artwork caching is integrated for geometry-only panel movement, shared decoder and rotated/source-neighbor-gutter pieces in the existing canvas; independent source review underway and native build pending.
+- October 15 14:29 UTC: automatic NPC Timeout/Humming is source-integrated with authored instance permissions, independent wrap-safe transient timers and existing actor voices; optional sidecar is charged inside the unchanged NPC cap. Source review pending completion; all new panorama/medic/chatter changes await the next parent hourly build.
+- October 15 14:24 UTC: wider cached menu panorama and medic acceptance/full-health/depleted persona responses are source-integrated under unchanged image/audio/metadata caps; source review complete after disabled-output timing fix, native build pending. User authorized NPC interactions during menu build waits and continuous useful cloud delegation.
+- October 15 14:08 UTC: cached menu title motion compiled on5f0f7884. Difficulty, release, accepted New Game notice and frontend retirement completed; overall startup still failed after loading at simulation1/presentation0. Clean postcheck and proof preserved. No concrete remaining menu defect established; broader functional coverage remains tester-owned. See docs/HOURLY-20261015-1400.md.
+- October 15 13:07 UTC: Options/Difficulty titlebar now uses two cached alpha-preserving canvas crops and geometry-only motion, eliminating full-canvas clears/asset decoding for their title/widget movement; source-written, next hourly build pending. Other menu panels retain existing composition.
+- October 15 13:04 UTC: Actual13 compiled e1128d1 and reached Difficulty, then timed out during neutral release before the second A; clean shutdown/postcheck and failure proof are preserved. Investigate avoidable full-canvas animation redraw work; no runtime pass claimed. See docs/HOURLY-20261015-1300.md.
+- October 15 12:07 UTC: expanded menus compiled on3569c2c1; Actual12 startup failed before difficulty-page acceptance, with clean shutdown and neutral postcheck. Immediate Xbox-adapted difficulty navigation and cached accepted-action notice correction are source-written for the next hourly batch. Prior11/12 failures remain preserved; no new runtime pass or visual capture claimed.
+- October 15 11:48 UTC: remaining menu presentation source is integrated: idle redraws, original-speed entry/departure tracks, fixed cached checked archives, inactive Main rail under Exit popup, and page-family localization within32 slots; all await the next parent hourly stock64 batch.
+- October 15 11:43 UTC: Actual11 compiled the first menu motion slice but startup failed on QMP response timeout; failure evidence preserved. Timed idle redraws, checked archive-entry reuse and outgoing shell/body sweeps are source-integrated for the next hourly batch. See docs/HOURLY-20261015-1100.md; no runtime pass claimed.
+- October 15 11:24 UTC: continue remaining menus after user clarification that publication was a milestone, not a stopping point; implement stock panorama and independent panel/category entry motion under existing budgets, then include ready changes in a fresh parent-owned hourly stock64 batch. All non-menu work remains paused.
+- October 15 04:06 UTC: authored menus and final Exit/difficulty refinements passed stock64 compile/link/package and ordinary startup (10 simulation/10 presentation frames) on e6290c26. Postcheck confirms clean shutdown, unchanged neutral disk and no XEMU. Earlier pending-menu entries below are historical; Actual03 remains a preserved failure. Broader functional coverage remains tester-owned. See docs/HOURLY-20261015-0400.md.
+- October15 03:13 UTC: source-reviewed menu-only refinement shortens the visibly overlong Exit label and replaces the adapted difficulty rectangles with existing authored buttons; unchanged actions/assets/caps, pending the next hourly native build.
+- October15 03:09 UTC: authored menus compiled/linked/packaged and requested native main/Options images were delivered. Ordinary startup reached simulation1/draw0 before its240s timeout; clean shutdown and neutral postcheck passed. Preserve failed evidence and investigate only concrete issues; no timeout increase or extra startup route. See docs/HOURLY-20261015-0300.md.
+- October 15 02:59 UTC: source-backed Load list and Exit popup presentation joined the authored menu integration; existing save-source/action IDs and all memory limits remain unchanged. Compilation and native screenshots remain pending.
+- October 15 02:52 UTC: menus are the sole priority; authored menu art/categories, bounded overlay assets and cold menu audio are source-integrated and independently reviewed for the next hourly Xbox build. Updated native menu screenshots remain pending. Other behavior work is paused. See docs/AUTHORED-XBOX-MENUS.md.
+- October 14 22:05 UTC: complete enabled pursuit-return/save continuation compiled, linked and packaged for stock64 Xbox; ordinary startup passed10 simulation/10 presentation frames with clean shutdown on b5d455aa. Postcheck confirms neutral disk unchanged and no XEMU. Implementation is integrated; gameplay/save-load coverage remains tester-owned. See docs/HOURLY-20261014-2200.md.
+- October 14 21:34 UTC: complete bounded pursuit-return runtime and native save continuation integrated after source, ownership, memory and compiled-path assessment; next hourly enabled stock64 link/package and ordinary startup smoke pending. Existing refusal/data-protection checks and unchanged128KiB stack/2MiB cumulative load limits remain. Functional coverage is tester-owned. See docs/NPC-PURSUIT-RETURN.md.
+- October 14 14:55 UTC: isolated NPC save-capture membership/status fix integrated for the hourly Xbox build; registered-row refusals abort, and second-pass capacity/status/record validation precede copying. Build pending; broader pursuit-return remains external staging.
+- October 13, 8:00 a.m. EDT: stock64 build and minimal startup smoke passed on bc6bc3b7, 12 simulation/10 presentation frames and clean shutdown (docs/HOURLY-20261013-1200.md); broader pursuit remains external unfinished staging.
+- October 13 11:00 UTC: shared NPC navigation workspace guard compiled; stock64 build and minimal startup smoke passed on 7ebebcbe, 13 simulation/10 presentation frames and clean shutdown (docs/HOURLY-20261013-1100.md). Broader pursuit/retreat remains external unfinished staging.
+- Shared NPC pathfinding workspace exclusion is integrated and compiled for ordinary and scripted requests (docs/NPC-NAVIGATION-WORKSPACE-GUARD.md).
+- October 13 10:00 UTC: stock64 build and minimal startup smoke passed on 60c61637, 15 simulation/10 presentation frames with clean shutdown; broader pursuit/retreat remains external uncompiled staging. See docs/HOURLY-20261013-1000.md.
+- October 13 09:00 UTC: stock64 build and minimal startup smoke passed on 9214bf8f, 15 simulation/10 presentation frames with clean shutdown; broader pursuit/retreat remains external uncompiled staging. See docs/HOURLY-20261013-0900.md.
+- October 13 08:00 UTC: stock64 build and minimal startup smoke passed on b7050e54, 12 simulation/10 presentation frames with clean shutdown; broader pursuit/retreat integration remains pending. See docs/HOURLY-20261013-0800.md.
+- October 13 07:00 UTC: authored NPC combat-range and Stand Ground changes compiled on044cbeab; startup smoke PASS13 simulation/10 presentation frames, clean shutdown. See docs/HOURLY-20261013-0700.md. No functional coverage claim.
+- Placed ordinary ranged NPC combat-range overrides are parent source-reviewed for matching firing and pursuit admission without new live/save state; hourly stock64 compilation remains pending (docs/NPC-AUTHORED-COMBAT-RANGE.md).
+- Combat crouch/RFNC39 and bounded pursuit delay/RFNC40 passed the October 13 06:00 corrective stock64 build and minimal startup smoke; the original compile failure is preserved separately (docs/HOURLY-20261013-0600.md). Functional coverage remains tester-owned.
+- Bounded loss-of-sight pursuit delay and RFNC40 continuation are parent source-reviewed with existing sight sampling, target lifecycle and final-close joins; integrated and pending hourly stock64 compilation (docs/NPC-LOSS-OF-SIGHT-DELAY.md).
+- Bounded ordinary combat crouch and RFNC39 are source-reviewed across live policy, physical shape, animation and saved continuation; integrated and pending the next hourly stock64 compile (docs/NPC-COMBAT-CROUCH.md).
+- Ordinary Direct/Evasive combat repositioning and RFNC38 continuation passed the October 13 03:00 stock64 compile/package and minimal startup smoke; functional coverage remains tester-owned (docs/NPC-COMBAT-REPOSITIONING.md).
+- Nano shield hit/depletion feedback, Capek warmup and Blind Pursuit passed the corrected October 13 01:00 stock64 build and minimal startup smoke; functional coverage remains tester-owned.
+- Capek NanoAttackSource warmup imagery is source-composed with actor-muzzle attachment, independent one-shot timing, two-instance256-KiB ownership and final-success reset; parent integration and the next hourly build remain pending (docs/CAPEK-CANE-WARMUP.md).
+
+- USER: Ordinary humanoid Blind Pursuit expiry and RFNC37 elapsed-age continuation are source-written with bounded sight work and protected final-close ownership; complete exact source review and parent integration before the hourly Xbox compilation (docs/NPC-BLIND-PURSUIT.md).
+
+- Ordinary player auto-reload now admits legitimate shared-ammo surplus within the existing catalog-wide same-ammo bound; source-integrated and independently reviewed, pending hourly Xbox compilation (docs/WEAPON-AUTO-RELOAD.md).
+
+- Constant Nano-shield imagery is source-composed with two guarded actors, authored looping mesh/material rendering, a909423-byte accounted loading peak and final-success load reset; parent integration and the hourly build remain pending (docs/NANO-SHIELD-CONSTANT.md).
+- Authored Stand Ground humanoids now suppress only combat pursuit, including explicit Attack and first-service legacy routes, while retaining firing, authored movement and physical support; source-written, pending parent review/integration and hourly Xbox compilation (docs/NPC-STAND-GROUND-COMBAT.md).
+
+- Stationary turret firing loops now preserve pending native identity in existing 28-byte sidecars with one ordinary retirement attempt per frame and 8 scheduling bytes; combine its independent lifecycle gates in the parent hourly stock64 build (docs/TURRET-LOOP-RETIREMENT.md).
+
+- Ordinary nonempty One way actor defaults now rebind cursor0 at terminal arrival without a final wait, retaining shared direction and qualified visual actions, with same-layout RFNC36/RFCH13 and explicit two-sided final-close selection; source-written, pending parent integration and hourly Xbox compilation (docs/NPC-ONE-WAY-DEFAULT-PATROL.md).
+
+- NPC continuous loops now retain failed native retirements in existing fixed records with one ordinary retirement attempt per frame and 8 added global bytes; combine the independent lifecycle gates in the parent hourly stock64 build (docs/NPC-LOOP-RETIREMENT.md).
+
+- Ordinary authored waypoint tags now schedule bounded delayed Play_Animation/Look_At/Message through the existing event runtime, with route/action coexistence, same-layout RFNC35/RFCH12 and final-close continuation; source-written and pending parent-owned hourly Xbox compilation (docs/NPC-WAYPOINT-EVENT-COMPOSITION.md).
+
+- Shared player firing loops now retain failed native retirement without retrying a blocked firing episode, using 12 added transient bytes; integrate with the separate water gates in the parent hourly stock64 build (docs/WEAPON-LOOP-RETIREMENT.md).
+
+- Water-loop native stop failures now retain full-handle retirement ownership and block replacement/reset/bank teardown with 12 added owner bytes; await parent integration and the sole hourly stock64 compile (docs/WATER-LOOP-RETIREMENT.md).
+
+- Authored patrol arrival facing and original-inert tag admission are integrated and independently source-reviewed, with same-layout RFNC34/RFCH11 capability gating. Pending hourly Xbox compilation (docs/NPC-PATROL-ARRIVAL-FACING.md).
+
+- Completion credits now select the authored game.tbl main-menu music with the existing bounded lexer, stream and loop metadata; source-written, pending the next parent-owned hourly Xbox compile/package rollup (docs/CAMPAIGN-AUTHORED-CREDITS.md).
+
+- Authored skybox rendering, Skybox_State59 and RFEN9 continuation are integrated and independently source-reviewed; borrowed resident resources and final-close publication preserve current caps. Pending hourly Xbox compilation (docs/AUTHORED-SKYBOX-SAVE.md).
+
+- Waiting armed humanoids now investigate a fixed heard position with a finite route and RFNC33 continuation; independently source-reviewed, pending hourly Xbox compilation (docs/NPC-NOISE-INVESTIGATION.md).
+
+- Replaced impact-radius strtof call with a bounded authored decimal parser because NXDK strtof asserts and halts. Source-reviewed; startup recovery remains unverified until the next hourly build/smoke. Actual21/22 failures remain preserved.
+
+- Authored Play_Vclip transport explosion presentation is integrated and independently source-reviewed with late optional resource admission, bounded private particles and final-success transient cleanup; pending hourly Xbox compilation (docs/AUTHORED-PLAY-VCLIP.md).
+
+- Authored hostile Waiting NPCs now have a source-written sight-to-Alarm46 consumer using the existing perception policy, explicit damage/sight admission and unchanged runner/save/resource ownership; integrate after source review in the next hourly Xbox compile/package rollup (docs/NPC-SIGHT-ALARM.md).
+
+- Ordinary qualified unarmed civilians now have a source-written nearby loud-player-shot flight consumer using the original10–20 second request and existing motion/RFNC ownership; integrate after source review in the next hourly Xbox compile/package rollup (docs/CIVILIAN-GUNFIRE-FLIGHT.md).
+
+- Ordinary grounded humanoid Loop/Ping Pong patrols and authored node waits are source-integrated and independently reviewed with actual motion admission, bounded RFNC32/RFCH10 continuation and final-success publication; integrate in the next hourly stock64 compile/package rollup (docs/NPC-AUTHORED-PATROL-DWELL.md).
+
+- Authored scripted explosion sparks, fire heads and smoke trails are integrated and independently source-reviewed within existing resource/pool caps; pending hourly Xbox compilation (docs/SCRIPTED-EXPLOSION-TRAILS.md).
+
+- October 12, 21:00 UTC rollup compiled class melee, audio controls, impact effects, civilian flight and controller vibration; startup smoke timed out after New Game acceptance with no simulation frames, cause unproven; preserve the failed evidence and use bounded existing startup-stage receipts next hour.
+
+- Authored Alarm46 NPC runners and conditional RFNC31 continuation are source-written with actual damage admission, route/facing/action44 completion and final-success save ownership; integrate in the next hourly Xbox rollup (docs/NPC-ALARM-RUNNER.md).
+
+- Bounded selected-controller vibration is integrated and independently source-reviewed with pause/disconnect/session cancellation; pending hourly Xbox compilation (docs/XBOX-CONTROLLER-VIBRATION.md).
+
+- Ordinary authored unarmed civilian damage-flight is integrated and independently reviewed with lazy RFNC30 continuation; pending hourly Xbox compilation (docs/CIVILIAN-DAMAGE-FLIGHT.md).
+
+- October 12, 20:00 UTC rollup compiled HEAP/delayed-melee/robot-death persistence, credits, remapping, scanner silhouettes, NPC/player contact and UI-language selection and passed the short startup smoke; older source-only entries below describe historical implementation milestones.
+
+- Conventional dry-world gun impact flashes, authored spark bursts and smoke are source-integrated and independently reviewed; uncompiled with exact ordered weapon profiles, shared accepted-contact feedback, a deduplicated optional512KiB bank and success-only transient reset; integrate in the next hourly Xbox compile/package rollup (docs/WEAPON-WORLD-IMPACT-VISUALS.md).
+
+- Xbox master/effects/music preferences, bounded Audio subpage and strict RFCS5/legacy settings storage are source-integrated and independently reviewed with the retained backend API; include in the next hourly compile/package rollup (docs/XBOX-AUDIO-SETTINGS.md).
+
+- Tankbot and both Snake class-default close-range melee switches are source-integrated and independently reviewed; uncompiled with owned authored pairs, deferred paid obligations and same-size RFAP14 kind26 family5–7 continuation; integrate in the next hourly Xbox compile/package rollup (docs/NPC-CLASS-MELEE-SWITCH.md).
+
+- English/German/French authored UI-subset selection, bounded current-language catalog, placeholder-aware narrative fallback and same-size RFCS4 settings are source-written; integrate in the next hourly compile/package rollup (docs/AUTHORED-TEXT-LANGUAGE.md).
+
+- Rail scanner body silhouettes are integrated using bounded admitted model geometry, published poses and the existing depth-free HUD sink; uncompiled pending hourly rollup (docs/RAIL-SCANNER-SILHOUETTES.md).
+
+- Grounded NPC patrol/pursuit, scripted movement, retreat/medic translation and support carry now compose the actual player body with reversed original pair admission; source-written for the next hourly compile/package rollup (docs/NPC-PLAYER-CONTACT.md).
+
+- Xbox ten-action button remapping, collision-safe swaps, release gating, live control hints and same-size RFCS3 persistence are source-written; integrate into the next hourly compile/package rollup (docs/XBOX-CONTROLLER-BUTTON-MAPPING.md).
+
+- Authored English credits, bounded scrolling/wrapping, streamed credits music and ordinary frontend return are integrated; uncompiled pending hourly rollup (docs/CAMPAIGN-AUTHORED-CREDITS.md).
+
+- Queued Tankbot/Drone/Spike finalizers are source-written with bounded RFNC29/RFAP13 continuation, mandatory source joins and final-storage-success publication; integrate after RFAP12 in the next hourly compile/package rollup (docs/ROBOT-DEATH-SAVE.md).
+
+- Drone Smash and Reeper/Mutant delayed-melee controllers are source-written for RFAP12 with exact remaining impacts/deadlines, authored source/target/order/cadence ownership and final-storage-success publication; integrate in the next hourly rollup, preserving callback and whole-save-cap refusals (docs/NPC-DELAYED-MELEE-SAVE.md).
+
+- HEAP paid turret flights are source-written for RFAP11 with authored host/candidate joins, independent launch-time operator exclusion, exact metadata demand and final-storage-success publication; integrate into the next hourly rollup (docs/TURRET-HEAP-FLIGHT-SAVE.md).
+
+- Player Rocket held lock and paid guided flights are integrated with RFAP10 typed target joins, suppression-safe LT rearm and final-success publication; uncompiled pending hourly rollup (docs/PLAYER-ROCKET-LOCK-SAVE.md).
+
+- Live monitor imagery and RFEN8 camera-list, selected-camera, cycle-timer and continuous-mode persistence are integrated from Codex commits 74c64ebb and 30abe6a0; uncompiled pending the hourly rollup (docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+
+- Drone/Tankbot independent secondary cooldowns and straight Drone Missile flights are integrated for RFAP9 with paid inventory joins, source/candidate ownership, exact resource demand and final-success publication; uncompiled pending the next hourly rollup (docs/NPC-SECONDARY-ATTACK-SAVE.md).
+
+- Live security-monitor imagery is integrated from Codex commit74c64ebb: bounded camera feeds/cycling, black/noise modes and per-prop screen textures. Compilation pending; exact camera-cycle save continuity and secondary visual effects remain documented refinements (docs/CAMPAIGN-MONITOR-LIVE-IMAGERY.md).
+
+- NPC TriBeam/Spit/Cane delayed attacks are source-written for RFAP8 with prepaid windups, paired reservations, paid cadence, Cane target continuity and final-success publication; integrate the bounded slice in the next hourly rollup, retaining the whole-file capacity refusal (docs/NPC-DELAYED-ATTACK-SAVE.md).
+
+- NPC Laser/Sonar paid flights are source-written for ordinary RFAP7 save/load with authored-source/candidate joins, exact resource demand and final-success publication; integrate the complete slice into the next hourly build (docs/NPC-DIRECT-FLIGHT-SAVE.md).
+
+## October 12, 18:06 UTC: NPC shoulder-cannon save continuation
+
+NPC shoulder-cannon paid flights are now source-integrated with RFAP6 authored-source/candidate ownership joins and shared player/NPC pool continuity. Legacy RFAP1–5 remain supported. Compilation and saved continuation remain unverified; see docs/NPC-FUSION-FLIGHT-SAVE.md.
+
+- October12 18:00 candidate rolls settings persistence, Standard/Southpaw layout, confirmed Dashboard Exit and sticky storage-cleanup ownership together; all are source-integrated and pending the sole hourly stock64 build.
+
+- Xbox confirmed Exit to Dashboard and persistent uncertain checkpoint-close ownership are source-written, with full-idle/settings/audio/input/render admission and no fallback reboot; await parent integration and the hourly stock64 batch (docs/XBOX-FRONTEND-DASHBOARD-EXIT.md).
+
+- Xbox Standard/Southpaw analog-stick layout selection and same-size RFCS2 settings persistence are source-written with fixed buttons/chords and strict RFCS1 compatibility; await parent integration and the next hourly stock64 batch (docs/XBOX-CONTROLLER-LAYOUTS.md).
+
+- Controller settings persistence is source-integrated with explicit Save Settings, startup restore, separate two-slot storage and last-good recovery; compilation and native persistence remain unverified (docs/XBOX-CONTROLLER-SETTINGS-PERSISTENCE.md).
+- October12 17:02 UTC stock64 build passed for Message History, Fine Aim and Holster; bounded History access/Back/Start and half normalized Fine Aim response at sensitivity100/200 passed. Holster behavior and settings persistence remain untested.
+
+- October12 16:02 UTC stock64 Xbox build and bounded controller Options/New Game difficulty check passed on b304abcd: cold/paused option changes, reset defaults, Hard difficulty and End Session retention verified; startup Load Game compiled but saved restoration remains untested.
+- Player Holster is source-written on left-stick click with retained weapon ownership, view/shield/input gates and same-size RFWM3 continuity; await parent integration and the hourly stock64 batch (docs/PLAYER-HOLSTER.md).
+
+- Xbox Fine Aim is source-written on hold-right-stick click with half of final normalized look response and existing pause/hotplug suppression; await the next parent hourly stock64 compile/controller check (docs/PLAYER-FINE-AIM.md).
+
+- Xbox authored Message History is source-written with16 copied messages, pause-menu paging, explicit oldest-entry eviction and fresh-session/restart/successful-load reset; compilation and runtime remain unverified pending parent integration and the scheduled stock64 batch (docs/PLAYER-MESSAGE-HISTORY.md).
+
+- Startup Load Game is source-integrated with explicit Manual Save/Autosave selection, recoverable notices, fail-closed cleanup and direct saved-level routing through existing restoration; compilation and saved-load runtime remain unverified (docs/XBOX-FRONTEND-LOAD-GAME.md).
+
+- Controller Options and New Game difficulty are source-integrated: process-retained sensitivity, invert Y, radial deadzone, startup/pause UI and idle-only difficulty selection; await the next hourly stock64 compilation and bounded functional check (docs/XBOX-FRONTEND-OPTIONS.md).
+
+- Actual08 stationary session re-entry passed through the ordinary End Session menu; actual06/07 failures remain preserved and were consistent with the XEMU Back+Start shortcut collision (docs/XBOX-FRONTEND-DIAGNOSTICS.md).
+
+- Xbox tester startup/New Game and End Session re-entry passed a bounded stationary check in actual08; broader stability and campaign coverage remain with testers (docs/XBOX-STARTUP-AND-NEW-GAME.md).
+
+- NPC shoulder-cannon consumer compiled in actual04: 16 authored heavy mercenary owners, finite shared Fusion flights/reload and original SP AI damage scaling, with explicit live-NPC-flight save refusal; runtime remains unverified (docs/NPC-SHOULDER-CANNON-FIRST-PASS.md).
+
+- Authored selected-NPC weapon sweep covers 32 primary and four secondary families across 94 installed levels; after Flame and shoulder-cannon integration no additional substantially missing selected family was found. This is source coverage, not runtime or campaign completion (docs/NPC-WEAPON-COVERAGE-SWEEP.md).
+
+- Friendly NPC Use now resolves authored class/persona/Foley speech through existing actor voice ownership; compiled in the October12 02:00 systems batch; audibility and repeated interaction remain unverified, with gestures/facing deferred (docs/NPC-USE-DIALOGUE.md).
+
+- Operational tester controls, NPC Flamethrower primary and friendly NPC Use speech compiled together on stock64 Xbox; continue substantial missing NPC weapon support and leave campaign playthrough and route coverage to testers.
+
+- Xbox pause/session menu is source-integrated: Resume, guarded Save/Load, confirmed fresh-section Restart/End Session and controller-loss pause; compiled in the October12 02:00 systems batch; runtime remains pending (docs/XBOX-SESSION-MENU.md).
+
+- Authored NPC Flamethrower users now have source-integrated finite primary attacks, acquisition, reload, volume damage, burn/death and presentation; compiled in the October12 02:00 systems batch; tester behavior remains pending, with batched fuel timing explicitly approximate (docs/NPC-FLAMETHROWER-FIRST-PASS.md).
+
+- Interactive stock64 tester startup and bounded opening, handgun pickup/fire/reload, one firearm encounter and one automatic door were exercised before the October12 direction correction; preserve those historical results and stop route progression. Broader tester readiness and Rocket alternate behavior remain unverified (docs/TESTER-READINESS.md).
+
+- Compile the integrated tester combat sweep and source-guided Rocket Launcher hold/lock/release alternate; active acquisition/guided-shot save/load refusal is explicit, shared-ammo auto-reload surplus is deferred, and action runtime remains unverified (docs/TESTER-COMBAT-SWEEP.md, docs/PLAYER-ROCKET-LOCK-FIRST-PASS.md).
+
+- Guard retreat/ordinary-combat return and RFNC28 compiled in actual18; bounded changed-read/resource review passed, while gameplay/save behavior remains unverified. USER: compressed whole-disk backup permission remains pending; fresh capacity and changed-game admission are also required before protected saved loading (docs/NPC-GUARD-RETREAT.md).
+
+- Complete guard1 / ordinary 12mm reload and RFNC27 compiled in actual12 stock-profile0 Xbox build. Runtime, protected-save compatibility, whole-stack and peak stock-64-MiB validation remain unverified. Selected before/after compiler evidence is preserved; see docs/HOURLY-20261011-1200.md and docs/NPC-ORDINARY-RELOAD.md.
+
+- Actual11 stock-profile0 Xbox build passed, retaining exact09 artifacts; no runtime. Native saved continuation remains gated on alternate backup approval and verified durability (docs/HOURLY-20261011-1100.md).
+
+- Independently reviewed saved-consumer host continuation is integrated without activation; USER: compressed whole-disk backup permission, actual durable reconstruction and final source/hour bindings remain required before native load (docs/SAVED-CONSUMER-CONTINUATION.md).
+
+- Actual10 stock64 Xbox build passed with exact09 artifacts retained by the normal incremental build; no runtime. USER: alternate compressed whole-disk backup approval remains pending before saved continuation (docs/HOURLY-20261011-1000.md).
+
+- Actual09 stock64 Xbox build passed; no runtime while durable-backup authorization remains pending. Qualify exact XBE build metadata difference before future saved-consumer admission (docs/HOURLY-20261011-0900.md).
+
+- Actual08 Xbox build and genuine L3S1 save capture passed; whole saved HDD is preserved locally, but durable raw upload failed and fresh-load consumer did not run. Resolve supported backup before saved continuation (docs/HOURLY-20261011-0800.md).
+
+- Independently reviewed ordinary body-plus-eye orientation reconstruction now joins airborne capture and restore, with a compact failure-only discriminator for any remaining qualifier refusal; source integrated after07, compilation/save outcome pending08 (docs/NPC-AIRBORNE-EYE-CORRECTION.md).
+
+- Actual07 Xbox build compiled complete airborne/RFNC26 ownership, but genuine save120 now fails the new ordinary-airborne qualifier for UID929 before the old velocity guard; diagnose the nested predicate without relaxing admission (docs/HOURLY-20261011-0700.md).
+
+- Actual06 Xbox build and original fresh movement/one-shot check passed; normal save still rejects living guard929 vertical motion, with retained contact face token413 now observed and under exact ownership review (docs/HOURLY-20261011-0600.md).
+
+- Existing bounded NPC hit records will be retained as read-only terminal evidence in the next hourly checks; no new damage or acceptance behavior is introduced, and captured amounts must not be reported as health loss (docs/NPC-HIT-TERMINAL-OBSERVATION.md).
+
+- Independently reviewed original L3S1 fresh-start movement and one-shot check is integrated for the next hourly batch, separately from the blocked genuine-save flow; no fresh gameplay result is claimed before execution (docs/ORIGINAL-FRESH-CONTROLS.md).
+
+- Exact-rejection read-only NPC body observer is independently reviewed and integrated for the next hourly run; it records actual living/dead and motion ownership without changing admission, while ordinary moving-body continuation remains conditional (docs/NPC-VELOCITY-SAVE-OBSERVATION.md).
+
+- Actual05 Xbox build passed; genuine save120 now rejects ordinary vertical velocity on authored guard UID929, requiring faithful moving-body checkpoint and candidate-placement ownership before another hourly attempt (docs/HOURLY-20261011-0500.md).
+
+- Independently reviewed same-pistol location-directed pain hints 24–27 now join the existing controller before damage, using the published victim frame and existing RFNC24 ownership; compiled at05:00; reactions and save continuation remain unverified (docs/NPC-PISTOL-REACTION.md).
+
+- Independently reviewed ordinary NPC pistol physical-sphere contact and posed hit-location scalar are integrated with accepted-shot callback ownership; compiled at05:00 and completed neutral180 startup; genuine save rejected, with hit damage and branch stack fit unverified (docs/NPC-PISTOL-HIT-LOCATION.md).
+
+- Independently reviewed terminal-corpse reactive marker2 capture correction is integrated after the actual04 save refusal, preserving the existing no-combat corpse representation and all live checks; compiled at05:00 and passed its formerly rejecting corpse row; later moving-body admission still blocks genuine save/load (docs/TERMINAL-REACTIVE-CORPSE-SAVE.md).
+
+- Actual04:00 Xbox build passed, but the genuine normal save at frame120 was rejected by NPC UID910; preserve the refusal and correct its qualified corpse-state admission before a new hourly save/load attempt (docs/HOURLY-20261011-0400.md).
+
+- New normal L3S1 save, durable HDD backup, fresh native load and bounded movement/fire harness is independently reviewed and integrated; strict clean exit and exact source/disk guards apply; actual04 producer rejected capture, so fresh load and controls remain unrun (docs/NATURAL-SAVE-GAMEPLAY-RUNBOOK.md).
+
+- Exact accepted Spit and Cane player-body requests and independent Big Spit radial requests now use current difficulty after raw shield handling; independently reviewed and compiled at04:00; damage actions remain unverified (docs/SPIT-CANE-DIFFICULTY-JOINT-REVIEW.md).
+
+- Exact accepted TriBeam and Sonar final player-body requests now share current difficulty after raw shield handling, with original paid-flight and save owners preserved; source-reviewed and compiled at04:00; action validation remains pending (docs/TRIBEAM-SONAR-DIFFICULTY-REVIEW.md).
+
+- Ten source-qualified player-difficulty consumers are independently reviewed and integrated after the successful03:00 batch, preserving raw shields/Nano and existing action/save ownership; compiled at04:00; actual damage validation remains pending (docs/PLAYER-DAMAGE-DIFFICULTY-CONSUMERS.md).
+
+- Reviewed outside kind10 now receives the existing current SP difficulty row after unchanged exposure admission, sharing the pure lookup with NPC body hits and preserving liquid/outside/gasp order. Compiled in the03:00 Xbox build; no exposure/audio runtime proof (docs/PLAYER-OUTSIDE-DIFFICULTY.md, docs/HOURLY-20261011-0200.md).
+
+- Reviewed ordinary on-foot player damage now receives the existing current difficulty row at the shared final synchronous NPC body-hit consumer, preserving raw shield priority, explicit APIs and outside-scope behavior. No new save state; compiled at02:00, damage behavior unverified (docs/NPC-PLAYER-DIFFICULTY-DAMAGE.md).
+
+- Actual October11 01:00 stock-profile0 Xbox build passed at2c7d33a6; no new runtime was needed after midnight startup PASS. Known armed guard short-flight remains deferred pending a complete combat/navigation/save owner; reviewed decision helpers stay staged (docs/HOURLY-20261011-0100.md).
+
+- Actual known medic damage-flight/action7 is source-reviewed and integrated with original alternate navigation, threat/timers and conditional RFNC25 continuation. Explicit scheduling/RNG/section/capability policies remain documented; compiled and passed October11 00:00 original L3S1 neutral120 stock64 constructor/resource admission, with flight/save actions unverified (docs/MEDIC-FLIGHT-RUNTIME.md).
+
+- Actual23:00 Xbox build and original L3S1 neutral120 stock64 admission passed at ef0612a6, including hit-location metadata and all original-input/restoration guards. Hit reactions/RFNC24 compile; action and new save behavior remain unverified (docs/HOURLY-20261010-2300.md).
+
+- Actual22:00 build failed before runtime on hit-location flags-owner/header errors; reviewed correction cd2e71b3 is integrated. Ordinary location pain actions24–27 and exact residual RFNC24 admission are now source-reviewed and integrated, compiled successfully at23:00; no new action/save proof (docs/HOURLY-20261010-2200.md, docs/PLAYER-NPC-HIT-REACTION.md).
+
+- Ordinary player body hits now use reviewed posed geometry and original named CSPH damage scalars for guard1/guard2/medic1, preserving shield/Nano priority and existing scheduling; compiled and passed mandatory metadata admission at23:00, with shot behavior unverified (docs/PLAYER-NPC-HIT-LOCATION.md).
+
+- Generated medic syringe raw-hand pose correction compiled and passed the21:00 unchanged original L3S1 neutral120 stock64 startup, with119 successful pose publications and fault0; healing, rendering and save behavior remain unverified, and the exact uncaptured19:00 failing callee remains unproven (docs/MEDIC-RAW-HAND-POSE.md, docs/HOURLY-20261010-2100.md).
+
+- Current validation: October11 00:00 Xbox build and unchanged original L3S1 neutral120 stock64 startup passed at6416aa52 with all original-input/restoration guards; retain the separate19:00 RF_FORMAT failure and the missing exact old saved-HDD regression blocker (docs/HOURLY-20261010-2100.md).
+
+- Successful accepted player form entry/exit retires the outgoing ordinary reload countdown before selection, matching original fresh-actor reload initialization; source-reviewed and compiled in21:00, with action runtime unverified (docs/FORM-RELOAD-OWNER.md).
+
+- Ordinary force-zero manual cycling and armed pickup selection refuse an already-started selected ordinary reload while retaining accepted grants and input-edge consumption; independently reviewed and compiled, including the21:00 passing startup, with selection-action runtime unverified (docs/ORDINARY-RELOAD-SELECTION.md).
+
+- Shared Riot/Flame gameplay charge ownership and RFAP5 persistence are independently source-reviewed and compiled with original resource admission in the21:00 passing startup; both fractional lanes are replaced together, with explicit compatibility/transaction policies and action/save behavior unverified.
+
+- Project/APU warning policy is now privately owned by the 109 project objects; SDK dependencies retain upstream defaults after the 18:00 allocator warning failure (docs/HOURLY-20261010-1800.md).
+
+- Actual authored guard patrols are compiled and observed during the21:00 original neutral startup:590 movement commits and10 successful routes; combat interruption, broader route behavior and RFNC23/RFCH9 save/history remain unverified, with unsupported section combat/seat and qualified One way guarded (docs/AUTHORED-WAYPOINT-RUNTIME.md, docs/AUTHORED-WAYPOINT-CODEC.md).
+
+- USER: Original saved-HDD regression remains blocked by missing exact saved bytes after workspace reset; historical startup evidence cannot replace it. The October11 03:10 user approval allows a separately labeled genuine L3S1 save through ordinary gameplay, never a fabricated or impersonated historical save.
+
+- Actual L3S1 medic Use: independently source-reviewed delayed finite healing, generated syringe ownership, input arbitration and RFNC22/RFCH8 reserve/child history are compiled; the21:00 startup observed syringe pose publication only, while healing, presentation and save/revisit behavior remain unverified (docs/MEDIC-USE-ACTION.md, docs/MEDIC-SYRINGE-OWNER.md, docs/MEDIC-FINITE-PERSISTENCE.md).
+# Red Faction Xbox / PC - open work
+
+- The 15:00 Xbox build and actual immutable October9 saved-HDD L11S3 fresh load passed at ff529164: genuine RFNC14 assignments for both frozen owners, 32 neutral frames on stock64 MiB and all original-input/restoration checks; post-14 code compiled, with new Goto/contact/radial action and new-format save behavior still unverified (docs/HOURLY-20261010-1500.md).
+
+- Shared radial lethal death direction: source-written original model-kind2 physics-forward hint now captures before damage and publishes only after accepted lethal damage, using full identities and the existing blast-entry world epoch while preserving Nano consumption and current death selection; independently reviewed and integrated for 15:00 compilation, with action/save runtime unverified, original nonlethal hint persistence deferred and no invented blast impulse (docs/RADIAL-LETHAL-DEATH-HINT.md).
+
+- Ordinary grounded player/NPC movement contact: source-written live-only nearest horizontal max-CSPH contact and dynamic response now consume eligible living humanoids, with full-handle per-pass ownership, frozen committed NPC endpoints and explicitly normalized port-local timing; independently reviewed and integrated for 15:00 compilation, with contact/runtime/save behavior unverified and no ground/support, reciprocal scheduler or candidate-clearance changes (docs/PLAYER-NPC-CONTACT.md).
+
+- The 14:00 Xbox build and original L3S1 unchanged neutral 120-frame stock-64-MiB startup passed at 1fd5bfba, including mandatory configured-item resource admission and all original-input/restoration guards; airlock code compiled, with new drop/airlock action and save behavior still unverified (docs/HOURLY-20261010-1400.md).
+
+- Authored Goto AI suppression: source-written actor-local exact-word latch now gates ordinary acquisition/reaction while preserving forced fire and existing movement/weapon owners, with conditional RFNC21/RFCH7 candidate-first residual persistence and generated-base equality joins; independently source-reviewed and parent-integrated after the 14:00 batch, awaiting 15:00 compilation and entirely action/save-runtime-unverified, with suppressed target-only Attack and preexisting Goto OFF/Masako overlaps explicitly deferred (docs/SCRIPTED-GOTO-AI-SUPPRESSION.md).
+
+- Bounded live airlock equalization: source-written paired two-key chamber ownership now retains accepted actor tokens through original 1000-ms then 50-ms waits, toggles independent pressure once and dispatches delayed links with Load_Level mover suppression; current/candidate room proof, RFTC2 peer-coherent pressure persistence, legacy defaults and post-storage-success restore ownership are independently source-reviewed and parent-integrated with prior interlock fallback, compiled in the 14:00 Xbox batch, with all new action/save/load behavior unverified (docs/AIRLOCK-EQUALIZATION.md).
+
+- Configured death-item ammo profiles: actual selected L3S1/L11S3 owners now have source-written 5.56mm_ammo (42 rounds) and 10gauge_ammo (8 rounds) bindings through existing pickup kinds 5/9, finite shared-ammo collection and stable IDs 3/4 without changing RFNC20/RFCH6 or resource bounds; independently source-reviewed, parent-integrated and compiled with original L3S1 startup/resource admission in the 14:00 batch, with action/save behavior unverified (docs/AUTHORED-NPC-DEATH-ITEMS.md).
+
+- Authored configured NPC death items are independently source-reviewed and parent-integrated: actual Medical Kit/12mm_ammo defaults use separate finite actor-owned drops, exact source-model placement, bounded resource demand, ordinary collection and conditional RFNC20/RFCH6 persistence with strict fault/restore/handoff ownership; compiled with original L3S1 startup/resource admission in the 14:00 batch, with new action/save behavior unverified (docs/AUTHORED-NPC-DEATH-ITEMS.md).
+
+- The 13:00 Xbox build and actual pinned L11S3 saved-HDD RFNC14 fresh load passed at 02ea395e: genuine assignments for both frozen owners and 32 neutral frames on stock 64 MiB; Capek hover placement blocker resolved, all post-12 source compiled, while new action/audio/RFNC19 branches remain unverified (docs/HOURLY-20261010-1300.md).
+
+- Ordinary NPC class-fatal feedback: source-written optional DeathSnd metadata and callback-safe qualifying fatal dispatch preserve original descriptor oncebit and absent-descriptor Low/Med fallback, with exclusive robot routing and unchanged action Foley; independently source-reviewed and parent-integrated for the 13:00 batch, with compilation/action/audio unverified and the old-save regression unable to validate the new branches (docs/NPC-FATAL-FEEDBACK.md).
+
+- Canonical Drone pitch checkpoint continuation: source-written RFNC19 separately owns exact ordinary fly11 pitch, masked dynamics and retired look-only tombstones with candidate-first transformed clearance and exact absent-floor proof; independently source-reviewed and parent-integrated for the 13:00 batch, with compilation and all new save/action behavior unverified, and the existing old-save regression unable to validate new pitch branches (docs/DRONE-PITCH-CHECKPOINT.md).
+
+- Exact Spike clipless terminal retirement is independently source-reviewed and parent-integrated: authored Spike Death and radius0.9 yellboom_metal retain original default-zero damage through the shared immutable removal-first/no-corpse owner and unchanged save guards; awaiting 13:00 compilation; terminal coverage remains build-only, with action/audio/save runtime unverified (docs/ROBOT-DEATH-BLAST.md).
+
+- Exact Drone/Tankbot authored death finalization is independently source-reviewed and integrated: qualifying fatal DeathSnd, copied deferred removal-first source-1 kind3 damaging blast, finite chained ownership and save-only pending/fault guards; awaiting 13:00 compilation, with action/audio/terminal-save behavior unverified (docs/ROBOT-DEATH-BLAST.md).
+
+- Capek hover checkpoint support: the noon original saved-HDD failure is traced to optional floor acquisition after the8.0 speed correction; source-written exact unbroken candidate-hover admission preserves all world/mover/prop volume and room checks without inventing support, independently source-reviewed and parent-integrated, awaiting the 13:00 UTC Xbox batch (docs/CAPEK-HOVER-CHECKPOINT-SUPPORT.md).
+
+- 12:00 Xbox build passed at59fc9e0b, but actual pinned L11S3 saved-HDD fresh load failed RF_NOT_FOUND during NPC row0 UID4938 placement before frozen-owner assignment; preserve strict validation and fix the concrete admission blocker for the next hourly batch (docs/HOURLY-20261010-1200.md).
+
+- Authored NPC landing audio: source-written optional class/material first-sample spatial one-shots now have copied pre-impact/accepted-support receipts and callback-safe next-actor dispatch while preserving existing impact/death/stance ownership; independently source-reviewed, parent-integrated and compiled in the 12:00 Xbox batch, with action/audio runtime unverified because the old-save run failed placement before motion, and exact original timing/NPC water classification deferred (docs/NPC-LANDING-AUDIO.md).
+
+- Tankbot autonomous Missile: source-written exact owned Chaingun/Missile admission now shares an independent accepted-only four-second wait with forced queued mode1, reusing finite existing launches and RFAP flights, with save-only unsaved-deadline guards; independently source-reviewed, parent-integrated and compiled in the 12:00 Xbox batch, with action/save runtime unverified because the old-save run failed placement before motion (docs/TANKBOT-SECONDARY-FIRE.md).
+
+- Ordinary Shoot_Once target release: source-written accepted mode0 requests on the nine synchronous ordinary firearms now apply original setter eligibility once before FIFO publication, preserving mode1/mode2, Shoot_At, authored owners and independently completing finite reloads; independently source-reviewed, parent-integrated and compiled in the 12:00 Xbox batch, with action/save runtime unverified because the old-save run failed placement before motion, and broad special-weapon release still deferred (docs/SCRIPTED-SHOOT-ONCE-FIRST-PASS.md).
+
+- Residual NPC fire/reload composition: source-written per-requested-slot admission now composes independently owned pain/burn clips with the existing exact nine-ordinary-gun {action2,action39} and Rocket action39-only residual profile, preserving every other clip owner, zero ammo obligation and staged RFAP join; independently source-reviewed, parent-integrated and compiled in the 12:00 Xbox batch, with save/action runtime unverified because the old-save run failed placement before motion, and broad Shoot_Once target release deferred (docs/NPC-RELOAD-PRESENTATION-SAVE.md).
+
+- The 11:00 Xbox build passed at f4c1cf55, compiling player outside exposure/gasp and target-independent NPC reload completion; build-only, with new gameplay/audio/save behavior unverified. The pending-compilation wording in preceding implementation entries is superseded by this result (docs/HOURLY-20261010-1100.md).
+
+- Ordinary NPC reload completion: already-started same-weapon finite magazine reloads now have source-written exact living registered-owner service before per-owner combat gates, preserving zero-transfer event2 through a frame-local receipt; independently source-reviewed and parent-integrated for the 11:00 Xbox build, with runtime unverified, with target release and action39 save ownership still deferred (docs/NPC-RELOAD-COMPLETION.md).
+
+- Player outside gasp: one optional named nonloop sample now repeats only after native completion for the independently qualified living, armor-empty outside-room player, with generation-safe retirement, 96KiB lazy admission and final-successful-load closure; independently source-reviewed and staged for parent integration and the 11:00 Xbox batch, with action/audio runtime unverified (docs/PLAYER-OUTSIDE-GASP.md).
+
+- Player outside exposure: the qualified living on-foot owner now submits original kind10 damage from the bounded current body-room outside byte after liquid damage, using live armor and retained class flags without oxygen/save state; independently source-reviewed and staged for parent integration and the 11:00 Xbox batch, with actual outside exposure and gasp audio unverified/deferred (docs/PLAYER-OUTSIDE-DAMAGE.md).
+
+- The 10:00 Xbox build and same original L10S4 neutral 120-frame stock-64-MB startup passed at 8797e1b8 with all original input/restoration guards; the strict Snake admission blocker is fixed, and all preceding integrated source compiled. Historical pending-build entries below are superseded by this result; action-specific behavior remains unverified (docs/HOURLY-20261010-1000.md).
+
+- Successful exhausted Detonator actions now request an owned, usable ranked replacement at the existing action deadline after all owned charges retire; independently source-reviewed and integrated, awaiting the 10:00 Xbox build, with conservative retirement/timing policy and action runtime unverified (docs/DETONATOR-EMPTY-SELECTION.md).
+
+- Riot alternate lethal-contact direction now supplies the original forward/backward death hint to existing clearance-aware selection after positive lethal damage; independently source-reviewed and integrated, awaiting the 10:00 Xbox build. Nonlethal hint persistence and exact swept-contact geometry remain deferred (docs/PLAYER-RIOT-LETHAL-DEATH-HINT.md).
+
+- Player Riot alternate: source-written accepted500ms cadence now owns one10ms current-aim60/bash contact and consuming Nano debit, surviving release/final-cell drain while preserving primary150/600ms, physical-shield priority and lifecycle/save guards; independently source-reviewed and parent-integrated, awaiting the10:00 Xbox batch, with finite continuous charge accounting still an explicit approximation (docs/PLAYER-RIOT-ALTERNATE-PULSES.md).
+
+- The 09:00 Xbox build passed at5d55baed, but original L10S4 neutral startup failed before frame0 in campaign load stage11, before weapon supply publication; original inputs were restored, raw proof preserved, and the independently reviewed strict Spit flag correction is integrated without a retry (docs/HOURLY-20261010-0900.md).
+
+- Primary melee Nano shields: qualified Riot primary and ordinary/delayed NPC contacts now debit one captured primary amount with consuming breaks and preserved physical-shield priority; independently source-reviewed and parent-integrated after09, awaiting10:00 compilation/runtime; alternate contact ownership is integrated above (docs/MELEE-NANO-SHIELD.md).
+
+- Shared radial Nano shield damage: source-written fully registered NPC consumption now uses published-origin strict overlap and existing positive body-center falloff for armor-only debit/break before generic damage, preserving direct-intercept suppression and all shared populations; independently source-reviewed and parent-integrated after the completed09:00 batch, awaiting10:00 Xbox compilation/runtime (docs/RADIAL-NANO-SHIELD.md).
+
+- Capek Nano shield movement: owner-local shielded8.0 admission and authored0.3 base restoration now preserve original delayed live-speed refresh, Slow/Normal, candidate placement and legacy rollback without class mutation or a new format; independently source-reviewed and parent-integrated, awaiting 09:00 Xbox compilation/runtime, with a narrow unsupported break-speed-transient save guard and presentation still deferred (docs/CAPEK-SHIELD-MOVEMENT.md).
+
+- Capek hover pursuit: exact authored/current hover12 follow2 now has integrated body-space XYZ target refresh, route/final arrival and full-body swept translation while retaining full-target steering, owner-resolved speed, command priority and existing collision/save guards; independently source-reviewed and parent-integrated, awaiting 09:00 Xbox compilation/runtime (docs/CAPEK-HOVER-PURSUIT.md).
+
+- Drone robot-fly pursuit: exact authored/current fly11 follow2 now has integrated body-space XYZ target refresh, route/final arrival and unchanged full-target steering through full-body swept translation; independently source-reviewed and parent-integrated, awaiting 09:00 Xbox compilation/runtime, preserving routes, authored speed and existing save/clearance guards (docs/DRONE-XYZ-PURSUIT.md).
+
+- Capek Cane impact and expiry audio: original dry Riot Impact samples now consume retained contact identity/material, physical-shield-before-durability and Nano silence, plus actual homing expiry without radial damage; optional four-sample 64KiB admission and shared material extraction were independently source-reviewed on the vehicle-boundary repair, awaiting 09:00 compilation/runtime (docs/CAPEK-CANE-IMPACT-AUDIO.md).
+
+- The 08:00 Xbox build failed at e601eef2 on a retained-vehicle material reader declared before its private runtime type; no new XBE/runtime occurred, raw proof is durable, and the independently reviewed source-only primitive-query correction awaits the 09:00 batch (docs/HOURLY-20261010-0800.md).
+
+- Capek Cane flight audio: original looping PCM now has bounded optional selected-owned load-stage admission, immutable spatial profiles and exact accepted-flight tickets with terminal/reset retirement; source-reviewed helper and parent hooks await scheduled compilation and action/audio runtime (docs/CAPEK-CANE-FLIGHT-AUDIO.md).
+
+- Capek Cane flight visual: original animated flare billboards, fifty-slot PART and named radial WARP now have bounded optional 256KiB admission, copied-flight ownership and sorted additive rendering; source-reviewed helper and parent integration await scheduled compilation and runtime, with exact scheduler/RNG and separate warmup/impact consumers deferred (docs/CAPEK-CANE-FLIGHT-VISUAL.md).
+
+- Capek Cane: actual selected-owned actor attacks now have a source-written finite prepaid1.5-second release and original retained-lock energy guidance, held muzzle/current eye basis, scoped no-world object contacts and save-only guards; staged for parent integration and hourly Xbox compilation, with mounted/vehicle acquisition, separate presentation and all action/runtime coverage explicitly deferred (docs/CAPEK-CANE-FIRST-PASS.md).
+
+- Snake Spit impact audio: retained material/contact feedback now preserves physical-shield pre-durability sound, Nano silence and Big radial-before-sound ordering, with separate bounded optional six-sample admission only for placed authored Snake pairs; independently source-reviewed, awaiting 08:00 compilation, with playback and stock-memory admission unverified (docs/SNAKE-SPIT-IMPACT-AUDIO.md).
+
+- Big Rock Snake Spit: exact selected-owned 800-ms prepaid flight now carries independent AP direct damage and explosive-kind radius-three radial damage, preserving consuming shields, no expiry blast, immutable source, shared posed muzzle/particles and guarded lifecycle; integrated after independent review, awaiting 08:00 compilation/runtime, with existing radial Nano policy and separate impact feedback limits retained (docs/BIG-ROCK-SNAKE-SPIT-FIRST-PASS.md).
+
+- Small Rock Snake Spit visual: both original PART effects now use bounded optional resource admission and sorted normal-alpha sprites with original textures, rectangular spray, spherical gravity droplets and accepted-flight ownership; integrated after independent review, awaiting 08:00 compilation/runtime. Exact loop/RNG parity and separate impact effects remain deferred (docs/SMALL-ROCK-SNAKE-SPIT-PART.md).
+
+- Small Rock Snake Spit: exact selected-owned delayed AP flight now uses its original primary_1 attachment, current body/eye target, finite prepaid windup and save-only lifecycle guards; integrated after independent review, awaiting 08:00 compilation. The separately reviewed Big profile and original particle visual are now integrated above (docs/ROCK-SNAKE-SPIT-FIRST-PASS.md).
+
+- The 07:00 Xbox build and original L3S1 ordinary sixteen-shot Pistol check passed at b7546ce5: real seed 1 advanced exactly 32 draws, one sixteen-round reload, all stock-64-MiB/input/restoration guards passed; other new weapon actions remain unverified (docs/HOURLY-20261010-0700.md).
+
+- Flamethrower alternate admission: source-written full-reserve gating now rejects underfunded throws before presentation and defensively at delayed release, preserving successful-spawn-only exact tank replacement, cooldown, live canisters, burns and RFAP without inventing ranked replacement; compiled in the 07:00 Xbox batch, with alternate-action runtime unverified (docs/FLAME-CANISTER-RESERVE.md).
+
+- Fusion direct object contacts: source-written terminal vehicle/turret and retained-prop dispatch reuses generation-qualified explosive damage before the independent radial blast, preserving Nano consumption and existing impact/terrain ownership; integrated with the separate clutter/turret tag prerequisite, independently source-reviewed and compiled in the 07:00 Xbox batch, with action runtime unverified (docs/FUSION-DIRECT-CONTACT.md, docs/CLUTTER-PROJECTILE-NAMESPACE.md).
+
+- Player scope ownership: source-written full player/weapon reconciliation retires inherited Sniper/Precision zoom before input and after successful selection, retaining alternate edges, raw restore selectors and cinematic FOV ownership; successful loads reset only after storage close, compiled in the 07:00 Xbox batch, with scope-action runtime unverified (docs/WEAPON-SCOPE-OWNERSHIP.md).
+
+- Scheduled 07:00 Pistol spread observation reuses the original L3S1 ordinary 16-shot recipe with read-only initial/final saved RNG observation and unchanged stock-64-MiB/input/ownership/restoration guards; passed the 07:00 batch with actual seed 1 and terminal 1423890337 after 32 draws, without Shotgun/AR/Undercover action or save-continuation coverage (docs/PLAYER-SPREAD-NATIVE-CHECK.md).
+
+- Player primary spread: source-written Pistol, every Assault Rifle primary round and Undercover primary now consume their own authored SP cone through the existing saved conventional RNG before contact/penetration, retaining ownership, suppressor transition, ammo, cadence and other spread streams; compiled in the 07:00 Xbox batch with the bounded Pistol RNG consumer passed; AR/Undercover actions and exact rays remain unverified (docs/PLAYER-PRIMARY-SPREAD.md).
+
+- The 06:00 UTC Xbox build and original L17S1 neutral 120-frame stock-64-MiB startup/resource admission passed at 28ad4190; prior source below is now compiled, with its action-specific behavior still unverified, and all original input/restoration predicates passed (docs/HOURLY-20261010-0600.md).
+
+- Player Shotgun shell dispatch: source-written accepted-primary now spends two real shells for eight authored rays, while one-shell primary falls back to effective alternate without changing its requested cooldown; compiled in the 07:00 Xbox batch with Shotgun action runtime still unverified, and historical one-shell/four-ray primary expectations explicitly superseded (docs/PLAYER-SHOTGUN-DISPATCH.md).
+
+- Player-operated stationary Vauss camera feedback: source-written exact optional Vauss profile now consumes captured accepted-shot identities after successful hearing, requalifies living player/mount ownership and reuses the sole camera effect with unchanged mounted aim, cadence and unlimited ammo; integrated and independently source-reviewed against cde3fb72, awaiting the scheduled 06:00 Xbox batch, uncompiled/runtime-unverified, with same-view-pass timing and excluded HEAP/NPC/other vehicle scope documented (docs/WEAPON-CAMERA-FEEDBACK.md).
+
+- Accepted-shot weapon camera feedback: source-written optional authored AR/Machine Pistol profiles reuse the captured real-debit receipt after successful selection and the existing camera owner, while raw pre-effect on-foot aim fixes prior damage/Force_Shake aim coupling without changing staged/mounted cameras or canonical/save hashes; integrated and independently source-reviewed against 994ed617, uncompiled/runtime-unverified pending the scheduled 06:00 Xbox batch, with next-camera-pass on-foot ordering documented and the stationary Vauss extension tracked above (docs/WEAPON-CAMERA-FEEDBACK.md).
+
+- Flamethrower autonomous reload: the shared real-idle/selected/owned/reserve gate now requests the existing Flame reload after ordinary release-to-idle, retaining swim/canister/internal-reload guards and unchanged manual/held-primary timing, drain/refill, audio, fractional fuel and RFAP; integrated and independently source-reviewed against b3d5bcb8, awaiting the scheduled 06:00 Xbox compilation, with runtime and exact original reset/blend timing unverified (docs/WEAPON-AUTO-RELOAD.md).
+
+- Fusion autonomous reload: the shared real-idle/selected/owned/reserve gate now requests the existing Fusion reload without another trigger edge, preserving authored timing, transfer, manual/held-primary behavior, sound and RFAP; integrated and independently source-reviewed against 1d8f71b0, uncompiled/runtime-unverified pending the scheduled 06:00 Xbox batch (docs/WEAPON-AUTO-RELOAD.md).
+
+- Flamethrower primary depletion: actual successful fuel debit now records a distinct call-local request for guarded authored-ranked replacement after combat succeeds, immediately retiring only ordinary off-selection input while retaining fractional fuel, cadence, alternate history, canisters and burns; integrated and independently source-reviewed against ae64a383, uncompiled/runtime-unverified pending the scheduled 06:00 Xbox batch, with alternate/dry handling and full original timing/presentation deferred (docs/FLAME-EMPTY-SELECTION.md).
+
+- Fusion depletion: successful final launch/debit now records a frame-local request for guarded authored-ranked replacement only after combat succeeds, preserving independent flights and clearing only outgoing Fusion input upon actual selection; integrated and independently source-reviewed, uncompiled/runtime-unverified pending the scheduled 06:00 Xbox batch, with dry retry/backoff and full original draw transitions deferred (docs/FUSION-EMPTY-SELECTION.md).
+
+- Sea Creature sub pursuit: exact authored/current mode7 follow2 now has source-written body-space XYZ target refresh, route/final arrival and full-body swept translation with movement-only flat steering; coherent first-pass coordinate policy preserves authored commands, speed, collision and save guards, integrated at a333c0f4 with compilation/runtime pending the scheduled Xbox batch (docs/SEA-CREATURE-SUB-PURSUIT.md).
+
+- Sea Creature Sonar: actual selected-owned primary now reaches a separate finite direct-energy flight pool with authored liquid-contact expiry, retained shields/cover and save-only guards; integrated and independently source-reviewed, awaiting 05:00 compilation. Finite exhaustion remains explicit port policy; authored PART visual is separately source-integrated with exact decoded sprites/fades and bounded first-pass loop/RNG policy, while swimming pursuit and action/visual runtime remain unverified/deferred (docs/SEA-CREATURE-SONAR-FIRST-PASS.md, docs/SEA-CREATURE-SONAR-PART.md).
+
+- Spike TriBeam: actual owned finite-reserve primary now has a source-written 2.5-second prepaid windup and one direct energy flight using current eye pose, with five-second cadence, hidden deferral and shared shield/cover handling; integrated and independently source-reviewed, awaiting 05:00 compilation, with action/runtime, precise muzzle and separate warmup VFX unverified/deferred (docs/SPIKE-TRIBEAM-FIRST-PASS.md).
+
+- Ordinary NPC Vauss: actual L9S4 Meca owners now reach finite170-reserve combat with original cadence/AI damage, shared guarded actor penetration and optional authored loop/impact sound consumers; integrated/source-reviewed, awaiting 05:00 compilation. Existing fast-bullet ray policy is explicit, with authored flight/tracer parity deferred (docs/NPC-VAUSS-FIRST-PASS.md).
+
+- Meca Turret Laser: exact owned finite-reserve NPC flight, direct bullet contacts, physical/Nano shield consumption, authored projectile visual and transient save guards are source-integrated and independently reviewed; no explosive/hitscan substitution. Awaiting 05:00 compilation and original startup/resource admission, with attack/audio/visual runtime unverified (docs/MECA-LASER-FIRST-PASS.md).
+
+- Armed weapon acquisition: source-written actual first-ownership pickups now compare the accepted weapon against the exact outgoing primary using authored signed ranks and verified factory Autoswitch defaults, preserving MP mode, resource/identity admission, held-input release and original Grenade/Remote special selection branches; uncompiled/runtime-unverified, integrated and awaiting 05:00 Xbox compilation after the preserved 04:00 build failure (docs/ARMED-PICKUP-SELECTION.md).
+
+- Machine Pistol depletion: integrated, independently source-reviewed paired consumer starts the existing authored timed counterpart action only from an accepted dry trigger, preserves finite independent ammo/base ownership/cooldown and mode save owner, and uses ranked fallback when both pools are empty; uncompiled/runtime-unverified, awaiting 05:00 Xbox compilation after the preserved 04:00 build failure (docs/MACHINE-PISTOL-EMPTY-SELECTION.md).
+
+- Conventional depletion: successful real shots and accepted dry attempts now select an owned, usable, resource-admitted replacement after outgoing combat finishes, using verified original factory Autoswitch defaults and authored ranks; source-reviewed, awaiting 05:00 compilation after the preserved 04:00 build failure. Paired MP now has a separate source adapter; special-controller depletion and saved preference ownership remain deferred (docs/WEAPON-EMPTY-SELECTION.md).
+
+- Player Riot primary: authored 150/600-ms current-pose contacts now use player-specific overdue coalescing, single trigger/onset ownership and transient save guards; integrated and independently source-reviewed, awaiting 05:00 compilation after the preserved 04:00 build failure with action runtime unverified (docs/PLAYER-RIOT-PRIMARY-DELAYS.md).
+
+- Physical shields against NPC melee: ordinary and delayed actor-directed contact now uses generation-qualified player/NPC shield queries and consuming shield-break commits, with pose preparation and retained cover ordering. Integrated after failed 03:00 build; uncompiled/runtime-unverified. Existing directional-ray policy remains distinct from original swept collider (docs/NPC-MELEE-PHYSICAL-SHIELDS.md).
+
+- NPC melee prop contact: ordinary and delayed actor-directed melee now admits nearer current-pose retained clutter, preserving single world/rubble damage and consuming protected/broken/stale prop hits before actor damage. Source-reviewed, awaiting 05:00 compilation after the preserved 04:00 build failure after the preserved 03:00 build failure; the later physical-shield adapter is source-integrated but uncompiled, while swept/contact-order parity remains deferred (docs/NPC-MELEE-PROP-CONTACT.md, docs/NPC-MELEE-PHYSICAL-SHIELDS.md).
+
+- Drone automatic secondary: exact owned Missile now has independent four-second admission, finite reserve debit and shared straight projectile ownership. Successful-load retirement prevents stale unsaved Drone flights; source-reviewed and awaiting 05:00 compilation after the preserved 04:00 build failure after the preserved 03:00 build failure. Optional authored launch/flight audio is now source-integrated with immutable per-voice profiles, pending the same compilation. Exact muzzle, action/audio runtime and save persistence remain unverified/deferred (docs/DRONE-SECONDARY-FIRE.md, docs/DRONE-MISSILE-PROJECTILE.md, docs/DRONE-MISSILE-AUDIO.md).
+
+- Drone Smash: exact owned primary now has a separate authored400-ms pending strike with ordinary90-frame cadence, full-handle cancellation, actor-on-foot contact and save-only transient guards. Integrated after02 build; uncompiled/runtime-unverified, pending04 batch after the preserved03 failure (docs/DRONE-DELAYED-STRIKE.md).
+
+- Authored impact delays: separate bounded primary/alternate reader now retains up to two ordered delays per mode without changing primary/save layouts; source-reviewed, 02:00 Xbox compilation passed. Drone delayed-strike admission and lifecycle are now integrated after the 02:00 build and await compilation (docs/WEAPON-IMPACT-DELAYS.md).
+
+- Tankbot actor penetration: exact authored-enabled accepted shots now use bounded fresh-base/body-radius continuation, retained source identity and separate actual player/vehicle damage accounting; source-reviewed, 02:00 Xbox compilation passed. Action runtime remains unverified and world-metal traversal deferred (docs/TANKBOT-ACTOR-PENETRATION.md).
+
+- Mutant Attack 1/2: actual owned L10S1 primaries retain exact ammo-free admission. Post-02 source now schedules independent authored 150/500-ms or single 150-ms contacts with full-handle cancellation and shared save-only guards; awaiting compilation. Flesh-contact audio, physical-shield parity and attack runtime remain unverified/deferred (docs/REEPER-CLAW-MELEE.md, docs/CREATURE-DELAYED-IMPACTS.md).
+
+- Reeper claws: exact owned/live adult and baby primaries retain ammo-free authored range/damage/cadence. Post-02 source schedules independent 400/800-ms and 300/600-ms impacts, with cancellation between contacts and reentrant reservation guards; awaiting compilation. Actual contacts and physical-shield parity remain unverified/deferred (docs/REEPER-CLAW-MELEE.md, docs/CREATURE-DELAYED-IMPACTS.md).
+
+- Tankbot Chaingun primary: exact authored clipless admission now reaches ordinary and opposed NPC combat with finite mapped-reserve readiness/debit, original burst-onset audio and unchanged shared cadence/cover/shield/damage; 02:00 Xbox compilation passed; actual firing/exhaustion/audio unverified (docs/TANKBOT-PRIMARY-FIRE.md, docs/TANKBOT-BURST-AUDIO.md).
+
+- Mounted Vauss actor penetration: authored-enabled player/autonomous shots now have integrated bounded fresh-base/radius continuation with accepted-operator exclusion, physical shields and full-ray terminal cover preserved; 02:00 Xbox compilation passed, with gameplay, world-metal exits and ordinary NPC/Tankbot expansion unverified/deferred (docs/MOUNTED-ACTOR-PENETRATION.md).
+
+- Ordinary handheld actor penetration: authored-enabled AR/HMG/scoped rifle/MP Special now have an integrated bounded post-spread continuation adapter preserving ordinary damage/cadence and full-ray cover; 01:00 Xbox compilation and original neutral startup admission passed, with gameplay/runtime and world-metal exits unverified/deferred (docs/HANDHELD-ACTOR-PENETRATION.md).
+
+- Sniper actor penetration: authored power now controls bounded body continuation, fresh per-contact damage and actual-radius advance, retaining competing cover and legacy Remote Charge catalog identity; 01:00 Xbox compilation and original neutral startup admission passed. Multi-actor runtime and world-metal exit/ricochet remain unverified/deferred (docs/SNIPER-PENETRATION.md).
+
+- Native player pause: Start now owns a blocking input-provider pause with native SFX/VO/music cursor retention, pacing re-anchor and held-action release guards; 01:00 Xbox compilation passed; actual physical/native pause runtime remains unverified. No menu, overlay or replay ABI changes (docs/PLAYER-PAUSE.md).
+
+- Rocket/grenade flight audio: accepted player/NPC projectiles now own bounded generation-qualified positional motor/tick loops, closing on terminal/reuse/reset and resuming only after successful checkpoint publication and storage close. 00:00 Xbox compilation passed; native output and restore runtime unverified (docs/PROJECTILE-FLIGHT-AUDIO.md).
+
+- Precision and NPC bullet impact audio: qualified retained sniper/rail object contacts, sniper world stops, ordinary NPC rays and shotgun pellets now share dry material/default playback; 00:00 Xbox compilation passed. Stale vehicle handling is explicitly excluded; rail world chains, ambiguous covered clutter and underwater branches remain deferred (docs/PRECISION-IMPACT-AUDIO.md, docs/NPC-BULLET-IMPACT-AUDIO.md).
+
+- Player bullet impact audio: authored dry material/default groups now reach actual normal-hitscan contacts through a bounded resident shared sound bank; optional startup admission and playback cannot reject shots. 23:00 Xbox build and16 ordinary pistol impact playback starts passed; audible output, precision/NPC/underwater consumers and ordered-world overlap refinement remain unverified/deferred (docs/WEAPON-IMPACT-AUDIO.md).
+
+- Autonomous conventional reload: original empty-magazine update now requests the existing reload only after actual fire presentation returns to idle, using real reserve and preserving timing, modes, ownership and save format; 23:00 Xbox build and original L3S1 sixteen-shot autonomous refill passed (docs/WEAPON-AUTO-RELOAD.md).
+
+- Remote charge controls: authored charge/detonator follow-up selection and compatible RFRM2 countdown persistence are integrated with actual action timing, held-input gating and unchanged independent charge ownership; 22:00 Xbox compilation passed; ordinary switching/save runtime unverified (docs/REMOTE-AUTO-SELECTION.md).
+
+- Unarmed weapon acquisition: accepted placed/extra/corpse weapon pickups now equip the actual owned/resource-admitted primary when explicitly unarmed, preserving inventory, saved-unarmed semantics and retained modes; shared input release gating prevents unintended fire. 22:00 Xbox compilation passed; action runtime unverified; active forms and scripted grants remain outside this bounded adapter (docs/UNARMED-PICKUP-SELECTION.md).
+
+- Exhausted grenade selection: successful final release now uses independent authored preference ranks and the original grenade-only empty-weapon exception to choose an owned/resource-admitted replacement; projectile/cooldown and save ABI remain intact, held controls require release. Explicit strict-rank port policy and paired-mode limitation documented; 22:00 Xbox compilation passed; selection runtime unverified (docs/GRENADE-EMPTY-SELECTION.md, docs/WEAPON-PREFERENCE-ORDER.md).
+
+- Frozen terminal NPC saves: RFNC17 now preserves qualified retained source-body physics on an already-admitted terminal death pose without thawing, callbacks, row-size growth or relaxed clearance; RFNC1–16 semantics remain. 22:00 Xbox compilation passed; actual save/load unverified (docs/FROZEN-DEATH-CHECKPOINT.md).
+
+- NPC environmental damage: ordinary lava/acid exposure now derives own-body wet membership and consumes original rates through shared qualified damage/death after room refresh; no drowning/swim rewrite or new timer. 22:00 Xbox compilation passed; hazard runtime unverified; frozen-death checkpoint support is separately source-written in RFNC17 and unverified (docs/NPC-LIQUID-DAMAGE.md, docs/FROZEN-DEATH-CHECKPOINT.md).
+
+- NPC action Foley: fire/reload labels now reuse the original registered positional body-origin callback independently of weapon Launch, with bounded nonloop admission and unchanged action/reload timing. 22:00 Xbox compilation passed; action runtime unverified (docs/NPC-ACTION-FOLEY.md).
+
+- NPC weapon audio: accepted shots now independently consume original positional Launch groups, with retained MP/HMG primary loop owners and unchanged rifle burst specialization; authored action Foley remains separate. 22:00 Xbox compilation passed; playback and queued single-fire loop presentation remain unverified/deferred (docs/NPC-LAUNCH-AUDIO.md, docs/NPC-LOOP-AUDIO.md).
+
+- Continuous combat audio: source-integrated machine-pistol, per-turret and per-vehicle loop owners retain one generation-qualified firing episode and close on release/control/lifecycle boundaries; authored vehicle group corrections and player APC/Jeep primary feedback are included. 22:00 Xbox compilation passed after the preserved21:00 failure; native playback remains unverified (docs/MACHINE-PISTOL-LOOP-AUDIO.md, docs/TURRET-LOOP-AUDIO.md, docs/VEHICLE-LOOP-AUDIO.md).
+
+- HMG audio lifetime: both authored looping modes now share one generation-qualified player voice episode with release/reload/mode/owner lifecycle closure; cadence, ammo and immediate onset are unchanged. 22:00 Xbox compilation passed; natural runtime unverified (docs/HMG-LOOP-AUDIO.md).
+
+- Player continuous weapon audio: shared generation-qualified loop ownership now closes flamethrower and Assault alternate episodes; player and NPC rifle primary use one authored nonlooping burst sample per actual burst, with positional NPC playback. Fuel, damage, cadence and saves are unchanged; 20:00 Xbox compilation passed; natural runtime remains unverified (docs/PLAYER-WEAPON-LOOP-AUDIO.md).
+
+- Empty-fire feedback: ordinary firearm Launch Fail consumer compiled in19:00; the original Riot Stick negative_Beep branch is now 20:00 Xbox compilation passed. No proportional ordinary finite-ammo case was found without route expansion or altered inventory, so natural playback remains unverified (docs/WEAPON-EMPTY-AUDIO.md).
+
+- Authored NPC holstering: original type64 now reaches living NPC presentation/fire flags with existing draw/firing consumers and a compatible RFNC16 two-bit tail; 18:00 Xbox compilation passed. Natural holster and save/load runtime remain unverified (docs/AUTHORED-WEAPON-HOLSTER.md).
+
+- Native music refill ordering: a post-decode empty-queue check and native queue admission now share supported DPC exclusion, preserving prepared PCM through any voice recreation; 18:00 Xbox compilation passed. The race runtime and earlier startup starvation cause remain unverified (docs/NATIVE-AUDIO-20261009.md).
+
+- Player water audio: original surface-swim and underwater loop owners now use authored samples17/16, speed gain and true body/camera water membership; generation-safe relocation/teardown cleanup is integrated, source-reviewed and 17:00 Xbox compilation passed. 19:00 original L10S3 neutral wet-spawn confirmed one stable native underwater voice owner; audible output and surface transitions remain unverified (docs/PLAYER-WATER-AUDIO.md).
+
+- Authored warning sirens: original Alarm_Siren45 now consumes positional sample28 with ON/OFF/delay/link ownership and active-only RFEC/RFCH restore; source-reviewed, 17:00 Xbox compilation passed; natural audio/runtime coverage remains unverified (docs/ALARMS.md).
+
+- Authored energy-sound switches: original L7S1 unique immediate ambient targets now have a source-written existing-slot volume consumer and saved-Switch volume reconstruction; integrated after the16:00 checkpoint, 18:00 build and ordinary original Switch3714 OFF passed; other switches/ON/save restoration remain unverified (docs/SWITCH-AMBIENT-TARGETS.md).
+
+- Prop-destruction event integration: connect retained original clutter owners to When_Dead so authored destruction links can continue; retained-owner query and shared scene hook compiled in08:00, with authored event runtime still unverified (docs/CLUTTER-DEATH-WATCHERS.md).
+
+- Authored prop protection: original L3S4 startup Make_Invulnerable now reaches the qualified console owner; class-relative RFPC immunity override preserves existing saves, 08:00 build and original startup protection callback passed; OFF and save runtime unverified (docs/CLUTTER-INVULNERABILITY.md).
+
+- Standing-player prop checkpoint support: staged original stationary solid meshes now supply candidate-owned support during ordinary load validation, preserving all clearance guards; 09:00 Xbox build passed, prop-top runtime unverified (docs/PLAYER-PROP-CHECKPOINT-SUPPORT.md).
+
+- Authored frozen-NPC saves: 10:00 Xbox build and original L11S3 native RFNC14 save reached success; the wrapper's off-by-one observer failure is preserved, strict N-2 observer correction admitted the saved evidence, but the14:43 native fresh load failed world staging; 16:00 actual pinned-save fresh load passed with both original frozen owners assigned and continuing (docs/NPC-PHYSICS-CHECKPOINT.md).
+
+- Combat damage-reaction saves: RFNC15 now retains living non-burning pain/flinch deadlines, selected action, clip playback and shared RNG; 15:00 Xbox build passed, reaction runtime unverified (docs/NPC-PAIN-CHECKPOINT.md).
+
+- Removed ignition-source continuity: active burns retain authored NPC identity independently of native registration; RFAP4 wire layout unchanged, source-written with private candidate retirement normalization, 16:00 Xbox compilation passed, removed-source runtime unverified (docs/FLAME-PICKUP-FIRST-PASS.md).
+
+- Removed NPC lifecycle: ordinary Remove_Object now shares corpse-expiry order cancellation, retires only the removed target's burn/backlink and clears freeze markers after physical owner closure; strict checkpoint guards remain, 16:00 Xbox compilation passed, removal runtime unverified (docs/EVENT-REMOVAL.md).
+
+Current milestone (2026-10-10 21:03 UTC): the21:00 Xbox build at6e7476a1 and unchanged original L3S1 neutral120 stock64MiB startup passed all acceptance and restoration guards;119 syringe pose publications/fault0 and590 patrol movement commits/10 successful routes were observed, without healing/combat/render/save proof (docs/HOURLY-20261010-2100.md).
+
+Current first-playable estimates remain roughly90% overall and95% weapon handling, distinct from runtime coverage. Preserve prior bounded results and the19:00 failure; exact old saved-HDD regression remains blocked by missing saved bytes. Continue active coding with30-minute check-ins and parent-coordinated hourly tests. Git publication is secondary: last confirmed published masterd87a contains the earlier65490a23 tree; newer tested local source is not yet published. Continue durable checkpoints.
+
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88% (provisional85-90% range, recalibrated2026-09-30); GeoMod100% for the first playable testbed milestone, accepted by the user. The L1S1 wall now saves/loads on PC and Xbox, while campaign progression remains open. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+
+Estimate correction (2026-09-30): The previous95% overstated integrated late-alpha functionality by treating broad subsystem presence as completion. Remaining work is not merely the last5% of polish. This estimate includes missing gameplay behavior and integration, not exhaustive testing or retail fidelity; no campaign playthrough is required to earn implementation credit.
+
+Remaining first-playable work, grouped for planning:
+- Authored prop Slay: Original grate/button/monitor targets now reach shared untyped damage, retirement and deferred break ownership; compiled in07:00, event runtime unverified (docs/SCRIPTED-CLUTTER-SLAY.md).
+- Player landing audio: Authored material/water samples have a live airborne-to-grounded adapter with pre-response velocity capture and unchanged physics; 05:00 ordinary jump/landing Xbox/native-output batch passed its bounded scope (docs/PLAYER-LANDING-AUDIO.md).
+- Authored jump audio: Accepted jumps now have source-written per-form Foley binding and first-sample native flat playback, with callback acceptance preserved on silent/failed audio; integrated and passed the05:00 ordinary jump/landing batch, with shared landing-group parser admission (docs/PLAYER-JUMP-AUDIO.md).
+- Native voice-over/music: The03:00 original L1S1 run completed600 frames in stock64MiB; actual captured output matches the full PA line and sustained Spirits_02 track, with one startup music starvation; correct the false terminal-active validator in the04:00 batch and retain broader routing/loop/quality work as follow-up (docs/NATIVE-AUDIO-20261009.md).
+- Mounted Jeep view: The original second-occupant branch now consumes the real fp_jgun mesh, idle/fire clips and authored offset/FOV through the shared first-person projection; isolated 1.5 MiB admission and read-only driver/gunner/exit evidence await the 01:00 Xbox batch (docs/JEEP-AUTHORED-GUNNER-VIEW.md).
+- Correct weapon placement: Authored first-person offsets/FOV now drive camera-relative placement and consistent clipping; source-written for23:00 Xbox verification, with dynamic turn lag/sway still separate (docs/WEAPON-VIEW-PLACEMENT.md).
+- Dropped-weapon feedback: Successful corpse-weapon collection now requests the existing authored pickup notice and spatial sound after one-time retirement, with metadata-only class admission and unchanged grants; source-written for22:00 (docs/HUD-DROPPED-WEAPON-FEEDBACK.md).
+- Authored control hints: Training-message action tokens now expand read-only to actual Xbox buttons, with unsupported actions explicitly UNBOUND and stored text/deadlines intact; source-written for22:00, generic hover prompts deferred (docs/HUD-CONTROL-HINTS.md).
+- Detonator HUD correctness: Slot9 now reports live deployed owner-qualified charges and pending detonation, rather than misleading carried-ammo zero; rendering remains read-only and firing/save behavior unchanged, awaiting22:00 (docs/HUD-DETONATOR-STATE.md).
+- HUD messages: Original12px proportional text now serves story/subtitle, pickup/save/countdown and recovery/endgame text with measured wrapping, authored message anchors and readable native-height numerals; source-written for21:00, preserving every gameplay deadline (docs/HUD-MESSAGES-AND-FONTS.md).
+- Original HUD composition: Bounded optional atlas admission now feeds authored health/suit frames, numeric fonts, ammo panels/icons and centered reticles from live read-only owners; fallback and admission/draw telemetry are wired, awaiting20:00 Xbox verification (docs/HUD-LIVE-COMPOSITION.md).
+- HUD live-state first slice: Read-only inventory numerals, live health/armor values, mounted turret identity/unlimited ammunition and authored no-reticle categories replace misleading bars/handheld mount counts; awaiting20:00, original asset composition follows separately.
+- Release checkpoint (2026-10-08 18:00 UTC): source d0b1b10 passed the cloud Xbox build and 240-frame original L1S1 neutral-spawn 64 MiB run at 37.1 XEMU presented FPS; published as bef90f4. Latest CPU/HUD packet changes below await the 19:00 consolidated pass. Preserve the exact tested XBE before packaging restoration; provide it for user testing at 19:27 UTC, then shift implementation agents to the HUD playable slice.
+- Trigger polling setup: Fuse authored filter/runtime gate setup while preserving live registry eligibility, geometry and every dwell visit; replace only memory-input sphere/box classifiers, source-written and awaiting19:00 parent batch (docs/TRIGGER-POLLING-SETUP-CPU.md).
+- Current priority (2026-10-08): improve Xbox core gameplay performance through19:27UTC even if30XEMU FPS is reached earlier; campaign refinements remain deferred. Same original L1S1 neutral-spawn64MiB benchmark:11.5XEMU FPS at15:20,17.4 at16:00,20.8 at17:00, all successful builds. These are emulator presented FPS, not hardware or moving-gameplay validation. Overall implementation remains roughly89%; vehicles are accepted complete for current scope.
+- HUD submission: preserve ordered rectangle/text triangles, uniform color and all GPU completion safeguards while sharing bounded triangle batches; integrated9a15088, awaiting18:00 consolidated build/FPS (docs/XBOX-HUD-TRIANGLE-BATCH.md).
+- Single-contribution pose CPU: The already-validated one-clip blend calls the same staged attachment transform directly, omitting three intermediate copies while retaining all math and alias behavior; awaiting19:00 (docs/POSE-SINGLE-CONTRIBUTION.md).
+- Eye publication CPU: Exact binary32 input guards remove20 classifier calls per NPC eye update and21 per first-person pose copy, retaining every output/math boundary; source-written, awaiting19:00 (docs/EYE-INPUT-VALIDATION-CPU.md).
+- NPC sampling CPU: Bounded resident byte views, exact call-local envelope-weight reuse and stable linear-time bone ordering remove redundant decode/hierarchy work without changing interpolation or animation cadence; source-written, awaiting parent Xbox batch (docs/NPC-SAMPLING-CPU.md).
+- Trigger polling CPU: Exact binary32 guard now validates the memory-backed dwell duration without a classifier call for every actor/trigger pair; timer order and all arithmetic remain unchanged, awaiting18:00.
+- Particle/corona preparation: Build qualified owner views lazily once per synchronous presentation with bounded retained scratch, eliminating duplicate full-world snapshots and index rescans; visibility and occlusion stay live, awaiting18:00 (docs/GLARE-PRESENTATION-PREP.md).
+- HUD validation CPU: Exact finite predicates replace38 out-of-line classifier calls per ordinary quad while preserving binary32 expression evaluation and validation order; batching remains separate, awaiting18:00 actual FPS.
+- Retained-model white lightmap: Preserve both register-combiner stages/precision while replacing the proven1x1white second sample with constant1, with explicit normal-state restoration before CPU/world draws; source-reviewed, awaiting17:00 (docs/WHITE-LIGHTMAP-SPECIALIZATION.md).
+- Hot pose finite checks: Exact IEEE-binary32 predicates replace repeated out-of-line classifier calls in measured model/motion loops; all float rejection rules and double guards remain, awaiting17:00 codegen/FPS (docs/POSE-FINITE-CHECKS.md).
+- Exact texture-state reuse: Indexed-world runs and consecutive same-kind model draws omit identical GPU address/format writes while resetting at every owner/state boundary; avoids proven XEMU dirty-binding work, awaiting17:00 (docs/XBOX-TEXTURE-BINDING-REUSE.md).
+- Retained world indexed submission: Visible-only ordered indices combine discontiguous spans within the existing material/lightmap groups, bounded by the same4MiB cache and exact array fallback; awaiting17:00 actual FPS (docs/XBOX-WORLD-VISIBLE-INDICES.md).
+- Player motion I/O: Active clips now use optional128KiB-bounded residency rather than per-bone archive seek/read calls; exact sampler, form lifecycle and fallback unchanged, awaiting17:00 (docs/PLAYER-MOTION-RESIDENCY.md).
+- Exact world-prefix reuse: Retained-world frames with bit-identical camera/mover poses reuse the existing CPU prefix, with scope/GeoMod/restore invalidation and no duplicate vertex buffer; stationary-frame benefit unmeasured, awaiting17:00 (docs/WORLD-PROJECTION-REUSE.md).
+- Event/body CPU follow-up: Gate unused repeated event audit snapshots and retain dry-world structural validation with explicit topology/restore resets; actual contacts, mover poses, timers and effects remain live, awaiting17:00 (docs/EVENT-AUDIT-CPU.md, docs/DRY-SWEEP-VALIDATION-CACHE.md).
+- Mover projection follow-up:16:00 origin-radius bounds rejectednone; immutable local AABBs now give tighter conservative rejection with28bytes per mover and unchanged visible geometry, awaiting17:00 (docs/MOVER-PROJECTION-BOUNDS.md).
+- Next Xbox frame batch: Exact within-bone motion descriptor reuse and conservative renderer tail/queued-clear/duplicate-reset changes are integrated after the17.35FPS baseline; full reset/error/frame lifetime fences remain, awaiting17:00.
+- Xbox redundant render state: Consecutive same-shader retained models reuse invariant bindings/formats, and identical particle fans reuse pass-local state; varying poses, geometry and materials remain live, awaiting16:00 timing (docs/XBOX-RENDER-STATE-REUSE.md).
+- NPC frame cost: Live rendering and collision now reuse one demand-prepared skin cache; exact pose-sharing keys and within-sample track reuse remove duplicate work without skipping animation/AI, source-written for the parent16:00 pass (docs/NPC-FRAME-COST.md).
+- Player frame preparation: Exact body/camera room-query caches and existing-mode animation diagnostic gating remove redundant query/hash/hidden-skin work; source-written, awaiting16:00 Xbox timing (docs/PLAYER-FRAME-PREPARATION.md).
+- Shared mover projection CPU: Conservative existing origin-radius bounds reject wholly off-frustum movers before per-face transformation; visible meshes and successful render markers retain their original path, awaiting16:00 timing (docs/MOVER-PROJECTION-BOUNDS.md).
+- Physics/event CPU: Live play skips audit-only all-actor collision snapshots and reuses exact unchanged trigger contact geometry with bounded storage; eligibility, dwell timers and effects remain live, awaiting16:00 Xbox timing (docs/PHYSICS-EVENT-CPU.md).
+- Xbox retained-world draw ranges: Initial GPU upload now follows the existing sorted face order so adjacent visible same-material/lightmap faces can merge; no extra vertex storage or culling changes, awaiting16:00 timing (docs/XBOX-RETAINED-WORLD-ORDER.md).
+- Measured pickup render cost: Static authored item room lookups now cache exact positions with topology/restore invalidation, targeting the measured5.6ms pickup phase; source-written, awaiting16:00 timing (docs/PICKUP-ROOM-CACHE.md).
+- Authored aiming response: Player look now consumes the existing original class rotation scalar, loaded once for each real player form; no per-frame asset read or guessed sensitivity, awaiting15:00 (docs/PLAYER-AUTHORED-LOOK-RATE.md).
+- Xbox frame/input throughput: Controller state is pumped once per connected frame; world particles/coronas use bounded GPU batches and skip unused per-quad texel scans; source-written gains remain unmeasured until15:00 (docs/XBOX-INPUT-SAMPLING.md, docs/XBOX-PARTICLE-THROUGHPUT.md).
+- PRIORITY: Make the Xbox core loop feel responsive; source-written changes remove write-combined vertex readbacks and live diagnostic payload scans, with measured timing comparison due at15:00 and no FPS gain claimed yet (docs/XBOX-LIVE-FRAME-COST.md).
+- Natural trigger activation:29 authored flag0x80 triggers now reach the existing generation-qualified linked-actor gate instead of a blanket scene rejection, restoring code paths for doors and mission chains; awaiting15:00 (docs/TRIGGER-LINKED-ACTOR-ADMISSION.md).
+- Authored NPC slow movement: Make_Fly26 now calls the original slow/standing transition, scripted movement uses actual class-derived speed, and RFNC13 retains that choice; source-written and awaiting15:00 (docs/SCRIPTED-ACTOR-SPEED.md).
+- Pickup policy continuation: Authored Item_Pickup_State overrides now retain level/UID ownership through RFIP2 ordinary saves and section revisits; the temporary save veto is removed, pending15:00 verification (docs/ITEM-PICKUP-STATE-SAVE.md).
+- Delayed story effects: Shake_Player now reaches the existing real camera owner and L11S3 sound/Endgame links; Force_Monitor_Update timers also continue their authored Monitor_State chains, awaiting15:00 (docs/SCRIPTED-CHAIN-PROPAGATION.md).
+- Queued scripted explosions: RFEC now preserves delayed Explode deadlines through ordinary saves using the already-owned world/blast consumers; existing terrain/damage admission remains, and15:00 verification is pending (docs/EVENT-SAVE-ADMISSION.md).
+- Objective event continuation: Dormant known RFEC records and implemented pending actions now survive save admission, with delayed callback gates completed; live unsaved terminal/modal states remain guarded (docs/EVENT-SAVE-ADMISSION.md).
+- Authored section arrivals: Load_Level destination-start mode and original name-only anchors now preserve L14S3 and L8S4 handoffs; written after14:00, awaiting the parent15:00 batch (docs/LEVEL-TRANSITIONS.md).
+- Objective chain propagation: Written common action2 dispatch restores58 authored downstream event edges across15 levels; the parent14:00 build passed for the common propagation repair; later delayed-effect hooks await15:00 (docs/SCRIPTED-CHAIN-PROPAGATION.md).
+- Objectives and level progression: Connect concrete missing authored completion, section-transition and endgame consumers; prioritize playable progression over retail equivalence.
+- Vehicle scope closed by user2026-10-08: All six authored vehicle classes and16 vehicle-target event types have first-playable consumers; the promotion, rider carry and APC primary-AI batch passed the parent's14:00 build, with runtime unverified (docs/VEHICLE-CODE-COMPLETENESS.md).
+- Gameplay integration: Finish remaining item effects and object interactions that materially block ordinary play; retain rare vehicle passenger cases and tactical fidelity as deferred polish.
+- Campaign assembly: Connect remaining authored event/object behaviors, section state and endgame/recovery paths; use bounded functional checks instead of campaign walkthroughs.
+- State continuity: Close material gaps in live weapon/effect/actor persistence and session transitions; defer isolated edge cases that do not block ordinary play.
+- Xbox usability: Address material performance/memory problems and missing audio/HUD/animation feedback; retain visual polish and hardware feedback as separate later work.
+
+- Scripted pickup availability: Stock64MiB Xbox verifies OFF prevents nearby collection and the original delayed Switch enables one normal health pickup; save/revisit state and presentation remain (docs/ITEM-PICKUP-STATE.md).
+- Vehicle wreck escape: Xbox verifies NPC exit plus occupied-player Jeep destruction, normal exit and boarding/firing from a healthy second Jeep with the old wreck retained; moving/crowded exits and wreck-save continuation remain (docs/VEHICLE-SWITCHING.md).
+- Vehicle switching: Xbox verifies ordinary switching/save continuation and release of the authored dead-driver restriction through fresh-load and return boarding; cross-class save/fresh-load and return boarding now pass; occupied/passenger handling and legacy/direct-session restores remain open (docs/VEHICLE-SWITCHING.md).
+- Living vehicle ownership: Stock64MiB cloud Xbox verifies a living authored Jeep driver retained in a parked host, ordinary save/fresh-load and return gunner boarding with exact seats/poses and independent ammo, plus host-qualified parked-wreck release and malformed-seat rejection; moving/route-owned hosts, occupied cross-class transfer and extra passengers remain (docs/VEHICLE-PASSIVE-DRIVER.md).
+- Concurrent vehicle simulation: Stock64MiB cloud Xbox verifies an independent APC using original graph motion, save/load and retirement continuity, with pooled two-Fighter motion now verified separately; multi-APC encounters, autonomous weapons, riders, moving transfer and simultaneous pair dynamics remain (docs/VEHICLE-SECONDARY-APC.md, docs/VEHICLE-CONCURRENT-FIGHTERS.md).
+- Concurrent Fighter motion: Stock64MiB cloud Xbox verifies the original two-Fighter UnHide/Goto chain, independent flight and selective freeze/wake, exact RFSV2 save/fresh-load with valid ramp/ceiling blocking, and genuine RFSV1 APC continuation; static-edge contact is corrected locally, while obstacle avoidance, full arrival, autonomous weapons, riders and coupled pair dynamics remain (docs/VEHICLE-CONCURRENT-FIGHTERS.md).
+- Vehicle selection: Xbox verifies authored fallback selection, normal Jeep boarding and motion outside the old section list; three additional SP hosts pass the metadata audit, while runtime switching, new Fighter selection and old passive-only save migration remain (docs/VEHICLE-SELECTION-PREP.md).
+- Vehicle physics saves: Stock64MiB Xbox verifies occupied Jeep freeze, exact ordinary-save/fresh-load and resumed retained route after wake; Driller-specific automatic exit, passive vehicles and frozen voluntary exit remain unverified (docs/VEHICLE-PHYSICS-SAVE.md).
+- NPC scripted physics: Linked freeze/wake works on Xbox; ordinary saves reject frozen NPCs until their state is serialized, and prop persistence remains open (docs/VEHICLE-PHYSICS-STATE.md).
+- Submarine switching: Stock64MiB Xbox verifies submarine-to-Jeep handoff, stable ownership and independent torpedo/gun ammunition; boarding now releases the stale dock-ladder attachment and occupied Jeep save/fresh-load preserves both ammunition pools, while the return-to-submarine path remains unverified (vehicles approximately95%; docs/VEHICLE-SUBMARINE-SWITCHING.md).
+- Vehicle homing targets: Stock 64 MiB cloud Xbox verifies Fighter rocket and submarine torpedo lock/steering on the exact passive-owner handles with measured health loss; eligible vehicle owners and matching hull line-of-sight are integrated without changing guidance or wet-target rules, while generic Switch/occupied Hide, moving/occupied combinations and broader cover remain (docs/VEHICLE-HOMING-TARGETS.md).
+- Parked vehicle visibility: Stock 64 MiB cloud Xbox verifies real UnHide/OFF events, exact live flags/handles/health, render and hull admission, ordinary boarding, and RFVA2/RFSW save/fresh-load exclusion without changing save formats; generic Switch and occupied Hide remain, while selected-host visibility now passes separately (docs/VEHICLE-VISIBILITY.md, docs/VEHICLE-ACTIVE-VISIBILITY.md).
+- Selected vehicle visibility and APC seating: Stock64MiB cloud Xbox verifies authored hidden APC9627, original UnHide/OFF, actual hull/draw/boarding gates, settled seated-head entry and full standing exit, plus visible occupied and hidden unoccupied RFPV2 save/fresh-load; occupied Hide, generic Switch and broader classes remain (docs/VEHICLE-ACTIVE-VISIBILITY.md).
+- Vehicle affiliation: Stock 64 MiB cloud Xbox verifies authored host teams through active/parked handoff, ordinary save/fresh-load and return boarding with exact owner handles, vitals and independent ammo; driver damage attribution is unchanged; scripted host changes and ordinary-save continuity now pass a separate bounded check, with occupied/moving runtime combinations still open (docs/VEHICLE-AFFILIATION.md, docs/VEHICLE-SCRIPTED-ALLEGIANCE.md).
+- Moving vehicle/NPC contact: Stock 64 MiB cloud Xbox verifies translated attached chassis push a living stationary NPC through normal clearance, with exact pose publication and a separately registered, initially separated hull limiting displacement; rotation, crush and crowded/passenger interactions remain (docs/VEHICLE-NPC-PUSH.md).
+- Occupied world motion: Stock64MiB cloud Xbox verifies one controller advance/commit through real Jeep boarding/exit/reentry, continued independent chassis/control/NPC-rider motion, and occupied save/fresh-load without setup replay; active-solver reordering, crush and other mover classes remain (docs/VEHICLE-OCCUPIED-WORLD.md).
+- Moving vehicle controls: Stock64MiB cloud Xbox verifies authored static control meshes and trigger volumes follow translation/yaw, ordinary contact/Use accepts only the moved active volume, and existing-format saves restore disabled state, exact owners/vitals and continuing motion; natural approach, other child families and detach lifecycle remain (docs/VEHICLE-ATTACHED-CONTROLS.md).
+- Rotating player support saves: Stock64MiB cloud Xbox verifies RFEN7 exact point-cache save/restore, grounded yaw continuation, immediate post-load jump momentum, native invalid-state rejection and a genuine RFEN6 compatibility load; older reader branches and ordinary RFEN6 writes remain intact, while natural landing/walking/tilt and RFCP expansion remain (docs/VEHICLE-PLAYER-SUPPORT-SAVE.md).
+- Rotating vehicle support: Stock 64 MiB cloud Xbox verifies off-center player/NPC yaw carry, exact point velocity, ordinary player jump release, and NPC ordinary save/fresh-load continuation without format changes; natural landing, walking riders and pitch/roll terrain fit remain; rotating-player persistence now passes separately (docs/VEHICLE-ROTATING-SUPPORT.md, docs/VEHICLE-PLAYER-SUPPORT-SAVE.md).
+- Vehicle entry/exit collision: Ordinary Use now composes other owners and checks final body placement; Xbox Fighter return and focused blocker/placement checks pass, while broader crowded exits and presentation remain (docs/VEHICLE-ENTRY-COLLISION.md).
+- Active integration: Stock64MiB Xbox verifies regular Fighter-to-Jeep boarding, firing, ownership transfer and RFSW4 save with authored vitals and independent ammo; occupied Jeep fresh-load, reverse Fighter promotion and six resumed shots now pass with independent owner state (vehicles approximately95%; docs/VEHICLE-FIGHTER-SWITCHING.md).
+- Occupied vehicle combat: Enemy/projectile/burn updates now continue while seated; stock64MiB Xbox verifies guard damage while seated plus boarding during a handheld reload with exact ammo preservation, cooldown expiry and an ordinary occupied save; held-fire exit and broader active effects remain unverified (docs/OCCUPIED-VEHICLE-COMBAT.md).
+- Scripted disarm/ignition: Stock64MiB Xbox verifies delayed living disarm, one finite-charge drop, periodic scripted burn damage and idempotent repeats; core ordering/OFF checks pass, while held clutter, tumbling, presentation and save continuation remain (docs/SCRIPTED-DISARM-IGNITION-PREP.md).
+- NPC firearm interception: Stock64MiB Xbox verifies an intervening actor takes the bullet and the original target takes subsequent shots after blocker removal; shared shield/pellet selection is integrated but not separately exercised (docs/NPC-ACTOR-INTERCEPTION.md).
+- Allied combat: Stock64MiB Xbox verifies autonomous hostile/allied combat and RFNC12 ordinary save/fresh-load with exact reactive targets/timing, resumed damage and survivor target release; broader tactics and active-effect continuation remain open (docs/NPC-REACTIVE-SAVES.md).
+- Placed Fusion pickup: Stock64MiB Xbox now verifies ordinary collection, one loaded shell, normal selection, authored notice and audio submission without scripted grants; presentation and multiplayer respawn remain unverified (docs/FUSION-PICKUP-FIRST-PASS.md).
+- Jeep seat handoff: Stock64MiB Xbox verifies driver death/detachment, occupied-seat rejection, parked player promotion, throttle-driven movement and ordinary exit; ordinary saves while remaining gunner after driver death now restore correctly and permit normal transfer/throttle/exit, while saves after transfer and broader ejection remain open (docs/JEEP-NPC-GUNNER.md).
+- Authored NPC seating: The original seat-host UID decodes for all1,610 installed entities; Jeep/turret ownership and turret seat/save continuation work; a parked Jeep with its dead detached driver now restores from an ordinary Xbox save, while broader seats remain open; moving shared Jeep gunner saves now pass a focused Xbox continuation (docs/research/NPC-VEHICLE-SEAT-ASSIGNMENT.md).
+- Jeep player gunner: Stock-64-MiB Xbox verifies boarding beside the NPC driver, three gun launches, occupied-seat switch rejection and safe exit; RFNS2 shared-occupancy ordinary save/fresh-load now passes with motion/aim/ownership restored and two resumed shots; current-session gunner loads and broader ejection remain open (docs/JEEP-NPC-GUNNER.md).
+- Vehicle AI modes: L12S1 authored Set_AI_Mode stops Jeep autonomous driving, preserves the suspended route through ordinary Xbox saves, and resumes a nonzero cursor without teleport on stock-64-MiB Xbox; authored NPC seats are integrated, while broader vehicle behavior remains open (docs/VEHICLE-AI-MODES.md).
+- Auto Turret heads: Stock-64-MiB Xbox creates the real dependent head, updates its animated attachment and independent aim, and lands11 shots with zero base-handheld shots; RFTU2 live-head save/load passes a focused stock-64-MiB Xbox continuation (5 source shots,3 after load); base-to-head coupled death passes stock-64-MiB Xbox (5 shots before death,0 after); scripted base removal and RFTU3 removed-base save/fresh-load pass stock-64-MiB Xbox (head hidden, detached, health preserved,0 shots after); head-to-base direct-hit death and scripted head-only removal now pass stock-64-MiB Xbox, and generated-head Attack-target saves now restore real NPC firing; head-only removal saves and possession remain open.
+- Generated-head Attack saves: RFNC11 restores the target, pending fire deadline and RNG through an ordinary stock-64-MiB Xbox save/fresh-load; the guard resumes firing and damages head60 to40 with base80 unchanged; broader encounters remain (docs/AUTO-TURRET-ATTACK-SAVE.md).
+- HEAP turrets: Authored instance weapons now override turret class defaults; stock64MiB Xbox verifies ordinary HEAP mount, two swept impacts/blasts, player attribution and exit; victim damage, terrain cuts and autonomous firing remain tester-owned; pending-flight save continuation is source-written in RFAP11 (docs/TURRET-HEAP-FLIGHT-SAVE.md).
+- NPC teleportation: Stock64MiB Xbox verifies the original L12S1 delayed miner teleport, exact immediate pose, one real Jeep-seat release and no snapback; core checks cover ordered propagation/OFF, while item/clutter targets, other attachments and saves remain open (docs/NPC-TELEPORT-PREP.md).
+- Stationary turrets: Player Use/aim/fire/dismount passes stock-64-MiB Xbox (one mount/exit,24 aim updates,six shots, no handheld shots/self-damage); ordinary mounted save/fresh-load now restores exact aim/cadence/RNG, resumes firing and exits without reboarding; held-input saves, seated animation and HEAP-specific save coverage remain open (docs/STATIONARY-TURRET-PLAYER.md).
+- Moving APC exits: Stock-64-MiB Xbox verifies Use exit at1.20m/s against the final chassis pose, full ownership release and subsequent on-foot movement; crowded/wreck exits remain (docs/APC-MOVING-EXIT.md).
+- NPC rotating support: Xbox verifies rotation, accepted point velocity, natural support loss and static landing; the narrowed own-support collision retry compiles but was not exercised, while walking riders and rotating-support saves remain open (docs/NPC-CARRY-COLLISION.md).
+- Flame persistence: Burning-target saves now restore damage cadence and pain state on Xbox alongside canister/stream saves; removed-source attribution, pending-throw/reload coverage and presentation remain open (docs/FLAME-PICKUP-FIRST-PASS.md).
+- Corpse persistence: Xbox now restores skeletal body age/fade, retires expired source actors once and saves the five retained bodies without replaying death effects; burning/carried/moving bodies and broader lifetime cases remain open (docs/CORPSE-LIFETIME-CHECKPOINT.md).
+
+Current platform priority (user direction,2026-09-30): Xbox is the sole runtime target; use stock-64-MiB XEMU for focused gameplay checks. Keep the PC build as a shared-code staging path and compile it only for a specific compatibility need; do not run PC gameplay tests or campaign-route replays.
+
+- PC build maintenance: The stale movement-step call in `tests/scene_ai_mode_gameplay_tests.c` is corrected; the PC all-target build remains unverified under the current Xbox-only validation policy.
+
+- PRIORITY Vehicle and platform attachments: Group-linked and ordinary Fighters draw, collide, take staged player sniper, radius-blast and NPC Attack firearm damage, and preserve two deaths, the natural L20S2 lift trigger, an active passive-Fighter Attack target and an idle NPC riding the moved lift Fighter through ordinary Xbox save/reload; natural NPC attacks, unstaged player aiming, blocked-cover encounters, legacy gameplay-save migration, broader landing/pushes, walking/rotating-support NPC saves and other object children remain (docs/CAMPAIGN-ATTACHMENT-EVENTS.md).
+
+- Scripted movers: Authored Reverse_Mover reverses L7S4 doors and Mover_Pause holds/stops the L14S2 tram on stock-64-MiB Xbox; natural triggers, saves and visual motion remain open (docs/REVERSE-MOVER-FIRST-PASS.md, docs/MOVER-PAUSE-FIRST-PASS.md).
+
+- Final nuke defusal: L20S3's Xbox puzzle pauses world simulation, reaches credits on completion and applies ordinary player damage on timeout; original art/audio, RNG seed and timeout transition presentation remain open (docs/DEFUSE-FIRST-PASS.md).
+
+- Player death recovery: Xbox authored section exits now use separate automatic slots for X-to-load death recovery while manual quicksaves keep their own slots; broader sections, authored checkpoints and death presentation remain open (docs/DEATH-LIFECYCLE.md).
+
+- PRIORITY Campaign GeoMod gate: The L1S1 Remote Charge opens both wall rooms and the staged PC/Xbox campaign route now reaches the natural L1S2 exit; visual-content verification and later campaign sections remain (docs/OPENING-MISSION-CHAIN.md).
+
+- Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
+
+- PRIORITY Campaign GeoMod: L1S1 UID9456 now cuts room 28 at its original hardness-adjusted radius 2.5 and survives PC/XEMU saves; UID9587's scaled cutter yields no new wall, so the next valid campaign cut, visual inspection, repeated cuts and the PC/Xbox NPC draw-count mismatch remain (docs/CAMPAIGN-GEOMOD-INTEGRATION.md).
+
+- PRIORITY Ordinary saves: L1S1 wall, Remote Charge selection, L1S2 Driller cuts, active Shoot_At, pending Fire_Weapon_No_Anim, actor-targeted and passive-Fighter-targeted Attack, resumed guard combat, live player rockets/grenades/Fusion shots and Fusion reload, NPC-bound remote charges, damaged Riot Shield/Fusion ownership, moving-ground and close-contact player save/reload work on Xbox; other active orders and weapon flights remain open (saves approximately99%).
+
+- NPC projectile saves: Xbox ordinary RFWC3 saves now restore active enemy grenades and rockets in a bounded encounter; dead-source flights, broader natural encounters and impact presentation remain open (docs/NPC-PROJECTILES-ORDINARY.md).
+
+- AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
+
+- NPC gravity: Idle and Goto-style NPCs fall and land with impact, ride translating movers, and a stock-64-MiB Xbox guard lands on and follows a translating rocket-extracted fragment; fragment velocity refresh and post-checkpoint reprobe are wired, and grounded rotation now uses mover transforms with compiled-NXDK math checks; live rotating carry/loss/landing now works, while collision-retry coverage, multi-fragment contacts and broader carry remain open (docs/MOVEMENT.md, docs/NPC-ROTATING-SUPPORT.md).
+
+- Scripted Shoot_At: Fixed-point fire, delayed OFF and RFNC8 active-order save/reload match PC/Xbox; authored shotgun interception and wider live combat saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
+
+- Scripted Shoot_Once: Xbox primary/secondary fire and mixed-request queues work; RFNC10 restores a pending no-animation shot and fires it exactly once on Xbox, while pending primary/secondary shots, broader delayed events and Tankbot impact presentation remain (docs/SCRIPTED-SHOOT-ONCE-FIRST-PASS.md).
+
+- Fire_Weapon_No_Anim: L8S4 Parker fires without a firing motion and mixed queues preserve animated/unanimated requests, and a pending authored shot survives ordinary Xbox save/load; natural delayed sequences, other targets and broader pending queues remain (docs/FIRE-WEAPON-NO-ANIM-FIRST-PASS.md).
+
+- Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
+
+- Campaign endgame: Authored failures, protected-NPC death, English descriptions, restart and cross-level quick-load recovery run on PC/Xbox, and event off restores the protection flag; natural off-event coverage, other languages, menu/slot choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
+
+- Xbox retained rendering: L6S3 static world/model/clutter draws and L1S1 real-spawn 2380-frame broad PC/Xbox telemetry pass in stock64MiB with3831 free pages; visual parity, GPU clipping detail and disabled model bounds culling remain open.
+
+- Opening scripted actors: Real-spawn PC/Xbox walking matches eight Play_Animation starts, four Look_At commands, two Slay actions and the Riot Stick handoff; exact choreography remains.
+
+- Opening onward combat: Staged PC/Xbox play defeats the bridge, corridor and exit-bend guards and naturally transitions from L1S1 to L1S2 through exit9019; Medical Kit9465, uninterrupted spawn-to-exit validation and later campaign progress remain.
+
+- Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
+
+- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L11S3/L14S3 active saves work on PC/Xbox; L6S3 active save/load now works on PC/Xbox and PC neutral replay reaches full cutscene completion, while bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+
+- Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
+
+- Campaign vehicles: L1S2 Driller, L1S3 APC and L12S1 Jeep load and board on PC/Xbox; normal Driller play commits both recorded room-8/room-121 cuts, then RFDS3 saves/reloads and drives onward on PC/Xbox, while broader repeated cuts, startup reliability and visual content remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+
+- Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
+
+- USER Xbox weapon input: Stock64MiB L4S5 checks collect the authored rifle, switch forward/back/forward with and without release frames, and fire it; physical shoulder/D-pad behavior and interactive pickup feel need a later user check, while PC hands-on testing stays deferred (docs/INPUT.md).
+
+- Campaign pickups: Xbox suit, medical/repair class caps, difficulty-scaled quantities, scripted vital grants and pickup sound submission work; difficulty-menu/bypass binding, dropped-weapon feedback, rendered notices, audible output and animated Demo_K000 remain open (docs/LEVEL-ITEMS.md).
+
+- Scripted placed-item removal: Stock-64-MiB Xbox now retires authored L2S2a Demo_K000 and L8S4 Miner Envirosuit targets through Remove_Object and the pickup ledger; L6S3/L8S1 links and save/revisit behavior remain open.
+
+- Scripted prop removal: Stock-64-MiB Xbox now retires L20S1's authored console button through Remove_Object, preserving its registered owner for ordinary saves; the other console/vat links, effect-only clutter, save/revisit behavior and presentation remain open.
+
+- NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
+
+- NPC death presentation: Live Xbox kills select an authored death motion and sound and hand ordinary skeletal bodies to an owned, updating/rendered corpse pool; settled skeletal body poses now save/load on Xbox without duplicate death callbacks; replacement-model bodies, corpse age/fade/effects and output verification remain open (docs/DEATH-LIFECYCLE.md).
+
+- Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
+
+- Prop saves: Static prop damage/destruction now survives PC/Xbox reload and resave with identical checkpoint bytes and8.14MiB native headroom; moving props, broader classes/levels and campaign persistence remain.
+
+- Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; one pistol shot now triggers an authored three-prop chain in live PC; oil-drum chain explosions now pass PC/Xbox with inspected native flashes, exact damage parity and17.08MiB free; sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
+
+- Fighter: L13S3 boards/fires/follows its waypoint, L18S2 loads its sole fighter, and staged L20S2 NPC Attack fires twice into passive Fighter UID4801 and retains its target after ordinary Xbox save/reload; natural NPC attacks, broader placements, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
+
+- Submarine saves/guidance: Stock-64-MiB Xbox saves/reloads the occupied DEV submarine and guides a torpedo into a submerged guard; active-shot saves and wider pursuit remain open.
+
+- Submarine campaign placement: Authored L5S3 UID3963, L5S4 UID3955 and L10S3 UID6794 each board/fire on stock-64-MiB Xbox; six other scripted/placed submarines, natural access, underwater GeoMod and visual/audio refinement remain open (docs/SUBMARINE-FIRST-PASS.md).
+
+- Submarine scripted motion: L5S4's authored trigger naturally starts its Goto order on Xbox and L5S3 Goto_Player survives quick-save/load; other trigger flows, obstacle-aware travel and simultaneous hosts remain open (docs/SUBMARINE-FIRST-PASS.md).
+
+- Submarine: Boarding, underwater movement/ascent, torpedo launch/direct NPC impact/blast, swimming exit and occupied ordinary save/reload pass Xbox DEV checks with20.03MiB free; active-shot saves and wider enemy pursuit remain open (docs/SUBMARINE-FIRST-PASS.md).
+
+- Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
+
+- Vehicle saves: DEV APC/Jeep save/load retains motion, ammo, RNG, aiming and Jeep seat/reference; seated L1S3 APC, L1S2 Driller and route-following L12S1 Jeep save/reload through ordinary campaign persistence on PC/Xbox, and an Xbox L12S1 Jeep exits after reload, while other campaign seats and exact Jeep travel continuation remain (docs/CAMPAIGN-VEHICLE-SAVE-FIRST-PASS.md).
+
+- Jeep: Driver/gunner roles, parked seat switching, independent gunner camera and finite-ammo fire pass PC/Xbox; L12S1 boarding, exit and initial scripted driving match PC/Xbox with at least12.54MiB free, while live NPC combat, destruction coverage and other level placements remain (see docs/JEEP-FIRST-PASS.md).
+
+- APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD pass PC/Xbox; L1S3's authored APC now boards, drives, fires three primary shots and exits with exact PC/Xbox state and19.5MiB free, while other placements, live NPC damage, campaign persistence and articulated gun visuals remain.
+
+- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling cuts DEV geometry with exact native state, and L1S2's authored Driller boards, drives and exits with exact PC/Xbox state and19.46MiB free, while campaign drill contact needs an editable L1S2 terrain owner and additional placements, special-weapon coverage and persistence remain.
+
+- Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
+
+- Fusion launcher: Authored pickup/script/import demand now loads the weapon without DEV auto-ownership; PC grants, selection and finite-ammo fire pass, native acquisition/fire state matches but projectile-render checksum differs; ownership/ammo, active flight and reload/cooldown now save and resume on Xbox, while controller-only/mixed-flight coverage, wider campaign encounters and effect polish remain (docs/FUSION-PICKUP-FIRST-PASS.md, docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
+
+- Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; world/script shield pickups and demand-based view resources are now wired; native bash view now passes175frames with7.05MiB free; damaged durability now survives ordinary Xbox save/load and breaks on further admitted damage; pending-bash saves, broader attacks and live contact/break presentation remain (docs/SPECIAL-WEAPON-SAVES-FIRST-PASS.md).
+
+- Riot shields: Live PC now blocks9shots without NPC damage and a longer encounter blocks32shots, breaks the shield and permits subsequent damage/fallback; exact posed-model ordering fixes coarse body overlap; native650-frame blocking replay passes with exact PC/Xbox counters and7.78MiB free, in-memory durability/break history now binds across revisits with focused checks and PC/Xbox builds passing; ordinary NPC bullets and shotgun pellets now resolve shield-only silhouettes before cover/damage; live round-trip verification and disk persistence remain.
+
+- NPC rockets: Authored instance loadouts and ordinary-level resource demand enable finite-ammo enemy rockets outside DEV; controlled PC/Xbox encounter matches three launches/impacts with19.51MiB native headroom, while campaign integration and visual verification remain (docs/NPC-PROJECTILES-ORDINARY.md).
+
+- NPC grenades: Authored instance loadouts and ordinary resource demand support enemy throws outside DEV; Xbox saves/reloads one active throw, while authored release timing, dead-source flight saves and campaign integration remain (docs/NPC-PROJECTILES-ORDINARY.md).
+
+- Flamethrower: Ordinary pickup/import/script demand now supports stream and alternate canister with finite fuel; PC primary/alternate passes and native canister explosion matches with14.29MiB free; an active canister now survives ordinary Xbox save/load and explodes once, sustained stream ignition and fractional fuel also resume correctly; burning-target saves, continuous audio and visual refinement remain (docs/FLAME-PICKUP-FIRST-PASS.md).
+
+- Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; a real pistol hit now drives Goal_Set exactly once on PC/Xbox with matching state and20.48MiB free; live authored button/mover scenarios remain (docs/HIT-EVENTS-FIRST-PASS.md).
+
+- Player grenades: Xbox live-flight saves work, and isolated normal/alternate shield contacts plus an unshielded actor hit now consume grenades once with direct/radial damage; player/prop/vehicle victims, NPC-source contacts, post-save contacts, liquids/support and grenade-specific effects remain (docs/GRENADE-OBJECT-CONTACT-FIRST-PASS.md).
+
+- Rocket launcher: Ordinary pickup/import/script demand loads selection, flight and impact resources; Xbox now saves a live player rocket and its cooldown, then reloads and reaches impact with13.72MiB free; broader campaign terrain and visual/audio refinement remain (docs/ROCKET-PICKUP-FIRST-PASS.md).
+
+- Precision weapons: Sniper and rail acquisition/selection/fire now work outside DEV; native rail matches PC with14.26MiB free, and enemy/persistent drops request matching view resources; live enemy-drop encounters and broader campaign handoffs remain (docs/PRECISION-PICKUP-FIRST-PASS.md).
+
+- Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and finite-power-cell Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
+
+- AI mode events: Authored transitions and ordinary Xbox saves now keep combat and registered actor modes consistent, including six saved L8S4 catatonic NPCs; the authored Jeep catatonic transition also stops and saves its route, while passenger/turret transitions, ambiguous waypoint bindings and broader behavior remain (docs/SCRIPTED-AI-MOVEMENT.md, docs/VEHICLE-AI-MODES.md).
+
+- Deferred collecting AI: Shard eligibility and hauling helpers exist, but no collecting events or drop markers were found in94 installed levels; automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md).
+
+- Remote charges: Static and NPC-bound charges survive ordinary Xbox save/load and detonate; active-shield hits are consumed without attachment/damage, while mover-host live checks, dead-host transitions, fragment-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md, docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
+
+- Shield combat: Xbox firearm, rocket, grenade and remote-charge contacts work in isolated checks; NPC/Fusion encounter coverage, shield effects/audio, boss movement reconciliation and broader save behavior remain (docs/NANO-SHIELD-CONTACT-FIRST-PASS.md).
+
+- AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
+
+- PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; rail scanner markers now work in live PC with no ammo debit; Xbox builds; silhouette scanner presentation, scope overlay, trails and broader live targets remain.
+
+- Scripted thresholds: Health/armor monitors read live player/NPC values and dispatch one-shot event/mover/trigger effects; the revisit latch and ordinary-event disk codec/load path are implemented, while a focused Xbox save/reload check and live authored scenarios remain.
+
+- AI ammo fallback: Exhausted ordinary enemies now switch to an owned usable gun or riot stick without granting ammo; actual selection/reset adapter checks and Xbox build pass, rendered model switching remains unverified.
+
+- AI target lifecycle: Player death stops player-directed pursuit while independent NPC combat continues; focused state checks pass, live encounter coverage remains.
+
+- Scripted timers: Cyclic_Timer drives finite/unlimited event/mover pulses; level/UID revisit history and the ordinary-event disk codec/load path preserve count, enabled state and remaining deadline, while a focused Xbox save/reload check and broader live route checks remain.
+
+- Scripted event retirement: Remove_Object-retired event owners now restore before section startup and persist through RFCH4; a bounded stock64MiB Xbox L1S1 return suppresses a retired startup strip event, while other removed object classes remain.
+
+- Delayed section events: RFCH4 saves pending deadlines, modes and UID-tagged references; stock64MiB Xbox L1S2→L1S1→L1S2 restores live UID9728/9732 references and later dispatches Message9725, while broader event types, missing owners and startup side effects remain open.
+
+- Auto-start triggers: Saved-disabled L1S2 trigger10078 and retired L1S1 strip event8366 now stay suppressed on stock64MiB Xbox section returns; enabled trigger effects and other startup side effects remain open.
+
+- AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
+
+- AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.
+
+- Scripted visibility: Xbox linked-lamp checks confirm hide/show target flags, 42 fewer hidden draw vertices and ordinary save→show→load restoration; native pixel appearance, scene revisits, wider saves and other object families remain (docs/SCRIPTED-PROP-VISIBILITY.md).
+
+- Scripted interactions: Switch-controlled doors/platforms now integrate start/stop/restart with focused checks and Xbox build passing; authored live switch verification remains.
+
+- Scripted interactions: Teleport_Player is integrated with queued frame-boundary relocation and focused runtime/pose checks passing; Xbox builds, while live authored-event behavior and vehicle teleport remain unverified.
+
+- PRIORITY Weapons: Grenade selection, reserve ammo, primary/alternate animations, flight, model drawing and explosions are integrated; live PC timed/impact throws pass with an impact GeoMod cut, and Xbox builds; stock64MiB XEMU impact throw/cut now matches PC across78 checks with14.47MiB endpoint headroom; water/support behavior, world-flight visual review and grenade-specific effects remain.
+
+- DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
+
+- Doors: Replace the stale close/reopen fixture with an unoccupied route when revisiting door coverage; live tracing confirms NPC/player occupancy holds the doors open, so the failing cycle assertion does not establish a controller defect.
+
+- Deferred GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
+
+- GeoMod source expansion: Broaden connected histories and fragment contact shapes; both groups pass PC destruction at both junctions and repeated reload, with native108 second-junction destruction passing77 stock64MiB checks and exact PC state alongside group92 guarded continuation.
+
+- GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
+
+- GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
+
+- GeoMod source expansion: Broaden geometry and fragment gameplay coverage; cap material/chart bytes, native draw bindings and813 PC pixels now agree with intended math, with79 native checks and unchanged framebuffer, while broader visual parity remains open.
+
+- GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
+
+- GeoMod player saves: Broaden rotating support and shape coverage; real radius1.213922 standing and Xbox-created-save walk-away each pass76 stock64MiB checks with exact PC continuation, while missing-support rejection and a matching retired-bank floor control pass PC.
+
+- GeoMod fragment lifecycle: Investigate the generic object world-exit path before adding spatial retirement; recovered lifetime and debris paths do not justify an arbitrary kill height, and healthy terrain fragments have disabled lifetime timers.
+
+- USER Repository cleanup: Delete the disposable artifacts/geomod-hdd root (about27GiB); remaining obsolete image paths are in artifacts/cleanup-20260917.json, and both HDD harnesses enforce an8GiB projected artifact budget.
+
+- GeoMod jump/support: Broaden standing to other rubble shapes and verify missing-support rejection natively; jumping onto radius0.530725rubble and walking away from an Xbox-created save pass74/74 stock64MiB checks with exact PC continuation, while missing-support rejection passes PC.
+
+- Player saves: Audit other replay save boundaries and broaden residual-velocity coverage; RFPLv2 standing save/reload passes74/74 stock64MiB checks and exact walk-away continuation, while legacy zero-velocity RFPLv1 remains compatible.
+
+- GeoMod player contacts: Broaden confined/blocked support and support-loss coverage; rotating-overlap recovery fixes a0.067-unit player penetration and rejected save, with123 PC tests and77 stock64MiB checks passing with280 exact PC words and matching checkpoint.
+
+- GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
+
+- GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
+
+- GeoMod rubble memory: Verify extended32-batch histories natively and broaden mixed ownership; bounded capacity now doubles without changing old identities, PC retirement/reuse-history controls pass, and an older compacted Xbox save still passes76 checks with exact continuation.
+
+- GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces and moving supports remain open; original fragment-fragment exclusion is verified.
+
+- GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.
+- GeoMod validation: Resolve thin-surface proximity ambiguity and broaden collision/nonintersection coverage; sweep/fixed craters pass10130/11422 independent volume samples and native state checks.
+- GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
+- GeoMod rollback: Broaden allocator-failure and expanded-reset coverage; rockets, diagnostic box cuts and guarded reset now stage before commit, with native recovery/traversal/control sequences passing58/58/57 checks.
+
+- GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
+
+- Deferred GeoMod coverage: Integrate paired-source save/restore with shared atlas, rubble and player support; private paired restore now verifies identities, remaps materials and reconstructs cut meshes/rubble with rollback, the complete paired writer now passes with real histories/rubble and all three scene digests, shared atlas restore now matches pixels/bindings/digests exactly, combined private reconstruction now passes within the13MiB subsystem reservation, collection player support/fit gates now pass targeted controls, paired PC gameplay save/reload now preserves exact player/destruction continuation, native paired save/reload and reset-save/next-rocket continuation now pass76 checks each with byte-identical PC checkpoints, paired standing-save/walk-away from either source now passes76 native checks with one destroyed source, both-destroyed-source standing and saved walk-away now also pass76 native checks each, while broader histories remain unfinished; two-post cuts/reset/recut pass75 stock64MiB Xbox checks.
+
+- Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
+- Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
+
+- GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
+- GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
+- Deferred GeoMod detached motion: Broaden live detached motion beyond the dry developer post; real extracted chunks now fall/rotate/settle with body-sphere collision and checkpoint continuation, while fragment break/wake, pushing/crush, moving supports and liquid behavior remain open.
+- GeoMod fragment damage: Broaden direct-hit health/retirement beyond the tested rocket chunk; live removal and saved continuation pass on PC and stock64MiB Xbox with74/74 checks, while later-blast wake/subdivision require separate evidence.
+- GeoMod fragment weapon hits: Broaden naturally resting cover and NPC weapon classes; live rocket-extracted cover now blocks three NPC shots before removal admits three player hits, passing76 stock64MiB checks and48 exact PC fixture words with11.75MiB endpoint headroom.
+- GeoMod rubble traversal: Broaden player contact beyond the angled post chunk; walking into it produces contact/sideways sliding and permits retreat; ordinary jumping onto rubble, saving and continuing pass on PC; native standing and walk-away reloads pass74/74 checks, while moving support attachment and broader surfaces remain open.
+- GeoMod detached drawing: Improve fragment lighting and broaden scene coverage; a real post chunk now visibly falls and rests tilted, with rocket/hitscan contact and player movement collision integrated in the dry post testbed.
+- GeoMod authored extraction: Broaden piece-aware scene transactions beyond the dry post; ownership, drawing, falling/settling and native checkpoint continuation are verified for that testbed.
+- GeoMod terrain extraction: Broaden integrated scene ownership/rendering beyond the dry post; live motion and native reload are verified, with the terrain core retained within1152KiB.
+- GeoMod piece subdivision: Publish staged geometry/body batches with live extraction; tested10-11-piece batches retain140372-143024 PC bytes under0.9MiB temporary peak and build for Xbox, while exact T-junction splitting now passes extracted replay and broader topology, scene scheduling and rendering remain open.
+- GeoMod detached collision: Broaden current-body-pose collision beyond verified weapons/player contacts; NPC locomotion collision remains open; original fragment-fragment exclusion is verified.
+- GeoMod body notifications: Integrate live extracted-piece bodies and actor wake; owned pieces now preserve mass-center geometry/collision and replay-identical bodies, while subdivision, motion scheduling and rendering remain open.
+- GeoMod post-edit cleanup: Extend notifications to actors/props/glass and other edit producers; rocket-cut settled-debris fading passes41 live original samples and67 stock64MiB PC/Xbox checks, with rejected-edit controls.
+- GeoMod debris motion: Review bounce/relaunch animation visually; ordinary settled-fragment reactivation preserves orientation and passes66 stock64MiB PC/Xbox checks plus2096 original rotation samples.
+- GeoMod debris damage: Broaden repeated-blast and death coverage; two ordinary flying-fragment hits match original math and pass66 stock64MiB PC/Xbox comparisons without a fixture.
+- GeoMod impact blood: Verify live pool exhaustion and broader encounters; two ordinary contacts emit matching PC/Xbox blood effects, with prior visual and115-test acceptance retained.
+- GeoMod debris: Verify audible output and broader liquid scenarios; five live wet births match original math and the two-blast run passes59 stock64MiB PC/Xbox checks.
+- GeoMod saves: Broaden authored save coverage after both one-cut and reset reload/next-blast paths pass58 stock64MiB Xbox checks with identical uninterrupted checkpoint bytes; malformed live restart coverage remains open.
+
+- Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
+- GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.
+- GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
+- GeoMod mapping: Broaden live atlas-footprint coverage; all500 corners of the current103-face crater stay inside owned tiles, while original mapping grouping remains unverified.
+- GeoMod visuals: Resolve crater silhouette/readability; the16-cut view has4056 recessed rock pixels and7 nearer authored-floor pixels, and the idle crater stays dark after smoke clears with unchanged camera/material/geometry/atlas, while GPU texture and idle-lightmap audits pass; strict depth gate and visual parity remain open.
+- Deferred GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
+- GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
+- GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
+- GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
+- GeoMod lighting: Extend rocket glow beyond generated crater surfaces and validate against binary-derived calculations; impact effects and crater readability remain open.
+- DEV testbed: Add authored-post saves and broaden reset coverage; safe reset/re-cut passes56 stock64MiB Xbox checks, while unsafe reset and restored-post walking pass PC controls.
+- GeoMod: Refine debris bounce, lighting and surface eligibility; original query flags/fractions and impact-normal effects now pass PC/Xbox checks, while crater readability remains open.
+- USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
+- Weapons: Refine the live six-emitter rocket blast against original visuals; audible/spatial impact validation, multi-clip playback and broader blast/cover behavior remain open (installed missing sparks are confirmed original behavior).
+- Weapons: Broaden rocket actor/mover contacts; shared positive-radius queries now stop at NPCs and committed movers, direct actor damage precedes radial damage, and live actor hit/death passes77 stock64MiB checks with11.75MiB headroom alongside body/door/rubble/world ordering tests, and current-pose door collision now passes16 translated/rotated PC cases with live rocket flags and an Xbox rebuild, while model hit-location scaling and native moving-door coverage remain open.
+- Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
+- Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
+- Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
+- Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
+- Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
+- Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
+- Gameplay (paused): Resume campaign integration after core gameplay is usable; maintenance passes35 Xbox comparisons and the recorded PC hall route clears three guards with15health.
+- Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Hall probe (2026-09-15): PC9302frames clear guard1751 after the two
+maintenance guards, retaining15health. The first approach missed from
+x95; moving east to98.923 before firing produces four hits and the kill.
+Ordinary playback now matches body/NPC state and combat journal, with
+miner2061 unharmed. tools/replay_l2s3_hall_recording.py reproduces the
+executed bytes and verifies the result; shotgun acquisition is next.
+The8402-frame native maintenance run passes35 comparisons at
+artifacts/xemu/render-20260915-041539, with15health and16.934MiB free
+at endpoint; all18 disc entries restored and the owned emulator exited.
+Estimate ~48%; current area is combat and campaign progression.
+
+Attack-lock update (2026-09-15): Live enemies now defer due attacks during
+the retained pain animation lock and resume without an extra cooldown.
+The240-frame stock64MiB Xbox recording passes35 comparisons with24.457MiB
+free at endpoint. PC first-guard playback ends with25health; maintenance
+clears both guards with15health and miner2061 at100health. Tracking-free
+playback matches body/NPC state and combat journal; its generator matches
+executed inputs exactly. Full maintenance Xbox verification remains open.
+See docs/LIVE-DAMAGE-REACTIONS.md and tools/replay_l2s3_maintenance.py.
+Estimate remains ~48%; current area is combat and campaign progression.
+
+Live pain update (2026-09-15): NPC damage now dispatches retained pain animation
+and sound with the live clock, deterministic RNG and propagated errors.
+The120-frame Xbox encounter passes34 comparisons (two starts/two sounds),
+with24.645MiB free; the3600-frame PC opening also passes. Fatal hits use the
+separate death path. Attack-lock behavior remains open; see
+docs/LIVE-DAMAGE-REACTIONS.md. Estimate ~48%; focus is AI hit reactions.
+
+First-guard native update (2026-09-15): The7356-frame recording passes33
+stock64MiB Xbox comparisons through guard2020:7shots,4hits,1kill,5health,
+16loaded rounds and17.195MiB free at endpoint. Maintenance remains open.
+Estimate remains ~48%; next system work is live NPC pain feedback.
+
+Reaction audit (2026-09-15): The live combat notification callback ignores
+existing pain-animation and pain-sound events; only the fixture invokes the
+retained pain wrapper. Connecting that gameplay path is the next system task.
+The first-guard recipe now rebuilds exact inputs and verifies tracking-free
+playback. Maintenance is reached on PC but not cleared. Estimate ~48%.
+
+Tracked-input update (2026-09-15): An opt-in PC harness emits bounded ordinary
+look inputs while tracking one named actor; it does not inject game state.
+The7356-frame recording kills L2S3 guard2020 and ends alive with5health.
+Replay with tracking disabled matches77body words, NPCs and combat journal.
+Xbox verification is running; see docs/REPLAY-AIM-CAPTURE.md. Estimate ~48%.
+
+Eastern aim update (2026-09-15): The corrected6806-frame PC input reaches
+L2S3 at6631 with25health instead of5, retaining16loaded rounds. The --healthy
+route generator matches executed bytes. Native verification and the onward
+L2S3 encounter remain open; no damage, weapon or health rules changed.
+Estimate remains ~48%.
+
+Exit verification (2026-09-15): Stock64MiB Xbox passes all33 comparisons for
+the6806-frame natural L2S3 transition, with17.195MiB free at endpoint. PC
+L2S3 ledge/pass-through probes still die at5health. Earlier eastern-room
+telemetry confirms guard5683 survives four missed shots; correcting that aim
+is the next step toward retaining more health. Estimate remains ~48%.
+
+Corridor update (2026-09-15): Normal movement clears the medical-room bottleneck
+without killing all pursuers. PC4706frames reach the north corridor at33.8health;
+6806frames cross naturally into L2S3 at6631 and end alive with5health/16rounds.
+Generated inputs match executed fixtures. Xbox verification is pending; see
+docs/BODY-HIT-DETECTION.md and tools/replay_area2_body_route.py. Estimate ~48%.
+
+Aim update (2026-09-15): Xbox3600frames pass33 comparisons through guard8490,
+47.2health and16loaded rounds, with15.727MiB free. Raising torso aim restores PC guard8490
+and5677 kills plus medical-kit collection;4500frames end alive at33.8health.
+The corridor route still needs close-range aiming/cover recalibration; direct
+aim at approaching guard coordinates is blocked by the room wall. Historical
+full-section coverage remains unverified with the new bullet collision.
+See docs/BODY-HIT-DETECTION.md. Estimate remains ~48%.
+
+Body-hit update (2026-09-15): Player/enemy bullets now narrow-test the shared
+transformed body spheres after broad bounds; captured false and retained hits,
+nearest entry, limits, overlap and rotation pass focused tests. PC/NXDK build.
+The old full-route input now dies before its first transition; prior checkpoint
+evidence is historical until aiming is recalibrated. See docs/BODY-HIT-DETECTION.md.
+Estimate remains ~48%; current focus is combat and encounter revalidation.
+
+Checkpoint update (2026-09-15): The15290-frame stock64MiB Xbox route passes
+all33 PC/native comparisons, clears guard892 and ends with23.895MiB free.
+The next PC encounter confirms broad-box bullet hits that miss the selected
+actor body spheres, including allied miner910. Precise shared bullet collision
+and encounter revalidation are next; diagnostics do not fix selection yet.
+See docs/L3S1-CHECKPOINT.md. Estimate remains ~48%.
+
+Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
+supplies; the staged rifle kill/pickup/burst passes PC and stock64MiB Xbox
+with17.1875MiB free. PC/Xbox also retain it across two section handoffs. The10950-frame
+PC ladder route passes after updating weapon cycling and now carries a42-round
+rifle. Exact drop policy, uncollected-drop revisit and further shaft traversal
+remain open; see docs/WEAPON-DROPS.md. Estimate remains ~47%.
+
+Rifle alternate update (2026-09-15): Automatic fire now passes PC and stock64MiB
+Xbox (ten shots, three hits, one kill); PC also verifies burst/alternate handoffs
+and release. The loop adds5152bytes within a bounded8KiB budget extension.
+The main shaft encounter remains open; see docs/RIFLE-ALTERNATE.md. Estimate ~47%.
+
+Main-shaft update (2026-09-15): The11950-frame uninterrupted route passes all32
+PC/Xbox comparisons through seven L2S3 kills and the diagnostic50m climb.
+The intended35m crossing now passes on PC, and a PC extension reaches the top
+of the second shaft alive. Exit corridor, corrected-branch native verification
+and ladder dismount refinement remain open; see docs/MAIN-SHAFT.md. Estimate ~47%.
+
+Exit-route update (2026-09-15): PC now dismounts the second shaft ladder,
+clears both corridor guards (nine total L2S3 kills), and naturally crosses
+exit6604 into L3S1 at13085. The13200-frame route finishes alive with5health
+and5rifle rounds. No physics, health or inventory changes were needed.
+Full-route Xbox verification and L3S1 gameplay remain open. Estimate ~48%.
+
+L3S1 update (2026-09-15): The13200-frame Xbox route passes32 final-state
+comparisons and the natural L3S1 transition, with24.523MiB free at the endpoint.
+PC continues through the side-room ladder and kills guard109; miner789 remains
+unharmed. Cabinet supplies and further encounters remain open. Final native
+combat counters reset on transition; see docs/MAIN-SHAFT.md and
+docs/L3S1-ENTRY.md for exact coverage. Estimate remains ~48%.
+
+First-aid update (2026-09-15): The separate First Aid Kit class now uses its
+authored meds model and shared capped health restoration. The14280-frame
+stock64MiB Xbox replay passes33 state comparisons through the first L3S1
+guard and both cabinet kits:55health,50restored,24.332MiB free at endpoint.
+PC then collects rifle1228, reloads42rounds and reaches the checkpoint alive.
+Further checkpoint traversal/combat remains open; see docs/FIRST-AID.md.
+Estimate remains ~48%.
+
+First-pass policy: playable campaign systems take priority over exact1:1 RE.
+Use practical shared implementations, verify gameplay and stock64MiB operation,
+and defer visual polish. Focus: movement, combat/damage, AI, mission events,
+then level progression. Fidelity remains a later completion requirement.
+First-pass acceptance: consecutive campaign sections playable with movement,
+working combat, responsive enemies, required mission events and level exits on
+stock64MiB Xbox, with the shared PC build maintained. Use measured gameplay
+failures to select work; avoid spending time on exact RE or visual polish unless
+it blocks those systems. This priority change does not increase completion.
+
+GitHub image policy: retain the current four images; upload no additional
+screenshots until near-retail-quality replacements are available.
+
+Gameplay update (2026-09-14): Three isolated Area2/Area3 PC walking boundaries pass;
+Xbox also passes L2S2a-to-L2S3 and L2S3-to-L3S1. The latest native run finishes
+240 frames with4699 free pages (18.355MiB). L2S2a loading is unblocked by a
+bounded texture fallback and removal of redundant diagnostic loading; full
+encounters and uninterrupted traversal remain open. Estimate remains ~45%.
+
+Scripted animation update: Custom clips now play through shared campaign events;
+PC checks cover natural delayed cower, action completion, Goto cancellation and
+a retained freeze request. Stock64MiB Xbox run183857 passes the natural cower
+with5432 free pages (21.219MiB). See docs/SCRIPTED-ANIMATIONS.md. Estimate ~45%.
+
+Airlock gameplay update: L2S1-to-L2S2a now passes a Use/contact replay after
+waiting for opposite doors to close, and the reverse PC boundary also passes.
+Walking without Use correctly leaves the exit inactive. Pressure effects and
+full traversal remain completion work; see docs/AIRLOCKS.md for evidence.
+Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
+with4383 free pages (17.121MiB). Overall estimate remains ~45%.
+
+Shortlist:
+- DEFERRED / TO COMPLETE: Refine occlusion and retail interaction feel after the verified uninterrupted Area2 route.
+- TO COMPLETE: Finish mover obstruction, attached actors and revisit behavior beyond the verified Area2 walking route.
+- TO COMPLETE: Verify nonlethal damage, immunity and sight/alarm interruption of scripted poses after the PC/Xbox death-cancellation fix.
+- TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.
+- TO COMPLETE: Extend the uninterrupted Area2 route backward through L2S1 and onward through L2S3, including surviving consecutive encounters.
+- TO COMPLETE: Finish airlock pressure equalization, atmosphere/audio, unsupported peer layouts and state restoration on revisits.
+- DEFERRED / TO COMPLETE: Replace coarse world texture fallback caps with selective residency and verify PS2 parity; L2S2a currently needs the128-pixel cap to load within12MiB.
+- TO COMPLETE: Extend alarm encounters and native linked-NPC coverage; preserve alarm state across sections and complete Alarm_Siren45 and original AI transitions.
+- TO COMPLETE: Extend L2S3 traversal after collision-particle, instantaneous-mover and combined-image budget fixes; finish particle liquids, moving-object impacts, wind/swirl and precise bounce behavior.
+- DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
+- TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
+- ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
+- ACTIVE: Preserve mission state on section revisits after trigger/event retirement and delayed-event history changes, including startup effects, other removed objects, movers and wider local goals, and verify return behavior on Xbox.
+- TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
+- TO COMPLETE: Investigate the PC/native actor-follow renderer-summary mismatch in replay-20260914-162753; its broad parity check failed after both level handoffs.
+- TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
+- ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
+- ACTIVE: Expand playable weapons and their world pickups after the first-pass Riot Stick alternate fire/reload; complete electrical effects and precise impacts later.
+- DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
+- Continue campaign traversal/physics coverage beyond the repaired walking route.
+- DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
+- Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
+- Complete the single-player actor, AI, damage and mission runtime.
+- Connect retained NPC speed/body/stance owners to support queries, contact/fall/landing dispatch and physics stepping, then timed footsteps.
+- Complete moving NPC animation, room membership, LOD selection and lighting.
+- Complete authored clutter creation, skin bindings, collision ownership and rendering fidelity.
+- Finish controller/event interactions, traversal, particles and GeoMod.
+- Complete audio playback ownership, shared RNG ordering and level transitions.
+- Keep shared PC/Xbox behavior verified within the stock64MiB memory budget.
+- USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
+- USER: Review the interactive PC movement and audio items listed below.
+
+Gameplay update (September14): L2S3 now completes120 frames on PC and stock64MiB Xbox after collision-particle, zero-time mover and image-budget fixes; focused native gameplay comparisons pass with18.6MiB free. Full traversal and precise particle effects remain open; see docs/L2S3-GAMEPLAY.md.
+
+Gameplay update (September14): Alarm46 now starts/stops one timed siren and wakes linked NPCs through shared PC/Xbox gameplay; five PC cases and stock64MiB XEMU active/shutoff checks pass with22.4MiB free; see docs/ALARMS.md for remaining AI/encounter coverage.
+
+Gameplay update (September14): Riot Stick held alternate fire, battery drain/reload,
+full-cell scripted grants and held/idle animation are implemented on shared PC/Xbox.
+Focused PC combat cases and stock64MiB180-tick native contact and360-tick battery replacement checks pass;
+see docs/RIOT-STICK.md for evidence and remaining effects, sound ownership,
+material response, fractional handoff charge and natural traversal limitations.
+
+Pickup update: authored baton9463 now renders, grants100 charge on contact,
+adds100 reserve when already owned, and stays retired across a section revisit.
+Battery class/model support is connected; no standalone battery placements were
+found in the63 installed SP sections. Battery asset/budget checks pass; natural
+world battery collection remains unverified. See docs/RIOT-STICK.md.
+
+Startup inventory: successful first-entry setup is now tracked per section;
+revisits suppress immediate startup strip/gift callbacks while gameplay events
+remain active. PC and stock64MiB Xbox baton round trips preserve100 charge and item retirement.
+This is practical inventory policy, not full section restoration; delayed and
+non-inventory startup effects remain open. See docs/STARTUP-INVENTORY.md.
+
+Local mission goals: bounded per-section snapshots now restore local values on
+return without leaking them to other sections. Authored PC and stock64MiB XEMU L8S1/L8S2/back checks
+preserve sample1=1, with a fresh-process zero control. Unit checks and PC/NXDK
+builds pass. New campaign initialization also clears startup-inventory receipts.
+See docs/MISSION-GOALS.md; full event/timer restoration remains open.
+
+Trigger checkpoints now preserve activation counts/flags/limits and pause
+cooldown/contact deadlines across section absence, using authored UID keys.
+PC and stock64MiB XEMU round trips restore61 L1S1 triggers; one-use eligibility, timer wrap and
+handle ownership unit checks pass. Startup side effects and event/switch/world
+state remain open. See docs/TRIGGER-CHECKPOINTS.md.
+
+Live switches: attached the missing gameplay backend for trigger/event links,
+applied initial linked flags, and added switch-state snapshots on section return.
+Authored9836 delay/one-use PC checks and a stock64MiB Xbox round trip pass; exact Alarm46 AI behavior and
+controller/sound-object/light/renderable switch targets remain TO COMPLETE.
+See docs/LIVE-SWITCHES.md for explicit coverage and remaining startup side effects.
+
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Current USER direction: back to gameplay systems; optimization is shelved. "Give it a spin on Xbox"
+resumed focused native performance/render checking; it is not a request for the
+long campaign suite. Leave manual XEMU sessions running without an automatic
+cutoff. tools/xemu_play.py stages an unlimited controller-driven campaign and
+mounts an isolated ISO copy, so later builds cannot modify the running image.
+
+Retained static-world, NPC GPU skinning and rigid-model projection are built and
+running on stock64MiB XEMU. The short180-frame render-20260914-142844 check
+passed selected PC gameplay-state comparisons and showed the scene/miner with
+no retained fallback. It ended with22.70MiB available; USER observed about23FPS.
+That brief staged-camera run is not a sustained or same-scene baseline.
+
+The subsequent unlimited campaign run exposed draw starvation:40.81 simulation
+ticks/sec produced only4.53 actual presentations/sec over30 seconds. Physics
+runs after the presentation callback, outside its old overload check, causing
+eight skipped draws in every nine ticks. The shared frame clock now bounds
+skipping by a33ms presentation deadline while retaining fixed60Hz physics.
+NPC pose evaluation also now shares identical whole-skeleton results within a
+single simulation tick using a bounded42,076-byte cache. Each actor still owns
+its playback/events, generations, overrides and collision data. Overrides and
+partially current generation caches fall back. The180-frame PC comparison has
+identical complete diagnostic output and final pixels, with33 pose hits and5
+misses in its final tick. Focused tests and PC/NXDK builds pass; sustained new
+native run play-20260914-144559 measured27.61 presented FPS and56.29 simulation
+ticks/sec across45 seconds,22.10MiB available. NPC pose work fell to1.687ms;
+32/36 poses reused in the final sample. XEMU remains open for USER input.
+Evidence and reproduction: docs/XBOX-PACING-POSE-SHARING.md.
+
+Opaque world draw grouping and larger pbkit submission blocks are implemented.
+The same-XBE180-frame pair render-20260914-153547/reference and
+render-20260914-153350/optimized passes selected PC gameplay-state checks and
+has zero differing final RGB pixels. World BEGIN/END groups fall510 ->41;
+retained-world/shader/model-part submission blocks fall1530/127/644 ->15/12/139.
+The native draw/wait phase falls22.183ms ->15.354ms in the focused run, with
+zero retained-model fallback. Unlimited play-20260914-154020 measured26.102 FPS,
+53.625 simulation ticks/sec and22.086MiB available across45.016 seconds, with
+all77 sampled player-body words matching the preceding live baseline. That
+baseline measured21.067 FPS, but another project's emulator exited at an
+unknown point before the post-run check: the difference is not a controlled
+FPS speedup. The optimized XEMU remains open without a frame limit.
+An experimental conservative model-bounds path passes12000 brute-force cases
+and native image checks but increases net CPU cost in this scene; it remains
+OFF for normal play and allocates no bounds records/keys unless enabled.
+TO COMPLETE: Cover moving cameras, coplanar world surfaces and busy gameplay;
+revisit model culling only where measured GPU savings outweigh its CPU cost.
+Evidence and reproduction: docs/XBOX-DRAW-SUBMISSION.md.
+
+Both retained geometry caches retain their independent4MiB caps and CPU fallback.
+Moving geometry and first-person weapons still use the CPU path; weapon near/depth
+policy needs a separate GPU adaptation. Clipping, winding, depth/perspective,
+pose alignment and representative handoff/cache retirement remain open. See
+docs/XBOX-RETAINED-WORLD.md and docs/XBOX-RETAINED-MODELS.md.
+
+Opening handoff Xbox verification is incomplete: the240-second run timed out
+while advancing, and replay-20260914-133827 lost its QMP connection. Both runs
+are terminal; tests were then paused by USER. The pre-optimization PC handoff
+controls and1024-case original/PC/NXDK dispatch verifier passed.
+
+Linked-trigger enabling is repaired: original4c0378/4c0200 clears disable bit16;
+the shared contact dispatch previously dropped kind5 targets. The expanded
+1024-case original/PC/NXDK verifier records enable calls and checks original
+flag mutation, closing a gap in its earlier event/controller-only traces.
+All38 PC tests pass. tools/replay_opening_handoff.py proves the entrance-to-
+Riot-Stick sequence with ordinary movement and no event/grant injection:
+hall-only and pre-delay controls stay unarmed; the complete2400-frame approach
+grants exactly one Riot Stick and executes both authored Slay_Object actions.
+Scripted animation/look presentation and onward mission traversal remain open.
+
+Follow_Waypoints now dispatches shared NPC movement through named authored
+navigation nodes. The walking fixture activates9646 by contacting trigger9029,
+and miner8322 reaches both destinations without blocked steps. All38 PC tests
+pass, including68 installed campaign path sections, malformed/sentinel handling
+and delayed waypoint on/off dispatch. Missing paths preserve current movement.
+Loop/Ping Pong endpoint behavior is implemented but needs authored replay
+coverage. The waypoint-only fixture stops before9028; the extended opening-handoff
+fixture above now covers that contact and delayed item delivery. Evidence and
+reproduction:docs/OPENING-MISSION-CHAIN.md and tools/replay_waypoints.py.
+Stock64MiB XEMU replay-20260914-132101 passes2400 frames with exact PC
+movement, position and route counters; NXDK build/restoration succeeds.
+
+Strip_Player_Weapons now clears shared weapon ownership/ammunition, cancels
+reload/fire state and enters an unarmed presentation. Startup strips use the
+same ordered queue as item grants, so inventory initialization cannot undo them.
+Firing is blocked and weapon vertices are hidden while the selected weapon is
+unowned; movement and interactions remain available. A later supported weapon
+grant/pickup automatically selects an owned slot. Handoff represents unarmed as
+UINT32_MAX without indexing inventory at that value. Unarmed respawn stays
+unarmed instead of restoring the diagnostic pistol. All37 PC tests pass,
+including unarmed handoff validation. Controlled strip-only, rearm, backtracking
+and respawn cases pass; rearm grants Riot Stick and permits its primary hit.
+This practical policy clears all ammo too; full original strip/holster visual
+sequencing and natural campaign traversal remain open. Evidence:artifacts/weapon-strip.
+Reproduce:python tools/replay_weapon_strip.py.
+Stock64MiB XEMU replay `replay-20260914-125923` passes240 frames and both
+section transitions with exact PC state:unarmed ID, zero ammo/shots and zero
+weapon vertices. NXDK build/restoration succeeds. All five PC strip cases,
+including mid-play stripping, pass; the existing armed rifle respawn replay
+also passes, preserving its prior ammo/reload behavior.
+
+
+Riot Stick now occupies playable slot2 after pistol/rifle. Weapon cycling skips
+unowned slots; ammo publication, reload ownership and campaign handoff use the
+selected weapon ID instead of a pistol/rifle boolean. Authored primary settings
+supply60 bash damage and1-second cadence. Primary strikes do not consume charge;
+manual/automatic reload is bypassed for this first-pass melee action. A2.6-unit
+segment against existing NPC bounds and world/mover obstruction limits reach;
+this borrows the authored AI attack range, not verified retail player reach.
+The named first-person mesh/draw/fire clips and Riot Attack sound are connected.
+All37 PC tests pass; controlled grant/cycle/approach replays prove a near hit,
+a withdrawn miss and unchanged one-unit charge. First-person attack vertices
+render; fitted camera placement, precise delayed impact, melee hit volume,
+impact effects and electrical alternate fire remain open. No GitHub image upload.
+Evidence:artifacts/riot-stick. Reproduce:python tools/replay_riot_stick.py.
+Stock64MiB XEMU replay `replay-20260914-125149` passes150 frames of the
+close-strike case with exact PC combat, charge and weapon-animation state.
+NXDK build/restoration succeeds. A PC L1S1->L1S2->L1S1 replay retains selected
+Riot Stick ID2 and its charge. All seven existing pistol/rifle selection/reload/
+respawn replay cases pass; their old audio assertions now include measured
+ENEMY_FIRE sound requests alongside player shots/reloads. The prior failure
+was3 player shots plus1 enemy sound compared against3 total sounds.
+
+
+Give_Item_To_Player now resolves named items.tbl weapon/ammo definitions and
+applies the existing SP pickup grant to the shared inventory. Requests during
+startup wait in a fixed32-entry queue (384 bytes) until starting/imported
+inventory is ready, so frame0 initialization cannot erase the grant. Repeated
+requests add allowed ammo without reacquiring an owned weapon. The live9870
+regression grants Riot Stick ID2 with one loaded unit; a second request adds
+one reserve unit. This does not equip Riot Stick: usable selection, melee,
+first-person presentation and authored Strip_Player_Weapons remain critical
+open work. Non-weapon health, armor and suit grants are integrated. Authored keycard/Brainstem notice-only dispatch passed00:00 Xbox compilation; it does not invent persistent keys (docs/SCRIPTED-NOTICE-ITEMS.md). All37 PC tests and both
+startup/repeated-grant replays pass. Original4bb690 creates a temporary item
+through459100 before pickup dispatch; this practical path reuses decoded item
+benefits without creating that object. Reproduce:python tools/replay_script_grants.py.
+Evidence:artifacts/script-grants.
+Stock64MiB XEMU replay `replay-20260914-124350` passes90 frames with exact
+PC grant/inventory diagnostics:two requests, one acquisition, one loaded and
+one reserve unit. NXDK build and restoration succeed.
+
+
+Authored Heal and Armor events now dispatch signed amounts to linked NPCs and
+the optional player target through shared runtime callbacks, including delayed
+activation. Class limits clamp values; negative amounts support authored training
+and campaign reductions. Dead actors are not resurrected; newly lethal NPC
+reductions enter the existing death path. Unsupported non-NPC objects remain
+unimplemented. Original evidence:Heal4bb0d0, Armor4bb170, heal helper48a510;
+signed event+2b8 amounts and optional-player byte+2bc. This is a practical shared
+implementation, not complete original helper equivalence. All37 PC tests pass,
+covering delayed dispatch, linked/player selection, caps, reductions and stale
+handles. The controlled9959/9960 replay retains half-second delays and produces
+71.2 final health versus61.6 in control with the same8 enemy hits. No natural
+trigger traversal claim. Evidence:artifacts/script-vitals; reproduction:
+python tools/replay_script_vitals.py.
+Stock64MiB XEMU replay `replay-20260914-123601` passes240 frames with
+exact PC combat and player-vitals comparisons:8 hits and71.2 final health.
+NXDK build and staging restoration succeed.
+
+
+Live revisit validation now compares registered actor values after section
+startup and gameplay against saved records before a new capture can overwrite
+them. The previous native checks compared storage only. The controlled PC
+round trip now requires78 living actors with zero health, armor, allegiance or
+mission-flag differences, including the wounded guard and invulnerable actor.
+ACTOR_REVISIT records compared count, four difference counts and first differing
+UID/current/saved health bits. Differences are diagnostic during ordinary
+combat; zero is required only by this controlled return replay. This confirms
+this route has no startup overwrite; it does not prove all campaign scripts.
+The32-byte diagnostic is also available in native failure snapshots.
+Evidence:artifacts/actor-vitals/revisit-*.
+Stock64MiB XEMU replay `replay-20260914-122418` passes240 frames, both
+transitions, and the same78 live actors with zero differences after return.
+All37 PC tests and NXDK build/restoration pass.
+
+
+Actor section persistence now includes allegiance and the authored hidden/
+invulnerable object bits0x4000/4, alongside health/armor. This adds16KiB of fixed
+storage (40KiB total for vitals plus mission fields), with no transient handles,
+physics flags or animation state retained. Restore publishes flags consistently
+to object/view/room owners. Retirement still wins. Tests exercise real mission
+setters before capture, restore, unchanged first visits, section separation and
+preservation of unrelated construction flags. All37 PC tests pass. A controlled
+L1S1 round trip compares authored Make_Invulnerable9668 against a control:
+actor9643 retains flag4 versus0, with allegiance1 in both. The guard damage
+regression remains80.8 health/79.2 armor. Replay setup now permits existing
+Make_Invulnerable and Set_Friendliness runtime events without bypassing delays.
+Reproduce:python tools/replay_actor_vitals.py --mission-event. Full natural
+traversal, actor placement/inventory and remaining world state remain open.
+Evidence:artifacts/actor-vitals/mission-*.
+Stock64MiB XEMU replay `replay-20260914-121653` passes240 frames and both
+section transitions with exact PC mission-state/vitals comparisons, including
+actor9643 allegiance1 and invulnerability flag4. NXDK restoration succeeds.
+
+
+Living actor health and armor now survive section backtracking, using the
+existing level/UID persistence slots. The appended fixed vitals owner costs24KiB;
+no per-hit or per-transition allocations, runtime handles or pointers are saved.
+Retirement still takes precedence over old living values. Tests cover wounded
+restoration, identical UIDs in different sections, untouched first visits and
+retirement. All37 PC tests pass. The actor-vitals replay shoots guard8456 before
+explicit L1S1->L1S2->L1S1 exits and retains80.8 health/79.2 armor. This is staged
+encounter/exit coverage; full natural route and complete actor-state persistence
+remain open. Position/orientation, allegiance, inventory and dropped items are
+not included. Native harness compares saved vitals against PC; return-exit
+staging now permits no pickup UID on both platforms. Reproduce PC coverage with
+python tools/replay_actor_vitals.py. Evidence:artifacts/actor-vitals.
+Stock64MiB XEMU replay `replay-20260914-120730` passes240 frames and both
+section transitions, with saved actor vitals exactly matching PC (including
+guard8456 at80.8 health/79.2 armor). NXDK build and restoration pass.
+
+
+Combat pursuit is stopped when player death is first observed. Previously the
+combat tick stopped firing while active follow2 navigation kept moving enemies
+toward a dead player. Death now clears only combat-owned pursuit and its route,
+leaving authored Goto/Goto_Player movement intact; existing respawn clears enemy
+alerts and restores player controls/ammo. Tests exercise death entry, route
+release, retained authored movement and repeated death input. All37 PC tests,
+NXDK build and all four player-life replay cases pass: death, held-use rejection,
+fresh-use respawn and resumed movement/fire. The replay now removes inherited
+RF_REPLAY_* staging variables for reproducible setup. Full reload/checkpoints
+and natural encounter traversal remain open. Evidence:artifacts/xbox-duel/death-pursuit-*.
+Stock64MiB XEMU replay `replay-20260914-115921` passes the full1500-frame
+death/respawn/resume sequence with exact PC life, combat and enemy-action
+comparisons. NXDK staging restoration succeeds. This is a staged encounter,
+not full campaign/checkpoint validation.
+
+
+Player-target pursuit now uses the same movement path as scripted/reactive NPC
+targets. Previously normal sight acquisition and retaliation against the player
+set combat_alert with mode0, so the scripted-only navigation gate left these
+enemies stationary when the player withdrew or broke line of sight. Alert actors
+now request pursuit beyond20 units or behind an obstruction, retain it until
+clear within16 units, and update the player's body position through the existing
+navigation/ground/collision path. Unalerted neutral actors remain passive.
+Tests cover actual sight acquisition without Attack, withdrawal, pursuit target,
+and stopping hysteresis. All37 PC tests and NXDK build pass; the live PC hostile
+and neutral replays retain8 shots/61.6 health and0 shots/100 health respectively.
+This is practical continuous target tracking; search/lost-target AI remains open.
+A naturally traversed campaign encounter is still needed; actor staging is used
+by the live awareness replay. Evidence:artifacts/xbox-duel/player-pursuit-*.
+Stock64MiB XEMU replay `replay-20260914-115452` passes240 frames of the
+staged hostile awareness encounter with exact PC combat/action comparisons;
+NXDK restoration succeeds. This validates acquisition/fire compatibility on
+Xbox; retreat/chase behavior is covered by the focused tests, not this idle replay.
+
+
+Full native duel verification now passes: stock64MiB XEMU replay
+replay-20260914-114230 completes4000 frames of L1S1 Attack9802 and matches PC
+for scripted attack, pursuit, aiming, retaliation, combat, firing clips and audio.
+There are39 shots,39 active firing clips,39 sound plays, zero audio errors and
+one target death. The native harness now checks all four new enemy-action
+counter groups and includes them in guest snapshots. NXDK staging restoration
+also succeeded. This is controlled event activation with a staged player;
+natural triggers and complete firing visuals remain open. Performance tuning
+stays deferred. Evidence:artifacts/xemu/replay-20260914-114230/report.json.
+
+NPC retaliation now consumes the gameplay AI-reaction notification. Armed,
+living victims can target the recognized NPC/player source; repeated hits keep
+the current reaction deadline. Explicit authored Attack orders retain priority;
+reactive mode2 shares pursuit/aim/fire. Tests reject stale/self/zero/unarmed/dead
+cases and verify the actual damage-dispatch path starts retaliation. Source
+lookup now supplies retained NPC/player affiliation. This is a practical policy,
+not full407fb0/group AI or faction escalation behavior. Controlled Attack9802
+now produces39 shots (20 attacker plus19 after victim retaliation),39 active
+fire clips,39 sound plays and target death; zero audio errors. Regression compares
+scene-wide effects against total shots and requires retaliation/return fire.
+37 PC tests, NXDK build/restoration and stock64MiB XEMU replay113808 pass;
+XEMU coverage is180-frame L1S2->L1S3 transition/state, not full duel execution.
+Natural-trigger traversal, unarmed/group reactions, visual verification and full
+Xbox combat remain open. Evidence:artifacts/npc-retaliation.
+
+Enemy shots now activate mapped fire_stand action2 through motion residency and
+shared action playback, without touching the death-action owner. Action sound
+labels are used when present; known pistol/rifle shots fall back to the existing
+Glock Launch/Assault Loop groups. Missing clips are counted and do not prevent
+damage; other playback errors remain explicit. No new persistent animation
+allocation; existing cache and audio budgets apply. Controlled Attack9802 still
+reaches target death:20 shots,20 confirmed active firing clips (motion60),20
+sound plays, zero audio errors. Regression requires these counts.37 PC tests
+pass; NXDK and stock64MiB XEMU replay112944 pass180-frame L1S2->L1S3 transition
+checks. No full Xbox encounter claim. A local PC follow-camera render at2200
+was inspected and shows the robot attacker; this is a single frame, not visual
+proof of a firing sequence. No GitHub images uploaded. Muzzle/impact effects,
+crouched/weapon-specific blends, other weapon sounds, natural triggers and full
+Xbox combat validation remain open. Evidence:artifacts/enemy-fire.
+
+Stationary combat aiming now uses retained steering/angular prediction and
+ordinary orientation publication while preserving position. Shots require a
+30-degree horizontal forward cone; failed alignment leaves cooldown available.
+This is practical first-pass aiming; vertical aim and upper-body/fire blends
+remain open. Tests verify front/side/back gating and actual NPC damage held
+while backward, then allowed once aligned.37 PC tests pass. Controlled4000-frame
+Attack9802 replay still defeats target with20 shots and1171 stationary aim
+updates; that sample has zero aim holds and does not prove a large turn or
+visual weapon alignment. NXDK build and stock64MiB XEMU replay112202 pass the
+180-frame L1S2->L1S3 transition/state checks. No screenshot requested; full Xbox
+encounter execution, visual turning verification and firing presentation remain
+open. Evidence:artifacts/enemy-aim and attack-encounter/verified.
+
+Attack9802 controlled encounter now completes through target death. Root cause:
+scene fallback clearance used2.5 radius for an actor radius~0.43, leaving no
+start node despite188 eligible nodes and valid goal32. The obstruction was
+static world face5974/room53, not a mover. Scene adapter now uses actual actor
+radius; shared selector, graph and physical movement sweeps remain unchanged.
+Matched3000-frame replay: one four-node route, zero blocked steps,14 shots and
+target32.8 health instead of36 route misses/726 blocked steps/zero shots. By4000
+frames20 shots defeat the target and COMBAT_DEATH confirms death entry. This is
+controlled activation with authored delay/target preserved, not natural trigger
+traversal or visual proof. Regression now fails if the target is not defeated.
+37 PC tests pass; NXDK build and stock64MiB XEMU replay-20260914-111450 pass
+180-frame L1S2->L1S3 crossing/state validation. Xbox full-encounter execution,
+visible aiming/firing and natural-trigger traversal remain open. No capture.
+Current evidence:artifacts/attack-obstruction and attack-encounter/verified.
+
+Controlled authored encounter now reproducible with tools/replay_scripted_attack.py.
+Event9802 is requested at frame30 with its real13.75s delay and target8322;
+attacker8324 remains inactive at840 frames, then moves3.60 units by1000 and
+35.62 units by3000 through ordinary collision/grounding. At3000 it has1418
+movement steps,726 blocked attempts,36 failed route selections and zero shots;
+target health remains100. Report explicitly says PURSUIT_VERIFIED_ENCOUNTER_INCOMPLETE.
+This identifies a real encounter gap; route selection versus nearby door/script
+prerequisites has not been distinguished. Do not bypass the obstruction or
+claim natural trigger/end-to-end encounter success. Navigation has333 nodes and
+a loaded workspace. Last attacker(-78.136,-5.629,45.468), target(-78.650,-4.554,48.784).
+Earlier candidate9394 references attacker8638, which stage_actor could not find
+in this installed L1S1; its dispatch test does not prove a live encounter.
+37 PC tests and NXDK build pass. This turn adds controlled replay/telemetry;
+no new XEMU encounter or visual capture validation. Local evidence is under
+artifacts/attack-encounter/verified. Next: inspect the blocking geometry, nearby
+door trigger eligibility and authored setup chain for9802 before changing routes.
+
+Scripted pursuit handoff implemented: armed Attack actors approach targets
+beyond20 units or behind obstructed sight, and stop with clear sight inside16.
+Decision cadence15 ticks, destination refresh after1 horizontal unit; practical
+first-pass choices, not recovered retail constants. Uses existing navigation,
+grounding, steering and body sweeps, with no new route allocation. Cancellation,
+stale/dead targets and allegiance/respawn clear combat-owned movement and request
+standing; a new Goto supersedes explicit combat targeting. Two extra words/NPC.
+Validation:37 PC tests pass, including destination/retry behavior, a wall-blocked
+shot that requests pursuit without damage, clear-sight stopping, stale targets,
+deferred standing and unrelated Goto_Player preservation. Native stock64MiB
+replay-20260914-105927 passes180-frame L1S2->L1S3 crossing/state checks, and NXDK
+build/restoration passes. No capture requested. This replay is compatibility
+coverage, not proof of a full authored pursuit route or encounter. Next: execute
+an authored encounter end to end and connect visible aiming/firing behavior.
+
+Scripted Attack38 first pass implemented. Attacker comes from words[0] UID;
+first supported live target link is selected, with event name player overriding
+it. Off cancels explicit targeting. Delayed events retain their deadline when
+no backend exists. Shared enemy tick now damages the selected NPC or player,
+uses existing world/mover LOS and cooldown, and enters NPC death on lethal hits.
+Stale explicit targets never redirect fire to the player. Allegiance/respawn
+resets clear explicit target state. No per-command allocation; two words/NPC.
+Validation:37 PC tests pass, including actual L1S1 event9394 dispatch, delayed
+on/off, missing backend, target order/player override/cancellation, NPC damage,
+cooldown and stale handles. NXDK build passes. Stock64MiB XEMU replay105213
+passes180-frame L1S2->L1S3 crossing/state validation; no capture requested and
+no authored Attack encounter or lethal scripted shot is proven by that replay.
+Open: pursuit, aim/firing presentation, target props, retaliation to NPC sources,
+lethal-shot integration coverage, case behavior of the player-name override,
+and complete natural-trigger encounters. Details:docs/SCRIPTED-ATTACKS.md.
+
+USER direction: final performance pass complete; return to systems implementation.
+Native replay-20260914-104251 passes stock64MiB crossing/state/HUD checks and
+matches the complete final image from103625. All37 PC tests pass. New NPC
+per-frame counters identify pose advance/evaluation6.320ms, collision preparation
+and its hash0.631ms, controllers/setup0.252ms, eye/state hashes0.165ms, residency
+0.058ms, snapshots0.029ms, fixtures0.019ms and visibility gate0.010ms.
+Scene phase means total71.751ms this run versus54.270ms previously; no additional
+speedup or sustained high-teens FPS is claimed. Host variation and instrumentation
+remain possible contributors. Defer further performance investigation per USER.
+Next systems work: Attack event38 dispatch and actor/target behavior. Existing
+original loader462150 routes type38 to4b86d0; factory4b69d0 constructs it via
+4beae0. Inspect those bounded functions to establish the authored target mapping,
+then connect to combat; avoid expanding this into an exact-RE parity project.
+
+NPC subphase profiling verified in replay-20260914-103625: stock64MiB
+180-frame crossing/state/HUD checks pass, with an exact final framebuffer
+match against102028; all37 PC tests pass. Scene phase means total54.270ms
+(~18FPS-equivalent, not measured gameplay FPS; loading/input pacing excluded).
+NPC playback/pose/collision cache costs6.136ms, scripted movement1.408ms,
+NPC room refresh0.291ms and attachments0.117ms. These are nested timings,
+not additional frame costs. Next optimization target: NPC pose/playback and
+collision preparation; room and attachment work is not the main cost here.
+Instrumentation alone makes no speedup claim.
+
+Motion track reuse rejected pending controlled evidence. Repeat native
+replay-20260914-103040 passes state and exact final-image comparison, but
+scene69.818ms/NPC9.615ms/platform18.308ms again establish no gain against
+the earlier52.404/7.375/12.904ms baseline. Broad renderer slowdown makes
+causality uncertain; nevertheless reverted the candidate rather than
+claiming success. Original parser restored; candidate.patch retained under
+artifacts/motion-track-reuse for later controlled investigation.
+Correctness evidence:37 tests, six strict PC comparisons, two stock64MiB
+native replays and matching final framebuffers. No new FPS gain.
+Next: separate NPC playback from attachment/room updates and use a matched
+baseline or within-run comparison for small timing changes.
+
+Step profiling verified in replay-20260914-102028: stock64MiB180-frame
+crossing/state/HUD checks pass, and full native final image matches101543.
+Scene52.404ms (~19FPS-equivalent); instrumentation gives no speedup claim.
+Mean nested step costs: forces/movers/player physics/support1.097ms,
+light timers0.068ms, triggers/events0.806ms, particles0.087ms,
+NPC scripts/animation/rooms/attachments7.375ms, collision checks0.279ms.
+NPC updates dominate this block. First five stages have103 samples; latter
+stages104 because the final frame skips stepping. Both builds and37 tests pass.
+Next: inspect NPC animation/attachment updates for repeated work; retain
+scripted movement and gameplay behavior. Evidence: artifacts/step-profile/
+performance.json and native102028 image comparison.
+
+Corrected VBlank guard verified in replay-20260914-101543: stock64MiB
+180-frame crossing/state/HUD checks pass; full native final image exactly
+matches100657. Scene64.047->52.770ms (~19FPS-equivalent work), platform
+24.221->13.192ms, VBlank/reset/clear10.683->0.490ms. Section counters:
+one explicit wait,119 already-crossed frame starts. GPU completion waits
+and pb_finished full-queue retry remain. Counter is checked after event
+wakeups to reject stale signals; section teardown resets tracking.
+Both native candidate/restoration builds pass. Shared PC gameplay code
+unchanged; current PC/native replay state agrees. No new37-test run needed
+for this Xbox-only change. Evidence: artifacts/vblank-pacing/performance.json,
+baseline-performance.json and native101543 image comparison.
+TODO: validate high-rate scenes and hardware presentation; profile remaining
+physics/events and world rendering before further gameplay expansion.
+
+Unused first-person render allocations removed; replay-20260914-100657
+passes180-frame stock64MiB crossing/state/HUD checks and exact full native
+final-image comparison with100127. Counter[1,0,0,1283456] confirms no
+body output/scratch allocation and1,283,456 bytes of omitted payload.
+Last-frame renderer available pages6160->6481 (+321 pages,1,314,816 bytes);
+this uses diagnostic44 sampled by the renderer, not load/teardown samples.
+Both builds and37 tests pass; six strict PC image/state comparisons match.
+Evidence: artifacts/hidden-player-memory/memory-report.json, comparison/report.json,
+and artifacts/xemu/replay-20260914-100657/native-image-comparison.json.
+Pose/collision geometry remains resident. No new FPS gain claimed.
+Next: presentation pacing and physics/event costs.
+
+Hidden first-person body mesh suppression verified in replay-20260914-100127:
+stock64MiB180-frame crossing/state/HUD checks pass; full native final image
+matches095052 exactly. All64 sampled actor-render records emit zero vertices.
+Actor render phase5.769->0.298ms; scene65.000->64.259ms. Platform time rises
+18.817->24.106ms, offsetting the CPU reduction; no overall FPS gain claimed
+beyond the existing ~15FPS-equivalent work. Both builds,37 tests and six
+strict PC image/world/player/model comparisons pass. Poses, eye/collision
+updates and the visible first-person weapon remain active. Default and
+third-person rendering remain enabled. Evidence: artifacts/hidden-player-mesh/
+comparison/report.json, performance.json and native100127 image comparison.
+TODO: reclaim unused first-person body mesh/render scratch allocations after
+checking their ownership; inspect presentation pacing and physics costs.
+
+Room-culling camera audit completed with tools/replay_visibility_views.py:
+nine final views after90-frame left/right/up-right rotations near authored
+exits in L1S1/L1S2/L1S3. Final player state and recorded inputs match in all
+cases, with distinct final body states confirming the rotations. Eight
+images match exactly; L1S3-right has three isolated ceiling-edge pixels
+replaced by background. Both images inspected; accepted for first pass,
+tracked as polish work rather than exact parity. Raw report remains
+REVIEW_REQUIRED; explicit review is artifacts/visibility-views/review.json.
+TODO: repair the earlier actor-view single pixel and these three pixels;
+extend coverage to more rooms/intermediate frames and bind detail parents.
+Initial audit incorrectly treated a mesh-count-inclusive hash as camera-only;
+corrected to compare final body state and input records before the full run.
+No new engine change or FPS gain in this audit. Existing native baseline
+remains approximately15FPS-equivalent work.
+
+Primary-room culling verified in replay-20260914-095052: stock64MiB native
+180-frame crossing/state/HUD checks pass; complete final framebuffer exactly
+matches094219. World rebuild23.356->13.538ms; platform24.058->18.817ms;
+scene82.529->65.000ms (~15FPS-equivalent, not hardware FPS). Final batches
+388->85, measured mesh methods2100->463. This eliminates unseen world work
+without changing geometry residency or adding allocations. Both builds and
+37 tests pass. Five PC transition final images match; actor8323 retains one
+reviewed changed pixel, explicitly PASS_WITH_DIFFERENCES in comparison/report.json.
+Broader camera and portal-boundary testing, detail-parent culling and that
+one-pixel discrepancy remain open. Evidence: artifacts/world-room-culling/
+performance.json and artifacts/xemu/replay-20260914-095052/native-image-comparison.json.
+
+GPU state reuse verified in replay-20260914-094219: stock64MiB180-frame
+crossing/state/HUD checks pass, and full native final framebuffer exactly
+matches093743. Last frame388 batches require2100 methods instead of6596
+(68.2% fewer in the measured mesh loop); triangle order/count unchanged.
+Draw/GPU-wait phase11.106->10.519ms, platform24.212->24.058ms, total
+scene83.482->82.529ms. This is a modest timing improvement, roughly12FPS
+equivalent, with host variation; command reduction is directly counted.
+Xbox build/restoration pass. Shared PC code is unchanged; prior37-test
+result remains applicable, and harness PC/native state comparison passes.
+Evidence: artifacts/gpu-state/performance.json and
+artifacts/xemu/replay-20260914-094219/native-image-comparison.json.
+Next: larger world projection/visibility and scene preparation costs.
+
+Clip-code cache verified in replay-20260914-093743:180-frame stock64MiB
+crossing/state/HUD checks pass; complete640x480 native final framebuffer
+matches091453 exactly. Both builds and37 tests pass; six PC comparisons
+match final pixels and world/model/player summaries. Transient cache1280B.
+Measured world rebuild25.135->24.317ms; scene88.875->83.482ms. Platform
+27.260->24.212ms also changes, so the overall gain is not attributable solely
+to this cache. Treat as a modest reduction, roughly11-12FPS-equivalent
+frame work, not hardware FPS. Next: larger world projection/submission costs.
+Evidence: artifacts/world-clip-codes/pc-report.json, performance.json,
+and artifacts/xemu/replay-20260914-093743/native-image-comparison.json.
+
+Vertex-upload experiment rejected after replay-20260914-093224. Preparing
+colors in a local vertex before writing GPU storage passes stock64MiB replay
+state and selected HUD pixels, but upload time5.144->6.212ms shows no measured
+XEMU gain (scene88.875->88.336ms is effectively unchanged). Restored the
+previous renderer rather than retaining an unproven optimization.
+Full native640x480 framebuffer exactly matches replay-20260914-091453,
+also closing final-image coverage for the intervening world camera cache.
+Evidence: artifacts/vertex-upload/performance.json and native-image-comparison.json
+in artifacts/xemu/replay-20260914-093224. Repeatable tool:
+tools/compare_native_replay_images.py. This verifies one final frame only.
+Next: world projection/clipping remains the measured CPU target (~25ms).
+
+Validation correction: replay-20260914-092055 and092818 omitted --capture;
+their PASS proves state/timing checks, not framebuffer validation. The earlier
+091453 capture is present. Vertex-upload validation now explicitly uses
+--capture and will compare native output with that preserved framebuffer.
+
+World camera cache verified in replay-20260914-092818: stock64MiB180-frame
+crossing/state checks pass. World rebuild39.587->25.135ms
+(36.5% lower); scene total123.634->88.875ms, about11FPS-equivalent work.
+Platform time also falls36.471->27.260ms, indicating host/run variation;
+do not attribute the whole scene gain to the cache or claim hardware FPS.
+Both builds,37 tests, five PC transition comparisons and the visible-actor
+comparison pass. Cache uses1024 transient bytes, with no persistent allocation
+or geometry/texture reduction. Evidence: artifacts/world-cache/report.json,
+artifacts/world-cache/performance.json and artifacts/world-cache/xemu.log.
+Next: reduce remaining world projection and render submission costs.
+
+World-phase profiling verified in replay-20260914-092055: stock64MiB native
+180-frame crossing passes with 104 destination samples. World geometry
+rebuild averages39.587ms; visibility traversal0.269ms, audio0.173ms,
+camera setup/room location0.240ms. Total scene work123.634ms confirms
+the prior scratch improvement; this instrumentation adds no new speedup.
+Next optimization target: world geometry rebuild, then platform submission.
+PC build and37 tests pass; Xbox build/harness restoration pass. Evidence:
+artifacts/performance-world-detail.json and artifacts/xemu/replay-20260914-092055.
+
+Active-range scratch optimization passes stock64MiB native crossing/state/
+capture verification in replay-20260914-091453. Detailed scene work decreases
+294.365->125.864ms; NPC51.192->7.913ms, clutter84.702->2.500ms. These are
+single replay guest timings, roughly8FPS-equivalent work, not hardware FPS.
+Both builds and37 tests pass; visible-model PC A/B pixels/summaries match.
+Next measured costs: camera/visibility/world rebuild41.894ms, platform sink36.712ms,
+physics13.288ms. Profile world rebuild before the next optimization.
+
+Visible-actor scratch A/B replay passes with identical pixels and nonzero
+NPC/clutter/world-weapon/first-person output;37 tests pass. Native corrected
+performance run remains active in artifacts/performance-scratch-fixed-xemu.log.
+See tools/replay_scratch_differential.py and artifacts/scratch-differential/report.json.
+
+Scratch validation correction: initial build failed and old-PC replay claims
+were invalid. Fixed batch reference/optional static scratch, enforced build exit
+checks, and reran with a distinct executable hash. Fresh PC pixels/final summaries
+match and37 tests pass. Corrected native run: artifacts/performance-scratch-fixed-xemu.log.
+The earlier performance-scratch-xemu.log run failed at compile, before emulation.
+
+Detailed timing passes in replay-20260914-090636: clutter85ms/NPC51ms are
+major costs. Replaced whole384KiB per-batch diagnostic scratch fills with
+active-vertex ranges; identical PC pixels/model summaries and37 tests pass.
+Candidate native timing/state/capture run is active in artifacts/performance-scratch-xemu.log;
+do not rebuild Xbox until harness restoration. No native speedup claimed yet.
+
+Bounded HUD batching passes native crossing/state/capture verification in
+replay-20260914-090327. Measured scene work drops222->198ms (about11%);
+renderer time drops43.5->26.8ms. Still roughly5FPS-equivalent, not adequate.
+Finer NPC/clutter/weapon/platform timings are added; both builds and37 tests
+pass. Native detailed run is active in artifacts/performance-detail-xemu.log;
+wait for disc restoration before Xbox builds. No GitHub images added.
+
+Xbox baseline completed: replay-20260914-090014 passes;104 destination samples
+average about222ms measured scene work, with44ms nested renderer time. The
+165ms broad presentation phase needs finer NPC/clutter/platform timing.
+Bounded64-draw HUD batching is implemented but unverified; native comparison
+is running in artifacts/performance-hud-batch-xemu.log. Do not rebuild Xbox
+until the harness restores the disc. See docs/XBOX-PERFORMANCE.md.
+
+The command-buffer fix passes the original L1S2->L1S3 stock64MiB replay:
+180 frames, exit9512 at60, final L1S3, and matching native/PC state.
+Evidence: replay-20260914-085417/report.json. GPU-drained recycling prevents
+the observed boundary overflow; optimization must preserve this regression.
+USER reports roughly4FPS: prioritize measured Xbox performance now. The existing
+renderer profile is partial and includes loading outliers; do not attribute the
+whole frame cost to HUD resets without steady-state CPU/GPU measurements.
+Next: collect comparable frame timings and batch solid HUD draws/command resets.
+
+PC walking handoff coverage now passes five routes, including L1S3->L2S1
+(event7079 at frame86, translation150.25,-176,-121, facing/movement retained).
+The apparent reverse event7080 has no direct authored trigger; no walkable
+return is inferred. Full traversals between these boundary fixtures remain open.
+Native L1S2->L1S3 verification is running in artifacts/section3-xemu.log,
+replay-20260914-084854; wait for harness restoration before Xbox builds.
+Next gameplay gap to investigate: scripted Attack commands are not dispatched;
+L1S1 contains six such events and L1S2 contains three. Confirm actor/target
+semantics before connecting these commands to the existing combat runtime.
+
+Expanded PC walking-exit tests pass four routes across L1S1/L1S2/L1S3.
+New L1S2->L1S3 event9512 and L1S3->L1S2 event9324 crossings retain facing,
+apply the authored(41,32,-118) translation/inverse and continue movement.
+These fixtures stage outside exit volumes; full intervening gameplay is unproven.
+Evidence: artifacts/walk-exit/report.json. Native section3 checks remain open.
+
+Stock64MiB native dialogue audio passes240 frames: three starts match PC,
+no device errors, and3939 nonzero DSP-ring samples. Evidence:
+artifacts/xemu/replay-20260914-084040/report.json. This is device-output evidence,
+not a linear recording/listening check. Empty voice names now skip loading.
+Both builds and37 tests pass after this handling change.
+
+Mission voice playback now uses on-demand PCM in the existing1MiB sound bank;
+replacement/off requests stop the previous voice and audio failures keep subtitles.
+PC240-frame tests confirm natural/explicit/repeated dialogue starts and distinct
+PCM output; both builds and37 tests pass. Native device audio remains to verify.
+
+Stock64MiB XEMU subtitles pass the120-frame authored message8356 replay;
+the native framebuffer visibly contains the guard line. Evidence:
+artifacts/xemu/replay-20260914-083326/report.json and framebuffer.png.
+Next: voice playback through the existing1MiB sound bank with on-demand loading.
+
+Live English subtitles now display through the shared scene HUD with bounded
+storage, word wrapping, timed expiry and matching-event cancellation. PC event8356
+captures at120/600 frames confirm appearance/expiry. Both builds and37 tests pass.
+Native XEMU display verification and voice playback remain open.
+
+Message events now deliver authored records through a shared presentation
+callback, including delayed/on/off handling and speaker-link isolation.
+Authored L1S1 callback tests and all37 tests pass; PC/NXDK builds succeed.
+Scene subtitle ownership/display and audio registration remain the next work.
+
+Mission dialogue lookup now matches all918 installed English records in66
+tables through shared C code. PC and NXDK builds succeed;37 tests pass.
+Temporary text-table storage is capped at64KiB and released after lookup.
+Message event dispatch, timed subtitles and voice playback remain open.
+See docs/MISSION-MESSAGES.md and artifacts/mission-message-reader.json.
+
+Stock64MiB Xbox repeated Slay_Object test passes90 frames: one NPC8432 death
+entry, health-1, matching PC. Evidence: replay-20260914-081317/report.json.
+Mission-message inventory locates66 level-local text tables/918 entries; all
+714 Message event IDs resolve. Six voice references are absent from indexed
+archives, so subtitles need a fallback. Live message display/audio remains
+open; see docs/MISSION-MESSAGES.md and artifacts/mission-messages.json.
+
+Stock64MiB XEMU NPC removal passes90 frames in L1S3 with one actor excluded.
+Evidence: artifacts/xemu/replay-20260914-080631/report.json; capture inspected.
+Slay_Object now uses NPC lethal damage/death entry and animation without
+removing corpse ownership. L1S1 repeated-event/control PC replays and36 tests
+pass; both builds succeed. Native repeated-slay verification is running in
+artifacts/slay-xemu.log. See docs/SCRIPTED-SLAY.md.
+
+Remove_Object now removes registered NPCs from collision, targeting and
+rendering, stops movement and preserves retirement across section revisits.
+Death watchers recognize removed resolved handles as missing while unknown
+authored objects still defer. L1S3 event9602 removes NPC9436 in a90-frame PC
+replay; both builds and36 tests pass. Native verification is running in
+artifacts/npc-remove-xemu.log; full object-family deletion remains open.
+
+Stock64MiB Xbox tracking-camera replay passes at1000 frames, with a native
+capture of Gryphon walking beyond the hangar and exact PC movement/contact
+state. Evidence: artifacts/xemu/replay-20260914-075441/report.json.
+Remove_Object now cancels/retire events and triggers, preserving allocation
+until scene teardown; NPC/clutter removal remains open. Both builds and36
+tests pass, including delayed cancellation, off/no-op and self-removal.
+See docs/EVENT-REMOVAL.md; native cancellation testing remains open.
+
+PC inspection camera follows Gryphon without changing player placement.
+Frames980/1000/1020 visually show changing walk poses near the floor beyond
+the hangar;1000-frame motion/contact state matches the ordinary camera.
+Both builds and36 tests pass. Native tracking-camera capture is running;
+check artifacts/npc-camera-xemu.log before claiming Xbox visual validation.
+
+Make_Invulnerable now reaches the existing ordinary-damage immunity flag for
+registered NPCs and the player. Authored4970/Invert4995 on/off timing passes,
+as do36 tests and PC door controls; native protection-event testing remains.
+Grounding replay: artifacts/xemu/replay-20260914-074151/report.json PASS.
+
+Scripted run/fall actors now accept floor support, fall through body sweeps
+and retry uphill motion along walkable slopes. PC hangar controls pass with
+actual floor-height correction (Y2.987934),999 steps and no blocks. Both builds
+and36 tests pass. Stock64MiB XEMU1000 frames now match PC position, movement and contacts.
+The starting-tunnel capture does not verify walking visual quality.
+Evidence: artifacts/npc-ground-replay.log; artifacts/npc-ground-xemu.log.
+
+Scripted movement now requests authored walk/stand animations using existing
+blends, with hidden/missing-map guards. Both builds,36 tests and PC door
+controls pass; native replay and visual walking confirmation remain open.
+The later security doors have authored player-use/delayed-event prerequisites;
+keep those intact. See docs/SCRIPTED-MOVEMENT.md.
+
+L7S2 PC hangar traversal passes with authored Shot1/Shot3 setup and Goto4994:
+1000 frames,999 steps, zero blocked steps, two NPC contacts/two door starts
+and370 occupancy hits. Hidden-actor and disabled-trigger controls both stop
+before the door. Longer1500-frame replay stops nearX27.471 beyond the hangar.
+Automatic cutscene dispatch and full visible mission play remain incomplete.
+Stock64MiB XEMU1000 frames match PC movement, routes, contacts and occupancy.
+Both builds and36 tests pass; native capture inspected (starting tunnel only).
+Evidence: artifacts/npc-doors/report.json; tools/replay_npc_doors.py;
+artifacts/xemu/replay-20260914-072409/report.json.
+
+Shared UnHide events now queue deferred visibility changes for living NPCs.
+Authored dispatch, cooldown, missing backend, unresolved links, visibility
+publication and no-resurrection checks pass. The PC build and36 tests pass;
+full Shot1/Shot3 door traversal and native runtime verification remain open.
+See docs/NPC-VISIBILITY.md; artifacts/unhide-ctest.log.
+
+NPC door contacts and occupancy now have shared scene adapters, including separate
+controller backlinks per NPC. The L7S2 positive door route remains unverified:
+Gryphon4952 is alive (health75) but starts hidden (flags0x0202c000), so occupancy
+correctly excludes him. Shot1 Delay4953 -> UnHide4962 -> Gryphon is a missing
+runtime prerequisite; Shot3 Delay4961 only enables trigger4963 and later moves.
+The current Goto fixture moves the hidden actor; its earlier route results prove
+simulation only, not an active visible mission sequence. Implement UnHide and
+sequence both authored setup events before claiming the door route complete.
+Evidence: artifacts/npc-trigger-diag.log (temporary logging removed from source).
+
+Scripted NPCs now follow authored navigation nodes through the existing route
+search and collision sweeps. Gryphon passes the first obstruction:600-frame PC
+and stock64MiB XEMU match540 steps, zero blocked steps, two routes and five
+waypoint advances;6056 free pages (23.66MiB). Both builds and36 tests pass.
+Longer PC controls stop at the hangar door nearX16.745 (doorX17.5); trigger4963
+rejects player-controlled actors, while live contacts currently poll only the
+player. NPC contacts are next; full route/grounding/animation remain incomplete.
+Evidence: artifacts/script-move/report.json and
+artifacts/xemu/replay-20260914-065556/report.json; docs/SCRIPTED-MOVEMENT.md.
+
+Basic Goto/Goto_Player commands now drive shared NPC horizontal movement with
+steering, position publication and body/world collision sweeps. L7S2 Gryphon
+Goto4994 delays0.5s, moves8.875 units, then stops at geometry:600-frame stock64MiB
+XEMU state exactly matches PC (355 steps,185 blocked),6057 free pages (23.66MiB).
+Both builds,36 CTests, PC59/180/600/601 controls and480-frame walking round trip
+pass. This is a fixed1.5-unit/s horizontal approach, not complete locomotion:
+route following, grounding/vertical travel, avoidance, authored modes and walking
+animation remain open. See docs/SCRIPTED-MOVEMENT.md, artifacts/script-move/report.json
+and artifacts/xemu/replay-20260914-064211/report.json.
+
+Event on-links now reach registered translation mover activation through the
+existing scene controller service. Conditional dispatch, source/actor/time, off
+suppression and errors pass contained tests; both builds and36 CTests pass.
+Direct authored mover/native motion verification remains open. L7S2 door1 is
+actually a counter gating Gryphon movement (5015 -> Goto4994 -> NPC4952), not
+a direct door link; prioritize that missing scripted NPC system next.
+See docs/WHEN-DEAD.md and artifacts/mission-mover-* logs.
+
+Authored L7S2 death-to-goal chain passes PC and stock64MiB Xbox: guard4887
+death leaves door1=0, guard4907 death fires watcher5012 -> Goal_Set5011 once
+at1016ms, door1=1; other six watchers remain inactive. Controlled shared damage
+fixture, not a played combat route. Native90 frames match every watcher and
+goal,6057 free pages (23.66MiB), framebuffer inspected. Both builds and36 tests
+pass; firing-time assertion also passes. The counter2 check targets delayed
+Goto4994 -> Gryphon4952; scripted NPC movement and the second guard group remain open. Evidence:
+artifacts/death-chain/report.json; artifacts/xemu/replay-20260914-062247/report.json.
+
+When_Dead now polls known NPC state and dispatches linked events/triggers once
+per scene, including grouped deaths and the authored any-missing-object flag.
+Unknown object classes defer detection. Both builds,36 CTests and the rendered
+PC rifle round trip pass; authored death-chain/native verification, clutter
+queries and mover actions remain open. Evidence/first-pass differences:
+docs/WHEN-DEAD.md; artifacts/death-watch-* logs.
+
+Defeated-NPC revisit now passes rendered PC and stock64MiB Xbox verification:
+L4S5 guard3305 killed by rifle fire stays retired after L4S4 and return; rifle3415
+stays collected,39 rounds retained,240 inputs and both handoffs match PC.
+Native retirement [8,1,0,0],7223 free pages (28.21MiB); framebuffer inspected.
+All1610 authored actor keys fit32776 bytes; both builds and36 tests pass.
+Corpse poses, partial health and other world changes remain open. Next:14
+When_Dead events in the opening two sections need runtime dispatch support.
+Evidence: artifacts/xemu/replay-20260914-060602/report.json and
+artifacts/pickup-return/report.json; see docs/WORLD-STATE.md.
+
+Pickup revisit now passes a rendered PC and stock64MiB Xbox round trip:
+L4S5 rifle3415 collected/fired, exit861 to L4S4, return592 to the pickup.240
+inputs,39 rounds retained, zero new grants and exact taken-key match; native
+framebuffer verified with7231 free pages (28.25MiB). Both builds and36 tests pass.
+Also resolve48 authored .d4l exits to installed .rfl files;271/273 exit records
+resolve. Missing targets L12S1/6289 -> L11S4 and L9S1/2446 -> L9S1A still need
+reachability/intent checks. Native evidence:
+artifacts/xemu/replay-20260914-053954/report.json; artifacts/pickup-return/report.json.
+
+Pickup retirement now persists in the shared section handoff: owned level+UID
+keys, preallocated grants and restored taken masks prevent repeat collection.
+All593 authored items across68 levels fit the20488-byte owner; scene contact
+and restore tests prevent duplicate ammunition grants. Both builds,36 CTests
+and the PC rifle replay pass (affected tests repeated after capacity reduction).
+Rendered out-and-back pickup replay and native XEMU retirement remain open.
+See docs/WORLD-STATE.md and artifacts/pickup-persistence-* logs.
+
+Native mission-state handoff now passes L8S1 -> L8S2 on stock64MiB XEMU:
+120 input frames, authored VAT setter at30, forced exit5625 at61, all five
+retained goal records exactly match PC; framebuffer verified,6910 free pages
+(27MiB) at completion. Separate PC fresh-game control retains VAT=0 and local
+sample1 is retired. Both builds and35 CTests pass. Fixed lab load limits with
+64px NPC fallback,1MiB prop geometry,512 texture slots and VBM frame-zero
+loading. Full lab traversal, world persistence and visual fidelity remain open.
+Evidence: artifacts/mission-replay/report.json;
+artifacts/xemu/replay-20260914-052507/report.json.
+
+Mission goals are now connected to shared scene initialization and dispatch:
+load-time declarations, increment/decrement, conditional on/off propagation and
+delayed checks. Pending PC/Xbox section handoffs retain persistent counters. Both
+builds and35 CTests pass; authored L8S1 VAT setter survives archive teardown
+and gates the L8S2 check in a contained runtime test. Native mission-goal replay
+and full authored traversal remain open. See docs/MISSION-GOALS.md and
+artifacts/mission-dispatch-ctest.log.
+
+Mission counter storage now builds for PC/Xbox with34 CTests passing: owned
+names, signed thresholds, increment/decrement, explicit local/persistent lifetime
+and bounded16900-byte capacity. Current C reader verifies53 goal events across9
+levels, including14 cross-section references. Not yet connected to gameplay: next
+confirm Goal_Create mapping and integrate dispatcher/loading loops. Evidence:
+artifacts/mission-goals.json; docs/MISSION-GOALS.md; mission-goals build/test logs.
+
+Walking round trip L1S1 -> L1S2 -> L1S1 now passes PC and stock64MiB XEMU:
+two exits at62/264 frames, three scene loads,480 inputs, retained ammunition and
+facing, matching PC state and verified framebuffer. Renderer free pages are6656
+on first L1S1 visit and6667 (26MiB) on return; longer stress remains open. Evidence:
+artifacts/roundtrip/report.json; artifacts/xemu/replay-20260914-045904/report.json.
+Next implement persistent mission goals/state; broader arrivals and velocity/stance
+carry remain to complete.
+
+Authored doorway placement is now connected on PC/Xbox. Walking into the real
+exit triggers passes both directions on PC, preserving facing and continuing
+movement after exactly one transition at62 frames. Stock64MiB XEMU forward
+walking/arrival passes180 frames with matching PC state and verified framebuffer;
+5589 free pages (21.8MiB) remain during destination rendering. Both builds,34
+CTests and four legacy dispatch replays pass. Native backward/repeated crossings,
+other arrival routes, velocity/stance and mission-state carry remain open. Evidence:
+artifacts/walk-exit/report.json; artifacts/xemu/replay-20260914-045205/report.json.
+
+Xbox L1S1 -> L1S2 now passes a complete120-frame native replay on stock64MiB:
+exit9019 hands off at61 frames, state comparisons pass and framebuffer is verified.
+Old-level cleanup leaves12175 free pages (47.6MiB); destination rendering leaves
+5583 (21.8MiB). Fixed stale membership-ready state reading freed controller handles.
+Evidence: artifacts/xemu/replay-20260914-043300/report.json. Native backward/repeated
+exits, walking triggers, doorway placement and mission-state carry remain open.
+
+PC now follows authored exits in-process: L1S1 -> L1S2 and reverse complete
+120-frame replays with cleanup before loading the next scene. Same-level requests
+are ignored as first-pass policy; destination placement uses its authored spawn.
+Xbox builds the shared handoff but still needs its loading loop connected and
+native verification. Doorway alignment and mission-state carry remain open.
+Evidence: artifacts/campaign-exits/report.json; both builds and 34 CTests pass.
+
+Player-state handoff now preserves inventory, equipped pistol/rifle and vitals
+through a 464-byte shared owned snapshot. PC replay acquires/fires the L4S5 rifle
+then imports into L1S2 with byte-identical state (39 rounds, health/armor retained).
+Fresh-game and catalog-mismatch cases pass; both builds and 34 CTests pass.
+Evidence: artifacts/campaign-state/report.json. Automatic scene transitions,
+arrival placement, mission-state carry and native handoff still remain open.
+
+Shared campaign destination resolution now finds all 68 installed level entries
+across levels1/2/3.vpp without geometry/material allocation, preserves outputs
+on failure and transfers one archive handle on success. Both builds and all
+33 CTests pass; see artifacts/campaign-resolver-destinations.log. Actual scene
+handoff, player-state transfer and native cross-level verification remain open.
+
+Load_Level(type22) now dispatches through a shared deferred request backend,
+including delayed activation. Scene wiring retains destination, entrance, raw
+words/flags and source IDs without destroying resources during event dispatch.
+All14 authored exits across L1S1/2/3 dispatch and resolve existing destination
+files;33 CTests and both builds pass. This does not yet load a second scene.
+Next connect teardown/reload on PC/Xbox, resolve same-level exit behavior and
+carry player inventory/vitals/placement across section boundaries. Evidence:
+artifacts/level-transition-authored.log. No seamless/native transition claim.
+
+L3S1/L3S4 now load and run120-frame PC replays within unchanged NPC4MiB and
+clutter1MiB budgets. Full textures are tried first; oversized NPC sets fall back
+to128-pixel maximum dimensions and props to128 then64. Box reduction preserves
+source-format metadata and accounts simultaneous source/output memory. L3S1
+NPC peak2659440 bytes/props612216; L3S4 NPC2255564/props458112. Full-quality
+L4S5 framebuffer stays byte-identical. This is first-pass resource policy;
+close-up detail/PS2 parity and better residency remain to complete. Both builds
+and32 CTests pass. Stock64MiB XEMU L3S4 PASS:120 frames, rifle9479 collection,
+three shots/39 remaining and texture/HUD hashes match PC;5883 free pages.
+Evidence: artifacts/xemu/replay-20260914-033621/report.json and npc-memory-*.log.
+L3S1 native validation and end-to-end progression remain open.
+
+Campaign class filtering now follows the original unresolved-class skip path.
+L3S1 retains20 valid actors from22 records; both missing camera1 records are
+skipped without substitution. L1S1 keeps all78 actors. Retained record order,
+class/UID mappings, archive-independent raw data and exact budget guards pass.
+Both builds and29 CTests pass; the original creation-order oracle passes5184 cases. L3S1
+now reaches NPC materials but exceeds4MiB (UltorGuard_Parts_03f.tga); L3S4 has
+the same residency blocker. These sections are not yet playable. Next reduce
+NPC texture residency without raising the stock64MiB target.
+
+Live pistol/rifle switching and authored rifle acquisition now pass six PC
+replays: independent ammo, three-shot fire, held-cycle suppression, burst cancel,
+unowned rejection and no-reserve reload. Both first-person resources are retained
+under1MiB each. Both builds and28 CTests pass; stock64MiB XEMU120-frame rifle
+PASS: pickup3415, selection, three shots,39 remaining and HUD match PC;7234
+pages free. PC1800-frame death/respawn/fire/reload PASS: retained ownership,
+three reserve rounds transferred,42 loaded/197 reserve. Evidence:
+artifacts/xemu/replay-20260914-031805/report.json and artifacts/weapon-select/report.json.
+Next:5.56mm ammo-box collection, native rifle reload and broader weapon/mission progression. Fitted weapon placement and exact rifle audio remain polish.
+
+Shared burst firing is implemented and the live pistol uses the same scheduler.
+Authored rifle rules produce three shots six ticks apart, with45 ticks between
+burst starts; partial magazines, release, cancellation and semi-auto holds pass.
+Both builds,28 CTests, six pistol replays, NPC death and6000-frame exhaustion
+checks pass. Stock64MiB XEMU660-frame PASS:18 shots, one reload,14 loaded/109
+reserve match PC;6884 available pages. Evidence:
+artifacts/xemu/replay-20260914-025927/report.json. Live rifle switching,
+acquisition and audio remain next.
+
+Weapon selection preparation: the live first-person loader now reads its model
+and idle/fire/reload clips from weapons.tbl rather than fixed pistol filenames.
+Shared assault-rifle loading/playback passes after archives close:34 bones,
+637 vertices,1036732 resident/1048328 peak bytes, below1MiB. Both builds and28
+CTests pass; pistol replay framebuffer matches the prior native-run PC reference.
+Next connect equipped-weapon state, input cycling, rifle acquisition and burst
+fire; there is no live selectable rifle or native rifle validation yet.
+
+Health/armor pickup gameplay is connected: Medical Kit and Suit Repair restore
+up to a provisional100 cap; full values leave items available, dead players cannot
+collect, and successful collection removes the item once. Shared static pickup
+resources load once; armor now has a HUD bar. PC replays cover actual enemy damage
+followed by healing/repair and full-health rejection;28 CTests and both builds pass.
+12mm_ammo class/grant handling is connected and integration-tested, with a later-
+level authored ammo-box replay still open. Stock64MiB XEMU300-frame PASS:
+repair pack9868 restores15.6 armor once; health/armor/pickups match PC, armor HUD
+pixels match,6837 pages available. Native capture inspected. Evidence:
+artifacts/xemu/replay-20260914-024732/report.json.
+
+Live authored Handgun pickups now render using the retained pistol world model
+and replenish player reserve. A two-unit body-distance check plus precise world/
+moving-solid occlusion gates collection; full inventory leaves the item in place.
+Successful collection removes it once for this scene. PC cases cover visible/full,
+partial replenishment,16-round grant and no second collection; panel obstruction
+and moving-clear tests pass. Both PC integration and28 CTests pass; stock64MiB
+XEMU210-frame walk-and-collect PASS:Handgun9427 collected once, ammo/HUD
+match PC, world model absent afterward;6869 available pages. Evidence:
+artifacts/xemu/replay-20260914-023510/report.json. Other item classes, pickup
+sounds, script/registry publication and original starting grants remain open.
+
+Item definitions and capped inventory grants are implemented in shared C.
+Handgun gives12mm handgun ownership/16 rounds;12mm_ammo grants32 SP rounds.
+Tests cover ownership, ammo-only, capacity limits, zero-benefit grants, invalid
+state and oversized quantities. Definitions retain model, weapon, SP count and
+no_pickup. Next wire live models, proximity/occlusion, grant and disappearance;
+no in-game pickup collection claim yet. See docs/LEVEL-ITEMS.md.
+
+Authored pickup records now load through a bounded shared C reader/owner.
+All63 campaign levels scan exactly:593 pickups, peak28824 retained bytes.
+Truncation, budget failure, repeat close and source-archive closure checks pass;
+both builds and28 CTests pass. L1S1 has authored Handgun pickups with16 rounds.
+Next bind items.tbl classes/models and collect them into the live inventory;
+no live pickup objects or native residency validation yet. See docs/LEVEL-ITEMS.md.
+
+Player combat now owns a448-byte weapon inventory and consumes finite reserve
+on reload. Starting/respawn supply is provisionally a full16-round pistol plus
+the authored125-round reserve capacity. Partial reloads transfer only what is
+available; empty reserve prevents reload/shot audio. Reserve is shown on HUD.
+PC6000-frame exhaustion PASS:141 shots,125 rounds transferred over8 reloads,
+34 later dry-fire presses with no additional audio. Six rule/conservation
+cases and27 CTests pass. Stock64MiB XEMU660-frame PASS:18 shots, one reload,
+14 loaded/109 reserve, matching PC HUD/state;6936 available pages. Both builds
+and player death/respawn checks pass. Evidence:
+artifacts/xemu/replay-20260914-021130/report.json. Pickup replenishment and
+mission-specific starting grants remain open.
+
+Live pistol combat now uses the authored16-round magazine,40 SP base damage,
+66-tick reload and30-tick primary cooldown. Semi-automatic input fires only on
+a fresh press; presses during cooldown/reload are consumed rather than queued.
+Reload completion, respawn ammo and HUD use the same definition. Damage type
+is now authored bullet rather than prototype bash. The24-byte definition uses
+the existing NXDK-safe parser and is loaded once; pickups remain open. Six PC rule cases,27 CTests and kill/death regressions pass.
+Stock64MiB XEMU127-frame reload-boundary PASS:16 rounds restored, bullet
+damage selected, HUD/state match PC,6936 available pages. Both builds and
+player death/respawn regressions pass. Evidence:
+artifacts/xemu/replay-20260914-020444/report.json.
+
+First-person pistol resource owner is implemented in shared C:40 bones,847
+vertices,8 materials and resident idle/fire/reload clips. PC resident934656
+bytes, conservative peak946252 bytes within1MiB, including live pose buffers.
+Idle/fire/reload playback now produces skinning matrices without frame-time
+allocation or archive I/O and returns completed actions to idle. Tests cover
+closed archives, pose changes, reload completion,100 action restarts and budget
+cleanup. Live scene integration now renders the gun and drives shot/reload
+animation from gameplay; PC idle/fire/reload/return captures pass. Camera
+placement, depth band and lighting are provisional. Stock64MiB XEMU80-frame
+reload PASS: pose hash,1560 emitted vertices and weapon budget match PC;
+6937 available pages at completion. Native framebuffer inspected.
+Both builds,27 CTests,four weapon cases and death/respawn regressions pass.
+Evidence artifacts/xemu/replay-20260914-015216/report.json. Muzzle flash,
+other weapons and authored tuning remain open.
+See include/rf/player_weapon.h and tests/player_weapon_tests.c.
+
+First-pass player pistol audio now emits authored Glock Launch and Glock
+Reload groups through the existing local-player mixer/device path. Requests
+occur on successful shot or reload start, including automatic reload; holding
+reload does not retrigger it. PC traces contain HandGun_Fire01.wav and
+FP_glock_reload.wav, with2 PCM loads totaling87548 bytes within the existing
+1MiB bank cap. Missing audio/voice exhaustion records errors without halting
+gameplay. Separate first-pass sound RNG and diagnostics add40 bytes. Both
+builds,26 CTests and five recorded audio cases pass (including silent full-clip
+reload). Stock64MiB XEMU180-frame audio-device PASS: shot and reload voices
+match PC, no device errors and nonzero DSP DMA output. See
+artifacts/xemu/replay-20260914-013131/report.json; physical audibility not tested.
+Evidence artifacts/weapon-audio/report.json and captured WAV files.
+
+Stock64MiB XEMU360-frame combat regression PASS after the surface-ray and
+friendliness changes:22 shots,8 hits,1 recorded kill;8 return hits,health61.6.
+State/HUD match PC;7115 available pages at completion. Evidence:
+artifacts/xemu/replay-20260914-011423/report.json and framebuffer.png.
+Historical visual failure: that capture showed the killed guard upright.
+The PC fix stops looping locomotion once at death, uses the retained death
+motion setup and skips the standing controller for dead NPCs. Generic death
+now completes and holds its final grounded pose at360/480 frames. Both builds
+and26 CTests pass. Stock64MiB XEMU360-frame PASS with inspected grounded
+body and PC-matching frozen death state.7115 available pages at completion.
+Evidence artifacts/xemu/replay-20260914-012508/report.json and framebuffer.png.
+Evidence artifacts/combat-death/report.json; death audio remains deferred.
+This replay does not prove door-gap shots or authored allegiance transitions.
+
+Next weapon integration: the installed12mm handgun uses fp_glock.v3c(52232
+bytes), idle/fire/reload RFA clips(5880/5240/8712 bytes), Glock Launch and
+Glock Reload foley groups. Authored .v3d/.mvf names are logical labels, not
+missing assets. Table values are16 rounds,1.1s reload,0.5s primary fire wait
+and40 SP base damage; current12-round prototype tuning remains provisional.
+Asset inventory evidence: artifacts/player-weapon-assets.json. No player gun
+rendering or audible weapon feedback is claimed by this inventory audit.
+
+Player hitscan now selects the nearest NPC bounds, then checks actual static/
+moving collision faces along the segment to that target. Mover AABBs no longer
+act as solid shot blockers. Shared scene tests cover empty bounds corners,
+panel obstruction, target-before-panel and a moved panel. Both builds,26 CTests
+and PC combat/kill/death replays pass. Native door-shot validation remains open.
+
+Set_Friendliness(type30) now dispatches immediate and delayed mission events
+through resolved live actor links. The scene updates player/NPC affiliation
+and clears NPC combat alerts so scripts can stop an ongoing attack. Missing
+and stale objects are skipped; non-entity support remains open. Shared-scene
+integration tests cover duplicate/stale links, missing backend, delay and
+hostile/friendly transitions. Both builds and26 CTests pass; authored mission
+sequence validation in XEMU remains open. Adds8 bytes to the trigger owner.
+
+First-pass enemy awareness now lets visible armed hostile actors acquire the
+player without being shot, using staggered30-frame range/cone/geometry checks.
+Neutral/friendly actors require provocation. PC240-frame hostile encounter:
+2 guards,8 hits,health61.6; neutral miner area stays passive at100 health.
+Adds32 global diagnostic bytes, no per-NPC growth or perception allocation.
+Both builds,26 CTests and PC death/respawn/travel regression pass.
+Stock64MiB XEMU240-frame PASS:2 acquired guards,8 hits,health61.6;
+awareness/combat state and HUD match PC.7115 available pages at completion.
+Evidence artifacts/xemu/replay-20260914-010332/report.json.
+See docs/ENEMY-AI.md; pursuit and weapon behavior remain open.
+
+First-pass player recovery now blocks controls after fatal damage and shows
+a death/respawn prompt. After60 frames, fresh E/X restores the starting player
+body, pose, health/armor and ammunition, clearing reactive enemy alerts.
+In isolated testbeds world/NPC/mission state still persists; the Xbox campaign
+now requests a full fresh level reload after death, while checkpoint choice remains open.
+A1132-byte retained snapshot avoids respawn allocations. PC tests cover death,
+held-Use rejection, health/ammo restoration and resumed firing; movement input
+was initially accepted without travel: the snapshot preceded speed/pose
+initialization. Capture now follows initialization; the strengthened PC test
+requires real displacement and measures about5.2 horizontal units after respawn. Both builds and26 CTests pass. Stock64MiB XEMU1500-frame lifecycle
+PASS: one death, one respawn, resumed firing and matching PC state/HUD.
+Evidence artifacts/xemu/replay-20260914-003751/report.json;7115 available
+pages at completion (not a peak memory measurement).
+Evidence artifacts/player-life/report.json; docs/DEATH-LIFECYCLE.md.
+Xbox-only stock64MiB death/restart check passes at1500 frames: one fresh
+L1S1 level transition at frame1300, a newly loaded live scene, no dead player
+and4079 free physical pages. No PC run or image was used. Evidence:
+artifacts/xemu/death-restart-20260927-152345/report.json.
+Corrected snapshot native replay PASS: artifacts/xemu/replay-20260914-004948/
+report.json,1500 frames with PC-matching body/lifecycle/combat and15 HUD pixels;
+7115 available pages at completion. Prior no-travel limitation is resolved.
+
+First-pass armed retaliation now uses8 retained bytes per NPC (624 for78):
+a damaging hit alerts an armed visible actor; after30 frames it attacks every
+60 frames within40 units, checking the existing moving/static geometry ray
+path. Hidden/dead/unarmed actors do not attack. Damage goes through retained
+player health/armor and flash handling; the HUD adds a health bar. Player fire
+and further enemy attacks stop at zero health. PC240-frame provoke:3 hits,
+health85.6; killing the attacker stops at1 return hit;1500-frame sustained
+retaliation reaches zero after20 hits. Idle stayed passive before the awareness pass documented above. Both builds and26
+tests pass. Evidence artifacts/enemy-first/report.json. Stock64MiB XEMU
+240-frame PASS with matching3 return hits/health85.6 and inspected HUD:
+artifacts/xemu/replay-20260914-002734/report.json, framebuffer.png and
+health-pixels.json.7115 available pages observed at completion, not a peak.
+This earlier retaliation-only pass is extended by awareness above; pursuit
+and squad behavior remain open.
+Full level restart/checkpoints, firing animation/audio, faction handling and
+weapon tuning are open; first-pass in-place respawn is described above. Attempted walking cover routes remained visible/in range; no verified
+cover-transition claim. Ray obstruction uses the existing geometry path.
+
+Shared combat HUD now renders a centered reticle, green damaging-hit feedback,
+12 remaining-round markers and a reload progress bar through both renderers.
+Draw-only, stack vertices, no retained allocation. PC native pixel checks cover
+ready/hit/reload states. Image inspection exposed that the previous combat
+target9858 is hidden; shots now exclude object flags2/0x4000. The old counter
+evidence did not demonstrate hitting a visible actor. Tests now use visible
+guard8456 (22 shots/8 hits/1 death at360 frames), and hidden9858 explicitly
+produces zero hits. Both builds and26 tests pass. Evidence:
+artifacts/combat-hud/report.json and artifacts/combat-first/report.json.
+Initial native capture001553 passed game-state checks but contained no HUD:
+the shared world-depth bias clipped screen overlays beyond the GPU far plane.
+Xbox solid screen overlays now use direct depth, also fixing scene damage
+flash routing. Native capture harness now checks actual HUD pixels against PC,
+so submission/state success cannot mask missing overlays. Retest PASS:
+artifacts/xemu/replay-20260914-001847/report.json and framebuffer.png.
+Stock64MiB,34 frames,1 shot/1 hit,11 rounds;13 HUD pixels match PC within
+2/channel. Native capture visually inspected and added to README.
+Next prioritize enemy combat behavior; original HUD styling stays deferred.
+
+Playable-first combat now connects RT (PC F) and Y reload (PC R) to a shared
+hitscan prototype:12-round clip, unlimited reserve,12-tick cooldown,72-tick
+reload,25 base damage and100-unit range. Static world geometry and conservative
+live mover bounds obstruct shots; nearest living NPC body bounds select hits.
+Uses retained damage dispatch and generic death entry/animation. PC staged
+miner9858:360 frames,22 shots,8 hits,one death; manual reload180 frames gives
+7 shots/7 hits; idle produces none. Both builds and26 tests pass. RFI4 size40
+adds held fire/reload while retaining old24/28/32-byte replay formats.
+Evidence artifacts/combat-first/report.json. Stock64MiB XEMU360 frames PASS:
+artifacts/xemu/replay-20260914-000617/report.json;22 shots/8 hits/1 death/2
+rounds left exactly match PC.7180 available pages at completion is an endpoint,
+not a peak guarantee. Legacy390-frame raw input walk still passes with no shots.
+This is new first-pass policy, not1:1 weapon reconstruction. Weapon inventory/
+tuning, first-person gun presentation, shot/impact audio, precise
+mover/actor hit geometry, clutter obstruction and enemy return fire remain. Damage-side peripheral
+notifications and special effects are not yet bound; bullet health/death is.
+
+Walking failure fixed: actor_follow_view now passes only the retained world
+prefix into world regeneration; the previous frame's appended NPC geometry
+is excluded from the world-only budget check. Frame291 previously submitted
+2132760 old bytes against a2097152 world budget in the3MiB shared mesh.
+PC now completes30/390/780/1170 frames with unchanged3MiB mesh cap and
+forward/back/forward movement. Both builds and26 tests pass. Ambient smoke
+checks retain voice/load counters and stable bank sizes across return trips;
+stale global-RNG hash and unrelated Foley-byte golden values were removed.
+Evidence artifacts/ambient-walk-check/restart-report.json. Stock64MiB XEMU
+passes390 frames with PC comparison: artifacts/xemu/replay-20260913-235513/report.json.
+No allocation increase. Next prioritize playable combat integration.
+
+USER priority change: shelve further lighting work and return to it later.
+Lighting remains incomplete: lifecycle event routing, alternate/moving solids,
+queued regeneration across visibility changes, directional/ray paths and
+rendered changing-light/PS2 parity validation are open. Preserve current work.
+Immediate focus is the repeatable frame291 walking failure, followed by
+campaign traversal/physics; diagnose its actual origin before assigning blame.
+Reproduced on current1497019 PC build with tools/replay_ambient_walk.py:
+30 frames pass;390-frame forward walk exits at291, RF_RANGE, view stage1.
+Evidence artifacts/ambient-walk-check/pc-390.txt. Failure is in the camera/
+view preparation interval; physics is not yet proven to be the failing owner.
+
+Scene clock visibility now uses live pool source position/end/radius instead
+of reconstructing the authored placement. Shared source-volume preparation
+preserves the already-biased segment radius and takes retained authored cone
+angle metadata. Original/PC/compiledNXDK match384 moved point/cone/segment
+cases (actual4d91d0), plus4096 world and4096 transformed-view cases; five
+new invalid-source guards preserve outputs. Both builds and26 tests pass.
+Evidence artifacts/light-volume.json and light-volume-view.json. Release/move
+event routing, alternate solids and rendered changing-light validation remain
+open; this change establishes their current-source geometry path.
+
+Light release now exposes original4d9130 visibility notification before unlink,
+after reference decrement and generation advance, retaining the live source,
+list and active cache during the callback. Class0 notifies only for update
+low byte1; other classes notify on final release regardless of update value.
+Original/PC/compiledNXDK match105 cases including48 callbacks; the existing
+1024-operation/2048-cache oracle, both builds and26 tests pass. Evidence
+artifacts/light-release-notify.json. Callback is synchronous and must not
+mutate/reenter its pool; existing release keeps its no-callback behavior.
+Corrupt INT32_MIN references are rejected before mutation. This does not yet
+bind scene release/move notifications or demonstrate changing rendered light.
+Original4d93d0 base-color changes advance the selection-cache generation only;
+do not infer base dirty2 from every generation or authored clock change.
+Next connect explicit lifecycle invalidation to visibility/scene ownership.
+
+Scene base/projected-shadow regeneration now uses renderer room visibility
+and cached mapping-room IDs; offscreen jobs retain all dirty bits without
+mapping decode or stale uploads. Stock64MiB XEMU passes180 frames, matching
+PC330 completed jobs/36 ambient/333 callbacks/RGB hash820094536, with5521
+pending requests: all5851 accounted for. Final7197 available pages (~28MiB)
+is an observed endpoint, not a peak guarantee. Regeneration workspace771272
+bytes excludes RGB1130876, overlay88000 and allocator overhead. Both builds
+and26 tests pass. PC updates lighting even when replay drawing is skipped.
+Native evidence artifacts/xemu/replay-20260913-232705/report.json.
+Fixed a stale material-array binding exposed by native testing after scene
+setup combined actor/clutter records. The full-level --lightmap-all stress
+mode remains separate; previous five-minute run reached4670 jobs before its
+first draw, so visibility demand is essential. Stage/counters persist on
+failure and are sampled every10s in regeneration tests. Initial-world face
+order, projected mode1 and authored shadow modes are bound; directional
+source/64-source diagnostic, moving-solid/GeoMod routing and ray mode remain
+open. No PS2 parity or changing-source visual claim. Next validate queued
+jobs across changing visibility and bind actual base-light invalidation.
+
+Additional PC movement check: the existing ambient forward-walk replay fails
+at frame291 with RF_RANGE, scene stage1, both with regeneration enabled and
+disabled. Track under traversal/physics. A shorter270-frame walk and camera
+rotation keep the same330 visible mappings. Staged lower-door1/180-frame
+replays both pass with715 completed/5136 pending mappings, but also retain
+the same visible-room set; they do not prove resume after a visibility change.
+Evidence artifacts/lightmap-walk-baseline.txt, lightmap-demand-walk-270.txt
+and lightmap-demand-door-180.txt.
+
+Shadow workspace now reuses one allocation across jobs, resetting active
+mask strides/guard rows while preserving geometry scratch and inactive masks.
+Live Mines retains141952 PC bytes;5851 cached/uncached jobs and64 reopened
+jobs agree. Retention changes473 mask hashes and66 packed regions versus
+fresh allocation. Investigation confirms original409f90 is MOV EAX,ECX;RET,
+not a clearing constructor:1024 original/PC/NXDK filter passes match with
+nonzero carried scratch, including full scratch contents. Fresh zeroed jobs
+are therefore not an oracle for persistent scheduling. Full-game stack reuse
+and call ordering remain unverified. Compiled NXDK reset/isolation/capacity
+guards, both builds and26 tests pass. Next bind retained shading/shadow jobs
+to scene dirty2/4 dispatch and validate actual changing lighting in XEMU.
+Evidence artifacts/lightmap-shadow-filter-warm.json, geometry-shadow-storage.json
+and campaign-shadow-l1s1.json; no new rendered-parity claim.
+
+Retained shading workspace now keeps three accumulation planes and special
+polygon/vertex/normal scratch in one budgeted allocation. Live Mines reuses
+16196 PC bytes across5851 mappings; all previous mask/RGB/packed hashes and
+counters remain identical, including cached/uncached and64 reopened jobs.
+Compiled NXDK validates64 capacity combinations, disjoint arrays, zeroed
+scratch, exact/short budgets, allocation failure, overflow and repeated close.
+Both builds and26 tests pass. This removes per-mapping shading allocations;
+fixture reference buffers and shadow storage still allocate separately. Next
+retain shadow workspace across jobs and bind complete dirty2/4 scene work.
+No new rendered/native full-scene memory claim. Evidence
+artifacts/geometry-lightmap-storage.json and campaign-shadow-l1s1.json.
+
+Shared base regeneration now writes retained RGB at atlas offsets, composing
+ambient fill or seeded ordinary/special masked accumulation and RGB resolve
+without allocation. All5851 Live Mines mappings match the prior temporary-
+buffer route byte-for-byte, including untouched atlas neighbors; the fixture
+uploads these retained colors and still matches packed1555 results. Cached
+and uncached jobs agree. Compiled NXDK passes256 composed rectangles and7
+guards; both builds and25 tests pass. These are integration checks against
+previously verified stages, not new original-scene or XEMU rendering proof.
+Next bind retained mask/channel/polygon workspace and this worker into live
+dirty2/4 scene scheduling; source overflow and ray shadows remain open.
+Evidence artifacts/lightmap-regenerate-rgb.json and campaign-shadow-l1s1.json.
+
+Scene frame sinks now bind retained base RGB and allocation-free dirty1/8
+lightmap uploads on PC and Xbox, waiting for prior GPU reads on Xbox.
+Stock64MiB XEMU completed180 Live Mines frames:5851 initial uploads,
+no repeated uploads, no deferred base requests and zero update errors;
+PC final-frame replay agrees on upload totals. Retained RGB1130876 bytes
+plus overlay scratch88000 bytes excludes allocator overhead. Both builds
+and25 tests pass. Current authored lights are class0, so this run does
+not exercise changing live overlays or establish visual lighting parity.
+Dirty2/4 base/shadow requests remain queued until their worker is bound;
+next integrate base regeneration, then test changing rendered lighting.
+Evidence artifacts/xemu/replay-20260913-222748/report.json.
+
+Live-light overlay now reads retained linear baseRGB and writes existing
+packed images directly, with native Xbox swizzle and no packed staging copy.
+All256 original/PC/NXDK rectangles (5184 shaded pixels,1..4 mixed sources)
+match complete resident images including untouched texels; baseRGB remains
+unchanged. Four image guards, prior four rectangle guards, both builds and25
+tests pass. This is the locked computation, not live scheduling: caller still
+selects class lights, synchronizes GPU use and resets final dirty state. Next
+connect retained base/overlay owners to scene mapping dispatch and XEMU timing.
+
+Retained raw RGB owner preserves original section1200 bytes needed by the
+initial dirty1/live-light path4f2cfe, avoiding lossy reconstruction from1555.
+Verified1515 images across94 PC levels and all23 Live Mines images byte-for-
+byte in compiled NXDK. Exact/short budgets, late cleanup and repeated close
+pass; both builds and25 tests pass. Live Mines RGB owner1130876 bytes;
+peak tested PC owner2753420 bytes, excluding allocator overhead. Native full-
+scene memory not yet measured. Dirty1 class-light composition requires these
+base colors even when dirty2/4 shadow regeneration is skipped; next connect
+retained RGB, computed base updates and class-light overlay to scene scheduling.
+Evidence artifacts/lightmap-rgb-owner.json.
+
+Native stock64MiB XEMU now renders one packed lightmap allocation before and
+after a16-texel rectangle update. All64 framebuffer samples match PC bilinear
+rendering within2 channel levels, including48 unmodified texels. Prior draw
+completion via pb_busy, CPU sfence and normal texture rebinding suffice in this
+XEMU test; hardware cache behavior is not proven. Initial edge check corrected
+to account for bilinear footprints rather than loosening tolerance. Full native
+pixel suite and25 PC tests pass; build succeeds. Evidence:
+artifacts/xemu/particle-pixels-20260913-221410/report.json.
+Next schedule real campaign lighting work and uploads at the verified frame
+boundary, measure full-scene memory/timing and inspect meaningful rendered output.
+
+Computed RGB now writes existing packed lightmap image rectangles without a
+second texture allocation:linear PC/swizzled Xbox. All5851 Live Mines regions
+compare each written PC texel against the linear1555 conversion, including
+ambient-only regions.1024 compiled NXDK cases plus4 image/extent guards verify
+full backing images, untouched neighbors and dirty/lock behavior;225 rejected
+cases preserve image/state. Both builds and25 tests pass. Writes require caller
+GPU-read completion and texture-cache invalidation, still unbound/unverified
+natively. Next schedule these updates in the live renderer and measure XEMU
+memory/timing before claiming rendered lighting parity.
+
+Authored ambient binding now reads v180 section900 (4618b0) and optional
+room colors after liquid payloads (4ed520). Live Mines globalRGB96/96/96 and
+room overrides feed all5851 mapping results, including446 ambient-only regions.
+Cached/uncached hashes/counters agree;1024 level and1024 room records plus2048
+truncation guards pass in compiled NXDK;both builds and25 tests pass. Zero-source
+regions use original direct ambient fill. Directional switch1 is retained and
+explicitly rejected by this fixture until its source is bound; original other
+values select ambient. Next retain image/RGB owners and submit dirty/swizzled
+updates in live rendering with measured stock64MiB memory.
+
+Campaign fixture now carries masks through actual ordinary/special lighting,
+RGB resolve and linear1555 packing:1521 ordinary and3884 special lit mappings.
+Shadows alter49626 RGB bytes in782 regions;769 retain differences after1555
+packing. Cached/uncached hashes and counters agree for5851 mappings;64 fresh
+jobs repeat and25 tests pass. Zero ambient and directional scale1 are explicit
+fixture inputs, not authored ambient reconstruction. No GPU submission/XEMU
+claim; peak shadow scratch excludes new lighting scratch and adjacency.
+Next bind campaign ambient, retained RGB/image owners and dirty upload/swizzle
+in live rendering; preserve zero-source handling and stock64MiB accounting.
+
+Retained shadow-face snapshots preserve all5851 Live Mines mask hashes and
+counters while cutting this host's full-level fixture from17.78s to8.78s.
+Snapshot storage is415408 bytes plus existing73252-byte peak shadow scratch;
+not total/native scene memory. Compiled NXDK cached path matches256 original
+composition cases; count guard, both builds and25 tests pass. Evidence corrects
+prior room-routing assumption:4f4efe reads solid+70 and4f5520 follows face+54
+for occluders; room routing selects receivers only. Cache snapshots must refresh
+on topology/plane/position/flag changes. Next retain jobs/dirty scheduling and
+compose masked accumulation/RGB upload, then rendered XEMU validation.
+
+Real-asset PC shadow harness completes all5851 Live Mines mappings using
+loaded texture formats, authored light selection/modes, receiver groups and
+actual projected callbacks:7537 callbacks,17804 accepted occluders and169812
+changed mask bytes;64 reopened jobs reproduce exactly. Peak PC shadow scratch
+73252 bytes (not total scene memory);25 tests pass. Full initial world-face
+scan visits51.4M faces in18s on this host, so this is an integration fixture,
+not a viable per-frame policy. No renderer submission or XEMU evidence yet.
+Next preserve original room/surviving-face routing and retained mapping jobs,
+compose masked accumulation/RGB upload, then measure rendered native memory.
+Harness: tools/verify_campaign_shadows.py; evidence artifacts/campaign-shadow-l1s1.json.
+
+Selected authored pool IDs now resolve to retained constructor shadow modes
+in selection order without extra persistent storage. PC/NXDK validate22293
+lights across93 level records, reversed selection, in-place output and short
+capacity rollback. Live Mines modes:156 disabled,75 enabled. Both builds and
+25 tests pass. Snapshot binding assumes authored IDs are not released/reused
+and shadow settings are not externally changed; dynamic source mode ownership
+still pending. Next connect selected receiver jobs and masks to campaign draw,
+then verify native XEMU memory and lighting rather than data-only comparisons.
+
+Dirty shadow-mask dispatch matches2048 original/PC/NXDK schedules across
+all dirty bytes, renderer modes0..7 and source modes0..3, including1910
+accumulation requests. Four compiled NXDK guards and25 tests pass; both
+builds succeed. Logical mask resets preserve guard/padding. Deterministic
+callbacks replace projected/ray bodies in this scheduling comparison; this
+is not native XEMU rendering evidence. Next bind live campaign source modes,
+receiver jobs and retained storage; reconstruct ray-test body4f4280 and
+measure live memory/rendering.
+
+Bounded shadow storage owns receivers, face/clip/UV scratch and1..63 masks
+in one allocation, with zero scratch and255 masks/private guard rows. Exact/
+short budgets, overflow, isolation and repeated close pass; compiled NXDK
+layout peaks270408 bytes for tested63x64x64 masks and128-vertex clip scratch
+(using allocator hooks, not native heap). PC per-source256 comparisons now
+use this owner unchanged. Both builds and25 tests pass. Next bind live
+campaign jobs/dirty source modes and measure native XEMU memory/rendering.
+
+Complete per-source projected shadow operation now matches256 original/
+PC/NXDK compositions:384 endpoint passes,75 back-facing clears,2472 face
+visits,257 accepted occluders and28865 changed mask bytes. Three NXDK guards,
+both builds and24 tests pass. Original source/preparation/traversal/border
+chunks form oracle; back-facing clear modeled as width*height zero bytes.
+Synthetic geometry, caller-seeded masks and initialized retained scratch;
+source lists/dirty modes and campaign ownership still external. Next own
+receivers, masks and scratch under budget, bind live campaign and verify XEMU.
+
+Shadow source sampling matches2048 original/PC/NXDK records, including
+1170 line sources and838 endpoints whose float interpolation differs from a
+direct endpoint copy. World/cached-local selection, bounds,1x255 versus2x127
+passes and3 guards verified. Both builds and24 tests pass. Selected cached
+coordinates are supplied, not transformed by this adapter. Next compose
+source samples with preparation/traversal/final border and explicit receiver,
+mask/scratch lifetime, then native campaign rendering and memory validation.
+
+Campaign material-to-shadow image binding borrows geometry-local pointers
+from existing shared slots, with no pixel read/load/allocation. Verified5919
+references across68 PC level fixtures plus28 loaded Live Mines references
+(17 unique images), and256 compiled NXDK tables/2048 entries with3 guards.
+Both builds and24 tests pass. Missing slots are explicit NULL; other load
+errors propagate, preserving output. Current retained images only: no new
+animation clock/override policy. Next connect these bindings to source passes,
+receiver/mask/scratch lifetime, then native rendered/memory verification.
+
+Retained shadow traversal matches256 original/PC/NXDK passes over2048
+serialized synthetic faces:194 eligible/projected,129 filter-accepted,4750
+changed mask bytes;3 NXDK guards. Actual original texture classification,
+linked-corner decoding and per-face cull/clip/project/filter chunks are replayed
+in supplied file order, retaining mask and scratch between faces. No allocation.
+Both builds and24 tests pass. Next bind campaign texture-frame tables, source
+space/endpoint selection, receiver/mask/scratch lifetime and final border;
+then run native memory/rendering validation on representative gameplay.
+
+Collapsed shadow-volume edges now retain original x87 indefinite planes;
+culling and clipping treat that exact four-word encoding as non-restricting.
+Verified1024 preparations including two-texel extents,2048 volumes (512
+collapsed-edge cases),4096 occluders,2048 clips and512 combined passes against
+original/PC/NXDK. Both builds and24 tests pass. Other malformed/nonfinite
+inputs still reject. Next bind source space/endpoint selection and retained
+occluder traversal with bounded mask/scratch ownership, then native rendering.
+
+Combined shadow cull/pass preparation matches1024 original/PC/NXDK
+cases with extents3..64:494 facing,530 rejected,4 preserved-output guards.
+Original corner/facing/mapping-bound expansion/volume are replayed; source
+center/radius bounds independently checked. Both builds,24 tests and pass/
+volume regressions pass. Two-texel collapsed-volume gap subsequently resolved
+by exact indefinite-plane handling above. Next bind source space/endpoint
+selection, retained
+occluder iteration and bounded mask/scratch ownership, and validate native.
+
+Combined occluder clipping/projection/filter/mask pass matches512 original/
+PC/NXDK cases:294 reach projection,251 pass filtering,7424 changed mask bytes.
+Thirteen collapsed projections expose original filtering even below3 vertices;
+retain initialized UV/filter tails and preserve projection-vs-acceptance flags.
+Two shared guards plus NXDK scratch guard, both builds,24 tests and prior
+projection/filter/2D clipping regressions pass. Next connect source/mapping
+preparation and retained face traversal, apply border once per source, own
+bounded masks/scratch, and verify native64MiB memory/rendering.
+
+Shadow-mask border finalization matches1024 original/PC/NXDK masks,
+including79 two-pixel extents and205 inactive passes;4 guards preserve data.
+Original4f5588 copies sides first, then interleaves top/bottom writes. Gate is
+reached-projection, not successful raster acceptance. Both builds and24 tests
+pass. Next compose full source/occluder traversal with explicit retained
+scratch and mask lifetime, then native memory/rendered validation.
+
+Resident lightmap image binding now passes5851 compiled NXDK mappings
+and all5851 PC receiver groups/28356 UV vertices using loaded L1S1 images.
+Serialized image section confirms128x128 dimensions. Three binding guards
+preserve both outputs, and out-of-range image IDs fall back to image zero.
+Both builds and24 tests pass. No pixel allocation/read in the binding itself;
+receiver probe owns loaded images. Next compose bounded masks/scratch and
+source/receiver/occluder traversal, then verify native rendering and64MiB.
+
+Retained receiver grouping passes5851 L1S1 PC mapping groups/28356 UV
+vertices and35 compiled NXDK groups, plus3 NXDK guards and an empty query.
+Peak polygon/UV scratch1352 bytes (32-bit layout); no allocation or normal
+owner needed. Both builds and24 tests pass. Supplied128x128 image metadata,
+static surviving IDs and per-mapping scans remain explicit limitations; this
+is not native rendered verification. Next bind actual image dimensions and
+mask/scratch lifetime, then compose the complete retained shadow pass.
+
+Retained shadow receiver conversion matches7302 L1S1 original/PC/NXDK
+faces and28356 UV vertices, with7302 PC capacity guards and2 NXDK guards.
+No allocation; actual serialized origins/UVs tested with supplied128x128 image
+metadata. Both builds and24 tests pass. Next group surviving receiver faces
+by mapping, bind actual image dimensions and bounded mask/scratch ownership,
+then compose the retained shadow pass and verify native memory/rendering.
+
+Retained shadow face snapshots match all7418 L1S1 original/PC/NXDK faces,
+reusing collision bounds without allocation; largest face scratch192 bytes.
+Original supplied-plane4dfe20 rejected0 L1S1 faces.7418 PC capacity guards,
+2 NXDK guards, both builds and24 tests pass. Caller still supplies surviving
+IDs and later runtime mutations. Next compose source/mapping preparation,
+retained occluder/receiver traversal and bounded mask ownership, then native
+memory/rendered verification.
+
+Retained image format now drives shadow texture exclusion via the existing
+format classifier.4096 original/PC/NXDK face cases pass through actual static
+bitmap lookup/classification (1266 accepted,2830 rejected), without supplying
+510710 results;5 guards, both builds and24 tests pass. NULL image means no
+bitmap; caller must select/load the correct animated frame. Next bind retained
+face decoding, receiver/mask ownership and native scene updates.
+
+Shadow occluder selection now matches4096 original/PC/NXDK faces (1323
+accepted,2773 rejected), with5 guards. Preserve strict bounds overlap,
+signed16 fields, flag/texture exclusions and mixed coplanar/volume thresholds.
+Both builds and24 tests pass. Texture classification was supplied to the
+original replay; bind retained face decoding and actual texture ownership,
+then compose full masks and verify native memory/rendering.
+
+Combined shadow receiver clipping/area/filter/raster matches1024 original/
+PC/NXDK passes (771 accepted,253 rejected,54219 changed mask bytes). Both
+builds,24 tests and standalone2048 clipping cases pass. Preserve549f10's
+aliased output quirk: original count changes without final vertex copy, so
+area reads retained subject/tail. Harness supplies zero-initialized scratch;
+live scratch ownership must be explicit. Reject empty receiver sets because
+the original path references uninitialized raster vertices. Next bind occluder
+selection and receiver/mask owners, then native rendered verification.
+
+Projected2D polygon clipping matches2048 original/PC/NXDK cases (1521
+clipped,437 unchanged,90 empty), including winding and epsilon boundaries.
+Five shared guards plus one NXDK scratch-capacity guard pass; both builds
+and24 tests pass. Caller-owned bounded scratch replaces original globals.
+Next compose polygon intersection/area acceptance and occluder selection,
+then mask resource ownership and native rendered updates.
+
+Projected shadow polygon area now matches4096 original/PC/NXDK cases,
+including513 late-degenerate whole-polygon zero results and3 guards. Both
+builds and24 tests pass. Preserve triangle-fan ordering, Heron product order,
+mixed side-length precision and early rejection. Next reconstruct2D polygon
+clipping/filter thresholds and bind occluder/mask ownership before native
+rendered integration; area tests alone do not validate complete filtering.
+
+Mapping-driven shadow corners/center/facing now match2048 original/PC/NXDK
+cases (1016 facing,1032 rejected), including all axes,2..64 extents and6 guards.
+Preserve retained inverse U versus stored inverse V in this path. Both builds
+and24 tests pass. Next compose retained source/mapping preparation with volume
+construction and occluder selection, then projected filtering and mask ownership;
+these calculations have not yet driven native rendered shadows.
+
+Six-plane shadow volume construction now matches2048 original/PC/NXDK
+volumes (12288 planes), including orientation and final receiver replacement,
+with4 guards. Reuses verified visibility plane math; both builds and24 tests
+pass. Next bind UV corner/facing preparation, occluder selection and projected
+polygon filtering before full mask ownership/native rendered updates.
+
+Combined shadow polygon ray construction/intersection/projection/deduplication
+matches1024 original/PC/NXDK polygons (797 accepted,227 rejected,2595 removed
+duplicates), with4 guards and exact partial scratch on ray rejection. Both
+builds and24 tests pass. Next reconstruct six-plane volume construction and
+projected polygon area/filtering, then bind bounded mask resources and verify
+native rendered updates. Supplied clipped vertices are not live scene binding.
+
+Shadow ray/plane intersection matches4096 unhooked original/PC/NXDK rays:
+1788 hits,1024 parallel,1284 behind-origin and512 explicit beyond-segment
+hits, plus4 guards. Both builds and24 tests pass. Preserve point writes for
+negative parameters and unchanged points for parallel rays. Next compose
+clipping, ray construction/intersection, projection and polygon filtering into
+the shadow-mask pass; native rendered verification remains open.
+
+Shadow polygon/plane clipping matches2048 unhooked original/PC/NXDK cases,
+with35103 emitted vertices (15741 intersections), epsilon-boundary cases,
+123 empty results and4 guards. Both builds and24 tests pass. Caller supplies
+disjoint bounded buffers; no allocation. Next compose the six-plane shadow
+volume, ray-plane intersections and projected polygon filtering before live
+mask/resource integration and native XEMU rendered verification.
+
+Shadow intersection-to-mask projection matches4096 original/PC/NXDK points,
+including asymmetric U/V rounding, both edge clamps and8 input guards.
+Both builds and24 tests pass. Original mask bank has64 slots at4096-byte
+spacing;4f4590 clamps projected coordinates to [1,width-1]/[1,height-1]
+before rasterization. Keep the standalone filler padding contract for arbitrary
+polygons; live projection requires extents >=2. Next bind ray-plane intersection,
+clipping, duplicate-vertex removal, source modes and bounded mask ownership.
+
+Shadow polygon rasterization now matches2048 unhooked original/PC/NXDK
+cases (99066 changed bytes, including7119 guard-row bytes), with6 guards.
+Both builds and24 tests pass. Preserve inclusive right/bottom writes and
+wrapping byte subtraction with explicit width*(height+1)+1 capacity; do not
+bind this routine to a tightly allocated width*height mask. Next reconstruct
+projection/clipping and resolve live mask allocation/ownership before native
+rendered verification. Original caller bounds and bank are traced above.
+
+Shadow UV-to-plane reconstruction now matches4096 unhooked original/PC/NXDK
+points across all six axis orders, with8 invalid-input guards. Both builds
+and24 tests pass. Direct division preserves the original shadow rounding;
+ordinary texel sampling retains its distinct reciprocal path. Next reconstruct
+mask clipping/rasterization and bind source shadow modes/resources; compiled
+NXDK CPU replay is not native XEMU rendered verification.
+
+Complete class-light rectangle sampling/shading/packing matches256 original/
+PC/NXDK rectangles (5184 pixels), including dirty8 clear and retained base RGB.
+Both builds and24 tests pass; connect selection, texture locking/swizzling,
+mask ownership and full dirty dispatch before native rendered verification.
+
+Class-light shading plus base-RGB/1555 addition matches2048 original/PC/NXDK
+pixels; both builds and24 tests pass. Keep the base-RGB and direct packed
+class-light passes distinct when composing source selection and live uploads.
+
+Zero-light ambient RGB fill now matches512 original/PC/NXDK rectangles,
+including128 scaling, byte wrapping and dirty8. Both builds and24 tests pass;
+bind ambient/source/mask/RGB owners and the full update dispatch next.
+
+Ambient initialization now matches512 original/PC/NXDK grids, including room
+overrides and global fallback; both builds and24 tests pass. Bind retained
+ambient/RGB/source/mask owners and zero-light direct fill before live updates.
+
+Mapping polygon grouping now matches5851 L1S1 PC groups and35 compiled-NXDK
+groups, with4736 bytes peak polygon/vertex scratch plus normal work. Both builds
+and24 tests pass. Bind initial RGB/mask/source ownership and verify native
+lighting residency/updates after loader survival/plane repair is resolved.
+
+Retained corner binding now matches28356 L1S1 original/PC/NXDK lightmapped
+corners (UV, position, smoothed normal); both builds and24 tests pass. Group
+selected mapping polygons with bounded scratch, bind live RGB/mask resources,
+and verify native residency/updates after loader face acceptance is resolved.
+
+Bounded adjacency ownership now matches1922603 ordered links across94 PC
+levels; L1S1 uses143096 bytes. Subset/duplicate-corner/budget checks, both builds
+and24 tests pass. Bind loader-surviving faces and corner-normal sampling, then
+verify the owner and lighting updates natively within64MiB.
+
+Original vertex adjacency suppresses duplicate faces and preserves first-insertion
+order, verified over66560 insertions. Static inventory estimates143076 bytes
+for L1S1 adjacency; implement the bounded owner, preserving loader rejection/
+removal semantics before binding smoothed corner normals to sampling.
+
+Retained-geometry mapping access now decodes on demand without a duplicate
+table;301871 PC records across94 levels and2048 NXDK/original cases pass.
+Both builds and24 tests pass. Bind selected face/corner-normal ownership and
+RGB/mask resources before driving native rendered updates.
+
+Combined special-grid coverage, sampling, lighting, fallbacks and border copies
+match256 original/PC/NXDK grids (6237 texels), exercising every sample outcome.
+Both builds and24 tests pass. Bind retained face/corner-normal owners, mapping
+RGB resources and masks, then verify native rendered updates within64MiB.
+
+Special-grid border replication matches450 original/PC/NXDK grids across
+all2..16 dimension pairs, including sequential two-texel behavior. Four guards,
+both builds and24 tests pass. Compose coverage, selection, accumulation and
+RGB fallbacks into the complete grid before retained-resource integration.
+
+Special sample selection plus interpolation matches2048 original/PC/NXDK
+cases across every tolerance pass, including334 first-in-range vertex fallbacks
+and578 exhausted searches. Three guards, both builds and24 tests pass; compose
+the full special grid, border copying and retained topology/lighting resources.
+
+Special two-edge position/normal interpolation matches4096 original/PC/NXDK
+samples, including zero/near-zero spans and unclamped factors; two guards, both
+builds and24 tests pass. Recover edge/nearby-vertex selection and retained
+face/normal ownership, then integrate the complete special sampler.
+
+Special texel coverage matches2048 original/PC/NXDK cases with5504 edge
+hits,485 row-prefix skips and482 continuations without new crossings. Both
+builds and24 tests pass. Reconstruct two-edge/nearest-vertex sample selection
+and interpolation, then bind special sampling to native lighting resources.
+
+Special lightmap edge crossing matches8234 original/PC/NXDK cases, including
+3436 crossings and endpoint/precision boundaries; three guards, both builds and
+24 tests pass. Complete texel coverage orchestration and edge/vertex sampling;
+this arithmetic is not yet bound to rendered lighting.
+
+Special lightmap corner-normal smoothing matches4096 original/PC/NXDK
+corners; both builds and24 tests pass. Reconstruct special face/vertex ownership,
+texel coverage and edge/vertex sample selection, then native lighting binding.
+
+Complete mapping decoding matches2048 original/PC/NXDK records; PC inventory
+passes301871 static mappings across94 levels. L1S1 uses4324 special mappings
+of5851, so prioritize special polygon sampling before native lighting binding.
+Both builds and24 tests pass; decoded L1S1 metadata alone would add631908 bytes.
+
+Ordinary lightmap sampling plus softened/masked accumulation now matches512
+complete original/PC/NXDK grids (10368 samples); both builds and24 tests pass.
+Bind retained mapping/RGB owners, mask generation and native texture updates;
+special polygon sampling remains unfinished.
+
+Ordinary lightmap sample positions match7776 original/PC/NXDK points over384
+mapping grids; both builds and24 tests pass. Bind softening/masks and retained
+mapping fields to accumulation, then complete special sampling and rendering.
+
+Raw mixed-light accumulation with visibility weights matches4096 original/
+PC/NXDK cases; a recovered weight-rounding detail also fixes shared VFX math.
+Both builds and24 tests pass. Bind mapping sample positions, softening/masks,
+source accumulation and retained RGB/renderer updates.
+
+Complete lightmap RGB resolve matches512 original/PC/NXDK mappings and36992
+pixels, including the unfiltered rim and pitched output; both builds and24 tests
+pass. Reconstruct source accumulation and bind retained RGB/renderer updates.
+
+Lightmap neighborhood filtering matches4096 original/PC/NXDK cases at native
+53-bit x87 precision, including2153 boundary cases; both builds and24 tests
+pass. Bind full mapping resolve, source accumulation and renderer texture updates.
+
+Accumulated-light RGB conversion matches8192 original/PC/NXDK cases,
+including integer normalization and overflow behavior; both builds and24 tests
+pass. Reconstruct light accumulation/filtering, then bind runtime texture updates.
+
+Runtime lightmap RGB rectangle upload matches2048 original/PC/NXDK cases,
+including black texels, failed locks and pitch; seven buffer guards pass.
+Both builds and24 tests pass. Reconstruct4f26a0 preceding light accumulation
+and dirty-bit stages, then bind retained RGB resources and renderer uploads.
+
+Authored light timers now run after physics in the campaign replay: stock64MiB
+XEMU matches PC across179 updates/41349 visits, clock hash and2412 bytes of
+persistent traversal scratch. Both builds and24 tests pass. L1S1 lights stay
+steady; exercise changing/classed lights, alternate solids and rendered effects.
+
+Retained-world lighting traversal now reuses per-room trees and their stacks,
+matching2048 original/PC/NXDK cases (504 state-changing). Six invalid-binding
+checks and an empty-tree case pass; both builds and24 tests pass. Allocate
+persistent room/root scratch, bind scene light updates and rendered dirty state.
+
+Retained lighting metadata is installed in the campaign scene: L1S1 owns
+7418 faces and5851 shared mapping bytes in272919 bytes. A180-frame stock64MiB
+XEMU replay matches PC counts and full metadata hashes; both builds and24
+tests pass. Bind solid/tree views, live timers and dirty-state rendering next.
+
+Render/lighting view stack matches1024 original/PC/NXDK sequences and
+6144 nested steps with exact restoration; both builds and24 tests pass.
+Bind dispatch services and renderer-mode gates to retained native solid/
+dirty-state owners, then connect live light timers and rendering.
+
+Main/alternate-view lighting dispatch matches512 original/PC/NXDK cases;
+all21 callback failure positions restore entered views. Both builds and24
+tests pass. Reconstruct view-stack state and bind services to retained
+native solids/dirty ownership, then connect live light timers.
+
+Alternate-view light volumes match4096 original/PC/NXDK cases, with
+unchanged radii and transformed positions/axes/endpoints. Both builds and
+24 tests pass. Finish main-then-view dispatch and view-stack ownership,
+then bind retained native dirty state and live timers.
+
+Complete world-space solid lighting updates match2048 original/PC/NXDK
+cases without substituted callbacks;504 change state. Both builds and24
+tests pass. Reconstruct alternate-view dispatch and bind retained native
+face/shared dirty-state ownership before enabling timer-driven rendering.
+
+Real point/cone/segment volume callbacks match4096 original/PC/NXDK
+preparation and bounds cases; both builds and24 tests pass. Compose with
+whole-solid/root/tree updates and alternate views, then bind native dirty
+state and timer-driven lighting.
+
+Lighting root/detail collection and repeated-root traversal match1024
+original/PC/NXDK cases each; both builds and24 tests pass. Compose whole-
+solid fallback and alternate-view dispatch, then bind actual light-volume
+predicates and native dirty-state ownership.
+
+Geometry-tree lighting updates match1024 original/PC/NXDK traversal cases,
+including pruning and shared face state; both builds and24 tests pass.
+Finish root/detail-room collection and alternate-view dispatch, then bind
+native lighting state and the verified light-volume tests.
+
+Face lighting dirty-state updates match2048 original/PC/NXDK cases and
+callback failure preserves earlier progress; both builds and24 tests pass.
+Connect root selection and right-before-left geometry tree traversal, then
+bind native face/shared-lighting state and timer-driven rendering.
+
+Authored spotlight angle-to-plane preparation matches all2411 installed
+lights plus1024 synthetic cases on original/PC/NXDK; fixed negative widths
+for180-degree lights. Both builds and24 tests pass. Apply volumes in room/
+tree traversal and alternate-view dirty-state dispatch, then native lighting.
+
+Spotlight plane construction and composed box testing match2048 original/
+PC/NXDK cases each; both builds and24 tests pass. Finish stored cone-width
+calculation, alternate-view dispatch and room/tree dirty-state traversal
+before connecting timer-driven visibility to native lighting.
+
+Spotlight visibility box rejection matches4096 original/PC/NXDK cases,
+including the double -0.001 plane boundary; both builds and24 tests pass.
+Construct spotlight planes, traverse room geometry and apply dirty-state
+updates before binding timer-driven visibility and native lighting.
+
+Original light registry append/dispatch passes384 executable cases with
+131106 visits, including count changes during iteration. File-order loading
+is confirmed statically; timers follow actor/physics update487a40. Bind
+that ordering and frame gates before claiming shared RNG/frame fidelity.
+
+Retained light clocks now initialize identically for all22293 lights in93
+levels on PC/NXDK; peak owner255100 bytes remains below256KiB. Both builds
+and24 tests pass. Original433260 timer loop uses registry646098 in index
+order; verify registry population/frame gates before scheduling live clocks.
+Stock64MiB XEMU replay-20260913-165531 passes180 frames and PC telemetry
+comparison with142620-byte L1S1 owner; native clock hashes remain to add.
+
+Timer-to-pool light updates match4096 original/PC/NXDK cases, including RGB,
+class-dependent invalidation and shared RNG; failed updates preserve state.
+Both builds and24 tests pass. Retain elapsed clocks, bind frame scheduling and
+visibility dispatch, and complete light-driven native rendering.
+
+Authored light timer stepping matches4096 original/PC/NXDK cases, including
+interpolation, single-transition overshoot and RNG consumption decisions;
+both builds and24 tests pass. Bind retained elapsed state and shared RNG/frame
+scheduling, apply pool intensity updates, then finish light-driven rendering.
+
+Native campaign scene now owns231 L1S1 lights in137072 bytes;180-frame
+stock64MiB XEMU run matches PC source/runtime/field hashes and RNG. Fixed
+first-light base-color rounding; both builds and24 tests pass. Bind retained
+timers, visibility updates and rendering; visuals are not yet light-driven.
+
+Retained authored-light ownership now loads all22293 sources in93 levels
+identically on PC/NXDK, with exact/short budgets and archive-independent data.
+Peak232680 bytes; both builds and24 tests pass. Install in the native scene,
+step retained timers/RNG, perform visibility updates and bind edge rendering.
+
+Authored light activation matches all22293 original/PC/NXDK records plus512
+randomized cycle cases; fixed rejection of authored zero-width cone angles.
+Both builds,2048 shading cases and24 tests pass. Bind retained activation,
+shared RNG/timers, pool replacement/visibility effects and native rendering.
+
+Authored v180 light reader now matches all22293 records across93 levels on
+PC/NXDK; every record also passes truncation guards. Both builds and24 tests
+pass. Convert authored matrices/degrees/flags/cycles, bind pool creation and
+retained timers, then verify original loader and native scene activation.
+
+VFX pool ownership matches1024 original/PC/NXDK operation sequences plus2048
+original/NXDK cache checks;1100-slot capacity/exhaustion/reuse checked onNXDK.
+Both builds and24 tests pass. Bind authored light loading, visibility callbacks,
+global/null-room selection and native edge lighting; pool costs105644 bytes.
+
+VFX point/cone/segment source initialization matches2048 original/PC/NXDK
+cases and3 guards; both builds and24 tests pass. Bind original pool lifetime,
+registration/generation/visibility effects and authored light loading before
+native scene use; directional creation and edge-light integration remain.
+
+VFX cache-to-selection-to-transform-to-RGB composition matches1024 complete
+original/PC/NXDK cases; all prepared source fields also match NXDK/original.
+Both builds and24 tests pass. Bind live light sources/invalidation, global
+state, edge caches and native VFX draws; scene still uses diagnostic lighting.
+
+VFX room/object cache rebuilds match2048 cases per original path on PC/NXDK;
+2048 original/NXDK mutation sequences confirm cache hits/invalidation. Both
+builds, box/sphere regressions and24 tests pass. Bind source lifetime and
+invalidation, global/null-room state, active lists and native edge lighting.
+
+VFX box candidate filtering matches2048 cases per original room/object path
+on PC/NXDK, including expanded corners and segment intersections;3 guards,
+sphere regression, both builds and24 tests pass. Reconstruct live cache
+updates/global active-list state and bind edge lighting before native use.
+
+VFX spherical candidate filtering now matches2048 original/PC/NXDK cases,
+including ordered indices, tangencies/adjacent floats and segment projection;
+3 guards, both builds and24 tests pass. Bind room/object cache rebuilding,
+box filters, global gate state and edge-light caches before native use.
+
+VFX source transforms plus mixed shading match2048 complete original/PC/NXDK
+cases, including every transformed source field. Bind live active-list
+selection and mesh edge-light caching before native renderer integration.
+
+Composed mixed VFX lighting now matches2048 complete original/PC/NXDK
+4daff0/4da8b0 cases across directional, point, cone and segment sources.
+Connect live scene selection/order/transforms and mesh edge-light caching;
+the harness supplies active lists, so native lighting remains unverified.
+
+Composed VFX point-light shading now matches1024 complete original/PC/NXDK
+4daff0/4da8b0 cases with0-16 ordered lights and2 guards. Join directional,
+cone and segment sources plus active scene ownership before native use.
+
+VFX final light RGB conversion matches4096 original/PC/NXDK cases and3
+guards; fixed an x87 blue-channel precision mismatch in the negative-gain
+branch. Bind active-light accumulation to conversion and material colors next.
+
+VFX four-profile falloff plus RGB addition matches4096 original/PC/NXDK
+cases,4096 in-place checks and3 guards. Connect accepted point lights, retain
+cone-boundary precision, and complete active-light ownership/conversion next.
+
+VFX cone-light geometry4daf30 now matches2048 original/PC/NXDK cases and
+3 guards, including softened normals and cone-axis terms. Complete falloff,
+cone-boundary attenuation and active-light accumulation before native drawing.
+
+VFX point-light geometry4dae50 now matches2048 original/PC/NXDK cases and
+3 guards, including coincident fallback, radius rejection and softened branch.
+Reconstruct cone geometry/falloff and active-light accumulation next.
+
+VFX scene-light boundary mapped:4da8b0 active-light accumulation differs from
+model lighting; reconstruct point/cone geometry, falloff dispatch and active
+light ownership before4daff0 RGB conversion. Static evidence only, no new
+rendering claim; see docs/VFX-RENDERING.md scene-light integration boundary.
+
+VFX edge color preparation now matches2048 original/PC/NXDK cases, including
+brightness minimum, unlit white and type2 tint, plus2048 in-place checks and
+3 guards. Connect scene lighting, edge caches and renderer passes next.
+
+VFX bitmap metadata and retained primary/secondary image selection now match
+2048 original/PC/NXDK duration cases plus2048 NXDK/original image selections;
+7 guards, both builds and24 tests pass. Bind lighting/draw submission and
+original-map overrides; native VFX appearance remains unverified.
+
+VFX effect-time and normalized texture clocks match4096 original/PC/NXDK
+cases and4 guards; bind retained bitmap metadata and actual draw passes next.
+PC XInput walkthrough exited at frame20232 with RF_RANGE in animation stage5,
+scene stage1; user requested continuing other work rather than diagnosing now.
+Preserved logs: artifacts/pc-xinput-walk.stderr.log and stdout.log.
+
+Retained standalone VFX material banks now resolve newer mesh material IDs;
+7 asset banks,120 PC/NXDK bindings and29 budget/I/O/parse rollback guards pass.
+Bank footprints20-914 bytes exclude textures; connect texture clocks, lighting
+and draw passes. Xbox and PC core/probe builds pass; live PC session retained.
+
+Embedded VFX materials now sample retained blend, brightness and frame opacity;
+80 original/PC/NXDK scalar checks across14 meshes and126 missing/global/range
+guards pass. Both builds and24 tests pass; renderer submission remains open.
+PC frontend now polls XInput while focused; USER: verify controller movement,
+look, A jump, X use, B crouch, disconnect and Back+Start exit in the live build.
+
+Borrowed VFX material views now evaluate blend/brightness/opacity without
+allocation, including unaligned arrays and original pre-interpolation blend
+clamps;2048 original/PC/NXDK cases and7 guards pass. Both builds and24 tests
+pass. Bind older embedded frame opacity and retained renderer materials next.
+
+VFX material scalar timing/interpolation matches2048 original/PC/NXDK
+cases each for54a930/54a9e0/54aa80, including zero rate;3 guards pass.
+Bind retained material tracks, lighting and texture passes to face lists;
+both builds and24 tests pass, native VFX appearance still unverified.
+
+Persistent VFX geometry now produces sorted authored face lists;112
+PC/NXDK list comparisons across14 meshes include372 visible face records.
+Capacity guards,2048 original world-face cases and24 tests pass; bind
+parent poses, projected-vertex caches, lighting and texture draw passes next.
+
+VFX instance updates now select frames once and resolve keyed tracks once
+per mesh;112 PC/NXDK updates retain identical buffers with at most3 key
+queries each.2048 original dispatch cases and24 tests still pass.
+Hoist repeated matrix/center work, then bind parents and renderer buffers.
+
+Persistent VFX local vertex/UV ownership passes28 PC/NXDK budget/lifetime
+cases and112 updates over14 installed meshes; buffers cost136-1156 bytes
+per mesh beyond the borrowed definition. Both builds and24 tests pass.
+Bind parent poses, projection caches, face lists and material submission;
+optimize repeated matrix work and support empty meshes before full playback.
+
+World-space VFX face preparation matches2048 original/PC/NXDK cases
+with real projection/clip code generation:1232 rejected,816 visible.
+Bind persistent geometry/cache/list ownership and lighting/material draws;
+both builds and24 tests pass, native VFX playback remains unverified.
+
+Composed VFX face preparation matches2048 original/PC/NXDK cases:
+758 clip rejects,651 back faces,639 visible;2 guards and24 tests pass.
+Connect original projection/cache ownership and persistent face lists to
+material submission; both builds pass, no native VFX rendering claim.
+
+VFX material-biased depth/list append matches2048 original/PC/NXDK cases
+and3 capacity/input guards; secondary sort fields remain caller-owned.
+Compose projection/culling and bounded persistent lists before material draw
+submission; both builds and24 tests pass, no native VFX visuals yet.
+
+VFX gap sort53c840/53c950 matches2048 original/PC/NXDK lists and2 guards,
+including equal/epsilon-adjacent keys; both builds and24 tests pass.
+Generate original depth keys and compose bounded face-list ownership next;
+projection/material draw submission and native VFX playback remain open.
+
+VFX facing test5478f0 matches2048 original/PC/NXDK cases and2 guards,
+including distinct perspective/flat zero-dot behavior; both builds/24 tests pass.
+Compose projected clip masks, normals and facing with material-biased depth
+ordering before render submission; no new native VFX rendering evidence.
+
+Animated VFX face normals match2048 original/PC/NXDK cases and2 guards;
+renderer callbacks resolve to553ee0/554bf0/555080 and extra texture110.
+Complete554a80 projection/facing/depth list and material passes; both builds
+and24 tests pass, but VFX render submission/native playback remain open.
+
+Located VFX render entry53ee90 and draw targets516f50/516f70/516f90;
+trace material/clip/submission callbacks next (docs/VFX-RENDERING.md).
+Retain active-state and persistent geometry/UV ownership before live drawing;
+render dispatch remains unimplemented and these findings are static evidence.
+
+Skeletal VFX tag-parent branch matches2048 original/PC/NXDK cases,2048
+in-place checks and2 guards using real cached bone lookup without hooks.
+Bind retained parent owners/virtual tags and complete UV/material submission
+before native playback; both builds and24 tests pass.
+
+Direct-parent VFX geometry matches2048 original/PC/NXDK cases,2048
+in-place checks and5 guards; center/vertex change, extra bounds stay unchanged.
+Reconstruct tag-based parent503230/4fe710/4ff020 branch, then connect
+UV/material submission and native playback; both builds and24 tests pass.
+
+Combined VFX geometry dispatch matches2048 original/PC/NXDK cases from
+53f060 entry to54010a, with3 inactive/invalid guards; all24 tests pass.
+Integration exposed/fixed absent rotation keys: use stored frame0 quaternion,
+not identity.14 authored ownership cases still pass; bind parent transforms
+and UV/render submission next, then validate native stock64MiB playback.
+
+VFX key-time conversion matches2048 original/PC/NXDK cases and4 guards;
+owned keyed geometry passes328 authored vertex/time/budget checks.
+Old keyed files use frame0 fallback position/rotation/scale; absent fallback rejects
+instead of inventing values. Verify complete53f060 dispatch/parent composition
+and bind rendering; both builds and24 tests pass, no new native XEMU claim.
+
+Resolved keyed VFX geometry matches2048 original/PC/NXDK cases, including
+base-then-key transforms and scale-dependent bounds; both builds/24 tests pass.
+Bind owned key sampling and verify missing-track defaults/key-time conversion
+before complete53f060 playback and native renderer integration.
+
+Non-keyed VFX transform animation matches2048 complete original/PC/NXDK
+interior/terminal branches and2048 owned-view fixtures;14 installed meshes
+correctly select keyed or morph paths, so no authored non-keyed coverage.
+Connect keyed/base transforms next, then parent poses and rendering.
+
+VFX scale/rotation/translation stages match2048 original/PC/NXDK cases,
+including2048 in-place checks and4 failure guards; both builds and24 tests pass.
+Compose keyed/base and frame transforms into53f060 playback, then parent poses
+and renderer submission; this helper validation is not native XEMU evidence.
+
+Attachment ordering audit: original4881a0 passes1000 randomized16-object
+forests; positive-tag dispatch passes54 original cases including real486c90.
+Negative-tag poses now match1536 original/PC/NXDK cases (384 singular).
+Shared bounded parent ordering now matches1000 original/PC/NXDK forests.
+Installed clutter declares no turret use4; fresh props have attachment parent-1.
+Static-prop/glare ordering is live and matches180-frame stock64MiB XEMU.
+Moving-parent fixture passes880 PC/stock64MiB XEMU cases with full restoration.
+Orphan retirement is bound;180-frame stock64MiB XEMU preserves all220 valid glares.
+Forced-loss stock64MiB XEMU retires3 owners and clears all scene/registry references.
+Bind authored dynamic parenting and turret ownership; extend retirement with future resources.
+
+Volume opacity/beam geometry match original/PC/NXDK; original mode is06110c42.
+Volume projection/clipping matches1024 original/PC/NXDK polygons.
+Projected animated volume beam passes2048 PC/XEMU pixel checks;84 pages recover.
+Camera-to-volume opacity matches2024 original/PC/NXDK cases, with12 input guards.
+Composed nonactor volume routine matches256 original/PC/NXDK cases plus7 failure checks.
+Volume records now share ordinary particle sorting;180-frame stock64MiB replay passes.
+Opt-in scene-volume fixture passes90 animated beams/360 vertices on stock64MiB XEMU.
+Verify authored volume placement and mixed transparent-object ordering.
+Actor volume sizing/RNG matches2210 original/PC/NXDK cases plus6 guards.
+Actor volume aim geometry matches1018 original/PC/NXDK cases plus17 guards.
+Composed actor volume branch matches512 original/PC/NXDK cases and4 NXDK failure guards.
+NPC volume adapter now reads retained command/occupant state; stock64MiB prop-beam regression passes.
+Retained NPC volume service passes6 restored-state cases on stock64MiB XEMU.
+Special volume-owner gate matches162 original/PC/NXDK cases plus6 callback failures.
+Two-tag glare constructor matches60 original/PC/NXDK cases plus3 callback failures.
+Two-tag owned lifecycle passes PC and16 compiled NXDK checks.
+Extracted rod factory stage passes80 compiled checks and512 original/PC/NXDK factory cases.
+All431 installed clutter definitions disable rod glare; defer live binding until an authored caller requires it.
+Verify authored NPC/vehicle beams, bind player state and complete transparent scene ordering.
+
+AI action/state setters407e20/407e80 match2048 original/PC/NXDK cases.
+Event arbitration4087a0 matches2048 original/PC/NXDK cases; bind event/destination/stance services.
+Shared destination40ac90 matches2048 original/PC/NXDK cases; bind route services and retained scene ownership.
+Navigation preparation40aae0 matches2048 original/PC/NXDK cases; compose it with retained movement/query owners.
+Direct-route40b0d0 matches2048 original/PC/NXDK cases; bind global navigation references and reconstruct searched routes.
+Concrete search matches2048 all-member and2048 temporary-start original/PC/NXDK graphs; compose endpoint setup and live route ownership.
+Bounded endpoint insertion/cleanup matches1536 and nearest selection2048 original/PC/NXDK cases; bind visibility and search wrapper.
+Node preparation and alternate-edge geometry each match2048 unhooked original/PC/NXDK cases; compose them into route services.
+Visibility query4ce740, concrete flat-solid collision and room hierarchy each match2048 original/PC/NXDK cases; bind combined route ownership.
+Concrete request4cebd0 matches2048 clear and2048 obstructed original/PC/NXDK cases; bind retained scene graph storage and NPC owners.
+Persistent NPC route endpoints and prepared-request service pass38 ownership checks in stock64MiB XEMU; bind AI destination preparation and route following.
+Waypoint advance40c2a0 and full steering40cb50 each match2048 original/PC/NXDK cases; reconstruct arrival/re-pathing40bb70 and follower dispatch40b6d0.
+Authored rotation limits/acceleration are retained for all63 classes;84 PC/NXDK reader cases and three PC level budgets pass; bind steering/physics consumers.
+Body rotation filter433c80 matches2048 original/PC/NXDK cases; bind NPC eye orientation and complete angular integration before live steering.
+Eye-angle update49cf40 matches2048 original/PC/NXDK cases plus6 guards; bind retained NPC angles and eye matrix reconstruction.
+Physics eye-matrix composition matches2048 original/PC/NXDK cases plus3 guards; bind NPC angle/matrix owners and per-frame physics scheduling.
+Retained NPC look/steering services pass38 restored-state PC/stock64MiB XEMU cases; bind AI follower and angular delta/physics scheduling.
+Composed angular prediction49f566 passes2048 original/NXDK cases with bounded PC matrix residuals; bind angular preparation, collision prediction and commit.
+Ordinary angular velocity preparation matches2048 original/PC/NXDK cases plus7 guards; bind drive predicates, special-mode dispatch and prediction.
+Angular dispatch precedence matches800 original/PC/NXDK cases; bind SP player/control references and remaining special rotation services.
+Retained ordinary NPC angular preparation/prediction passes38 PC/stock64MiB XEMU cases; connect verified linked_handle player lookup and collision/commit scheduling.
+Player/control lookup48aa30 matches2048 original/PC/NXDK cases; bind registered SP player list to automatic angular drive selection.
+Automatic SP angular drive selection passes38 driven and38 undriven PC/stock64MiB XEMU checks; finish special dispatch, collision and movement commit.
+Opening-level angular audit finds142 ordinary and3 rigid-body spawns; prioritize ordinary collision/commit and retain Driller/APC49e180 as required follow-up.
+Ordinary49d0a0 commit matches1024 original/NXDK cases with bounded PC matrix residuals; bind accepted NPC collision results and pose publication.
+Retained ordinary NPC commit and completed-position publication pass76 PC/stock64MiB XEMU checks; connect collision substep resolution and continuous scheduling before later room/eye refresh.
+Ordinary partial-contact motion prefix matches2048 original/NXDK cases with bounded PC matrix residuals; complete427550 contact dispatch and49fe40 flag/time tail before live scheduling.
+Complete ordinary49fe40 orchestration matches2048 original/NXDK cases at explicit contact callbacks; reconstruct427550 gameplay effects and bind retained contact/time owners before live scheduling.
+Actor contact41a000 decisions match2048 original/PC/NXDK cases; bind429790 destruction effects and remaining427550 surface/item/vehicle dispatch.
+Contact destruction429790 ordering matches1024 original/PC/NXDK cases; retain class174 sound and bind live damage/selection/playback services.
+Authored squash-sound groups are retained per class and pass180-frame stock64MiB XEMU; bind contact destruction to damage and positional playback.
+Retained contact destruction damage and squash playback pass restored-state L1S1 stock64MiB XEMU; complete427550 dispatch and live collision scheduling.
+Registered NPC-to-NPC41a000 dispatch reaches damage/squash playback in four restored-state XEMU checks; add player/object branches and full427550 scheduling.
+Object-contact handles NPC/player damage and riot_shield class identity in PC/stock64MiB XEMU; complete pickup services, lethal lifecycle and continuous scheduling.
+SP pickup eligibility459560 matches2048 original/PC/NXDK cases and3 callback failures.
+SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callback failures; implement grant/reaction/audio services and bind scene pickup ownership.
+Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
+Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
+All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
+VFX quaternion key evaluation matches2048 original/PC/NXDK cases with56 owned checks; compose keyed/frame transforms, parent pose and rendering.
+VFX translation/scale key evaluation each matches2048 original/PC/NXDK cases with112 owned checks; complete quaternion rotation and composed transform playback.
+VFX vertex-animation sampling matches2048 original/PC/NXDK cases with1664 owned authored checks; complete transform-based/keyed motion and renderer submission.
+VFX UV sampling matches2048 original/PC/NXDK cases and4572 owned authored checks; complete vertex/transform animation, material state and renderer submission.
+VFX frame selection and signed vertex expansion each match2048 original/PC/NXDK cases; owned vertex access matches3128 authored checks; complete transform/key/UV interpolation and effect clock lifecycle.
+VFX texture binding resolves20 authored materials to16 shared images (356344 bytes); connect effect resource ownership and verify actual textures in native XEMU playback.
+Owned VFX meshes load all14 authored payloads within explicit budgets with132 failure checks; bind bitmap ownership, normalized direction and animation playback.
+VFX transform keys match1031 original/PC/NXDK cases including7 authored meshes; compose bounded owned meshes and connect animation interpolation/playback.
+VFX frame decoding matches1255 original/PC/NXDK cases including231 authored frames; normalize owned direction and bind bounded resources/playback.
+VFX mesh bounds/edges match1038 original/PC/NXDK cases including14 authored meshes and8113 failure guards; decode animation frames and bind validated face-to-edge references.
+Embedded VFX materials match1034 original/PC/NXDK cases including10 authored records with1886 failure guards; bind bounded bitmap ownership and decode vertex/transform tracks.
+Standalone VFX materials match1034 original/PC/NXDK cases including10 authored records; bind bounded bitmap ownership and vertex/transform tracks.
+VFX mesh timing matches2048 original/PC/NXDK cases; all14 authored mesh prefixes parse with validated face indices; complete material sections and vertex/transform tracks using per-mesh sample counts.
+VFX mesh-face decoding matches2190 original/PC/NXDK cases including all142 authored projectile faces; complete remaining mesh sections, vertex tracks and material resolution.
+VFX header matches1031 original/PC/NXDK cases; bounded archive directories index29 records across7 projectile assets with42 NXDK failure checks; reconstruct object/track decoding and playback.
+Projectile model catalog retains all44 authored entries (5 static,11 VFX,28 model-less), passing16 PC/NXDK reader cases and51 original filename classifications; bind both static and VFX model backends under a shared budget.
+Moving creation physics matches640 original/PC/NXDK cases; projectile model/sphere/physics ownership now passes12 PC/NXDK integration cases and2 allocation failures; bind bounded scene model services, room ownership and remaining firing/impact effects.
+Projectile152-byte creation descriptor matches2048 original/PC/NXDK cases; fixed50-slot pool matches4096 original/PC/NXDK operations; registration/rollback adapter passes52 PC/NXDK lifecycle checks; bind scene model services and finish full4c77a0 lifecycle before composing425830 firing; see docs/FIRING-RUNTIME.md for audited boundaries and deferred-retirement requirements.
+Shot ammo consumption4257c0 matches2048 original/PC/NXDK cases; bind it to successful-shot dispatch with timing and projectile ownership.
+Muzzle-origin41b5a0 now matches2048 original/PC/NXDK cases plus7 NXDK failure guards; target-aim math41b4c0 matches2048 original/PC/NXDK cases; retained NPC target/lock service passes156 checks in stock64MiB XEMU; composed live muzzle service matches60 armed NPC poses in XEMU; bind other target types, replacement-class hand ownership and firing dispatch.
+Authored NPC primary/secondary/melee startup grants now populate retained inventories and selected animations; complete active firing resource services, weapon models and combat scheduling.
+Third-person model/tag accessors and full418e60 hand/grip placement each match2048 original/PC/NXDK cases; reconstruct421c40 visibility/draw dispatch and bind actual transforms/model loading.
+Third-person model residency now follows NPC inventories and matches180-frame stock64MiB XEMU (8200 bytes in L1S1); complete textures and draw dispatch.
+Primary weapon poses match60 initial NPC poses in XEMU; visibility/model selection matches4096 original/PC/NXDK cases; draw-state setup matches2048 original/PC/NXDK cases; recoil also matches2048 original/PC/NXDK cases; full draw loop matches1024 original/PC/NXDK cases; 10 callback-failure cases pass; live weapon renderer emits648 vertices with exact PC/stock64MiB XEMU hashes over180 frames; authored hand counts/tags now match all78 NPCs in XEMU; finish lighting/LOD, player overrides and active recoil.
+Retained pain dispatch now uses44 reset descriptors and selected action audio; verify representative armed pain paths and finish active sound/effect reset services.
+Armed and unarmed death/recovery scene fixtures pass; animation consumers validate retained skeletons without rejecting equipped weapons.
+All78 inventory/selection/firing owners match PC in180-frame stock64MiB XEMU; retained storage78936 bytes, body subsystem peak538012 bytes within640KiB.
+Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup acceptance.
+Ammo pickup scaling/message amounts match8192 original/PC/NXDK cases; bind special weapon IDs, difficulty ownership and inventory/message consumers.
+Retained4872-byte weapon supply catalog matches all44 original-audited mappings in stock64MiB XEMU; create scene inventories through verified initialization.
+Retained collision voice1478 and global Sub Hit playback pass four restored-state PC/stock64MiB XEMU checks; bind full surface dispatch and continuous scheduling.
+Surface route gates match4170 original/PC/NXDK cases; reconstruct APC debris/damage, Driller damage/player feedback and timed-contact effects before full dispatch.
+APC bumper placement/geometry/damage ordering matches1024 original/PC/NXDK cases; bind actual asset/geometry services and complete timed-contact dispatch.
+Timed water-contact effects/cooldown match2048 original/PC/NXDK cases; large/huge splash definitions and Foley IDs pass stock64MiB XEMU; implement VFX emission before full427550 composition.
+Combined427550 routing reads retained NPC contact packets and passes four PC/stock64MiB XEMU cases; bind concrete effect/object services and connect the continuous physics caller.
+Driller geometry/self-damage requests match1024 original/PC/NXDK cases; implement linked-player feedback and bind real geometry ownership.
+Player contact direction/flag accumulation match2048 original/PC/NXDK cases; compose with the Driller linked-player camera/feedback loop.
+Driller linked-player feedback binds retained player/camera/direction state and passes four PC/stock64MiB XEMU cases; compose after real geometry/damage and full contact scheduling.
+AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
+Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
+AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
+Scene AI reset service passes304 restored-state cases across38 NPCs on stock64MiB XEMU.
+Shared recovery408f20 matches2048 original/PC/NXDK cases plus5 callback and8 duration guards.
+Authored unholster delays are retained; three PC levels and180-frame stock64MiB XEMU pass.
+Scene unholster service passes38 authored starts and38 pending-call checks on stock64MiB XEMU.
+Implement remaining AI services and bind retained override/state fields before live special landing.
+
+The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
+footstep selection and support-material helpers are verified but not live.
+Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
+
+Clutter collision integration: 12 shared collision models and 168 registered
+prop owners now match PC/stock64MiB XEMU across 1008 diagnostic queries;
+live player/NPC collision scheduling and full factory effects remain open.
+
+Factory audit: opening149 collision-enabled props are collide_weapon only;
+retain factory flag0x40000 and original non-projectile rejection. Bind glare
+(149 declared placements) and explosion resources (158) before full creation.
+
+Static tag lookup53c23f now matches516 original/PC/compiled NXDK cases;
+retain first-submesh attachment names/poses and bind factory glare services.
+
+Static attachment owners pass1173 compiled NXDK cases and now match
+stock64MiB XEMU in shared scene storage; bind tag poses and glare creation.
+
+Static tag world placement now matches512 original/PC/compiled NXDK
+poses exactly; bind registered prop lookup/placement to glare creation.
+
+Registered prop tag services now match original and stock64MiB XEMU
+(1541 lookups/394 poses); bind glare instance creation and lifetime next.
+
+Original parented glare constructor413d20 passes60 audited cases; implement
+its shared type10 allocation, maximum-size radius, state initialization and list lifetime.
+
+Shared parented glare constructor matches60 original and18 callback-failure
+PC/NXDK cases; bind type10 ownership and reconstruct glare destruction.
+
+Original glare type10 allocation/unlink/retirement passes32 cases; shared
+owner must preserve flags0x6030000 and omit ordinary prop room binding.
+
+Concrete528-byte glare owner matches32 original body states on PC; verify
+compiled NXDK allocation failures, then bind factory and campaign resources.
+
+Glare owner passes35 compiled NXDK cases; full owned factory adapter passes
+PC lifecycle checks; adapter now passes NXDK; bind class resources.
+
+Correction: glare radius is max(class sizes), not RNG; constructor now
+executes that rule and full owned adapter passes14 compiled NXDK checks.
+
+Glare metadata reader matches56 authored classes on PC/compiled NXDK;
+retain class definitions and bitmap resources, then bind campaign creation.
+
+Glare class ownership passes13 PC/compiled NXDK checks for56 authored rows
+(17492 retained/39157 peak bytes); bind bitmap resources and campaign creation.
+
+Glare bitmap audit finds38 unique textures, including two animated thruster
+VBMs; use all-frame ownership (1771472 bytes for all textures) when binding.
+
+Owned glare materials preserve62 frames across38 shared textures and56
+class bindings; verify native Xbox residency and bind campaign glare effects.
+
+Campaign glare resources now match stock64MiB XEMU across all62 decoded
+frames at1803012 retained bytes; bind authored prop glare instances next.
+
+Shared factory corona-cache/glare stage passes512 original/PC/NXDK factory
+cases and251 callback/cache checks; bind scene instances and skin overrides.
+
+Skin glare metadata now matches504 PC/NXDK cases, including16 authored
+overrides; apply Yellowish runway-light WarmWedge overrides to live instances.
+
+Opening campaign now owns157 parented glares with67 skin overrides and
+clean native retirement; reconstruct glare update/visibility/frame selection/rendering.
+
+Original corona/reflection pass dispatch matches197 PC/NXDK cases; bind
+visibility-marker production and actual corona/reflection/volume geometry.
+
+Glare visibility-marker/volume queue collection now matches336 original/PC/
+NXDK cases; bind live room collection and reconstruct actual draw routines.
+
+Glare candidate occlusion now matches408 original/PC/NXDK cases plus12
+error cases; reconstruct cached world search and bind visible effects.
+
+Full original glare search audit passes2048 cases and identifies three
+cache fields; implement shared search with explicit cached-query initialization.
+
+Shared full glare visibility search passes1537 original/PC/NXDK cases;
+bind stable scene solid/face/actor services and corona scheduling/rendering.
+
+Preferred-face solid queries pass4400 original/PC/NXDK geometry cases;
+bind stable face tokens and finish texture-sensitive glare query handling.
+
+Texture-alpha thin collision passes6060 original/PC/NXDK cases; reconstruct
+UV/bitmap sampling and propagate it through scene solid queries.
+
+Collision UV interpolation passes8192 original/PC/NXDK cases; bind authored
+corner coordinates and reconstruct bitmap sampling for texture alpha tests.
+
+Bitmap sampling passes3072 original/PC/NXDK cases; adapt owned image
+storage and compose authored UV/alpha services into scene collision.
+
+Owned texture sampling passes2048 PC/Xbox cases without extra image
+allocation; compose authored corner UV/alpha sampling into scene queries.
+
+Authored UV/sample composition passes460720 faces across94 levels; bind
+actual texture/frame selection and live preferred/room/flat collision paths.
+
+Actual opening material sampling passes7418 faces with16 loaded textures;
+resolve USERBMAP runtime ownership (116 faces) and bind live collision sampling.
+
+Original USERBMAP audit passes50 constructor/3 loader cases; reconstruct
+fallback510470 pixels and verify runtime face replacement before parity claims.
+
+Owned original fallback pattern passes1024 pixels on PC/NXDK at4096 bytes;
+bind verified loader fallback policy and check runtime USERBMAP replacement.
+
+Initial USERBMAP fallback passes180-frame stock64MiB XEMU scene validation;
+propagate texture-alpha sampling through live collision and verify replacements.
+
+Textured sphere/face sweeps pass12000 original/PC/NXDK cases; carry the
+alpha service through tree/room/preferred traversal into scene queries.
+
+Textured collision trees pass5000 original/PC/NXDK cases plus5 guards;
+carry indexed sampling through room/preferred queries and bind scene resources.
+
+Textured local room queries pass5000 original/PC/NXDK cases plus8 guards;
+finish transformed/preferred/flat propagation and bind live scene sampling.
+
+Textured transformed room queries pass5000 original/PC/NXDK cases plus8
+guards; finish preferred/flat propagation and connect live scene resources.
+
+Textured flat collision passes5000 original/PC/NXDK cases plus6 guards;
+finish preferred-face sampling and bind scene-owned texture query services.
+
+Textured preferred-face and room/flat fallbacks pass4400 original/PC/NXDK
+cases; bind scene-owned materials, source-face IDs and glare visibility queries.
+
+Indexed collision-to-material binding passes7418 opening faces on PC/NXDK;
+retain scene sampler views/bitmap scratch and validate live world/mover queries.
+
+Scene-owned texture queries match PC/stock64MiB XEMU: 118 queries,118
+direct samples,32492 retained bytes and clean teardown; add targeted native
+alpha-contact coverage, preferred-cache services and live glare scheduling.
+
+Scene preferred-face round trips pass112 native PC/Xbox hits; connect glare
+cache tokens and validate alpha contacts on L1S2 (19 flagged references;
+L1S1 world has none), then complete visibility scheduling and rendering.
+
+Authored L1S2 alpha contacts now match stock64MiB XEMU: 6 transparent/32
+opaque samples across687 queries; bind glare visibility caches and scheduling,
+and verify runtime bitmap replacement before visual-parity claims.
+
+Glare solid-query adapter passes932 native PC/Xbox calls including600
+cached calls and cross-solid face reuse; bind registered actor/mover views,
+lookup callbacks and full visibility scheduling before rendering glares.
+
+NPC visibility views/model callback match38 native owners and31 direct
+hits; bind original488b20 post-render flag0x10 publication/clearing and
+room/owner callbacks before enabling full glare visibility scheduling.
+
+Shared object render dispatch matches352 original PC/NXDK cases and4
+callback failures with actual flag4000 skip; bind family rendering, then verify
+object flag0x10 lifetime and glare scheduling without an assumed frame clear.
+
+NPC render dispatch now applies live hidden/4000 gates and publishes0x10;
+native L1S2 matches720 family submissions/1656 skips and3 NPC occluders.
+Finish marker lifetime, room/owner callbacks and full glare scheduling.
+
+Glare actor equality uses the retained room token at object word0; constructor
+evidence resolves its ownership and1537 cases execute the getter unchanged.
+Bind moving-room refresh and remaining full-search visibility callbacks.
+
+NPC room-token/linked-actor facts match38 registered owners on stock64MiB
+XEMU; connect moving-room refresh and stable full-search lookup views, then
+complete glare visibility scheduling and rendering.
+
+NPC post-update room refresh passes stock64MiB XEMU with a restored room
+crossing; bind remaining movement publication/post-refresh family effects and
+full glare lookup/scheduling against the synchronized room owners.
+
+Prop room ownership now uses the same nonzero room tokens as NPC/player owners;
+bind the remaining glare lookup and render scheduling services.
+
+Registered prop visibility views/model queries now match stock64MiB XEMU;
+bind full scene lookup, marker publication and glare scheduling.
+
+Prop rendering now publishes verified object flag0x10 through shared dispatch;
+complete marker lifetime, scene glare lookup and visibility/render scheduling.
+
+Moving-solid visibility ownership now matches synchronized collision poses in XEMU;
+bind mover render markers and complete scene glare search.
+
+Original mover dispatch passes36 gate cases; split per-solid mesh submission
+from transactional world generation before binding its render marker.
+
+Mover mesh generation now uses transactional type9 dispatch and publishes live
+visibility markers; bind full glare scene search and audit marker clearing.
+
+Full glare search now resolves scene-owned geometry and caches in stock64MiB XEMU;
+verify original owner order/frame scheduling, marker lifetime and corona drawing.
+
+Alternating corona visibility refresh now matches1152 original/PC/NXDK cases;
+reconstruct attenuation/parent-room gates and bind the actual draw schedule.
+
+Inactive/occluded corona fade matches962 original/PC/NXDK cases; reconstruct
+visible attenuation and common sample publication/drawing next.
+
+Corona common draw tail matches400 original/PC/NXDK cases plus8 errors;
+recover visible attenuation and bind billboard/oriented geometry backends.
+
+Visible corona attenuation matches536 original/PC/NXDK cases; bind camera
+angle setup, flash submission and complete corona geometry/scheduling.
+
+Corona camera setup passes517 original/PC/NXDK cases; compose parent gates,
+refresh/fade/attenuation and flash/draw services into the corona routine.
+
+Corrected corona tail:411e00 packs mode0x06010c41, not graphics state/distance;
+compose the corona routine using the verified integer geometry mode.
+
+Composed corona routine matches259 full-original cases plus12 errors on PC/NXDK;
+bind scene parent/flash services and billboard/oriented geometry rendering.
+
+Immediate open items:
+- [ ] Connect native-verified scene-owned navigation nodes/tags/adjacency (opening333 nodes,760 connections,48360 bytes) to verified reset40a950/full ordered query40c2c0, bind original/PC/NXDK-verified full4991c0 visibility orchestration to verified factory-ordered actor/clutter/corpse owners (bind original/PC/NXDK-verified compact clutter records: opening39834 bytes, then bind original/PC/NXDK-verified shared full4104a0 class/model factory (512 cases plus10 NXDK errors; factory-facing class metadata verified for429 selectable classes; compact class ownership verified at55379 bytes for429 classes; material/glare/emitter lookup verified across510 cases; class resource binding verified for429 classes plus51 synthetic cases; archive-backed resource name catalogs verified at3589 retained/45199 peak bytes; archive-to-class loader verified for all431 authored rows at55610 retained/225520 peak bytes with one reusable row; scene-owned classes/catalogs and170 opening clutter records now match PC/stock64MiB XEMU at99033 retained/229109 peak bytes, with2 unmatched authored Pole Light 1 placements; original type4 generic allocation verified for256 model-boundary cases plus2 early failures and64 actual model-failure destructor/slot-recycle cases; shared489fe0 model attachment verified across512 original/PC/NXDK cases plus4 callback errors and3 guards; shared static/cached animated model creation sphere preparation verified across512 original-block/PC/NXDK cases plus3 guards; shared creation physics owner now verifies640 original/PC/NXDK cases including flags0/20 and existing corpse compatibility; concrete532-byte clutter base owner verifies266 PC/NXDK cases and126 complete original allocator cases, including cleanup and FIFO recycling; shared whole-static-model bounds verified for all427 installed V3M models plus258 synthetic cases (42 multi-submesh models), preserving95 animated-model checks; owned static-model filename/bounds/CSPH metadata verified for all427 V3M files (max576 retained/9368 peak bytes), static filename conversion matches1960 original cases; archive-backed static base adapter verifies all427 models across1290 PC/NXDK cases (max1348 retained/9900 peak bytes); existing static render geometry ownership now passes PC archive byte/budget checks for415 models/733 LODs (12 models containing23 alternate batches explicitly excluded; static projection52e1b5 now matches4000 original/PC/NXDK cases plus6 NXDK guards; complete static vertex loop52e11b now matches512 original/PC/NXDK batches including lighting/RGB/reuse and nonfinite normals; static stored-plane routing matches4096 original/PC/NXDK cases and clipping inputs match2000 cases plus guards; static triangle clipping/emission composition matches512 original/NXDK batches exactly (441 generated vertices/1302 indices), with PC float differences below0.00034 screen pixels and two RGB one-step differences still open; owned static render resources now pass415 PC models/733 LODs and35 compiled NXDK cases over the opening12 models (90904 retained bytes excluding textures); scene-shared12 static resources/168 placement bindings now match PC and stock64MiB XEMU at109416 retained/118208 peak bytes with full data hash3534861336; retained-row material loader matches file-backed PC conversion for13 models and combines opening23 rows into11 textures at843404 retained/845704 peak bytes; scene-owned clutter23 runtime materials/11 textures now match PC/stock64MiB XEMU including every decoded pixel at843456 retained/847688 peak bytes; shared static preview adapter now passes PC direct/near-clipped/stored-plane rejection and capacity tests with poisoned skeletal world caches; campaign now draws authored static placements through shared local views and transferred base textures with highest LOD and cached room culling; native180-frame spawn and60-frame door replays match PC prop vertex hashes (1506/1998 vertices), reuse444880 bytes of NPC scratch and add680 room bytes; owned post-conversion primary replacement loader now preserves all base material fields except texture handles across23 real rows and four override patterns, including case deduplication and exact/short budgets; per-placement authored skin material bindings now match independent opening archive selection and60-frame stock64MiB XEMU (12 appearances,168 bindings,67 Yellowish placements,23 rows/12 textures,909700 retained/915680 peak bytes); shared static render owners now also retain authored CSPH names/parents/spheres (415 models/223 spheres and60 compiled NXDK cases verified), with opening resources matching stock64MiB XEMU at110968 retained/119760 peak bytes; shared static base adapter now matches archive-backed owner/physics bytes across415 models and830 PC comparisons, with9 compiled NXDK lifetime/allocation-failure cases; campaign now retains168 registered clutter base owners with149 physics-enabled bodies/173 spheres, matching independent authored counts and180-frame stock64MiB XEMU at94372 bytes with complete retirement; rendering reads owned transforms/rooms; bind full class factory effects, family lists, original global creation order and live collision participation next; original factory visibility, glare bindings, dynamic LOD/lighting and device-state parity remain unverified); geometry/textures/shared render-model handles, full factory/effect ownership and live integration remain open; authored flags verified for431 declarations and all512 masks; class defaults/model kind verified across256 original parser-prefix cases) using PC/NXDK-verified clutter model/skin metadata (429 selectable classes,494 authored selections; original410b60 verifies first-match lookup), bind original/PC/NXDK-verified410d30 skin/material/glare selection and successful creation order) and model/world geometry, then AI reselection408ac0; complete ground dispatch, moving region entry, factory and attachment lifecycle remain open.
+- [ ] Connect native-verified registered-NPC body sweeps and swept-bounds/contact preparation49f8aa/49fd84 to NPC physics scheduling; bind complete original/PC/NXDK-verified49d7e0 SP contact orchestration to live stance/ground (compose verified4a0a5c support finish with native-verified retained NPC ground queries/fall transitions, native-verified registered NPC49cd80 force suppression/nonlethal damage binding and class128 impact audio, completing lethal damage effects and associated-player feedback, and original/PC/NXDK-verified419830 landing orchestration with live sound/player-flag, native-verified registered NPC standing/crouch with required ground services and post-ground clock publication, remaining normal/slow/special and relative callbacks), player-flag, crush and impact-damage backends using native-verified NPC speed/motion request bindings and resolved actor75c attachment, attach native-verified registered player/NPC response publication to scheduled pair processing, extend binding to other actor families, then dispatch responses and publish flags even on general-response deferral returns.
+- [ ] Bind verified pair processor48ca60 to live scheduling and contact/response effects after PC/stock64MiB XEMU verification of registered NPC/player views and borrowed player model publication; connect native-verified registered player/NPC48ca60 normal/general/model dispatch (27 staged calls, including reversed model pairs) to live pair scheduling, then extend native-verified NPC support-velocity refresh to accepted live support ownership, bind verified model dispatcher503120/5031f0 to native-verified owned static geometry queries, then bind original-verified54e140 coordinate preparation and prepared type2 geometry, bind native-verified static collision resource residency and queries to live scene owners, and decode remaining110c21 rendering batches while preserving original-verified authored NaN-plane rejection, and bind original-verified skeletal matrix-refresh/query composition to evaluated NPC poses through native-verified registered-model collision caches (78 owners/6501 refreshes with complete retirement), and connect native-verified actor/model contact publication (49afe0 through5031f0 and retained NPC geometry; player/NPC callers) to pair scheduling, extending native-verified stationary NPC demand evaluation to moving actors while establishing any nonzero pending-root producer (direct reference audit found none), and dynamic LOD selection, then bind solid response49b570 to geometry/cache services and extend model response49afe0 beyond retained player/NPC callers, add trigger/projectile views and moving NPC orientation ownership, bind original-verified full object-family classification48be00 to live eligibility and owner facts, bind original-verified four-plane producer48bbe0 to projectile discovery and live owner lookup.
+- [ ] Compose registered-NPC death entry with collision teardown and remaining stages; connect the original-verified 8192-record collision pool after binding original-verified full classification48be00 (including actual trigger creation eligibility48c8e0) to live family/owner facts, binding original-verified allocation-order object lists (4872eb/4867bc), connecting verified authored section dispatch and original/PC/NXDK-verified shared entity-record creation stage (including immediate endgame secondary allocation) to actual per-handler factories and post-load player creation, then binding the original-verified discovery traversal to object-list ownership and creation/unhide scheduling.
+- [ ] Bind complete death scheduling and effective class views after the composed base NPC death-animation/action-sound fixture passed PC and stock64MiB XEMU; extend beyond the single authored miner case.
+- [ ] Connect the tested registered-model bone-clear adapter to full death dispatch and recover original override producers, then verify enabled overrides in XEMU; baseline stock64MiB replay passes with the new storage.
+- [ ] Compose the verified ordinary-SP death stages using the retained NPC death fields, composed base/unarmed animation stage and tested registered-NPC tail adapter, completing remaining shared field ownership, accounting for the 6fc4d8 alternate-mode gate and remaining live resource callbacks.
+- [ ] Reconstruct riot-shield impact-mark allocation/clipping/rendering and bind verified player-slot cleanup to the original-audited 50-mark/150-polygon/500-vertex pools.
+- [ ] Connect the authored-tested file-tag/room-query/shared-lightmap source composition to death dispatch and bind room queue scheduling; isolated authored texture/growth draws now pass PC and stock64MiB XEMU, while campaign source ownership and queue scheduling remain open.
+- [ ] Recover generic cached CSPH tag parent initialization/placement; the95-model original audit clears cached-tag precedence for all190 corpse eye/spine queries.
+- [ ] Complete live corpse creation dispatch; registered NPC corpse sources/lookups now use selected motion/declaration views, including weapon overlays.
+- [ ] Connect the authored-tested owned corpse constructor and class-input binding to live death dispatch and resource effects; bind the authored-tested corpse update adapter to live dispatch, replacement materials and moving room lookup.
+- [ ] Enable authored-class sphere transfer and tested corpse transition/refresh in live dispatch and recover attached item creation/handle publication and bind the tested item world-pose callback to live owners.
+- [ ] Bind verified corpse retention/fade/update/deletion and30-slot allocation to live creation and owned resource backends; five eligible bodies trigger fading.
+- [ ] Connect native-verified burn retarget/release to live corpse inheritance after corpse ownership is reconstructed.
+- [ ] Bind verified finalization418f80 and its owned-corpse creation adapter to live actors, burn/player owners, geometry queries and deferred deletion.
+- [ ] Connect the native-verified registered NPC/player death-clearance query to complete death-start and moving-NPC orientation ownership.
+- [ ] Complete death-start41fdc0 around the verified early player/timer stage41fe5f..41feed, death-animation handoff, configured-item drop linked-actor handoff4204a1..4205e8 and SP tail cleanup420b03..420bdc, bind real item allocation/query/bounds and connect the verified SP weapon-drop42ae10 resource callbacks and shared inventory removal4031a0, bind verified player-mode fields and player-specific cleanup including riot-shield impact marks, bind the verified shared dying-update41ee40 to live owners and recover their player/camera handoff; dead/dying queries, death-entry state, collision-pair retirement and death-action selection are verified; live clearance integration, playback and remaining death effects are open.
+- [ ] Extend integrated player damage/pain/death audio to authored callers and recover death animation, camera, game-over and respawn ownership.
+- [ ] Attach the verified event-to-player damage/flash/camera binding to authored activation with complete player pain audio/death reactions and camera-mode lifecycle; add weapon damage and verify HUD/pause presentation timing.
+- [ ] Complete NPC settling/fall/landing with moving support, a live damaging/audio impact case and full original scheduling; the first-pass idle static-floor path now dispatches the reconstructed impact handler on Xbox, while deeper diagnostic sweeps find floors below all24 opening-level short-probe misses.
+- [ ] Complete NPC distance LOD selection, actor visibility/draw gates, lighting and moving room membership.
+- [ ] Connect NPC AI/state reselection, weapon overlays and footstep consumption; broaden startup beyond audited opening classes.
+- [ ] Connect verified impact amount and force-region suppression to NPC contact ownership and the shared damage backend using registered skeletal owners.
+- [ ] Connect real event/fall/weapon damage sources to the registered NPC adapter, implement pain/death/burn/AI effects and broaden lethal/reentrant coverage.
+- [ ] Extend verified NPC flinch/pain playback beyond the two-hit fixture to real damage callers, weapon reset, armed overlays, death and AI.
+- [ ] Wire NPC world/support callbacks into the shared standing transition and normal/slow landing, then special class effects.
+- [ ] Verify live NPC action transitions and sustained cache pressure on Xbox; selected clips load within budget and zero-reference payloads can now be evicted.
+- [ ] Independently verify live ambient scheduling and gain decisions against the original runtime.
+- [ ] Connect the verified burn attachment backend to persistent NPC owners and complete live burn resource ownership.
+- [ ] Connect live Switch effects/playback (rejection PCM is prepared) and establish whether/when original linked initialization executes.
+- [ ] Extend the verified Continuous_Damage-to-NPC/player path to authored activation, complete reactions and other target families; implement hostile-source AI separately.
+- [ ] Resolve the L1S3 pressure-test route after fixing its 14 static ray errors, complete audio category settings, and recover light ownership.
+- [ ] Verify grounded force re-entry/flag clearing, extend force ownership beyond the player and recover full frame/RNG ordering.
+- [ ] Verify per-frame lift support identity, horizontal dismounts, use-input scheduling and linked-object use interactions.
+- [ ] Complete APU failure cleanup auditing and real-hardware validation.
+- [ ] Implement sound metadata persistence across level transitions and reconcile release scheduling and borrower completion after verifying cache reset and its count-based lookup limitation.
+- [ ] Complete controller audio groups/loop metadata and validate interactive PC/Xbox playback.
+- [ ] USER: Listen to the PC --campaign diagnostic and report dropouts or unexpected volume/pan changes.
+- [ ] Complete moving-platform carry/response and extend door traversal beyond the staged fixture.
+- [ ] Complete controller sound/alert/wakeup effects, rotation and remaining key-target actions.
+- [ ] Complete event actions, delayed ticking and remaining target families beyond recursive startup dispatch.
+- [ ] Complete particle rendering for animated textures, stretched sprites and mixed room/object passes.
+- [ ] Connect dynamic particle ownership, event mutations and shared campaign random state.
+- [ ] Extend native campaign coverage beyond the four verified gravity-level startup replays.
+- [ ] Recover jump audio ownership and validate authored traversal.
+- [ ] Verify the route from the authored player spawn and the upper climb exit after the near-base approach replay.
+- [ ] Fit campaign texture residency within stock Xbox memory and add animated VBM/mip rendering.
+- [ ] Recover original player-view behavior and address camera collision while connecting campaign player input.
+- [ ] Replace diagnostic miner placement with the verified level player start through reconstructed player creation.
+- [ ] Integrate class eye offsets into the player lifecycle and replace scripted stance eligibility.
+- [ ] Capture and replay any further interactive exits; the historical tick-99 cause remains unproven.
+- [ ] Reduce the remaining world-projection cost and avoid projection work on catch-up ticks.
+- [ ] USER: Verify PC look, crouch, focus loss, resizing and Escape exit; basic movement is user-confirmed.
+- [ ] USER: Check campaign jump (Space/A), crouch, controller reconnect and Back+Start exit when testing the interactive build.
+- [ ] Complete entity registration and the single-player runtime under the stock 64 MiB limit.
+- [ ] USER: Review PS2 visual parity and test real hardware after representative XEMU gameplay is stable.
+
+Controller propagation, support refresh and position commit now bracket physics;
+PC/XEMU door replay passes, while an authored lift carry replay remains open.
+
+Campaign now declares88 global sounds before controller PCM; native door replay
+retains only four waveforms and verifies124024 bank bytes with unchanged output.
+
+Sound-table reader/archive loader pass20 cases with all88 owned rows intact;
+native archive I/O and campaign registration now pass; level transitions remain.
+
+Metadata-only bank registration passes PC and native136-byte-budget checks;
+connect global sound declarations and campaign residency policy next.
+
+PC selective voice release passes protected-source-page testing with independent
+playback continuing; shared campaign residency policy still needs integration.
+
+Xbox selective release and injected stopped-observation failure/retry pass three
+native cycles; actual hardware-stall coverage and campaign residency remain open.
+
+Native64MiB APU residency passes three playback/unload cycles and two reloads;
+bank accounting drops57150 to136 bytes, while automatic campaign policy remains open.
+
+Original counter-gated cleanup verified over55 voice slots; keep flag forwards
+unchanged and does not change voice selection, while counter balancing remains open.
+
+Original pre-level sound counter update verified across2600 slots; recover
+counter balancing and cleanup scheduling before persistent residency integration.
+
+Sound-table inventory finds one controller overlap across68 levels (L14S3
+Switch_01.wav); startup/level ordering still needs verification before integration.
+
+Initial audio gains now precede playback on PC/Xbox; muted-start checks and
+stock64MiB integrated door replay pass with unchanged spatial telemetry.
+
+PC campaign audio now uses shared voices on a bounded device-clock backend;
+two refill/stop/reopen checks pass with9220 fixed bytes plus host overhead.
+
+Closing/reversal spatial replay also passes stock64MiB XEMU with694 listener
+refreshes and390 changed settings matching PC; PC device backend remains open.
+
+Live Xbox spatial gains now follow gameplay listener pose; stock64MiB door
+replay matches PC settings with APU output, while unity PCM remains diagnostic.
+
+Gameplay listener-pose calculation is separated from projection and diagnostic
+camera overrides; connect refresh at this once-per-frame pose boundary next.
+
+Original refresh path passes80 end-to-end setter cases and confirms no
+default-sample gain reapplication; listener pose scheduling remains to connect.
+
+Original listener refresh505ec0/5058c0 traced; resolve pose timing and
+initial-versus-refresh sample gain before connecting campaign spatial updates.
+
+Production audio adapter and shared mixer now support logical-handle gain
+updates without restart; native adapter calibration passes, listener calls remain.
+
+Native APU intermediate gain/pan calibration passes at -6/-20dB volume and
+10dB side attenuation; live campaign listener wiring remains open.
+
+Device attenuation-to-channel amplitude adapter passes76 PC/NXDK cases;
+native gain calibration and campaign listener wiring remain open.
+
+Shared C device volume matches17584 original PC/NXDK lookups using202 bytes
+of constants; Xbox gain conversion and live wiring remain open.
+
+Original device volume tables and quantization pass202 entries/17584 lookups;
+mode-flag meaning and conversion to Xbox gains remain open.
+
+Native APU running-voice left/right/mute routing passes DSP checks without
+restarting playback; original gain conversion and listener wiring remain open.
+
+Campaign banks retain first-registration controller volume/range/rolloff within
+the memory budget; global table ordering, loop flags and playback use remain open.
+
+Shared far-cutoff C matches4221 original PC/NXDK cases; registration ordering,
+category gain and live metadata loading remain open.
+
+Controller registration range/volume and derived far cutoff traced in original;
+verify category gain, first-registration ordering and filesystem playback metadata.
+
+Shared positional audio now matches6688 original PC/NXDK cases, including
+general directions after correcting normalization precision and dot-product order.
+
+Shared positional C matches original PC/NXDK outputs for2592 axis-aligned
+cases; general directions, metadata and live listener integration remain open.
+
+Original positional audio passes2592 axis-aligned cutoff/gain/pan cases with
+unchanged helpers; shared C comparison and general-direction cases remain next.
+
+Original positional audio attenuation and sample-mode branch located; verify
+505740 arithmetic and 522530 playback semantics before spatial integration.
+
+All ten APU initialization allocation-failure boundaries restore pages in XEMU;
+subsequent successful initialization and sixteen-voice playback still pass.
+
+Production APU adapter passes sixteen overlapping voices with DSP output,
+overflow rejection, slot reuse and stale-stop protection; shutdown restores pages.
+
+Live campaign APU output passes stock64MiB XEMU door and closing/reversal
+replays; hardware playback uses its own clock and reset releases PCM references.
+PC gameplay/PCM checks remain matched; spatial audio and PC device output remain open.
+
+APU static replay, eight stop/recreate cycles and backend reinitialization
+pass stock64MiB XEMU with restored pages; campaign wiring remains next.
+
+Isolated APU voice/DSP output and clean shutdown pass stock64MiB XEMU;
+44 allocated pages return; campaign integration and PC device output remain open.
+
+Live controller PCM now matches PC/stock64MiB XEMU; independent full-stream
+reference passes; spatial parameters and audible device output remain open.
+
+Owned deduplicated PCM bank passes PC lifetime/budget checks; two door
+files retain93402 bytes; scene audio wiring and native output remain open.
+
+Shared836-byte audio mixer passes144 PC/NXDK cases; live controller audio
+ownership, spatial parameters and platform playback remain open.
+
+Bounded PCM resource parsing passes81 PC/NXDK cases; door samples need
+93024 PCM bytes; missing loop-name resolution, mixing and audio output remain open.
+
+Corrected the staged approach axis; traversal and occupied closing reversal
+now pass on PC/stock64MiB XEMU; authored-spawn route and effects remain open.
+
+Live lower-door opening and occupied hold now pass on PC/stock64MiB XEMU;
+traversal, live reversal coverage, sound and broader controller effects remain open.
+
+Live player contact now starts both lower-door controllers on the same PC/XEMU
+tick; motion ticking and retained activation effects remain unconnected.
+
+Controller translation reversal matches4096 original/PC/NXDK cases;
+live occupancy-gated hold/reversal and controller effect wiring remain open.
+
+Door occupancy scanning now matches2048 original/PC/NXDK cases; live
+source-trigger ownership, hold timing and closing reversal remain open.
+
+Authored lower-door motion matches840 original/PC/NXDK ticks; both start
+together, open at142/144; live occupancy/reversal and effect wiring remain open.
+
+Owned trigger activation can now dispatch ordered controller/event backends;
+live controller effects and motion ticks remain unconnected.
+
+Live default-player trigger readiness now matches PC/XEMU at the lower door;
+179 ready ticks, no activation yet; remaining filters and controller effects stay open.
+
+Campaign player now shares a registered handle across object/entity view registries;
+XEMU door replay passes; class classification and trigger polling remain open.
+
+SP trigger-link routing matches1024 original/PC/NXDK cases; lower trigger8542
+links controllers8593 then8591; player polling and live activation remain open.
+
+Staged lower-door replay now records111 mover contacts on PC and stock64MiB
+XEMU with exact final contact metadata; opening and authored traversal remain open.
+
+Eight authored-spawn PC approaches reached only static contacts; the2250-frame
+door-direct route stops near Z10, short of lower movers near Z-19; inspect route/stage next.
+
+Campaign ground queries now include movers with per-query contacts and support
+commits; L1S1/L2S1 XEMU replays pass; targeted mover contact/carry remain unverified.
+
+Landing support/contact velocity rebasing matches 4096 original/PC/NXDK
+cases; mover-aware ground records and scene support lifetime remain open.
+
+Static/mover support commit matches 2048 original/PC/NXDK cases, including
+rising-platform height correction; ground-query and support-state wiring remain open.
+
+Campaign player sweeps now query registered movers and static world with authored
+materials; L1S1/L2S1 XEMU replays pass; ground support and moving response remain open.
+
+Body-sweep surface callback resolves authored material prefixes and shared texture
+slots; 29 PC/NXDK checks pass; scene ownership and live sweep wiring remain open.
+
+Owned mover/world geometry now adapts to body sweeps with source identities;
+11 PC fixtures pass; real surface resolution and live scene integration remain open.
+
+Body-sweep composition now matches 11 original/PC/NXDK ordering fixtures;
+geometry ownership adapters, live player sweeps/support and response remain open.
+
+Original full body-sweep ordering is captured in11 analytic fixtures; preserve
+full displacement, shrinking limits/bounds and later-hit ties during integration.
+
+Mover hit output and velocity/identity metadata match 2048 original/PC/NXDK
+cases; ordered selection, physical response and live sweep wiring remain open.
+
+Player sphere preparation in mover space matches 4096 original/PC/NXDK cases;
+contact selection/response, mover velocity and live sweep wiring remain open.
+
+Scene controller membership now binds registered movers and pose flags; L1S1/
+L2S1 XEMU replays pass, with motion dispatch and mover collision still open.
+
+Scene movers now register owned poses used by rendering; L1S1/L2S1 stock64MiB
+XEMU replays pass, with controller membership and mover collision still open.
+
+Combined activation matches the full original function in 1024 PC/NXDK cases;
+live actor/mover commits, audio/AI backends and scene motion remain open.
+
+Controller player-alert gating matches 2048 original/PC/NXDK cases; AI stimulus
+execution, live snapshots and combined activation remain open.
+
+Registered mover-bound collection matches 1024 original/PC/NXDK cases; live
+mover ownership, pose updates, player effects and activation integration remain open.
+
+Controller wake flags match 2048 original/PC/NXDK object-list cases; live mover
+bounds, player effects and combined scene activation remain open.
+
+Controller start-sound selection and handle retention match 2048 original/PC/
+NXDK cases; audio loading/backend, player/wakeup effects and live wiring remain open.
+
+Controller activation eligibility/backlinks and motion selection match 4096
+original/PC/NXDK cases; sound/player/wakeup effects and live activation remain open.
+
+Scene controller/key links pass stock 64 MiB XEMU replays in L1S1 and L2S1,
+including two key-owner fallback links; activation and mover binding remain open.
+
+Actor resolution/contact/delay/activation passes the 13-event stock 64 MiB
+XEMU replay with exact PC traces; live actor and mover-key registration remain open.
+
+Owned triggers now retain authored volumes and contact timers; enter/leave/
+re-entry polling passes PC integration, with live scene wiring and native replay open.
+
+Authored volume preparation matches all 2367 original/PC/NXDK triggers,
+including matrix/dimension axis order; live contact integration remains open.
+
+Combined eligibility/contact/delay polling matches 4096 original/PC/NXDK
+cases; connect live snapshots and remaining key/player activation gates.
+
+Trigger actor facts now resolve through shared entity views and match 2048
+original/PC/NXDK cases; live snapshot updates and contact polling remain open.
+
+Registered trigger activation passes all 13 authored Particle_State events in
+stock 64 MiB XEMU with PC-identical traces; natural contact/key gates remain open.
+
+Explicit runtime trigger firing now reaches shared event dispatch and preserves
+self-disable changes; natural actor/contact/key integration and XEMU replay remain open.
+
+SP activation bookkeeping matches 2048 original/PC/NXDK cases with mutable
+dispatch; player-field gates and live actor/link integration remain open.
+
+Contact-delay cancellation, arming and expiry match 1504 original/PC/NXDK
+cases; key gates, live actor state and final trigger activation remain open.
+
+Both box-trigger contact branches match original/PC/NXDK execution, including
+directional face coverage; live actor inputs, dwell/key gates and firing remain open.
+
+Oriented segment/box contact matches 4016 original/PC/NXDK cases plus 80
+invalid guards; directional trigger contact and live activation remain open.
+
+Spherical trigger contact matches 4016 original/PC/NXDK cases plus 80 invalid
+input guards; box contact and natural gameplay activation remain open.
+
+Trigger eligibility matches 4096 original/PC/NXDK cases; live actor predicates,
+contact detection and gameplay activation still need integration.
+
+All 13 authored Particle_State events across six levels pass PC and stock
+64 MiB XEMU replay, with exact timing/state traces and final memory recovery.
+Natural campaign trigger activation and visible effects remain open.
+
+Particle_State now runs through immediate and delayed event dispatch; PC
+integration fixtures and the stock 64 MiB XEMU regression replay pass.
+Visible authored Particle_State activation still needs native validation.
+
+Stretched geometry and clipped submission match original/PC/NXDK fixtures; six
+stock 64 MiB XEMU GPU fixtures match all 1536 PC pixel samples exactly.
+Campaign-spawned stretched effects and mixed room/object passes remain open.
+
+Level particle rendering now selects retained animation frames using particle age.
+All 20 emitter levels and the stock 64 MiB scene replay pass; retained explosion
+frame pixels and page recovery pass XEMU. Campaign effect spawning remains open.
+Current L1S1 particle ownership is 238920 bytes; maximum authored level is 484864.
+
+Live L1S1 mist now renders on PC and stock 64 MiB XEMU; the inspection replay
+submits 1308 polygons with matching cumulative draw-packet hashes.
+A new PC diagnostic capture shows the mist source; full visual parity is open.
+
+Particle/emitter room collection matches 128 original/PC/NXDK fixtures, including
+parent transforms and queue limits; initial live frame submission now passes.
+
+Queue append and sphere rejection match 256 original/PC/NXDK cases, including
+all 2048 slot bytes; initial live emitter/particle collection and submission pass.
+
+Ordinary render queue distance keys and dispatch order match 44420 original/
+PC/NXDK entries. Plane grouping and room-height splits each match 22210
+entries; mixed-object queue loading and room-surface integration remain open.
+
+World billboard transformation, center acceptance and clipped submission match
+the original executable in 1024 PC/NXDK cases. Live draw-queue integration
+remains open, including emitter grouping and blending with scene objects.
+
+Static level particles now tick on PC and stock 64 MiB XEMU: the inspection
+replay creates 28, expires 18 and retains 10, with matching final 64 tick records.
+Initial mist drawing passes PC/XEMU; broader particle rendering remains open.
+
+Native moving-camera visibility passes 664 frames on stock 64 MiB XEMU,
+with final camera/eligibility telemetry matching PC and 13084 owned bytes.
+
+Camera setup, lazy portal projection, cache reset and room traversal now run
+together and match original/PC/NXDK replays, including changed-camera reuse.
+Owned initial room predicates and primary-list mapping now match all 94 levels;
+the moving-camera scene now updates visibility. Static level particle ticking
+passes PC/XEMU; runtime room mutations remain open. Authored collision skip flags are connected.
+Level visibility uses 13084 bytes in L1S1, max 37212, including traversal scratch.
+
+Owned portal graphs cover all 94 levels (2862 portals); L1S1 uses 1408 bytes,
+max 6260. Visibility traversal keeps its fixed 7196-byte scratch budget.
+
+Both original emitter passes use the same collection and room eligibility;
+12 loop replays confirm order and 189 calls, independent of emitter enable.
+Emitter bounds finalization matches 2048 original/PC/NXDK cases.
+
+Owner-gated particle simulation matches 2048 original/PC/NXDK cases, including
+768 frozen cases with previous-position updates; campaign lookup wiring remains open.
+
+Shared level runtime loads all 87 emitters across 20 levels with verified
+room/texture bindings and exact budgets (L1S1 238932 bytes; max 484908 bytes).
+PC ownership/cleanup and native static-level ticking pass; dynamic campaign wiring remains open.
+
+All emitter positions resolve to rooms; persistent shared texture bundles pass
+20 levels with exact budgets (L1S1 16624 bytes; largest 262600 bytes).
+
+Level A00 reader decodes 87 emitters across 20 installed levels; template
+conversion matches 174 original/PC/NXDK replays with preserved-field checks.
+
+Shared fixed emitter pool matches 320 original/PC/NXDK allocations, 192 releases
+and two full-pool failures; 128 slots use 29184 bytes with FIFO reuse.
+
+Fresh emitter defaults match all 128 original static entries on PC/NXDK;
+slot reuse remains distinct from first-use zero initialization.
+
+Shared emitter initialization matches 1024 original/PC/NXDK cases, including
+immediate emission before caller enable assignment and retained runtime fields.
+
+Parentless and attached emission each match 2048 original/PC/NXDK cases,
+including transforms, inherited velocity, packet, particle, RNG and timer.
+Connect resolved campaign parent views, scheduling, simulation and rendering.
+Combined emitter update matches 2048 full original/PC/NXDK cases, including
+393 phase changes, 489 emission attempts and post-emission parent-room refresh.
+Emitter-linked unowned simulation matches 2048 original/PC/NXDK cases, including
+1083 expirations and 455 bounds expansions; owned/world interactions remain open.
+
+Real boom01 frames 0/7/15 pass six PC/XEMU draws: 1536 samples differ by at
+most one RGB unit, and guest pages return to baseline after image release.
+Connect live emitter/frame scheduling and campaign depth/placement to both passes.
+
+PC particle rasterization now matches all twelve native XEMU probe colors;
+CTest checks quad interiors/shared edges and unchanged depth for those cases.
+Connect both particle passes to campaign effects and real animated textures.
+
+Xbox particle backend passes twelve stock-64-MiB XEMU pixel probes for blend,
+fog, alpha and depth; native testing fixed a missing secondary-color enable.
+Connect Xbox/PC campaign passes and validate animated texture sampling/depth mapping.
+
+Particle draw-vertex conversion now matches 4096 original/PC/NXDK cases,
+including ARGB, optional color transform, fog rounding and depth/UV scaling.
+Connect the separate 32-byte particle format to texture binding and GPU drawing.
+
+Particle geometry submission now matches 2048 full original/PC/NXDK cases,
+including clipping, projection and depth override (1178 submitted, 870 rejected).
+Connect texture residency, color/fog conversion and native backend drawing.
+
+UV-only particle polygon clipping now matches 2048 original/PC/NXDK cases,
+including temporary-vertex reuse, duplicate intersections and six input guards.
+Connect clipped vertices to projection, depth override and native drawing.
+
+Billboard preparation now matches 2048 original/PC/NXDK packets, including
+radius-dependent submission depth and clip masks (832 culled, 32 partial).
+Connect clipped polygons to projected/depth-adjusted backend submission.
+
+Particle blend/depth/fog state selection now matches 3780 original/PC/NXDK
+cases, including preserved state and capability fallbacks; 3780 original cached
+repeats issue no writes. Particle default selection matches 1031 cases; texture
+source 2 matches 4096 cases plus 31 unsupported-source guards. Connect clipping,
+residency and backend submission before claiming rendering.
+
+Particle point projection matches 648 original/PC/NXDK cases, including
+cached flags, clamp behavior and reciprocal-only depth adjustment. Polygon
+clipping, remaining texture-state recovery and backend integration remain open.
+
+Camera-space particle billboard geometry now matches 1024 original/PC/NXDK
+cases, including aspect correction, rotation and submission-order UVs.
+Connect clipping, depth handling, blending and texture residency to drawing.
+
+Particle animation frame selection now matches 2880 original/PC/NXDK cases
+for lifetime, loop and hold-last modes, plus six invalid-input guards.
+Connect selected frames to bounded bitmap residency and particle drawing.
+
+Native 64-MiB XEMU replay 20260910-085856 matches all 2057 particle-step
+fixtures against PC, including rejection cases. Five native x87 checkpoints
+report 0x027f, confirming the 53-bit harness setting for this Xbox build.
+Integrate owner/collision/wind/damage paths and visible scene effects next.
+
+Shared fixed particle pools now match 3679 original/PC/NXDK replay operations,
+including 1829 allocations/recycles, saturation and emitter detachment.
+Seven complete state snapshots agree. Storage uses 1600 120-byte records;
+connect emitter execution, particle simulation and scene rendering next.
+
+Emitter phase duration and RNG advancement match 1140 original/PC/NXDK
+cases: one draw even at zero variance, draw/32768 and 0.1-second clamp.
+Emitter update decisions now match 2560 original/PC/NXDK cases, including
+592 phase toggles and 609 emission requests. Creation, actual emission,
+parent attachment and spawn-timer reset remain open.
+
+Central explosion timing now matches 700 original/PC/NXDK update cases,
+including 164 expirations and process-before-release ordering. Trail updates,
+emitter creation/processing and scene-clock integration remain open.
+
+Central explosion size gating and velocity/radius/lifetime scaling match
+600 original/PC/NXDK cases. Shared preparation returns an owned copy and
+random-position extent without mutating definitions. Position sampling,
+emitter creation, scheduling and live rendering remain open.
+
+Native 64-MiB XEMU replay 20260910-081353 verifies all nine loaded explosion
+definitions and charge_explode against PC hashes; campaign/resource checks
+pass. Original emitter lookup passes 146 cases and confirms the authored
+explosion random bits 2 sparks name is absent, leaving rocket hit mask 63.
+Connect bitmap residency, scheduling and live execution next.
+
+Owned vclip definition loading now passes 126 PC/NXDK named checks across
+63 declarations and 63 scratch-budget rejection checks, including embedded
+particle metadata. Case-only duplicate glassboom/Glassboom resolves first.
+charge_explode retains rocket hit and Medium Explosion names. Explosion recipe
+loading, Foley resolution, playback and active simulation remain open.
+
+Native particle resource lifetime was verified in 64-MiB XEMU replay
+20260910-075740: six frame loads match PC hashes and physical pages return
+to baseline. This is pre-scene testing, not peak campaign residency.
+
+The shared Explode request emitter now matches 432 original cases on PC and
+compiled NXDK. Effect-name lookup, scene dispatch and request consumers remain
+open; scene explosions are still counted as unsupported.
+
+Explode request routing is recovered: 288 original-action cases verify geometry
+request gating followed by general explosion arguments. Shared effect lookup,
+request execution, geometry changes, rendering/audio and damage remain open.
+
+Delay (48) now expires and propagates in native Xbox: L1S1 UID 9495 reaches
+Explode UID 9466 after five simulated seconds in 320-frame replay
+20260910-071141. Explode effects remain unsupported; no visual explosion yet.
+Original Delay execution passes 72 cases; 93 startup graphs still pass.
+
+Delayed Invert/Set_Gravity now tick after physics on the shared fixed-step
+clock. Three expiry-chain fixtures and native 64-MiB XEMU clock replay
+20260910-070755 pass; other scheduled event types retain pending deadlines.
+No reachable authored startup currently schedules these two delayed types.
+
+Invert (type 3) now dispatches opposite actions with the original actor/source
+semantics. Original 192 cases, five shared recursion fixtures and 93 authored
+graphs pass; L1S1 exercises it in 64-MiB XEMU replay 20260910-070306.
+Mover/auxiliary effects and delayed event ticking remain open.
+
+Recursive startup now follows event links and enables/disables trigger targets.
+All 93 authored graph checks and sibling/re-enable/cycle fixtures pass; native
+64-MiB XEMU L1S1/L17S1 replays 20260910-065717/065759 match PC. Unsupported
+actions, delayed ticking and other target families remain open.
+
+Owned event target resolution is connected to scene loading: all 4,901 links
+across 93 levels pass, with 1,964 resolved and 2,937 awaiting other families.
+Native 64-MiB XEMU replay 20260910-065321 matches the PC ordered target hash.
+Recursive propagation and generic runtime dispatch remain open.
+
+Original generic target routing now passes 720 execution fixtures, including
+event off-source behavior, trigger enable/disable, stale handles and mover
+suppression with fallback. Shared dispatch and event-link resolution remain
+open; the evidence is in event-target-dispatch-verification.json.
+
+Ordered event-link walking now matches original 4b8b00 in 700 PC/NXDK cases,
+including callback list mutation and mode handling. Event target resolution,
+generic target dispatch and recursive scene propagation remain open; startup
+still reports outgoing event links as pending. No new visual behavior claimed.
+
+L18S1 world loading is fixed: absent mover sections are valid and now produce
+an empty retained mover owner. The old -3 error was RF_NOT_FOUND, not RF_FORMAT.
+All four rendered PC and stock 64-MiB XEMU gravity-level checks pass for 16
+idle ticks. The Xbox preflight also accepts absent group/mover sections.
+Existing malformed mover data is still rejected. Native reports 20260910-064208,
+064231, 064257 and 064322 cover L18S1 and L17S1-3 respectively; these are startup
+checks, not campaign completion or visual-parity evidence.
+
+Startup auto dispatch now activates registered events and applies Set_Gravity
+in the scene, while counting unsupported actions/targets, scripts, propagation
+and delayed work. All 93 shared startup fixtures pass. Rendered PC L17S1-3
+apply 4/3/4 gravity; L18S1 applies 9.8 after the loading fix above. Default 64-MiB
+XEMU replay 20260910-062922 passes with matching startup diagnostics.
+
+Runtime trigger targets now resolve against registered events/triggers while
+retaining raw UIDs: 2,809 of 4,471 links resolve, including all four gravity
+links; 1,662 await other object families. The native ordered-target hash and
+jump replay pass in 64-MiB XEMU (20260910-062500). Startup dispatch is open.
+
+Campaign triggers now share the event registry with bounded ownership and
+retained raw links. All 2,367 triggers pass ownership checks across 93 levels;
+64-MiB XEMU replay 20260910-062110 passes with both owners active. Resolving
+links and dispatching startup actions remain open.
+
+Campaign loading now owns decoded events and registered common runtime
+objects. All 4,446 records across 93 levels pass ownership/budget checks;
+64-MiB XEMU replay 20260910-061740 passes with 184 L1S1 events (219,436
+owner bytes plus 12,300 registry bytes). Trigger dispatch remains unconnected.
+
+Shared event-name lookup now recognizes all 90 original types and matches
+544 original cases on PC/NXDK. This supplies IDs for general registration;
+recognizing an event does not implement its action or startup dispatch.
+
+Authored trigger initialization now matches 2,367 installed records plus
+243 flag cases on PC/NXDK. Timing conversion remains exact across three
+x87 precision modes; 0.01f truncates to 9 ms as in the original. This supplies
+startup state from level records, but registry/dispatch integration is open.
+
+Shared auto-trigger activation now matches 360 original cases on PC/NXDK,
+including dispatch-before-bookkeeping, timer wrap and activation-count wrap.
+It accepts externally resolved global/script eligibility and link dispatch;
+registration, callback effects and live level-start integration remain open.
+
+All four authored gravity links now pass the unchanged original auto-trigger
+to setter chain, now including original UID-to-handle conversion and disabled
+checks. The sweep belongs late in level startup; 30 seconds is a subsequent
+trigger cooldown, not a delay before gravity changes. Registrations remain
+synthetic in this harness; shared runtime startup wiring is still required.
+
+Set_Gravity (type 44) now has a shared action handler: 2,048 original on/off
+cases match PC/NXDK, with six additional shared API checks. Original construction
+and the existing 3,922 scheduling cases also pass. Live event registration and
+trigger dispatch remain open; this does not yet enable campaign gravity events.
+
+Gravity now has shared scalar/vector state used by falling and jump setup.
+The setter matches 1,024 finite original cases through both entry paths on
+PC/NXDK, including signed zero and negative gravity, without changing jump
+impulse. Level setup resets it to 9.8; runtime gravity event dispatch is open.
+
+Campaign jump height now loads from game.tbl with a bounded shared reader;
+24 PC/NXDK parsing cases pass. The normal jump replay passes in 64-MiB XEMU
+(20260910-013412), and a separate PC asset copy configured to 2.50 reaches
+2.49997 units. Gravity still uses the installed default; audio remains open.
+
+Immediate crouch now precedes jump, matching 430c70. PC restriction replays
+cover crouched rejection, held-button release without auto-jump, same-tick
+crouch/jump rejection, and same-tick stand/jump acceptance. The simultaneous
+case passes 64-MiB XEMU (20260910-013000); the climb case passes at
+20260910-013030. Climb-mode requests are rejected;
+a new press on the staged exit frame is accepted in restored mode 1, which
+does not establish grounded upper-platform traversal.
+
+Campaign jump replay now passes on PC and stock-64-MiB XEMU
+(20260910-012451): initial airborne rejection, two accepted jumps, 1.32991
+units ascent, landing while held without auto-repeat, and release/repress.
+Space (PC --campaign) and A (Xbox campaign mode) are mapped; physical-device
+checks remain USER. Audio is recorded only; jump height now comes from game.tbl, while gravity
+still uses the verified installed default pending its configuration lifecycle.
+
+Campaign support now runs after physics using a fresh probe and the recovered
+selector, then consumes jump flag 2. Both 64-MiB XEMU replays pass with exact
+PC state: approach 20260910-012038 (220 ticks, 6.43122 climb units) and stance
+20260910-012117 (64 ticks). Jump input is still unconnected, so takeoff and
+landing after a jump remain unverified.
+
+The shared support selector now matches all 2,048 original cases on PC/NXDK.
+Static call-chain recovery places ordinary local input before simulation,
+post-physics support before the owned-player update, and jump-flag consumption
+in that later update. Wire this sequence into campaign replay next; the full
+original frame loop has not been executed by the harness.
+
+Jump integration exposed a support-update dependency: the diagnostic landing
+loop can cancel takeoff while its probe still sees the floor. Original
+487f73..487fc9 passes 2,048 dispatch cases and bypasses support when actor
+flag 2 is set. The owned-player update clears that flag; its ordering with
+physics must be matched before live input is enabled. No landing delay added.
+
+Original default jump binding is now verified as edge-triggered: type 0,
+key 0x39, with no secondary keyboard or mouse binding. All 48 original-query
+cases pass; press/hold/hold/release/repress dispatches only on the two presses.
+The actual press counter is consumed by 51f140. Live PC/Xbox binding and body
+state wiring remain open; see tools/inspect_jump_binding.py.
+
+Shared jump-request gating now matches 864 original dispatcher cases on PC
+and compiled NXDK. Control kind 5, parent kind 4, actor bit 0, override state
+34 and keyboard state 0x29 can reject the request. The default binding type is now verified below; the outer input-lock byte
+637086 is identified, but its lifecycle remains to be integrated.
+
+Original jump/fall execution now passes 6,144 fixtures plus a null-entity check.
+The shipped maximum jump height is 1.33, giving impulse 5.105683327. Mode 2
+(climbing) rejects jump; do not add an assumed climb boost to solve the upper
+exit. Shared C now matches all cases on PC and compiled NXDK; action dispatch,
+audio playback and live jumping remain open.
+See tools/inspect_jump.py and docs/CAMERA.md.
+
+A near-base approach now passes 220 ticks in stock-64-MiB XEMU
+(20260910-004650), with exact PC timeline/body matching: 0.80861 units of
+retained walking outside the region, then 6.43122 units of climbing and exit.
+Use replay_climb_controls.py --approach and xemu_replay_check.py --approach.
+The start is staged outside the authored region, not the level's player spawn.
+Ground-ray inspection found the lower floor at -14.875 and upper surfaces at
+-4.875 offset from the region; static and initial-mover samples agree. Upper
+traversal still needs its intended route/action identified, not an assumed snap.
+
+Look-directed climbing now passes a 180-tick PC/XEMU replay using only
+commands reachable from the existing controller sticks (no move-Y injection).
+Run tools/replay_climb_controls.py, then xemu_replay_check.py on its inputs
+with --climb. XEMU 20260910-003732 matches PC exactly and ascends 5.20467 units.
+The start remains staged inside the region; physical device behavior, authored
+approach and top-platform traversal remain unverified. Original 430c70/4280b0
+confirms immediate region exit with vertical-velocity reset, so avoid assuming
+the staged top-boundary re-entry alone proves the transition code is wrong.
+
+User confirmed interactive movement on 2026-09-09 and reconfirmed being able
+to move on 2026-09-10. This confirms basic movement input only; the latest
+confirmation does not identify the platform. Campaign jump, look, crouch,
+controller reconnect and exit behavior still need user checks.
+
+Campaign stance now applies collision crouch immediately and uses the recovered
+owned-player animation selector after the verified first initialization frame.
+The 64-tick press/move/release replay passes on PC and stock-64-MiB XEMU
+(replay-20260909-231211), including exact stance and animation memory rings.
+The normal 664-tick diagnostic state and raster remain unchanged. Eligibility
+matches 3,456 original PC/NXDK cases; motion selection matches 3,392 cases.
+Blocked standing, full ownership/input locks, vehicles and inventory remain open.
+See docs/CAMERA.md and tools/verify_player_stance_live.py.
+
+Campaign region lookup, climb entry, motion and exit now run on both targets.
+L1S2 staged ascent replay 20260910-003213 passes on stock-64-MiB XEMU:
+62 climbing ticks, 4.3717055 world units upward, one entry and one sideways
+exit; all 1152 timeline words and existing player records match PC exactly.
+9428 pages (36.8 MiB) remain at the final rendered frame. Native raster differs
+from PC by at most one channel value. This is not original-game/PS2 parity.
+Shared material/lightmap limits are 12/4 MiB after eliminating GPU duplication;
+these initial limits do not prove every campaign level fits. Authored approach,
+controller mapping and top-platform traversal remain open. A vertical-input
+probe at the top boundary re-entered repeatedly, so that transition needs work.
+The two-key L1S1 post-run door self-test is no longer applied to the L1S2 fixture;
+full L1S2 group/door simulation remains unverified. See docs/CAMERA.md.
+
+Owned movement-region storage now survives archive closure with a checked
+single allocation. All 147 records across 39 levels pass PC/NXDK ownership,
+exact-budget and repeatable-close checks. The live scene must retain this owner
+until all player region/orientation pointers are released.
+
+Shared climb motion now matches 384 original PC/NXDK cases, including vertical
+input, external force, support velocity and repeated passes. The initial reuse
+of run arithmetic exposed an x87 ratio-rounding difference; climb now preserves
+the original extended ratio and all 384 run cases remain exact. Live campaign
+region/transition/movement wiring remains open.
+
+Shared climb exit now matches 128 original cases on PC/NXDK, including blocked
+standing, walk capability, default movement/fallback, speed and step-offset reset.
+Entry still passes all 768 cases. Retained live regions, climbing movement and
+campaign entry/exit wiring remain open; see tools/verify_climb_exit.py.
+
+Shared climb entry now matches 768 original cases on PC and compiled NXDK,
+including sound callback state, speed restoration and descriptor fallback.
+It allocates nothing and borrows region/descriptor storage; climb exit and
+live campaign integration remain open. See tools/verify_climb_entry.py.
+
+The conditional climb effect is identified as sound dispatch through 48a9c0.
+Shared C now routes player-owned/camera-zero sounds non-positionally and other
+sounds positionally, matching 648 PC/NXDK original-code cases. Audio playback,
+sound-ID asset resolution and shared climb transition integration remain open.
+
+Original climb entry now passes 768 execution fixtures, confirming class flag 4,
+region ownership fields, effect-18 ordering, speed restoration and descriptor
+fallback. Shared climb transition/effect implementation and live entry/exit remain
+open; see tools/inspect_climb_entry.py and docs/CAMERA.md.
+
+The v180 movement-region reader now loads all 147 authored records in the 39
+installed levels containing section 0xD00, with PC/NXDK byte-identical decoding.
+It allocates nothing and preserves reader/output on malformed data. Connecting
+the retained regions to climb entry/exit remains open; see docs/CAMERA.md.
+
+The stance environment query is now identified as an ordered oriented-box
+movement-region scan leading to climb mode 2, rather than room-water detection.
+Shared C matches the complete original scan in 1,521 PC/NXDK cases; level region
+loading and climb entry/exit must be connected before replacing the empty query.
+
+Shared C now implements the outer stance gate, matching 4,608 original-code
+cases on PC and compiled NXDK. Campaign stance now respects live movement/speed
+modes for both press and release. Ownership, environment lookup and blocking
+values remain explicit fixture defaults pending their live lifecycle integration.
+See tools/verify_player_stance_gate.py and docs/CAMERA.md.
+
+The original release handler now passes 162 execution fixtures covering blocked
+and clear query results, 0â€“8 spheres, absent/matching/nonmatching player lists,
+and zero/nonzero crouch bytes. A blocked result preserves the full actor, player
+and sphere records and skips ground/speed updates. The query result is supplied;
+this does not close the live low-ceiling campaign traversal check.
+
+Original player contact response now executes in 768 fixtures covering normal
+retention/clearing, incoming correction, moving-contact boost, free tangential
+motion and grounded direction filtering. All nine tracked branches are reached;
+shared C now matches all 768 cases on PC and compiled NXDK, with 52 compiled
+guard cases preserving state/output. Original direction composition is verified
+in 512 action-reader fixtures, and the campaign profile now enables flag 0x80
+with the matching contact adapter. Its 480-tick movement/turn replay passes in
+stock-64-MiB XEMU with 64 retained contacts and PC-identical final state.
+Full input ownership/locking, blocked-standing integration and damage remain open. See docs/COLLISION.md.
+
+Original cache-gate and spawn-copy execution now confirms that a warm class
+cache bypasses pose sampling for both NPCs and players, and creation copies
+cached sphere centers into the entity without changing its other sphere fields.
+Four gate cases and 180 copy cases pass. Sphere and stance sampling now runs
+before body allocation and has no body dependency. Campaign playback now uses
+armed candidates with independently sampled NPC class data; persistent class
+ownership, weapon lifecycle and player contact response remain open. See docs/CAMERA.md.
+
+Campaign initial controller and class poses now match original execution.
+Separating the cache also removes a legacy -0.25 render-fixture translation
+from two standing sphere centers; original sphere queries confirm the correction.
+The normal 664-input replay remains identical and all eight PC sweeps pass.
+Stock-64-MiB XEMU neutral replay 20260909-223324 passes with initial animation,
+eye and stance comparisons added. This is still an opt-in diagnostic profile.
+
+Original static-solid plane rejection now prevents the campaign turn overflow:
+all 480 yaw ticks pass on PC and 64 MiB XEMU at a 1,161,048-byte world peak,
+with the same 2 MiB allocation. All eight PC input sweeps and the normal
+664-tick Xbox replay pass. Mover culling and room visibility remain open;
+see docs/PROJECTION-PERFORMANCE.md for the measured image differences.
+
+Opt-in campaign placement now loads miner1 by class, uses the authored start,
+and seeds verified body/eye angles. A 120-tick neutral replay matches PC in
+stock-64-MiB XEMU, including final body and world/camera hashes. PC diagonal
+movement passes 480 ticks; the stationary-turn overflow previously found at
+tick 342 is now resolved by static backface rejection. The regular interactive profile is restored; full player
+factory, armed initial animation/class-cache ownership and binding are still open.
+
+Shared C spawn-look initialization now matches original instructions exactly in
+601 cases on PC and compiled NXDK, including all 94 level starts. The helper
+still needs to seed the live player before campaign placement replaces the fixture.
+
+Original spawn-look initialization executes across all 94 level starts; 89 have
+nonzero body yaw (Live Mines: 2.2433788776 radians). The diagnostic zero-angle
+initialization cannot be retained for campaign placement. Matrix extraction and
+movement-descriptor eye filtering are now reconstructed; see docs/CAMERA.md.
+
+Class-based skeletal asset loading now works without a placed level entity:
+all 168 authored class/skin selections and the existing 78 Live Mines bindings
+pass. This removes the resource loader's UID dependency for player creation;
+the live scene still needs the new class/spawn/ownership path connected.
+
+Shared C local-player binding now matches 81 original cases on PC and compiled
+NXDK, including the state visible when weapon selection is invoked. Entity
+allocation, full weapon selection and live scene ownership remain open.
+
+Shared C now implements the verified player-start prefix (skin normalization,
+local reset and position override), with all 24 cases matching original execution
+on PC and compiled NXDK. It allocates nothing; entity creation and live ownership
+integration remain open. See src/core/player.c.
+
+Original player-start loader and single-player factory argument preparation now
+match shared C across all 94 installed levels. This verifies the transform source
+and matrix ordering, plus the original factory prefix's local reset, skin
+normalization and one-shot position override (24 branch cases). Generic entity
+allocation and player ownership remain open; the live diagnostic still uses
+its miner placement. See docs/CAMERA.md and tools/verify_player_start.py.
+
+Xbox file replay now compares recorded commands with PC without controller input.
+The 480-tick yaw sweep passes in 64 MiB with matching world/camera hashes, input
+history and final body; a completed GPU submission exceeds 1.96 MB within the
+existing 2 MiB allocation. The diagonal-turn replay also passes all 480 ticks,
+including a 1.91 MB completed GPU mesh and exact PC state. Both reproduced
+capacity-failure trajectories now pass on Xbox. See docs/INPUT.md.
+
+PC input replay reproduced turning exits at the 1 MiB staging boundary. First-person
+views now use the full existing 2 MiB buffer when necessary; both 480-tick failing
+sweeps pass with no allocation increase. The historical tick-99 input was not
+recorded, so its exact cause remains unproven. Both wide-view Xbox replays now
+pass; failure snapshots retain operation stages and input history.
+
+Presentation profiling found a redundant trailing VBlank wait. Removing it cut
+measured presentation/integrity time from 27.23 to 13.62 ms; overall throughput
+was 15.25 ticks/guest second in the follow-up run, still below target. The pacing
+harness now uses its own snapshot-backed HDD base to avoid other emulator locks.
+Full 664-tick stock-64-MiB Xbox verification 20260909-211014-307540 passes; the
+ongoing controller ISO is restored.
+
+Single-pass retained projection now stages into the idle actor half of the existing
+2 MiB buffer. Measured world projection fell from 60.32 to 31.50 ms/tick and total
+throughput rose from 9.81 to 14.62 ticks/guest second. PC traces remain exact and
+staging failure/overlap checks pass. Full 664-tick stock-64-MiB XEMU run
+20260909-210345-153679 matches PC hashes, rings and final body. Projection and
+presentation still dominate.
+
+Xbox profiling identified world projection as the largest tick cost. Reusing fan
+corners and classifying unclipped triangles reduced measured projection from
+94.31 to 60.32 ms, with throughput rising from 7.37 to 9.81 ticks/guest second.
+All 94 level spawn images, 32 moving views, the 664-frame PC trace and the
+1920x1440 showcase remain exact. Full 664-tick stock-64-MiB XEMU verification
+20260909-205633-876144 also passes with matching PC hashes, rings and body state.
+See docs/PROJECTION-PERFORMANCE.md.
+
+Shared 60 Hz pacing now bounds catch-up and skips presentation on PC and ongoing
+Xbox sessions; deterministic fixtures remain unpaced. Unit checks and 8,000 compiled
+NXDK clock samples pass. Live RAM shows only about nine ticks per guest second,
+so per-tick work must be reduced; pacing alone has not fixed movement speed.
+The overload rule preserves presentation. A 20-second rerun passes, but an earlier
+RF_RANGE termination remains unresolved; its report is correctly retained as FAIL. See docs/INPUT.md for timing policy and telemetry.
+
+PC now has a Windows input/presentation frontend using the shared scene provider
+and software rasterizer. Its 664-frame headless replay matches body/input/camera
+evidence and the final reference image exactly; both showcase resolutions remain
+pixel-identical. Window interaction needs manual testing, and real-time catch-up
+remains open. See docs/INPUT.md for the launch command and limits.
+
+Xbox controller polling now drives movement, look and crouch through a shared
+provider; user confirmed movement, and XEMU memory records real stick input.
+The bounded neutral test correctly failed its neutral expectation after user
+interaction. PC replay, clean-stop and compiled adapter checks pass. See docs/INPUT.md.
+
+Yaw now commits body orientation and world inertia; movement, collision sweeps
+and eye view use the turned body. All 664 complete original look/eye/camera
+replays and stock 64 MiB XEMU run 20260909-201342-341995 pass with PC-matching
+body and camera traces. Next connect actual player input and runtime ownership.
+
+Pitch control is now bound to the moving first-person diagnostic camera.
+All 664 original look/eye/camera replays and live 64 MiB XEMU run
+20260909-200813-666493 pass; look/eye rings match PC and body trace is unchanged.
+Next integrate yaw/body orientation physics and actual player input. No capture.
+
+Eye-matrix builder 4a0d70 is reconstructed: 1,200 compiled NXDK cases match
+original execution exactly; PC differs only in tiny vertical-pitch residuals.
+Bind look-angle state, yaw-only body and eye matrices into the live camera next.
+Original global FPU initialization and live XEMU integration remain open.
+
+README now uses a 1920x1440 PC render of the staged miner by the partly open
+Live Mines guard-station doorway, explicitly labeled PC. Add live Xbox
+showcase-profile validation before presenting this composition as Xbox output;
+its identification as the requested main hall remains unverified. See docs/SHOWCASE.md.
+
+Look-angle scalar update now matches 1,200 original cases on PC and compiled
+NXDK, including consumed deltas, pitch clamp and original yaw wrapping.
+Reconstruct the nonstandard 4a0d70 eye-matrix builder before binding separate
+look to the scene. No new rendered result; see docs/CAMERA.md.
+
+First-person diagnostic now binds loaded eye offsets to body/controller state.
+All 664 PC poses (including 30 transition frames) match original eye/camera
+instructions byte-for-byte. XEMU run 20260909-194149-709809 passes in 64 MiB;
+new native tunnel screenshot matches PC within one channel level. Next connect
+actual player identity/input and separate look orientation; the route is scripted
+and has no weapon view. See docs/CAMERA.md for limits and commands.
+
+Shared PC/Xbox scene now computes standing/crouching eye offsets from loaded
+poses, independently of diagnostic root translation. Original/PC comparison
+and live 64 MiB XEMU run 20260909-193237-875652 pass all six words and 664 frames.
+Live Mines record 3 (UID 8431) is the first serialized miner1 before ordinary
+player spawn. Bind player view next; broader class-cache lifecycle remains open.
+No new visible result, so no screenshot.
+
+Initial controller audit now passes eight original/PC creation-field cases:
+armed players blend stand to attack_stand; non-player and unarmed cases stay
+standing. Actual class eye setup is cached on first use, so identify the first
+miner1 instance before binding offsets. The full spawn routine remains open.
+See docs/CAMERA.md and tools/inspect_initial_player_motion.py.
+
+Memory harness revalidation `20260909-191614-644905` PASS: live XEMU confirms
+stock 64 MiB, 664 frames, ten PC-matching actor rings, final body state, and
+room transition with zero misses. Available memory after upload is 41,054,208
+bytes. The supplied strtod assertion does not recur. Original player camera,
+initialization and campaign memory peaks remain open; see docs/XEMU-MEMORY.md.
+No screenshot captured because there is no new visible result.
+
+Camera effects now use an explicit original-compatible RNG stream and match
+1,800 original/PC/NXDK cases including final RNG state. Initial player eye
+state and game-wide RNG seeding/consumer order remain open before view binding.
+
+The complete first-person camera effect now matches 1,800 original cases on
+both PC and compiled NXDK, including cone sampling and orientation rebuilding.
+Bind initialized player eye offsets and the game's random sequence next; the
+rendered camera is still the diagnostic follow view. See docs/CAMERA.md.
+
+First-person camera effect reset/timer/decay now matches 600 original cases on
+PC and compiled NXDK. Reset must expire the timer at now, not disable it.
+Recover random cone direction and orientation rebuilding next, while resolving
+initial player eye offsets before camera rendering integration.
+
+Moving-actor room membership now passes the 664-frame XEMU follow run
+`20260909-185445-343865`: room 53 to 52, no lookup misses, full PC-matching
+room telemetry and unchanged body/render hashes. Integrate the original player
+view and general entity update order next; local-player room audio remains open.
+
+The locator now binds retained level geometry and source face IDs, with no
+per-query allocation. All 94 levels pass 8,214 original/PC and 8,214 compiled
+NXDK comparisons after source closure. Connect moving-actor room state and
+verify its changes in live XEMU next. See docs/CAMERA.md for coverage limits.
+
+The original containing-room traversal and deterministic retry generator are
+now reconstructed: 600 full original/PC/NXDK locator cases match, with 50 actual
+retries. Bind the locator to retained level geometry and validate real room/face
+identities next; multi-room runtime membership remains open. See docs/CAMERA.md.
+
+Containing-room face testing now matches 1,200 original cases on both PC and
+compiled NXDK, including tie priority and edge-line retries. Reconstruct
+4e0c20 direction generation and 4e1630 traversal/owner selection next, then bind
+the locator to entity room refresh. No new image for this unbound geometry API.
+
+Room refresh 48a190 now matches 384 original cases on PC and compiled NXDK.
+It updates room/query position and clears the dirty flag, not physics/orientation.
+The locator and notification are explicit callback boundaries; reconstruct
+4e1630 containing-room traversal before binding this to campaign entities.
+See `docs/CAMERA.md`. No new visible result or XEMU run for this unbound API.
+
+Latest memory harness rerun: `20260909-182441-657096` PASS, 664-frame follow
+profile in stock 64 MiB XEMU. Snapshots now carry UTC time, map hash and QMP
+memory size; report map hash matches the complete snapshot. Four PC CTests pass.
+Original camera/input and class initialization remain open; see
+`docs/XEMU-MEMORY.md` for the current command and limits. No screenshot captured.
+
+Support-gate audit: 256 original predicate cases pass in
+`tools/verify_actor_support_gate.py`. Full entity integration must carry actor
+flag 8 and attachment/category conditions;
+the fixture's position movement gate remains simplified. See the latest
+support-query audit in `docs/XEMU-MEMORY.md` before extending traversal.
+
+Accepted crouch/stand changes now query and commit static support immediately
+after sphere replacement, before animation and rendering. Run
+`20260909-173908-972553` passes all stance-query memory comparisons in 64 MiB
+XEMU. The standing-clearance copy test still isolates clearance/center changes;
+full general query gates and live ledge traversal remain open.
+
+Longer physics routes now advance eight independent 600-update paths from the
+rendered miner body, using real geometry and collision responses. Positive X
+loses and regains support three times; the other routes exercise sustained
+contacts. PC/XEMU route hashes and endpoints agree. This is not yet animated
+traversal; the visible scene still stops at 64 frames.
+
+The animation producer now accepts a caller-selected stream length without
+restarting its controller/cache or reallocating its mesh. The new PC
+`--long-animation` check passes 600 frames with an identical 64-frame prefix and
+bounded timing storage. The scene's fixed-size telemetry/callbacks still need
+extension before combining this with the longer moving-body route.
+
+The shared scene now runs 664 continuous animated/body frames in the PC
+`--live` profile: three support losses/recoveries, 663 physics updates and no
+capped updates. Telemetry uses 64-slot rings with absolute frame IDs. NXDK builds
+pass, but this new live mode still needs XEMU memory validation; the fixed close
+camera loses sight of the miner before the route ends.
+
+XEMU live-scene validation now passes in run `20260909-175428-274474`: 664
+rendered frames, three support losses/recoveries, ten PC-matching telemetry
+rings and all 308 final body bytes matching. This supersedes the pending XEMU
+validation notes above. A suitable route camera remains open.
+
+The live profile now uses a fixed endpoint inspection camera, selected from the
+known diagnostic route, and PC preview supports `--scene-live-last`. The miner
+is visible in the final walking pose. This is not a player/follow camera and
+does not keep the entire route visible; the tunnel bend occludes a start view.
+
+Endpoint capture `20260909-180017-502708` passes XEMU memory and PC framebuffer
+comparison (10 pixels over three channel levels). A new native screenshot shows
+the later walking pose. The live checker now includes retained movable-world
+geometry to match Xbox at this camera; full-route camera motion remains open.
+
+Retained world reprojection now accepts an explicit changing camera without
+reloading geometry or reallocating its mesh. The PC `--moving-camera` check
+passes 32 translated/rotated views after archive closure, matching fresh builds.
+Connect this API to the live actor camera and validate that path in XEMU next.
+
+PC `--follow` now reprojects the retained world and actor using one per-frame
+view across all 664 frames. The actor stays inside the view (at least 430
+projected triangles per frame), and the body hash stays 533762320. The shared
+code builds with NXDK, but Xbox follow-mode selection/GPU capacity and native
+visual validation remain open; camera collision is not implemented.
+
+Follow mode now passes 664 frames in stock 64 MiB XEMU, run
+`20260909-181012-800513`, including full world/camera hashes, actor memory and
+native framebuffer comparison. Peak world mesh is 484,848 bytes versus the
+current 8 MiB CPU/GPU reservations; shrink those before expanding runtime work.
+The final still is very similar to the last posted image, so it is not reposted.
+
+Follow CPU/GPU buffers are reduced to 2 MiB each, saving 12 MiB of simultaneous
+reservations. XEMU run `20260909-181406-561630` passes with unchanged world,
+camera, actor and body hashes. Reported available memory after upload rises to
+41,062,400 bytes. No new image was captured for this allocation-only change.
+
+First-person pose transfer at 40d88c..40d8be is now reconstructed in C and
+matches 258 original cases on PC/NXDK. It preserves distinct body and eye
+orientations. Player lookup/eye derivation, 40db70 camera effects and 48a190
+commit remain open; the rendered scene still uses the diagnostic follow view.
+
+Capture and post screenshots only when there is a new visible result.
+
+Latest memory-harness run: `20260909-165657-464529` PASS; 64 MiB confirmed,
+all 64 surface/traction records match PC and all 240 material coefficient bytes
+match the authored table. The miner selects Rock on landing at frame 22.
+Ground traction now comes from the support face texture prefix, removing the
+fixed value. Run `20260909-170239-776884` also passes blocked/clear standing
+using the scene transition helper on a copied crouched body near a real ceiling.
+The rendered route still lacks blocked-standing traversal and support loss;
+the original selector continues after a refused stand attempt without checking
+its return value. Do not invent a forced-crouch animation rule.
+The reconstructed stance selector is now connected before animation advancement;
+run `20260909-170656-795906` matches all 64 selector/effect records on PC/XEMU.
+It applies crouch at frame 40 and stand at 48. Eligibility remains scripted.
+Initial miner inertia is corrected: positive authored mass plus its populated
+model sphere list preserves the zero parameter tensor, rather than identity.
+Original preparation checks and XEMU run `20260909-171406-829227` pass, including
+144 initial/final tensor bytes. Initial animation pose remains provisional.
+Live actor playback now starts at the original constructor's phase zero and
+skips a redundant stand-to-stand transition. Run `20260909-171941-116367`
+passes initial animation telemetry, all actor comparisons and native framebuffer
+comparison. Full initial selector inputs remain unresolved; the stand choice
+is still diagnostic. A new pose screenshot was captured for this change.
+Live movement animation now uses the reconstructed selector with the same
+steering and numeric movement mode as physics; the fixed frame-16 walk request
+is removed from this path. Run `20260909-172348-379119` matches all 64 locomotion
+records in XEMU. Ordinary unarmed candidates and crouch eligibility remain
+explicit fixture inputs; gameplay priorities/AI selection remain open.
+Animation/controller advancement now shares physics' 1/60 second runtime step.
+Run `20260909-172853-167404` matches all 64 timing/phase/generation records and
+existing actor checks in stock 64 MiB XEMU. Frame zero retains a separate 1/30
+initialization step; full startup scheduling remains unresolved. Extended fixture
+eligibility ends at 56: crouch starts at 41 while moving, 47 from idle, and
+standing resumes at 56. These supersede the earlier timing observations above.
+See `docs/XEMU-MEMORY.md` for reproduction and limits.
+
+Working approach: complete the first miner integration across loading, rendering
+and physics before expanding isolated subsystem coverage. Use the existing
+diagnostic pose if spawn selection is unresolved, label that assumption, and
+replace it as evidence becomes available. Verify integrated PC/XEMU behavior;
+add isolated comparisons only for failures or fidelity risks on this path.
+
+Integration now runs in 64 MiB XEMU: UID 9858's class/material configuration,
+frame-zero model pose and three collision spheres are connected to an owned
+body during the 64-frame rendered scene. All 468 configuration bytes and body
+hashes match PC; the 600-frame door regression also passes. Pose/inertia remain
+explicit diagnostic assumptions; collision response and entity registration
+are next. The integrated sphere/world diagnostic now checks six two-unit axis
+sweeps per retained sphere and captures raw guest contacts for PC comparison.
+Prepared falling translation now matches original instructions on PC/NXDK and
+feeds a passive falling fixture using the miner's actual spheres and level.
+The fixture now applies original contact position/time clipping and static
+velocity response, then consumes the remaining frame without applying gravity
+again. Actor pose/room commit and rendered movement remain open. The first hit
+advances zero distance after the margin; a second pass consumes the remaining
+0.014501864 seconds using the response velocity.
+The shared scene now advances the live body between rendered frames and commits
+pose through the verified 48a230 setter. The 64-frame diagnostic performs 63
+updates, 91 passes and 28 contacts without hitting its pass limit; every rendered
+mesh and final framebuffer comparison passes against PC in XEMU. It no longer
+replays or holds a stored trajectory. Grounded-state selection and full runtime
+registration remain open: passive physics currently lets the miner drift along
+the slope instead of choosing the original grounded movement behavior.
+The ground-query preparation is now checked by executing original 4a0840 up to
+its world-query call against all 64 captured poses and actual spheres (256
+prepared cases). It selects sphere 0 by lowest center Y, uses a 0.05 start lift
+and a 0.10 falling probe depth. Grounded depth retains extended precision until
+the final position store. This verifies query preparation only; world-query
+results, landing transition and grounded movement remain open.
+The shared C ground preparation now feeds a stationary-world query each rendered
+frame. Run 20260909-152946-815112 passes in stock 64 MiB XEMU: all 64 raw query
+records match PC, with 42 walkable contacts starting at frame 22. Captured probe
+preparation matches original instructions; it uses the recovered query flag 4.
+This observation does not yet change the passive body's movement mode.
+Static landing is now integrated: the miner transitions from fall (3) to its
+class run descriptor (1) at frame 22, then remains stationary for 41 updates.
+The passive fixture no longer drifts. Original/PC/NXDK landing comparisons pass
+for 42 captured contacts, including preserved horizontal velocity; the original
+grounded dispatcher confirms the zero-input idle case. General grounded motion,
+support loss, moving platforms and landing effects remain open. The live fixture
+rejects unsupported class descriptors and nonzero grounded force/velocity.
+The nonzero force/velocity rejection and idle-only assignment have now been
+replaced by shared prepared grounded motion (49f7c3..49f89f). Original/PC/NXDK
+comparisons pass on 256 cases covering drag, steering acceleration, force and
+support velocity. The live miner remains zero-input, but every grounded tick
+now executes the real proposal and common sweep/remaining-time path. Authored
+steering, general support maintenance and moving-object policy remain open.
+The shared loader now reads all 16 movemodes.tbl descriptors, and the complete
+433a50 translation transform matches original/PC/NXDK across 256 axis-selection
+cases. Live run/fall descriptors are loaded from the archive and exposed in guest
+RAM; the grounded zero-input path uses the transform. Class acceleration scaling,
+clamping, live input and eye/parent pose ownership remain open. The miner scene
+explicitly rejects eye/parent translation references until those poses exist.
+Class movement values now come from entity.tbl: miner1 speed 6, slow factor .5,
+fast factor 1.5 and acceleration 20. The shared scale/transform/clamp stage
+matches 256 original/PC/NXDK cases and is connected to grounded updates. All four
+values match guest RAM in XEMU. Real input and grounded support maintenance are
+still required before claiming controlled actor movement.
+Ground support now uses the active mode and authored speed for probe depth.
+Static support commits preserve velocity, and moved grounded actors switch back
+to fall when no walkable support is found. Original support commits match
+PC/NXDK in 42 cases; original no-hit/steep transitions pass two prepared cases.
+XEMU confirms 320 original/PC query-preparation checks including its 64 live
+mode-dependent records. The passive run performs two post-landing support
+commits and no support losses; support loss still needs a moving live fixture.
+A process-local +X .25 input pulse now drives frames 24..47 through authored
+steering. Run 20260909-160442-543906 passes in 64 MiB XEMU: all 64 input and
+rendered geometry records match PC, with 40 ground-support commits and zero
+support losses. Its 320 original query-preparation checks also pass. The new
+framebuffer shows the displaced miner; animation is still scripted, and this
+is not a gameplay controller. Live support loss/recovery remains open.
+The sustained -X contact route now exercises 29 actual contacts and 92 proposal
+passes across 63 updates in 64 MiB XEMU (run 20260909-161509-037641). Every
+captured response matches PC and original 49d7e0 before damage dispatch. The
+route stays grounded, so it does not close support-loss/recovery. Input and
+64 rendered geometry records match PC; all frames finish below the pass limit.
+Original collider behavior is now narrowed: 423b90 caches class spheres once,
+while 4289d0/428a60 switch cached stance centers rather than following every
+animation frame. Shared center switching and standing-clearance endpoint
+preparation match 288 original/PC/NXDK cases. Runtime use still requires the
+correct class standing/crouching pose cache, clearance query and ground refresh;
+do not replace the current cache with per-frame bone-derived spheres.
+Stance centers now switch in the live scene: crouch at frame 39, clear-space
+stand at frame 48, with ground refresh on either change. The 200-byte cache
+and all 64 stance records match PC in stock 64 MiB XEMU (20260909-162703-696777).
+The crouch pose is derived by stop-looping, weight selection and .2-second
+advance from a copy of the diagnostic initial playback state. Initial pose
+selection is still provisional; blocked standing, crouch movement descriptor
+selection, timing/effects and gameplay input remain open.
+Live stance transitions now call the original-verified numeric movement setter:
+standing mode 1/speed 6, crouched mode 0/speed 3, with the run physics descriptor
+unchanged. All 64 setting records match complete original setup wrappers, PC
+and NXDK from XEMU run 20260909-163137-872744. Miner response remains 10 because
+its class lacks flag 0x800. Test steering bypasses the gameplay input/target-speed
+controller, so slower actual crouch movement is not yet established.
+Dispatch correction: descriptor 1 selects 49e400, not the prepared 49f7c3
+linear branch used by earlier live tests. Original idle checks could not detect
+that difference. The live scene now uses verified run convergence, slope
+handling and speed 6/3. All 384 original/PC/NXDK cases include real dispatch.
+Two 64 MiB XEMU routes match PC; sustained input slows during crouch and
+accelerates after standing. Traction remains an explicit diagnostic 1 pending
+ground bitmap/material binding; contact-route history does not prove contacts
+on the corrected trajectory (zero observed in these new routes).
+See docs/XEMU-MEMORY.md for guest snapshots and the NXDK strtod fix.
+The complete miner1 block supplies `$Use: "ai response"` with radius 2 (kind 9)
+and movement name run (index 1); do not use absent-field defaults for this actor.
+
+## Shortlist
+
+- [ ] Create Live Mines entity 9858 through shared class/model-derived physics and validate its runtime state in 64 MiB XEMU.
+- [ ] Connect the verified falling proposal to original contact response and actor pose/room commit, then show the miner moving in XEMU.
+- [ ] Extend the shared level-directory loader into a complete campaign world loader.
+- [ ] Recover the gameplay camera and entity eye transform instead of using raw spawn coordinates.
+- [ ] Draw the loaded static geometry and resolve its materials, lightmaps, visibility, and unknown records.
+- [ ] Fingerprint the original executable and reconstruct its subsystems as portable C/C++ using Ghidra and documented evidence.
+- [ ] Implement streaming asset access and level loading within a stock Xbox's 64 MiB unified memory.
+- [ ] Build an Xbox renderer and corresponding PC renderer that preserve at least PS2 visual parity.
+- [ ] Restore the complete single-player campaign, including Geo-Mod, AI, physics, scripts, audio, menus, and saves.
+- [ ] Restore authored trigger/event activation, including the level's door-pair links.
+- [ ] Validate performance and correctness in 64 MiB XEMU before USER hardware testing.
+- [ ] USER: Review visual comparisons against the PS2 version when representative scenes are available.
+- [ ] Consider multiplayer only after single-player completion.
+
+## Reconstruction evidence history (current integration status above)
+
+Immediate integration target: miner1 UID 9858 in Live Mines. The body initializer
+is ready for prepared input, but class material/flags and named model collision
+spheres are not yet resolved into that input. Installed miner1 declares mass
+100, flesh material, and csphere_0/1/2; do not substitute the scalar collision
+radius for those authored model-derived spheres. Recover their class descriptor
+construction, then connect the existing resident level record and body owner.
+Shared class-dependent physics flags match 9,216 original cases on PC/NXDK;
+the original class parser still needs to supply the descriptor fields.
+The shared CSPH reader now exposes all 114 model spheres across 95 installed
+V3C files. miner.v3c supplies radii .60/.40/.15 with parent indices -1/15/8;
+apply the recovered bone pose path and named class overrides before spawning.
+Shared animated sphere placement now matches 318 original queries, including
+18 miner standing/crouching sphere poses. Named overrides now match 270
+original/PC/NXDK cases, and the bounded table reader checks all 151 declarations
+across 63 installed classes. Resolve material coefficients and authored class
+flags, then connect the posed/overridden spheres and entity 9858 to its body.
+Material source is now located: materials.tbl supplies flesh elasticity .2,
+friction .8 and density 800, stored by original 0x467e68..0x467ea2.
+The bounded material reader now loads all five coefficients and preserves fixed
+material indices independent of declaration order; all ten installed materials
+and six malformed fixtures pass, and NXDK builds. Connect it to runtime archive
+loading. Authored mass/material/class flags now read successfully for all 63
+installed classes with seven malformed-input guards. Recover post-parse class
+defaults/mutations and connect these inputs to the miner's runtime body.
+Creation-order tracing shows positive authored mass skips sphere mass/tensor
+preparation; first-actor body creation precedes class-sphere cache construction
+and replacement. Preserve this order and resolve the initial animation state.
+Shared body sphere replacement now preserves mass/tensors, updates bounds and
+spring flag, and enforces peak old-plus-new allocation budget. PC lifetime/guard
+checks pass and NXDK builds. Original installation block 42405d..424168 now
+matches linked NXDK in 180 cases, with 160 allocation failures preserving the
+old owner. Pose/class construction, later crouch setup and XEMU integration
+remain open.
+Class +1b4 is optional `$Use:` kind (turret=4), not movement mode; its initial
+absent-field value is static zero, confirmed for all 75 original descriptors
+and three patterned constructor runs. Add optional use-kind metadata and trace
+4246e0 class/model setup before treating class physics inputs as resolved.
+
+Original event activation now passes 2,160 cases, delayed-tick prefix 1,620
+cases, and three re-activation steps. Timer replacement, disabled caller-field
+updates and on/off ordering are documented in docs/TRIGGERS.md. Reconstruct
+shared event state transitions, preserving callback order, then event actions.
+Shared C activation/timer prefix now matches 3,780 original cases on PC and
+compiled NXDK with non-mutating callbacks. Extended checks now total 3,922
+cases, including 12 callback mutations and 130 float-threshold neighbors.
+Register event states and implement actions; recursive callback behavior and
+exhaustive timing precision remain outside current verification.
+The three door-event constructors pass six original-code patterned-storage
+cases; timer/link initialization and action targets are identified. Trace the
+remaining factory/loader initialization before registering event runtime states.
+Set_Friendliness action now passes 24 original-code target-state cases; UnHide
+on/off request bytes pass eight cases and two common off no-ops pass. Implement
+shared actions and recover deferred UnHide processing; do not unhide immediately.
+Deferred UnHide now passes 108 original-code no-player cases and five persistent
+ticks, confirming 500 ms shared timing, on/off priority and retained requests.
+Player eligibility now passes 96 branch cases; the type-specific factory's
+zero-delay arming and request reset pass 12 patterned cases. Connect the existing
+collision-ray wrapper and recover actual visibility effects before integrating
+the action; see docs/TRIGGERS.md.
+Original hide/unhide direct writes and dispatch now pass 80 target cases plus
+two null calls, including attachment toggles and recursive child visibility.
+Connect the existing weapon-reset reconstruction, recover remaining intercepted
+effects and map entity fields into shared runtime before gameplay visibility.
+Shared C UnHide initialization, request methods and deferred scheduler now match
+223 original cases on PC and NXDK; connect its target callback to registered
+entities, collision eligibility and full visibility effects.
+Owned entity inputs now preserve decoded and raw records after archive closure
+for all 1,610 entities in 66 levels (max 101,209 accounted PC bytes); connect
+Xbox residency and runtime registration before dispatching events to entities.
+Xbox entity residency now passes stock 64 MiB XEMU: 78 entities, 355,013 total
+logic-data bytes and 66 PC-matching lifetime checks; runtime entity construction,
+registration and event dispatch remain open.
+Original entity loader 464010 is identified; 200 scalar-overlay cases verify
+UID/relationship/friendliness writes, and door-target initial flags are mapped.
+Recover complete factory initialization before constructing live entity states.
+Shared C spawn-field extraction now matches all 1,610 entities on PC/NXDK with
+bounded raw parsing; integrate these fields into runtime construction.
+Shared entity creation-flag conversion now matches 1,152 original factory-prefix
+cases on PC/NXDK; allocation and remaining entity initialization are still open.
+Original entity constructor and type-0 allocator now pass 15 patterned cases;
+trace generic factory overlays and class/asset initialization before live spawning.
+Generic factory identity/default overlays now pass 168 original no-model cases;
+integrate verified defaults while recovering physics, model and class setup.
+Complete original no-sphere physics initialization now passes 120 cases without
+intercepted calls; recover sphere allocation/mass generation for entity physics.
+Original fallback-sphere preparation now passes 180 cases with real array growth
+and copies; implement shared sphere preparation and recover existing-sphere inertia.
+Shared C fallback mass/sphere fields now match 4,020 original cases on PC/NXDK,
+with nine input guards; add sphere ownership and existing-sphere inertia next.
+Shared budgeted sphere ownership preserves authored 24-byte records and passes
+11 PC lists; wire Xbox residency and recover generated inertia for existing spheres.
+Shared existing-sphere mass/tensor accumulation now matches 640 original cases
+on PC/NXDK with 25 invalid-input guards; recover matrix inversion and connect
+the complete initializer before constructing live entity physics.
+Shared tensor inversion now matches 1,007 original cases and composed sphere
+preparation matches 640 on PC/NXDK; connect body initialization and recover
+geometric-model mass generation before live entity physics.
+Shared world-space tensor updates now match 1,200 original cases on PC/NXDK,
+and 360 full no-sphere initializer layouts are verified; integrate those body
+fields with sphere ownership and recover general-radius bounds next.
+Shared sphere radius/world bounds now match 1,000 original cases on PC/NXDK;
+combine the verified fields, tensors and owned sphere lists into body initialization.
+Shared budgeted fresh-body initialization now matches 480 original cases on
+PC/NXDK; wire Xbox residency and entity construction after resolving class/model
+physics parameters and the remaining original constructor fields.
+
+Trigger loader 465510 and event loader 462150 are identified in the original
+level dispatcher. The bounded v180 trigger inventory parses 2,367 triggers and
+4,471 links across 93 levels. Live Mines trigger 8542 references first keys of
+both inspected door panels (8593/8591), while 8522 references the other pair
+(8603/8605); additional links remain unresolved. The shared C trigger reader
+now matches all 2,367 records and 4,471 ordered links against the independent
+Python inventory, including truncation, link bounds and exact EOF checks. PC
+and NXDK builds and all four CTest checks pass. Recover original activation/UID
+resolution before replacing diagnostic activation.
+See docs/TRIGGERS.md for the read evidence and ordered linkage table.
+The bounded event inventory now exhausts 4,446 records and 4,901 links across
+93 levels. Door extras resolve to Set_Friendliness (9826), Goto_Player (8694),
+and UnHide (8695). Reconstruct their target resolution and runtime actions;
+the shared C event reader now matches all 4,446 records and 4,901 links across
+93 levels, with truncation, link bounds and exact EOF checks. NXDK builds;
+owned event inputs now retain every record/link after archive closure across
+93 PC level checks (max 212,044 accounted bytes), with exact/short budgets and
+repeat-close checks passing. Connect event ownership to Xbox; event runtime
+registration, scheduling and actions remain open. Owned trigger
+inputs now retain all 2,367 records and 4,471 links after archive closure in PC
+checks across 93 levels (max 55,696 accounted bytes); exact budget, short-budget
+failure and repeat-close checks pass. NXDK builds; connect ownership to Xbox
+runtime, ordered registries and activation.
+Both owners now run in the Xbox level path under a shared 512 KiB budget.
+64 MiB XEMU retains 61 triggers, 184 events and 387 links (253,804 bytes),
+matching PC hashes through 66 lifetime checks and archive closure. The
+600-frame door diagnostic still passes; connect runtime registration and
+authored trigger/event execution to replace explicit diagnostic activation.
+Original handle pool blocks now pass 1,032 allocations, eight releases and
+1,047 lookups: 1,024-slot FIFO reuse, generation wrap and stale-handle rejection.
+The shared C registry now matches original PC/NXDK traces across 2,100
+operations and occupies 12,300 bytes on Xbox. Connect it to owned object
+lifetimes and constructors. Resident Xbox movers/controllers now use registry
+handles for collision IDs, memberships and parents, with five of each passing
+64 MiB XEMU lifetime and 600-frame door checks. Registered PC memberships
+preserve all 1,421 links across 68 levels. Register trigger/event runtime
+instances next; mover-first creation order remains diagnostic.
+Original dispatch 4c0320 now passes four door-list execution cases, preserving
+interleaved mover/event order and mover suppression. The fixture uses synthetic
+registered handles and intercepts downstream actions. The verifier now also
+executes original post-load UID conversion 4611a1..461231 with the real object
+and key-owner lookup functions for both door lists. Shared C UID resolution
+now matches 2,000 original lookup cases on PC and compiled NXDK, including
+duplicate precedence and special UIDs. Connect persistent ordered registries,
+entity backlinks and owned trigger/event data, then activation and dispatch.
+
+Ordered controller binding now matches 2,000 original calls on PC/NXDK, and
+forced translation updates all 1,406 owned mover poses/collision views on PC.
+Position assignment now matches 8,030 original calls on PC/NXDK, including
+pending-source aliasing; controller commit lists now match 2,000 original calls
+on PC/NXDK. Normal commit now synchronizes all 1,406 real-level collision views
+in PC checks, with NXDK synchronization verified separately. Connect persistent
+authored controller ownership and rendering, then trigger/events and XEMU.
+Translation initialization now matches original state/selected-key blocks for
+2,441 authored key positions on PC/NXDK; build persistent owned controllers
+using the preserved base pose and validated selected start key. Owned controller
+inputs now retain all 1,223 groups after archive closure (max 114,176 bytes per
+level). Live Mines now retains five groups through 64 rendered frames and
+archive closure in stock 64 MiB XEMU; connect persistent runtime poses,
+registration/attachments and rendering to this owned data. Controller base
+poses now match 1,223 original first-key setups, including flags 06000001 and
+zero radius from the empty collision-sphere list. Persistent runtime entries
+now retain 1,112 initialized translations and 111 explicit pending rotations;
+Live Mines runtime lifetime passes 64 MiB XEMU. Bind authored memberships to
+registered objects, then activation, propagation/commit and rendering. Owned
+mover membership lists now match all 1,421 authored references on PC using
+diagnostic handles. Resident Xbox mover objects now retain those memberships
+and synchronized flags through 66 lifetime checks in 64 MiB XEMU; connect
+activation/propagation/commit and rendering, then general-object attachment
+and actual handle registration. The four authored Live Mines door cycles now
+match 160 connected original activation/tick/propagation/commit steps on PC
+and compiled NXDK. The same 160 ticks now run on resident controllers/movers
+in stock 64 MiB XEMU with exact PC traces and collision-view synchronization;
+connect moving geometry to rendering and the frame loop. Shared transformed
+mover projection now passes 4,218 pose cases; load/remap mover materials and
+append their draw geometry to the scene before frame-loop integration. Shared
+world/mover material residency now maps 5,919 texture references across 68
+levels, deduplicating names and owning images after source closure. Live Mines
+uses 17 unique slots for 28 references (16 loaded, one missing), with all mover
+textures already present in the world table. PC budget/ownership/image checks
+and PC/NXDK builds pass; connect this bundle and its local-slot mappings to
+scene geometry, then validate visible movers and frame-loop motion in XEMU.
+World/mover composition is now connected in both PC and Xbox scene paths.
+The combined builder matches separate projection/remapping on all 68 levels;
+Live Mines submits 80 additional mover triangles and passes 64 MiB XEMU plus
+PC framebuffer comparison. The miner camera occludes these additions (frame
+unchanged); add a door-focused inspection view, retain render geometry and
+connect committed resident poses to the actual render loop. Current scene
+movers use authored file poses and release source geometry after projection.
+The door-focused view now visibly renders mover 8544 with textures in stock
+64 MiB XEMU and passes PC framebuffer comparison (964 triangles, no actor in
+view). Connect committed door motion to retained render geometry and frames;
+inspect the visible fine diagonal surface artifacts before claiming fidelity.
+Shared world/mover reprojection now supports a fixed caller-owned vertex
+allocation; 204 PC pose cases across 68 levels match separate projection and
+remapping, including failure preservation for late invalid poses and short
+capacity. Retain mover geometry/mappings in the scene owner and call this
+updater from committed door motion during the renderer's frame loop.
+The retained scene owner now passes 204 PC pose/lifetime cases across 68 levels
+after archive closure, source-level poisoning and image closure, with at most
+307,984 bytes of mover geometry/mappings. Keep this owner in the Xbox scene
+and draw committed door ticks; the existing compatibility loader still closes
+it after initial projection. GPU streaming currently requires a fixed world
+vertex boundary and must accept changing world counts within its fixed capacity.
+Committed mover poses now drive the Xbox draw loop with retained source data
+and fixed CPU/GPU capacity. The visible diagnostic now updates all door panels
+together at 1/60-second steps, correcting the earlier quarter-second jumps and
+sequential panel cycles. Original/PC/NXDK checks pass 2,400 smooth motion ticks;
+the open-door 120-frame XEMU check passes exact mesh hashes and framebuffer
+comparison. Connect actual trigger/event pairing and the gameplay clock, retain
+actors in the same running world, then restore collision obstruction and audio.
+The full synchronized 600-frame cycle now passes stock 64 MiB XEMU with exact
+PC mesh traces and all 2,400 controller/mover ticks; the open-door snapshot is
+verified separately. Reprojection and timing remain diagnostic, not performance-
+qualified gameplay rendering.
+
+Loaded-world sweeps pass 44,082 real-level queries and 162 Live Mines queries
+in 64 MiB XEMU with exact PC results; recover transformed/moving-solid queries
+and actor movement response before driving gameplay collision.
+
+Zero-radius collision tree traversal now matches 1,800 complete original calls;
+recover tree construction and world room selection, then connect loaded geometry
+and mutable metadata to the running game.
+
+Live Mines collision queries now use initial file/room filter metadata and
+match all 7,418 original face-query results; recover later room mutations and
+world traversal before using them for gameplay.
+
+Collision face bounds now match the original finalizer for all 7,418 Live Mines
+faces, including its 0.0001 expansion; continue recovering room state and
+runtime filter metadata before world traversal.
+
+Face access now preserves the original 32-bit file flags across 460,720 faces;
+recover post-load flag changes and room ownership before enabling gameplay
+collision metadata and world traversal.
+
+All 7,418 Live Mines faces now bind to collision views and match original ray
+results on PC and NXDK; recover runtime filter metadata and world traversal
+before using the query for gameplay visibility or actor movement.
+
+The combined zero-radius face query now matches 6,000 complete original calls
+on PC and NXDK; connect real level faces and world traversal, then recover
+texture-check modes and swept actor collision.
+
+The candidate face filter now matches 28,356 original cases on PC and NXDK;
+join it to geometric tests, recover later texture rejection and hit updates,
+then implement world traversal.
+
+Projected polygon containment now matches 6,858 original cases on PC and NXDK;
+combine it with plane/box tests and recover face filters and world traversal.
+
+The one-sided segment/plane test now matches 11,876 original cases on PC and
+NXDK; recover polygon containment and face filtering before querying the world.
+
+The original segment/box collision primitive now matches 15,678 original cases
+on PC and NXDK; reconstruct world traversal and support queries described in
+docs/COLLISION.md to complete crouch/stand physics.
+
+The stance gate matches 2,292 original-code cases and crouch eligibility matches
+8,751 cases through its visibility boundary; reconstruct the target-eye ray
+query and crouch/stand collision effects before driving gameplay state selection.
+
+The Xbox scene now plays registered authored stand/walk/crouch states from the
+miner's 19-motion set; replace the diagnostic request schedule with gameplay
+state selection and add authored action/weapon-specific playback.
+
+Bulk registration now resolves 180 authored state groups, including 19 miner
+base motions; feed these state sets into actor playback and retain explicit
+failure for the unresolved edf_ship group.
+
+Motion-cache lookup and reference acquisition now match 1,041 original-code
+cases and supply diagnostic registration identities; finish payload release
+and bulk authored state registration before replacing the fixed file setup.
+
+Motion identity/loop-flag registration now matches 2,098 original-code cases
+and drives the passing XEMU fixture; connect bulk authored state registration
+and motion-cache ownership to replace the remaining fixed four-file setup.
+
+Authored state binding now opens 1,137 compiled motions and reports the two
+missing EDF1_Idle references; register these handles and drive real actor states.
+
+State-motion metadata now matches all 1,139 base/weapon declarations across 63
+classes; connect those mappings to registration/playback and resolve missing
+EDF1_Idle plus the already missing edf_ship model without inventing substitutes.
+
+Live Mines now retains its world and textures while miner UID 9858 animates for
+64 frames on stock-memory XEMU, with the final pose matching PC; replace the
+scripted miner sequence with authored actor states and recover the gameplay eye.
+
+Placed diagnostic models now explicitly clip at the world's 0.1-unit near plane;
+1,200 original polygon fixtures and a real miner boundary test pass, with the
+existing combined image unchanged and numeric 64 MiB XEMU passing. Recover the
+original near-plane setup and extend the frozen scene into animated actors.
+
+Live Mines and miner UID 9858 now draw together on PC and stock-memory XEMU
+with a passing framebuffer comparison; restore the gameplay camera, reconcile
+near clipping and extend the frozen diagnostic into an animated actor scene.
+
+Two Live Mines miners now produce posed geometry at authored transforms using
+the world preview camera; combine world/actor draws and reconcile near clipping
+before treating their camera paths as fully equivalent.
+
+All 78 Live Mines entity records now bind by UID to installed skeletal meshes
+and authored skins with exact transforms; feed these bindings into world drawing
+and resolve each actor's animation state instead of the scripted miner fixture.
+
+Animation scratch now uses a fixed 27 KiB heap allocation, reducing its Xbox
+stack frame to 19,152 bytes; the measured stream-frame subtotal is 31,196 bytes.
+Measure library/kernel stack demand and connect real actors to world drawing.
+
+Parker's skin now completes 64 frames on stock-memory XEMU and matches the PC
+framebuffer. Audit diagnostic stack usage and the earlier NV2A assertion, then
+connect authored skins and real level entities to combined world drawing.
+
+All five miner skin bundles now pass material and budget checks, and Parker's
+authored skin renders in the PC preview. Connect skin selection on Xbox and
+real level entities, and verify the original runtime skin-switch semantics.
+
+The skeletal compiled-name helper matches 1,960 original-code cases and resolves
+49 entity classes to installed meshes; 41 capacity guards pass. Recover the
+separate .v3d model path, investigate missing edf_ship.v3c, apply skin lists and
+connect real level actors to world drawing.
+
+Entity asset metadata now matches all 63 table classes and 168 class/skin
+selections. Recover compiled model filename resolution and apply skin lists;
+investigate level class names camera1 and Bucket Bot before actor creation.
+
+The bounded level-entity reader matches 1,610 records across 66 installed
+levels. Resolve entity classes/skins to model assets and feed real transforms
+into scene drawing; Live Mines miner1 UID 9858 is a nearby placement candidate.
+
+Supplied world-camera/entity transforms now drive the running model stream on
+64 MiB XEMU, with moving and fully culled placement checks on PC. Load real
+level entity transforms and combine placed models with the world draw path.
+
+Entity-local camera and view rotation now match 2,000 original placement-block
+cases. Connect supplied world/entity transforms to scene model drawing and
+recover the remaining view-stack and secondary-view state.
+
+The miner inspection now streams 64 changing frames through reusable CPU/GPU
+buffers on 64 MiB XEMU. Add sustained scene playback, world placement, original
+lighting/material effects and performance measurements before PS2 comparison.
+
+A textured, posed miner now renders on PC and 64 MiB XEMU, with a passing
+framebuffer comparison and translucent faceplate. Add visible animation playback,
+world placement, original lighting/material effects and PS2 visual comparison.
+
+Resident model batches now assemble triangle routing, clipping and emission,
+and real miner poses exercise index output on PC and 64 MiB XEMU. Independently
+compare full assembled batches and connect their materials/vertices/indices to
+the Xbox and PC draw paths for the first visible animated model.
+
+Clipped-vertex projection and fan emission now match 2,400 original projection
+cases and 600 output polygons, including 2,200 generated vertices. Connect these
+stages to routed resident model triangles and verify the assembled draw inputs.
+
+Multi-plane polygon traversal now matches 600 complete original-code triangle
+fixtures byte for byte, including temporary-slot lifetime and output order.
+Extend integrated coverage to near/custom planes and varying colors, then
+recover clipped-vertex projection and bounded triangle-fan index emission.
+
+Clipping temporary-vertex allocation and release now match 2,043 original
+operations, including the 47-success allocation limit. Assemble the per-plane
+polygon walker using the recovered pool, intersections and attributes.
+
+Generated-vertex clip classification now matches 3,000 original cases and
+shares the verified fresh-projection mask calculation. Assemble temporary
+vertex allocation/release and polygon traversal around the recovered stages.
+
+All seven clip-plane intersection branches now match 2,800 original cases.
+Assemble intersection, attributes, clip classification and temporary-vertex
+lifetime into per-plane polygon traversal before draw submission.
+
+Clipping UV/RGB interpolation now matches 3,000 original-block cases under
+explicit x87 rounding setup. Recover plane intersection factors/positions and
+assemble per-plane polygon clipping with bounded temporary vertices.
+
+Triangle clipping-input assembly now matches 6,000 original records, preserving
+own UVs and reused positions/lighting. Recover edge interpolation, temporary
+vertex lifetime and per-plane traversal before clipped triangle submission.
+
+Triangle rejection/direct/clipping routing now matches 3,000 original cases.
+Recover polygon clipping and bounded index emission, then connect the routed
+triangles to material binding and Xbox draw submission.
+
+Model triangle facing now matches 2,000 original renderer cases, including
+two-sided flags and degenerate inputs. Connect frustum rejection, clipping and
+index emission to the processed animated batches.
+
+Real miner poses now feed resident render batches on PC and 64 MiB XEMU,
+passing 47,616 vertex visits with bounded reusable buffers. Compare those render
+outputs against original code and connect triangle submission for visible models.
+
+All 599 installed model batches pass controlled resident-render processing,
+including UVs and duplicate copies. Connect real evaluated poses and emulator
+batch buffers, then triangle clipping and visible submission.
+
+Resident batch processing now assembles deformation, projection, lighting and
+reuse, matching 250 original-code batches. Exercise real animated geometry
+through it and connect triangle clipping/material binding/draw submission.
+
+Fresh model projection, depth and visibility now match 2,000 original-code
+cases. Assemble deformation, projection, lighting and duplicate reuse into
+resident batch processing, then connect triangle submission.
+
+Duplicate-vertex processing now matches 2,000 original branch executions.
+Recover fresh projection and connect cache lifecycle, deformation, lighting
+and model draw submission using the resident batches.
+
+Visible fresh-vertex normalization and lighting now match 2,000 original
+call-site cases. Connect duplicate-vertex cache reuse and draw submission;
+the missing normalization step is now explicit in the recovered render path.
+
+The original camera-distance metric and detail choice now match 2,000 tested
+cases. Supply live camera/scale state and connect selected model geometry to
+draw submission; the current visible scene still contains static geometry only.
+
+File thresholds now drive the resident loader through the recovered selector,
+including the shared diagnostic on 64 MiB XEMU. Connect the live camera metric
+and model draw submission before implementing in-scene detail switching.
+
+Original model detail selection now matches 2,000 executable cases, including
+flag overrides and exact threshold boundaries. Retain file thresholds and
+connect the camera metric to selection-driven geometry residency and drawing.
+
+The shared animation diagnostic now uses a budgeted resident geometry loader
+on PC and 64 MiB XEMU. Independent traversal validates all 170 model LODs,
+including exact-budget success and one-byte-under rejection. Connect resident
+batches to renderer deformation, lighting and draw submission for visible models.
+
+All 599 model batches now resolve through their LOD texture tables to owned
+material indices. Connect these mappings and renderer-specific deformation
+to draw submission, then validate the first visible character output.
+
+All 744 miner LOD0 vertices now deform over 64 animation frames on PC and
+64 MiB XEMU, matching 47,616 original collision-deformation evaluations.
+Connect renderer-specific vertex processing, materials and lighting to drawing.
+
+The shared miner diagnostic now prepares skinning matrices from real skeleton
+and animation data across 64 frames, matching original code on PC and 64 MiB
+XEMU. Connect actual vertex batches, material slots and lighting to drawing.
+
+Skinning-matrix preparation and generation caching now match 2,000 original
+cases across 8,000 bones. Connect actual stored transforms and animation poses
+to prepared matrices, then feed deformation, lighting and model drawing.
+
+Complete model lighting setup now matches 2,000 original-function cases.
+Connect world candidate lights and model inputs, finish second-stream/pose
+preparation, then integrate the recovered deformation and lighting into drawing.
+
+Selected-light direction now matches 2,000 original cases, including flag
+0x400 and singular inputs. Assemble fixed lighting and global gates with the
+verified selection, direction and attenuation helpers for renderer integration.
+
+Selected-light attenuation now matches 2,000 original cases. Finish light
+direction normalization/rotation, fixed lights and global gates before
+connecting the recovered setup to model rendering.
+
+Nearest local-light selection now matches 2,000 original executions. Finish
+fixed-light setup, selected-light direction/attenuation and global gates, then
+connect game-derived lighting inputs to model rendering.
+
+The model lighting helper now matches 2,000 complete original executions,
+including non-finite vectors. Connect original light setup and second-stream
+preparation before validating fully lit model rendering.
+
+The bounded vertex-reuse reader matches all installed records, including
+24,861 valid backward references. Integrate the renderer's cached position,
+clip/depth and lighting reuse while recovering second-stream preparation.
+
+Rendering's fresh-vertex deformation now matches 2,000 original executions
+for both streams; recover second-stream preparation, duplicate reuse and
+lighting before connecting the deformed batches to drawing.
+
+Collision vertex deformation now matches 2,000 original executions: weights
+use byte/256 and stop at the first zero, without sum normalization. Connect
+prepared bone transforms and independently recover rendering deformation.
+
+All active model bone indices fit their skeletons; all 12 non-finite normals
+and 19,060 vertices with non-255 weight sums are triangle-referenced. Recover
+the original deformation consumer before choosing weight or normal treatment.
+
+Vertex/triangle readers now match all 85,866 vertices and 99,214 triangles in
+the 95 models. Recover runtime bone-weight interpretation and handling of
+12 source vertices with non-finite normals, then integrate skinning and drawing.
+
+The bounded model batch directory now exposes eight aligned data regions for
+all 599 batches across 170 LODs in 95 models. Decode the shared format descriptor,
+verify positions/UVs/indices and skinning, and connect material slots to drawing.
+
+Per-model material residency now connects actual decoded textures to owned
+records with deduplicated local slots and a combined allocation budget.
+All 95 models / 733 materials pass field and exact-budget checks; the largest
+bundle peaks at 1,837,928 bytes. Connect bundles to model drawing and weapon
+presentation, then add cross-model sharing/eviction and a total scene budget.
+
+TGA format and material-alpha classification now match original instruction
+blocks and accompany all decoded images. Connect per-model texture residency
+and handles to owned materials, then integrate model rendering and presentation.
+
+The shared named texture loader decodes all 385 model-referenced TGAs correctly.
+Map original texture-format transparency, add per-model residency and handle
+ownership, then connect decoded textures to model rendering and presentation.
+
+Disk material conversion now covers all 733 installed records with bounded
+scalar ownership. Resolve real texture handles/transparency and integrate model
+instance materials with rendering before validating visible weapon presentation.
+
+All 733 serialized materials across the 95 installed V3C models now stream
+through the bounded reader and match independent traversal. Recover conversion
+from their 84-byte disk layout to runtime materials before connecting ownership.
+
+Instance materials now own bounded copies of their three arrays with cleanup
+and failure checks. Connect this ownership layer to actual model loading and
+texture overrides, then validate local weapon presentation in Xbox runtime.
+
+Material fixed-field copying and array-size planning now match 2,000 original
+cases through completion or first allocation. Finish bounded ownership of the
+three copied arrays before instance materials can be published and rebound.
+
+The 200-byte model material constructor now matches 1,000 full original
+executions. Recover material copying and bounded instance allocation, then
+connect texture overrides and local weapon presentation to owned model instances.
+
+Model material counts now match 2,000 complete original executions across
+wrapper types. Recover per-instance material allocation/copy and texture binding
+before connecting the remaining weapon presentation adapter to live models.
+
+The no-op presentation cleanup dependency is removed, and resource/backend
+and mode-kind gates match 4,000 expanded original cases. Recover the remaining
+resource/material binding operations and live model ownership for local presentation.
+
+Weapon presentation control flow now matches 4,000 original-code cases using
+already-loaded model handles. Implement its cleanup/resource/mode adapters and
+actual model ownership, then connect local presentation and transition to gameplay.
+
+Current-weapon lookup now matches 3,000 original-code cases and runs before
+empty-ammo decisions in PC/XEMU; the original profile starts at the handler
+entry. Recover local-player presentation, transition and earlier selection
+gates to complete actual weapon switching and gameplay integration.
+
+Ammo exhaustion now drives the selection tail, queues one replacement and
+clears followup state in the shared 64-frame PC/original/XEMU diagnostic.
+Recover earlier selection gates, local transition and presentation before
+actual weapon activation and full gameplay locomotion can be assembled.
+
+Selection followup now executes its actual three-field reset, matching 4,000
+expanded original-code cases with 872 resets. Recover local-player transition
+4aa0b0 and preceding selection gates, then integrate selection in Xbox runtime.
+
+The selection tail now matches 4,000 original-code cases through paired
+remapping, duplicate suppression, ownership checks and request queuing.
+Recover the preceding 4a4a50 gates and actual message/apply/followup adapters,
+then connect selection to gameplay and validate it in the Xbox runtime.
+
+The weapon-selection queue mutation now matches 640 complete original-code
+cases and builds for PC/NXDK. Recover selection eligibility and activation,
+current-weapon presentation and firing adapters before connecting the empty
+weapon decision to live gameplay; no new visible result is available.
+
+Empty-weapon decisions now match 4,000 original-code cases across paired
+firing dispatch, ammo messages and replacement selection, plus the XEMU diagnostic.
+Implement current-weapon presentation updates and execute the selected actions,
+then finish sound adapters and remaining gameplay locomotion physics.
+
+Ammo lookup and ordered replacement-weapon selection now match 4,000 original
+cases and an ammo-exhaustion XEMU profile. Complete the empty-weapon handler,
+weapon switching/presentation, sound adapters and remaining locomotion physics.
+
+Effect-pair switching now matches 4,000 original executions and runs through
+weapon reset in XEMU; the false local-release callback was removed after
+identifying a read-only lookup. Implement sound/player reset adapters, effect
+ownership/rendering and following physics/state selection for full locomotion.
+
+Valid-entity weapon reset now matches 2,400 original cases through completion
+or explicit external-operation boundaries, and active-weapon nonloop stops run
+in the shared XEMU diagnostic. Implement sound/effect/player reset adapters and
+following physics/state selection, then assemble full gameplay locomotion.
+
+The pre-candidate 800ms timer/reset gate now matches 5,000 original executions
+and runs in the shared XEMU profile with 16 invalid-weapon resets. Recover valid
+weapon reset effects and following physics/state selection, then assemble the
+full locomotion selector with actual entity creation and registry updates.
+
+Entity lookup, weapon/seat traversal, attachment readiness and combat eligibility
+now match 2,007 original-code fixtures and feed the shared 64-frame XEMU
+diagnostic. Implement actual entity creation/registry updates, preceding 800ms
+reset, following physics/state selection and populated reset/audio adapters.
+
+Locomotion candidate selection now matches 3,014 original executions, including
+integrated sidestep/roll effects, asymmetric missing-state fallbacks and extended
+precision speed thresholds; the expanded 64-frame diagnostic matches 64 MiB
+XEMU. Recover combat predicates, preceding 800ms reset, following physics/state
+selection and populated reset/audio adapters to assemble the full selector.
+
+The shared diagnostic now matches original instructions and 64 MiB XEMU for
+64 frames of controller blending, real sidestep actions, candidate selection,
+playback, cached bones and eye transforms. Recover populated reset/audio
+adapters, roll runtime coverage and actual entity initialization, then finish
+the full locomotion selector and gameplay-camera integration. Original action
+names identify 17/18 as sidesteps and 19/20 as rolls; `rf_turn_*` is historical.
+
+The assembled candidate helper matches 3,004 complete original executions for
+absent weapon-entry and sound fixtures, with all six outcome branches covered.
+Recover populated reset/audio adapters and actual entity initialization, then
+validate the full helper in Xbox runtime and finish gameplay-camera integration.
+
+Remaining turn-candidate branches now match 4,800 original-code cases, including
+activity-based restart suppression and fallback candidate selection. Recover
+the preceding reset/decision logic and sound playback, then integrate the
+complete helper into entity animation selection and the gameplay camera.
+
+Turn direction gating now matches 5,208 original-code cases, including x87
+dot-product boundaries and local-vector transformation. Integrate remaining
+candidate/reset decisions with recovered turn effects; the full gameplay
+selector, camera and animated character rendering remain open.
+
+Selected-turn effects now match 2,400 integrated original-code cases across
+action restart, five deadlines, candidates, turn flag and movement settings.
+Recover the preceding candidate/reset decisions and valid-sound playback;
+the complete gameplay selector and camera integration remain open.
+
+Movement settings now match 6,000 original-code cases for speed, mode and the
+conditional response field. Integrate the recovered action starts, five timers
+and movement-setting effects into candidate/turn helper 0x41f9f0, then finish
+the complete selector and actual player initialization.
+
+Shared game clocks and deadlines now match 9,800 original-code cases, including
+nested pauses and wrap boundaries. Connect the turn helper's five 1,200 ms
+deadlines, recover its movement effects and finish candidate selection;
+platform clock wiring and runtime timer validation remain open.
+
+Entity action starts now match 6,000 original-code cases through loaded motion
+restart and sound-class dispatch. Recover sound selection/playback, turn-helper
+timer and movement effects, and the remaining candidate-selection logic before
+integrating the complete gameplay selector.
+
+Action-activity and remaining-time queries now match 7,000 original-code cases;
+activity depends on end minus cursor, not slot weight. Recover candidate/turn
+helper 0x41f9f0, including action starts and timer/movement side effects, then
+finish the middle selector and actual player initialization.
+
+Animation priority selection now matches 5,010 original-code cases, including
+forced states, linked-entity predicates and the x87 velocity threshold. Recover
+the middle candidate-selection and physics/AI branches, then connect actual
+player entity fields to the complete selector and gameplay camera.
+
+The movement selector tail now matches 6,000 original-code cases using entity
+movement-vector, mode and direction fields. Recover upstream priority rules,
+candidate selection, physics/AI side effects and actual player initialization
+before connecting these decisions to the gameplay animation controller.
+
+The shared controller-to-eye diagnostic now passes 64 frames in stock 64 MiB
+XEMU, matching PC and original-code hashes through requests, interrupted blends,
+overrides, playback and cached skeleton evaluation. Recover locomotion selection
+and actual player initialization; animated character rendering remains open.
+
+Logical state requests and membership checks now match 10,000 original-code
+cases, including interrupted blends and standing fallback. Recover locomotion
+selector 0x41f400 and actual player initialization flags, then integrate the
+controller with playback and eye evaluation in the Xbox runtime diagnostic.
+
+The post-selector animation controller now matches 2,406 original-code cases,
+including transition timing, overrides and loaded-motion weight assignment.
+Recover locomotion selector 0x41f400 and its state-transition setter, then
+connect actual player flags and controller updates to eye initialization.
+PC tests and NXDK compilation pass; this controller is not yet exercised in XEMU.
+
+Standing/crouching/restored-standing pose queries now match 600 original bone
+matrices and 24 eye transforms across eight starting states. Resolve controller
+0x41f400 and actual player initialization flags: creation updates animation by
+1/30 second before eye setup, so phase and cursor cannot be chosen arbitrarily.
+
+Character reset and deferred animation-stop controls now match 1,800 original
+cases, including preservation of slots/references until the next update.
+Verify the full standing/crouching eye-offset setup sequence using these controls
+and resolve initial-pose sampling before applying it to the gameplay camera.
+
+Loaded-motion insertion, weight assignment and restart now match 3,200
+original-code cases; the runtime diagnostic uses recovered insertion instead
+of constructing slots directly. Recover lazy resource registration/loading and
+the actual player initialization calls, including bone overrides and displacement
+producers, before connecting the gameplay camera.
+
+The shared 64-frame blended-skeleton check now passes in stock 64 MiB XEMU,
+matching PC and original-code hashes for bones, eye transforms, playback and
+cache state. Recover bone overrides, displacement producers and player setup;
+animated character rendering and gameplay-camera integration remain open.
+
+Per-bone generation caching now matches 960 repeated/invalidated original pose
+queries, preserving queued displacement on cache hits. Verify animation in
+Xbox runtime, then recover bone overrides, displacement producers and actual
+player initialization before changing the gameplay camera.
+
+Pending root displacement now matches original consumption and propagation
+through 8,000 bone matrices and 320 eye transforms, including a synthetic
+second root. Recover the producers of displacement, bone overrides and player
+setup, then verify the integrated animation path in Xbox runtime.
+
+Playback now feeds archive sampling, per-bone primary attenuation, pose blending,
+parent composition and eye-tag evaluation, matching 4,000 original bone matrices
+and 160 eye transforms after complete updates. Recover player setup, root
+displacement and bone overrides, and add an Xbox runtime animation check before
+using this path for the gameplay camera; the rendered diagnostic is unchanged.
+
+Complete forward playback now matches 10,240 original-code updates across
+160 scenarios of 64 consecutive frames, including mixed loops, completion,
+freeze handling, compaction, primary state, generation wrap and sticky events.
+Connect this state to archive sampling and skeleton evaluation, then recover
+actual player initialization and camera animation inputs. No new rendered
+behavior yet; publish native game/emulator screenshots when visible progress
+is available. Xbox compilation passes; runtime integration remains open.
+
+Non-loop cursor advance and primary-candidate selection within the mixed-loop
+branch now match 3,000 original-code cases. Assemble the complete update from
+the verified stages and test consecutive frames, preserving the original
+slot-index versus motion-ID distinction in fade-bypass lookup.
+
+The non-loop completion pass now matches 1,360 original-code cases, including
+freeze-slot retention and primary-state clearing. Assemble and verify the full
+animation update across consecutive frames, including primary selection during
+advance, zero-weight removal and frozen-instance early exit.
+
+Animation-slot removal now matches 2,040 original-code cases, including ordered
+compaction, selected-index repair and reference-count clamping. Integrate this
+with non-loop completion and freeze handling, then connect the playback state
+machine to archive sampling and skeleton evaluation.
+
+Loop phase-to-cursor mapping and two-marker event crossing now match 3,000
+original-code cases, including floor rounding and exact marker boundaries.
+Integrate phase/cursor updates, then recover non-loop completion, frozen slots
+and inactive-slot removal for complete animation playback.
+
+Shared loop-phase advance now matches 1,600 original-update comparisons,
+including wrap flags and dominant-slot selection. Recover end freezing and
+inactive-slot removal before
+integrating continuous playback with the verified skeleton path.
+
+Character tag placement now matches 1,000 original-wrapper comparisons; this
+wrapper rotates and translates the evaluated tag without an extra scale step.
+Recover actual player setup inputs and animation slot state, then integrate and
+validate the animated camera path in XEMU.
+
+The shared single-motion skeleton path now matches 300 original bone matrices
+and 12 animated miner eye transforms for stand/crouch poses. Recover looping
+slot updates, root displacement, overrides, model scaling and camera state
+selection before applying this model-space eye to gameplay or the Xbox preview.
+
+Archive-backed sampling now matches 131,965 full-track evaluations while holding
+only two rotation keys and two position keys. Cache disk reads and integrate
+these samples with slot weights, parent composition and eye attachment evaluation.
+Open validates all tick ordering; 62 malformed-file fixtures are rejected.
+
+Local pose blending now matches 1,600 original-code matrix comparisons across
+one through sixteen contributors. Connect per-track samples and normalized
+weights to parent composition, root motion and the model's eye attachment;
+the complete 0x51b500 evaluator and playback update still remain open.
+
+Elapsed-to-tick conversion now matches 8,005 original-instruction checks.
+Reconstruct the remaining 0x51ba80 update state machine: weighted shared loop
+phase, per-motion cursors, end freezing and inactive-slot removal; then connect
+cached archive playback and skeleton evaluation.
+
+The shared archive-backed RFA reader now validates all 1,009 installed motions
+and reads all 489,545 rotation keys and 147,716 position keys bit-for-bit without
+whole-file allocation. Connect indexed reads to cached playback, engine-time
+conversion and skeleton evaluation; trailing regions in 57 files remain unclassified.
+
+Per-track blend-weight envelopes now match 575,460 original-code comparisons
+covering all 26,393 installed track envelopes plus 500 synthetic envelopes.
+Connect weights and sampled transforms through the original skeleton blending
+path after implementing playback caching and engine-time conversion.
+
+Rotation-track sampling and easing now match 570,824 original-code comparisons
+covering all 26,393 installed tracks plus 300 synthetic tracks. Implement
+playback caching, engine-time conversion and animated skeleton
+evaluation before integrating camera setup. Single-key sampling at/before its
+tick deliberately avoids an original out-of-bounds read by decoding directly.
+
+Packed quaternion interpolation now matches 1,288,315 original-code comparisons
+at five blend positions across all 256,663 distinct installed adjacent/single-key
+pairs plus 1,000 synthetic pairs. Xbox runtime arithmetic equivalence remains
+to be checked when the animation path is integrated into the diagnostic.
+
+Packed rotation decoding is reconstructed in shared C, with all 65,536 signed
+component values checked in each of four positions against original instructions.
+The decoder, packed interpolation and track evaluation are available; integrate
+them with motion loading and animated poses.
+
+Position-key sampling is reconstructed in shared C with 755 bit-exact original
+comparisons covering stand/crouch and synthetic tracks. Recover engine-time
+conversion and full
+motion loading before integrating the camera pose.
+
+Original state initialization confirms stand slot 0 and crouch slot 8; the
+base miner1 motions resolve to installed ult2_stand/ult2_crouch RFA assets.
+The motion-envelope audit accounts for all 1,009 files and preserves additional
+regions in 57 files. Recover keyframe encoding, timing and weapon override
+selection before using these motions to set camera offsets.
+
+Attachment transforms now preserve the original unnormalized quaternion path,
+with 856 exact original-instruction comparisons including all 755 installed
+records. Bone transforms retain normalization; do not use the bone API for
+attachment setup. Animated parent poses and model integration remain open.
+
+Shared C now computes aligned LOD attachment ranges and reads all 755 installed
+attachment records bit-for-bit; miner's `eye` references bone 8 in each LOD.
+Integrate skeleton and attachment tables, validate upper parent bounds, and
+recover animated bone poses before using this local attachment as a camera.
+
+Shared C now traverses V3C section structure directly in VPP archives, including
+zero-sized SUBM chunks, while leaving LOD blobs on disc. Bone verification uses
+structural boundaries instead of signature searches. Decode LOD geometry,
+attachments and animation data next; the directory alone does not load a model.
+
+The suspected bone remapping is a stable depth-sorted evaluation order, now
+reconstructed in shared C with 200 exact original-instruction comparisons
+(95 asset skeletons plus 105 synthetic cases). It does not change file indices.
+Use this order when integrating animation poses; full V3C parsing and animation
+sampling/blending remain unfinished.
+
+Parent transform multiplication at 0x51c620 is reconstructed in shared C and
+matches 2,852 original-instruction comparisons bit-for-bit on PC. Original bone
+remapping and full hierarchy/animation evaluation remain open; isolated matrix
+products do not yet establish a correct animated eye pose.
+
+Local bone normalization and transform construction are now reconstructed in
+shared C; 2,852 PC results match the original instructions bit-for-bit, covering
+all 2,452 decoded asset bones and 400 scaled synthetic quaternions. Continue with
+parent composition, animation evaluation and proper V3C traversal before wiring
+the reconstructed eye pose into gameplay.
+
+The shared raw BONE payload decoder now preserves fields across 95 detected
+installed sections (2,452 bones), with no runtime allocation and validation of
+finite transforms and acyclic parent indices. Finish structural V3C section
+parsing, name processing and original quaternion conversion before pose use;
+the verification tool's signature scanning is only diagnostic discovery.
+
+Player creation now identifies the default `miner1` class, and unhooked original
+filename resolution confirms `miner.vcm` -> `miner.v3c`. The asset audit resolves
+45 of 46 entity-table character references; investigate `edf_ship.vcm` use and
+fallback before treating its missing .v3c as a blocker. Parent-chain pose
+evaluation is traced to 0x51b2e0/0x51b500 but remains unreconstructed.
+
+Character tag lookup is now reconstructed in `src/core/model.c` and included in
+PC/NXDK builds; 306 comparisons against original 0x51d5b0 and its unhooked
+default-locale comparator pass. This covers ordered lookup, not model loading
+or animated poses. Continue into 0x51b2e0, asset name resolution and player model
+selection; runtime pointer layouts must not be used as file layouts.
+
+Camera evidence update: original offset initialization at 0x423bd0 samples the
+model's `eye` tag into class standing/crouching fields using identity rotation
+and zero origin. Eight isolated original-instruction cases pass in
+`tools/inspect_eye_setup.py`, with explicitly synthetic model hooks. Missing
+tags and the info +0x724 flag 0x20000 behavior are verified. Recover player model
+selection, animation indices, asset parsing and pose evaluation before feeding
+these offsets into the campaign camera; no guessed eye height is authorized by
+this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
+
+## Accepted requirements
+
+- Original Xbox is the primary platform; only stock 64 MiB hardware is supported.
+- A PC build must share the Xbox-compatible game implementation and resource limits.
+- C/C++ reconstruction and recompilation using NXDK; Ghidra is available for analysis.
+- Single-player campaign first; multiplayer is a stretch goal.
+- Resource reductions are allowed only while maintaining PS2-level visual parity.
+- XEMU is the primary emulator; CXBX-R may assist with diagnosis.
+- Never control the desktop or send host input; use source, files, logs, non-interactive commands, and process-contained test harnesses.
+
+## Milestone 0 — evidence and toolchains
+
+- [x] Set the persistent project goal.
+- [x] Inspect the initial workspace: only an empty Git repository was present.
+- [x] Locate NXDK at `C:/nxdk` and Ghidra at `C:/Programming/ghidra_11.3.2_PUBLIC`.
+- [x] Locate the game, record file hashes, PE architecture/version/imports, and asset archive inventory.
+- [x] Record compiler, SDK, emulator versions and reproducible commands.
+- [x] Evaluate Open Faction and Dash Faction as references, recording provenance and reuse terms.
+- [x] Compile and validate minimal PC and Xbox artifacts; distinguish scaffolding from recovered game behavior.
+
+## Milestone 1 — reconstruction foundation
+
+- [x] Create a reproducible headless Ghidra project from a hash-identified executable.
+- [ ] Map startup, filesystem/archive loading, memory allocation, game loop, rendering, audio, input, and level transitions.
+- [x] Start a recovered-function register with original addresses, evidence, dependencies, confidence, and behavioral tests.
+- [x] Implement bounded archive access and inspect the first campaign level's section boundaries.
+- [x] Load level directories and spawn transforms in shared C, validate all 94 installed levels on PC, and validate Live Mines in 64 MiB XEMU.
+- [x] Load budgeted resident static geometry in shared C, validate all 94 installed levels, and verify Live Mines geometry in 64 MiB XEMU.
+- [ ] Reconstruct level payload parsing and original archive mounting/override semantics.
+- [ ] Establish native emulator visual capture without any desktop capture or window input.
+- [ ] Establish memory accounting that includes executable, heaps, stacks, GPU surfaces, audio, and transient loads.
+
+## Milestone 2 — playable campaign slice
+
+- [ ] Load and draw the first campaign area on both platforms.
+- [ ] Restore collision, player movement, controller mapping, weapons, enemies, events, and Geo-Mod.
+- [ ] Restore HUD, sound, dialogue, cutscenes, saves, and level transitions needed by that slice.
+- [ ] Compare matched PS2 scenes and capture native emulator output for review.
+
+## Milestone 3 — campaign completion and validation
+
+- [ ] Extend subsystem coverage through every campaign level and document completion evidence.
+- [ ] Run memory stress, loading, save/reload, destruction, AI, and frame-time regression scenarios.
+- [ ] Validate on 64 MiB XEMU, then prepare a reproducible USER hardware test package.
+- [ ] Fix hardware findings and finish PC regression coverage.
+
+## Current status
+
+Original inputs are at `D:/Programming/GitHub/OpenRedFaction/Installed_Game`;
+source work is in this repository on D:. RF.exe and tables.vpp match the
+Red Faction 1.20 NA baseline. Inventory: 39 files, 15 VPP archives, 8,410 entries.
+
+Both a 32-bit PC archive diagnostic and an NXDK XBE/XISO compile. The shared C
+VPP reader matches the complete installed archive directory inventory and passes
+malformed-input/bounds tests. One function, the filename checksum at `0x0052be70`,
+has been reconstructed and verified against original x86 for 9,671 test inputs
+in the C locale. Ghidra identified 7,248 candidate functions including libraries;
+this is not a measure of completed reconstruction.
+
+The diagnostic boots and validates tables.vpp on 64 MiB XEMU with both installed
+4627 debug and Complex 4627 v1.03 BIOSes using the xemu rendering backend.
+The headless `-display none` path faults before entry in this emulator build;
+its exact cause remains a non-blocking harness investigation. The harness uses
+isolated config/EEPROM, temporary HDD writes, and monitor-only guest telemetry.
+UT99 reference harness location resolved to
+`C:/Programming/GitHub/UnrealTournament_1.40/UT99-Xbox/Tools`.
+
+All 94 installed RFL level files have been scanned for section boundaries.
+The first campaign level is `L1S1.rfl` (Live Mines), version 180, 3,572,594 bytes,
+with 29 payload sections plus an end marker. Static geometry is 1,637,649 bytes
+and lightmaps are 1,130,684 bytes on disk; neither number is a runtime memory estimate.
+
+No playable game, PS2 visual comparison, or hardware validation exists yet.
+
+### Latest progress
+
+Moved the authoritative source project, references, and analysis databases to
+`D:/Programming/GitHub/OpenRedFaction` after the user's location correction.
+Original inputs remain in its `Installed_Game` subfolder and are ignored by Git.
+The C-drive task workspace contains relocation pointers; its old build outputs
+are retained under `local/legacy-build-c` on D:.
+
+The shared C level loader now validates v180 section directories, bounds, header
+offsets, end markers, and finite spawn transforms without loading whole RFL/VPPs.
+All 94 installed directories and spawn transforms agree with independent binary
+reads; two CTest suites pass. Live Mines' directory, geometry/lightmap section
+sizes, and exact spawn position are verified in 64 MiB XEMU from a disc containing
+the unmodified 68.8 MB levels1.vpp archive.
+
+Static geometry now retains original payload bytes and builds texture/room/face
+offset indices under an explicit allocation budget. Live Mines has 6,658 vertices,
+7,418 faces, 29,110 corners and 54 rooms, using 1,667,605 requested bytes for this
+geometry representation. All 94 installed levels load on PC; the largest requests
+2,131,016 bytes. Accessor-bound and allocation-budget checks pass, as do nine
+corrupted geometry cases. XEMU verifies counts and first/last decoded positions
+with geometry resident. This is not yet a rendering, collision, or gameplay test.
+
+The initial untextured static geometry preview now renders on PC and Xbox from
+the stored Live Mines spawn. Three frames execute in 64 MiB XEMU; a native guest
+framebuffer capture matches the PC reference within the diagnostic edge tolerance
+(191 of 307,200 pixels exceed three channel values). Fixed a W-buffer override
+after back-buffer selection. This provisional camera and flat face coloring do
+not establish original rendering fidelity; textures, lightmaps and gameplay remain.
+
+The shared C TGA decoder now reads 24/32-bit raw and RLE images directly from VPP
+entries with a fixed 4 KiB input buffer and explicit output allocation budget.
+All 16 Live Mines TGA references resolve across maps1/maps2/maps3/maps4/maps_en;
+RGBA8 base images total 2,117,632 bytes. USERBMAP remains unresolved. Pixel output
+matches Pillow for 41 installed images covering all supported observed header
+variants and every RLE image; 17 synthetic origin/truncation/packet cases pass.
+One installed paletted TGA remains unsupported.
+
+The shared material loader now uses bounded geometry-name access and explicit
+archive search order. It allocates 2,118,040 bytes including 17 material slots;
+the exact budget passes and one byte less fails with cleared state. It loads the
+16 images inside stock 64 MiB XEMU and retains USERBMAP as an explicit missing
+slot. Guest pixel checksum 0xa3aeb67d matches independent decoding. The material
+images remain resident alongside geometry and the three-frame GPU diagnostic.
+The shared preview now clips source UVs with geometry and carries u/z, v/z, 1/z
+and material indices. Its vertex allocation is now 1,460,280 bytes. The PC reference
+samples original textures with perspective division and nearest/repeat sampling;
+artifacts/live-mines-textured-pc.png shows the first base-textured tunnel view.
+Xbox now uploads swizzled base textures and samples projective UVs. Selecting
+border-color source fixes initial corrupt sampling because images contain no
+border texels. The textured tunnel is visible, but the strict PC comparison fails:
+29,235/307,200 pixels exceed three channel values (mean maximum-channel error 1.346).
+Resolve sampling differences before claiming PC/Xbox equivalence. Lightmaps,
+filtering, animation and archive override rules remain open. Fixed stale Xbox
+header dependencies caused by Windows/POSIX path mismatch; a rebuilt XEMU frame
+with the expanded vertex stride passes the untextured comparison.
+
+Next: bind decoded materials to geometry on both renderers, load lightmaps, recover portal/room visibility,
+and investigate trailing records that the community geometry loader leaves opaque.
+Original geometry-loading function semantics still require Ghidra reconstruction;
+the new loader implements the observed file layout and preserves unknown bytes.
+
+Sampling diagnosis: optional RF_PREVIEW_SNAP_1_16 quantizes only the PC diagnostic
+screen coordinates; it reduces the textured mismatch to 1,222 pixels (0.398%),
+still FAIL against the existing tolerance. This is an unverified raster precision
+hypothesis, not a hardware rule or a relaxed acceptance threshold. Default PC
+output remains unchanged. A 1/32 sample-center shift was less effective and removed.
+
+Lightmap inspection now covers exact image boundaries in all 94 installed level
+sections. Live Mines has 23 RGB lightmaps, expanding to 1,507,328 RGBA bytes;
+largest installed level expansion is 3,670,016 bytes. The shared C lightmap loader
+now loads all 94 levels under exact output/record budgets, rejects one byte less,
+and clears allocations on failure. Live Mines' 23 decoded pixel hashes match
+independent expansion of original RGB bytes. PC/NXDK builds pass. Geometry mapping
+indices now resolve through the first word of each 96-byte record and all indices
+are in range across all 94 levels. Live Mines' lightmaps remain resident in 64 MiB
+XEMU alongside base materials and geometry; the base-textured frame is unchanged.
+Lightmap UV propagation, blending rules and GPU sampling remain open. Open Faction
+uses doubled modulation, but original-binary investigation shows this is conditional.
+Original initializer 0x515730/constructor 0x411e00 emulates to solid mode 0x400024
+at 0x1808328. Original state function 0x54f160 uses modulation in texture-source
+case 4 and doubled modulation in case 5, with runtime byte 0x1cfcc1d selecting a
+4-to-5 remap. Trace that flag and lightmap conversion before fixing the lighting
+equation. See docs/RENDER_STATE.md; no unconditional lighting pass was substituted.
+
+The runtime flag is now identified as TextureOpCaps MODULATE2X: original write
+0x545f46 extracts bit 0x10 from 0x1cfcb58, and the original logger calls it D3Dm2x.
+The shared mesh now clips lightmap UVs and carries projected coordinates plus
+resolved image indices (56-byte vertices, 2,044,392 bytes for Live Mines).
+The second texture stage now samples lightmaps with linear clamping and combines
+them with linearly wrapped base textures using doubled modulation. Draws split at
+material/lightmap boundaries. The first lit tunnel renders on PC and 64 MiB XEMU.
+Strict comparison still FAILS: 5,248/307,200 pixels exceed three channel values
+(mean maximum-channel error 0.609). PC/NXDK builds and existing CTest checks pass.
+Original texture conversion, fog, alpha, mipmaps and PS2 comparison remain open.
+
+The shared projection now uses the same explicit 1/16-pixel grid on both targets;
+the former PC-only diagnostic flag has been removed. The latest lit-frame
+comparison PASSES: maximum channel difference 1, zero pixels over the existing
+three-value tolerance. Schema-7 XEMU telemetry measures GPU image requests
+3,624,964 bytes and vertices 2,044,392 bytes, with 44.25 MiB available after uploads.
+This frozen-scene snapshot is not a full-game peak or PS2 parity result.
+
+Camera investigation now identifies first-person entry at 0x40ddf0, camera
+position access at 0x40d760 and projection setup at 0x547150. First-person entry
+uses the entity's computed eye position/orientation; the raw spawn lacks that
+transform. Original projection constants are fingerprinted in camera-evidence.json.
+No guessed eye-height or original near/far interpretation was introduced. See
+docs/CAMERA.md for the entity/model and projection work still required.
+
+Camera update dispatcher 0x40d850 is now exported; first-person mode copies the
+player eye point to camera position before additional effects. Corrected thiscall
+metadata for original vector helpers 0x409f40/0x409f70 makes that data flow explicit.
+An original-instruction operand scan records candidate eye-field references for
+further tracing; the standing/crouching eye writer is still unresolved.
+
+The writer is now identified as 0x4194e0. Its non-linked branch is reconstructed
+in src/core/eye.c: states 8/9/10 select crouching, offsets are transformed by the
+entity orientation and blended during transitions, then added to position.
+400 deterministic cases match original x86 execution exactly in the PC test.
+The animated eye-tag branch returns explicit RF_NOT_FOUND; model-derived offsets,
+entity state loading and actual camera integration remain open.
+
+
+Xbox image sharing (2026-09-10): images/lightmaps now decode directly into
+contiguous swizzled RGBA8 memory, borrowed by the GPU as A8B8G8R8; PC retains
+row-major RGBA8. Owner lifetime and close still release the image allocation.
+No duplicate GPU texture allocation remains except the 1-pixel fallback.
+120-tick L1S1 campaign replay 20260910-002409 passes on 64-MiB XEMU.
+The earlier run 002039 has 10891 available pages versus 9798 in the previous
+235522 campaign run; this is a comparison across runs, not a controlled memory
+benchmark. Final native framebuffer comparison and pixel tests are recorded
+in docs/PROVENANCE.md. The 4-MiB material and 8-MiB GPU-image guards still need
+replacement with measured shared campaign budgets before L1S2 can run.
+
+2026-09-11: Coplanar thin-ray handling now matches original 4dec10 misses;
+all 14 L1S3 grid errors resolved with 8,572 other rays unchanged. PC/NXDK
+builds and original-vs-compiled collision regressions pass. L1S3 traversal
+remains open; native930-frame XEMU replay20260911-021158 now passes with
+PC state parity and nonzero DSP output on verified64MiB memory.
+
+2026-09-11: Fresh L1S3 route-link inspection places930/1530 endpoints inside
+trigger357, linked to Continuous_Damage9488; scene skips its value_byte2 mode.
+Eastward trigger9322 links a return to L1S2, not Door4. Recover missing trigger
+mode/damage behavior before treating the descent as valid campaign traversal.
+
+2026-09-11 correction: Trigger357 value2 is an allowed-linked-actor filter.
+UID26 is APC; original eligibility rejects an unlisted player. Eight explicit
+filter cases pass original/PC/NXDK. Prior pit-volume evidence must not be
+used to implement unconditional player damage or death.
+
+2026-09-11: Authored actor contact filters0..4 are connected. Runtime link
+membership/rebinding tests,93-level startup graphs and original filter
+comparisons pass. Native930-frame replay20260911-022235 matches PC on64MiB.
+NPC registration, point-event filter5 and special ownership gates remain open.
+
+2026-09-11: Continuous_Damage original on/off trace passes450 cases each,
+including1080 damage requests and72 secondary effects. Next reconstruct
+target dispatch and verify loader inputs/repeat scheduling before integration.
+
+2026-09-11: Shared Continuous_Damage request dispatch matches990 original
+on/990 off traces on PC/NXDK; four guards and eight CTests pass. Scene
+integration awaits damage backend, actor ownership and scheduling evidence.
+
+2026-09-11: Verified24 original loader/helper cases and12 real-vtable
+Continuous_Damage activation/tick sequences. Authored words map to amount/kind;
+each activation dispatches once. Upstream repeated activation remains open.
+
+2026-09-11: Shared SP health/armor numeric phase matches8,192 original
+41a350 prefixes plus four port guards on PC/NXDK; builds/eight CTests pass.
+Recover kill attribution/effects and outer4892c0 routing before live damage.
+
+2026-09-11: Shared SP lethal attribution matches4,096 original prefixes
+plus two guards on PC/NXDK. Burn-source and first authored-UID lookup order
+are verified. Remaining damage effects, outer routing and ownership stay open.
+
+Damage sound routing: complete4196f0 now matches4,096 original cases on PC/NXDK
+plus five nonfinite guards, including original timers, sound call order and
+callback flag mutation. See docs/DAMAGE.md and tools/verify_damage_sound.py.
+Live damage playback, pain animation and entity/death ownership remain open.
+
+Outer damage evidence:8,192 original4892c0 SP traces verify eligibility,
+force bypass, difficulty scaling, object dispatch and post-effect health
+cleanup. Implement the C wrapper next; delegated effects and the alternate
+6fc4d8 path remain open. See docs/DAMAGE.md and verify_damage_wrapper_trace.py.
+
+Shared SP damage dispatch now reconstructs4892c0 for normal SP globals.
+8,192 original traces and two port guards match PC/NXDK state, return values
+and callback arguments. Both builds/eight CTests pass. Remaining work includes
+entity damage effects, owned registration and connecting Continuous_Damage.
+
+Remaining entity-effect order:8,192 original41a505..41a7ab traces verify burn
+creation gates/source resolution, pain thresholds, kind6 voice, player feedback
+and AI notification. External effects remain supplied; next reconstruct shared
+orchestration and effect ownership. See docs/DAMAGE.md and
+tools/verify_damage_effects_trace.py.
+
+Armor immunity42cca0 is now shared C, with4,096 original/PC/NXDK cases
+including full flag words and floating boundaries. Damage dispatch8,194 cases
+and eight CTests still pass; PC/Xbox builds pass. Owned predicate adapters
+and shared burn/effect orchestration remain open; see docs/DAMAGE.md.
+
+Shared entity damage effects41a505..41a7ab now match8,192 original traces
+on PC/NXDK plus seven guards; both builds/eight CTests pass. Next assemble
+vitals, attribution and effect orchestration, then bind actual burn, animation,
+AI and entity owners. Callback mutation remains outside current trace coverage.
+
+Damage effect callback mutation coverage now passes16,384 original/PC/NXDK
+cases plus seven guards. All nine effect boundaries exercise mutations
+(1,251 actual callback mutations); no core correction needed. Assemble the
+damage phases next; real effect/lifetime ownership remains open.
+
+Composed SP entity damage now joins vitals, lethal credit and effects;16,384
+original paths match PC/NXDK state, return and call order. Effects-only suite,
+both builds and eight CTests pass. Next bind persistent entity/class/burn
+ownership and actual downstream effects, then connect event damage.
+
+Burn creation42e910:576 original traces verify rejection,64-byte record
+fields,free-to-active circular list transfer and non-aborting particle/audio
+failures. Actual pool initialization/release, attachment lookup and templates
+remain open before a gameplay burn owner; see docs/DAMAGE.md.
+
+Burn pool evidence:8 records of64 bytes,432 original release cases plus
+complete initialization verify owner clearing and circular list recycling.
+Emitter absence is0;voice absence is-1. Corrected creation failures to0 and
+all576 cases pass. Implement shared pool and recover42ee80 update next.
+
+Burn owner update:4,096 original tail cases verify frame-scaled self damage,
+audio and fade dispatch;30 real timer cases verify225ms shared rearm/wrap.
+Shared pool implementation, full spread/emitter loop and fade42f2f0 remain
+open. See docs/DAMAGE.md and tools/verify_burn_tick_trace.py.
+
+Shared burn pool initialization/release now preserves8x64-byte records,
+slot-index rings and owner cleanup order.437 PC/NXDK cases pass; both builds
+and eight CTests pass. Pool storage is524 bytes excluding effects. Next add
+creation and per-frame update, then bind actual emitter/audio/owner adapters.
+
+Shared burn creation now matches612 original cases on PC/NXDK plus two
+ring guards,including full-capacity free ring and partial emitter/audio failure.
+Release/init437 cases,both builds and eight CTests pass. Next implement
+update/fade and bind actual attachment/particle/audio/entity ownership.
+
+Burn fade42f2f0:8,192 original traces verify5/12/17-second boundaries,
+byte87 wrap/scaling and release order.4174c0 requires type7 owner before
+flags29c writes;actual owner conversion remains required. Implement shared
+fade/update and reconcile particle fields next;see docs/DAMAGE.md.
+
+Shared burn fade now matches8,192 original cases plus six guards on PC/NXDK.
+Creation614,pool437,both builds and eight CTests pass. Full per-frame loop
+and live particle/model/audio/entity ownership remain open; type7 transition
+cannot be replaced by a missing-owner guard. See docs/DAMAGE.md.
+
+Original burn traversal audit:90 cases confirm18 missing-owner free-ring
+cycles after release and72 terminating missing-emitter paths. Shared update
+must resume saved next active token after release,an explicit defect correction;
+verify head/interior/tail removal before integration. See docs/DAMAGE.md.
+
+Shared burn traversal now fixes missing-owner cycling by resuming saved next
+active token.90 corrected-original paths plus two guards match PC/NXDK;
+both builds/eight CTests pass. Full body and fade-triggered release integration
+remain open; this is traversal infrastructure,not completed burn simulation.
+
+Shared burn owner audio/damage/fade dispatch passes4096 original cases on PC
+and NXDK plus6 input guards; full attachment/spread and live ownership remain.
+
+Burn attachment1024 and spread3125 original traces pass; radius is2 units
+(squared limit4), while coincident leg tags expose original NaN normalization.
+Shared attachment/spread implementation and persistent ownership remain open.
+
+Shared burn attachment placement passes1025 PC/NXDK cases with zero measured
+position error; coincident tags return an explicit error before NaN emission.
+Spread, world transform and full live burn ownership remain to be connected.
+
+Shared burn spread passes3128 PC/NXDK checks with original filter/range/damage
+ordering; world transform, timer gating and persistent live adapters remain.
+
+Complete original burn body passes54 ordering/mutation scenarios; spread
+damage can reject a later target or switch the owner tail to fading.
+Compose shared phases against this oracle before persistent live integration.
+
+Composed shared burn body passes54 complete original scenarios on PC/NXDK,
+including timer/world transform and mutation-visible spread/owner ordering.
+Pool fade/release composition and persistent campaign adapters remain open.
+
+Pool -> owner tail -> fade -> release passes540 PC/NXDK patterns and2082
+record retirements, including all-eight removal, exact rings and timer rearm.
+Persistent campaign resources and live owner-reference clearing remain open.
+
+Burn model binding needs bone-only case-sensitive substring search; shared
+lookup passes2048 PC/NXDK cases and fourth query is head. Live model resolution,
+fallback orchestration and persistent NPC damage owners remain to connect.
+
+Burn fallback bone resolution passes2048 PC/NXDK cases with byte-verified
+hyphen/space names; Ghidra symbol underscores were not literal query bytes.
+Live model owner, pose binding and persistent campaign damage remain open.
+
+Installed burn bone binding passes95 model sets on PC/NXDK;31 resolve all
+four bones, and miner resolves11/12/15/8 including spine03 fallback.
+Live owner/animated pose integration and gameplay eligibility remain open.
+
+Animated burn-bone query passes520 original PC/NXDK cases including264 real
+miner pose queries plus26 guards; live emitter/owner adapters remain open.
+
+Burn emitter movement boundary passes1024 PC/NXDK original cases plus4
+guards; actual room locator, parent synchronization and emission remain.
+
+Emitter cached-room policy verified across240 original paths; positive motion
+and face crossing gate fresh lookup. Recover4cd9e0 before live room binding.
+
+Complete original room-crossing traversal passes1500 geometry cases; distinct
+508570 plane rules and1.0001 fraction limit must be preserved in shared code.
+Boundary/oblique/real-level checks and cached-room binding remain open.
+
+Shared room-crossing traversal passes1500 original PC/NXDK cases plus2 guards;
+edge/oblique/multiple-root/real-level checks precede cached-room integration.
+
+Room crossing matches3506 additional PC/NXDK boundary/angled-segment cases;
+oblique planes, multiple roots and real levels remain before live integration.
+
+Retained L1S1/L1S2/L1S3 room crossings match complete original4cd9e0 in2,160
+NXDK CPU-harness queries, including oblique faces and multiple primary roots;
+cached-room policy composition and live emitter ownership remain open.
+Evidence: tools/verify_loaded_room_crossing.py and docs/DAMAGE.md.
+
+Shared cached-room tracking and emitter room-token adapter now match complete
+original4cd970 across6,480 retained L1S1/L1S2/L1S3 scenarios on PC and NXDK;
+both builds and eight CTests pass. Connect live emitter ownership next.
+Evidence: tools/verify_loaded_room_tracking.py and docs/DAMAGE.md.
+
+Concrete burn attachments now connect evaluated bones, cached-room movement and
+full emitter update with no allocation. Original/PC/NXDK match72 scenarios each
+on L1S1 and L1S3, including40 created particles per suite; both builds and eight
+CTests pass. Persistent NPC/resource ownership and live scheduling remain open.
+Evidence: tools/verify_burn_resolved.py and docs/DAMAGE.md.
+
+Burn fade now writes directly into active particle runtimes;8,192 original/PC/
+NXDK comparisons preserve packed color and enabled bytes. Prior fade and540
+retirement scenarios still pass, as do both builds and eight CTests. Connect
+actual emitter/audio release and persistent NPC ownership next.
+Evidence: tools/verify_burn_fade_resolved.py and docs/DAMAGE.md.
+
+Burn resource release now stops/frees actual emitter slots and detaches surviving
+particles;256 original/PC/NXDK cases verify list order and unchanged particle
+counts. Both builds,437 prior pool checks and eight CTests pass. Audio backend
+and persistent NPC ownership/scheduling remain open.
+Evidence: tools/verify_burn_resource_release.py and docs/DAMAGE.md.
+
+Original audio control-stop now preserves signed generation/8-bit slot semantics
+separately from mixer handles;2,500 original/PC/NXDK cases pass, including zero
+and stale handles. Recover control-voice allocation/refresh before connecting
+burn audio to device adapters. Both builds and eight CTests pass.
+Evidence: tools/verify_audio_control_stop.py and docs/controller-audio.md.
+
+Original control-voice allocation now sweeps30 slots before selection and assigns
+generations only after successful playback;1,024 original/PC/NXDK comparisons
+pass. Positional start/refresh and real sample/device adapters remain. Both
+builds,2,500 stop regressions and eight CTests pass.
+Evidence: tools/verify_audio_control_start.py and docs/controller-audio.md.
+
+Positional voice start/refresh now compose shared spatial math and control
+allocation;1,024 start and2,048 refresh original/PC/NXDK cases pass, with prior
+control regressions and eight CTests. Both builds pass. Connect real sample/
+device adapters and persistent burn-owner scheduling next.
+Evidence: tools/verify_audio_control_position.py and verify_audio_control_refresh.py.
+
+Sample prepare/playback dispatch now preserve the separate sample gain category
+and looping bypass rules;6,000 original/PC/NXDK cases pass. Actual543760 loading
+and522530 device adapters, signed-device/mixer handle mapping and native status
+ownership remain. Both builds and eight CTests pass.
+Evidence: tools/verify_audio_sample_start.py and docs/controller-audio.md.
+
+
+Current build06d8038 native regression: replay20260911-053608 passes930 L1S3
+frames with PC state parity, QMP-verified64MiB and nonzero DSP output;
+9530 available pages at completion. Eight PC CTests pass. Normal disc flags
+restored and ISO rebuilt. See docs/XEMU-MEMORY.md. This confirms the existing
+live path only; burn NPC ownership and sample-control device integration remain
+open. No new visuals or hardware listening claim.
+
+
+Device-source playing queries now exist for PC and Xbox, using each platform's
+source clock. Real PC audio checks and native64MiB APU20260911-054025 pass expired
+one-shot, muted loop, unrelated voice, unknown handle and closed-device cases.
+Queries do not release PCM or certify speaker completion. Both builds/eight CTests
+pass. Connect signed control-device ownership and sample loading next; persistent
+NPC/burn ownership remains open. See docs/controller-audio.md.
+
+
+Live ambient playback now uses a fixed244-byte signed identity map instead of
+casting unsigned mixer handles; generation32768 no longer becomes a false failure.
+Zero identity, stopped/reused source guards and original nonnegative counter wrap
+pass nine CTests and720 original/NXDK comparisons. Four campaign startup fixtures,
+PC1170-frame ambient restart and native64MiB replay20260911-054619 pass with PC
+parity/nonzero DSP. Both builds pass. Controller/game-control device ownership,
+native status integration, sample loading/category wiring and persistent NPC burn
+ownership remain open; see docs/controller-audio.md.
+
+
+Controller playback now routes metadata loop mode to the mixer and native device,
+reports device start failures, and shares nonnegative device identities with ambient
+voices. Arrival stops resolve full unsigned handles and clear spatial tracking.
+Native64MiB lift-cycle replay20260911-055316 and PC600-frame replay pass with two
+loop-mode starts/two stops,243 mixed loop voice blocks and zero observed wraps
+(trips end before sample endpoint). PC/Xbox state and DSP checks pass, as do both
+builds/nine CTests, door traversal and1170-frame ambient restart. The historical
+two-track door PCM oracle fails on newly included ambient starts; independent
+full-mix reference coverage remains open. Game control-table/category/native-status
+integration and persistent NPC burn ownership remain pending.
+
+
+The current door-plus-ambient PCM oracle now matches every572800 output bytes via
+independent Python WAV decoding/resampling/mixing and propagated source cursors.
+It captures actual scene scheduling/gain decisions as inputs; independent original
+runtime verification of those decisions remains in the shortlist. Relative door
+travel timing is retained; current contact startup adds one ambient-only block.
+Observer-disabled PC repeat and native64MiB replay20260911-060021 pass with matching
+PCM hash and guest state, plus nonzero DSP. Both builds/nine CTests pass. The earlier
+historical two-track oracle failure is resolved for the current mixed PCM stream.
+
+
+Entity factory armor/health assignment now matches1,536 original/PC/NXDK cases:
+SP class armor copy, low-byte network zero armor, negative/unordered class health
+becoming100 plus object flag4, and opaque class764->entity840 transfer. Both builds
+and nine CTests pass. This is numeric construction only; intervening factory calls,
+class metadata binding, persistent NPC registration and live burn/damage ownership
+remain open. The campaign still registers only the compact player view.
+
+
+Required class Life/Envirosuit/FOV metadata now loads through a bounded archive
+adapter. All63 installed classes match original numeric stores/FCOS, PC archive
+loading and NXDK text reading; five malformed guards preserve output. The prior
+class764->entity840 word is identified as cosine of half authored FOV. Both builds,
+nine CTests and1,536 creation-assignment cases pass. Persistent NPC construction
+can consume verified class values next; registration/model/physics ownership and
+live damage/burn integration remain open.
+
+Current Xbox regression after7830833: replay-20260911-062100 PASS,180 staged
+L1S1 door/audio frames, stock64MiB, PC state parity and nonzero DSP output.
+Nine CTests pass; persistent NPC construction/ownership remains open.
+
+Persistent NPC construction inputs now survive archive close and share class
+vitals/physics under a1MiB campaign budget; three level lifetime/budget probes
+and native64MiB replay-20260911-062422 pass. Actual NPC construction, model
+ownership, registration and live damage/burn behavior remain open.
+
+Entity model-kind selection is original-verified across86 cases and retained
+with class model names; native64MiB replay-20260911-062852 passes. Actual
+model/resource loading and actor initialization remain the next NPC work.
+
+Campaign now retains shared skeleton bones by compiled model identity within
+a256KiB budget. Three level lifetime/failure probes pass; per-NPC poses,
+animation/geometry/material ownership and actor registration remain open.
+Native64MiB replay-20260911-063337 passes600 L1S2 lift/audio frames after
+shared skeleton integration; no new visual behavior is claimed.
+
+Per-NPC inactive playback/pose storage now has distinct bounded arrays and
+original-verified constructor fields (128 cases). Three level owner probes pass;
+connect authored motion resources and initial state/action selection next.
+Native64MiB replay-20260911-064148 passes after per-NPC pose allocation.
+
+NPC base state mappings and borrowed motion descriptors now persist by class;
+three level owner probes and181 installed group checks pass. Weapon/actions,
+named timing markers and original startup selector inputs remain open.
+Native64MiB replay-20260911-064631 passes after retained base motion loading.
+
+Base45 action mappings and sound labels now persist with class state bindings;
+1168 action declarations and495 installed action slots verify. Weapon-specific
+mappings, numeric sound IDs, named timing markers and live initial selection remain.
+Native64MiB replay-20260911-065339 passes with retained base action bindings.
+
+Weapon ID order/name lookup is original-verified (44 weapons,140 lookups), and
+class weapon-group masks now persist. Bind each declared group to motion
+resources next; live initial selector and playback remain open.
+Native64MiB replay-20260911-070422 passes after weapon group-ID integration.
+
+Declared skeletal weapon groups now retain state/action file bindings within
+the1MiB budget;4284 weapon slots across63 level groups verify. Stable shared
+motion identities and initial actor/weapon selection are required before ticks.
+Native64MiB replay-20260911-070902 passes after weapon-group loading.
+
+Rocket resource preflight (2026-09-15): Authored launcher mesh, textures and
+idle/fire/reload clips load through the shared weapon owner with24bones and
+549vertices. PC accounting is879608resident/891204peak bytes, below1MiB.
+All three clips evaluate240ticks with finite skinning matrices and return
+to idle. This is asset/playback validation, not visual animation review or
+a playable launcher; scene firing, blast damage and explosive GeoMod remain
+open. Campaign progression stays paused. Estimate remains ~49%.
+
+Live launcher update (2026-09-15): Glass House has a fifth weapon slot with
+authored6-round magazine,18reserve,1.7s reload and1.25s fire cadence. A
+fixed50-flight scene owner advances rockets at20units/s and0.051radius
+against current world collision; room0 impacts excavate a box using authored
+crater radius5. No hitscan fallback. PC checks cover delayed impact and
+continued flight during reload/selection changes. Native260frame replay
+passes36 comparisons with9262pages free (36.18MiB); all19 staging entries
+restored. Native frame inspected: launcher and wall recess visible.
+Projectile visuals, explosion effects, blast/self damage, actor/mover hits,
+full animation/audio review, homing and spherical cuts remain open. This
+is an incomplete launcher first pass, not a finished explosive weapon.
+Estimate remains ~49%; current area is explosive weapons and GeoMod.
+
+Blast native verification (2026-09-15):400frame ordinary nearby-shot replay
+at artifacts/xemu/render-20260915-081337 passes37 PC/Xbox comparisons,
+including all blast diagnostic words;9261pages (36.176MiB) free. Native
+frame inspected with reduced health/armor HUD and excavated cavity visible.
+All19 staged disc entries restored; owned emulator exited. Far/lethal and
+reload/switch cases remain PC-only. Estimate remains ~49%; explosive weapons.
+
+Rocket VFX ownership (2026-09-15): The seven authored DrillMissile01.vfx
+mesh chunks now compose into a bounded shared geometry owner with persistent
+playback buffers. All use Scene Root parent. PC mesh/UV playback is finite
+after archive close; retained48989bytes, peak57839bytes. Exact peak budget
+succeeds; one byte less fails without publishing an owner. Unsupported
+newer/other-chunk assets reject explicitly. Textures, render submission and
+flight-time wrapping remain open; no visible projectile is claimed yet.
+Estimate ~49%; current area is projectile presentation.
+
+NXDK XBE/XISO build passes with the new geometry owner; live renderer
+integration is pending, so no native visual execution is claimed here.
+
+Rocket material ownership (2026-09-15): All9 authored VFX materials now
+map through a bounded shared owner to5 deduplicated textures; all5 resolve
+from installed archives. Materials/textures retain51536bytes, bringing
+geometry plus texture owners to100525bytes (~98.2KiB). Texture sampling
+passes after source geometry and archives close. Budget-minus-one rejects
+without output ownership. Live renderer submission, blend state and
+flight-time animation wrapping remain open; no new visual claim.
+Estimate ~49%; current area is projectile visuals.
+
+NXDK XBE/XISO build passes with the material owner; scene integration
+remains pending and this change does not add a native visual run.
+
+Live rocket visual verification (2026-09-15):125frame ordinary in-flight
+replay at artifacts/xemu/render-20260915-082740 passes38 PC/Xbox
+comparisons, including7active meshes,192vertices and matching vertex hash.
+Native frame inspected: authored rocket/purple flare visible just left of
+crosshair; black flare background remains an additive-blending limitation.
+9233pages free (36.066MiB). All19disc entries restored and owned emulator
+exited. No GitHub image uploaded. Estimate ~49%; projectile visuals.
+
+Destruction native verification (2026-09-15):500frame two-hit/approach
+run at artifacts/xemu/render-20260915-083610 passes38 comparisons with
+9092pages (35.516MiB) free. Native image inspected; crater geometry and
+rock substrate visible, but coarse shape/readability are still unfinished.
+All19 staged disc entries restored; owned emulator exited. Traversal beyond
+the original wall is currently PC-verified only. User clarified GeoMod must
+take top priority for fidelity; other system work stays deferred.
+Estimate ~49%; current area is GeoMod.
+
+GeoMod fidelity update (2026-09-15): Read section900 interior texture and
+stored hardness, replacing the manual rock override with Glass House
+rock02.tga from ui.vpp. Xbox500frame approach passes38comparisons with
+9091pages free; all19staging entries restored and image inspected. Original
+467020 points to definition lookup4375b0 and cut submission437230; trace
+these next to replace the generic crater shape. Hardness policy, lighting,
+debris and faithful repeated cuts remain open. Estimate ~49%; GeoMod.
+
+Original GeoMod template investigation (2026-09-15): The bounded original
+factory harness matches10vertices,16faces and48UV pairs bit-for-bit and
+executes the original bounds/radius calculation. Holey01 is nonconvex;
+shared terrain support must change before integration. No new visual or
+Xbox runtime validation is claimed. See docs/GEOMOD.md and
+tools/inspect_geomod_template.py. Estimate remains ~49%; focus: GeoMod.
+
+Concave GeoMod support (2026-09-15): Shared C now subtracts closed
+star-shaped triangular cutters as a union of internal tetrahedra and emits
+only authored boundary faces. Original-template single/overlapping cuts pass
+closure, volume and324 triangle-reference ray checks; an independent dented
+cube passes324 analytic rays, UV interpolation and error rollback. Full
+work scratch is275488bytes. Two original cavity cuts currently produce
+155faces, so fragmentation reduction and larger histories remain open.
+Live rockets still use the prototype; original resource loading, transforms,
+hardness and visual comparison are next. Estimate ~49%; focus: GeoMod.
+
+Final verification: PC GeoMod tests and five live destruction replays pass.
+NXDK build succeeds;500frame XEMU approach at
+artifacts/xemu/render-20260915-090812 passes38comparisons with9102pages
+free (35.555MiB). Native framebuffer inspected: existing prototype crater
+remains visually unaccepted. All19disc entries restored. Concave star
+geometry is CPU-test verified; it is not yet the live rocket cutter.
+
+Concave terrain ownership and orientation (2026-09-15): The terrain owner
+now copies original star cutters and publishes matching surfaces/collision,
+supports mixed box/star history, preserves failed edits and resets cleanly.
+Original-template tests compare publication with the checked CSG output and
+324 additional collision rays. The shared default orientation matches all
+nine float words and final RNG state in69 original4fccc0 executions.
+The original live RNG seed/stream and flag-dependent orientation choices
+remain open. Live rockets still use the prototype until template resources
+and the complete transform path are connected. Estimate ~49%; GeoMod.
+
+Owner regression verification:500frame stock64MiB XEMU run
+artifacts/xemu/render-20260915-091844 passes38comparisons with9102pages
+free. Native framebuffer inspected; this remains the existing prototype
+visual. All19disc entries restored and the owned emulator exited.
+
+Live original crater integration (2026-09-15): Rockets now load the verified
+988byte Holey01 asset, use the reconstructed random basis and normalize
+requested radius by the original template radius. The owned concave mesh
+and collision publish together; all five PC destruction/traversal replays
+pass, with724697bytes peak terrain+overlay on the walk replay. Visual
+inspection confirms the changed shape but depth readability is still poor.
+Original RNG stream/seed, final vertex arithmetic, UV remapping, hardness,
+surface eligibility, debris and larger histories remain open. ~49%; GeoMod.
+
+Native original-template verification: First attempt092603 restarted during
+loading. Moving the1540byte template from the scene stack to a heap owner
+and validating planes one face at a time reduced stack use. scene_miner
+falls from27948 to26412bytes; template_decode from3628 to1584bytes.
+The500frame rerun artifacts/xemu/render-20260915-092952 passes38comparisons
+with9086pages free (35.492MiB). Native framebuffer inspected: the original
+shape is visible, but cavity readability remains unfinished. PC/disc asset
+bytes match; all19staging entries restored; owned emulator exited.
+
+Original GeoMod UV mapping (2026-09-15): Shared mode4 projection matches
+126 original4f8740 UV pairs bit-for-bit, including axis signs/ties and
+non-square textures. Live generated faces now use32/source-dimension scale
+with signed dominant-axis projection; authored wall UVs and collision
+geometry are unchanged. All five PC destruction replays pass. Preview
+lighting still uses an absolute normal dot product, a concrete next lead
+for the crater's poor depth cues. Estimate ~49%; GeoMod.
+
+Mode4 native verification:500frame run
+artifacts/xemu/render-20260915-093901 passes38comparisons with9085pages
+free (35.488MiB). Native framebuffer inspected with corrected texture
+projection; cavity lighting remains unfinished. All19disc entries restored
+and owned emulator exited. No new GitHub screenshot uploaded.
+
+Crater lighting (2026-09-15): Generated rock faces now sample the authored
+scene lights and level ambient through the shared light evaluator. A6144byte
+face-color buffer and explicit vertex-lit draw tag carry RGB through the
+PC/Xbox textured path. The previous textured path ignored preview colors
+and sampled the base texture with neutral lighting; the earlier absolute-dot
+hypothesis was not the active shading of textured rock. PC screenshots now
+show actual illumination changes. This is per-face sampling without shadows,
+not complete original lightmap regeneration. ~49%; GeoMod lighting.
+
+Lit-interior native verification:500frame run
+artifacts/xemu/render-20260915-094918 passes38comparisons with9085pages
+free (35.488MiB). Actual Xbox framebuffer inspected: scene-light modulation
+is visible on the crater, matching the PC appearance. All19disc entries
+restored and owned emulator exited. No GitHub image changes.
+
+GeoMod hardness update (2026-09-15):45 original-execution cases agree; live
+DEV rockets apply region128 hardness25 before cutting. Five PC replays and
+NXDK pass; native500frames pass38 gameplay comparisons with35.484MiB free.
+PC/Xbox images inspected: the dark crater still reads like a lump, so visual
+fidelity remains unaccepted. Next: depth/readability and interior shading.
+Estimate ~49%; current area GeoMod. No GitHub image additions.
+
+GeoMod surface policy correction (2026-09-15): use half room/global ambient,
+softened ordinary surface lighting and lightmap RGB conversion. Five PC
+replays pass; native500frames pass39checks including terrain publication
+and bounded memory. Original accumulation512grids and RGB8192cases pass.
+Inspected Xbox crater still reads ambiguously; next work remains depth
+views and spatial interior lighting, not campaign progression. ~49%.
+
+GeoMod corner lighting (2026-09-15): interpolate static-surface lighting
+across corners with clipped RGB gradients; preserve hard rock creases.
+Three close/oblique depth replays and five destruction replays pass. Native
+595frames pass39checks with35.422MiB free; framebuffer inspected and crater
+contrast/readability remains unaccepted. Corner storage adds42KiB. ~49%.
+
+GeoMod surviving-wall fix (2026-09-15): preserve original lightmap images
+and projection on clipped room fragments instead of neutral brightness.
+Pixel/UV/rollback tests, five destruction and three depth replays pass.
+Native595frames pass39checks with35.422MiB free; restored wall lighting
+confirmed in the framebuffer. New-cavity shadows and contrast remain open.
+Estimate ~49%; current area GeoMod appearance.
+
+GeoMod shadow pass (2026-09-15): authored point/cone lights now respect
+opaque terrain occlusion, cached until geometry or lighting inputs change.
+Native595frames pass40checks, matching PC2rebuilds/1016rays/549blocked and
+426cached draws, with35.422MiB free. Images inspected; corner shadows remain
+coarse and final destruction appearance is unaccepted. Five destruction and
+three depth PC replays pass. ~49%; current area GeoMod shadows.
+
+GeoMod repeated excavation (2026-09-15): compact compatible coplanar
+fragments and raise live face capacity512->768 inside the same1MiB terrain
+budget. Six rockets now publish six cuts instead of four. Native800frames
+pass40checks with35.25MiB free; frame inspected. Face-ID heap move recovers
+3KiB stack and the follow-up avoids the earlier impact reset. Expanded
+room-scale closure diagnostics expose balanced duplicate edge coverage,
+also present without compaction; resolving that is next. ~49% complete.
+
+Closure diagnosis (2026-09-15): first duplicate coverage spans1.345e-6
+world units near differently rounded endpoints, rather than a whole edge.
+Detailed matched-edge diagnostics now retained. Proximity welding fixed the
+first closure check but broke later cuts, so it was discarded. Stable six-cut
+PC behavior reconfirmed; production geometry unchanged. ~49%; GeoMod seams.
+
+GeoMod shared-plane fix (2026-09-15): canonical internal triangle ordering
+makes neighboring tetrahedron clipping planes exact opposites. The new
+coefficient regression fails under old arithmetic and passes now. Six PC
+destruction/three depth replays pass; native800frames pass40checks with
+35.25MiB free. The room-scale junction closure failure remains unresolved;
+intersection rounding is next. ~49%; current area GeoMod geometry seams.
+
+GeoMod edge arithmetic (2026-09-15): crossing edges now interpolate from a
+consistent endpoint, avoiding direction-dependent position/UV rounding.
+The original targeted regression fails before the fix;360 reversed-winding
+comparisons and preserved UV seams pass now. Native800frames pass40checks
+with six successful cuts and35.25MiB free. Final pixels match the previously
+inspected frame. Different clipping-sequence junctions remain open. ~49%.
+
+Validation follow-up (2026-09-15): npc_motion_residency fails at1179/1305
+on both the unchanged69595922 baseline and the terrain-ray change; investigate
+the scripted NPC damage fixture separately after the current GeoMod priority.
+
+Crater update verification (2026-09-15): retained53 original-code mapping lifecycle/dirty cases and reran the live PC light cycle. The fixture changes98 of121 atlas maps without changing mapping identity; removal restores all retained map bytes and the rendered frame exactly. All four endpoint images were inspected; the dark mound-like crater appearance remains unresolved. Shared committed-cutter save/load implementation is in progress, not yet integrated or verified. Estimate remains overall~49%, GeoMod~65%.
+
+Committed cutter checkpoint (2026-09-15): RGCH v1 explicitly encodes successful cutter meshes/kernels in at most12380 bytes. Decode rebuilds through transactional CSG/collision publication with rollback scratch charged to the owner budget. PC zero/one/eight box and mixed original star/box coverage passes, including rewritten-length truncations, nonfinite/collapsed/duplicate faces, source-ID injection, budget and publication-capacity failures, exact mesh/filter restoration and continued-edit/collision comparisons against a clean decoded control. PC targets and NXDK build pass; no Xbox runtime save test or scene save/load integration is claimed. Admission history/RNG and retained map identity remain required. Overall~49%; GeoMod~65%.
+
+Scene destruction checkpoint (2026-09-15): RFDS v1 now preserves committed cutters, admission history, orientation RNG, retained noise maps and face bindings using stable material tokens and content identities. PC fresh-process empty/repeated/orthogonal-shallow/reset cases preserve exact RFDS bytes, physical mesh, atlas CSV and upper320 world rows; malformed version/identity/count/truncation inputs fail. Empty reload preserves next-blast initialization; a third blast after nonempty reload matches uninterrupted geometry and texture state. DEV reset now clears stale maps without changing orientation RNG. Native900-frame reload render-20260915-204514 passes48 comparisons with8934 exact checkpoint bytes; continued-blast render-20260915-204738 passes48 with15632 bytes and8577 available pages (33.50MiB). Both native framebuffers and all PC comparison endpoints were inspected;23 disc entries restored each time and owned emulators exited. Crater readability remains unresolved. This is DEV destruction persistence, not player/AI/weapon save support or writable Xbox save storage. Overall~49%, GeoMod~66%; current work is destruction persistence and crater visual fidelity.
+
+Work-ahead RE (2026-09-15): primary reviewed/retained six executable probes under tools/future_re and reran296 original-code cases (40 campaign,256 vehicle). FUTURE-CAMPAIGN-INDEX and FUTURE-VEHICLES-INDEX link scoped findings, authored uses and implementation gaps. This is research only; campaign progression remains paused and no vehicle/cutscene gameplay completion is claimed. Stock reference run timed out before its frame hook and produced no image; owned process exited. User reported a disc dependency and requested a hold; no further stock launches until the user is ready.
+
+Authored persistence integration (2026-09-16): RFDS2 structural sizing now checks
+416-byte header, 48-byte admissions, 88-byte retained maps and 2-byte final
+face bindings before RFCP accepts a candidate; exact109948-byte inner cap,
+3916 truncated prefixes and malformed counts preserve output on failure.
+Three canonical digest helpers passed initial PC tests and NXDK build; the
+actual post lighting-stage fixture also verifies journal equivalence after
+private restore copying and exclusion of dynamic atlas/hash state. Source
+manifest and explicit candidate-publication adapters are still being integrated.
+No live authored save/load or new native gameplay verification is claimed.
+Estimate remains ~50% overall / ~70% GeoMod; focus is destruction persistence.
+
+Live manifest integration (2026-09-16): The actual PC reset/re-cut replay
+passes with2 original materials/19 source references retained as trusted
+resource digests (initial manifest9212bytes; substrate extension pending
+verification). Aggregate source SHA remains4c74d0a864ac2f303620f5001c8f748a6a52b5e1bb7f65b510b2a7f40505c3b2.
+Eight focused tests pass, including installed-manifest rollback and separate
+decoded candidate publication with active core/tree/telemetry preserved.
+Zero-cut lighting restore staging and generated substrate capture are being
+completed; live authored checkpoint writer/restore wiring remains open.
+
+Native trusted-manifest milestone (2026-09-16): render-20260916-125251
+passes57 PC/Xbox checks through840 reset/re-cut frames on stock64MiB.
+Final free pages4186 (16.3515625MiB), manifest9344bytes, transient capture
+peak1890119bytes under2MiB; source SHA unchanged. Native framebuffer
+inspected: post/beam/floor/water, launcher and HUD present; no visual parity
+claim. UI archive is now borrowed through identity capture and closed before
+frames. Earlier failed PC archive lookup and NXDK empty-loop warning were
+fixed; failed runs124742/125139 remain retained. Twelve focused PC tests
+pass, including private journal/admission import, reset lighting parity and
+full-room digest adapter. Authored live save/load dispatch is still open.
+The separate UV lineage probe intentionally fails12 changed old corners;
+it is a diagnostic target, not a passing regression-suite claim.
+
+
+### 2026-09-18: Attached-post detail ownership correction
+
+Extended the read-only solid-neighborhood census to record compiled room owners, protection fields and parent links. Posts75/79/99/103 each have two structural neighbors plus a protected flat detail trim; the audit now derives all four detail IDs and catches the previously omitted11181. Corrected the side-beam research note: pillar12815 owns ten compiled faces in detail room166, not zero compiled faces. Existing runtime rejection and cavity obstacle protection remain unchanged. Installed-data assertions pass; guarded post profiles, detail identity/save coverage and joint beam/post destruction remain open. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall estimate remains~51%; GeoMod~89%.
+
+
+### 2026-09-18: Guarded side-post core profiles
+
+Added decoder profiles75/79/99/103 with their two actual structural neighbors and separately retained protected detail guards. Trim geometry stays outside replacement ownership. Exact cutter bounds that overlap/touch the trim reject; compiled owner changes and invalid bounds reject. All four installed sources pass blocked/cut-clear/reset-blocked rays and publication construction. All123 PC tests and stock NXDK compile/link/XBE/ISO pass. Gameplay selectors, guard-aware identity/save handling, repeated live cuts and shared post/beam transactions remain open; no new native visual claim. Details in docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall~51%; GeoMod~89%, unchanged until integration is verified.
+
+
+### 2026-09-18: Guard-aware source identity support
+
+Added RFASv3/loader5/publication14 identities for posts75/79/99/103, hashing retained detail ownership, authored face tokens and bounds. Capture validates guard geometry and metadata and rejects seven altered/missing guard variants per post without publishing output. Existing source identities remain compatible. All19 installed source identities are distinct/repeatable; each new capture peaks at1613087bytes with the test capacities. All123 PC tests and stock NXDK build pass. Next work remains exact cutter enforcement through publication/restore, live post selection, and native save/continuation. Overall~51%; GeoMod~89%, unchanged pending gameplay integration.
+
+
+### 2026-09-18: Live guarded posts and Xbox-created save continuation
+
+Enabled single-source DEV selectors75/79/99/103 with an offset spawn that avoids intervening inner posts. Shared publication/restore now checks actual cutter bounds against retained detail guards. The process-local replay verifies exact impact locations: Y-1 trim-contact shots reject with zero cuts; Y.8 shots cut; save/reload matches uninterrupted play for all four profiles. Post79 native shot passes77 checks and an Xbox-created-save301-frame continuation passes76, with exact2422-byte PC/Xbox saves and4001/4049free pages respectively. Both native captures inspected; both harnesses restore disc/close XEMU. All123 PC tests and stock NXDK build pass. No detached pieces occur in these specific post cuts, and audio is unverified. Joint beam/post transactions, repeated histories and native trim-rejection coverage remain open. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall~51%; GeoMod~89%.
+
+
+### 2026-09-18: Connected side beam/post destruction
+
+Enabled exact beam92/post79/post75 and beam108/post103/post99 collections via shared profile metadata, retaining existing pair/triple memory ceilings. Publication and collection restore check every owner's prepared cutter history against protected detail, including non-selected members. Both PC groups pass joint beam/post cuts, untouched opposite-post controls, atomic trim rejection, saved neutral continuation and saved rejected-next-blast continuation. Native92 joint shot and Xbox-created-save/blocked-next-blast pass77/77 checks with exact uninterrupted PC checkpoints; free endpoint pages3334/3303. Both captures inspected, disc restored and emulator closed. All123 PC tests and NXDK build pass. Native108, repeated successful joint cuts and intentional detail-geometry interactions remain open. Rough estimates: overall~51%, GeoMod~90%. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md.
+
+
+### 2026-09-18: Both beam/post junctions destroyed and replayed
+
+Extended the connected replay to shoot the opposite junction after reload, requiring beam:2/high-post:1/low-post:1 and exact uninterrupted checkpoint comparison; a further301-frame restore also matches for PC92 and108. Saves are7702/8016bytes, with2/3settled pieces. Native108 loaded its first-junction checkpoint and completed the second shot in501frames:77checks,3076free pages, exact8016-byte uninterrupted PC/Xbox checkpoint. PC and native captures inspected; Red Faction XEMU closed/disc restored. Runtime source unchanged; replay/docs only. Native reload of this both-junctions endpoint, broader fragment contacts and general multi-brush walls remain open. Overall~51%; GeoMod~90%.
+
+
+### 2026-09-18: Actual fragment resting-contact audit
+
+Added opt-in endpoint mesh/sphere/floor measurements and a two-group replay driver. Rays at actual posed vertex positions confirm west fragments penetrate floor faces1333/1334 by0.106615/0.061811units. East mesh gaps are0.001446/0.039094/0.016676units, with two sphere approximations slightly penetrating. All five pieces sleep; both audited output checkpoints exactly match unaudited continuation. This is a real geometry/contact discrepancy despite PC/Xbox state agreement, not a fixed issue. Next: distinguish proxy approximation from integration penetration and implement a finite-surface-aware correction with state/save validation. All123 PC tests and stock NXDK build pass; no new native run. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Overall~51%; GeoMod~90%.
+
+
+### 2026-09-18: Reject translational corner-sphere fix; enforce real contact gate
+
+Tested actual mesh-corner contact spheres through the existing world/mover route. Replay/save comparisons passed but actual mesh-floor penetration worsened to0.117/0.485units, so the candidate was removed. Confirmed the existing sweep uses current orientation while binary-verified fractional advance commits full proposed rotation; a complete pose-aware policy is needed. Restored the original runtime and regenerated92 histories; replay passes and both audit checkpoints remain identical to baseline. The new --max-penetration .005 gate correctly reports the original two floor failures and exits1. No gameplay fix or Xbox candidate build shipped. Contact correction remains open. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Overall~51%; GeoMod~90%.
+
+
+### 2026-09-18 — Isolated fragment rotation at finite-floor contacts
+
+Solo work resumed. Added PC-only contact tracing and a four-replay baseline comparison. Actual contact translation uses the original backoff on a private state copy. West first/second-junction contact gaps change from +0.008570/+0.009124 to -0.058115/-0.053567 solely on proposed rotation at the same position; all four checkpoint comparisons remain byte-identical. This confirms an angular contribution without claiming a complete collision solver or correction. All123 PC tests and the stock NXDK build pass. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Runtime contact correction and native validation remain open. Overall estimate remains ~51%; GeoMod ~90%. Current action: GeoMod debris collision.
+
+
+### 2026-09-18 — Corrected fragment rotation and resting contacts
+
+Implemented a separate port-policy fragment step that commits partial translation and rotation, including pure angular query coverage, while preserving the binary-derived shared solid advance. Bounded mesh-corner sweeps use finite world/mover contacts, reject shared backside birth boundaries, and qualify oversized grid-sphere contacts against mesh extent. Fresh92/108 first/second-junction destruction and saved/continuous comparisons pass; all five both-cut chunks rest within0.000101units of their floor, and all four first-cut chunks have gap0. Both penetration and positive-clearance gates pass. The older95 connected beam replay and retained large-fragment standing/save/walk-away pass. All123 PC tests pass. Native92 second cut passes77 checks/3042freepages; final native108 fresh cut passes77 checks/3332freepages and exact5300-byte PC/Xbox checkpoint. Native images inspected, discs restored, RF emulators closed, no GitHub screenshot upload. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md for evidence and approximation limits. Broader contact topology, moving supports, large-step handling, old sleeping-pose correction and cost measurements remain open. Approximate progress: overall51%, GeoMod91%. Current action: GeoMod debris collision.
+
+
+### 2026-09-18 — Added reciprocal contacts for narrow static surfaces
+
+A finite0.04-unit patch inside a unit-wide fragment face misses all eight radius0.25 occupancy spheres and all four corner rays; new world-vertex/fragment-face tests detect the correct0.25 contact fraction. Implemented reciprocal static-world queries through primary/child rooms and tree bounds, with original body-face filters, runtime material lookup and mesh-derived rotational bounds. Added finite-surface, range, separating-motion, rotation-only, room/face suppression, undersized-proxy-bound and material-failure controls. Both92/108 connected histories and first/both-cut floor clearance gates pass. All123 PC tests pass; the final rotation assertion also passes its rebuilt scene test. Native west second cut passes77 checks; final east first cut passes77 with3331freepages and exact5300-byte PC/Xbox save. Its framebuffer exactly matches the previously inspected capture, so no duplicate image was posted or uploaded. Details: docs/research/GEOMOD-FRAGMENT-THIN-CONTACT-20260918.md. Reciprocal mover vertices, edge/edge contacts, native tiny-obstacle demonstration and measured many-fragment cost remain open. Approximate progress unchanged: overall51%, GeoMod91%. Current action: GeoMod destruction collision.
+
+
+### 2026-09-18 — Extended reciprocal fragment contacts to mover geometry
+
+The new mover path uses committed position/input_matrix, bounds, face filters and runtime object/material/velocity identity, sharing the actual-mesh rotational bound. It does not use public ray poses or invent velocity-based geometry prediction. Tests cover translated/90-degree-rotated narrow surfaces, expected0.25 and updated-pose0.125 contact fractions, wrong ray-pose controls, disabled/non-solid rejection, nearer-hit preservation and metadata-failure rollback. All123 PC tests and both92/108 full saved/uninterrupted histories pass; first/both-cut penetration and hovering gates remain green. Native east first cut passes77 stock64MiB checks with3330freepages and exact5300-byte PC/Xbox save; framebuffer equals the already inspected image, disc restored and owned emulator closed. See docs/research/GEOMOD-FRAGMENT-MOVER-CONTACT-20260918.md. Dedicated native narrow-mover demonstration, edge/edge contacts, sleeping-fragment wake, relative response/carry/crush and collision cost remain unfinished. Estimates unchanged: overall51%, GeoMod91%. Current action: GeoMod destruction collision.
+
+
+### 2026-09-18 — Executed narrow contact fixtures directly on Xbox
+
+Added a shared opt-in contact audit with seven result records and a64-word guest-memory ledger. It demonstrates sphere/corner misses, correct finite static contact, translated and rotated committed-mover contact, updated-pose timing, disabled-mover rejection and metadata-failure rollback using the production query functions. PC/Xbox activation requires DEV mode; fixture geometry is isolated and freed, with no live room mutation. All123 PC tests pass. Native render-20260918-023556 passes78 checks, all64 exact PC/Xbox words,3329freepages on stock64MiB, and the same5300-byte gameplay checkpoint as fixture-off; framebuffer equals the already inspected image. Harness disc/flag restoration succeeds and emulator closes. No duplicate image or GitHub screenshot was added. See docs/research/GEOMOD-FRAGMENT-NATIVE-CONTACT-AUDIT-20260918.md. Edge/edge, continuous mover response/wake/carry/crush and performance remain open. Estimates unchanged: overall51%, GeoMod91%. Current action: GeoMod collision validation.
+
+
+## 2026-09-18 fragment contact performance
+
+Prepared reciprocal triangle planes/poses and local path rejection preserve both connected destruction histories,123 PC tests, strict first/second-cut floor gates, and79 native checks. Xbox source108 first-cut active debris updates improve125.253ms to103.734ms (17.18%); peak243ms to230ms. Still too expensive; isolate sphere/corner/world traversal cost next, then broaden edge/edge and moving-support behavior. See [performance evidence](docs/research/GEOMOD-FRAGMENT-CONTACT-PERFORMANCE-20260918.md). Estimate remains approximately51% overall /91% GeoMod; focus collision/performance.
+
+Stage timing follow-up: native `render-20260918-025903` isolates5245ms sphere work,2415ms corner work and129ms reciprocal world work across79 active ticks. Repeated room/tree validation is a candidate for query-local reuse, not yet proven as the inner bottleneck.79 native checks, identical save/framebuffer,3325 free pages.
+
+
+## 2026-09-18 scoped sphere-query optimization
+
+Bounded per-body room/tree validation reuse reduces Xbox active debris updates99.443ms to75.532ms (24.05%), sphere time5245ms to3338ms, and peak218ms to159ms. All123 PC tests, both connected histories and floor gates, and79 native checks pass; endpoint memory remains3325 pages and saves/framebuffer are identical. See [query batch evidence](docs/research/GEOMOD-FRAGMENT-QUERY-BATCH-20260918.md). Next share validation across corner sweeps; approximately51% overall /91% GeoMod, focus destruction collision/performance.
+
+
+## 2026-09-18 scoped corner-query optimization
+
+Shared validation across one fragment corner sweep cuts corner-stage time2411ms to1636ms and mean active Xbox debris time75.532ms to67.544ms; peak159ms to139ms. All123 PC tests, both connected histories,79 native checks and identical save/framebuffer pass. Endpoint3325 free pages is unchanged. See [corner batch evidence](docs/research/GEOMOD-FRAGMENT-CORNER-BATCH-20260918.md). Remaining sphere work is the performance priority; edge/edge and mover-relative fidelity remain open. Approximately51% overall /91% GeoMod.
+
+
+## 2026-09-18 inner collision work attribution
+
+Native32-word counter agreement identifies2.53M sphere-stage face checks,2.19M box checks, but only10260 plane and4300 edge tests. Corner sweeps add1.19M face checks. Target candidate pruning and distinguish tree/flat-mover lists before changing math.80 native checks pass with identical save/framebuffer. Expensive counters are retained only as an optional patch; normal source restored to prior accepted revision. [Evidence](docs/research/GEOMOD-FRAGMENT-INNER-WORK-20260918.md). Approximately51% overall /91% GeoMod.
+
+
+## 2026-09-18 ordered face-block pruning
+
+Static world-tree face checks dominate the measured candidate workload; a PC flat-mover counter probe records zero attempts for this replay. Conservative groups of16 consecutive faces preserve ordering and errors while reducing native active update time67.544ms to34.203ms (49.36%) and peak139ms to69ms.79 stock64MiB native checks pass, identical save/framebuffer,3324 free pages. All123 PC tests and both connected destruction histories pass. [Evidence](docs/research/GEOMOD-FRAGMENT-FACE-BLOCKS-20260918.md). Return to missing edge/edge and mover-relative collision behavior; approximately51% overall /91% GeoMod.
+
+
+## 2026-09-18 swept edge primitive
+
+A crossed beam/floor fixture proves both sets of vertex casts miss; new shared linear-endpoint edge CCD detects the missing isolated contact.124 PC tests pass, including quadratic root order, strict limits, reversal and invalid-input controls. Native version2/eight-case fixture passes79 checks with64 exact words and unchanged gameplay save/framebuffer. This is a tested primitive, not yet ordinary gameplay integration. [Math, scope and evidence](docs/research/GEOMOD-SWEPT-EDGE-PRIMITIVE-20260918.md). Approximately51% overall /91% GeoMod; focus debris collision coverage.
+
+
+## 2026-09-18 fragment edge integration
+
+World and committed-mover fragment queries now include bounded edge/edge CCD, with128-edge scratch and complete overflow fallback. Crossed-beam world/translated/rotated-mover and metadata-error fixtures agree in96 native words across80 checks. All124 PC tests, both connected histories and both0.005 floor-contact gates pass. Save/framebuffer unchanged. Added coverage costs approximately6ms per active debris update (34.203ms to40.595ms),3315 free pages. [Scope and evidence](docs/research/GEOMOD-FRAGMENT-EDGE-INTEGRATION-20260918.md). Next rotation/coplanar and mover-relative cases. Estimate approximately51% overall /92% GeoMod; focus debris collision coverage.
+
+
+
+### Shield bash integration (2026-09-18)
+
+- Loaded actual riot-shield primary definition for opt-in DEV slot11. Held attacks repeat every0.5s, impact after0.2s, damage10, reach2m; no ammo debit. Death/unequip cancels pending swing.
+- Shared contact checks nearest NPC body/shield, actual shield/body ordering and nearer world/mover/rubble obstruction. Damage retains player source, hit events and death handling. Attack animation advances before incoming shield collision.
+- Validation: scene_player_shield_bash and scene_player_shield_melee pass; latter applies real NPC damage100 to90 and checks cover, range, delayed/released input and unchanged ammo. PC/Xbox builds pass.175-frame PC replay shows two attacks and an inspected active shield-bash pose; enemy is beyond melee reach in that replay, so this is not a live encounter damage proof. Native bash replay not run.
+- Helper work queued: scene_player_shield_pickup.inc (ownership-only grant) and scene_ai_shield_ray.inc (NPC shield-only ray candidates), with focused test sources; not wired or built yet and not counted as functioning gameplay.
+
+### Shield pickup and NPC silhouette integration (2026-09-18)
+
+- Authored world pickup class riot shield maps to slot11. World and Give_Item_To_Player grants use ownership-only acquisition; ammo index-1 is never indexed. Duplicate ownership preserves durability; Strip_Weapons clears it before regrant.
+- Resource planning scans level pickups, Give_Item events and incoming inventory. Only demanded shield view assets are added; campaign slots4..10 remain unloaded/unselectable. Primary metadata and selection/fallback/import paths follow availability; shield attacks remain outside generic gun/ammo firing in campaign as well as DEV. Shield images use the existing21MiB shield profile inside the stock64MiB overall target.
+- NPC ordinary and shotgun rays now query held shield geometry even when body spheres miss. Exact posed-body ordering decides protection, world/rubble cover precedes shield damage, and a rejected changed candidate rechecks body cover.
+- Checks passed: installed pickup mappings, ownership-only grant, actual script duplicate/strip/regrant, sparse inventory/pickup/event demand, existing pickup and shotgun regressions, and production shotgun selection with synthetic finite shield/body triangles and real mover cover/durability. The latter is not a live installed-model NPC-vs-NPC encounter. PC/Xbox builds pass.
+- Live campaign pickup/selection and level carry remain unverified; no claim of shield disk persistence.
+
+- Native validation: artifacts/xemu/render-20260918-113907 PASS,175frames,1805 free4KiB pages (7.05MiB), inspected native framebuffer displays actual shield-bash pose with enemy and environment. This confirms native animation/runtime and compared state, not a close-range native bash hit; actual10HP melee arithmetic is covered by the focused integration check. Harness restored disc and closed its own XEMU.
+
+### Fusion launcher first playable pass (2026-09-18)
+
+- Installed shoulder_cannon metadata supplies damage1000, speed20, lifetime15, collision radius.051, blast radius25, crater radius7, clip1, reserve capacity5, firewait.8s and reload1s. No alternate attack is authored. Four real flights retain shooter attribution; failed pool admission consumes no ammunition. Input/death/selection cancellation and real reload transfer are integrated.
+- Added slot12 in an opt-in enemy-free DEV profile (RF_REPLAY_FUSION / fusion-test.flag; harness --fusion-test). Default profiles retain previous weapon selection/resource loading. General campaign availability and RFCP support are not claimed; owned/live Fusion is rejected by the current checkpoint profile.
+- Actual fp_shol model uses authored camera offset/FOV68, idle/fire/reload;1077272 resident bytes,1088868 peak, within1152KiB view allowance. Actual ShellTest planes/materials use full30-frame period. Its file names unresolved external parent Dummy23; binding that parent to projectile flight basis is explicit first-pass attachment policy, not proven original parent placement.
+- Authored shoulder_cannon_explode central3emitters use147740 resident material bytes and four bounded impact owners. Glow/light, sparks/trails and explosion/flight sound coverage remain open; launch/reload audio is dispatched. PC flight replay shows model/reload and one real projectile impact; direct blast reduces player health. Close-range destruction replay produces one successful GeoMod cut and lethal self-damage.
+- Focused installed resource/action, input/ammo/cadence and flight/source/admission tests pass; PC and NXDK builds pass. Native artifacts/xemu/render-20260918-115225 passes240frames on64MiB, with exact Fusion[1,1,0,0,0], blast and GeoMod state matching PC;1801freepages=7.04MiB endpoint headroom. Native framebuffer inspected for changed geometry; it does not establish complete flight/explosion visual fidelity. Harness restored disc and closed its XEMU.
+- Overall first-playable implementation estimate approximately67%; current high-level weapons implementation approximately80%. Next integration: remaining conventional firearms. Shield first-pass coverage stays usable; its open persistence/broader-attack work remains listed separately.
+
+### Remaining conventional firearms first pass (2026-09-18)
+
+- Added DEV slots13..16 for Machine Pistol, heavy_machine_gun, scope_assault_rifle and Undercover12mm handgun. Opt-in RF_REPLAY_FIREARMS1..4 / firearms-test.flag selects starting gun. Profile loads four base views plus these four, instead of every projectile weapon; normal profiles stay unchanged. Public native harness --firearms-test1..4 packages the same profile.
+- Real primary definitions drive ammo/reload, damage, spread and cadence. HMG alternate uses authored slower .2s cadence/tighter1degree spread versus .1s/2degrees primary. Precision rifle alternate uses existing shared zoom behavior; no alternate attack is invented for Machine Pistol/custom silencer input.
+- Fixed view parser admission for dual-continuous weapons whose only fire action is loop_fire. HMG now loads actual primary/alternate loop payloads; resource regression requires parser success instead of its earlier explicit fallback fixture. MP/HMG loops stop on release/empty/reload. All four use their authored model/camera/FOV and firing/reload sounds.
+- NPC support resolves these four names in the compact runtime catalog, loads real primary settings and routes existing spread/damage/finite-ammo/reload. Ordinary ammo exhaustion can select an owned usable new firearm before riot-stick fallback; scripted Attack veto stays intact. No live NPC encounter acceptance for these four yet.
+- Focused resource/playback, fire-policy cadence, NPC definition/finite reload, existing fallback and checkpoint-catalog checks pass. A test initially used raw table indices and was corrected to resolve compact catalog names; no runtime ID constants were introduced. PC/Xbox builds pass.
+- PC120-frame replays for all four inspected: primary firing/visible weapon, HMG8shots (5primary+3alternate), precision rifle zoom, correct per-weapon magazine reduction. Custom transitions remain inactive. Native artifacts/xemu/render-20260918-120313 PASS120frames: HMG8shots, clip91/reserve240 exactly match PC,2967freepages=11.59MiB endpoint headroom; actual native weapon/environment/HUD inspected. Disc restored and harness XEMU closed.
+- Machine Pistol separate20-round AP-magazine transition helper and custom motion owner now pass parent-run installed-asset checks: separate ammo pools,114-tick switching/cancellation, animation playback and cleanup. Custom payload overhead is15468/16580bytes for the two MP views and36124bytes for Undercover. Live scene integration is underway; this does not yet establish working in-game custom modes. Campaign pickup/access and disk support for added guns remain open.
+- Overall first-playable implementation approximately68%; weapons approximately85%. Continue with working custom modes, then prioritize remaining core gameplay rather than weapon polish.
+
+### Custom weapon mode integration in progress (2026-09-18)
+
+- Registered and passed installed-asset Machine Pistol transition and custom-animation ownership tests; separate ammunition pools, authored switch duration, cancellation, playback and cleanup are established at helper level. Live firing/view integration is still in progress.
+- New actual NPC scheduler test passes for all four added firearms: finite timed reload, exhausted-handgun replacement before riot stick, inventory preservation and scripted Attack veto. Synthetic motion fixtures do not establish live attachment/rendering or bullet contact.
+- Three implementation agents are active on live Machine Pistol mode integration, separate silencer resources/state, and authored conventional-weapon pickups. Waypoint acquisition helper is delivered and awaits scene wiring/check. No new overall completion credit until integration works.
+
+### Machine Pistol modes and waypoint acquisition (2026-09-18)
+
+- Integrated authored Machine Pistol base/AP switching with114-tick animation, blocked firing during transition, separately retained magazines/reserves, actual special firing metadata and scoped reload authorization without special ownership. Special resource slot is not independently cyclable. DEV supply is explicit; campaign resources and mode carry remain pending.
+- PC470-frame replay completes two switches, one AP reload and10shots; final base magazine23/reserve125, AP reserve197. Native artifacts/xemu/render-20260918-121638 PASS470 matches all8 MACHINE_MODE words and combat/ammo;2678freepages=10.46MiB endpoint. PC mid-switch pose and native final weapon/environment/HUD inspected; full transition sequence and audible playback not separately inspected. Native disc restored and harness closed its process.
+- Set_AI_Mode Waypoints can acquire a unique authored Follow_Waypoints route linked to the actor. Existing routes resume; ambiguous/invalid routes preserve state. Focused actual scene test and PC/Xbox builds pass; live authored locomotion remains unverified. This acquisition rule is explicit port policy.
+- Silencer owner/state and actual attachment resources pass installed-asset test; gameplay wrapper is delivered but not yet integrated. Finite authored pickup/resource-demand helper and in-memory MP carry sidecar pass focused tests, also awaiting wiring.
+- Overall implementation estimate remains approximately68%; current weapons approximately86%. Next: integrate playable silencer, authored firearm pickup resources and mode carry.
+
+### Undercover suppressor first pass (2026-09-18)
+
+- Integrated real silencer.v3m/materials at authored fp_ugun silencer attachment; custom add/off clips commit state at completion, block fire/reload while pending, select authored launch/transition sounds, and release owners safely. Attached prop and final removal inspected in PC; loose-object handoff during transition remains first-pass presentation policy.
+- PC420frames: two transitions,3shots (including1suppressed), two transition-time fire attempts blocked. Native artifacts/xemu/render-20260918-122346 PASS550 adds final reattachment: UNDERCOVER[1,0,1,3,3,1,120,0] exactly matches PC;2693freepages=10.52MiB; attached prop/environment/HUD inspected. Native capture precedes subsequent hearing policy change. Harness restored disc/closed its process. Initial NXDK build rejected an unused helper; production fire gate now uses it and subsequent build passes.
+- Player shot awareness now honors authored silent/melee flags and attached Undercover suppression, resolving reset metadata by name. Ordinary firing retains16m radius; visual, impact and damage reactions remain separate. Undercover no-shot-awareness mapping is explicit first-pass policy. Focused policy test, PC550 replay and PC/NXDK builds pass after this change; live NPC stealth and native hearing behavior remain unverified. Sound event dispatch is checked; audible playback was not inspected.
+- Overall implementation remains approximately68%; current weapons approximately87%. Next: sparse campaign pickup resources and in-memory mode carry, whose adapters are ready but not yet integrated.
+
+### Authored firearm access and shared ammunition (2026-09-18)
+
+- Added three authored firearm pickups and two ammo classes to normal collection/render resources. Sparse resource planning loads only required MP/HMG/scoped views; MP includes paired Special view/custom actions without a separately cyclable weapon. Existing DEV supply remains explicit.
+- MP export/import sidecar retains completed magazine mode, cancels pending switching and preserves both magazines/reserves without granting Special ownership. New-session and disk-restore resets prevent stale mode inheritance; current RFCP rejects unsupported paired state. Actual export/set/helper-restore test passes; complete live level-to-level handoff remains unverified. Undercover carry helper passes isolated checks but remains unwired.
+- Live ordinary ctf06 pickup11417 exposed differing12mm limits: MP acquisition legitimately raised125reserve to127, then nearby handgun-ammo11418 rejected the pool against handgun125capacity. Scene grants now use the maximum capacity among owned weapons sharing the pool plus the target; world pickups, scripted grants and NPC drops share the correction. Catalog stays unchanged. Regression verifies125->127->159->200 cap, and actual collection/retirement plus NPC-drop checks pass.
+- PC ordinary-profile300frame authored pickup replay now collects MP32 and ammo32, selects MP, fires4shots, ends clip26/reserve159. Actual frame inspected. No DEV/firearms supply flags were used. PC/NXDK builds pass; native artifacts/xemu/render-20260918-123701 PASS300 matches pickup/ammo/combat exactly with4270freepages=16.68MiB; native weapon/environment/HUD inspected, disc restored and harness closed.
+
+- Overall first-playable implementation estimate approximately69%; weapons approximately88%. Next: finish suppressor handoff, then integrate player fall/high-speed contact damage.
+
+### Suppressor handoff and impact preparation (2026-09-18)
+
+- Completed Undercover attachment state now follows validated export/get/set/import handoff even while another gun is selected; pending transitions cancel, stale snapshots are rejected, and new campaigns/NULL state/disk restores clear sidecars. Sparse optional loading admits imported or script-granted Undercover model/prop/metadata outside DEV without inventing a pickup. Installed-resource actual scene handoff and sparse-demand checks pass; PC/NXDK builds pass. Full live level-transition playtesting remains open; no new native replay for this state-only change.
+- Shared ammo above a remaining weapon's capacity survives removal of the higher-capacity weapon, bounded by catalog capacity. Pickups grant zero while surplus remains and refill only to owned capacity after spending below it. Removal/negative/corrupt-state regression passes.
+- Player fall/high-speed impact aggregation helper passes existing-core damage, duplicate-contact, grounded-motion, relocation-disabled, immunity and lethal checks. Gameplay adapter is ready but not wired yet; no player fall-damage completion credit.
+- Overall implementation approximately69%; weapons approximately89%. Current next work: player movement/impact damage.
+
+### Live player impact damage (2026-09-18)
+
+- Real local-player collision responses now feed existing impact damage arithmetic and shared player damage/audio/feedback. Strongest eligible contact per frame avoids duplicate sphere/substep injury. Ordinary support/camera updates are excluded; frame0, respawn, teleport and checkpoint relocation use a consumed skip latch. No position-delta damage heuristic.
+- Focused actual collision/shared-damage test verifies unarmored100->64, duplicate/grounded-motion rejection, relocation/invulnerability protection and lethal contact. PC/NXDK builds pass. Quiet ordinary ctf06 Medical Kit11497 stage, settle then right-strafe replay produces one damaging contact and no repeated injury during the remainder.
+- Native artifacts/xemu/render-20260918-124721 PASS300: PLAYER_IMPACT[1,1,0,1,1103040152,1118900923,1,0] and vitals exactly match PC; total applied23.8821, remaining health88.5366 with armor sharing the damage. Endpoint4269freepages=16.68MiB; native scene/HUD inspected. Harness restored disc/closed XEMU. Audible feedback and broader moving-object impacts remain unverified.
+- Existing binary/table evidence supports lava/acid damage but no oxygen timer was found; no speculative drowning mechanic added.
+- Overall first-playable estimate approximately70%; movement approximately90%. Next major implementation: vehicle foundation in the DEV testbed.
+
+
+## Driller vehicle first pass (2026-09-18)
+
+- Added actual Driller01 chassis/material/tag/physics resources, bounded to1MiB for the fixture (about742KiB retained on PC), with shared PC/NXDK rigid/suspension sources.
+- PC90-frame parked fixture renders the actual chassis at(30,-.08189,13), on ctf06 floor6091 y=-2. Player starts(30,-1,25), facing-Z. The previous post94 location intersected the large13.16m chassis and was replaced. That initial visual-bounds parking assessment was insufficient: an actual collision sphere overlapped a crate, so it was unsuitable for driving and has been replaced. The later elevated raw-polygon candidate at(92,35.4,-3) also failed actual collision-world support queries and was rejected.
+- Opt-in RF_REPLAY_VEHICLE / vehicle-test.flag / xemu_render_check.py --vehicle-test uses the enemy-free DEV profile and four base view weapons to preserve the existing image budget. No memory ceiling was raised.
+- Focused checks cover installed resource ownership, chassis software submission, actual authored physics initialization, rigid proposal/commit, six-spring force/torque, full host-sphere wall slide and blocked rotation, and transactional entry/exit. These helper checks do not establish live driving.
+- Integrate support/world collision callbacks into the frame loop, Use possession and safe exit, seated camera/controls, host damage, idle audio and vehicle persistence. Rotation currently sweeps sphere-center endpoint chords; actor/detached-piece collision and impact impulses are deferred beyond first basic driving. Cockpit effects/animation remain open.
+
+- Xbox parked fixture: artifacts/xemu/render-20260918-130405 PASS90,3624freepages(14.15625MiB), native chassis framebuffer inspected against the reconstructed PC output; disc restored and harness XEMU closed. This is a parked render/resource result, not a drivable vehicle acceptance.
+
+
+### Live driller integration
+
+- Current vehicle fixture uses actual ctf06 collision floor677 y4: vehicle(30,5.4,-167), player(30,5,-158.5), identity host basis. Actual collision-world probes find all six spring supports and clear5m forward sweeps for all eight host spheres.
+- Shared runtime now owns the registered vehicle, actual model spheres/inertia, six-spring world/mover support, bounded rigid proposal/contact commit, Use edge possession, seat-tag camera, safe exit, ordinary-player movement/weapon suppression while seated, and authored idle ambient slot lifecycle. Audio dispatch is wired; audible output has not been inspected.
+- PC360frame replay artifacts/flame-live/driller-drive.bin: Use20, throttle60..179, exit290. One entry/one exit, about9m forward/coast movement, six supports retained, no runtime error. Exit publishes a clear body placement with walkable support and restores ordinary controls. No live turning/reverse or damage/destruction claim yet.
+- Seated view exposed unculled world pickups overflowing the existing3MiB software mesh; pickup draw now respects the owning room visibility before submission, like clutter. Memory budgets remain unchanged.
+- Isolated source-attributed vehicle damage helper and installed-resource check pass, but live hit/occupant-destruction wiring remains open. On-foot player collision with host, cockpit rendering, vehicle attack, saves and additional vehicle classes remain.
+
+- Xbox live driver run: artifacts/xemu/render-20260918-132322 PASS360. All16vehicle words exactly match PC:1entry/1exit,6supports,8.94347m forward displacement,0runtime errors.3620freepages=14.140625MiB, final on-foot native image inspected, disc restored/harness closed. Shared pose tolerance remains1cm in harness, though this run was bit-identical. Vehicle implementation estimate~40%, overall~71%; live drilling/cockpit/collision with on-foot actors remain substantial work.
+
+
+### Driller contact and cockpit
+
+- Added actual player-body versus posed vehicle sphere collision to the player movement path, preserving closer world/GeoMod contacts and excluding the driver. PC200-frame walk replay records188host contacts and stops the player at(30.013,4.855,-161.851), ahead of the parked vehicle. Stationary-player pushing and roof riding remain separate work.
+- Authored driller01.vfx cockpit resources use6meshes/226faces,14textures/15frames, about1004KiB retained. Installed-resource/projection check passes. The live seated view renders the green glass/frame/display with body-relative placement and driver-active animation time; local exterior chassis and handheld gun are hidden while seated. Exact glass depth/alpha behavior remains deferred.
+- Combined420-frame PC replay blocks forward walking at the chassis, boards at160, drives180..259, exits320 and boards360:2entries/1exit,6supports,149host contact responses,0runtime errors. Final seated image inspected.
+- Drill scheduler/metadata helper and exact original-factory single/double cutter packer are ready, not live yet. Real cutter shapes have26/64faces, exceeding the previous20face template capacity; the bounded64-face STAR-template/history and publication extensions now pass actual-cutter focused checks and both platform builds. Keep the stock cutcount and scene budgets. Drill flags0x3e force effective geometric scale1;10/20 request values must not multiply raw cutter vertices.
+
+- Xbox combined contact/cockpit run: artifacts/xemu/render-20260918-133107 PASS420, all16vehicle words exactly match PC,2entries/1exit,6supports,149host contacts and0runtime errors.3357freepages=13.11328125MiB; native cockpit image inspected, disc restored and harness closed. Overall~71%; vehicles~45%. Actual drilling remains the next integration task.
+
+### Actual drill cutter integration
+
+- Real single26/double64 cutter shapes now decode, cut geometry, publish changed surfaces and round-trip mixed box/STAR history in focused tests. Legacy RFCT/RGCH remain readable; source/convex limits and stock8-cut capacity remain unchanged. Core retained owner/work grows43136bytes, publication work22792bytes; runtime budgets are unchanged.
+- Clipless authored Drill metadata, startup/cadence, contact warmup, two-bit damage deduplication and full vehicle orientation now pass the focused scheduler check. Requested radius10/20 is distinct from effective geometric scale1 under flags0x3e. PC executable and NXDK XBE builds pass. These are component checks, not live drilling acceptance or updated native memory evidence.
+- Next: wire trace/damage/excavation into seated input, admit a nearby actual cavity source for the DEV drill fixture, package cutters on the Xbox disc and run a visible destruction check. Candidate UID148/room0 east wall face6405 needs floor-intersection handling at the real settled chassis height; do not shift authored cut centers to hide the issue. General damage, persistence and other vehicle classes remain open.
+
+### Live Driller excavation (2026-09-18)
+
+- Seated fire now drives authored clipless Drill startup/cadence, real bit-tag sweeps, NPC bash/death routing and actual single/double terrain transactions. The original cutters, full chassis orientation and scale1 are used. Both separate authored drill-bit meshes are attached and driven by spin phase.
+- The enemy-free vehicle fixture now faces east at(30,5.4,-167) and admits actual cavity148/room0, including floor677 and east wall6405. A local DEV hardness region enables drilling without changing installed assets. The new source admission checks all affected wall/floor patches and nearby brushes; original cavity66 behavior is preserved.
+- PC620-frame replay boards, drives, drills, exits and turns toward the result. One double-bit cut commits atframe246 centered(41.3125,6.73709393,-167.045395), with94bit contacts and no cut/postwork failures. Images inspected; bit rendering is dark and appearance remains first-pass. Numeric actual-shape audit proves zero generated surface area inside original courtyard air in both core and publication.
+- Identity capture now separates editor-data lifetime from texture decoding and manifest work. This larger cavity uses a3MiB temporary cap (measured2145079bytes) within the unchanged6MiB aggregate owner budget; it allocates no detached-piece registry. Existing sources retain2MiB cap.
+- Xbox artifacts/xemu/render-20260918-135810 PASS620: all8 drill and16 vehicle words exactly match PC (94contacts,1acceptedcut,1entry/1exit,6supports,0runtime errors),93 harness checks complete,3109freepages=12.14453125MiB; native image inspected, disc restored and harness closed. Earlier run135433 completed the same flow but stopped at a stale2MiB harness assertion; the updated assertion retains2MiB for other sources and checks the new3MiB temporary cap for the vehicle fixture. Overall~72%; vehicles~50%. General incoming vehicle damage, destructible clutter contact, mover/fragment bash response, vehicle persistence, repeated drilling capacity and additional vehicle classes remain open.
+
+### Vehicle damage and destruction
+
+- Connected the registered Driller900HP owner to player ordinary gunfire, ordinary NPC hitscan, player/NPC rocket contact and shared radial explosions. Closest world/actor/fragment contacts keep priority; driver/host direct fire and stale registry generations are excluded. Damage uses authored class factors: bash/bullets0, armor-piercing0.1, explosives1. Source attribution uses the live host and driver affiliation; lethal-hit credit follows the shared damage service.
+- Destroyed hosts disable propulsion and drilling and cannot be boarded. Occupied destruction schedules an ordinary collision-checked exit; blocked living drivers stay seated and retry, without teleportation. Retained wreck collision remains. The focused actual-resource/registry test passes blocked/clear exits, player release, source credit and nearer/tied/stale collision behavior.
+- Vehicle DEV profile now includes the rocket launcher. PC600-frame replay fires two impacting rockets, destroys the actual parked host and retains the player as lethal source; Xbox artifacts/xemu/render-20260918-141053 PASS600 with all8 damage and16 vehicle words exactly matching PC,3028freepages=11.828125MiB, native output inspected, disc restored/harness closed. Focused occupied-exit checks pass, but that scenario has not been run live on Xbox. Overall~72%; vehicles~55%. General wreck presentation/explosions, vehicle persistence, NPC shotgun/player precision/other special direct-hit coverage and live occupied-destruction encounters remain open.
+
+- Next special-weapon adapter patch is prepared at artifacts/driller-special-weapons.patch (NPC shotgun/player sniper and rail), application checked only; not yet integrated or built. The authored bit model dark flat patch is not yet attributed to a confirmed binding bug; leave renderer diagnosis deferred rather than describing it as proven lighting.
+
+
+### Vehicle combat and checkpoint foundation (2026-09-18)
+
+- Integrated actual vehicle contact/damage into NPC shotgun pellets and player sniper/rail firing. Sniper respects nearer cover; rail follows authored penetration and continues to downstream actors; bullet-immune chassis still blocks pellets. Focused actual-resource checks and existing shotgun/precision checks pass. NXDK build completes; these additional branches have not had a new live Xbox replay.
+- Added fixed 128-byte RFVC vehicle state with explicit little-endian fields, validation and corruption detection. Staged adapter reconstructs angular momentum with current authored inertia and saved orientation, clearing force transients without replacing registration metadata. Codec and adapter math tests pass.
+- OPEN: Connect save envelope, candidate terrain clearance, driver occupancy and atomic publication. These foundation helpers do not yet enable live vehicle saves. Retain the current seated-save rejection until that integration works.
+
+
+### Vehicle flame and save envelope (2026-09-18)
+
+- Direct player flame pulses now use the actual posed chassis sphere union, authored fire damage, world/rubble occlusion and host/occupant exclusions. Chassis also occludes flame toward NPCs; one pulse causes one vehicle dose. Actual-resource focused check and PC/Xbox builds pass. No new live Xbox flame replay; persistent vehicle burns remain open.
+- RFCP3 can carry the validated RFVC block after existing player/terrain/remote-charge data, preserving the fixed storage cap and backward reads of RFCP1/2. Focused format/compatibility tests pass. Live save dispatch still uses RFCP2 until candidate-world placement and driver publication are wired.
+
+
+### Parked Driller checkpoint integration (2026-09-18)
+
+- Live checkpoint capture writes RFCP3 with RFVC when the Driller is present; nonvehicle saves keep RFCP2. Restore admits the actual eight-sphere chassis against the pending complete terrain and staged rubble, also rejecting overlap with the saved on-foot player. Registration identity remains current; rigid pose/motion, health, destroyed state and drill counters restore before simulation.
+- Extended exact cavity checkpoint profile admission to UID148/22 planes/zero neighbors and restored it without a fabricated extracted-solid registry. Existing cavity66 and solid/collection rules remain.
+- Focused placement/publication and cavity-format checks pass. PC save/resume/control replay passes: altered checkpoint health850 restores and resaves850, position continuation delta0.00002432, basis0.0001131, velocity0.00001911, angular velocity0.0005279. Actual resumed framebuffer inspected: chassis, test room and player weapon remain visible. PC/Xbox builds pass.
+- Scope: parked/unoccupied DEV Driller, zero-cut live continuation currently verified. Occupied saves still rejected; drilling-history continuation and campaign vehicle persistence require follow-up. Vehicles approximately58%; overall approximately72%.
+
+- Native parked restore passes artifacts/xemu/render-20260918-143505:60frames, exact PC/Xbox1196-byte save agreement,3008freepages (11.75MiB), disc restored. Native framebuffer inspected with chassis/world/player weapon intact. XEMU closed by harness.
+- Found and corrected legacy20-face/60-vertex bounds in the scene checkpoint material pass: star cutters now use the core192-vertex/64-face limits; convex limits stay unchanged. This unblocks encoding actual drill geometry; live post-drilling save continuation remains a separate check.
+
+- Actual cutter-history regression passes: single78vertices/26faces and double192vertices/64faces encode then remap materials and return byte-exact; convex20-face cap remains enforced.
+
+
+### Seated Driller checkpoint integration (2026-09-18)
+
+- Added RFPL3 paired driver state without registry handles, retaining preboarding exit look; RFCP3 requires matching occupied RFVC. Existing standing RFPL1/2 and RFCP1/2 behavior remains.
+- Live seated capture and restore derive the authored seat transform and validate actual player spheres against pending world/rubble, without requiring standing floor support or testing against the occupied chassis itself. Restore rebuilds fresh-handle possession, cockpit/body publication and Use debounce.
+- Focused seated codec, envelope pairing, seat placement and actual possession/exit checks pass. PC220-frame drive/capture,60-frame seated resume/resave and120-frame restore/exit/resave pass; cockpit framebuffer inspected. Native restore/exit/resave passes120frames in artifacts/xemu/render-20260918-144706, with exact PC/Xbox1196-byte save agreement and3007freepages (11.746MiB); disc restored, XEMU closed. Native final framebuffer inspected: on-foot weapon/camera restored.
+- Dead occupied hosts remain rejected by the live scene; in-session reload requires leaving the current seat first. Mid-throttle continuation, destruction during restored occupancy, broader campaign saves and other vehicle classes remain open. Vehicles approximately60%; overall approximately72%.
+
+##2026-09-22 Ordinary enemy projectiles and authored loadouts
+
+Connected actual RFL primary/secondary weapon strings, preserved class alternatives and original none/unknown/ammo semantics, and replaced DEV attack gates with independent NPC resource readiness. Installed records contain23rocket/15grenade primary overrides. Focused parser/loadout/demand/scheduler checks and PC/NXDK builds pass; ordinary controlled PC rocket/grenade encounters pass. Native grenade650-frame replay render-20260922-180307 passes with5213freepages (20.36MiB), matching gameplay, inspected capture and restored disc. Model-less motion guard added after that native build is covered by final builds; broader campaign, secondary-weapon policy and flight saves remain. Overall~82%; current system Enemy combat/AI~80% (rough implementation estimate).
+
+##2026-09-22 Enemy weapon drop integration
+
+Expanded name-based death-drop policy to implemented guns/throwables/riotstick; preserves finite/empty ammo, reserves views for owned fallback weapons, and respects saved/collected drop demand. Actual scene collection tests pass for sniper/rocket/grenade/riotstick. Controlled PC death-to-ground-weapon, movement pickup, equip and fire endpoints pass with inspected captures. Native300-frame replay render-20260922-181344 matches one drop/one collection/six granted rounds/one shot/five remaining, with5195freepages (20.29MiB), inspected wall-impact capture and restored disc. Both builds pass. Scripted death is tested, not player-gun lethality. Authored no-drop flags, general saves and broader encounters remain. Overall~82%; Enemy combat/AI~81%.
+
+##2026-09-22 Scripted AI movement ownership
+
+Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordinary sight pursuit, hearing, damage retaliation and alarms; ordinary default-mode firing stays available and explicit Attack supersedes the route. Actualscene scheduler/hearing/retaliation/alarm checks pass, as do PC/NXDK builds. OriginalRiotStick guard8456 in controlledL1S1 Goto fixture walks away from alerted player; native90-frame replay render-20260922-182408 matches movement/combat counters with5244freepages (20.48MiB), inspected capture and restored disc. Initial RF_FORMAT was fixtureusingwrongsetupentry, corrected toNPCevententry; noRiotloadoutfault. Addednative --goto-uid staging/restoration. CorrectedstaleTODO: unique linked waypoint acquisition alreadyimplemented32410c24. Fullrouteencounters/collecting/vehicles/disksaves remain. Overall~82%; Enemy AI~82%.
+
+### Capek firearm shield depletion (2026-09-30)
+
+- Added a contact-owned nano-shield armor prepass to player hitscan/precision and NPC direct/shotgun firearms; active shields consume the contact before generic health damage, including the breaking hit, while rail contacts debit100 armor.
+- Invulnerable targets retain armor; exhausted armor clamps to0 for the existing save/vitals contract. Projectile/explosion behavior stays separate, and original shield effects/audio and hover/run reconciliation remain open.
+- NXDK build passes. Focused stock64MiB XEMU L8S4 check passes110frames: armor150→50→0 with health100 unchanged, then sniper health100→-150/death; each shot consumes one finite round,4772free pages (18.64MiB), disc restored. Report: artifacts/xemu/nano-shield-20260930-102647/report.json.
+- No PC runtime, campaign traversal, images or host input. Broader NPC/invulnerable/toggle/save coverage is deferred.
+
+### Capek missile shield interception (2026-09-30)
+
+- Player rockets, NPC rockets/Tankbot missiles and Fusion flights now consume active NPC nano-shield contacts before ordinary direct damage, impact, blast and terrain-cut processing, matching the original early return at0x4c5b54..0x4c5b5d.
+- NXDK build and isolated stock64MiB XEMU check pass: two real player rockets debit400 armor each (600→200→0), leave health100 unchanged, retire both flights without blasts/cuts, and the subsequent sniper shot kills the unshielded actor. Finite ammo consumption passes; disc flags restored. Report: artifacts/xemu/nano-shield-rockets-20260930-104615/report.json.
+- The fixture hides other NPCs, selects actual finite-radius clearance, and stages eye/input/ammunition/initial armor; this is contact functionality, not an ordinary encounter or visual/audio check. NPC/Fusion routing is built but not independently exercised in XEMU.
+
+### Grenade object-contact integration (2026-09-30)
+
+- Added explicit consumed-object events to the shared flight integrator and player/NPC scene adapters, covering actor/player/prop/vehicle victims without changing serialized flight state. Direct damage precedes radial/impact; object contact retires the grenade with no later fuse explosion and no object-contact terrain cut.
+- Normal grenade shield contact drains0 armor; alternate bit0x10 permits full debit. Both are consumed before ordinary effects.
+- NXDK build passes; compiled NXDK integrator checks preserve world bounce/alternate expiry and prove one-shot retirement/error rollback. Isolated stock64MiB XEMU110-frame check passes three staged grenade flights: shield armor100→100→0, health100 retained until the unshielded hit applies150 damage, one blast, no surviving flights,4878free pages (19.05MiB), disc restored.
+- Reports: artifacts/xbox-grenade-contacts.json and artifacts/xemu/nano-shield-grenades-20260930-105156/report.json. Throw input/release timing and other victim/source/save combinations were not exercised; no images or PC runtime.
+
+### Remote-charge nano-shield contacts (2026-09-30)
+
+- Added zero-amount shield admission before remote host publication; consumed charges become inactive/dead and retain no attachment/host, so normal draw/save/detonator scans skip them. Inactive shields keep the ordinary sticky path.
+- NXDK build passes. Isolated stock64MiB XEMU110-frame check stages two ordinary launch/ammo calls, toggles shield OFF for the second, and uses a process-local detonator input edge: one absorbed charge, one attachment, one detonation, no remaining active charges, and reserve3→2→1 with no detonator debit. Armor/health remain100/100 through shield absorption and ordinary attachment.
+- Report: artifacts/xemu/nano-shield-remotes-20260930-105746/report.json; disc flags restored. Moving-host saves, ordinary throw input/animation timing and presentation remain unverified by this check.
+
+### Attached remote ordinary saves (2026-09-30)
+
+- Replaced the blanket NPC/mover attachment rejection with admission against prepared world-host poses; durable IDs, local offsets and orientations rebind before the assignment-only world publication, without changing the save format.
+- Stock64MiB Xbox saves one charge attached to Capek UID8359, boots again, restores its exact position, switches to the detonator and detonates exactly once with no replacement launch or residual charge.
+- Report: artifacts/xemu/remote-host-save-20260930-110757/report.json; world30536 bytes, minimum endpoint4538 free pages (17.73MiB), original disc restored. NXDK build passes.
+- Mover admission is implemented but not separately live checked; dead-host transitions, fragment attachment saves and broader encounters remain. No PC test, images or campaign route was run.
+
+### Riot Shield and Fusion ordinary saves (2026-09-30)
+
+- Removed blanket ownership rejection for settled special weapons, normalized the ammo-free shield catalog, and added RFWM2 shield life in the existing32-byte payload while preserving RFWM1 reads/writes without shields.
+- Restoring a shield preserves damage and ordinary break/removal/fallback; load resets bash and Fusion transient state. Active bash, Fusion reload/cooldown and live Fusion projectile saves remain temporarily unavailable.
+- Stock64MiB Xbox saves shield625/Fusion1, reloads shield625, damages it to312.5, breaks/removes it, and launches the saved Fusion shell with loaded0. Report: artifacts/xemu/special-weapon-save-20260930-111454/report.json; minimum endpoint4478 free pages (17.49MiB), disc restored.
+- Final NXDK build and compiled RFWM1/RFWM2 codec checks pass; no PC runtime, campaign route or image capture. Admitted shield damage tests durability integration, not mesh interception; active-shot in-session load clearing is implemented but not separately live checked.
+
+### Active Fusion world saves (2026-09-30)
+
+- RFAP2 adds active Fusion slots and input-only rows with durable player source, authored-definition rebinding and relative cooldown/reload deadlines; RFAP1 remains readable and is still emitted without Fusion state.
+- Boot resource demand includes saved Fusion flights, and world restore now publishes flights after weapon-state reset. Ordinary saves admit flight/reload/cooldown; legacy composed RFCP remains settled-only.
+- Stock64MiB source saves at80frames with one flight, cooldown29 and reload51; the unprotected reload confirms one impact/player death, then a protected fixture reload of the same payload completes exactly one shell transfer without launching a replacement shot.
+- PASS: artifacts/xemu/fusion-flight-save-20260930-112559/report.json, source artifacts/xemu/fusion-flight-save-20260930-112154/save/xbox-world.rfwc. World30448 bytes, flight component128 bytes, endpoint headroom at least4621 pages (18.05MiB), disc restored and NXDK build passed.
+- Controller-only rows, mixed flights, in-session rewind, underwater impact and animation/effect presentation remain outside this bounded check; no PC runtime, images or campaign traversal.
+
+
+### Corpse lifecycle and ordinary save continuation (2026-10-03)
+
+- Integrated prepared retention/fade submission, source actor retirement and RFCL1 lifetime companion into the ordinary Xbox engine path; no second timer or corpse pool.
+- Stock64MiB source92/load120 PASS restores six exact age/fade owners, expires UID913100 once, and writes a valid final save with its retired identity plus five retained bodies; no replayed death/audio/loot events.
+- Evidence: artifacts/xemu/corpse-fade-save-20261003-132725/report.json; NXDK build passes, minimum endpoint3126 free pages (12.21MiB), original disc inputs restored. No visual/audio playback claim or PC runtime test.
+- Burning/carried/moving bodies, timer-wrap age and broader retention cases remain deferred. Overall estimate stays approximately88%; current high-level work is AI and actor lifecycle (approximately90%).
+
+
+### Autonomous opposed NPC combat (2026-10-03)
+
+- Integrated staggered sight acquisition for hostile0 versus friendly2, preserving existing targets, authored orders, player sight priority, AI-mode gates and ordinary cover. Neutral/outcast actors are not automatically selected.
+- Stock64MiB180-frame encounter passes: two independent acquisitions, four shots/hits, bilateral damage, one death, survivor target release, no later shots and player health100. Minimum endpoint6094 free pages (23.80MiB).
+- Report: artifacts/xemu/npc-opposed-20261003-134033/report.json. Initial validator wrongly required nonfatal damage; corrected against retained native state without a rerun, preserving original failure. No images, PC run, campaign route or audio/visual claim.
+- Reactive-mode ordinary saves remain unsupported and are the next material AI continuity gap. Overall approximately88%; AI and actor lifecycle approximately91%.
+- Also compiled missing placed Fusion class registration (stable index31); dedicated collection harness prepared but unrun. Parked Jeep gunner-to-driver helper remains unintegrated for next vehicle slice.
+
+
+### Reactive NPC ordinary saves (2026-10-03)
+
+- RFNC12 adds a distinct reactive NPC target mode without changing row size; ordinary loads restore live mode2, full-generation actor ownership, relative fire/reload deadlines, burst and spread RNG instead of converting it to authored Attack.
+- Stock64MiB source80/load120 PASS: exact targets/deadlines11 and12/RNG1/vitals/loaded16 restored, four continued shots/hits, one death and survivor release, zero reacquisition/setup/Attack replay; player health100.
+- Report: artifacts/xemu/npc-opposed-save-20261003-135013/report.json; save17392bytes, stage805492bytes, minimum endpoint5950 free pages (23.24MiB), NXDK build and disc restoration passed. No PC or visual/audio claim.
+- Active pain/reload/pursuit cases retain existing admission and need broader tester feedback; generated-head/passive-vehicle reactive target saves remain unsupported. Codec test cases added but not separately run under Xbox-only validation policy.
+- Overall approximately88%; AI and actor lifecycle approximately91%. Next available gameplay integration: prepared empty-driver Jeep seat transfer, with ordinary placed Fusion collection still queued.
