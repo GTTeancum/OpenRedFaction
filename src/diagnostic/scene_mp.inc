@@ -691,8 +691,8 @@ static int scene_mp_route_tick(uint32_t slot)
          * (body to body, minus 3 when the target's class flag 0x400 is set),
          * or in range with both unseen and +0x188 expired; with +0x180
          * expired and rand < 0x1fffffff, a health route (1339e0). Port
-         * notes: the rays are the port's sight ray (not 1953e0's swept
-         * sphere, ray mask 0x27, 0x21 for no_fire_through); the 1.5
+         * notes: the rays use 1953e0's mask but not its sphere radius
+         * (max of both radii + 0.1); the 1.5
          * range factor and the flat distance for movement sub-state +0x204
          * (2, 3; not tracked) are left out. */
         if(SCENE_MP_WEAPON_SEEK){
@@ -707,18 +707,20 @@ static int scene_mp_route_tick(uint32_t slot)
                 for(k=0;k<3;k++)d+=(tp[k]-npc->body.state.position[k])*(tp[k]-npc->body.state.position[k]);
                 d=sqrtf(d);if(flags&0x400u)d-=3.0f; /* 15a1e0 */
                 if(scene_actor_collision_owner && (int32_t)(now-scene_mp_sight_due[slot])>=0){
-                    float ray[3];uint32_t blocked=1,m;
+                    float ray[3],end[3];uint32_t blocked=1,m,mask=0x27u;
                     /* 12b310: 200-400 ms, halved while the weapon has Flags2
                      * no_fire_through (+0x248 bit 8; port flags_268 bit 3). */
                     {uint32_t wait=200u+scene_mp_next()%200u;int32_t w=npc->view.weapons[0],r;
                      if(w>=0 && (uint32_t)w<campaign_weapon_supply.names.count &&
                         (r=rf_weapon_name_find(&campaign_weapon_reset.names,campaign_weapon_supply.names.names[w]))>=0 &&
-                        (campaign_weapon_reset.definitions[r].flags_268&8u))wait>>=1;
+                        (campaign_weapon_reset.definitions[r].flags_268&8u)){wait>>=1;mask=0x21u;}
                      scene_mp_sight_due[slot]=now+wait;}
                     for(m=0;m<2;m++){
                         const float *to=m?teye:tp;blocked=1;
-                        if(to){for(k=0;k<3;k++)ray[k]=to[k]-npc->eye_position[k];
-                            if(combat_obstructed(scene_actor_collision_owner,npc->eye_position,ray,&blocked))blocked=1;}
+                        /* 1953e0 query mask: 0x27, 0x21 with no_fire_through (the
+                         * engine's own flag encoding, as the port's ray takes). */
+                        if(to){for(k=0;k<3;k++){ray[k]=to[k]-npc->eye_position[k];end[k]=to[k];}
+                            if(rf_geometry_collision_ray(scene_actor_collision_owner->collision,&campaign_movers,npc->eye_position,end,mask,NULL,&blocked))blocked=1;}
                         scene_mp_sight[slot][m]=!blocked;
                     }
                     if(scene_mp_sight[slot][0] || scene_mp_sight[slot][1]){if(d<range)scene_mp_range_due[slot]=now+500u;}

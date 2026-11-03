@@ -516,6 +516,14 @@ Done (now from the PS2 code):
   Ported (scene_mp_route_tick); 12ae50's earlier gates are not mapped. The
   class melee switch at its top (class +0x90) does not apply to miner1 (no
   melee weapon in entity.tbl).
+- Sight rays (12b310 -> 1953e0): mask 0x27, 0x21 with no_fire_through,
+  passed to the port's ray (same engine flag encoding); 1953e0's sphere
+  radius (max of both radii + 0.1) is not applied.
+- Upper-body lean switch-offs not mapped, none possible for multiplayer
+  bots: movement states 0xd/0xf (set while attached to a host object,
+  159ec0: vehicle or turret), AI modes 1/5 (15a310), carried object
+  (+0x680), hidden (+0x734 bit 1), scripted animation (157fa0), vehicle
+  seat (15b3e0).
 - Sight tick interval (12b310): halved for weapons with Flags2
   no_fire_through (+0x248 bit 8: rocket launcher, grenade, flamethrower,
   remote charge, riot stick, riot shield, shoulder cannon); those also
