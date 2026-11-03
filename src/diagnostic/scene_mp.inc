@@ -596,7 +596,19 @@ static int scene_mp_step_away(uint32_t slot)
     if(chosen==UINT32_MAX)return RF_NOT_FOUND;
     for(k=0;k<4;k++)scene_mp_step_node[slot][k]=(uint8_t)(chosen>>(8*k));
     path.indices=scene_mp_step_node[slot];path.count=1;
-    return scene_mp_route_start(slot,&path);
+    {int status=scene_mp_route_start(slot,&path);
+     if(status!=RF_RANGE && status!=RF_NOT_FOUND)return status;
+     /* 12f5f0: when the best point cannot be routed (136bb0), each node of
+      * the candidate list (138b30: the node stood in and its neighbours)
+      * is tried in order until one routes. */
+     for(i=0;i<=campaign_navigation.references[near_node].neighbor_count && i<100;i++){
+        uint32_t node=i?campaign_navigation.references[near_node].neighbors[i-1]:near_node;
+        if(node==chosen)continue;
+        for(k=0;k<4;k++)scene_mp_step_node[slot][k]=(uint8_t)(node>>(8*k));
+        status=scene_mp_route_start(slot,&path);
+        if(status!=RF_RANGE && status!=RF_NOT_FOUND)return status;
+     }
+     return status;}
 }
 /* 132fb0 in multiplayer, for a bot hit by another character: one time in
  * three it reacts (1339e0, which in multiplayer only runs a `health` route,
@@ -680,7 +692,7 @@ static int scene_mp_route_tick(uint32_t slot)
          * or in range with both unseen and +0x188 expired; with +0x180
          * expired and rand < 0x1fffffff, a health route (1339e0). Port
          * notes: the rays are the port's sight ray (not 1953e0's swept
-         * sphere); the halved interval for weapon flag +0x248 8, the 1.5
+         * sphere, ray mask 0x27, 0x21 for no_fire_through); the 1.5
          * range factor and the flat distance for movement sub-state +0x204
          * (2, 3; not tracked) are left out. */
         if(SCENE_MP_WEAPON_SEEK){
@@ -696,7 +708,13 @@ static int scene_mp_route_tick(uint32_t slot)
                 d=sqrtf(d);if(flags&0x400u)d-=3.0f; /* 15a1e0 */
                 if(scene_actor_collision_owner && (int32_t)(now-scene_mp_sight_due[slot])>=0){
                     float ray[3];uint32_t blocked=1,m;
-                    scene_mp_sight_due[slot]=now+200u+scene_mp_next()%200u;
+                    /* 12b310: 200-400 ms, halved while the weapon has Flags2
+                     * no_fire_through (+0x248 bit 8; port flags_268 bit 3). */
+                    {uint32_t wait=200u+scene_mp_next()%200u;int32_t w=npc->view.weapons[0],r;
+                     if(w>=0 && (uint32_t)w<campaign_weapon_supply.names.count &&
+                        (r=rf_weapon_name_find(&campaign_weapon_reset.names,campaign_weapon_supply.names.names[w]))>=0 &&
+                        (campaign_weapon_reset.definitions[r].flags_268&8u))wait>>=1;
+                     scene_mp_sight_due[slot]=now+wait;}
                     for(m=0;m<2;m++){
                         const float *to=m?teye:tp;blocked=1;
                         if(to){for(k=0;k<3;k++)ray[k]=to[k]-npc->eye_position[k];

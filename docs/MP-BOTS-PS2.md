@@ -516,6 +516,19 @@ Done (now from the PS2 code):
   Ported (scene_mp_route_tick); 12ae50's earlier gates are not mapped. The
   class melee switch at its top (class +0x90) does not apply to miner1 (no
   melee weapon in entity.tbl).
+- Sight tick interval (12b310): halved for weapons with Flags2
+  no_fire_through (+0x248 bit 8: rocket launcher, grenade, flamethrower,
+  remote charge, riot stick, riot shield, shoulder cannon); those also
+  use ray mask 0x21 instead of 0x27 (the port's sight ray has no mask).
+- Step-away fallback (12f5f0): when the best point cannot be routed
+  (136bb0), each candidate node is tried in list order. Port: route start
+  sets the mode and the path is planned later, so the fallback runs only
+  when the start itself refuses.
+- Not applicable in the port's multiplayer: the doctor uniform (no arena
+  has one), the hidden-player and AI-mode 0xb clauses of the target choice
+  (never set in a match), and one random sequence shared with every system
+  (the port's other systems are PC reconstructions with their own draws,
+  so a shared sequence would not reproduce the PS2's order).
 - "Not moving" (149cd0, velocity +0x634 exactly zero): the port moves bots
   by position, so "did not move since the last update" is the same test.
 - Respawn sound 0x40: the PS2 sounds.tbl's respawn.wav (SND_RESPAWN); the
