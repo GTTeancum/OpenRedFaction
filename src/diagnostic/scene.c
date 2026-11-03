@@ -24065,13 +24065,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             else status=scene_dev_npc_seeds(tables_path,&tables);
         } else if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
         scene_seed_uid_table.items=NULL; /* records (re)opened below */
-        if(!status && collision && campaign_spawn)status=scene_masako_seeds_open(&campaign_seeds,level,2*1024*1024);
-        if(!status && collision && campaign_spawn)status=scene_turret_dependent_classes_open(&campaign_seeds,&tables,2*1024*1024);
-        if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
-        if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
-        if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
-        if(!status && collision && campaign_spawn)status=campaign_model_geometry_open();
-        if(!status && collision && campaign_spawn)status=rf_entity_appearances_open(&campaign_seeds,&campaign_skeletons,&tables,1024*1024,&campaign_appearances);
+        if(!status && collision && campaign_spawn)status=scene_masako_seeds_open(&campaign_seeds,level,2*1024*1024);if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=100;
+        if(!status && collision && campaign_spawn)status=scene_turret_dependent_classes_open(&campaign_seeds,&tables,2*1024*1024);if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=101;
+        if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=102;
+        if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=103;
+        if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=104;
+        if(!status && collision && campaign_spawn)status=campaign_model_geometry_open();if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=105;
+        if(!status && collision && campaign_spawn)status=rf_entity_appearances_open(&campaign_seeds,&campaign_skeletons,&tables,1024*1024,&campaign_appearances);if(status && !rf_scene_campaign_load_detail)rf_scene_campaign_load_detail=106;
         if(!status && collision && campaign_spawn) {
             campaign_load_stage_set(1);rf_scene_npc_texture_cap=0;status=rf_entity_materials_open(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024);
             if(status==RF_RANGE){rf_scene_npc_texture_cap=128;status=rf_entity_materials_open_limit(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024,128);}

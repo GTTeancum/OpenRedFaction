@@ -163,6 +163,7 @@ def main():
     parser.add_argument('--shot-delay', type=float, default=0, help='seconds to wait after a capture triggers')
     parser.add_argument('--shot-on-dead', action='store_true', help='capture while the player is dead (after --shot-after)')
     parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
+    parser.add_argument('--shot-on-lean', action='store_true', help='multiplayer: capture when the aimed-at bot leans its upper body (after --shot-after)')
     parser.add_argument('--shot-on-actor', action='store_true',
                         help='with --screenshots: capture once the aim input lines up on a visible character (needs --aim)')
     parser.add_argument('--shot-on-ir', action='store_true',
@@ -640,6 +641,8 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_corpse_trace']=4
           counts['rf_scene_mp_pickups']=8
           counts['rf_scene_mp_hits']=6
+          counts['rf_scene_mp_aim']=4
+          counts['rf_scene_mp_aim_trace']=8
           counts['rf_scene_mp_targets']=4
           counts['rf_scene_mp_drops']=3
           counts['rf_scene_player_life']=8
@@ -727,7 +730,8 @@ dvd_path = '{iso.as_posix()}'
                     actor=(sample.get('rf_scene_crash_aim_trace') or [0,0,0,0])[3]*(((sample.get('rf_scene_crash_aim_range') or [0])[0] or 99999)<args.shot_range) # aligned fire on a visible character in range
                     if args.shot_on_corpse:actor=(sample.get('rf_scene_live_corpses') or [0]*4)[3] # corpse vertices drawn this frame
                     if args.shot_on_dead:actor=(sample.get('rf_scene_player_life') or [0]*3)[2] # player dead
-                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse or args.shot_on_dead else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                    if args.shot_on_lean:actor=(sample.get('rf_scene_mp_aim') or [0]*4)[3] # the input's target bot is fully leaning
+                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse or args.shot_on_dead or args.shot_on_lean else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
                         last_shot_input=consumed
                         if args.shot_delay:time.sleep(args.shot_delay) # let a menu or end screen fade in
                         try:

@@ -53,6 +53,7 @@ const char *rf_scene_mp_bot_name(uint32_t slot){return slot<SCENE_MP_BOTS?scene_
 static struct {float position[3];uint8_t flags[3];} scene_mp_spawn[SCENE_MP_SPAWNS];
 static uint32_t scene_mp_spawn_count,scene_mp_random=1,scene_mp_player_dead;
 static float scene_mp_clock;
+uint32_t rf_scene_mp_aim_trace[8]; /* see scene_mp_aim_tick */
 static float scene_mp_aim_clock[SCENE_MP_BOTS];static uint8_t scene_mp_aim_on[SCENE_MP_BOTS],scene_mp_aim_active[SCENE_MP_BOTS]; /* upper-body aim (scene_mp_aim_tick) */
 uint32_t rf_scene_mp_player_stats[3];float rf_scene_mp_elapsed;static uint32_t scene_mp_player_streak; /* MP STATS (see scene_mp_round_count) */
 /* Respawn fade (1ddd90): 0 none, 1 to white, 2 back; seconds in phase. */
@@ -123,7 +124,7 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     memset(rf_scene_mp,0,sizeof(rf_scene_mp));memset(rf_scene_mp_roster,0,sizeof(rf_scene_mp_roster));
     memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));memset(rf_scene_mp_corpse_trace,0,sizeof(rf_scene_mp_corpse_trace));scene_mp_clock=0;scene_mp_player_dead=0;
     memset(rf_scene_mp_player_stats,0,sizeof(rf_scene_mp_player_stats));scene_mp_player_streak=0;rf_scene_mp_elapsed=0;
-    memset(scene_mp_aim_clock,0,sizeof(scene_mp_aim_clock));memset(scene_mp_aim_on,0,sizeof(scene_mp_aim_on));memset(scene_mp_aim_active,0,sizeof(scene_mp_aim_active));
+    memset(scene_mp_aim_clock,0,sizeof(scene_mp_aim_clock));memset(rf_scene_mp_aim_trace,0,sizeof(rf_scene_mp_aim_trace));memset(scene_mp_aim_on,0,sizeof(scene_mp_aim_on));memset(scene_mp_aim_active,0,sizeof(scene_mp_aim_active));
     rf_scene_mp_seed_trace[0]=1;
     status=scene_mp_spawns_read(level);rf_scene_mp_seed_trace[1]=(uint32_t)status;if(status)return status;
     rf_scene_mp_seed_trace[0]=2;
@@ -141,7 +142,9 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
                 if(status){free(rebuilt);return status;}
                 rebuilt[classes].record_index=k;miner=classes++;
             }
-            strcpy(record->class_name,"miner1");campaign_seeds.items[k].class_index=miner;
+            /* miner1 with its default skin (section 5 note 1): an authored skin
+             * of the original class (dm07) is not a miner1 skin. */
+            strcpy(record->class_name,"miner1");record->skin[0]=0;campaign_seeds.items[k].class_index=miner;
         }else{
             for(j=0;j<k;j++)if(!strcmp(campaign_seeds.records.items[j].record.class_name,record->class_name))break;
             if(j<k)campaign_seeds.items[k].class_index=campaign_seeds.items[j].class_index;
@@ -459,10 +462,18 @@ static int scene_mp_aim_target(const campaign_npc_body *npc,float position[3])
     }
     return 0;
 }
-static void scene_mp_aim_bone(rf_entity_pose *pose,int32_t bone,const float facing[3],uint32_t first,float weight)
+/* Harness: bots fully leaning (weight 1, second-bone pitch at least 0.1)
+ * this update, the most-leaning one's UID, its pitch in milliradians
+ * (signed), and 1 when it is the crash-input aim target or aims at the
+ * player. Observation only. */
+uint32_t rf_scene_mp_aim[4];
+/* Cumulative: updates, no pose/overrides, no spine bones, target present,
+ * height test passed, aim on, weight-1 updates, max |pitch| milliradians. */
+extern uint32_t rf_scene_crash_aim_trace[4];
+static float scene_mp_aim_bone(rf_entity_pose *pose,int32_t bone,const float facing[3],uint32_t first,float weight)
 {
     const float *m;float d[3],angle,c,s,up[3],forward[3];uint32_t k;rf_model_bone_override *o;
-    if(bone<0 || (uint32_t)bone>=pose->bone_count)return;
+    if(bone<0 || (uint32_t)bone>=pose->bone_count)return 0;
     m=pose->matrices[bone];o=pose->overrides+bone;
     for(k=0;k<3;k++)d[k]=facing[0]*m[k*3]+facing[1]*m[k*3+1]+facing[2]*m[k*3+2];
     angle=d[2]!=0?atanf(d[1]/d[2]):0;
@@ -474,29 +485,40 @@ static void scene_mp_aim_bone(rf_entity_pose *pose,int32_t bone,const float faci
     for(k=0;k<3;k++){up[k]=m[3+k]*c-m[6+k]*s;}
     forward[0]=m[1]*up[2]-m[2]*up[1];forward[1]=m[2]*up[0]-m[0]*up[2];forward[2]=m[0]*up[1]-m[1]*up[0];
     memcpy(o->basis,m,12);memcpy(o->basis+3,up,12);memcpy(o->basis+6,forward,12);
-    o->weight=weight;o->enabled=1;
+    o->weight=weight;o->enabled=1;return angle;
 }
 static void scene_mp_aim_tick(uint32_t slot)
 {
     campaign_npc_body *npc=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;int32_t bones[3];
     float target[3],facing[3],weight;const float *eye,*basis;uint32_t k,on;
-    if(campaign_model_pose(slot,&pose) || !pose || !pose->overrides || !pose->matrices || !campaign_model_owners)return;
+    ++rf_scene_mp_aim_trace[0];
+    if(campaign_model_pose(slot,&pose) || !pose || !pose->overrides || !pose->matrices || !campaign_model_owners){++rf_scene_mp_aim_trace[1];return;}
     if(rf_entity_class_death_bones(&campaign_seeds,&campaign_skeletons,campaign_seeds.items[slot].class_index,bones) ||
-       bones[0]<0 || bones[1]<0)return;
+       bones[0]<0 || bones[1]<0){++rf_scene_mp_aim_trace[2];return;}
+    if(scene_mp_aim_target(npc,target)){++rf_scene_mp_aim_trace[3];if(fabsf(npc->body.state.position[1]-target[1])>=1.0f)++rf_scene_mp_aim_trace[4];}
     on=npc->damage.effects.health>0 && npc->view.weapons[0]>=0 && npc->view.weapons[0]!=campaign_shield_id &&
        scene_mp_aim_target(npc,target) && fabsf(npc->body.state.position[1]-target[1])>=1.0f;
     if(!on){
         if(!scene_mp_aim_active[slot])return; /* 151110: only while an override is live */
         if(scene_mp_aim_on[slot]){scene_mp_aim_clock[slot]=0;scene_mp_aim_on[slot]=0;}
-    }else scene_mp_aim_on[slot]=1;
+    }else{scene_mp_aim_on[slot]=1;++rf_scene_mp_aim_trace[5];}
     scene_mp_aim_clock[slot]+=scene_step_seconds;
     if(on)weight=scene_mp_aim_clock[slot]<.75f?scene_mp_aim_clock[slot]/.75f:1.0f;
     else weight=scene_mp_aim_clock[slot]>=.75f?0.0f:1.0f-scene_mp_aim_clock[slot]/.75f;
     /* Eye facing into the entity frame (1fb210 rows dot). */
     eye=npc->look.orientation+6;basis=campaign_model_owners[slot].basis;
     for(k=0;k<3;k++)facing[k]=eye[0]*basis[k*3]+eye[1]*basis[k*3+1]+eye[2]*basis[k*3+2];
-    scene_mp_aim_bone(pose,bones[0],facing,1,weight);
-    scene_mp_aim_bone(pose,bones[1],facing,0,weight);
+    {float pitch;int32_t milli;
+     scene_mp_aim_bone(pose,bones[0],facing,1,weight);
+     pitch=scene_mp_aim_bone(pose,bones[1],facing,0,weight);milli=(int32_t)(pitch*1000.0f);
+     if(weight>=1.0f){++rf_scene_mp_aim_trace[6];if((uint32_t)(milli<0?-milli:milli)>rf_scene_mp_aim_trace[7])rf_scene_mp_aim_trace[7]=(uint32_t)(milli<0?-milli:milli);}
+     if(weight>=1.0f && fabsf(pitch)>=.1f){
+        uint32_t uid=(uint32_t)campaign_seeds.records.items[slot].record.uid;
+        if(!rf_scene_mp_aim[0] || (milli<0?-milli:milli)>((int32_t)rf_scene_mp_aim[2]<0?-(int32_t)rf_scene_mp_aim[2]:(int32_t)rf_scene_mp_aim[2])){
+            rf_scene_mp_aim[1]=uid;rf_scene_mp_aim[2]=(uint32_t)milli;rf_scene_mp_aim[3]=uid==rf_scene_crash_aim_trace[1] || npc->combat_target==campaign_player_object.handle;
+        }
+        ++rf_scene_mp_aim[0];
+     }}
     scene_mp_aim_active[slot]=1;
     if(!on && weight==0){pose->overrides[bones[0]].enabled=pose->overrides[bones[1]].enabled=0;scene_mp_aim_active[slot]=0;scene_mp_aim_clock[slot]=0;}
 }
@@ -742,6 +764,7 @@ static int scene_mp_tick(uint32_t frame)
     uint32_t i,count;int status;
     ++scene_mp_boot_updates;
     if(!rf_scene_mp[0])return RF_OK;
+    memset(rf_scene_mp_aim,0,sizeof(rf_scene_mp_aim));
     rf_scene_mp_elapsed+=scene_step_seconds; /* 160f40: 80d80c += frame time */
     count=campaign_npc_body_count<SCENE_MP_BOTS?campaign_npc_body_count:SCENE_MP_BOTS;
     if(!frame){
