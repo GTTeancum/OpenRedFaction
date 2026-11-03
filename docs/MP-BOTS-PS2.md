@@ -516,6 +516,28 @@ Done (now from the PS2 code):
   Ported (scene_mp_route_tick); 12ae50's earlier gates are not mapped. The
   class melee switch at its top (class +0x90) does not apply to miner1 (no
   melee weapon in entity.tbl).
+- Sight sweep (1953e0): a sphere of max(target +0x78, own +0x78) + 0.1
+  swept through the static world and every mover, with the external mask
+  translated as 499190 (0x27 -> 0x460, 0x21 -> 0x400; scene_mp_sight_sweep).
+- Alternate fire: AI fire 154a20(e, 1, alt, 0) forces alt only for a class
+  with flag 0x20 "alt_fire" (miner1 has none) and for one weapon of the
+  human; 155ee0 is the secondary weapon (+0x278), not alt fire. So
+  multiplayer bots never alt-fire and the AI alt spread (+0xe4/+0xe8) has
+  no reader in a match.
+- PLAYER NAME (state 0x17, reached from "Player vs. Bots" 1e3d10): ported
+  (main.c player_ps2_name, ps2_frontend.c rf_xbox_ps2_draw_mp_name); the
+  name replaces "PLAYER" on the HUD, end screen and MP STATS. The PS2 then
+  shows CHARACTER (0x18, 26d150/26ca40, string 62, "Back to Player Name")
+  and ENVIRONMENT (0x16, 26ac00, string 63, "Back to Character
+  Selection") before MP OPTIONS (0x15); the port still offers character
+  and arena as rows of its own options screen (port layout). The PS2 keeps
+  names in players.cfg on the memory card (1a8450); the port keeps it for
+  the session only.
+- The human's model: the menu character's class and skin are loaded for
+  the player body (scene.c, fallback miner1; form 0 audio and physics rows
+  for non-Parker classes).
+- Dropped-item fade seen on XEMU (bot-pilot hold): a drop about 4 m away at
+  alpha 75, paler with the floor showing through (red damage tint).
 - Sight rays (12b310 -> 1953e0): mask 0x27, 0x21 with no_fire_through,
   passed to the port's ray (same engine flag encoding); 1953e0's sphere
   radius (max of both radii + 0.1) is not applied.

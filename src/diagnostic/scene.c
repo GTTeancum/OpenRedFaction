@@ -20719,6 +20719,29 @@ static int scene_mp_bot_node(campaign_npc_body *npc,uint32_t *node)
     *node=sel.second!=UINT32_MAX?sel.second:sel.first;
     return *node==UINT32_MAX?RF_NOT_FOUND:RF_OK;
 }
+/* PS2 1953e0 for the multiplayer sight rays (12b310): a sphere swept from
+ * start to end through the static world and every mover; mask is the
+ * external query mask (0x27, 0x21), translated as 499190 does
+ * (rf_collision_ray_solids) without its any-hit bit. */
+static int scene_mp_sight_sweep(const float start[3],const float end[3],float radius,uint32_t mask,uint32_t *blocked)
+{
+    scene_stream *stream=particle_draw_stream;rf_collision_solid_view solid={0};rf_collision_sweep_room_hit hit;
+    float delta[3];uint32_t i,q,found;int status;
+    *blocked=0;
+    if(!stream || !stream->collision)return RF_NOT_FOUND;
+    for(i=0;i<3;i++)delta[i]=end[i]-start[i];
+    q=((((((mask&0xc0u)<<1)|(mask&0x20u))<<1)|(mask&0x1eu))<<4);
+    solid.rooms=stream->collision->views;solid.room_count=stream->collision->room_count;
+    solid.primary=stream->collision->primary;solid.primary_count=stream->collision->primary_count;
+    solid.children=stream->collision->children;solid.child_count=stream->collision->child_count;
+    status=rf_collision_solid_preferred(&solid,NULL,q,start,delta,radius,1,&hit,&found);if(status)return status;
+    if(found){*blocked=1;return RF_OK;}
+    for(i=0;i<campaign_movers.count;i++){
+        status=rf_collision_solid_preferred(campaign_movers.views+i,NULL,q,start,delta,radius,1,&hit,&found);if(status)return status;
+        if(found){*blocked=1;return RF_OK;}
+    }
+    return RF_OK;
+}
 static int campaign_script_route_leased(scene_stream *stream,campaign_npc_body *owner,uint32_t *found)
 {
     rf_entity_navigation_candidate start={0},goal={0};rf_entity_navigation_graph_request q={0};
@@ -22506,11 +22529,11 @@ static int scene_pickups_draw(scene_stream *stream)
         memcpy(pose.position,drop->position,12);pose.basis[0]=pose.basis[4]=pose.basis[8]=1;
         c.fade=scene_mp_drop_alpha(i); /* 16d080 fade (+0x284) */
         if(c.fade){rf_scene_mp_fade_draw[0]=rf_scene_profile_stage[0];rf_scene_mp_fade_draw[1]=c.fade;
-            if(rf_scene_crash_hold_enabled==1 && !rf_scene_crash_hold && c.fade<200){
+            if(rf_scene_crash_hold_enabled==1 && !rf_scene_crash_hold && c.fade<120){
                 /* Harness hold only when the drop is in the camera's cone with a clear sight ray. */
                 const float *f=actor_look.eye_orientation+6;float v[3],len=0,dot=0;uint32_t k,blocked=1;
                 for(k=0;k<3;k++){v[k]=drop->position[k]+(k==1?.3f:0)-rf_scene_gameplay_eye[k];len+=v[k]*v[k];dot+=v[k]*f[k];} /* 0.3 above: not the floor */
-                if(len<12.0f*12.0f && dot>.75f*sqrtf(len) && !combat_obstructed(stream,rf_scene_gameplay_eye,v,&blocked) && !blocked)rf_scene_crash_hold=1;
+                if(len<5.0f*5.0f && dot>.93f*sqrtf(len) && !combat_obstructed(stream,rf_scene_gameplay_eye,v,&blocked) && !blocked)rf_scene_crash_hold=1;
             }}
         status=scene_weapon_submit(&c,model,&pose,state);c.fade=0;if(status)return status;
     }
@@ -24008,9 +24031,22 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(campaign_spawn) {
         const char *player_class=campaign_player_form_carry.active?
             (campaign_player_form_carry.variant?"parker_sci":"parker_suit"):"miner1";
+        const char *player_skin="";
         rf_entity_skeletal_assets *assets=malloc(sizeof(*assets));
         if(!assets){status=RF_IO;goto done;}
-        status=rf_entity_skeletal_assets_load(tables_path,player_class,"",&archive,512*1024,assets);
+        /* Multiplayer (1dd930): the human is created with the menu character's
+         * class (+0x18) and skin (+0x134, "default" = the class's own). */
+        if(rf_scene_mp_bots && rf_scene_mp_player_class[0]){
+            player_class=rf_scene_mp_player_class;
+            player_skin=strcmp(rf_scene_mp_player_skin,"default")?rf_scene_mp_player_skin:"";
+        }
+        status=rf_entity_skeletal_assets_load(tables_path,player_class,player_skin,&archive,512*1024,assets);
+        if(status && player_class==rf_scene_mp_player_class){
+            /* A class or skin the PC files lack: the multiplayer default. */
+            player_class="miner1";player_skin="";++rf_scene_mp_player_model[1];
+            status=rf_entity_skeletal_assets_load(tables_path,player_class,player_skin,&archive,512*1024,assets);
+        }
+        rf_scene_mp_player_model[0]=player_class!=rf_scene_mp_player_class?0u:1u;
         if(!status) {
             memset(&binding,0,sizeof(binding));binding.entity.uid=-999;strcpy(binding.entity.class_name,player_class);
             memcpy(binding.entity.position,campaign_position,12);memcpy(binding.entity.orientation,campaign_orientation,36);
@@ -24027,14 +24063,20 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         binding.entity.position[1]-=.5f;
     }
     memcpy(stream->actor_spawn,binding.entity.position,12);
-    if(campaign_spawn ?
+    if(!(campaign_spawn && rf_scene_mp_player_model[0]) && (campaign_spawn ?
        strcmp(binding.mesh.name,campaign_player_form_carry.active?
            (campaign_player_form_carry.variant?"parker_sci.v3c":"parker_suit.v3c"):"miner.v3c") :
-       strcmp(binding.mesh.name,"miner.v3c")) {status=RF_FORMAT;goto done;}
+       strcmp(binding.mesh.name,"miner.v3c"))) {status=RF_FORMAT;goto done;}
     status=rf_animation_placement_from_level(level,&binding.entity,&placement);if(status)goto done;
     placement.model_name=binding.mesh.name;
     if(campaign_spawn) {
         rf_scene_player_model[0]=campaign_player_form_carry.active?(campaign_player_form_carry.variant?2u:1u):0u;
+        /* Player forms (audio, physics rows) cover miner1 and the two Parker
+         * forms; another menu class keeps form 0 apart from those two. */
+        if(rf_scene_mp_player_model[0]){
+            if(!strcmp(binding.entity.class_name,"parker_suit"))rf_scene_player_model[0]=1u;
+            else if(!strcmp(binding.entity.class_name,"parker_sci"))rf_scene_player_model[0]=2u;
+        }
         rf_scene_player_model[1]=binding.mesh.size;
         placement.model_bone_count=rf_scene_player_model+2;
     }

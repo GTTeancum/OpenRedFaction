@@ -303,7 +303,7 @@ int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
  * 264,123 and winner_win.vbm at 285,113 when ranked first) is not drawn. */
 int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float t,float prompt,float fade)
 {
-    char line[64];uint32_t i,rank=1,total=1,alpha;float level=(t-.7f)/.3f,x;int status;const char *name="PLAYER";
+    char line[64];uint32_t i,rank=1,total=1,alpha;float level=(t-.7f)/.3f,x;int status;const char *name=rf_scene_mp_player_name; /* +0x144 */
     if(!sink || particle_draw_stream)return RF_RANGE;
     if(level<0)level=0;if(level>1)level=1;if(fade<0)fade=0;if(prompt<0)prompt=0;if(prompt>1)prompt=1;
     for(i=0;i<16;i++)if(rf_scene_mp_roster[i].used){++total;if(rf_scene_mp_roster[i].kills>(int32_t)rf_scene_mp[2])++rank;}

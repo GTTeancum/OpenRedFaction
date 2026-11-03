@@ -788,6 +788,50 @@ static int player_frontend_present(uint32_t flags,int session_status,
 /* PS2 Multiplayer (Xbox PS2 menus): Choose Mode, then the setup screen.
  * Player vs. Player needs split screen and stays disabled. *start is set
  * when START GAME is accepted; otherwise the caller returns to the main menu. */
+/* PLAYER NAME (state 0x17, 26b870 for one human): d-pad up/down wraps 6
+ * rows, left/right wraps 13 columns skipping repeats of the same key;
+ * cross on a letter appends it (at most 30 characters and 200 pixels),
+ * on backspace removes one, on Space adds a space, on Accept finishes;
+ * circle removes one; triangle goes back (or, once accepted, reopens).
+ * Returns 1 accepted, 0 back. The name is the human's (+0x144). */
+static char player_mp_name[32];
+static int player_ps2_name(uint32_t *accepted)
+{
+    uint32_t row=0,col=0,done=0,start=GetTickCount(),level=0,drawn=0;int status;size_t n;
+    *accepted=0;
+    for(;;){
+        rf_scene_input input;uint32_t pressed;
+        rf_xbox_menu_audio_poll();
+        status=rf_xbox_input_poll(NULL,0,&input);
+        if(status && status!=RF_NOT_FOUND)return status;
+        if(level<255){uint32_t t=GetTickCount()-start;level=t>=120u?255u:t*255u/120u;drawn=0;}
+        if(!drawn || rf_xbox_menu_redraw_due()){status=rf_xbox_ps2_mp_name_frame(player_mp_name,row,col,done,level);if(status)return status;drawn=1;}
+        if(status || !rf_xbox_input_connected() || rf_xbox_input_connection_lost()){Sleep(10);continue;}
+        pressed=level<255?0:rf_xbox_input_menu_pressed();
+        if(!done){
+            unsigned char was=rf_xbox_ps2_mp_name_char(row,col);
+            if(pressed&RF_XBOX_MENU_UP){row=(row+5)%6;drawn=0;rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);}
+            if(pressed&RF_XBOX_MENU_DOWN){row=(row+1)%6;drawn=0;rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);}
+            if(pressed&RF_XBOX_MENU_LEFT){was=rf_xbox_ps2_mp_name_char(row,col);do col=(col+12)%13;while(rf_xbox_ps2_mp_name_char(row,col)==was);drawn=0;rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);}
+            if(pressed&RF_XBOX_MENU_RIGHT){was=rf_xbox_ps2_mp_name_char(row,col);do col=(col+1)%13;while(rf_xbox_ps2_mp_name_char(row,col)==was);drawn=0;rf_xbox_menu_audio_highlight(RF_XBOX_MENU_AUDIO_CATEGORY);}
+            if(pressed&RF_XBOX_MENU_ACCEPT){
+                unsigned char key=rf_xbox_ps2_mp_name_char(row,col);n=strlen(player_mp_name);drawn=0;
+                if(key==0xacu){if(n)player_mp_name[n-1]=0;}
+                else if(key=='$'){*accepted=1;return RF_OK;} /* one human: on to the next screen */
+                else if(n<30){
+                    player_mp_name[n]=(char)(key=='#'?' ':key);player_mp_name[n+1]=0;
+                    if(rf_xbox_ps2_mp_name_width(player_mp_name)>200u)player_mp_name[n]=0;
+                }
+            }
+            if(pressed&RF_XBOX_MENU_CANCEL){n=strlen(player_mp_name);if(n)player_mp_name[n-1]=0;drawn=0;}
+        }
+        if(pressed&RF_XBOX_MENU_BACK){
+            rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
+            if(done){done=0;drawn=0;}else return RF_OK;
+        }
+        Sleep(10);
+    }
+}
 /* The setup values persist between matches, as the PS2's globals do. */
 static rf_xbox_ps2_multi player_mp_setup;static uint32_t player_mp_setup_ready;
 static int player_ps2_multi(uint32_t *start,uint32_t options)
@@ -814,8 +858,12 @@ static int player_ps2_multi(uint32_t *start,uint32_t options)
         if(m.step==RF_XBOX_PS2_MP_MODE){
             if(pressed&RF_XBOX_MENU_CANCEL){rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);return RF_OK;}
             if((pressed&RF_XBOX_MENU_ACCEPT) && m.selection==1){
+                uint32_t named;
                 rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
-                m.step=RF_XBOX_PS2_MP_SETUP;m.selection=0;drawn=0;
+                /* 1e3d10: Player vs. Bots -> PLAYER NAME (0x17) first. */
+                status=player_ps2_name(&named);if(status)return status;
+                if(named){m.step=RF_XBOX_PS2_MP_SETUP;m.selection=0;}
+                drawn=0;
             }
         }else if(pressed&RF_XBOX_MENU_CANCEL){
             rf_xbox_menu_audio_select(RF_XBOX_MENU_AUDIO_CATEGORY);
@@ -839,6 +887,7 @@ static int player_ps2_multi(uint32_t *start,uint32_t options)
             strcpy(player_mp_selection,"levelsm.vpp");
             strncpy(player_mp_selection+64,rf_xbox_ps2_multi_level(m.values[RF_XBOX_PS2_MP_ENVIRONMENT]),63);
             rf_xbox_ps2_multi_rules(&m,&rf_scene_mp_bots,&rf_scene_mp_kill_limit,&rf_scene_mp_time_limit);
+            memcpy(rf_scene_mp_player_name,player_mp_name,sizeof(rf_scene_mp_player_name));
             {const char *skin;const char *entity=rf_xbox_ps2_multi_character(m.values[RF_XBOX_PS2_MP_CHARACTER],&skin);
              memset(rf_scene_mp_player_class,0,32);memset(rf_scene_mp_player_skin,0,32);
              strncpy(rf_scene_mp_player_class,entity,31);strncpy(rf_scene_mp_player_skin,skin,31);}
@@ -903,7 +952,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
      * High nibble: 1 difficulty, 2 options pages 0-2, 3 load, 4 quit,
      * 5 extras, 6 multiplayer (0 mode, 1 setup), 7 pause, 8 audio, 9 buttons,
      * 10 multiplayer START GAME on environment arg (as accepted in the menu),
-     * 11 MP STATS with arg + 1 sample rows. */
+     * 11 MP STATS with arg + 1 sample rows, 12 PLAYER NAME (cursor row arg). */
     if(ps2)for(;;){
         uint32_t preview=RF_PS2_MENU_PREVIEW,kind=preview>>4,arg=preview&15;
         if(kind==10){
@@ -924,6 +973,9 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                 rf_xbox_ps2_multi m;memset(&m,0,sizeof(m));m.step=arg;m.selection=arg?1:1;
                 m.values[RF_XBOX_PS2_MP_ENVIRONMENT]=23;m.values[RF_XBOX_PS2_MP_BOTS]=3;m.values[RF_XBOX_PS2_MP_SKILL]=1;
                 status=rf_xbox_ps2_multi_frame(&m);
+            }else if(kind==12){
+                /* PLAYER NAME with a sample name, cursor on row arg / 3. */
+                status=rf_xbox_ps2_mp_name_frame("Parker",arg%6,arg&1?12:2,0,255);
             }else if(kind==11){
                 /* Sample values for the layout only. */
                 rf_scene_mp_stats_row rows[16];uint32_t k;memset(rows,0,sizeof(rows));
@@ -2464,7 +2516,10 @@ static int player_campaign_run(const char *saved_level)
         /* Harness: mp-match.bin (bots, kill limit, seconds) with a levelsm map. */
         if(!tester_profile && selected){
             FILE *mp=fopen("D:\\mp-match.bin","rb");uint32_t rules[3];
-            if(mp){if(fread(rules,4,3,mp)==3){rf_scene_mp_bots=rules[0];rf_scene_mp_kill_limit=rules[1];rf_scene_mp_time_limit=rules[2];}fclose(mp);}
+            if(mp){if(fread(rules,4,3,mp)==3){rf_scene_mp_bots=rules[0];rf_scene_mp_kill_limit=rules[1];rf_scene_mp_time_limit=rules[2];
+                /* Optional: character class and skin, 32 bytes each. */
+                char who[64];if(fread(who,1,64,mp)==64){memcpy(rf_scene_mp_player_class,who,31);rf_scene_mp_player_class[31]=0;
+                    memcpy(rf_scene_mp_player_skin,who+32,31);rf_scene_mp_player_skin[31]=0;}}fclose(mp);}
         }
         player_ps2_damage_load();
         if(result==RF_OK && !cold_load) {

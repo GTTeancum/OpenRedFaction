@@ -81,7 +81,7 @@ uint32_t rf_xbox_input_alt_sample_suppressed(void);
 enum {
     RF_XBOX_MENU_UP=1u,RF_XBOX_MENU_DOWN=2u,
     RF_XBOX_MENU_ACCEPT=4u,RF_XBOX_MENU_CANCEL=8u,
-    RF_XBOX_MENU_LEFT=16u,RF_XBOX_MENU_RIGHT=32u,RF_XBOX_MENU_ALTERNATE=64u /* X */
+    RF_XBOX_MENU_LEFT=16u,RF_XBOX_MENU_RIGHT=32u,RF_XBOX_MENU_ALTERNATE=64u /* X */,RF_XBOX_MENU_BACK=128u /* Y */
 };
 uint32_t rf_xbox_input_menu_pressed(void);
 /* Read-only receipt from the latest poll. Raw buttons are sampled without a

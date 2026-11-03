@@ -788,6 +788,9 @@ extern uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit,r
 /* The human's menu character (ps2_multi.tbl $EntityType / $SkinName; 1dd930
  * spawns the human with them). Empty: the menu default, Miner Parker. */
 extern char rf_scene_mp_player_class[32],rf_scene_mp_player_skin[32];
+/* The human's name (+0x144; PLAYER NAME screen), "" when none was entered. */
+extern char rf_scene_mp_player_name[32];
+extern uint32_t rf_scene_mp_player_model[3];
 /* Path of the PS2 menu pack (PS2-only multiplayer sound effects), or NULL. */
 extern const char *rf_scene_ps2_pack_path;
 uint32_t rf_scene_mp_match_over(void);

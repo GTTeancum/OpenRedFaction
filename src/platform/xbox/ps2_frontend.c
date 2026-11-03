@@ -564,6 +564,61 @@ int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf
     if(level<255)status=rect(sink,context,0,0,640,448,(255u-level)<<24);
     return status;
 }
+/* PLAYER NAME (state 0x17): enter 26c2a0, draw 26c4d0 -> 26bdc0(player,
+ * x0) with x0 = 0x90 for one human, input 26b870. Letter grid 293b50:
+ * five rows of 13 and a bottom row of 5 Space ('#') and 8 Accept ('$');
+ * 0xac is backspace. Title "PLAYER NAME" (111) at (287,58); name box
+ * 1e2c30 at (x0+30, 153) width 274 (edges 86/58/58, 5f/22/22, 46/0/0,
+ * 3c/0/0, 27/0/0); the name centred on x0+164 at y 154 in 2ac5c8; while
+ * typing: multi_letterstrips at (x0+30, 187), the cursor cell
+ * (x0+32+21*col, 189+20*row, 19x18) in (138,118,19) (bottom row: Space
+ * (x0+32, 288, 103x18), Accept (x0+137, 288, 166x18)), the grid centred on
+ * x0+41+21*col at y 191+20*row, "Space"/"Accept" (106/107) centred on x0+83
+ * and x0+219 at y 291, and at x0+71 "%s Enter Name" (108, cross) y 365,
+ * "%s Backspace" (109, circle) y 387, "%s Back to Main Menu" (triangle)
+ * y 409; once accepted, "%s Modify Name" (110, triangle) at y 387. Fade
+ * in/out 120 ms (1e2230/1e2270). Port: A/B/Y for cross/circle/triangle. */
+static const char mp_name_grid[6][14]={"ABCDEFGHIJKLM","NOPQRSTUVWXYZ","abcdefghijklm","nopqrstuvwxyz","1234567890-!\xac","#####$$$$$$$$"};
+unsigned char rf_xbox_ps2_mp_name_char(uint32_t row,uint32_t col){return row<6 && col<13?(unsigned char)mp_name_grid[row][col]:0;}
+uint32_t rf_xbox_ps2_mp_name_width(const char *name){return ps2 && name?width_of(RF_PS2_FONT_STANDARD,name):0;}
+int rf_xbox_ps2_draw_mp_name(rf_scene_particle_sink sink,void *context,const char *name,uint32_t row,uint32_t col,uint32_t done,uint32_t level)
+{
+    const int32_t x0=0x90;char line[64],cell[2]={0,0};uint32_t r,c;int status;
+    uint32_t text_color=mp_stats_fade(RF_PS2_COLOR_TEXT,level),highlight=(level<<24)|0x8a7613u;
+    if(!ps2 || !sink || !name)return RF_RANGE;
+    drawn();
+    status=backdrop(sink,context,0x606060u);if(status)return status;
+    status=options_frame(sink,context,str(111));if(status)return status;
+    /* 1e2c30 box. */
+    {static const struct {int16_t dx,dy,dw,h;uint32_t rgb;} edges[]={
+        {0,0,0,1,0x865858},{0,1,-273,17,0x865858},{1,1,-1,1,0x5f2222},{1,2,-273,15,0x5f2222},
+        {2,2,-2,14,0x460000},{2,16,-2,1,0x3c0000},{1,17,-1,1,0x270000}};
+     uint32_t k;
+     for(k=0;k<7;k++){float w=(float)(edges[k].dw<=-273?1:274+edges[k].dw);
+        status=rect(sink,context,(float)(x0+30+edges[k].dx),(float)(153+edges[k].dy),w,(float)edges[k].h,(level<<24)|edges[k].rgb);if(status)return status;}}
+    status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0xa4-(int32_t)(width_of(RF_PS2_FONT_STANDARD,name)>>1),0x9a,name,text_color);if(status)return status;
+    if(!done){
+        status=picture(sink,context,RF_PS2_MULTI_LETTERSTRIPS,(float)(x0+30),0xbb,(level<<24)|0xffffffu,0);if(status)return status;
+        if(row==5)status=mp_name_grid[5][col%13]=='$'?rect(sink,context,(float)(x0+0x89),0x120,0xa6,0x12,highlight):rect(sink,context,(float)(x0+0x20),0x120,0x67,0x12,highlight);
+        else status=rect(sink,context,(float)(x0+0x20+(int32_t)col*0x15),(float)(row*0x14+0xbd),0x13,0x12,highlight);
+        if(status)return status;
+        for(r=0;r<5;r++)for(c=0;c<13;c++){
+            cell[0]=mp_name_grid[r][c];
+            if((unsigned char)cell[0]==0xacu){status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x29+(int32_t)c*0x15-(int32_t)(width_of(RF_PS2_FONT_STANDARD,"\xac")>>1),(float)(0xbf+r*0x14),"\xac",text_color);}
+            else status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x29+(int32_t)c*0x15-(int32_t)(width_of(RF_PS2_FONT_STANDARD,cell)>>1),(float)(0xbf+r*0x14),cell,text_color);
+            if(status)return status;
+        }
+        status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x53-(int32_t)(width_of(RF_PS2_FONT_STANDARD,str(106))>>1),0x123,str(106),text_color);if(status)return status;
+        status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0xdb-(int32_t)(width_of(RF_PS2_FONT_STANDARD,str(107))>>1),0x123,str(107),text_color);if(status)return status;
+        snprintf(line,sizeof(line),"%s Back to Main Menu","Y");status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x47,0x199,line,text_color);if(status)return status;
+        snprintf(line,sizeof(line),str(108),"A");status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x47,0x16d,line,text_color);if(status)return status;
+        snprintf(line,sizeof(line),str(109),"B");status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x47,0x183,line,text_color);if(status)return status;
+    }else{
+        snprintf(line,sizeof(line),str(110),"Y");status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x47,0x183,line,text_color);if(status)return status;
+    }
+    if(level<255)status=rect(sink,context,0,0,640,448,(255u-level)<<24);
+    return status;
+}
 /* Multiplayer HUD (PS2 1691a0 in place of the single-player health display,
  * and the clock of 1dc1a0), in the PS2's 640x448 coordinates. A separate
  * small picture set stays loaded for the match. */

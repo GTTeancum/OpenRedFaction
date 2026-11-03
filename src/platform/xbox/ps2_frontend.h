@@ -25,6 +25,14 @@ typedef struct rf_xbox_ps2_multi {
     uint32_t step,selection,values[RF_XBOX_PS2_MP_ROWS],loading;
 } rf_xbox_ps2_multi;
 uint32_t rf_xbox_ps2_multi_count(uint32_t row);
+/* PS2 PLAYER NAME screen (state 0x17, 26c4d0/26bdc0 one human): name,
+ * cursor row 0-5 and column 0-12 of the letter grid, done (accepted),
+ * fade level 0-255. rf_xbox_ps2_mp_name_char gives the grid character;
+ * rf_xbox_ps2_mp_name_width the name's standard-font width. */
+int rf_xbox_ps2_draw_mp_name(rf_scene_particle_sink sink,void *context,const char *name,uint32_t row,uint32_t col,uint32_t done,uint32_t level);
+int rf_xbox_ps2_mp_name_frame(const char *name,uint32_t row,uint32_t col,uint32_t done,uint32_t level);
+unsigned char rf_xbox_ps2_mp_name_char(uint32_t row,uint32_t col);
+uint32_t rf_xbox_ps2_mp_name_width(const char *name);
 /* PS2 MP STATS screen after a match (2399a0): rows from rf_scene_mp_stats,
  * the level time in seconds. Choices: A Continue (multiplayer setup), B
  * Replay Level, X Return to Main Menu (239570). */

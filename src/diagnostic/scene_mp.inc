@@ -54,13 +54,16 @@ static struct {float position[3];uint8_t flags[3];} scene_mp_spawn[SCENE_MP_SPAW
 static uint32_t scene_mp_spawn_count,scene_mp_random=1,scene_mp_player_dead;
 static float scene_mp_clock;
 static float scene_mp_aim_applied[SCENE_MP_BOTS][2]; /* scene_mp_aim_bone */
-char rf_scene_mp_player_class[32],rf_scene_mp_player_skin[32];
+char rf_scene_mp_player_class[32],rf_scene_mp_player_skin[32],rf_scene_mp_player_name[32];
+/* Harness: the human uses the menu character's model (1), fallbacks to miner1. */
+uint32_t rf_scene_mp_player_model[3]; /* [2] the human's model radius (float bits) */
 /* The human's class flags (+0x264 -> +0x714) from entity.tbl, read at match
  * start; the model and skin are not drawn (no third-person view of the
  * human in the port). */
 static uint32_t scene_mp_player_class_flags;
 extern float rf_scene_gameplay_eye[3];static int combat_obstructed(scene_stream *,const float *,const float *,uint32_t *);
 static int campaign_enemy_weapon_switch(uint32_t slot,int32_t replacement); /* scene_ai_ammo_fallback.inc */
+static int scene_mp_sight_sweep(const float start[3],const float end[3],float radius,uint32_t mask,uint32_t *blocked); /* scene.c */
 /* Bot sight of its target (12b310, every 200-400 ms, timer +0x1e4): +0x1ec
  * the target's body, +0x1ed its eye; timer +0x188 runs 2-5 s once both
  * are lost (12ffd0). Times in ms of the patrol clock; 0 is unset. */
@@ -137,6 +140,7 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     memset(rf_scene_mp,0,sizeof(rf_scene_mp));memset(rf_scene_mp_roster,0,sizeof(rf_scene_mp_roster));
     memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));memset(rf_scene_mp_corpse_trace,0,sizeof(rf_scene_mp_corpse_trace));scene_mp_clock=0;scene_mp_player_dead=0;
     memset(rf_scene_mp_player_stats,0,sizeof(rf_scene_mp_player_stats));scene_mp_player_streak=0;rf_scene_mp_elapsed=0;
+    memcpy(rf_scene_mp_player_model+2,&campaign_player_geometry.model_radius,4);
     memset(scene_mp_aim_applied,0,sizeof(scene_mp_aim_applied));memset(scene_mp_sight,0,sizeof(scene_mp_sight));memset(scene_mp_sight_due,0,sizeof(scene_mp_sight_due));memset(scene_mp_lost_due,0,sizeof(scene_mp_lost_due));
     {rf_entity_seed_class def;memset(&def,0,sizeof(def));scene_mp_player_class_flags=0;
      if(!rf_entity_seed_class_read(tables,rf_scene_mp_player_class[0]?rf_scene_mp_player_class:"miner2",&def))scene_mp_player_class_flags=def.physics.flags;}
@@ -299,7 +303,7 @@ uint32_t rf_scene_mp_stats(rf_scene_mp_stats_row *rows,uint32_t capacity)
     uint32_t n=0,i,j;
     if(!rows || !capacity || !rf_scene_mp[0])return 0;
     memset(rows,0,capacity*sizeof(*rows));
-    strcpy(rows[0].name,"PLAYER"); /* the port has no multiplayer name */
+    memcpy(rows[0].name,rf_scene_mp_player_name,sizeof(rows[0].name)-1); /* +0x144 */
     rows[0].kills=(int32_t)rf_scene_mp[2];rows[0].deaths=(int32_t)rf_scene_mp[3];rows[0].longest=rf_scene_mp_player_stats[0];
     rows[0].accuracy=scene_mp_accuracy(rf_scene_mp_player_stats[1],rf_scene_mp_player_stats[2]);n=1;
     for(i=0;i<SCENE_MP_BOTS && n<capacity;i++)if(rf_scene_mp_roster[i].used){
@@ -691,18 +695,18 @@ static int scene_mp_route_tick(uint32_t slot)
          * (body to body, minus 3 when the target's class flag 0x400 is set),
          * or in range with both unseen and +0x188 expired; with +0x180
          * expired and rand < 0x1fffffff, a health route (1339e0). Port
-         * notes: the rays use 1953e0's mask but not its sphere radius
-         * (max of both radii + 0.1); the 1.5
+         * notes: 1953e0 is the port's sphere sweep (static world and
+         * movers, no geomod pieces or props); the 1.5
          * range factor and the flat distance for movement sub-state +0x204
          * (2, 3; not tracked) are left out. */
         if(SCENE_MP_WEAPON_SEEK){
             const float *tp;float d=0,range=scene_mp_attack_range(slot);uint32_t k,now=(uint32_t)scene_patrol_now(rf_scene_profile_stage[0]),out;
             scene_mp_routing[slot]=1;scene_mp_step_query=1;tp=scene_mp_route_aim(npc);scene_mp_step_query=0;scene_mp_routing[slot]=0;
             if(tp){
-                const float *teye=NULL;uint32_t flags=0,j,was=scene_mp_sight[slot][0] || scene_mp_sight[slot][1];
-                if(npc->combat_target==campaign_player_object.handle){teye=rf_scene_gameplay_eye;flags=scene_mp_player_class_flags;}
+                const float *teye=NULL;uint32_t flags=0,j,was=scene_mp_sight[slot][0] || scene_mp_sight[slot][1];float tradius=0;
+                if(npc->combat_target==campaign_player_object.handle){teye=rf_scene_gameplay_eye;flags=scene_mp_player_class_flags;tradius=campaign_player_geometry.model_radius;}
                 else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.handle==npc->combat_target){
-                    uint32_t c=campaign_seeds.items[j].class_index;teye=campaign_npc_bodies[j].eye_position;
+                    uint32_t c=campaign_seeds.items[j].class_index;teye=campaign_npc_bodies[j].eye_position;tradius=campaign_npc_bodies[j].model_radius_78;
                     if(c<campaign_seeds.class_count)flags=campaign_seeds.classes[c].physics.flags;break;}
                 for(k=0;k<3;k++)d+=(tp[k]-npc->body.state.position[k])*(tp[k]-npc->body.state.position[k]);
                 d=sqrtf(d);if(flags&0x400u)d-=3.0f; /* 15a1e0 */
@@ -719,8 +723,10 @@ static int scene_mp_route_tick(uint32_t slot)
                         const float *to=m?teye:tp;blocked=1;
                         /* 1953e0 query mask: 0x27, 0x21 with no_fire_through (the
                          * engine's own flag encoding, as the port's ray takes). */
-                        if(to){for(k=0;k<3;k++){ray[k]=to[k]-npc->eye_position[k];end[k]=to[k];}
-                            if(rf_geometry_collision_ray(scene_actor_collision_owner->collision,&campaign_movers,npc->eye_position,end,mask,NULL,&blocked))blocked=1;}
+                        /* 1953e0: radius max(target +0x78, own +0x78) + 0.1. */
+                        if(to){float radius=(tradius>npc->model_radius_78?tradius:npc->model_radius_78)+.1f;
+                            for(k=0;k<3;k++){ray[k]=to[k]-npc->eye_position[k];end[k]=to[k];}
+                            if(scene_mp_sight_sweep(npc->eye_position,end,radius,mask,&blocked))blocked=1;}
                         scene_mp_sight[slot][m]=!blocked;
                     }
                     if(scene_mp_sight[slot][0] || scene_mp_sight[slot][1]){if(d<range)scene_mp_range_due[slot]=now+500u;}

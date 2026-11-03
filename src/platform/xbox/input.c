@@ -211,6 +211,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(controls&(1u<<RF_XBOX_BUTTON_A))menu|=RF_XBOX_MENU_ACCEPT;
     if(controls&(1u<<RF_XBOX_BUTTON_B))menu|=RF_XBOX_MENU_CANCEL;
     if(controls&(1u<<RF_XBOX_BUTTON_X))menu|=RF_XBOX_MENU_ALTERNATE;
+    if(controls&(1u<<RF_XBOX_BUTTON_Y))menu|=RF_XBOX_MENU_BACK;
     if(controls&CONTROL_LEFT)menu|=RF_XBOX_MENU_LEFT;
     if(controls&CONTROL_RIGHT)menu|=RF_XBOX_MENU_RIGHT;
     /* Suppression owns physical controls, so edits cannot retarget a held

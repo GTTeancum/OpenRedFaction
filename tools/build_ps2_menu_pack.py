@@ -240,7 +240,19 @@ def font_2x(data, ttf):
         code = first + i
         ps2_advance = struct.unpack_from('<I', data, 36 + i * 16)[0]
         if code > 126:
-            glyphs.append((None, ps2_advance))
+            # PS2-only symbols the menus draw (0xac backspace, 0xad-0xb0 the
+            # pad buttons): the PS2 glyph itself, doubled.
+            gw, goff = struct.unpack_from('<II', data, 36 + i * 16 + 4)
+            if not gw or code not in (0xac, 0xad, 0xae, 0xaf, 0xb0):
+                glyphs.append((None, ps2_advance))
+                continue
+            src = Image.new('RGBA', (gw, height))
+            px = []
+            for k in range(gw * height):
+                c = palette[csm1(data[36 + count * 16 + goff + k]) * 4:][:4]
+                px.append((c[0], c[1], c[2], min(255, c[3] * 2)))
+            src.putdata(px)
+            glyphs.append((src.resize((gw * 2, cell), Image.NEAREST), ps2_advance))
             continue
         ch = chr(code)
         length = font.getlength(ch)
@@ -250,15 +262,21 @@ def font_2x(data, ttf):
             ImageDraw.Draw(img).text((stroke + 1, base * 2), ch, font=font, anchor='ls',
                                      fill=(255, 255, 255, 255), stroke_width=stroke, stroke_fill=(0, 0, 0, 170))
         glyphs.append((img, max(1, int(round(length / 2)) + 1)))
-    x = y = 0
+    # First fit into rows of 1000 pixels, so the PS2 symbols fill row ends
+    # instead of adding a row (the HUD set's canvas budget).
+    rows = []
     placed = []
     for img, advance in glyphs:
         w = img.width if img else 0
-        if x + w + 1 > 1000:
-            x, y = 0, y + cell + 1
-        placed.append((x, y, w, advance))
-        x += w + 1
-    strip = Image.new('RGBA', (1000, y + cell))
+        for r in range(len(rows)):
+            if rows[r] + w + 1 <= 1000:
+                break
+        else:
+            rows.append(0)
+            r = len(rows) - 1
+        placed.append((rows[r], r * (cell + 1), w, advance))
+        rows[r] += w + 1
+    strip = Image.new('RGBA', (1000, (len(rows) - 1) * (cell + 1) + cell))
     for (px, py, w, _), (img, _) in zip(placed, glyphs):
         if img:
             strip.paste(img, (px, py))

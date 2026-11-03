@@ -163,6 +163,7 @@ def main():
     parser.add_argument('--shot-delay', type=float, default=0, help='seconds to wait after a capture triggers')
     parser.add_argument('--shot-on-dead', action='store_true', help='capture while the player is dead (after --shot-after)')
     parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
+    parser.add_argument('--mp-character', help='multiplayer: the human entity class and skin, e.g. guard1/c (ps2_multi.tbl)')
     parser.add_argument('--bot-pilot', action='store_true', help='multiplayer: drive the player like a bot (waypoint routes, fights through --aim)')
     parser.add_argument('--shot-on-fade', action='store_true', help='multiplayer: capture while a fading dropped item is drawn (after --shot-after)')
     parser.add_argument('--shot-on-lean', action='store_true', help='multiplayer: capture when the aimed-at bot leans its upper body (after --shot-after)')
@@ -499,7 +500,12 @@ def main():
         if args.dev_driller: (disc / 'vehicle-test.flag').write_text('1')
         if args.dev_vehicle: (disc / 'vehicle-test.flag').write_text(str(args.dev_vehicle))
         if args.dev_npc: (disc / 'dev-npc.flag').write_text(args.dev_npc)
-        if args.mp: (disc / 'mp-match.bin').write_bytes(struct.pack('<3I', *args.mp))
+        if args.mp:
+            extra=b''
+            if args.mp_character:
+                cls,_,skin=args.mp_character.partition('/')
+                extra=cls.encode()[:31].ljust(32,b'\x00')+(skin or 'default').encode()[:31].ljust(32,b'\x00')
+            (disc / 'mp-match.bin').write_bytes(struct.pack('<3I', *args.mp)+extra)
         if args.firearms: (disc / 'firearms-test.flag').write_text(str(args.firearms))
         if args.tracer_hold: (disc / 'tracer-hold.flag').write_bytes(b'')
         if args.dev_slot is not None: (disc / 'dev-slot.bin').write_bytes(struct.pack('<I', args.dev_slot + 1))
@@ -654,6 +660,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_line_trace']=4
           counts['rf_scene_mp_fade_draw']=2
           counts['rf_scene_mp_respawn_sound']=3
+          counts['rf_scene_mp_player_model']=3
           counts['rf_scene_crash_hold']=1
           counts['rf_scene_mp_targets']=4
           counts['rf_scene_mp_drops']=3

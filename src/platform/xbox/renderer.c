@@ -1302,6 +1302,14 @@ static int ps2_buttons_cb(rf_scene_particle_sink sink,void *context,const void *
 {const ps2_args *x=p;return rf_xbox_ps2_draw_buttons(sink,context,x->a[0],x->a[1],x->actions,x->controls);}
 static int ps2_multi_cb(rf_scene_particle_sink sink,void *context,const void *p)
 {const ps2_args *x=p;return rf_xbox_ps2_draw_multi(sink,context,x->multi);}
+static int ps2_mp_name_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_mp_name(sink,context,(const char *)x->actions,x->a[0],x->a[1],x->a[2],x->a[3]);}
+int rf_xbox_ps2_mp_name_frame(const char *name,uint32_t row,uint32_t col,uint32_t done,uint32_t level)
+{
+    ps2_args x={.a={row,col,done,level>255?255:level}};x.actions=(const char *const *)(const void *)name;
+    if(!rf_xbox_ps2_active())return RF_RANGE;
+    return ps2_frame(ps2_mp_name_cb,&x);
+}
 static int ps2_mp_stats_cb(rf_scene_particle_sink sink,void *context,const void *p)
 {const ps2_args *x=p;return rf_xbox_ps2_draw_mp_stats(sink,context,x->stats,x->a[0],x->a[1],x->a[2]);}
 int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed,uint32_t level)
@@ -1995,7 +2003,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             renderer_draw_mark(5,&draw_profile_previous,profiling);
             hud_widen_active=1; /* Gameplay HUD only; menus keep 4:3 art. */
             status=rf_scene_draw_player_flash(scene_hud_present,NULL);
-            {rf_xbox_ps2_mp_hud h;h.name="PLAYER";
+            {rf_xbox_ps2_mp_hud h;h.name=rf_scene_mp_player_name; /* +0x144 */
              if(!rf_scene_mp[0])rf_xbox_ps2_mp_hud_close();
              rf_scene_mp_ps2_hud=rf_scene_mp[0] && !rf_xbox_ps2_mp_hud_open();
              if(!status)status=rf_scene_draw_combat_hud(scene_hud_present,NULL);

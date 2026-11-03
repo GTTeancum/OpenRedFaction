@@ -40,11 +40,6 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | # | Item |
 |---|---|
 | 1 | Attack step 3: movement sub-state terms (1.5x range, flat distance, timer reset) |
-| 2 | Attack step 3: sight test sphere radius (max of both radii + 0.1); the PS2 mask is in, the radius is not (the world sweep has no movers) |
-| 12 | AI alternate-fire spread (+0xe4/+0xe8): reader not found; port bots never alt-fire |
-| 17 | Player name: port the PS2 name-entry screen (Player 1 Options, multi_letterstrips) and players.cfg profile; no default name exists |
-| 18 | Draw the chosen character's model and skin |
-| 19 | See a dropped item fading on screen |
 | 20 | See a bot's lean clearly on screen |
 | 21 | Split-screen two-player (largely untraced) |
 | 22 | Trace entity +0x66c/+0x670 |
