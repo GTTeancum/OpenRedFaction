@@ -313,8 +313,8 @@ def main():
         for e in ps2_peg.entries(data):
             name = e['name'].lower()
             if name == 'winner_win.vbm':
-                # End-screen winner animation (15 frames, 2399a0/1dc1a0):
-                # the first frame only for now.
+                # End-screen winner bitmap (1dc1a0): 15 frames at fps 0
+                # (entry byte 8), so the PS2 only ever shows the first.
                 name = 'winner_win.tga'
             if not name.endswith('.tga') or name in seen:
                 continue

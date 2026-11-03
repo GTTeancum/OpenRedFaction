@@ -573,8 +573,8 @@ int rf_xbox_ps2_draw_mp_winner(rf_scene_particle_sink sink,void *context,uint32_
     if(!ps2_hud || !alpha)return RF_OK;
     ps2=ps2_hud;
     /* The trim's mode 0x10c41 has blend field (bits 15-19) 2, additive, as
-     * the glow mode. Port note: the 15-frame animation's rate is not
-     * traced, so frame 0. */
+     * the glow mode. winner_win: 15 frames at fps 0 (PEG entry byte 8;
+     * 1f1d60 picks floor(ms * fps / 1000) % frames), so always frame 0. */
     {rf_hud_sprite s;status=rf_ps2_menu_picture(ps2,RF_PS2_WINNER_TRIM,&s);
      if(!status){
         rf_particle_draw_vertex v[4];uint32_t i;memset(v,0,sizeof(v));

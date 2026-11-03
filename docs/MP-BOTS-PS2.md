@@ -576,9 +576,6 @@ Still open (PS2 behaviour traced or located, not ported):
    rotation sign convention of 1fbba0 is not established and the result
    cannot yet be checked on screen.
 2. Player: character choice from the menu.
-3. End-screen winner animation rate: winner_win.vbm has 15 frames (64x64,
-   own palette each); the frame is chosen inside the bitmap draw
-   (2061a0 -> 214ba0), not yet traced, so the port shows frame 0.
 
 Ported since:
 - Respawn loadout (1dd930 -> 1a31a8..1a31d4): 1a2e90(entity, handgun
@@ -590,5 +587,9 @@ Ported since:
 - Winner art when ranked first (1dc1a0, one player): winner_trim.tga at
   (264,123) in mode 0x10c41 (blend field 2: additive, the port's glow
   mode) and winner_win.vbm at (285,113); faded with the end-screen block.
+  Frame choice (1f1d60, via 2061a0 -> 214ba0 -> 21a2d0): frame =
+  floor(time_ms 2ac8b4 * fps * 0.001) % frames, with frames and fps from
+  the PEG entry bytes 7 and 8 (1f0d40). winner_win.vbm has 15 frames and
+  fps 0, so the PS2 always shows the first frame, as the port does.
   The in-match HUD stays drawn under the end screen as on the PS2 (169980
   is gated only by the player's +0x125 setup flag).
