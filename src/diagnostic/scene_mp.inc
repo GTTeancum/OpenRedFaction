@@ -289,6 +289,7 @@ static uint8_t scene_mp_routing[SCENE_MP_BOTS],scene_mp_had_target[SCENE_MP_BOTS
 /* Facing bit +0x484 8 (scene_mp_target_seen), node index last seen on the route. */
 static uint8_t scene_mp_face_target[SCENE_MP_BOTS];
 static uint32_t scene_mp_last_node[SCENE_MP_BOTS];
+static float scene_mp_last_position[SCENE_MP_BOTS][3]; /* body position at the previous update */
 /* Routes started: weapon, roam, target-lost roam, finished; announcements, last route status. */
 uint32_t rf_scene_mp_routes[6];
 /* Hit health routes, step-aways marked, attacker targeted, forced step-aways, chance step-aways, ammo routes. */
@@ -394,9 +395,9 @@ static void scene_mp_target_seen(const campaign_npc_body *npc)
  * distance from the target to the straight segment bot -> node, and takes
  * the largest (none when every score is 0); 136bb0 plans a path there and
  * +0x484 |= 0x2000008, stepped by 1373c0 (fighting on the way) until done.
- * Port: the single best node is walked as a one-node route (no fallback to
- * the other candidates when it cannot be planned); the nearest node stands
- * in for the bot's current pair +0x5bc/+0x5c0. */
+ * The bot's node comes from 138500 (scene_mp_bot_node). Port: the single best
+ * node is walked as a one-node route (no fallback to the other candidates
+ * when it cannot be planned); the second node +0x5c0 is not kept. */
 static uint8_t scene_mp_step_node[SCENE_MP_BOTS][4],scene_mp_step_pending[SCENE_MP_BOTS];
 static float scene_mp_segment_gap(const float target[3],const float self[3],const float point[3])
 {
@@ -406,18 +407,15 @@ static float scene_mp_segment_gap(const float target[3],const float self[3],cons
     for(k=0;k<3;k++){float c=self[k]+d[k]*t-target[k];g+=c*c;}
     return g;
 }
+static int scene_mp_bot_node(campaign_npc_body *npc,uint32_t *node);
 static int scene_mp_step_away(uint32_t slot)
 {
     campaign_npc_body *npc=campaign_npc_bodies+slot;rf_level_waypoint_path path;
-    const float *target,*self=npc->body.state.position;float best=0,gap,distance,nearest=FLT_MAX;
+    const float *target,*self=npc->body.state.position;float best=0,gap;
     uint32_t i,k,near_node=UINT32_MAX,chosen=UINT32_MAX;
     scene_mp_routing[slot]=1;scene_mp_step_query=1;target=scene_mp_route_aim(npc);scene_mp_step_query=0;scene_mp_routing[slot]=0;
     if(!target || !campaign_navigation.nodes || !campaign_navigation.references)return RF_NOT_FOUND;
-    for(i=0;i<campaign_navigation.count;i++){
-        const float *p=campaign_navigation.nodes[i].candidate.position;
-        for(distance=0,k=0;k<3;k++)distance+=(p[k]-self[k])*(p[k]-self[k]);
-        if(distance<nearest){nearest=distance;near_node=i;}
-    }
+    if(scene_mp_bot_node(npc,&near_node))return RF_NOT_FOUND; /* 138b30 -> 138500 */
     if(near_node==UINT32_MAX)return RF_NOT_FOUND;
     for(i=0;i<=campaign_navigation.references[near_node].neighbor_count && i<100;i++){
         uint32_t node=i?campaign_navigation.references[near_node].neighbors[i-1]:near_node;
@@ -436,7 +434,7 @@ static int scene_mp_step_away(uint32_t slot)
  * for its next update (+0x484 bit 0x1000000, 131ac0 -> 12f5f0 forced). A bot
  * that did not react turns on the attacker and fights (134570, 133d80; mode
  * 3 ends any route). Returns 1 when the port's ordinary retaliation must be
- * skipped. The 1-in-4 `health` branch for class flag 0x20000 is not ported. */
+ * skipped. */
 static void scene_mp_attacked(uint32_t slot,uint32_t source);
 static uint32_t scene_mp_hit(campaign_npc_body *npc,uint32_t source)
 {
@@ -449,6 +447,16 @@ static uint32_t scene_mp_hit(campaign_npc_body *npc,uint32_t source)
         return 1;
     }
     if(npc->damage.effects.health>25 && scene_mp_next()%5==0){scene_mp_step_pending[slot]=1;++rf_scene_mp_hits[1];}
+    /* 132fb0 then: a humanoid (class flag 0x20000, 15a3b0) whose weapon is
+     * not melee-only (134100: weapon record +0x244 bit 0x20 `melee` with no
+     * secondary; the riot stick in multiplayer) runs a `health` route when
+     * rand & 3 == 0 (the mode 2 branch 12e8e0 cannot occur in multiplayer). */
+    {uint32_t cls=campaign_seeds.items[slot].class_index;
+     if(cls<campaign_seeds.class_count && (campaign_seeds.classes[cls].physics.flags&0x20000u) &&
+        npc->view.weapons[0]!=campaign_riot_id && !(scene_mp_next()&3)){
+         if(scene_mp_route(slot,"health")==RF_OK)++rf_scene_mp_hits[0];
+         return 1;
+     }}
     if(scene_mp_routing[slot]==1){npc->script_move.active=0;npc->navigation.retained.count=0;scene_mp_routing[slot]=0;}
     ++rf_scene_mp_hits[2];return 0;
 }
@@ -606,6 +614,14 @@ static int scene_mp_tick(uint32_t frame)
         if(b->respawn_pending){status=scene_mp_bot_respawn(i);if(status)return status;scene_mp_routing[i]=scene_mp_had_target[i]=scene_mp_step_pending[i]=scene_mp_face_target[i]=0;}
         else if(!b->dead && npc->registration.view && npc->damage.effects.health>0){
             scene_mp_bot_speed(npc);
+            /* 149cd0 picks the movement state every frame: stand while the
+             * velocity (+0x634) is zero, else walk or run by the speed mode;
+             * the attack set while fighting (scene_mp_locomotion_state). The
+             * port's velocity test is whether the body moved last update. */
+            {uint32_t k,moved=0;
+             for(k=0;k<3;k++)if(npc->body.state.position[k]!=scene_mp_last_position[i][k])moved=1;
+             memcpy(scene_mp_last_position[i],npc->body.state.position,12);
+             status=campaign_script_locomotion(i,moved);if(status)return status;}
             status=scene_mp_route_tick(i);if(status)return status;
         }
     }

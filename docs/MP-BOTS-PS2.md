@@ -456,14 +456,26 @@ Done (now from the PS2 code):
   the oldest's 1 s fade, then it is removed. Port note: the fade is not
   drawn (the drop draw has no alpha); one drop record per bot.
 
+- Step-away start node: 138b30 -> 138500 (node the bot stands in, else
+  the best edge pair, taking the later of the pair as 138b30 passes one
+  address for both, else the nearest node within 25 seen with a 2.5
+  sweep), via the port's same PC routine rf_entity_navigation_select,
+  mode 1. Port note: the second node +0x5c0 is not kept; no fallback to
+  other candidates when the best cannot be planned.
+- Hit reaction's 1-in-4 `health` branch: a humanoid (class flag 0x20000,
+  15a3b0) whose weapon is not melee-only (134100: weapon record +0x244 bit
+  0x20 `melee`, no secondary) runs a `health` route when rand & 3 == 0.
+- Movement animation state every frame (149cd0): stand while not moving,
+  else walk or run by the speed mode, the attack set while fighting
+  (multiplayer 149830). Port note: "not moving" is the body not having
+  moved in the last update (PS2: velocity +0x634 exactly zero).
+
 Still open (PS2 behaviour traced or located, not ported):
-1. Step-away candidates: the bot's node pair from 138500 (node it is "at",
-   else the best edge pair, else nearest visible within 25) and their
-   neighbours; the port uses the nearest node. No fallback to the other
-   candidates when the best cannot be planned.
-2. Hit reaction's 1-in-4 `health` branch (class flag 0x20000 and 134100,
-   whose weapon-table byte read is unresolved) and attack-update step 3
-   (visible target, timer +0x180, rand < 0x1fffffff -> `health` route).
+1. (done above)
+2. Attack-update step 3 (12fa00 positioning check true, mode not 7, timer
+   +0x180 expired, rand < 0x1fffffff -> `health` route). An unset PS2
+   timer never counts as expired (1ffa60), so this needs the timer's
+   setters and 12fa00 traced.
 3. Upper-body aim (spine/head toward the target).
 4. Player: character choice from the menu, the 12mm-only respawn loadout
    (1a2e90/1a2f40 with the weapon record's +0x240 ammo, whose weapons.tbl

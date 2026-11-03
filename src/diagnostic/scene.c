@@ -20629,6 +20629,38 @@ static int campaign_route_visible(void *context,const float start[3],const float
      * selector retains its historical callback argument. Body sweeps still own movement. */
     return rf_collision_solid_preferred(view->solid,NULL,0x45,start,delta,view->radius,1,&hit,blocked);
 }
+/* PS2 138b30 -> 138500 for a multiplayer bot with no current node: the
+ * node it stands in, else the best edge pair (the later of the pair, as
+ * 138b30 passes one address for both outputs), else the nearest node within
+ * 25 seen with a 2.5 sweep (1953e0). rf_entity_navigation_select is the same
+ * PC routine; mode 1 as 138b30 passes. */
+static int scene_mp_node_visible(void *context,const float start[3],const float end[3],float radius,uint32_t *blocked)
+{
+    float delta[3];uint32_t i;rf_collision_sweep_room_hit hit;
+    for(i=0;i<3;i++)delta[i]=end[i]-start[i];
+    return rf_collision_solid_preferred((const rf_collision_solid_view *)context,NULL,0x45,start,delta,radius,1,&hit,blocked);
+}
+static int scene_mp_bot_node(campaign_npc_body *npc,uint32_t *node)
+{
+    scene_stream *stream=particle_draw_stream;rf_collision_solid_view solid={0};rf_entity_navigation_selection sel;
+    float radius=0,low=0,high=0;uint32_t i;int status;
+    *node=UINT32_MAX;
+    if(!stream || !stream->collision || !campaign_navigation.references || !npc->body.spheres.count)return RF_NOT_FOUND;
+    for(i=0;i<npc->body.spheres.count;i++){
+        const rf_physics_sphere *sp=npc->body.spheres.items+i;
+        if(sp->radius>radius)radius=sp->radius;
+        if(!i || sp->center[1]-sp->radius<low)low=sp->center[1]-sp->radius;
+        if(!i || sp->center[1]+sp->radius>high)high=sp->center[1]+sp->radius;
+    }
+    if(npc->navigation_radius>0)radius=npc->navigation_radius;
+    solid.rooms=stream->collision->views;solid.room_count=stream->collision->room_count;
+    solid.primary=stream->collision->primary;solid.primary_count=stream->collision->primary_count;
+    solid.children=stream->collision->children;solid.child_count=stream->collision->child_count;
+    status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
+        npc->body.state.position,radius,high-low,1,0,scene_mp_node_visible,&solid,&sel);if(status)return status;
+    *node=sel.second!=UINT32_MAX?sel.second:sel.first;
+    return *node==UINT32_MAX?RF_NOT_FOUND:RF_OK;
+}
 static int campaign_script_route_leased(scene_stream *stream,campaign_npc_body *owner,uint32_t *found)
 {
     rf_entity_navigation_candidate start={0},goal={0};rf_entity_navigation_graph_request q={0};
