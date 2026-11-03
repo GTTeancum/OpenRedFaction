@@ -49,10 +49,8 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | 8 | Route fighting: stop in melee range (12ae50 returns 1) |
 | 9 | Movement: exact-zero speed test for "not moving" |
 | 10 | Doctor-uniform pickup handler |
-| 11 | Pickup sound slots 1 and 0x40 checked against the PS2 sound table |
-| 12 | AI alternate-fire spread field |
+| 12 | AI alternate-fire spread field (no consumer: do PS2 bots alt-fire? untraced) |
 | 13 | Shared random-number sequence across systems |
-| 14 | Game-clock cap per update (PS2 0.25 s) |
 | 15 | MP STATS fade-in (1e22e0) |
 | 16 | message.vf kerning pairs |
 | 17 | Player's profile name instead of "PLAYER" |

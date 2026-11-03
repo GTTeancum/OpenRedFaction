@@ -919,8 +919,37 @@ static int scene_mp_tick(uint32_t frame)
     }
     return RF_OK;
 }
+/* The PS2 menu pack (platform path; NULL without it), opened per match for
+ * the PS2-only sound effects it carries. */
+const char *rf_scene_ps2_pack_path;
+static rf_vpp scene_mp_ps2_pack;static uint32_t scene_mp_ps2_pack_open;
+/* A sound from the PS2 menu pack: declared and loaded from that archive,
+ * the bank's archive restored after. */
+static int scene_mp_pack_sound(const char *name,float near_distance,float volume,float rolloff,uint32_t *index)
+{
+    rf_vpp *archive=campaign_audio_bank.archive;int status;uint32_t released[2];
+    if(!archive)return RF_NOT_FOUND;
+    if(!scene_mp_ps2_pack_open){
+        if(!rf_scene_ps2_pack_path || rf_vpp_open(&scene_mp_ps2_pack,rf_scene_ps2_pack_path))return RF_NOT_FOUND;
+        scene_mp_ps2_pack_open=1;
+    }
+    campaign_audio_bank.archive=&scene_mp_ps2_pack;
+    status=rf_audio_bank_declare(&campaign_audio_bank,name,near_distance,volume,rolloff,index);
+    if(!status && !rf_audio_bank_sample(&campaign_audio_bank,*index)){
+        if((campaign_audio_events.play || campaign_audio_events.play_mode) && !campaign_audio_events.release_idle_sample)
+            status=rf_audio_bank_reload(&campaign_audio_bank,&scene_mp_ps2_pack,*index);
+        else{
+            status=rf_audio_bank_reload_idle(&campaign_audio_bank,&campaign_audio_mixer,&scene_mp_ps2_pack,*index,
+                campaign_audio_evictable,sizeof(campaign_audio_evictable),campaign_audio_events.release_idle_sample,
+                campaign_audio_events_context,released);
+            if(!status){rf_scene_sound_bank[1]-=released[0];rf_scene_sound_bank[2]-=released[1];rf_scene_live_audio[1]=campaign_audio_bank.bytes;}
+        }
+    }
+    campaign_audio_bank.archive=archive;return status;
+}
 /* campaign_life_input: "Press Fire to respawn" (strings.tbl 3). */
 static uint32_t scene_mp_fire_held;
+uint32_t rf_scene_mp_respawn_sound[3]; /* harness: respawn sounds started, failed, last load status */
 /* 1a51b0: with no entity, primary or secondary fire more than 1.0 s after
  * death starts the respawn: 1dd8f0 plays sound 0x40 and 1ddd90 fades to
  * white (alpha up to 165) over 0.15 s, respawns (1dd930), then fades back
@@ -931,11 +960,17 @@ static uint32_t scene_mp_respawn_pressed(const rf_scene_input *input,uint32_t re
     if(!rf_scene_mp[0])return 0;
     pressed=held && !scene_mp_fire_held;scene_mp_fire_held=held;
     if(scene_mp_fade_phase==0 && pressed && ready){
-        uint32_t index=0x40;
+        /* Sound 0x40 is the PS2 sounds.tbl's "respawn.wav" (10.0, 0.8, 1.0;
+         * SND_RESPAWN, multiplayer; respawn.vse on the disc, decoded into
+         * the PS2 menu pack). The PC table has Flag_Pickup.wav at 0x40. */
+        uint32_t index=0;int32_t voice=-1;
         scene_mp_fade_phase=1;scene_mp_fade_clock=0;
-        if(index<sizeof(campaign_audio_evictable) && (rf_audio_bank_sample(&campaign_audio_bank,index) || !campaign_ambient_reload(index))){
-            campaign_audio_evictable[index]=1;(void)campaign_sound_start((int32_t)index,scene_actor_body.state.position,1,0,0,0);
+        int loaded=scene_mp_pack_sound("respawn.wav",10.0f,.8f,1.0f,&index);rf_scene_mp_respawn_sound[2]=(uint32_t)loaded;
+        if(!loaded){
+            if(index<sizeof(campaign_audio_evictable))campaign_audio_evictable[index]=1;
+            voice=campaign_sound_start((int32_t)index,scene_actor_body.state.position,1,0,0,0);
         }
+        ++rf_scene_mp_respawn_sound[voice>=0?0:1];
         return 0;
     }
     if(scene_mp_fade_phase==1){

@@ -267,6 +267,29 @@ def font_2x(data, ttf):
     return tga(strip.width, strip.height, strip.tobytes()), metrics
 
 
+def vse_wav(data):
+    # PS2 .vse sound effect: 24-byte header (size at +12, SPU pitch at +20,
+    # 0x1000 = 48000 Hz) then PS2 SPU ADPCM, 16-byte blocks of 28 samples
+    # (byte 0: shift | filter << 4). Output: 16-bit mono PCM WAV.
+    size, pitch = struct.unpack_from('<I', data, 12)[0], struct.unpack_from('<I', data, 20)[0]
+    rate = round(pitch * 48000 / 4096)
+    coefs = ((0, 0), (60, 0), (115, -52), (98, -55), (122, -60))
+    s1 = s2 = 0
+    pcm = bytearray()
+    for o in range(24, min(len(data), 24 + size) - 15, 16):
+        shift, filt = data[o] & 15, min(data[o] >> 4, 4)
+        for k in range(28):
+            nib = (data[o + 2 + k // 2] >> (4 * (k & 1))) & 15
+            v = (nib - 16 if nib > 7 else nib) << 12
+            v = (v >> shift) + ((s1 * coefs[filt][0] + s2 * coefs[filt][1] + 32) >> 6)
+            v = max(-32768, min(32767, v))
+            s2, s1 = s1, v
+            pcm += struct.pack('<h', v)
+    header = struct.pack('<4sI4s4sIHHIIHH4sI', b'RIFF', 36 + len(pcm), b'WAVE', b'fmt ', 16, 1, 1,
+                         rate, rate * 2, 2, 16, b'data', len(pcm))
+    return header + bytes(pcm)
+
+
 def ps2_damage(text):
     # PS2 1c6e10 switches every weapon to the second value of these pairs in
     # multiplayer; 1ce890 picks the second $Damage / $Alt Damage there. One
@@ -354,6 +377,9 @@ def main():
     # player then multiplayer values; 1ce890 uses the second in multiplayer).
     # One line per weapon: name, damage, damage multi, alt, alt multi.
     out.append(('ps2_damage.txt', ps2_damage(tables['weapons.tbl'])))
+    # PS2 sounds.tbl slot 0x40 "respawn.wav" (SND_RESPAWN, multiplayer) is
+    # respawn.vse on the disc; the PC files have no such effect.
+    out.append(('respawn.wav', vse_wav(archive['respawn.vse'])))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     vpp_write(out_path, out)
     print('%s: %d entries (%d pictures, %d backdrop frames)' % (out_path, len(out), len(seen), len(frames)))

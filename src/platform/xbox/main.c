@@ -150,7 +150,7 @@ static void pacing_update(void)
 /* Wait for the next tick in short sleeps (at most 2 ms, as the PC pacer),
  * re-reading the clock after each, so one late wake-up costs little; the
  * last millisecond yields instead of sleeping. Pacing debt the frame clock
- * discarded (stalls beyond its 8-tick limit) is published in milliseconds. */
+ * discarded (stalls beyond its 15-tick limit) is published in milliseconds. */
 uint32_t rf_xbox_pacing_discarded_ms;
 static void pacing_sleep(void)
 {
@@ -166,7 +166,8 @@ static void pacing_sleep(void)
  * time, see rf_frame_clock_next), at least two 60ths in the 30 Hz modes.
  * Port limit: at most two 60ths (1/30 s), the step every port system is
  * built for (the 30 Hz mode); several weapon updates reject steps above
- * 0.05 s and 3/60 rounds just above it. The PS2 allows 0.25 s. */
+ * 0.05 s and 3/60 rounds just above it. The PS2 allows 0.25 s of frame
+ * time; the clock keeps that much debt (15 ticks) and pays it in steps. */
 static void pacing_wait_done(void)
 {
     extern uint32_t rf_xbox_wait_total;pacing_last=pacing_clock();pacing_wait_last=rf_xbox_wait_total;
@@ -213,8 +214,9 @@ static void player_mp_paths(rf_level *level,const char *name)
 static void player_ps2_damage_load(void)
 {
     static char damage[4096];rf_vpp pack={0};rf_vpp_entry e;
-    rf_scene_ps2_damage_text=NULL;
+    rf_scene_ps2_damage_text=NULL;rf_scene_ps2_pack_path=NULL;
     if(!rf_scene_mp_bots || rf_vpp_open(&pack,"D:\\ps2menu.vpp"))return;
+    rf_scene_ps2_pack_path="D:\\ps2menu.vpp";
     if(!rf_vpp_find(&pack,"ps2_damage.txt",&e) && e.size<sizeof(damage) && !rf_vpp_read(&pack,&e,0,damage,e.size)){
         damage[e.size]=0;rf_scene_ps2_damage_text=damage;}
     rf_vpp_close(&pack);

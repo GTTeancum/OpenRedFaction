@@ -3,7 +3,8 @@
 #include <stdint.h>
 /* Port-owned 60 Hz pacing, not recovered original timing. Zero initialize.
  * A millisecond adds 60 units; a simulation tick consumes 1000 units.
- * At most eight ticks of debt survive a stall. Unsigned ms wraps naturally;
+ * At most fifteen ticks (0.25 s, the PS2 1fd9e0 frame-time cap) of debt
+ * survive a stall. Unsigned ms wraps naturally;
  * callers must update at intervals shorter than the 32-bit clock period.
  * All functions run on the owning simulation thread. No allocation. */
 /* Sixtieths of a second covered by the current game update: 1 at 60 Hz,

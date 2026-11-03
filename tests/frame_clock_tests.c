@@ -15,9 +15,10 @@ int main(void)
     for(i=0;i<6;++i){CHECK(!rf_frame_clock_step(&c,100));CHECK(rf_frame_clock_present(&c,100)==(i==0 || i==5));}
     CHECK(c.steps==7 && c.presentations==3 && c.discarded_units==0);
     CHECK(rf_frame_clock_step(&c,100)==17);
-    /* A long pause drops excess elapsed time and bounds catch-up work. */
-    CHECK(!rf_frame_clock_step(&c,10100));CHECK(c.credit==7000 && c.discarded_units==592000);
-    for(i=0;i<7;++i)CHECK(!rf_frame_clock_step(&c,10100));
+    /* A long pause drops excess elapsed time and bounds catch-up work
+     * (15 ticks, the PS2's 0.25 s frame-time cap). */
+    CHECK(!rf_frame_clock_step(&c,10100));CHECK(c.credit==15000 && c.discarded_units==584000);
+    for(i=0;i<15;++i)CHECK(!rf_frame_clock_step(&c,10100));
     CHECK(rf_frame_clock_step(&c,10100)==17);
     /* A 50 ms presentation deadline (20 Hz floor) bounds catch-up starvation. */
     c=(rf_frame_clock){0};CHECK(!rf_frame_clock_step(&c,0));

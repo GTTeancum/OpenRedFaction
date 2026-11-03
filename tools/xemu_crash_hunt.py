@@ -653,6 +653,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_crash_bot_trace']=6
           counts['rf_scene_mp_line_trace']=4
           counts['rf_scene_mp_fade_draw']=2
+          counts['rf_scene_mp_respawn_sound']=3
           counts['rf_scene_crash_hold']=1
           counts['rf_scene_mp_targets']=4
           counts['rf_scene_mp_drops']=3

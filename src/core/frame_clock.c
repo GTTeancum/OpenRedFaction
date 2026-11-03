@@ -7,7 +7,8 @@ static void update(rf_frame_clock *c,uint32_t now)
     if(!c->initialized){c->initialized=1;c->last_ms=now;c->credit=1000;return;}
     credit=c->credit+(uint64_t)(uint32_t)(now-c->last_ms)*60;
     c->last_ms=now;
-    if(credit>8000u+tick_units()){c->discarded_units+=credit-8000u-tick_units();credit=8000u+tick_units();}
+    /* PS2 1fd9e0 keeps at most 0.25 s of frame time (15 ticks of debt). */
+    if(credit>15000u+tick_units()){c->discarded_units+=credit-15000u-tick_units();credit=15000u+tick_units();}
     c->credit=(uint32_t)credit;
 }
 uint32_t rf_frame_clock_step(rf_frame_clock *c,uint32_t now)
