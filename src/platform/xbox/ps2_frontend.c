@@ -84,25 +84,72 @@ static const struct {const char *name,*picture,*level;} environments[]={
     {"Mine Warfare","multienv07.tga","dm07.rfl"},
     {"Warlords","multienv_m_ps210.tga","ctf02.rfl"}};
 #define ENVIRONMENT_COUNT (sizeof(environments)/sizeof(environments[0]))
+/* MP OPTIONS lists (2a8ca0): strings 290ec0/290f00/290f40/290fa0 and
+ * values 290ee0/290f20/290f70/290fc0 (minutes). */
 static const uint16_t bot_ids[7]={78,79,80,81,82,83,84};
-static const uint16_t skill_ids[4]={85,86,87,88};
-static const uint16_t kill_ids[8]={89,395,90,396,91,397,399,92};
-static const uint16_t time_ids[8]={89,94,401,95,402,96,97,406};
-uint32_t rf_xbox_ps2_multi_count(uint32_t row)
+static const uint16_t skill_ids[5]={78,85,86,87,88};
+static const uint16_t kill_ids[11]={89,83,395,90,396,91,397,398,399,400,92};
+static const uint16_t time_ids[7]={93,94,401,95,402,96,97};
+static const uint8_t skill_values[5]={0,0,1,2,3};
+static const uint8_t kill_values[11]={0,5,10,15,20,25,30,35,40,45,50};
+static const uint8_t time_values[7]={1,5,10,15,20,25,30};
+/* The environment's description (wrapped at 200 pixels by 211cc0 when
+ * 26b0e0 reads it) and $Num bots, read from the pack's ps2_multi.tbl. */
+static uint32_t width_of(uint32_t font,const char *text);
+static char env_description[512];static uint32_t env_loaded=UINT32_MAX,env_bots;
+static void env_wrap(char *t)
 {
-    static const uint32_t counts[RF_XBOX_PS2_MP_ROWS]={13,ENVIRONMENT_COUNT,7,4,8,8,1};
-    return row<RF_XBOX_PS2_MP_ROWS?counts[row]:0;
+    char *line=t,*space=NULL,*p;
+    for(p=t;*p;p++){
+        char c=*p,saved;
+        if(c=='\n'){line=p+1;space=NULL;continue;}
+        if(c==' ')space=p;
+        saved=p[1];p[1]=0;
+        if(width_of(RF_PS2_FONT_STANDARD,line)>=200u && space){*space='\n';line=space+1;space=NULL;}
+        p[1]=saved;
+    }
 }
+static void env_load(uint32_t environment)
+{
+    environment%=ENVIRONMENT_COUNT;
+    if(!ps2 || env_loaded==environment)return;
+    if(rf_ps2_menu_multi_environment(ps2,environments[environment].picture,env_description,sizeof(env_description),&env_bots)){
+        env_description[0]=0;env_bots=6;
+    }
+    env_wrap(env_description);env_loaded=environment;
+}
+uint32_t rf_xbox_ps2_multi_count(const rf_xbox_ps2_multi *m,uint32_t row)
+{
+    switch(row){
+    case RF_XBOX_PS2_MP_CHARACTER:return 13;
+    case RF_XBOX_PS2_MP_ENVIRONMENT:return ENVIRONMENT_COUNT;
+    case RF_XBOX_PS2_MP_BOTS:
+        env_load(m?m->values[RF_XBOX_PS2_MP_ENVIRONMENT]:0);
+        return env_bots+1>7?7:env_bots+1;
+    case RF_XBOX_PS2_MP_SKILL:return 5;
+    case RF_XBOX_PS2_MP_KILLS:return 11;
+    case RF_XBOX_PS2_MP_TIME:return 7;
+    default:return 1;
+    }
+}
+void rf_xbox_ps2_multi_indices(rf_xbox_ps2_multi *m,uint32_t bots,uint32_t skill,uint32_t kills,uint32_t minutes)
+{
+    uint32_t i;
+    m->values[RF_XBOX_PS2_MP_BOTS]=bots<7?bots:0;
+    /* 1ec310: no bots forces skill 0 ("<no bots>"). */
+    m->values[RF_XBOX_PS2_MP_SKILL]=0;if(bots)for(i=0;i<5;i++)if(skill_values[i]==skill){m->values[RF_XBOX_PS2_MP_SKILL]=i;break;}
+    m->values[RF_XBOX_PS2_MP_KILLS]=0;for(i=0;i<11;i++)if(kill_values[i]==kills){m->values[RF_XBOX_PS2_MP_KILLS]=i;break;}
+    m->values[RF_XBOX_PS2_MP_TIME]=0;for(i=0;i<7;i++)if(time_values[i]==minutes){m->values[RF_XBOX_PS2_MP_TIME]=i;break;}
+}
+uint32_t rf_xbox_ps2_multi_skill(const rf_xbox_ps2_multi *m){return skill_values[m->values[RF_XBOX_PS2_MP_SKILL]%5];}
 const char *rf_xbox_ps2_multi_level(uint32_t environment)
 {return environments[environment%ENVIRONMENT_COUNT].level;}
 void rf_xbox_ps2_multi_rules(const rf_xbox_ps2_multi *m,uint32_t *bots,uint32_t *kills,uint32_t *seconds)
 {
-    /* Same order as the value strings above (<no limit> first). */
-    static const uint16_t kill_values[8]={0,10,15,20,25,30,40,50};
-    static const uint16_t minutes[8]={0,5,10,15,20,25,30,50};
+    /* 1ecbc0 passes the listed values to 1ddaa0. */
     *bots=m->values[RF_XBOX_PS2_MP_BOTS]%7;
-    *kills=kill_values[m->values[RF_XBOX_PS2_MP_KILLS]%8];
-    *seconds=minutes[m->values[RF_XBOX_PS2_MP_TIME]%8]*60u;
+    *kills=kill_values[m->values[RF_XBOX_PS2_MP_KILLS]%11];
+    *seconds=time_values[m->values[RF_XBOX_PS2_MP_TIME]%7]*60u;
 }
 
 /* ---- owner ---- */
@@ -359,6 +406,10 @@ int rf_xbox_ps2_draw_frontend(rf_scene_particle_sink sink,void *context,uint32_t
     }
     return RF_OK;
 }
+static int name_box(rf_scene_particle_sink sink,void *context,int32_t x,int32_t y,int32_t w,uint32_t level);
+static int draw_mp_character(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m);
+static int draw_mp_environment(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m);
+static int draw_mp_options(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m);
 int rf_xbox_ps2_draw_multi(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m)
 {
     static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,47,21,48,43,44};
@@ -373,41 +424,15 @@ int rf_xbox_ps2_draw_multi(rf_scene_particle_sink sink,void *context,const rf_xb
         status=slot_frame(sink,context,1,ids,(const uint8_t (*)[2])offsets,enabled);if(status)return status;
         return popup(sink,context,str(52),items,2,m->selection,modes,NULL);
     }
-    status=options_frame(sink,context,str(105));if(status)return status;
     {
-        rf_hud_sprite portrait;char value[48];
-        /* The arena's picture while Environment is selected, else the portrait. */
-        const char *shown=m->selection==RF_XBOX_PS2_MP_ENVIRONMENT?
-            environments[m->values[RF_XBOX_PS2_MP_ENVIRONMENT]%ENVIRONMENT_COUNT].picture:
-            characters[m->values[RF_XBOX_PS2_MP_CHARACTER]%13].picture;
-        float w,h;
-        status=rf_ps2_menu_feature(ps2,shown,&portrait);if(status)return status;
-        w=(float)portrait.width;h=(float)portrait.height;
-        if(w>243.0f){h*=243.0f/w;w=243.0f;}
-        status=quad(sink,context,&portrait,372,110,w,h,0xffffffffu,0);if(status)return status;
-        for(i=0;i<RF_XBOX_PS2_MP_ROWS;i++){
-            const char *label,*v=value;uint32_t x=m->values[i];
-            switch(i){
-            case RF_XBOX_PS2_MP_CHARACTER:label=str(62);v=characters[x%13].name;break;
-            case RF_XBOX_PS2_MP_ENVIRONMENT:label=str(63);v=environments[x%ENVIRONMENT_COUNT].name;break;
-            case RF_XBOX_PS2_MP_BOTS:label=str(98);v=str(bot_ids[x%7]);break;
-            case RF_XBOX_PS2_MP_SKILL:label=str(99);v=str(skill_ids[x%4]);break;
-            case RF_XBOX_PS2_MP_KILLS:label=str(100);v=str(kill_ids[x%8]);break;
-            case RF_XBOX_PS2_MP_TIME:label=str(101);v=str(time_ids[x%8]);break;
-            default:label=str(103);v=NULL;break;
-            }
-            /* Rows sit left of the portrait (port layout). */
-            {
-                float y=112.0f+i*30.0f;uint32_t sel=i==m->selection;
-                uint32_t color=sel?RF_PS2_COLOR_SELECTED:RF_PS2_COLOR_TEXT;
-                if(sel){status=rect(sink,context,24,y-3,330,22,0x60eaea53u&0x60ffffffu);if(status)return status;}
-                status=text(sink,context,RF_PS2_FONT_STANDARD,34,y,label,color);if(status)return status;
-                if(v){status=text(sink,context,RF_PS2_FONT_STANDARD,(int32_t)(344-width_of(RF_PS2_FONT_STANDARD,v)),y,v,color);if(status)return status;}
-            }
-        }
+        status=options_frame(sink,context,str(m->step==RF_XBOX_PS2_MP_CHARACTER_STEP?62:m->step==RF_XBOX_PS2_MP_ENVIRONMENT_STEP?63:105));if(status)return status;
+        status=m->step==RF_XBOX_PS2_MP_CHARACTER_STEP?draw_mp_character(sink,context,m):
+            m->step==RF_XBOX_PS2_MP_ENVIRONMENT_STEP?draw_mp_environment(sink,context,m):draw_mp_options(sink,context,m);
+        if(status)return status;
+        if(m->loading)return popup(sink,context,str(1),NULL,0,0,NULL,NULL);
+        if(m->level<255)status=rect(sink,context,0,0,640,448,(255u-m->level)<<24);
+        return status;
     }
-    if(m->loading)return popup(sink,context,str(1),NULL,0,0,NULL,NULL);
-    return footer(sink,context,"Bots are not active yet: the map loads with you alone.");
 }
 int rf_xbox_ps2_draw_session(rf_scene_particle_sink sink,void *context,uint32_t selection,uint32_t flags)
 {
@@ -589,13 +614,7 @@ int rf_xbox_ps2_draw_mp_name(rf_scene_particle_sink sink,void *context,const cha
     drawn();
     status=backdrop(sink,context,0x606060u);if(status)return status;
     status=options_frame(sink,context,str(111));if(status)return status;
-    /* 1e2c30 box. */
-    {static const struct {int16_t dx,dy,dw,h;uint32_t rgb;} edges[]={
-        {0,0,0,1,0x865858},{0,1,-273,17,0x865858},{1,1,-1,1,0x5f2222},{1,2,-273,15,0x5f2222},
-        {2,2,-2,14,0x460000},{2,16,-2,1,0x3c0000},{1,17,-1,1,0x270000}};
-     uint32_t k;
-     for(k=0;k<7;k++){float w=(float)(edges[k].dw<=-273?1:274+edges[k].dw);
-        status=rect(sink,context,(float)(x0+30+edges[k].dx),(float)(153+edges[k].dy),w,(float)edges[k].h,(level<<24)|edges[k].rgb);if(status)return status;}}
+    status=name_box(sink,context,x0+30,153,274,level);if(status)return status;
     status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0xa4-(int32_t)(width_of(RF_PS2_FONT_STANDARD,name)>>1),0x9a,name,text_color);if(status)return status;
     if(!done){
         status=picture(sink,context,RF_PS2_MULTI_LETTERSTRIPS,(float)(x0+30),0xbb,(level<<24)|0xffffffu,0);if(status)return status;
@@ -618,6 +637,125 @@ int rf_xbox_ps2_draw_mp_name(rf_scene_particle_sink sink,void *context,const cha
     }
     if(level<255)status=rect(sink,context,0,0,640,448,(255u-level)<<24);
     return status;
+}
+/* 1e2c30 (alpha, x, y, w): the 17-pixel name box, edges 86/58/58,
+ * 5f/22/22, 46/0/0, 3c/0/0, 27/0/0. */
+static int name_box(rf_scene_particle_sink sink,void *context,int32_t x,int32_t y,int32_t w,uint32_t level)
+{
+    static const struct {int16_t dx,dy,dw,h;uint32_t rgb;} edges[]={
+        {0,0,0,1,0x865858},{0,1,-273,17,0x865858},{1,1,-1,1,0x5f2222},{1,2,-273,15,0x5f2222},
+        {2,2,-2,14,0x460000},{2,16,-2,1,0x3c0000},{1,17,-1,1,0x270000}};
+    uint32_t k;int status;
+    for(k=0;k<7;k++){float ew=(float)(edges[k].dw<=-273?1:w+edges[k].dw);
+        status=rect(sink,context,(float)(x+edges[k].dx),(float)(y+edges[k].dy),ew,(float)edges[k].h,(level<<24)|edges[k].rgb);if(status)return status;}
+    return RF_OK;
+}
+/* Text centred on x (211050 width >> 1). */
+static int centred(rf_scene_particle_sink sink,void *context,int32_t x,float y,const char *string,uint32_t argb)
+{return text(sink,context,RF_PS2_FONT_STANDARD,x-(int32_t)(width_of(RF_PS2_FONT_STANDARD,string)>>1),y,string,argb);}
+/* Picture frames: three nested outlines in a5/85/85, 4e/10/10 and 2a/0/0. */
+typedef struct {int16_t x,y,w,h;} mp_line;
+static int mp_frame(rf_scene_particle_sink sink,void *context,const mp_line lines[12],int32_t x0,uint32_t level)
+{
+    static const uint32_t rgb[3]={0xa58585,0x4e1010,0x2a0000};
+    uint32_t k;int status;
+    for(k=0;k<12;k++){status=rect(sink,context,(float)(x0+lines[k].x),(float)lines[k].y,(float)lines[k].w,(float)lines[k].h,(level<<24)|rgb[k/4]);if(status)return status;}
+    return RF_OK;
+}
+/* CHARACTER (state 0x18): 26d150 -> 26ca40(player, x0), x0 = 0x90 for one
+ * human. Title "CHARACTER" (62); the human's name centred on x0+169 at
+ * y 97 in 2ac5c8; the character picture (record 0x24 at 1eae570) at
+ * (x0+48, 121) in its frame; while not chosen the name box (x0+45, 330,
+ * 249), the character name centred on x0+169 at y 331, the arrows 0xac
+ * (x0+51) and 0xab (x0+275) at y 331 in 2ac5cc, "%s Select" (32, cross)
+ * at (x0+103, 377), and the triangle with "Back to Player Name" at x0+103
+ * and x0+132, y 399. One human never reaches the chosen state (26c880:
+ * cross goes on to ENVIRONMENT). */
+static int draw_mp_character(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m)
+{
+    static const mp_line lines[12]={
+        {0x2d,0x76,0xf9,1},{0x2d,0x77,1,0xca},{0x30,0x13e,0xf3,1},{0x123,0x7a,1,0xc5},
+        {0x2e,0x77,0xf7,1},{0x2e,0x78,1,200},{0x2f,0x13f,0xf6,1},{0x124,0x78,1,199},
+        {0x2f,0x78,0xf5,1},{0x2f,0x79,1,0xc5},{0x2d,0x140,0xf9,1},{0x125,0x77,1,0xc9}};
+    const int32_t x0=0x90;uint32_t level=m->level,c=m->values[RF_XBOX_PS2_MP_CHARACTER]%13;
+    uint32_t text_color=mp_stats_fade(RF_PS2_COLOR_TEXT,level),arrow=mp_stats_fade(RF_PS2_COLOR_SELECTED,level);
+    rf_hud_sprite s;char line[64];int status;
+    status=centred(sink,context,x0+0xa9,0x61,m->name?m->name:"",text_color);if(status)return status;
+    status=rf_ps2_menu_feature(ps2,characters[c].picture,&s);if(status)return status;
+    status=quad(sink,context,&s,(float)(x0+0x30),0x79,(float)s.width,(float)s.height,(level<<24)|0xffffffu,0);if(status)return status;
+    status=mp_frame(sink,context,lines,x0,level);if(status)return status;
+    status=name_box(sink,context,x0+0x2d,0x14a,0xf9,level);if(status)return status;
+    status=centred(sink,context,x0+0xa9,0x14b,characters[c].name,text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x33,0x14b,"\xac",arrow);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x113,0x14b,"\xab",arrow);if(status)return status;
+    snprintf(line,sizeof(line),str(32),"A");status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x67,0x179,line,text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,x0+0x67,399,"Y",text_color);if(status)return status;
+    return text(sink,context,RF_PS2_FONT_STANDARD,x0+0x84,399,"Back to Player Name",text_color);
+}
+/* ENVIRONMENT (state 0x16, 26ac00): title 63; the picture (record 0x40 at
+ * 1eae110) at (45, 107) in its frame; the name box (42, 326, 364), the
+ * screen name centred on 224 at y 328, "%s Select" (cross) at (150, 377),
+ * the triangle at (291, 377) and "Back to Character Selection" at (320,
+ * 377), the description at (415, 109), all 2ac5c8; arrows 0xac (53) and
+ * 0xab (386) at y 328 in 2ac5cc. */
+static int draw_mp_environment(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m)
+{
+    static const mp_line lines[12]={
+        {0x2a,0x67,0x16c,1},{0x2a,0x68,1,0xd3},{0x2d,0x139,0x166,1},{0x193,0x6b,1,0xce},
+        {0x2b,0x68,0x16a,1},{0x2b,0x69,1,0xd1},{0x2c,0x13a,0x169,1},{0x194,0x69,1,0xd0},
+        {0x2c,0x69,0x168,1},{0x2c,0x6a,1,0xce},{0x2a,0x13b,0x16c,1},{0x195,0x68,1,0xd2}};
+    uint32_t level=m->level,e=m->values[RF_XBOX_PS2_MP_ENVIRONMENT]%ENVIRONMENT_COUNT;
+    uint32_t text_color=mp_stats_fade(RF_PS2_COLOR_TEXT,level),arrow=mp_stats_fade(RF_PS2_COLOR_SELECTED,level);
+    rf_hud_sprite s;char line[64];int status;
+    env_load(e);
+    status=rf_ps2_menu_feature(ps2,environments[e].picture,&s);if(status)return status;
+    status=quad(sink,context,&s,0x2d,0x6b,(float)s.width,(float)s.height,(level<<24)|0xffffffu,0);if(status)return status;
+    status=mp_frame(sink,context,lines,0,level);if(status)return status;
+    status=name_box(sink,context,0x2a,0x146,0x16c,level);if(status)return status;
+    status=centred(sink,context,0xe0,0x148,environments[e].name,text_color);if(status)return status;
+    snprintf(line,sizeof(line),str(32),"A");status=text(sink,context,RF_PS2_FONT_STANDARD,0x96,0x179,line,text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,0x123,0x179,"Y",text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,0x140,0x179,"Back to Character Selection",text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,0x19f,0x6d,env_description,text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,0x35,0x148,"\xac",arrow);if(status)return status;
+    return text(sink,context,RF_PS2_FONT_STANDARD,0x182,0x148,"\xab",arrow);
+}
+/* MP OPTIONS (state 0x15, 1ec530), one human (list 290fe0): rows 1e8740
+ * (label right-aligned on 286, value at 345) Number of Bots (y 112),
+ * Skill Level (132), Kill Limit (162), Time Limit (182) in 2ac5c8, Skill
+ * in 2ac5c4 with no bots; buttons 1e8810 centred on 300: Player 1 Options
+ * (y 272) and START GAME (312). The selected row gets the name box (324,
+ * y-1, 164) and the arrows 0xac (328) and 0xab (472) in 2ac5cc; a selected
+ * button the box (200, y-1, 200). "%s Select" on a button, else "%s
+ * Modify" (cross), at (150, 377); the triangle (291, 377) and "Back to
+ * Environment Selection" (320, 377). */
+static int draw_mp_options(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m)
+{
+    static const uint16_t row_y[4]={0x70,0x84,0xa2,0xb6};
+    uint32_t level=m->level,i,no_bots=m->values[RF_XBOX_PS2_MP_BOTS]%7==0;
+    uint32_t text_color=mp_stats_fade(RF_PS2_COLOR_TEXT,level),arrow=mp_stats_fade(RF_PS2_COLOR_SELECTED,level);
+    char line[64];int status;
+    for(i=0;i<6;i++){
+        uint32_t row=RF_XBOX_PS2_MP_BOTS+i,x=m->values[row];int32_t y=i<4?row_y[i]:i==4?0x110:0x138;
+        if(row==m->selection){
+            status=i<4?name_box(sink,context,0x144,y-1,0xa4,level):name_box(sink,context,200,y-1,200,level);if(status)return status;
+            if(i<4){
+                status=text(sink,context,RF_PS2_FONT_STANDARD,0x148,(float)y,"\xac",arrow);if(status)return status;
+                status=text(sink,context,RF_PS2_FONT_STANDARD,0x1d8,(float)y,"\xab",arrow);if(status)return status;
+            }
+        }
+        if(i<4){
+            static const uint16_t labels[4]={98,99,100,101};
+            const char *v=i==0?str(bot_ids[x%7]):i==1?str(skill_ids[x%5]):i==2?str(kill_ids[x%11]):str(time_ids[x%7]);
+            uint32_t c=i==1 && no_bots?mp_stats_fade(RF_PS2_COLOR_DISABLED,level):text_color;
+            status=text(sink,context,RF_PS2_FONT_STANDARD,286-(int32_t)width_of(RF_PS2_FONT_STANDARD,str(labels[i])),(float)y,str(labels[i]),c);if(status)return status;
+            status=text(sink,context,RF_PS2_FONT_STANDARD,345,(float)y,v,c);if(status)return status;
+        }else{status=centred(sink,context,300,(float)y,str(i==4?102:103),text_color);if(status)return status;}
+    }
+    snprintf(line,sizeof(line),m->selection>=RF_XBOX_PS2_MP_OPTIONS?str(32):"%s Modify","A");
+    status=text(sink,context,RF_PS2_FONT_STANDARD,0x96,0x179,line,text_color);if(status)return status;
+    status=text(sink,context,RF_PS2_FONT_STANDARD,0x123,0x179,"Y",text_color);if(status)return status;
+    return text(sink,context,RF_PS2_FONT_STANDARD,0x140,0x179,"Back to Environment Selection",text_color);
 }
 /* Multiplayer HUD (PS2 1691a0 in place of the single-player health display,
  * and the clock of 1dc1a0), in the PS2's 640x448 coordinates. A separate

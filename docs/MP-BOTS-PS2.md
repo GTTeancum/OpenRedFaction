@@ -538,13 +538,29 @@ Done (now from the PS2 code):
   no reader in a match.
 - PLAYER NAME (state 0x17, reached from "Player vs. Bots" 1e3d10): ported
   (main.c player_ps2_name, ps2_frontend.c rf_xbox_ps2_draw_mp_name); the
-  name replaces "PLAYER" on the HUD, end screen and MP STATS. The PS2 then
-  shows CHARACTER (0x18, 26d150/26ca40, string 62, "Back to Player Name")
-  and ENVIRONMENT (0x16, 26ac00, string 63, "Back to Character
-  Selection") before MP OPTIONS (0x15); the port still offers character
-  and arena as rows of its own options screen (port layout). The PS2 keeps
+  name replaces "PLAYER" on the HUD, end screen and MP STATS. The PS2 keeps
   names in players.cfg on the memory card (1a8450); the port keeps it for
   the session only.
+- CHARACTER (0x18), ENVIRONMENT (0x16) and MP OPTIONS (0x15): ported as
+  separate screens after PLAYER NAME (main.c player_ps2_multi,
+  ps2_frontend.c draw_mp_character / draw_mp_environment /
+  draw_mp_options), each fading in over 120 ms with Y (triangle) stepping
+  back. CHARACTER (26d150 -> 26ca40, x0 0x90 for one human; input 26c880):
+  name, picture in a three-colour frame, name box with arrows, cross on to
+  ENVIRONMENT. ENVIRONMENT (26ac00; input 26a970): picture, name box,
+  description at (415,109) wrapped at 200 pixels as 26b0e0/211cc0 do, read
+  with `$Num bots` from the pack's ps2_multi.tbl `#Levels`. MP OPTIONS
+  (1ec530, ctor 2a8ca0, input 1ebeb0, one-human list 290fe0): rows
+  Number of Bots / Skill Level / Kill Limit / Time Limit at y 112/132/162/
+  182 (label right-aligned on 286, value at 345), then "Player 1 Options"
+  (the port's options menu) and START GAME centred on 300 at y 272/312.
+  Lists: bots 0..`$Num bots` (aba78 = B + 1, at most 7), skill "<no bots>"
+  /Easy/Medium/Hard/Impossible (values 0,0,1,2,3), kills <no limit>/5..50
+  in fives, time 1/5/10/15/20/25/30 minutes; Skill is skipped and shows
+  "<no bots>" with no bots, its entry kept aside and restored (1ec530).
+  Right or cross steps a row's value, left steps back (1e3750). The port's
+  earlier lists (kills 10/15/20/25/30/40/50, time with "<no limit>" and 50)
+  were not the PS2's.
 - The human's model: the menu character's class and skin are loaded for
   the player body (scene.c, fallback miner1; form 0 audio and physics rows
   for non-Parker classes).

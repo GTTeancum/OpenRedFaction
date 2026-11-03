@@ -333,6 +333,33 @@ uint32_t rf_ps2_menu_font_height(const rf_ps2_menu *m,uint32_t font)
     f=m->fonts[font].count?m->fonts+font:m->fonts+RF_PS2_FONT_STANDARD;
     return f->height>>f->sharp;
 }
+/* 26b0e0 reads the same fields ($ScreenName, $ImageName, $LevelName,
+ * $Description, $Num bots) for each #Levels entry. */
+int rf_ps2_menu_multi_environment(rf_ps2_menu *m,const char *image,char *description,size_t size,uint32_t *bots)
+{
+    rf_vpp_entry e;char *t,*p,*q,*end;size_t n=0;int status;
+    if(!m || !image || !description || !size || !bots)return RF_RANGE;
+    description[0]=0;*bots=0;
+    status=rf_vpp_find(&m->archive,"ps2_multi.tbl",&e);if(status)return status;
+    t=malloc(e.size+1);if(!t)return RF_RANGE;
+    status=rf_vpp_read(&m->archive,&e,0,t,e.size);if(status){free(t);return status;}t[e.size]=0;
+    status=RF_NOT_FOUND;
+    p=strstr(t,"#Levels");
+    for(;p && (p=strstr(p,"$ImageName:"))!=NULL;p++){
+        q=strchr(p,'"');if(!q)break;q++;end=strchr(q,'"');if(!end)break;
+        if((size_t)(end-q)!=strlen(image) || memcmp(q,image,(size_t)(end-q)))continue;
+        q=strstr(end,"$Description:");if(!q)break;q=strstr(q,"En:");if(!q)break;q=strchr(q,'"');if(!q)break;
+        for(q++;*q && *q!='"' && n+1<size;q++){
+            if(q[0]=='\\' && q[1]=='n'){description[n++]='\n';q++;}
+            else description[n++]=*q;
+        }
+        description[n]=0;
+        q=strstr(q,"$Num bots:");if(!q)break;q+=10;
+        strtoul(q,&end,10);*bots=(uint32_t)strtoul(end,NULL,10);
+        status=RF_OK;break;
+    }
+    free(t);return status;
+}
 const char *rf_ps2_menu_string(const rf_ps2_menu *m,uint32_t id)
 {return m && id<PS2_STRING_LIMIT && m->strings[id]?m->strings[id]:"";}
 uint32_t rf_ps2_menu_backdrop_count(const rf_ps2_menu *m){return m?m->backdrop_count:0;}

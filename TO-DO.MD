@@ -41,4 +41,3 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 |---|---|
 | 21 | Split-screen two-player (largely untraced; set aside) |
 | 22 | Trace entity +0x66c/+0x670 |
-| 23 | PS2 CHARACTER (0x18) and ENVIRONMENT (0x16) screens in place of the port's combined options rows |

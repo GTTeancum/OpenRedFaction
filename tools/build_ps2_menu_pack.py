@@ -240,10 +240,10 @@ def font_2x(data, ttf):
         code = first + i
         ps2_advance = struct.unpack_from('<I', data, 36 + i * 16)[0]
         if code > 126:
-            # PS2-only symbols the menus draw (0xac backspace, 0xad-0xb0 the
-            # pad buttons): the PS2 glyph itself, doubled.
+            # PS2-only symbols the menus draw (0xab/0xac arrows, 0xac also
+            # backspace, 0xad-0xb0 the pad buttons): the PS2 glyph, doubled.
             gw, goff = struct.unpack_from('<II', data, 36 + i * 16 + 4)
-            if not gw or code not in (0xac, 0xad, 0xae, 0xaf, 0xb0):
+            if not gw or code not in (0xab, 0xac, 0xad, 0xae, 0xaf, 0xb0):
                 glyphs.append((None, ps2_advance))
                 continue
             src = Image.new('RGBA', (gw, height))

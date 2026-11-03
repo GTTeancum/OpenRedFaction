@@ -59,6 +59,11 @@ int rf_ps2_menu_text_width(const rf_ps2_menu *menu,uint32_t font,const char *tex
 /* Advance change for code followed by next (font kerning pairs), else 0. */
 int32_t rf_ps2_menu_kern(const rf_ps2_menu *menu,uint32_t font,uint32_t code,uint32_t next);
 uint32_t rf_ps2_menu_font_height(const rf_ps2_menu *menu,uint32_t font);
+/* ps2_multi.tbl #Levels entry with $ImageName image: the English
+ * $Description (
+ escapes as newlines) and the second $Num bots value
+ * (player vs. bots). RF_NOT_FOUND when no entry names the image. */
+int rf_ps2_menu_multi_environment(rf_ps2_menu *menu,const char *image,char *description,size_t size,uint32_t *bots);
 /* PS2 strings.tbl entry (English); "" when absent. */
 const char *rf_ps2_menu_string(const rf_ps2_menu *menu,uint32_t id);
 uint32_t rf_ps2_menu_backdrop_count(const rf_ps2_menu *menu);

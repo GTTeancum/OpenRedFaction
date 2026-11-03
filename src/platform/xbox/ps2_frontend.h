@@ -17,14 +17,25 @@ uint32_t rf_xbox_ps2_pause_item(uint32_t slot);
 uint32_t rf_xbox_ps2_pause_slot(uint32_t item);
 
 /* Multiplayer setup (player vs. bots only). */
-enum {RF_XBOX_PS2_MP_MODE,RF_XBOX_PS2_MP_SETUP};
+/* Steps: the mode popup, CHARACTER (state 0x18), ENVIRONMENT (0x16) and
+ * MP OPTIONS (0x15). values[] holds the character, the environment and
+ * the MP OPTIONS list indices; MP OPTIONS selection runs BOTS..START (one
+ * human, list 290fe0). level is the fade level 0-255, name the human's. */
+enum {RF_XBOX_PS2_MP_MODE,RF_XBOX_PS2_MP_CHARACTER_STEP,RF_XBOX_PS2_MP_ENVIRONMENT_STEP,RF_XBOX_PS2_MP_SETUP};
 enum {RF_XBOX_PS2_MP_CHARACTER,RF_XBOX_PS2_MP_ENVIRONMENT,RF_XBOX_PS2_MP_BOTS,
-    RF_XBOX_PS2_MP_SKILL,RF_XBOX_PS2_MP_KILLS,RF_XBOX_PS2_MP_TIME,RF_XBOX_PS2_MP_START,
-    RF_XBOX_PS2_MP_ROWS};
+    RF_XBOX_PS2_MP_SKILL,RF_XBOX_PS2_MP_KILLS,RF_XBOX_PS2_MP_TIME,RF_XBOX_PS2_MP_OPTIONS,
+    RF_XBOX_PS2_MP_START,RF_XBOX_PS2_MP_ROWS};
 typedef struct rf_xbox_ps2_multi {
-    uint32_t step,selection,values[RF_XBOX_PS2_MP_ROWS],loading;
+    uint32_t step,selection,values[RF_XBOX_PS2_MP_ROWS],loading,level;const char *name;
 } rf_xbox_ps2_multi;
-uint32_t rf_xbox_ps2_multi_count(uint32_t row);
+/* Entries in a row's list; BOTS is the environment's $Num bots + 1 (aba78,
+ * 26ab50), clamped 1..7. */
+uint32_t rf_xbox_ps2_multi_count(const rf_xbox_ps2_multi *m,uint32_t row);
+/* MP OPTIONS list indices for rule values (1ec310): bots, skill, kills,
+ * minutes; values not in a list give index 0. */
+void rf_xbox_ps2_multi_indices(rf_xbox_ps2_multi *m,uint32_t bots,uint32_t skill,uint32_t kills,uint32_t minutes);
+/* Skill value 0-3 (290f20) for the game difficulty. */
+uint32_t rf_xbox_ps2_multi_skill(const rf_xbox_ps2_multi *m);
 /* PS2 PLAYER NAME screen (state 0x17, 26c4d0/26bdc0 one human): name,
  * cursor row 0-5 and column 0-12 of the letter grid, done (accepted),
  * fade level 0-255. rf_xbox_ps2_mp_name_char gives the grid character;
