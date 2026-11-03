@@ -69,7 +69,6 @@ static uint32_t pacing_mode;
 static uint32_t replay_records;
 #define replay_position() (pacing_mode==RF_FRAME_RATE_60?campaign_total_frames:replay_records)
 static uint64_t pacing_last;static uint32_t pacing_wait_last;
-static uint32_t pacing_dwell;
 static inline uint64_t pacing_clock(void){uint32_t lo,hi;__asm__ volatile("rdtsc":"=a"(lo),"=d"(hi));return ((uint64_t)hi<<32)|lo;}
 /* Video mode chosen from the console's own video settings: encoder
  * settings word, width, height, flags (bit0 progressive, bit1 HDTV pack,
@@ -124,7 +123,7 @@ static void pacing_settings_load(void)
 static void pacing_begin(void)
 {
     uint32_t mode=xbox_settings.frame_rate;
-    pacing_mode=mode;pacing_last=0;pacing_dwell=0;
+    pacing_mode=mode;pacing_last=0;
     rf_tick_frames=1;rf_tick_frames_next=mode==RF_FRAME_RATE_30 || mode==RF_FRAME_RATE_30_SMOOTH?2:1;
     rf_xbox_pacing[0]=mode;rf_xbox_pacing[1]=rf_tick_frames_next;rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;
     /* The game thread outranks the system's ordinary threads. A thread woken
@@ -134,11 +133,8 @@ static void pacing_begin(void)
      * (October 30 logs: ~12 ms busy, 80+ ms per update). */
     SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_HIGHEST);
 }
-/* Once per game update, before its pacing wait. Busy time is the CPU time
- * since the previous update's wait ended, minus GPU/VBlank waits. Auto mode
- * drops to the fallback when updates keep exceeding 15 ms of work at 60 (a
- * decaying count: +2 heavy, -1 light, switch at 20), and returns to 60 after
- * 120 straight updates (4 s) under 11 ms. Each switch holds 1-2 s. */
+/* Once per game update, before its pacing wait: busy time is the CPU time
+ * since the previous update's wait ended, minus GPU/VBlank waits. */
 static void pacing_update(void)
 {
     extern uint32_t rf_xbox_wait_total;
@@ -147,16 +143,8 @@ static void pacing_update(void)
     {uint64_t cycles=now-pacing_last,waited=(uint64_t)(uint32_t)(waits-pacing_wait_last)<<10;
      busy_ms=(uint32_t)((cycles>waited?cycles-waited:0)/733333u);}
     rf_xbox_pacing[3]=busy_ms;
-    if(pacing_mode!=RF_FRAME_RATE_AUTO || xbox_settings.fallback==RF_FRAME_RATE_60)return;
-    if(pacing_dwell)--pacing_dwell;
-    if(rf_tick_frames==1) {
-        /* Decaying count: +1 per heavy update, -1/2 per light one, capped. */
-        rf_xbox_pacing[4]=busy_ms>15?(rf_xbox_pacing[4]<30?rf_xbox_pacing[4]+2:30):(rf_xbox_pacing[4]?rf_xbox_pacing[4]-1:0);
-        if(rf_xbox_pacing[4]>=20 && !pacing_dwell){rf_tick_frames_next=2;++rf_xbox_pacing[2];rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;pacing_dwell=60;}
-    } else {
-        rf_xbox_pacing[5]=busy_ms<11?rf_xbox_pacing[5]+1:0;
-        if(rf_xbox_pacing[5]>=120 && !pacing_dwell){rf_tick_frames_next=1;++rf_xbox_pacing[6];rf_xbox_pacing[4]=rf_xbox_pacing[5]=0;pacing_dwell=120;}
-    }
+    /* Update size follows the owed time (pacing_wait_done); the earlier
+     * auto 60/30 switch is replaced by the PS2 real-frame-time rule. */
     rf_xbox_pacing[1]=rf_tick_frames_next;
 }
 /* Wait for the next tick in short sleeps (at most 2 ms, as the PC pacer),
@@ -174,8 +162,18 @@ static void pacing_sleep(void)
     if(slept>rf_xbox_pacing_sleep[2])rf_xbox_pacing_sleep[2]=slept;rf_xbox_pacing_sleep[3]=slept;
     rf_xbox_pacing_discarded_ms=(uint32_t)(rf_player_frame_clock.discarded_units/60u);
 }
+/* After the wait: the next update covers the owed time (PS2 1fd9e0 frame
+ * time, see rf_frame_clock_next), at least two 60ths in the 30 Hz modes.
+ * Port limit: at most two 60ths (1/30 s), the step every port system is
+ * built for (the 30 Hz mode); several weapon updates reject steps above
+ * 0.05 s and 3/60 rounds just above it. The PS2 allows 0.25 s. */
 static void pacing_wait_done(void)
-{extern uint32_t rf_xbox_wait_total;pacing_last=pacing_clock();pacing_wait_last=rf_xbox_wait_total;}
+{
+    extern uint32_t rf_xbox_wait_total;pacing_last=pacing_clock();pacing_wait_last=rf_xbox_wait_total;
+    rf_tick_frames_next=rf_frame_clock_next(&rf_player_frame_clock,
+        pacing_mode==RF_FRAME_RATE_30 || pacing_mode==RF_FRAME_RATE_30_SMOOTH?2u:1u,2u);
+    rf_xbox_pacing[1]=rf_tick_frames_next;
+}
 /* Opt-in tester package: the ordinary authored campaign and live controller
  * path, with no injected input, level override, event or inventory changes.
  * The packager admits only stock assets and this marker in its separate disc. */
@@ -208,6 +206,17 @@ static void player_mp_paths(rf_level *level,const char *name)
     player_mp_section(&pack,name,n,".nav",player_mp_nav,sizeof(player_mp_nav),0x20000,level,rf_xbox_mp_paths);
     player_mp_section(&pack,name,n,".ent",player_mp_ent,sizeof(player_mp_ent),0x30000,level,rf_xbox_mp_paths+2);
     player_mp_section(&pack,name,n,".wpt",player_mp_wpt,sizeof(player_mp_wpt),0x10000,level,rf_xbox_mp_paths+4);
+    rf_vpp_close(&pack);
+}
+/* PS2 weapon damage pairs (ps2_damage.txt from the PS2 weapons.tbl) for a
+ * multiplayer match, read before the level and its weapons load. */
+static void player_ps2_damage_load(void)
+{
+    static char damage[4096];rf_vpp pack={0};rf_vpp_entry e;
+    rf_scene_ps2_damage_text=NULL;
+    if(!rf_scene_mp_bots || rf_vpp_open(&pack,"D:\\ps2menu.vpp"))return;
+    if(!rf_vpp_find(&pack,"ps2_damage.txt",&e) && e.size<sizeof(damage) && !rf_vpp_read(&pack,&e,0,damage,e.size)){
+        damage[e.size]=0;rf_scene_ps2_damage_text=damage;}
     rf_vpp_close(&pack);
 }
 uint32_t rf_xbox_load_stage;
@@ -1237,7 +1246,8 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
             if(quick_action_next<quick_action_count&&quick_action_frame[quick_action_next]<=campaign_total_frames)kind=quick_action_kind[quick_action_next++];
             rf_scene_save_button(kind==1);rf_scene_load_button(kind==2);}
         memset(input,0,sizeof(*input));
-        int status=rf_tick_frames_next==1 && pacing_mode==RF_FRAME_RATE_60 && frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
+        /* Paced updates may cover several 60ths, so frame and record counts part. */
+        int status=!player_pacing && rf_tick_frames_next==1 && pacing_mode==RF_FRAME_RATE_60 && frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
             fread(input,player_replay_size,1,player_replay)!=1?(pacing_mode!=RF_FRAME_RATE_60 && feof(player_replay)?RF_NOT_FOUND:RF_IO):RF_OK;
         rf_player_replay_diagnostic[3]=(uint32_t)status;
         if(!status){++rf_player_replay_diagnostic[2];++replay_records;}return status;
@@ -2349,6 +2359,7 @@ static int player_campaign_run(const char *saved_level)
             FILE *mp=fopen("D:\\mp-match.bin","rb");uint32_t rules[3];
             if(mp){if(fread(rules,4,3,mp)==3){rf_scene_mp_bots=rules[0];rf_scene_mp_kill_limit=rules[1];rf_scene_mp_time_limit=rules[2];}fclose(mp);}
         }
+        player_ps2_damage_load();
         if(result==RF_OK && !cold_load) {
             snprintf(archive_path,sizeof(archive_path),"D:\\%s",selected?selection:"levels1.vpp");
             result = rf_vpp_open(&archive, archive_path);

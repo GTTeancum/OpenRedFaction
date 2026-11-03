@@ -783,6 +783,9 @@ int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
  * left, match over, player respawns. */
 extern uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit,rf_scene_mp[8];
 uint32_t rf_scene_mp_match_over(void);
+/* PS2 weapon damage lines (name, damage, multi, alt, alt multi; tab separated)
+ * for multiplayer, or NULL; set before the level opens. */
+extern const char *rf_scene_ps2_damage_text;
 int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context);
 typedef struct scene_mp_bot scene_mp_bot;
 /* PS2 bot roster (docs/MP-BOTS-PS2.md): used, human kills, deaths, streak,

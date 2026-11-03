@@ -1,6 +1,6 @@
 #include "rf/frame_clock.h"
 uint32_t rf_tick_frames=1,rf_tick_frames_next=1;
-static uint32_t tick_units(void){return rf_tick_frames==2?2000u:1000u;}
+static uint32_t tick_units(void){return (rf_tick_frames?rf_tick_frames:1u)*1000u;}
 static void update(rf_frame_clock *c,uint32_t now)
 {
     uint64_t credit;
@@ -15,6 +15,11 @@ uint32_t rf_frame_clock_step(rf_frame_clock *c,uint32_t now)
     update(c,now);
     if(c->credit<tick_units())return (tick_units()-c->credit+59)/60;
     c->credit-=tick_units();++c->steps;return 0;
+}
+uint32_t rf_frame_clock_next(const rf_frame_clock *c,uint32_t minimum,uint32_t maximum)
+{
+    uint32_t n;if(!minimum)minimum=1;if(maximum<minimum)maximum=minimum;
+    n=c->credit/1000u+minimum;return n>maximum?maximum:n;
 }
 int rf_frame_clock_present(rf_frame_clock *c,uint32_t now)
 {

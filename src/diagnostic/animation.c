@@ -555,7 +555,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
         rf_animation_progress[1]=8;
         if(sink) {preview->bytes=preview->count*sizeof(rf_preview_vertex);status=sink(sink_context,frame,preview);if(status)goto done;}
         rf_animation_progress[1]=9;
-        frame_advance=placement && placement->campaign_player && rf_tick_frames_next==2?2u:1u;
+        frame_advance=placement && placement->campaign_player && rf_tick_frames_next>1?rf_tick_frames_next:1u;
     }
     if(!emitted_indices && !placement)status=RF_FORMAT;
 done:

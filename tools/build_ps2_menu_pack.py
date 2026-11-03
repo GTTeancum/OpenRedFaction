@@ -267,6 +267,23 @@ def font_2x(data, ttf):
     return tga(strip.width, strip.height, strip.tobytes()), metrics
 
 
+def ps2_damage(text):
+    import re
+    lines = []
+    for block in re.split(r'\$Name:', text.decode('latin1'))[1:]:
+        name = re.match(r'\s*"([^"]*)"', block)
+        if not name:
+            continue
+        def pair(key):
+            m = re.search(r'\n\s*\$' + key + r':[ \t]*([-0-9.]+)[ \t]+([-0-9.]+)', block)
+            return (m.group(1), m.group(2)) if m else None
+        damage, alt = pair('Damage'), pair('Alt Damage')
+        if damage:
+            alt = alt or damage
+            lines.append('%s\t%s\t%s\t%s\t%s\n' % (name.group(1), damage[0], damage[1], alt[0], alt[1]))
+    return ''.join(lines).encode('latin1')
+
+
 def main():
     from PIL import Image
     import numpy as np
@@ -317,6 +334,10 @@ def main():
             out.append((pc_map + '.wpt', wpt))
     for name in TABLES:
         out.append((name, tables[name]))
+    # PS2 weapon damage (weapons.tbl `$Damage:` / `$Alt Damage:` give single
+    # player then multiplayer values; 1ce890 uses the second in multiplayer).
+    # One line per weapon: name, damage, damage multi, alt, alt multi.
+    out.append(('ps2_damage.txt', ps2_damage(tables['weapons.tbl'])))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     vpp_write(out_path, out)
     print('%s: %d entries (%d pictures, %d backdrop frames)' % (out_path, len(out), len(seen), len(frames)))

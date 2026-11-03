@@ -298,7 +298,17 @@ handgun (12a590). After any weapon pickup in multiplayer the choice is forced
   idles AI beyond 900 units of the player).
 - 1d8fb0 (aim assist candidates): 100 units in multiplayer (30 single
   player), any affiliation.
-- 137aa0: on a failed path step, 1 in 2 toggles the crouch bit of the blocker.
+- 137aa0 (path step): in multiplayer, at each node reached, 1 in 2 flips the
+  walker's +0x6f4 bit 8 (= AI +0x484 bit 8), which 1373c0 uses to face the
+  target (bit set) or the path (bit clear) while walking.
+- Movement animation (149cd0/149830): an armed fighting entity (149160) uses
+  attack_stand/attack_walk/attack_run, and multiplayer always picks
+  attack_walk/attack_run (3, 5); otherwise stand/walk/run (0, 2, 4). Walk or
+  run follows the speed mode +0x7e8 (156980: 0 walk at class +0x50 * +0x54,
+  1 run; in multiplayer the run maximum is 8.0, 2ab7bc). 12e210 starts a
+  route running for bots (+0x734 bit 0x100000, set by 273f70/2748f0) and
+  walking otherwise; 133d80 resumes fighting running.
+  Port: scene_mp_locomotion_state, scene_mp_bot_speed, scene_mp_face_target.
 - 149830/149cd0: multiplayer forces the movement animation set (3, 5).
 - 176590: multiplayer traps (hangs) on malformed authored objects (debug).
 
@@ -375,5 +385,90 @@ Differs from the PS2 or missing:
    match-over and winner lines missing.
 8. End screen: the port shows its own results list, not the PS2 layout
    (rank/total, winner art, continue fade).
-9. Bot weapon choice by preference and the hits-landed stat are not
-   ported; bots never change weapons.
+9. Bot weapon choice: the forced choice after a pickup is ported; the
+   unforced 1-in-8 choice inside 12a960 and the hits-landed stat are not.
+
+### Port stand-ins to replace with PS2 behaviour (audit, 2026-11-02)
+
+Rule: every multiplayer behaviour comes from the PS2 code; port inventions
+are removed or replaced. Status after the overnight pass (2026-11-03):
+
+Done (now from the PS2 code):
+- Random numbers: PS2 rand 25b740 (seed * 0x41c64e6d + 0x3039, low 31
+  bits), seeded at level start from the port's update count since boot
+  (PS2 282380: frames since boot); chance tests use the PS2 comparisons
+  (rand < 0x2aaaaaaa for 1 in 3, < 0x1fffffff for 1 in 4, < 0x1ffffff for
+  1 in 64, & 0x3f). Port note: the PS2 shares one sequence with every
+  system; the port's multiplayer draws have their own.
+- No idle mode: without a target a bot roams a random list at once
+  (12ffd0 step 1 -> 12f8e0 forced; 12bbb0 turns mode 2 into 3 in
+  multiplayer); an arena without lists leaves it standing. The port's
+  interruptible "idle walk" and the nearest-to-player seek are removed.
+- Attack-update steps 5-7: ammo route (12f810: reserve of the weapon's ammo
+  type below a third of its maximum, rand < 0x1ffffff), weapon route
+  (12f750), roam (12f8e0), in PS2 order.
+- Pickups: physics touch (item sphere 0.25 against the character's
+  collision spheres; 16c760, 189d50 -> 16c2f0), line of sight from the item
+  to the picker's eye (194fd0), no_pickup flag; every item the default
+  handler serves (remote charges and the riot shield included), envirosuit
+  (16dde0: armour to the class maximum); pickup sound for any picker;
+  reappear sound 1; respawn timers checked when more than 99 ms passed
+  (16ce10). Port note: the doctor uniform's handler is not traced, so bots
+  leave it; sound slots 1 and 0x40 assume the PC sounds.tbl order.
+- Fire facing: 12a960's 0.9 dot of the full eye facing replaces the port's
+  30-degree horizontal cone in multiplayer.
+- Damage: weapons use the PS2 weapons.tbl's second `$Damage:` /
+  `$Alt Damage:` value (1ce890), read from the player's PS2 disc into
+  ps2menu.vpp (ps2_damage.txt, tools/build_ps2_menu_pack.py); the PC
+  `$Damage Multi:` is only a fallback without the pack. The PS2 values
+  differ a lot from the PC ones (12mm 40 vs 25, rail 2550 vs 587, heavy
+  machine gun 100 vs 45). Damage from bots is scaled by 28e980[skill] =
+  0.5, 0.6, 0.8, 1.0 (1888d0); the single-player 28e970 scale to the player
+  is off in multiplayer.
+- Announcer: leader score (1ddbb0) for lines 8/9; time callouts in the last
+  minute (line 0, under 31 s line 1, both waiting for other lines; under
+  11 s line 2); match over line 4 stopping others, then the winner line 5
+  queued until line 4 ends when the human ranks first (1dc1a0, 1dbb60).
+- Player: respawn on primary or secondary fire more than 1 s after death,
+  sound 0x40, fade to white (alpha 165) over 0.15 s, respawn, fade back over
+  0.5 s (1a51b0, 1dd8f0, 1ddd90); run maximum 8.0 (156980).
+- Movement: bots run at 8.0 with attack_run/attack_stand while fighting
+  (149cd0/149830), face the target on a route only while the facing bit is
+  set (12b580, flipped 1 in 2 per node by 137aa0).
+- Game clock: each update covers the real time owed (PS2 1fd9e0 frame time)
+  instead of dropping it; port cap 2/60 s per update (several port weapon
+  updates reject steps above 0.05 s; the PS2 cap is 0.25 s).
+
+- Target choice (129410 on the 12b580 skill timer) replaces the port's
+  single-player sight and opposed acquisition for multiplayer bots: range
+  25, human distance weighted by 1 - skill/5, hostility table 28e750
+  [0,0,1,1 / 0,0,0,0 / 1,0,0,1 / 1,1,1,1] on friendliness plus the
+  attacker list (+0x3d4, filled from hits), field of view from the
+  instance FOV (128eb0, +0x764 = cos(FOV/2), 177010), line of sight to the
+  candidate's eye from the body origin or eye alternately (194fd0), keep the
+  previous target when rand % 3 != 0 and no human was chosen; a found
+  target replaces the current one, none found leaves it. The player is
+  friendliness 2 (PS2 1a2fb0), so the arena bots (0) start hostile to the
+  player but not to each other; respawned bots take 3 (2748f0), hostile to
+  everyone. The facing bit comes from this scan seeing a target (12b580).
+  Port note: the stealth/hidden-player and mode 0xb clauses are left out.
+- Dropped-item cap (16d000/16d080): every 1.5 s, more than 2 drops starts
+  the oldest's 1 s fade, then it is removed. Port note: the fade is not
+  drawn (the drop draw has no alpha); one drop record per bot.
+
+Still open (PS2 behaviour traced or located, not ported):
+1. Step-away candidates: the bot's node pair from 138500 (node it is "at",
+   else the best edge pair, else nearest visible within 25) and their
+   neighbours; the port uses the nearest node. No fallback to the other
+   candidates when the best cannot be planned.
+2. Hit reaction's 1-in-4 `health` branch (class flag 0x20000 and 134100,
+   whose weapon-table byte read is unresolved) and attack-update step 3
+   (visible target, timer +0x180, rand < 0x1fffffff -> `health` route).
+3. Upper-body aim (spine/head toward the target).
+4. Player: character choice from the menu, the 12mm-only respawn loadout
+   (1a2e90/1a2f40 with the weapon record's +0x240 ammo, whose weapons.tbl
+   field is not identified), the "Press Fire to respawn" prompt
+   (strings.tbl 3).
+5. End screen in the PS2 layout (rank/total, winner art, continue fade).
+6. Other PS2 weapons.tbl fields (fire wait, clip, spread, ranges) still come
+   from the PC table; only damage is taken from the PS2 table so far.

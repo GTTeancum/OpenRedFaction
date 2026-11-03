@@ -821,6 +821,36 @@ static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_dev_room_enabl
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
     (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
     (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled) || scene_extra_pickups_available(slot);}
+const char *rf_scene_ps2_damage_text;
+/* PS2 1ce890 multiplayer damage: the second `$Damage:` / `$Alt Damage:` value
+ * of the PS2 weapons.tbl (ps2_damage.txt), else the PC `$Damage Multi:`. */
+/* Plain decimal field ending at a tab or line end (NXDK sscanf/strtof are
+ * not usable here). */
+static const char *scene_mp_decimal(const char *p,float *value)
+{
+    float v=0,scale=0;int sign=1,digits=0;
+    if(*p=='-'){sign=-1;++p;}
+    for(;(*p>='0' && *p<='9') || *p=='.';++p){
+        if(*p=='.'){if(scale)return NULL;scale=1;continue;}
+        v=v*10+(float)(*p-'0');if(scale)scale*=10;++digits;
+    }
+    if(!digits)return NULL;
+    *value=sign*(scale?v/scale:v);return p;
+}
+static void scene_mp_weapon_damage(const char *name,rf_weapon_primary_definition *d)
+{
+    const char *line=rf_scene_ps2_damage_text;size_t n=strlen(name);
+    while(line && *line){
+        const char *end=strchr(line,'\n');
+        if(!strncmp(line,name,n) && line[n]=='\t'){
+            const char *p=line+n;float v[4];uint32_t k;
+            for(k=0;k<4 && p && *p=='\t';k++)p=scene_mp_decimal(p+1,v+k);
+            if(k==4 && p){d->damage=v[1];d->alt_damage=v[3];return;}
+        }
+        line=end?end+1:NULL;
+    }
+    d->damage=d->damage_multi;
+}
 static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield","shoulder_cannon","Machine Pistol","heavy_machine_gun","scope_assault_rifle","Undercover 12mm handgun","Machine Pistol Special"};
 #include "scene_npc_hit_location_types.inc"
 #include "scene_pickup_class_names.inc"
@@ -2625,9 +2655,17 @@ int rf_scene_draw_player_flash(rf_scene_particle_sink sink,void *context)
     }
     return RF_OK;
 }
+uint32_t rf_scene_mp_fade_alpha(void);
 int rf_scene_draw_player_blackout(rf_scene_particle_sink sink,void *context)
 {
     rf_particle_draw_vertex vertices[4];int32_t remaining;uint32_t i;int status;
+    {uint32_t alpha=rf_scene_mp_fade_alpha(); /* PS2 1ddd90 multiplayer respawn fade */
+     if(alpha && sink){
+        memset(vertices,0,sizeof(vertices));
+        for(i=0;i<4;++i){vertices[i].screen[0]=(i==1 || i==2)?640.0f:0.0f;vertices[i].screen[1]=i>=2?480.0f:0.0f;
+            vertices[i].reciprocal_w=1.0f;vertices[i].argb=(alpha<<24)|0xffffffu;}
+        status=sink(context,vertices,4,NULL,0x18000);if(status)return status;
+     }}
     if(campaign_endgame.credits)return RF_OK;
     if(!particle_draw_stream || !campaign_spawn || campaign_blackout_deadline<0)return RF_OK;
     status=rf_timer_remaining(campaign_blackout_deadline,campaign_blackout_now,&remaining);
@@ -5116,6 +5154,11 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)for(uint32_t extra=13;extra<18 && !status;extra++)status=rf_weapon_primary_load(&tables,campaign_weapon_names[extra],128*1024,campaign_primary+extra);
     if(!status && rf_scene_dev_room_enabled)status=scene_flame_visual_open(&tables);
     if(!status && rf_scene_dev_room_enabled)status=scene_rocket_definitions_open(&tables);
+    /* PS2 1ce890: multiplayer uses each weapon's second $Damage value. */
+    if(!status && rf_scene_mp_bots){
+        scene_mp_weapon_damage(campaign_weapon_names[0],&campaign_pistol);
+        for(uint32_t k=0;k<SCENE_WEAPON_SLOTS;k++)scene_mp_weapon_damage(campaign_weapon_names[k],campaign_primary+k);
+    }
     if(!status) {
         pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60.0f);
         pistol_fire_ticks=(uint32_t)ceilf(campaign_pistol.fire_seconds*60.0f);
@@ -11961,7 +12004,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
         for(i=0;i<campaign_npc_body_count;i++)campaign_pursuit_stop(campaign_npc_bodies+i);
         memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
     }
-    if(scene_mp_respawn_pressed(input))pressed=1;
+    if(rf_scene_mp[0])pressed=scene_mp_respawn_pressed(input,frame-rf_scene_player_life[3]>60);
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
     if((!pressed && !restart) || frame-rf_scene_player_life[3]<60)return RF_OK;
     if(rf_scene_follow_level_exits){
@@ -12039,14 +12082,14 @@ static void campaign_enemy_reaction(campaign_npc_body *owner,uint32_t s)
        (owner->view.flags_810&1) || owner->view.weapons[0]<0)return;
     /* Authored Attack orders retain priority. Mode2 is reactive targeting. */
     if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
-    if(scene_mp_keep_target(owner,s))return;
+    if(scene_mp_hit(owner,s))return;
     if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
        (!owner->combat_scripted && s==campaign_player_object.handle && owner->combat_target==s)))return;
     scene_pursuit_token_invalidate_owner(owner); /* accepted reactive target change */
     if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
     scene_ai_drone_smash_cancel_source(owner->registration.handle);
     owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
-    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;scene_blind_sync(owner,rf_scene_profile_stage[0]);
+    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=scene_mp_first_shot(combat_frame==UINT32_MAX?0:combat_frame);scene_blind_sync(owner,rf_scene_profile_stage[0]);
     ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=owner->registration.handle;rf_scene_enemy_retaliation[2]=s;
 }
 static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
@@ -12988,6 +13031,13 @@ uint32_t rf_scene_enemy_aim[4]; /* stationary turns, shots held for aim, last ac
 static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float delta[3])
 {
     float x=owner->look.orientation[6],z=owner->look.orientation[8];
+    /* PS2 12a960 (12ac60): in multiplayer a bot fires only when the unit
+     * direction to its target is within dot 0.9 of its full eye facing. */
+    if(rf_scene_mp[0]){
+        float dot=0,len=0;uint32_t k;
+        for(k=0;k<3;k++){dot+=owner->look.orientation[6+k]*delta[k];len+=delta[k]*delta[k];}
+        return len>.0001f && dot>=.9f*sqrtf(len);
+    }
     float forward=x*delta[0]+z*delta[2],length=x*x+z*z,distance=delta[0]*delta[0]+delta[2]*delta[2];
     /* Practical30-degree horizontal firing cone; pitch/upper-body aim remains open. */
     return length>0 && distance>.0001f && forward>0 && forward*forward>=.75f*length*distance;
@@ -13000,7 +13050,11 @@ static rf_random_state campaign_enemy_spread_random;
  * multiplies it by primary damage. Target modifiers remain downstream. */
 static float combat_enemy_primary_damage(const rf_weapon_primary_definition *definition)
 {
-    return definition?definition->damage*definition->ai_damage_scale[0]:10;
+    /* PS2 1888d0: in multiplayer, damage from a non-human attacker is also
+     * scaled by 28e980[skill] = 0.5, 0.6, 0.8, 1.0. */
+    static const float skill_scale[4]={.5f,.6f,.8f,1.0f};
+    float scale=rf_scene_mp[0]?skill_scale[rf_scene_session_get_difficulty()&3]:1.0f;
+    return definition?definition->damage*definition->ai_damage_scale[0]*scale:10;
 }
 /* Original4892c0 selects593dd4[593e54] for an ordinary SP player
  * before class factors/armor. This bounded caller join covers the current
@@ -13012,6 +13066,7 @@ static int combat_enemy_player_difficulty(scene_stream *stream,uint32_t target,
 {
     if(!request || !multiplier)return RF_RANGE;
     *multiplier=1;
+    if(rf_scene_mp[0])return RF_OK; /* PS2 1888d0: the 28e970 scale is single player only. */
     if(!campaign_spawn || !stream || (request->force&255u) || request->kind==9 ||
        target!=campaign_player_object.handle || campaign_player_object.object_kind!=0 ||
        campaign_player_object.view!=&campaign_player_view || campaign_player_view.type!=0 ||
@@ -13615,6 +13670,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(campaign_npc_ai_suppressed(owner))continue; /*408ac0 ordinary selection only. */
             /* Practical first pass: stagger sight checks, 20-unit range and 120-degree cone.
              * Authored affiliation 0 is unfriendly; neutral/friendly actors need provocation. */
+            if(rf_scene_mp[0])continue; /* PS2 129410 instead (scene_mp_targets_tick). */
             if(!scene_mp_scan_due(frame,i,campaign_enemy_sight_phase_offset))continue;
             ++rf_scene_enemy_awareness[0];
             if(owner->damage.effects.affiliation!=0){++rf_scene_enemy_awareness[5];continue;}
@@ -18093,7 +18149,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_mp_bot_pickups(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    status=scene_mp_bot_pickups(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
@@ -20809,6 +20865,7 @@ static int campaign_script_locomotion(uint32_t index,uint32_t moving)
     /* Ordinary unarmed stand/walk states from the retained authored mapping.
      * Weapon/stance/AI overrides and speed matching remain separate work. */
     int32_t desired=moving?2:0;
+    desired=scene_mp_locomotion_state(owner,moving,desired); /* PS2 149cd0/149830 for bots. */
     /* Do not cancel a pending crouch blend on intervening scheduler slots.
      * Its selected ordinary fallback is also owned by the bounded consumer. */
     if((owner->crouch.flags&SCENE_CROUCH_PRESENT)&&owner->unholster.stance_7bc==1&&

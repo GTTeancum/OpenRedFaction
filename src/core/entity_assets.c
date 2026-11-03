@@ -742,7 +742,7 @@ int rf_weapon_fp_state_load(rf_vpp *tables,const char *name,uint32_t budget,rf_w
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
-    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0,explosive=0,continuous=0,melee=0;int selected=0,found=0,q,status;
+    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0,explosive=0,continuous=0,melee=0,multi=0;int selected=0,found=0,q,status;
     if(!text || !name || !*name || !result)return RF_RANGE;
     v.burst_count=1;v.projectiles=1;v.ai_damage_scale[0]=v.ai_damage_scale[1]=1;
     while((status=token(&l,t,&q))==RF_OK) {
@@ -884,6 +884,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
             static const char *names[]={"bash","bullet","armor piercing bullet","explosive","fire","energy","electrical","acid","scalding"};
             uint32_t k;
             if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Multi:")){if(sphere_number(&l,&v.damage_multi))return RF_FORMAT;multi=1;continue;}
             if(!same(t,"Type:"))continue;
             bit=32;if(mask&bit)return RF_FORMAT;
             if(token(&l,t,&q) || !q)return RF_FORMAT;
@@ -907,6 +908,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     if(!burst_enabled || burst_alt){v.burst_count=1;v.burst_seconds=0;}
     if(!(mask&1024))v.alt_fire_seconds=v.fire_seconds;
     if(!(mask&2048))v.alt_damage=v.damage;
+    if(!multi)v.damage_multi=v.damage;
     if(!(mask&262144))v.alt_spread_degrees=v.spread_degrees;
     if(v.reload_drain_seconds>v.reload_seconds)return RF_RANGE;
     *result=v;return RF_OK;

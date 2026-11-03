@@ -41,6 +41,7 @@ typedef struct rf_weapon_primary_definition {
     float ai_attack_range; /* SP value; zero when absent, caller retains fallback. */
     float ai_damage_scale[2]; /* Authored pair, default1; normal setup uses[0], alternate uses[1]. */
     uint32_t piercing_enabled;float piercing_power; /* Optional authored bool/power; zero when disabled. */
+    float damage_multi; /* $Damage Multi: (PS2 weapon +0xf4, used in multiplayer); damage when absent. */
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);

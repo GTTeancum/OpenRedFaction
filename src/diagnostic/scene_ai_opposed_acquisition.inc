@@ -120,6 +120,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,
         campaign_shotgun_id,campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
     if(!stream||!player_eye||slot>=campaign_npc_body_count)return RF_RANGE;
+    if(rf_scene_mp[0])return RF_OK; /* Multiplayer bots choose targets by PS2 129410 (scene_mp_targets_tick). */
     owner=campaign_npc_bodies+slot;
     if(campaign_npc_ai_suppressed(owner)||owner->combat_alert||owner->combat_scripted||owner->script_once.count||
        owner->script_shoot.active||!campaign_enemy_opposed_live(owner)||

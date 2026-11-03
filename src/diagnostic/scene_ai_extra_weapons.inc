@@ -22,6 +22,7 @@ static int campaign_enemy_extra_weapons_open(rf_vpp *tables,const rf_weapon_supp
         ammo=supply->definitions+ids[i];
         if(ammo->ammo_type<0 || ammo->ammo_type>=32 || ammo->magazine<=0 || ammo->capacity<0)return RF_FORMAT;
         status=rf_weapon_primary_load(tables,scene_ai_extra_weapon_names[i],128*1024,primary+i);if(status)return status;
+        if(rf_scene_mp_bots)scene_mp_weapon_damage(scene_ai_extra_weapon_names[i],primary+i); /* PS2 1ce890 */
         if(primary[i].magazine!=(uint32_t)ammo->magazine || primary[i].projectiles!=1 ||
            primary[i].damage_kind<0 || primary[i].damage_kind>8)return RF_FORMAT;
     }
