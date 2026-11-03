@@ -572,9 +572,19 @@ Still open (PS2 behaviour traced or located, not ported):
    second, each clamped to -0.785..0.45 rad, and applied as a bone override
    (basis rotated about the bone's X axis by 1f86f0 -> 1fbba0, weight
    ramping 0..1 over 0.75 s, entry +0x1394/+0x13b8/+0x13bc), the same
-   override the port's rf_model_override_pose applies. Not ported: the
-   rotation sign convention of 1fbba0 is not established and the result
-   cannot yet be checked on screen.
+   override the port's rf_model_override_pose applies. Not ported.
+   Further trace: 1fbba0 only moves a point through a frame change
+   (v - pivot, by M, by 1f7530(0,0), by M transposed, + pivot); the angle's
+   direction is set before it (1f86f0). The two spine bones (+0x1028,
+   +0x102c) are the first two skeleton bones whose names contain "spine"
+   (25c708 substring, 15xxxx at all.c line 38300), ordered so +0x102c is
+   the child of +0x1028; +0x1030 is the bone named by 295f18. 14f210
+   (single player) also requires a target (+0x480), not moving faster than
+   0.1 with state 0xd, not in states 0xd/0xf, a weapon (+0x274), the
+   target at least 1.0 higher or lower, weapon not 2ac474, then 159aa0,
+   18a2a0, 156370 and 15a3b0 (humanoid). Port needs: a per-bone override
+   setter built from the previous frame's bone matrix, the spine lookup,
+   and an on-screen check of a bot aiming at a height difference.
 2. Player: character choice from the menu.
 
 Ported since:
