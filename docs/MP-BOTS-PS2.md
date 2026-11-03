@@ -478,7 +478,21 @@ Done (now from the PS2 code):
   rand < 0x1fffffff -> `health` route. Port note: 12fa00's not-seen clause
   (timer +0x188), its 3-unit allowance for one target flag, the 1.5 range
   factor and 12b310's zero reset for AI movement sub-state +0x204 are left
-  out (the port does not track that sub-state).
+  out (the port does not track that sub-state). Full 12fa00: false when
+  ai +0x3f4 is 2, 154410 (entity +0x12b0 vehicle flag 8, or +0x734 0x100),
+  134310 (timer +0x1c4 set and not expired) or 15a0d0 (+0x734 0x400);
+  false without a target (+0x210); distance eye-to-target, flat (target Y
+  = own) when the AI mode +0x77c is 162fc0(1) and +0x204 is 3; minus 3
+  when the target's class flag +0x714 0x400 is set (15a1e0); range from
+  132b10, x1.5 when +0x204 is 2; out of range -> 1; in range -> 1 only
+  when the sight flags +0x1ec and +0x1ed are both clear and timer +0x188
+  has expired (the not-seen clause). Mapping +0x1ec/+0x1ed/+0x188/+0x204
+  onto the port's bot sight state is not done.
+- Announcer at match end: checked on XEMU (dm02, 60 s limit): the time
+  lines start at 60/30/10 s, then the match-over line 4 starts and is seen
+  playing on the device, then the winner line 5 (rf_scene_mp_line_trace).
+- Dropped-item fade drawing: deferred; the drops are submitted into the
+  opaque world mesh, which has no per-object alpha (renderer work).
 - Multiplayer weapon values (1c6e10, run at match start): every weapon
   takes the second value of $Max Ammo (+0x240), $AI Attack Range (+0x4f4),
   $Clip Size (+0x80), $Spread Degrees, $Alt Spread Degrees, $AI Spread

@@ -687,12 +687,18 @@ static const char *const scene_mp_lines[11]={"mp_ann_01.wav","mp_ann_02.wav","mp
     "mp_ann_05.wav","mp_ann_07.wav","mp_ann_08.wav","mp_ann_09.wav","mp_ann_10.wav","mp_ann_11.wav","mp_ann_allyourbase.wav"};
 static int32_t scene_mp_line_voice[11];static uint8_t scene_mp_line_played[11];
 static int32_t scene_mp_winner_line; /* 2ac564: line queued after line 4; -1 none */
+/* Harness: announcer lines started, failed starts, bit mask of lines that
+ * started, bit mask of lines seen still playing on the device. */
+uint32_t rf_scene_mp_line_trace[4];
 static uint32_t scene_mp_line_playing(uint32_t n)
 {
     uint32_t source;
     if(scene_mp_line_voice[n]<0 || rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,scene_mp_line_voice[n],&source))return 0;
     /* The device clock decides on the Xbox (its mixer copy is not drained). */
-    if(campaign_audio_events.playing)return campaign_audio_events.playing(campaign_audio_events_context,source);
+    if(campaign_audio_events.playing){
+        uint32_t on=campaign_audio_events.playing(campaign_audio_events_context,source)!=0;
+        if(on)rf_scene_mp_line_trace[3]|=1u<<n;return on;
+    }
     return campaign_audio_mixer.voices[source&0xffff].active;
 }
 static void scene_mp_line_stop(uint32_t n)
@@ -712,7 +718,8 @@ static void scene_mp_line_start(uint32_t n)
         if(index<sizeof(campaign_audio_evictable))campaign_audio_evictable[index]=1;
     }
     scene_mp_line_voice[n]=campaign_sound_start((int32_t)index,scene_actor_body.state.position,1,0,0,0);
-    if(scene_mp_line_voice[n]>=0)++rf_scene_mp_routes[4];
+    if(scene_mp_line_voice[n]>=0){++rf_scene_mp_routes[4];++rf_scene_mp_line_trace[0];rf_scene_mp_line_trace[2]|=1u<<n;}
+    else ++rf_scene_mp_line_trace[1];
 }
 /* 1dbb60(line, stop others, wait for others): stop every line first, or with
  * wait leave the line unplayed (so it is retried) while another still plays. */
@@ -787,7 +794,7 @@ static int scene_mp_tick(uint32_t frame)
         for(i=0;i<8;i++)scene_mp_weapon_ids[i]=rf_weapon_name_find(&campaign_weapon_supply.names,scene_mp_weapon_names[i]);
         memset(scene_mp_routing,0,sizeof(scene_mp_routing));memset(scene_mp_had_target,0,sizeof(scene_mp_had_target));
         memset(rf_scene_mp_routes,0,sizeof(rf_scene_mp_routes));scene_mp_announced=0;
-        memset(scene_mp_line_played,0,sizeof(scene_mp_line_played));scene_mp_winner_line=-1;scene_mp_fade_phase=0;
+        memset(scene_mp_line_played,0,sizeof(scene_mp_line_played));scene_mp_winner_line=-1;memset(rf_scene_mp_line_trace,0,sizeof(rf_scene_mp_line_trace));scene_mp_fade_phase=0;
         for(i=0;i<11;i++)scene_mp_line_voice[i]=-1;
         memset(scene_mp_step_pending,0,sizeof(scene_mp_step_pending));memset(scene_mp_range_due,0,sizeof(scene_mp_range_due));memset(scene_mp_face_target,0,sizeof(scene_mp_face_target));memset(rf_scene_mp_hits,0,sizeof(rf_scene_mp_hits));
         return RF_OK;
