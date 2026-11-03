@@ -491,6 +491,7 @@ void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_li
 {player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
 static int campaign_life_input(uint32_t frame,rf_scene_input *input);
 static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input);
+static void scene_crash_bot_input(uint32_t frame,rf_scene_input *input);
 static void scene_crash_scenario_input(uint32_t frame,rf_scene_input *input);
 static uint32_t scene_turret_player_active(void);
 static uint32_t scene_turret_player_controls(uint32_t host);
@@ -525,6 +526,7 @@ static int player_begin_frame(void *context,uint32_t frame)
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
     status=player_poll(player_context,frame,&value);if(status){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(status);rf_scene_begin_frame_failure[2]=frame;return status;}
     scene_crash_scenario_input(frame,&value);
+    scene_crash_bot_input(frame,&value);
     scene_crash_aim_input(frame,&value);
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_FORMAT);rf_scene_begin_frame_failure[2]=frame;return RF_FORMAT;}
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1){rf_scene_begin_frame_failure[0]=__LINE__;rf_scene_begin_frame_failure[1]=(uint32_t)(RF_FORMAT);rf_scene_begin_frame_failure[2]=frame;return RF_FORMAT;}
@@ -12248,6 +12250,7 @@ uint32_t rf_scene_crash_aim_range; /* distance to the chosen character, cm */
 uint32_t rf_scene_crash_visibility[4]; /* world rays,blocked candidates,query errors,last status */
 static int combat_obstructed(scene_stream *,const float *,const float *,uint32_t *);
 #include "scene_crash_scenario.inc"
+#include "scene_crash_bot.inc"
 static void scene_crash_aim_input(uint32_t frame,rf_scene_input *input)
 {
     static uint32_t priority_cycled;

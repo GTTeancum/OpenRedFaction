@@ -54,6 +54,7 @@ static struct {float position[3];uint8_t flags[3];} scene_mp_spawn[SCENE_MP_SPAW
 static uint32_t scene_mp_spawn_count,scene_mp_random=1,scene_mp_player_dead;
 static float scene_mp_clock;
 uint32_t rf_scene_mp_aim_trace[8]; /* see scene_mp_aim_tick */
+static uint32_t scene_mp_aim_seen;
 static float scene_mp_aim_clock[SCENE_MP_BOTS];static uint8_t scene_mp_aim_on[SCENE_MP_BOTS],scene_mp_aim_active[SCENE_MP_BOTS]; /* upper-body aim (scene_mp_aim_tick) */
 uint32_t rf_scene_mp_player_stats[3];float rf_scene_mp_elapsed;static uint32_t scene_mp_player_streak; /* MP STATS (see scene_mp_round_count) */
 /* Respawn fade (1ddd90): 0 none, 1 to white, 2 back; seconds in phase. */
@@ -514,8 +515,12 @@ static void scene_mp_aim_tick(uint32_t slot)
      if(weight>=1.0f){++rf_scene_mp_aim_trace[6];if((uint32_t)(milli<0?-milli:milli)>rf_scene_mp_aim_trace[7])rf_scene_mp_aim_trace[7]=(uint32_t)(milli<0?-milli:milli);}
      if(weight>=1.0f && fabsf(pitch)>=.1f){
         uint32_t uid=(uint32_t)campaign_seeds.records.items[slot].record.uid;
-        if(!rf_scene_mp_aim[0] || (milli<0?-milli:milli)>((int32_t)rf_scene_mp_aim[2]<0?-(int32_t)rf_scene_mp_aim[2]:(int32_t)rf_scene_mp_aim[2])){
-            rf_scene_mp_aim[1]=uid;rf_scene_mp_aim[2]=(uint32_t)milli;rf_scene_mp_aim[3]=uid==rf_scene_crash_aim_trace[1] || npc->combat_target==campaign_player_object.handle;
+        /* On screen: the crash input's target (sight-tested). */
+        const float *f=actor_look.eye_orientation+6;float v[3],len=0,dot=0;uint32_t seen;
+        for(k=0;k<3;k++){v[k]=npc->body.state.position[k]-scene_actor_body.state.position[k];len+=v[k]*v[k];dot+=v[k]*f[k];}
+        seen=uid==rf_scene_crash_aim_trace[1];(void)dot;(void)len; /* the aim helper's target passed its sight ray */
+        if(seen && (!rf_scene_mp_aim[3] || (milli<0?-milli:milli)>((int32_t)rf_scene_mp_aim[2]<0?-(int32_t)rf_scene_mp_aim[2]:(int32_t)rf_scene_mp_aim[2]))){
+            rf_scene_mp_aim[1]=uid;rf_scene_mp_aim[2]=(uint32_t)milli;rf_scene_mp_aim[3]=1;scene_mp_aim_seen=scene_mp_boot_updates;
         }
         ++rf_scene_mp_aim[0];
      }}
@@ -764,7 +769,8 @@ static int scene_mp_tick(uint32_t frame)
     uint32_t i,count;int status;
     ++scene_mp_boot_updates;
     if(!rf_scene_mp[0])return RF_OK;
-    memset(rf_scene_mp_aim,0,sizeof(rf_scene_mp_aim));
+    /* Held 30 updates so the 1 Hz harness sample can see it. */
+    if(scene_mp_boot_updates-scene_mp_aim_seen>30)memset(rf_scene_mp_aim,0,sizeof(rf_scene_mp_aim));
     rf_scene_mp_elapsed+=scene_step_seconds; /* 160f40: 80d80c += frame time */
     count=campaign_npc_body_count<SCENE_MP_BOTS?campaign_npc_body_count:SCENE_MP_BOTS;
     if(!frame){

@@ -163,6 +163,7 @@ def main():
     parser.add_argument('--shot-delay', type=float, default=0, help='seconds to wait after a capture triggers')
     parser.add_argument('--shot-on-dead', action='store_true', help='capture while the player is dead (after --shot-after)')
     parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
+    parser.add_argument('--bot-pilot', action='store_true', help='multiplayer: drive the player like a bot (waypoint routes, fights through --aim)')
     parser.add_argument('--shot-on-lean', action='store_true', help='multiplayer: capture when the aimed-at bot leans its upper body (after --shot-after)')
     parser.add_argument('--shot-on-actor', action='store_true',
                         help='with --screenshots: capture once the aim input lines up on a visible character (needs --aim)')
@@ -283,7 +284,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -507,6 +508,8 @@ def main():
             (disc / 'crash-loadout.bin').write_bytes(struct.pack('<I',args.loadout))
         if args.aim:
             (disc / 'crash-aim.flag').write_bytes(b'')
+        if args.bot_pilot:
+            (disc / 'crash-bot.flag').write_bytes(b'')
         if args.aim_actor is not None:
             (disc / 'crash-aim-actor.bin').write_bytes(struct.pack('<I',args.aim_actor))
         if args.aim_point:
@@ -643,6 +646,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_hits']=6
           counts['rf_scene_mp_aim']=4
           counts['rf_scene_mp_aim_trace']=8
+          counts['rf_scene_crash_bot_trace']=6
           counts['rf_scene_mp_targets']=4
           counts['rf_scene_mp_drops']=3
           counts['rf_scene_player_life']=8
