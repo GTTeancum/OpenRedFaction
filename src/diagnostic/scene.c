@@ -14232,6 +14232,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
     }
     return RF_OK;
 }
+#include "scene_mp_pickups.inc"
 uint32_t rf_scene_terrain_edit_times[8][5]; /* frame,cut,bind,debris prepare,spawn; ms, latest8 attempts */
 static void scene_terrain_edit_mark(uint32_t row,uint32_t column,uint32_t *previous)
 {
@@ -18092,6 +18093,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    status=scene_mp_bot_pickups(stream);if(status)return scene_player_failure_return(status,__LINE__,frame);
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {

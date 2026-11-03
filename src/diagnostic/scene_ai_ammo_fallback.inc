@@ -19,20 +19,13 @@ static int32_t campaign_enemy_fallback_pick(const rf_weapon_inventory *inventory
     }
     return -1;
 }
-static int campaign_enemy_ammo_fallback(uint32_t slot,uint32_t *changed)
+/* Port weapon change for a live NPC: motion set, retained effects reset,
+ * fresh fire timing. Shared by the ammo fallback and multiplayer pickups. */
+static int campaign_enemy_weapon_switch(uint32_t slot,int32_t replacement)
 {
-    const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
-        campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
-    campaign_npc_body *owner;rf_entity_motion_selection selection;int32_t replacement;int status;
-    if(!changed || slot>=campaign_npc_body_count || !campaign_npc_bodies)return RF_RANGE;
-    *changed=0;owner=campaign_npc_bodies+slot;
-    replacement=campaign_enemy_fallback_pick(&owner->inventory,campaign_weapon_supply.definitions,
-        campaign_weapon_supply.names.count,ids,owner->view.weapons[0],owner->combat_scripted);
-    if(replacement<0 || replacement==campaign_riot_id){
-        int32_t extra=campaign_enemy_extra_fallback_pick(&owner->inventory,&campaign_weapon_supply,owner->view.weapons[0],owner->combat_scripted);
-        if(extra>=0)replacement=extra;
-    }
-    if(replacement<0)return RF_OK;
+    campaign_npc_body *owner;rf_entity_motion_selection selection;int status;
+    if(slot>=campaign_npc_body_count || !campaign_npc_bodies)return RF_RANGE;
+    owner=campaign_npc_bodies+slot;
     if(!campaign_seeds.items || slot>=campaign_seeds.records.count)return RF_NOT_FOUND;
     selection=owner->selection;
     status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,
@@ -47,6 +40,23 @@ static int campaign_enemy_ammo_fallback(uint32_t slot,uint32_t *changed)
     owner->selection=selection;owner->view.weapons[0]=replacement;
     owner->combat_burst_remaining=owner->combat_due=owner->combat_reload_due=0;
     owner->combat_reload_weapon=-1;owner->combat_reload_pending=0;owner->combat_navigation_due=0;
+    return RF_OK;
+}
+static int campaign_enemy_ammo_fallback(uint32_t slot,uint32_t *changed)
+{
+    const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
+        campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
+    campaign_npc_body *owner;int32_t replacement;int status;
+    if(!changed || slot>=campaign_npc_body_count || !campaign_npc_bodies)return RF_RANGE;
+    *changed=0;owner=campaign_npc_bodies+slot;
+    replacement=campaign_enemy_fallback_pick(&owner->inventory,campaign_weapon_supply.definitions,
+        campaign_weapon_supply.names.count,ids,owner->view.weapons[0],owner->combat_scripted);
+    if(replacement<0 || replacement==campaign_riot_id){
+        int32_t extra=campaign_enemy_extra_fallback_pick(&owner->inventory,&campaign_weapon_supply,owner->view.weapons[0],owner->combat_scripted);
+        if(extra>=0)replacement=extra;
+    }
+    if(replacement<0)return RF_OK;
+    status=campaign_enemy_weapon_switch(slot,replacement);if(status)return status;
     *changed=1;return RF_OK;
 }
 #endif

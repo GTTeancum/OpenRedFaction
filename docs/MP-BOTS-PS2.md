@@ -350,8 +350,15 @@ Differs from the PS2 or missing:
    38 and 2 with them on before route fighting). Still missing: steps 2 and
    3 (the 1-in-64 move away from the target, the 1-in-4 `health` reaction)
    and the hit reaction's `health` route; the melee-range stop.
-4. Items: port bots do not pick items up; items do not respawn or spin;
-   dropped-item cap not applied.
+4. Items: bots pick up health, armour, weapons and ammo (scene_mp_pickups.inc:
+   16dfb0/16de80 class-maximum rule, 16d970 inventory add, then the forced
+   12a700 preferred-weapon choice; 16cb00 back to fighting above 95%). dm01,
+   4 bots, 150 s: 2 health, 5 armour and 18 weapon/ammo pickups, 1 weapon
+   switch; 527 bot shots and 34 bot kills (434 and 25 before). Port touch
+   test is the player's 2-unit radius; remote charges and the riot shield are
+   left to the player; the unforced 1-in-8 weapon choice inside 12a960 and
+   pickup sounds are not ported. Items do not respawn or spin; dropped-item
+   cap not applied.
 5. Damage: bot damage is not scaled by skill; multiplayer weapon damage
    values are not used.
 6. Player: no character choice (always the single-player Parker), the run
