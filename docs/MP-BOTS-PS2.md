@@ -507,6 +507,21 @@ Done (now from the PS2 code):
   port matches). Piercing rounds count a hit per body struck (1ca3c0 per
   impact): added on the player's handheld penetration path and the bots'
   actor penetration path.
+- Unforced weapon choice: 12a960 (each fire attempt) calls 12a700(ai, 0),
+  which reruns the preferred-weapon choice when rand & 7 == 0. Ported at
+  the bots' fire step (scene.c, before the facing test).
+- Grenade too close: 12ae50 (run by the route step 1373c0) switches a bot
+  holding grenades (2ac470) whose target is under 4 to its class default
+  primary (154860; miner1 "12mm handgun") and returns 1, ending the route.
+  Ported (scene_mp_route_tick); 12ae50's earlier gates are not mapped. The
+  class melee switch at its top (class +0x90) does not apply to miner1 (no
+  melee weapon in entity.tbl).
+- "Not moving" (149cd0, velocity +0x634 exactly zero): the port moves bots
+  by position, so "did not move since the last update" is the same test.
+- Respawn sound 0x40: the PS2 sounds.tbl's respawn.wav (SND_RESPAWN); the
+  PC table has Flag_Pickup.wav there. The disc's respawn.vse (SPU ADPCM)
+  is decoded into ps2menu.vpp and played from it. Sound 1 matches.
+- Frame time: the clock keeps up to 0.25 s of debt (1fd9e0) in 2/60 steps.
 - Multiplayer weapon values (1c6e10, run at match start): every weapon
   takes the second value of $Max Ammo (+0x240), $AI Attack Range (+0x4f4),
   $Clip Size (+0x80), $Spread Degrees, $Alt Spread Degrees, $AI Spread

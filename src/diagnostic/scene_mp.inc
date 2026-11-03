@@ -60,6 +60,7 @@ char rf_scene_mp_player_class[32],rf_scene_mp_player_skin[32];
  * human in the port). */
 static uint32_t scene_mp_player_class_flags;
 extern float rf_scene_gameplay_eye[3];static int combat_obstructed(scene_stream *,const float *,const float *,uint32_t *);
+static int campaign_enemy_weapon_switch(uint32_t slot,int32_t replacement); /* scene_ai_ammo_fallback.inc */
 /* Bot sight of its target (12b310, every 200-400 ms, timer +0x1e4): +0x1ec
  * the target's body, +0x1ed its eye; timer +0x188 runs 2-5 s once both
  * are lost (12ffd0). Times in ms of the patrol clock; 0 is unset. */
@@ -633,6 +634,21 @@ static uint32_t scene_mp_hit(campaign_npc_body *npc,uint32_t source)
 static int scene_mp_route_tick(uint32_t slot)
 {
     campaign_npc_body *npc=campaign_npc_bodies+slot;uint32_t target=npc->combat_alert!=0;int status=RF_NOT_FOUND;int32_t rank;
+    /* 12ae50 (fire, also run on a route by 1373c0): a bot holding grenades
+     * (2ac470) with its target under 4 (squared 16) switches to its class
+     * default primary (154860; miner1 "12mm handgun") and returns 1, which
+     * ends the route. Port note: 12ae50's earlier gates (2ab78c, 1342d0,
+     * 157fa0, 154410, 134370, timer +0x3f8, +0x1ee) are not mapped. */
+    if(npc->combat_alert && npc->view.weapons[0]>=0 && npc->view.weapons[0]==campaign_grenade_id && campaign_pistol_id>=0){
+        const float *tp;float d=0;uint32_t k;
+        {uint8_t was=scene_mp_routing[slot];scene_mp_routing[slot]=1;scene_mp_step_query=1;
+         tp=scene_mp_route_aim(npc);scene_mp_step_query=0;scene_mp_routing[slot]=was;}
+        if(tp){for(k=0;k<3;k++)d+=(tp[k]-npc->body.state.position[k])*(tp[k]-npc->body.state.position[k]);}
+        if(tp && d<16.0f && !campaign_enemy_weapon_switch(slot,campaign_pistol_id)){
+            if(scene_mp_routing[slot]==1){npc->script_move.active=0;npc->navigation.retained.count=0;}
+            scene_mp_routing[slot]=0;return RF_OK;
+        }
+    }
     if(scene_mp_routing[slot]){
         uint32_t walking;
         /* 137aa0 in multiplayer: each node reached flips the facing bit 1 in 2. */

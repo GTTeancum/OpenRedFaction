@@ -45,9 +45,6 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | 4 | Upper-body lean: six unmapped switch-off conditions |
 | 5 | Target choice: hidden/stealth player and AI mode 0xb clauses |
 | 6 | Step-away: second route node and fallback candidates |
-| 7 | Weapon choice: unforced 1-in-8 switch while fighting (12a960) |
-| 8 | Route fighting: stop in melee range (12ae50 returns 1) |
-| 9 | Movement: exact-zero speed test for "not moving" |
 | 10 | Doctor-uniform pickup handler |
 | 12 | AI alternate-fire spread field (no consumer: do PS2 bots alt-fire? untraced) |
 | 13 | Shared random-number sequence across systems |

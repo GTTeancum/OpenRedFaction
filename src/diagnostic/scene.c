@@ -13075,6 +13075,7 @@ static void campaign_combat_event(uint32_t frame,uint32_t type,uint32_t actor,fl
     row[0]=frame;row[1]=type;row[2]=actor;memcpy(row+3,&amount,4);memcpy(row+4,&health,4);
 }
 uint32_t rf_scene_enemy_aim[4]; /* stationary turns, shots held for aim, last actor handle, reserved */
+static int scene_mp_bot_choose_weapon(uint32_t slot); /* scene_mp_pickups.inc */
 static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float delta[3])
 {
     float x=owner->look.orientation[6],z=owner->look.orientation[8];
@@ -13879,6 +13880,12 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 ++rf_scene_pain_attack_gate[1];rf_scene_pain_attack_gate[2]=campaign_seeds.records.items[i].record.uid;
                 rf_scene_pain_attack_gate[3]=(uint32_t)owner->pain.animation_lock;rf_scene_pain_attack_gate[4]=(uint32_t)now;continue;
             }
+        }
+        /* PS2 12a960 -> 12a700(ai, 0): on each fire attempt a multiplayer bot
+         * reruns its preferred-weapon choice when rand & 7 == 0. */
+        if(!once && rf_scene_mp[0] && i<SCENE_MP_BOTS && rf_scene_mp_roster[i].used && !(scene_mp_next()&7)){
+            int32_t before=owner->view.weapons[0];status=scene_mp_bot_choose_weapon(i);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
+            if(owner->view.weapons[0]!=before)continue; /* the switch runs first */
         }
         if(!once && !campaign_enemy_aim_aligned(owner,delta)){++rf_scene_enemy_aim[1];continue;}
         if(!once)owner->combat_due=frame+6; /* Brief retry if no valid shot follows. */
