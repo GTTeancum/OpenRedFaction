@@ -470,17 +470,38 @@ Done (now from the PS2 code):
   (multiplayer 149830). Port note: "not moving" is the body not having
   moved in the last update (PS2: velocity +0x634 exactly zero).
 
+- Attack-update step 3 (12ffd0): target out of attack range (12fa00:
+  distance over 132b10 -> 12a520's range: the authored combat range
+  override, else the weapon's AI attack range +0x4f4, 0.5 without a
+  weapon) with timer +0x180 expired (12b310 sets it 500 ms ahead while the
+  target is in range; 1ffa60 treats an unset timer as not expired) and
+  rand < 0x1fffffff -> `health` route. Port note: 12fa00's not-seen clause
+  (timer +0x188), its 3-unit allowance for one target flag, the 1.5 range
+  factor and 12b310's zero reset for AI movement sub-state +0x204 are left
+  out (the port does not track that sub-state).
+- Multiplayer weapon values (1c6e10, run at match start): every weapon
+  takes the second value of $Max Ammo (+0x240), $AI Attack Range (+0x4f4),
+  $Clip Size (+0x80), $Spread Degrees, $Alt Spread Degrees, $AI Spread
+  Degrees, $AI Alt Spread Degrees and $AI Damage Scale (+0x108). They come
+  from the PS2 weapons.tbl in ps2_damage.txt and are applied to the port's
+  primary definitions and supply table (scene_mp_weapon_damage,
+  scene_mp_weapon_supply). Port note: AI alt spread has no port field.
+
 Still open (PS2 behaviour traced or located, not ported):
-1. (done above)
-2. Attack-update step 3 (12fa00 positioning check true, mode not 7, timer
-   +0x180 expired, rand < 0x1fffffff -> `health` route). An unset PS2
-   timer never counts as expired (1ffa60), so this needs the timer's
-   setters and 12fa00 traced.
-3. Upper-body aim (spine/head toward the target).
-4. Player: character choice from the menu, the 12mm-only respawn loadout
-   (1a2e90/1a2f40 with the weapon record's +0x240 ammo, whose weapons.tbl
-   field is not identified), the "Press Fire to respawn" prompt
-   (strings.tbl 3).
-5. End screen in the PS2 layout (rank/total, winner art, continue fade).
-6. Other PS2 weapons.tbl fields (fire wait, clip, spread, ranges) still come
-   from the PC table; only damage is taken from the PS2 table so far.
+1. Upper-body aim (151110 -> 150c30, traced): while 14f210 holds (target
+   present, at least 1.0 higher or lower, weapon not the riot shield, and
+   more), the eye facing (+0x71c) is taken into the entity frame (+0x48)
+   and each spine bone's frame (class +0x1028, +0x102c; 1fb210 rows dot);
+   the pitch atan2(y, z) is halved for the first bone, used whole for the
+   second, each clamped to -0.785..0.45 rad, and applied as a bone override
+   (basis rotated about the bone's X axis by 1f86f0 -> 1fbba0, weight
+   ramping 0..1 over 0.75 s, entry +0x1394/+0x13b8/+0x13bc), the same
+   override the port's rf_model_override_pose applies. Not ported: the
+   rotation sign convention of 1fbba0 is not established and the result
+   cannot yet be checked on screen.
+2. Player: character choice from the menu; the respawn loadout (1a2e90/
+   1a2f40 give the 12mm handgun with 8f4930, which reads as weapon record 1
+   +0x240, the remote charge detonator's max ammo in the PS2 table order,
+   so the field or index is not yet understood); the "Press Fire to
+   respawn" prompt (strings.tbl 3; draw site not found yet).
+3. End screen in the PS2 layout (rank/total, winner art, continue fade).

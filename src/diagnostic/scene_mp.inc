@@ -290,6 +290,8 @@ static uint8_t scene_mp_routing[SCENE_MP_BOTS],scene_mp_had_target[SCENE_MP_BOTS
 static uint8_t scene_mp_face_target[SCENE_MP_BOTS];
 static uint32_t scene_mp_last_node[SCENE_MP_BOTS];
 static float scene_mp_last_position[SCENE_MP_BOTS][3]; /* body position at the previous update */
+static uint32_t scene_mp_range_due[SCENE_MP_BOTS]; /* timer +0x180 (ms): set 0 at start, 500 ms ahead while in range */
+static float scene_mp_attack_range(uint32_t slot);
 /* Routes started: weapon, roam, target-lost roam, finished; announcements, last route status. */
 uint32_t rf_scene_mp_routes[6];
 /* Hit health routes, step-aways marked, attacker targeted, forced step-aways, chance step-aways, ammo routes. */
@@ -486,6 +488,28 @@ static int scene_mp_route_tick(uint32_t slot)
             if(status!=RF_NOT_FOUND && status!=RF_RANGE)return status;
             status=RF_NOT_FOUND;
         }
+        /* Step 3 (12ffd0): with the target out of attack range (12fa00:
+         * distance over 132b10's range) and
+         * timer +0x180 expired, rand < 0x1fffffff runs a `health` route
+         * (1339e0). 12b310 sets the timer 500 ms ahead while the target is in
+         * range. Port note: 12fa00's not-seen clause (timer +0x188), its
+         * 3-unit allowance for one target flag, the 1.5 range factor and
+         * 12b310's zero reset for AI movement sub-state +0x204 (2, 3; not
+         * tracked by the port) are left out. */
+        if(SCENE_MP_WEAPON_SEEK){
+            const float *tp;float d=0,range=scene_mp_attack_range(slot);uint32_t k,now=(uint32_t)scene_patrol_now(rf_scene_profile_stage[0]);
+            scene_mp_routing[slot]=1;scene_mp_step_query=1;tp=scene_mp_route_aim(npc);scene_mp_step_query=0;scene_mp_routing[slot]=0;
+            if(tp){
+                for(k=0;k<3;k++)d+=(tp[k]-npc->body.state.position[k])*(tp[k]-npc->body.state.position[k]);
+                if(sqrtf(d)<=range)scene_mp_range_due[slot]=now+500u;
+                else if((int32_t)(now-scene_mp_range_due[slot])>=0 && scene_mp_next()<0x1fffffffu){
+                    status=scene_mp_route(slot,"health");
+                    if(!status){++rf_scene_mp_hits[0];scene_mp_had_target[slot]=1;return RF_OK;}
+                    if(status!=RF_NOT_FOUND && status!=RF_RANGE)return status;
+                    status=RF_NOT_FOUND;
+                }
+            }
+        }
         /* Steps 5-7 (12f810 ammo, 12f750 weapon, 12f8e0 roam), each skipped
          * once a route runs (+0x484 0x800000). They rely on fighting on the
          * route (scene_mp_route keeps the target, scene_mp_route_aim). */
@@ -594,7 +618,7 @@ static int scene_mp_tick(uint32_t frame)
         memset(rf_scene_mp_routes,0,sizeof(rf_scene_mp_routes));scene_mp_announced=0;
         memset(scene_mp_line_played,0,sizeof(scene_mp_line_played));scene_mp_winner_line=-1;scene_mp_fade_phase=0;
         for(i=0;i<11;i++)scene_mp_line_voice[i]=-1;
-        memset(scene_mp_step_pending,0,sizeof(scene_mp_step_pending));memset(scene_mp_face_target,0,sizeof(scene_mp_face_target));memset(rf_scene_mp_hits,0,sizeof(rf_scene_mp_hits));
+        memset(scene_mp_step_pending,0,sizeof(scene_mp_step_pending));memset(scene_mp_range_due,0,sizeof(scene_mp_range_due));memset(scene_mp_face_target,0,sizeof(scene_mp_face_target));memset(rf_scene_mp_hits,0,sizeof(rf_scene_mp_hits));
         return RF_OK;
     }
     if(rf_scene_mp[6]){

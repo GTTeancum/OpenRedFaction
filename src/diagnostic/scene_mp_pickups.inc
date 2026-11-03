@@ -142,6 +142,25 @@ static void scene_mp_attacked(uint32_t slot,uint32_t source)
     for(i=0;i<scene_mp_attacker_count[slot];i++)if(scene_mp_attackers[slot][i]==source)return;
     if(scene_mp_attacker_count[slot]<8)scene_mp_attackers[slot][scene_mp_attacker_count[slot]++]=source;
 }
+/* PS2 132b10 -> 12a520: a bot's attack range is its authored combat range
+ * override (AI +0x47c/+0x480) when enabled, else its weapon's AI attack
+ * range (weapon record +0x4f4; 0.5 for no weapon). The secondary weapon
+ * (0.5 for none) does not raise it. */
+static float scene_mp_attack_range(uint32_t slot)
+{
+    const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
+        campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
+    campaign_npc_body *npc=campaign_npc_bodies+slot;campaign_enemy_weapon_selection weapon={0};
+    rf_level_entity_combat_range authored={0};int status;float range=.5f;
+    if(campaign_seeds.records.items && slot<campaign_seeds.records.count &&
+       !rf_level_entity_combat_range_read(campaign_seeds.records.items+slot,&authored) && authored.enabled)return authored.range;
+    if(npc->view.weapons[0]<=0)return .5f;
+    status=campaign_enemy_weapon_select(npc->view.weapons[0],ids,campaign_primary,
+        campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,&weapon);
+    if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(npc->view.weapons[0],&campaign_weapon_supply,&weapon);
+    if(!status && weapon.primary)range=weapon.primary->ai_attack_range;
+    return range>.5f?range:.5f;
+}
 /* A new body starts with no attackers. */
 static void scene_mp_respawned_slot(uint32_t slot){if(slot<SCENE_MP_BOTS)scene_mp_attacker_count[slot]=0;}
 static int scene_mp_choose_target(scene_stream *stream,uint32_t slot,uint32_t frame,const float player_eye[3])

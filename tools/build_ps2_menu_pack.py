@@ -268,6 +268,12 @@ def font_2x(data, ttf):
 
 
 def ps2_damage(text):
+    # PS2 1c6e10 switches every weapon to the second value of these pairs in
+    # multiplayer; 1ce890 picks the second $Damage / $Alt Damage there. One
+    # line per weapon, tab separated: name, damage, damage multi, alt, alt
+    # multi, then the multiplayer clip size, max ammo, AI attack range,
+    # spread, alt spread, AI spread, AI alt spread, AI damage scale
+    # ("-" when the weapon has no such line).
     import re
     lines = []
     for block in re.split(r'\$Name:', text.decode('latin1'))[1:]:
@@ -278,9 +284,15 @@ def ps2_damage(text):
             m = re.search(r'\n\s*\$' + key + r':[ \t]*([-0-9.]+)[ \t]+([-0-9.]+)', block)
             return (m.group(1), m.group(2)) if m else None
         damage, alt = pair('Damage'), pair('Alt Damage')
-        if damage:
-            alt = alt or damage
-            lines.append('%s\t%s\t%s\t%s\t%s\n' % (name.group(1), damage[0], damage[1], alt[0], alt[1]))
+        if not damage:
+            continue
+        alt = alt or damage
+        multi = []
+        for key in ('Clip Size', 'Max Ammo', 'AI Attack Range', 'Spread Degrees', 'Alt Spread Degrees',
+                    'AI Spread Degrees', 'AI Alt Spread Degrees', 'AI Damage Scale'):
+            v = pair(key)
+            multi.append(v[1] if v else '-')
+        lines.append('\t'.join([name.group(1), damage[0], damage[1], alt[0], alt[1]] + multi) + '\n')
     return ''.join(lines).encode('latin1')
 
 

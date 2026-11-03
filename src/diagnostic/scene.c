@@ -837,19 +837,58 @@ static const char *scene_mp_decimal(const char *p,float *value)
     if(!digits)return NULL;
     *value=sign*(scale?v/scale:v);return p;
 }
-static void scene_mp_weapon_damage(const char *name,rf_weapon_primary_definition *d)
+/* One ps2_damage.txt line for a weapon: 12 fields after the name (damage,
+ * damage multi, alt, alt multi, then multiplayer clip, max ammo, AI attack
+ * range, spread, alt spread, AI spread, AI alt spread, AI damage scale);
+ * present[k] is 0 for "-". Returns 0 when the weapon has no line. */
+static uint32_t scene_mp_weapon_line(const char *name,float v[12],uint8_t present[12])
 {
-    const char *line=rf_scene_ps2_damage_text;size_t n=strlen(name);
+    const char *line=rf_scene_ps2_damage_text;size_t n=strlen(name);uint32_t k;
     while(line && *line){
         const char *end=strchr(line,'\n');
         if(!strncmp(line,name,n) && line[n]=='\t'){
-            const char *p=line+n;float v[4];uint32_t k;
-            for(k=0;k<4 && p && *p=='\t';k++)p=scene_mp_decimal(p+1,v+k);
-            if(k==4 && p){d->damage=v[1];d->alt_damage=v[3];return;}
+            const char *p=line+n;
+            for(k=0;k<12 && p && *p=='\t';k++){
+                if(p[1]=='-' && (p[2]=='\t' || p[2]=='\n' || !p[2])){present[k]=0;v[k]=0;p+=2;}
+                else{present[k]=1;p=scene_mp_decimal(p+1,v+k);}
+            }
+            return k>=4 && p;
         }
         line=end?end+1:NULL;
     }
-    d->damage=d->damage_multi;
+    return 0;
+}
+/* PS2 multiplayer weapon values: 1ce890's second $Damage / $Alt Damage and
+ * 1c6e10's second clip size, AI attack range, spreads and AI damage scale. */
+static void scene_mp_weapon_damage(const char *name,rf_weapon_primary_definition *d)
+{
+    float v[12];uint8_t present[12]={0};
+    if(!scene_mp_weapon_line(name,v,present)){d->damage=d->damage_multi;return;}
+    d->damage=v[1];d->alt_damage=v[3];
+    if(present[4] && v[4]>=0 && d->magazine)d->magazine=(uint32_t)v[4];
+    if(present[6])d->ai_attack_range=v[6];
+    if(present[7])d->spread_degrees=v[7];
+    if(present[8])d->alt_spread_degrees=v[8];
+    if(present[9])d->ai_spread_degrees=v[9];
+    if(present[11])d->ai_damage_scale[0]=v[11];
+}
+/* 1c6e10 for the supply table: multiplayer clip size and max ammo. */
+static void scene_mp_weapon_supply(rf_weapon_supply_catalog *supply)
+{
+    const char *line=rf_scene_ps2_damage_text;char name[64];float v[12];uint8_t present[12];
+    if(!rf_scene_mp_bots)return;
+    while(line && *line){
+        const char *end=strchr(line,'\n'),*tab=strchr(line,'\t');int32_t id;
+        if(tab && (!end || tab<end) && (size_t)(tab-line)<sizeof(name)){
+            memcpy(name,line,(size_t)(tab-line));name[tab-line]=0;memset(present,0,sizeof(present));
+            id=rf_weapon_name_find(&supply->names,name);
+            if(id>=0 && id<64 && scene_mp_weapon_line(name,v,present)){
+                if(present[4] && v[4]>=0 && supply->definitions[id].magazine>0)supply->definitions[id].magazine=(int32_t)v[4];
+                if(present[5] && v[5]>=0)supply->definitions[id].capacity=(int32_t)v[5];
+            }
+        }
+        line=end?end+1:NULL;
+    }
 }
 static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield","shoulder_cannon","Machine Pistol","heavy_machine_gun","scope_assault_rifle","Undercover 12mm handgun","Machine Pistol Special"};
 #include "scene_npc_hit_location_types.inc"
@@ -5105,6 +5144,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));
     memset(rf_scene_weapon_supply,0,sizeof(rf_scene_weapon_supply));
     status=rf_weapon_supply_load(&tables,128*1024,&campaign_weapon_supply);
+    if(!status)scene_mp_weapon_supply(&campaign_weapon_supply); /* PS2 1c6e10 */
     if(!status)scene_weapon_camera_load(&tables); /* Optional cosmetic metadata. */
     if(!status)status=scene_grenade_empty_load(&tables);
     if(!status)status=campaign_enemy_extra_weapons_open(&tables,&campaign_weapon_supply);
