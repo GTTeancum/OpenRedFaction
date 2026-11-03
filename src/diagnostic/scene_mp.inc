@@ -53,6 +53,7 @@ const char *rf_scene_mp_bot_name(uint32_t slot){return slot<SCENE_MP_BOTS?scene_
 static struct {float position[3];uint8_t flags[3];} scene_mp_spawn[SCENE_MP_SPAWNS];
 static uint32_t scene_mp_spawn_count,scene_mp_random=1,scene_mp_player_dead;
 static float scene_mp_clock;
+static float scene_mp_aim_clock[SCENE_MP_BOTS];static uint8_t scene_mp_aim_on[SCENE_MP_BOTS],scene_mp_aim_active[SCENE_MP_BOTS]; /* upper-body aim (scene_mp_aim_tick) */
 uint32_t rf_scene_mp_player_stats[3];float rf_scene_mp_elapsed;static uint32_t scene_mp_player_streak; /* MP STATS (see scene_mp_round_count) */
 /* Respawn fade (1ddd90): 0 none, 1 to white, 2 back; seconds in phase. */
 static uint32_t scene_mp_fade_phase;static float scene_mp_fade_clock;
@@ -122,6 +123,7 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     memset(rf_scene_mp,0,sizeof(rf_scene_mp));memset(rf_scene_mp_roster,0,sizeof(rf_scene_mp_roster));
     memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));memset(rf_scene_mp_corpse_trace,0,sizeof(rf_scene_mp_corpse_trace));scene_mp_clock=0;scene_mp_player_dead=0;
     memset(rf_scene_mp_player_stats,0,sizeof(rf_scene_mp_player_stats));scene_mp_player_streak=0;rf_scene_mp_elapsed=0;
+    memset(scene_mp_aim_clock,0,sizeof(scene_mp_aim_clock));memset(scene_mp_aim_on,0,sizeof(scene_mp_aim_on));memset(scene_mp_aim_active,0,sizeof(scene_mp_aim_active));
     rf_scene_mp_seed_trace[0]=1;
     status=scene_mp_spawns_read(level);rf_scene_mp_seed_trace[1]=(uint32_t)status;if(status)return status;
     rf_scene_mp_seed_trace[0]=2;
@@ -429,6 +431,75 @@ static void scene_mp_bot_speed(campaign_npc_body *npc)
  * a target scan that sees the target (+0x1ec), and in multiplayer 137aa0
  * flips it one time in two at each node reached. Port: the scan sight comes
  * from the fire check's line test (scene_mp_target_seen). */
+/* Upper-body aim (151110 -> 14f210 / 150c30) for a bot. 14f210 (not the
+ * human): a target, a weapon, the target at least 1.0 higher or lower in Y,
+ * not the riot shield, alive, a skeletal humanoid. Port note: its movement
+ * state 0xd/0xf, AI mode, carried-object, hidden, scripted-animation and
+ * vehicle-seat tests are not mapped (none of those occur for these bots).
+ * 150c30: timer +0x12e4 (dt) ramps the weight up over 0.75 s while on, down
+ * after it turns off (timer reset on the change, and at 0); for each spine
+ * bone (+0x1028, +0x102c = rf_model_death_bones 0/1) the eye facing (+0x71c)
+ * is taken into the entity frame (+0x48) then into that bone's last frame;
+ * the pitch atan2(y, z) (halved for the first bone; the second's quadrant
+ * fix-up is 3.1415927 - atan for y<0, z<0, as the code does) is clamped to
+ * -0.785398..0.45, and the override basis is the bone's basis turned about
+ * its own right axis by that angle (1f86f0: up turned, forward = right x
+ * up), forward toward the target. */
+static int scene_mp_aim_target(const campaign_npc_body *npc,float position[3])
+{
+    uint32_t j;
+    if(!npc->combat_target)return 0;
+    if(npc->combat_target==campaign_player_object.handle){
+        if(campaign_player_damage.state.effects.health<=0)return 0;
+        memcpy(position,scene_actor_body.state.position,12);return 1;
+    }
+    for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view && campaign_npc_bodies[j].registration.handle==npc->combat_target){
+        if(campaign_npc_bodies[j].damage.effects.health<=0)return 0;
+        memcpy(position,campaign_npc_bodies[j].body.state.position,12);return 1;
+    }
+    return 0;
+}
+static void scene_mp_aim_bone(rf_entity_pose *pose,int32_t bone,const float facing[3],uint32_t first,float weight)
+{
+    const float *m;float d[3],angle,c,s,up[3],forward[3];uint32_t k;rf_model_bone_override *o;
+    if(bone<0 || (uint32_t)bone>=pose->bone_count)return;
+    m=pose->matrices[bone];o=pose->overrides+bone;
+    for(k=0;k<3;k++)d[k]=facing[0]*m[k*3]+facing[1]*m[k*3+1]+facing[2]*m[k*3+2];
+    angle=d[2]!=0?atanf(d[1]/d[2]):0;
+    if(d[1]>0 && d[2]<0)angle+=3.1415927f;
+    else if(d[1]<0 && d[2]<0)angle=first?angle-3.1415927f:3.1415927f-angle;
+    if(first)angle*=.5f;
+    if(angle>.45f)angle=.45f;else if(angle<-.785398f)angle=-.785398f;
+    c=cosf(angle);s=sinf(angle);
+    for(k=0;k<3;k++){up[k]=m[3+k]*c-m[6+k]*s;}
+    forward[0]=m[1]*up[2]-m[2]*up[1];forward[1]=m[2]*up[0]-m[0]*up[2];forward[2]=m[0]*up[1]-m[1]*up[0];
+    memcpy(o->basis,m,12);memcpy(o->basis+3,up,12);memcpy(o->basis+6,forward,12);
+    o->weight=weight;o->enabled=1;
+}
+static void scene_mp_aim_tick(uint32_t slot)
+{
+    campaign_npc_body *npc=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;int32_t bones[3];
+    float target[3],facing[3],weight;const float *eye,*basis;uint32_t k,on;
+    if(campaign_model_pose(slot,&pose) || !pose || !pose->overrides || !pose->matrices || !campaign_model_owners)return;
+    if(rf_entity_class_death_bones(&campaign_seeds,&campaign_skeletons,campaign_seeds.items[slot].class_index,bones) ||
+       bones[0]<0 || bones[1]<0)return;
+    on=npc->damage.effects.health>0 && npc->view.weapons[0]>=0 && npc->view.weapons[0]!=campaign_shield_id &&
+       scene_mp_aim_target(npc,target) && fabsf(npc->body.state.position[1]-target[1])>=1.0f;
+    if(!on){
+        if(!scene_mp_aim_active[slot])return; /* 151110: only while an override is live */
+        if(scene_mp_aim_on[slot]){scene_mp_aim_clock[slot]=0;scene_mp_aim_on[slot]=0;}
+    }else scene_mp_aim_on[slot]=1;
+    scene_mp_aim_clock[slot]+=scene_step_seconds;
+    if(on)weight=scene_mp_aim_clock[slot]<.75f?scene_mp_aim_clock[slot]/.75f:1.0f;
+    else weight=scene_mp_aim_clock[slot]>=.75f?0.0f:1.0f-scene_mp_aim_clock[slot]/.75f;
+    /* Eye facing into the entity frame (1fb210 rows dot). */
+    eye=npc->look.orientation+6;basis=campaign_model_owners[slot].basis;
+    for(k=0;k<3;k++)facing[k]=eye[0]*basis[k*3]+eye[1]*basis[k*3+1]+eye[2]*basis[k*3+2];
+    scene_mp_aim_bone(pose,bones[0],facing,1,weight);
+    scene_mp_aim_bone(pose,bones[1],facing,0,weight);
+    scene_mp_aim_active[slot]=1;
+    if(!on && weight==0){pose->overrides[bones[0]].enabled=pose->overrides[bones[1]].enabled=0;scene_mp_aim_active[slot]=0;scene_mp_aim_clock[slot]=0;}
+}
 static void scene_mp_target_seen(const campaign_npc_body *npc)
 {
     uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);
@@ -718,6 +789,7 @@ static int scene_mp_tick(uint32_t frame)
              memcpy(scene_mp_last_position[i],npc->body.state.position,12);
              status=campaign_script_locomotion(i,moved);if(status)return status;}
             status=scene_mp_route_tick(i);if(status)return status;
+            scene_mp_aim_tick(i);
         }
     }
     if(!scene_mp_player_dead && campaign_player_damage.state.effects.health<=0){

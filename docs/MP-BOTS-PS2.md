@@ -572,8 +572,15 @@ Still open (PS2 behaviour traced or located, not ported):
    second, each clamped to -0.785..0.45 rad, and applied as a bone override
    (basis rotated about the bone's X axis by 1f86f0 -> 1fbba0, weight
    ramping 0..1 over 0.75 s, entry +0x1394/+0x13b8/+0x13bc), the same
-   override the port's rf_model_override_pose applies. Not ported.
-   Further trace: 1fbba0 only moves a point through a frame change
+   override the port's rf_model_override_pose applies. Ported for bots
+   (scene_mp_aim_tick): spine bones from rf_model_death_bones (the PC
+   424e47 lookup, same rule), weight ramp, both pitches and clamps, the
+   basis turned about the bone's right axis with forward toward the target
+   (the only direction under which the bot aims at its target). Not mapped:
+   the movement-state 0xd/0xf, AI-mode, carried-object, hidden,
+   scripted-animation and vehicle-seat tests. Bots render normally in XEMU
+   captures (dm01, dm02); a bot leaning at a height difference has not been
+   captured yet. Further trace: 1fbba0 only moves a point through a frame change
    (v - pivot, by M, by 1f7530(0,0), by M transposed, + pivot); the angle's
    direction is set before it (1f86f0). The two spine bones (+0x1028,
    +0x102c) are the first two skeleton bones whose names contain "spine"
