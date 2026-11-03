@@ -22000,6 +22000,7 @@ typedef struct scene_weapon_context {
     scene_stream *stream;uint32_t actor,pickup;rf_model_render_buffers buffers;scene_pickup_resource *resource;
     rf_model_lighting lights;rf_model_render_output attributes;
     rf_model_clip_planes planes;rf_model_clip_projection projection;
+    uint32_t fade; /* 0 opaque, else alpha 1-255 (vertex-lit faded draw) */
 } scene_weapon_context;
 static int scene_weapon_place(void *context,int32_t hand,rf_weapon_hand_placement *pose)
 {
@@ -22024,14 +22025,18 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
             if(b->material==UINT32_MAX)continue;if(b->material>=r->material_count)return RF_FORMAT;
             memcpy(&slot,(c->resource?c->resource->materials.items:campaign_weapon_materials.items)[first+b->material].record.bytes+0x10,4);
             if(slot>=(c->resource?c->resource->textures:stream->weapon_textures))return RF_FORMAT;
-            status=scene_model_retain(stream,g,batch,NULL,0,&view,(c->resource?c->resource->base:stream->weapon_base)+slot);
+            /* A fading drop takes the emitted path (retained draws are opaque). */
+            status=c->fade?RF_NOT_FOUND:scene_model_retain(stream,g,batch,NULL,0,&view,(c->resource?c->resource->base:stream->weapon_base)+slot);
             if(status==RF_OK)continue;
             if(status!=RF_NOT_FOUND)return status;
             status=scene_model_scratch_prepare(&c->buffers,b->vertices);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
             status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
             status=rf_preview_static_model_emit(g,batch,&c->buffers,stream->npc_indices,stream->npc_pool,&view,&c->planes,&c->projection,
                 &c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
-            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=(c->resource?c->resource->base:stream->weapon_base)+slot;
+            for(k=start;k<stream->mesh->count;++k){
+                stream->mesh->vertices[k].material=(c->resource?c->resource->base:stream->weapon_base)+slot;
+                if(c->fade && stream->mesh->vertices[k].lightmap==UINT32_MAX)stream->mesh->vertices[k].lightmap=RF_PREVIEW_FADE_TAG|c->fade; /* model faces: no lightmap */
+            }
         }
     }
     return RF_OK;
@@ -22492,7 +22497,15 @@ static int scene_pickups_draw(scene_stream *stream)
         model=campaign_weapon_models.weapons[drop->weapon].model;if(!model)continue;
         if(scene_view_sphere_outside(stream,drop->position,2.0f)){++rf_scene_view_culled[2];continue;}
         memcpy(pose.position,drop->position,12);pose.basis[0]=pose.basis[4]=pose.basis[8]=1;
-        status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
+        c.fade=scene_mp_drop_alpha(i); /* 16d080 fade (+0x284) */
+        if(c.fade){rf_scene_mp_fade_draw[0]=rf_scene_profile_stage[0];rf_scene_mp_fade_draw[1]=c.fade;
+            if(rf_scene_crash_hold_enabled==1 && !rf_scene_crash_hold && c.fade<200){
+                /* Harness hold only when the drop is in the camera's cone with a clear sight ray. */
+                const float *f=actor_look.eye_orientation+6;float v[3],len=0,dot=0;uint32_t k,blocked=1;
+                for(k=0;k<3;k++){v[k]=drop->position[k]+(k==1?.3f:0)-rf_scene_gameplay_eye[k];len+=v[k]*v[k];dot+=v[k]*f[k];} /* 0.3 above: not the floor */
+                if(len<12.0f*12.0f && dot>.75f*sqrtf(len) && !combat_obstructed(stream,rf_scene_gameplay_eye,v,&blocked) && !blocked)rf_scene_crash_hold=1;
+            }}
+        status=scene_weapon_submit(&c,model,&pose,state);c.fade=0;if(status)return status;
     }
     /* Persistent actor keys outlive render bodies and robot/corpse teardown. */
     for(i=0;i<rf_scene_defeated_actors.count;i++) {

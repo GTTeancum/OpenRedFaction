@@ -192,6 +192,7 @@ static int scene_handheld_penetration_fire(scene_stream *stream,uint32_t frame,
                 nearest,point,end,&more);if(status)return status;
             memcpy(&clock_bits,&seconds,4);
             if(!scene_npc_body_contact_reaction_publish(body_ray,&body_contact))return RF_OK;
+            scene_mp_round_count(campaign_player_object.handle,1); /* 1ca3c0: each body struck */
             status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);
             if(!status)status=feedback.status;if(status)return status;
             if(!scene_player_body_source_live(body_ray) || !campaign_npc_bodies ||

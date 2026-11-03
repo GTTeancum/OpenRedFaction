@@ -223,6 +223,7 @@ static int scene_ai_actor_penetration_fire(scene_stream *stream,uint32_t frame,
              * point/radius/material and prepare continuation BEFORE callbacks.
              * Zero applied damage still spends; exhausting contact still hits. */
             status=scene_sniper_penetration_body(state,handle,radius,fraction,point,end,&more);if(status)return status;
+            scene_mp_round_count(shot->source,1); /* 1ca3c0: each body struck */
             if(actor.victim) {
                 campaign_npc_body *victim=campaign_npc_bodies+actor.victim_slot;uint32_t entered;
                 status=rf_scene_npc_damage(handle,&request,1,clock_bits,effects,&applied);

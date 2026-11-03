@@ -229,10 +229,22 @@ static int scene_mp_targets_tick(scene_stream *stream,uint32_t frame,const float
 /* PS2 16d000/16d080 dropped-item cap: every 1.5 s, when more than 2 dropped
  * items exist in multiplayer (6 in single player), the oldest starts a 1 s
  * fade (+0x28c bit 4, alpha +0x284 from 1) and is then removed. Port: the
- * drops are the bots' death drops (one record per bot); the fade is not
- * drawn (the drop draw has no alpha), the drop goes when the fade ends. */
+ * drops are the bots' death drops (one record per bot); the fade is drawn
+ * through the faded vertex-lit path (scene_mp_drop_alpha), alpha 1 -> 0
+ * over the second, and the drop goes when it ends. */
 static uint32_t scene_mp_drop_birth[SCENE_MP_BOTS],scene_mp_drop_fade[SCENE_MP_BOTS],scene_mp_drop_was[SCENE_MP_BOTS],scene_mp_drop_check;
 uint32_t rf_scene_mp_drops[3]; /* live drops, fades started, removed */
+/* Harness: frame (rf_scene_profile_stage[0]) and alpha of the last drawn
+ * fading drop. Observation only. */
+uint32_t rf_scene_mp_fade_draw[2];
+/* 0 when not fading, else 1-255. */
+static uint32_t scene_mp_drop_alpha(uint32_t slot)
+{
+    uint32_t age;float a;
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !scene_mp_drop_fade[slot])return 0;
+    age=scene_mp_item_clock-scene_mp_drop_fade[slot];if(age>=1000u)return 1;
+    a=255.0f*(1.0f-(float)age/1000.0f);return a<1?1:a>254?254:(uint32_t)a;
+}
 static void scene_mp_drops_tick(uint32_t frame)
 {
     uint32_t slot,count=campaign_npc_body_count<SCENE_MP_BOTS?campaign_npc_body_count:SCENE_MP_BOTS,live=0,oldest=UINT32_MAX;

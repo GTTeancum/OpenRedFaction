@@ -32,6 +32,9 @@ extern uint32_t rf_scene_firearms_enabled;
 /* Diagnostic campaign combat start: zero disabled, otherwise primary slot+1. */
 extern uint32_t rf_scene_crash_loadout;
 extern uint32_t rf_scene_crash_aim;extern uint32_t rf_scene_crash_bot; /* test-only bot pilot (scene_crash_bot.inc) */
+/* Test-only capture hold: enabled by the harness (1 fading drop, 2 bot
+ * lean); the event sets hold 1, the platform keeps the frame (hold 2). */
+extern uint32_t rf_scene_crash_hold,rf_scene_crash_hold_enabled;
 extern float rf_scene_crash_aim_point[3];
 extern uint32_t rf_scene_crash_scenario;
 extern uint32_t rf_scene_vehicle_enabled;
@@ -782,6 +785,9 @@ int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
  * (0 none). rf_scene_mp: active, bots, kills, deaths, bot respawns, seconds
  * left, match over, player respawns. */
 extern uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit,rf_scene_mp[8];
+/* The human's menu character (ps2_multi.tbl $EntityType / $SkinName; 1dd930
+ * spawns the human with them). Empty: the menu default, Miner Parker. */
+extern char rf_scene_mp_player_class[32],rf_scene_mp_player_skin[32];
 uint32_t rf_scene_mp_match_over(void);
 /* PS2 weapon damage lines (name, damage, multi, alt, alt multi; tab separated)
  * for multiplayer, or NULL; set before the level opens. */

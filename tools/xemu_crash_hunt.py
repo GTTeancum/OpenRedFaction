@@ -164,6 +164,7 @@ def main():
     parser.add_argument('--shot-on-dead', action='store_true', help='capture while the player is dead (after --shot-after)')
     parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
     parser.add_argument('--bot-pilot', action='store_true', help='multiplayer: drive the player like a bot (waypoint routes, fights through --aim)')
+    parser.add_argument('--shot-on-fade', action='store_true', help='multiplayer: capture while a fading dropped item is drawn (after --shot-after)')
     parser.add_argument('--shot-on-lean', action='store_true', help='multiplayer: capture when the aimed-at bot leans its upper body (after --shot-after)')
     parser.add_argument('--shot-on-actor', action='store_true',
                         help='with --screenshots: capture once the aim input lines up on a visible character (needs --aim)')
@@ -284,7 +285,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -510,6 +511,9 @@ def main():
             (disc / 'crash-aim.flag').write_bytes(b'')
         if args.bot_pilot:
             (disc / 'crash-bot.flag').write_bytes(b'')
+        if args.shot_on_fade or args.shot_on_lean:
+            # Game-side hold: 1 = a fading drop drawn, 2 = a visible bot leaning.
+            (disc / 'crash-hold.flag').write_bytes(bytes([1 if args.shot_on_fade else 2]))
         if args.aim_actor is not None:
             (disc / 'crash-aim-actor.bin').write_bytes(struct.pack('<I',args.aim_actor))
         if args.aim_point:
@@ -648,6 +652,8 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_aim_trace']=8
           counts['rf_scene_crash_bot_trace']=6
           counts['rf_scene_mp_line_trace']=4
+          counts['rf_scene_mp_fade_draw']=2
+          counts['rf_scene_crash_hold']=1
           counts['rf_scene_mp_targets']=4
           counts['rf_scene_mp_drops']=3
           counts['rf_scene_player_life']=8
@@ -735,8 +741,8 @@ dvd_path = '{iso.as_posix()}'
                     actor=(sample.get('rf_scene_crash_aim_trace') or [0,0,0,0])[3]*(((sample.get('rf_scene_crash_aim_range') or [0])[0] or 99999)<args.shot_range) # aligned fire on a visible character in range
                     if args.shot_on_corpse:actor=(sample.get('rf_scene_live_corpses') or [0]*4)[3] # corpse vertices drawn this frame
                     if args.shot_on_dead:actor=(sample.get('rf_scene_player_life') or [0]*3)[2] # player dead
-                    if args.shot_on_lean:actor=(sample.get('rf_scene_mp_aim') or [0]*4)[3] # the input's target bot is fully leaning
-                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse or args.shot_on_dead or args.shot_on_lean else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                    if args.shot_on_fade or args.shot_on_lean:actor=int((sample.get('rf_scene_crash_hold') or [0])[0]==2) # the game holds the event frame
+                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse or args.shot_on_dead or args.shot_on_lean or args.shot_on_fade else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
                         last_shot_input=consumed
                         if args.shot_delay:time.sleep(args.shot_delay) # let a menu or end screen fade in
                         try:

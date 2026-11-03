@@ -837,6 +837,9 @@ static int player_ps2_multi(uint32_t *start,uint32_t options)
             strcpy(player_mp_selection,"levelsm.vpp");
             strncpy(player_mp_selection+64,rf_xbox_ps2_multi_level(m.values[RF_XBOX_PS2_MP_ENVIRONMENT]),63);
             rf_xbox_ps2_multi_rules(&m,&rf_scene_mp_bots,&rf_scene_mp_kill_limit,&rf_scene_mp_time_limit);
+            {const char *skin;const char *entity=rf_xbox_ps2_multi_character(m.values[RF_XBOX_PS2_MP_CHARACTER],&skin);
+             memset(rf_scene_mp_player_class,0,32);memset(rf_scene_mp_player_skin,0,32);
+             strncpy(rf_scene_mp_player_class,entity,31);strncpy(rf_scene_mp_player_skin,skin,31);}
             player_mp_setup=m;
             /* The skill also sets the game difficulty (1ddaa0 copies it to 2abeec). */
             (void)rf_scene_session_set_difficulty(m.values[RF_XBOX_PS2_MP_SKILL]%4);
@@ -1330,6 +1333,9 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         int status=rf_scene_fire_level_exit(campaign_exit_uid,(int32_t)((uint64_t)frame*1000/60));
         campaign_forced_exit_uid=campaign_exit_uid;campaign_exit_uid=0;if(status)return status;
     }
+    /* Test-only capture hold (crash-hold.flag): the last frame stays on
+     * screen for 2.5 s so the 1 Hz harness capture sees the event. */
+    if(rf_scene_crash_hold==1){rf_scene_crash_hold=2;Sleep(2500);}
     if(player_replay && rf_scene_mp_match_over())return player_mp_end(context,frame,input);
     if(player_replay) {
         if(player_pacing) {
@@ -1824,6 +1830,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         FILE *aim_file=tester_profile?NULL:fopen("D:\\crash-aim.flag","rb");
         rf_scene_crash_aim=aim_file!=NULL;if(aim_file)fclose(aim_file);
         {FILE *bot_file=tester_profile?NULL:fopen("D:\\crash-bot.flag","rb");rf_scene_crash_bot=bot_file!=NULL;if(bot_file)fclose(bot_file);}
+        {FILE *hold_file=tester_profile?NULL:fopen("D:\\crash-hold.flag","rb");unsigned char mode=0;rf_scene_crash_hold=0;rf_scene_crash_hold_enabled=0;
+         if(hold_file){if(fread(&mode,1,1,hold_file)==1)rf_scene_crash_hold_enabled=mode;fclose(hold_file);}}
         FILE *point_file=tester_profile?NULL:fopen("D:\\crash-aim-point.bin","rb");
         if(point_file){int invalid=fread(rf_scene_crash_aim_point,4,3,point_file)!=3 || fgetc(point_file)!=EOF;
             fclose(point_file);

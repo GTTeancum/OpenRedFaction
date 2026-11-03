@@ -7,6 +7,7 @@
  * respawn, and switches to another bot when it stalls or its bot dies.
  * Input only: no game state is changed. Its random numbers are its own. */
 uint32_t rf_scene_crash_bot;
+uint32_t rf_scene_crash_hold,rf_scene_crash_hold_enabled;
 uint32_t rf_scene_crash_bot_trace[6]; /* bots followed, crumbs reached, stalls, bot deaths, fire frames, crumbs queued */
 #define SCENE_CRASH_BOT_CRUMBS 64u
 static float scene_crash_bot_crumb[SCENE_CRASH_BOT_CRUMBS][3];static uint32_t scene_crash_bot_head,scene_crash_bot_tail;

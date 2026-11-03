@@ -37,6 +37,8 @@ int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,
 int rf_xbox_ps2_multi_frame(const rf_xbox_ps2_multi *state);
 /* Environment level file (levelsm.vpp) for a setup value. */
 const char *rf_xbox_ps2_multi_level(uint32_t environment);
+/* The character value's entity class and skin (ps2_multi.tbl). */
+const char *rf_xbox_ps2_multi_character(uint32_t value,const char **skin);
 /* Bot count, kill limit (0 none) and time limit in seconds (0 none). */
 void rf_xbox_ps2_multi_rules(const rf_xbox_ps2_multi *m,uint32_t *bots,uint32_t *kills,uint32_t *seconds);
 

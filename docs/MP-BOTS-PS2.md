@@ -486,8 +486,14 @@ Done (now from the PS2 code):
   when the target's class flag +0x714 0x400 is set (15a1e0); range from
   132b10, x1.5 when +0x204 is 2; out of range -> 1; in range -> 1 only
   when the sight flags +0x1ec and +0x1ed are both clear and timer +0x188
-  has expired (the not-seen clause). Mapping +0x1ec/+0x1ed/+0x188/+0x204
-  onto the port's bot sight state is not done.
+  has expired (the not-seen clause). Ported (scene_mp.inc step 3): the
+  12b310 sight tick every 200-400 ms with two sight rays (body, eye) from
+  the bot's eye, last-seen and the 500 ms in-range timer on sight, the
+  2-5 s lost-sight timer (12ffd0), the 3-unit allowance from the target's
+  class flag 0x400 (the human's from its menu character), and the
+  not-seen clause. Left out: 1953e0's swept sphere (a ray here), the
+  halved tick for weapon flag +0x248 8, and the +0x204 movement-sub-state
+  terms (1.5 range factor, flat distance), which the port does not track.
 - Announcer at match end: checked on XEMU (dm02, 60 s limit): the time
   lines start at 60/30/10 s, then the match-over line 4 starts and is seen
   playing on the device, then the winner line 5 (rf_scene_mp_line_trace).
@@ -617,7 +623,10 @@ Still open (PS2 behaviour traced or located, not ported):
    the arenas) and Max Rot Vel (not used for the human's input turning).
    With one human and no third-person or corpse view of the player, the
    choice has no visible or gameplay effect in the port; it matters with
-   split screen (the other player sees the model). Not ported.
+   split screen (the other player sees the model). Ported as data: the menu
+   choice sets rf_scene_mp_player_class / rf_scene_mp_player_skin, the
+   class's entity.tbl flags are read at match start (used by the bots'
+   3-unit allowance); the model and skin are not drawn.
 
 Ported since:
 - Respawn loadout (1dd930 -> 1a31a8..1a31d4): 1a2e90(entity, handgun

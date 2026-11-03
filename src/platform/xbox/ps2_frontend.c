@@ -60,14 +60,17 @@ uint32_t rf_xbox_ps2_pause_slot(uint32_t item)
 }
 
 /* ---- multiplayer lists ---- */
-static const struct {const char *name,*picture;} characters[13]={
-    {"Miner Parker","multichar01.tga"},{"Envirosuit Parker","multichar03.tga"},
-    {"Scientist Parker","multichar12.tga"},{"Exec Parker","multichar13.tga"},
-    {"Miner","multichar02.tga"},{"Envirosuit Miner","multichar04.tga"},
-    {"Ultor Guard 1","multichar05.tga"},{"Ultor Guard 2","multichar06.tga"},
-    {"Envirosuit Guard 1","multichar08.tga"},{"Envirosuit Guard 2","multichar09.tga"},
-    {"Elite Guard 1","multichar07.tga"},{"Elite Guard 2","multichar10.tga"},
-    {"Riot Guard 1","multichar11.tga"}};
+/* ps2_multi.tbl #Characters: screen name, picture, $EntityType, $SkinName. */
+static const struct {const char *name,*picture,*entity,*skin;} characters[13]={
+    {"Miner Parker","multichar01.tga","miner2","parker"},{"Envirosuit Parker","multichar03.tga","miner1","parker"},
+    {"Scientist Parker","multichar12.tga","parker_sci","default"},{"Exec Parker","multichar13.tga","parker_suit","default"},
+    {"Miner","multichar02.tga","miner2","default"},{"Envirosuit Miner","multichar04.tga","miner1","d"},
+    {"Ultor Guard 1","multichar05.tga","guard1","default"},{"Ultor Guard 2","multichar06.tga","guard1","c"},
+    {"Envirosuit Guard 1","multichar08.tga","env_guard","default"},{"Envirosuit Guard 2","multichar09.tga","env_guard","b"},
+    {"Elite Guard 1","multichar07.tga","elite","default"},{"Elite Guard 2","multichar10.tga","elite","e"},
+    {"Riot Guard 1","multichar11.tga","riot_guard","default"}};
+const char *rf_xbox_ps2_multi_character(uint32_t value,const char **skin)
+{if(skin)*skin=characters[value%13].skin;return characters[value%13].entity;}
 /* The PS2 arenas (ps2_multi.tbl) that are PC multiplayer maps with authored
  * bot data (docs/MP-BOTS-PS2.md): PS2 screen name, picture and the PC map the
  * Xbox loads (the menu pack carries each arena's bot paths and bots). */
