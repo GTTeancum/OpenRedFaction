@@ -592,7 +592,18 @@ Still open (PS2 behaviour traced or located, not ported):
    18a2a0, 156370 and 15a3b0 (humanoid). Port needs: a per-bone override
    setter built from the previous frame's bone matrix, the spine lookup,
    and an on-screen check of a bot aiming at a height difference.
-2. Player: character choice from the menu.
+2. Player: character choice from the menu. Traced: ps2_multi.tbl
+   #Characters gives each choice an $EntityType and $SkinName (Miner Parker
+   miner2/parker, Envirosuit Parker miner1/parker, Scientist Parker
+   parker_sci, Exec Parker parker_suit, Miner miner2, Envirosuit Miner
+   miner1/d, Ultor Guard guard1 default/c, ...); 1dd930 spawns the human
+   with that class (+0x18) and skin (+0x134). In entity.tbl these classes
+   share Life 100, Max Vel 6.0 (the human's run cap is the fixed 8.0 in
+   multiplayer) and Mass 100; they differ in Envirosuit (no air hazards in
+   the arenas) and Max Rot Vel (not used for the human's input turning).
+   With one human and no third-person or corpse view of the player, the
+   choice has no visible or gameplay effect in the port; it matters with
+   split screen (the other player sees the model). Not ported.
 
 Ported since:
 - Respawn loadout (1dd930 -> 1a31a8..1a31d4): 1a2e90(entity, handgun
