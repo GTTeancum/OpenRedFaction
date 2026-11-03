@@ -40,4 +40,3 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | # | Item |
 |---|---|
 | 21 | Split-screen two-player (largely untraced; set aside) |
-| 22 | Trace entity +0x66c/+0x670 |

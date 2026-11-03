@@ -55,8 +55,17 @@ class mesh is a skinned character (class field +0x94 == 2, set by the
 entity.tbl parser at 35349 for a `.vcm` V3D filename; `.vfx` is 3, other 1)
 is created as class `miner1` instead of its authored class (1524e0 gets the
 authored class index as an extra argument). Its authored fields still apply:
-name, life/armour overrides, AI mode, flags, and its authored weapon
-(record weapon name -> +0x66c weapon, +0x670 ammo; 17e050/17e0e0).
+name, life/armour overrides, AI mode, flags, and its authored default
+route: the record's waypoint list name -> +0x66c (17e050: index into the
+level's named waypoint lists at 8115e0, stride 0x20c, -1 none) and its
+method -> +0x670 (17e0e0: "Loop" 1, "Ping Pong" 2, else 0 one way); both
+written only when the list name is not empty. The AI block sits at entity
++0x270, so these are AI +0x3fc/+0x400, read by AI mode 5 (12e420, from
+the 130a40 switch on AI +0x1d0): with sub-state +0x204 == 4 and no path
+in progress (+0x238 == 0) it starts following that list (156460). All 48
+PS2 arena bot records (6 per arena, sections 0x30000 in the pack's .ent
+files) have an empty list and "One way", so in a match +0x66c stays
+"none" and no bot follows an authored route.
 
 So every PS2 bot is the `miner1` model (Envirosuit Miner) with default skin,
 holding the arena's authored weapon (m_ps201: Machine Pistol).
@@ -74,7 +83,8 @@ holding the arena's authored weapon (m_ps201: Machine Pistol).
   zeroed, entity +0x12fc = slot, entity +0x734 |= 0x100000 (bot flag),
   roster +0x24 = character 293be0[slot] (= slot, so bot i uses weapon
   preference row i), roster +0x28..+0x4c copy entity fields 444, 478, 66c
-  (weapon), 670 (ammo), 6ec, 6f0, 43c, 664, 34 (life), 38 (armour). Without
+  (default route), 670 (route method), 6ec, 6f0, 43c, 664, 34 (life), 38
+  (armour). Without
   "start with gun", 15d9a0 removes every weapon (0x2d slots) and sets the
   current weapon to none.
 - Roster +4 kills, +8 kills of human players, +0xc deaths, +0x10 streak,
@@ -85,7 +95,7 @@ holding the arena's authored weapon (m_ps201: Machine Pistol).
 Called from the entity death path 148860 when the dead entity is not human
 (188c40 false). Picks a bot point (274620), creates a new `miner1` named as
 the bot (154340/1524e0), links it to the same roster slot, sets +0x204
-affiliation = 3, restores the copied fields (444, 478, weapon 66c, ammo 670,
+affiliation = 3, restores the copied fields (444, 478, route 66c, method 670,
 6ec, 6f0, 43c, 664) and the stored life/armour (+0x34/+0x38; the decompile
 shows them written to the dead entity, most likely a register mix-up in the
 decompile); bot flag set; without "start with gun" strips weapons
@@ -316,9 +326,6 @@ handgun (12a590). After any weapon pickup in multiplayer the choice is forced
 
 - Split-screen HUD/viewmodel offsets (1a9c20, 1abd00, 1acc70, 1af170,
   160f40 multiplayer parts) and the second player's controls.
-- The multiplayer menus' character and arena screens (the Xbox already draws
-  them from the PS2 art; the character choice is not wired).
-- Exact meaning of entity +0x66c/+0x670 beyond weapon and ammo.
 
 ## 12. Xbox port status (2026-11-02)
 
