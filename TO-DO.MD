@@ -39,7 +39,6 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 
 | # | Item |
 |---|---|
-| 1 | Attack step 3: movement sub-state terms (1.5x range, flat distance, timer reset) |
-| 20 | See a bot's lean clearly on screen |
-| 21 | Split-screen two-player (largely untraced) |
+| 21 | Split-screen two-player (largely untraced; set aside) |
 | 22 | Trace entity +0x66c/+0x670 |
+| 23 | PS2 CHARACTER (0x18) and ENVIRONMENT (0x16) screens in place of the port's combined options rows |

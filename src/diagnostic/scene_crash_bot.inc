@@ -40,8 +40,8 @@ static void scene_crash_bot_face(const float point[3],rf_scene_input *input)
     input->look[1]=fmaxf(-.8f,fminf(.8f,yaw*4.f));input->look[0]=fmaxf(-.8f,fminf(.8f,pitch*4.f));
 }
 /* With a capture hold armed, the pilot turns to what is to be captured:
- * a fading drop within 15 (hold 1) or a fully leaning bot within 10
- * (hold 2). Returns 1 while it does. */
+ * a fading drop within 15 (hold 1) or a fully leaning bot within 6 (hold
+ * 2, the capture distance). Otherwise it plays on. Returns 1 while it does. */
 static uint32_t scene_crash_bot_watch(rf_scene_input *input)
 {
     uint32_t i,best=UINT32_MAX;float best_d=0,point[3];
@@ -56,7 +56,7 @@ static uint32_t scene_crash_bot_watch(rf_scene_input *input)
             p=npc->eye_position;
         }
         for(k=0;k<3;k++){c[k]=p[k]-scene_actor_body.state.position[k];d+=c[k]*c[k];}
-        if(d>(rf_scene_crash_hold_enabled==1?15.0f*15.0f:10.0f*10.0f))continue;
+        if(d>(rf_scene_crash_hold_enabled==1?15.0f*15.0f:6.0f*6.0f))continue;
         if(best==UINT32_MAX || d<best_d){best=i;best_d=d;memcpy(point,p,12);if(rf_scene_crash_hold_enabled==1)point[1]+=.3f;}
     }
     if(best==UINT32_MAX)return 0;

@@ -67,7 +67,11 @@ static int scene_mp_sight_sweep(const float start[3],const float end[3],float ra
 /* Bot sight of its target (12b310, every 200-400 ms, timer +0x1e4): +0x1ec
  * the target's body, +0x1ed its eye; timer +0x188 runs 2-5 s once both
  * are lost (12ffd0). Times in ms of the patrol clock; 0 is unset. */
-static uint8_t scene_mp_sight[SCENE_MP_BOTS][2];static uint32_t scene_mp_sight_due[SCENE_MP_BOTS],scene_mp_lost_due[SCENE_MP_BOTS];
+static uint8_t scene_mp_sight[SCENE_MP_BOTS][2];
+/* Attack sub-state +0x204 (12ffd0): 0 none, 1 moving to the target, 2
+ * attacking, 3 attacking in melee; out of range (12fa00) this update. */
+static uint8_t scene_mp_state[SCENE_MP_BOTS],scene_mp_out[SCENE_MP_BOTS];
+uint32_t rf_scene_mp_attack[5]; /* harness: updates moving, attacking, melee; chases started; fire held */static uint32_t scene_mp_sight_due[SCENE_MP_BOTS],scene_mp_lost_due[SCENE_MP_BOTS];
 uint32_t rf_scene_mp_aim_trace[8]; /* see scene_mp_aim_tick */
 static uint32_t scene_mp_aim_seen;
 static float scene_mp_aim_clock[SCENE_MP_BOTS];static uint8_t scene_mp_aim_on[SCENE_MP_BOTS],scene_mp_aim_active[SCENE_MP_BOTS]; /* upper-body aim (scene_mp_aim_tick) */
@@ -141,7 +145,8 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));memset(rf_scene_mp_corpse_trace,0,sizeof(rf_scene_mp_corpse_trace));scene_mp_clock=0;scene_mp_player_dead=0;
     memset(rf_scene_mp_player_stats,0,sizeof(rf_scene_mp_player_stats));scene_mp_player_streak=0;rf_scene_mp_elapsed=0;
     memcpy(rf_scene_mp_player_model+2,&campaign_player_geometry.model_radius,4);
-    memset(scene_mp_aim_applied,0,sizeof(scene_mp_aim_applied));memset(scene_mp_sight,0,sizeof(scene_mp_sight));memset(scene_mp_sight_due,0,sizeof(scene_mp_sight_due));memset(scene_mp_lost_due,0,sizeof(scene_mp_lost_due));
+    memset(scene_mp_aim_applied,0,sizeof(scene_mp_aim_applied));memset(scene_mp_sight,0,sizeof(scene_mp_sight));
+    memset(scene_mp_state,0,sizeof(scene_mp_state));memset(scene_mp_out,0,sizeof(scene_mp_out));memset(rf_scene_mp_attack,0,sizeof(rf_scene_mp_attack));memset(scene_mp_sight_due,0,sizeof(scene_mp_sight_due));memset(scene_mp_lost_due,0,sizeof(scene_mp_lost_due));
     {rf_entity_seed_class def;memset(&def,0,sizeof(def));scene_mp_player_class_flags=0;
      if(!rf_entity_seed_class_read(tables,rf_scene_mp_player_class[0]?rf_scene_mp_player_class:"miner2",&def))scene_mp_player_class_flags=def.physics.flags;}
     memset(scene_mp_aim_clock,0,sizeof(scene_mp_aim_clock));memset(rf_scene_mp_aim_trace,0,sizeof(rf_scene_mp_aim_trace));memset(scene_mp_aim_on,0,sizeof(scene_mp_aim_on));memset(scene_mp_aim_active,0,sizeof(scene_mp_aim_active));
@@ -411,7 +416,7 @@ static int scene_mp_route_start(uint32_t slot,const rf_level_waypoint_path *path
         npc->combat_alert=alert;npc->combat_target=target;npc->combat_scripted=scripted;
         scene_blind_sync(npc,rf_scene_profile_stage[0]);
     }
-    scene_mp_routing[slot]=1;return RF_OK;
+    scene_mp_routing[slot]=1;scene_mp_state[slot]=0;return RF_OK;
 }
 /* 1373c0 in multiplayer: a bot on a seek route that has a live target turns
  * to face it as it walks (138e60 with the target's position; displacement
@@ -729,10 +734,13 @@ static int scene_mp_route_tick(uint32_t slot)
                             if(scene_mp_sight_sweep(npc->eye_position,end,radius,mask,&blocked))blocked=1;}
                         scene_mp_sight[slot][m]=!blocked;
                     }
-                    if(scene_mp_sight[slot][0] || scene_mp_sight[slot][1]){if(d<range)scene_mp_range_due[slot]=now+500u;}
+                    /* 12b310 on sight: +0x204 == 3 zeroes +0x180, else in range sets it 500 ms on. */
+                    if(scene_mp_sight[slot][0] || scene_mp_sight[slot][1]){if(scene_mp_state[slot]==3)scene_mp_range_due[slot]=now;else if(d<range)scene_mp_range_due[slot]=now+500u;}
                     else if(was)scene_mp_lost_due[slot]=(now+2000u+scene_mp_next()%3001u)|1u;
                 }
-                out=d>range || (!scene_mp_sight[slot][0] && !scene_mp_sight[slot][1] && scene_mp_lost_due[slot] && (int32_t)(now-scene_mp_lost_due[slot])>=0);
+                /* 12fa00: x1.5 range while attacking (+0x204 == 2). */
+                out=d>(scene_mp_state[slot]==2?range*1.5f:range) || (!scene_mp_sight[slot][0] && !scene_mp_sight[slot][1] && scene_mp_lost_due[slot] && (int32_t)(now-scene_mp_lost_due[slot])>=0);
+                scene_mp_out[slot]=(uint8_t)out;
                 if(out && (int32_t)(now-scene_mp_range_due[slot])>=0 && scene_mp_next()<0x1fffffffu){
                     status=scene_mp_route(slot,"health");
                     if(!status){++rf_scene_mp_hits[0];scene_mp_had_target[slot]=1;return RF_OK;}
@@ -861,6 +869,34 @@ static uint32_t scene_mp_player_rank(void)
     return rank;
 }
 uint32_t rf_scene_mp_rank(void){return rf_scene_mp[0]?scene_mp_player_rank():0;}
+/* 12ffd0 attack movement for a multiplayer bot not on a route (replaces
+ * the port's chase rule): in range (12fa00) a moving bot stops (1373a0) and
+ * attacks (+0x204 2, 3 with a melee weapon, 134100); out of range, with
+ * +0x180 expired, it routes to the target's position (136bb0) and moves
+ * (1); a moving bot keeps following. Returns 1 when it handled movement. */
+static uint32_t scene_mp_attack_move(uint32_t slot,campaign_npc_body *owner,const float target[3],uint32_t melee)
+{
+    uint32_t now;
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used || scene_mp_routing[slot])return 0;
+    if(scene_mp_state[slot]>=1 && scene_mp_state[slot]<=3)++rf_scene_mp_attack[scene_mp_state[slot]-1];
+    now=(uint32_t)scene_patrol_now(rf_scene_profile_stage[0]);
+    if(!scene_mp_out[slot]){
+        if(scene_mp_state[slot]==1)campaign_pursuit_stop(owner);
+        if(scene_mp_state[slot]<=1)scene_mp_state[slot]=melee?3u:2u;
+        return 1;
+    }
+    if(scene_mp_state[slot]==1){campaign_pursuit_target(owner,target);return 1;}
+    if((int32_t)(now-scene_mp_range_due[slot])>=0){campaign_pursuit_target(owner,target);scene_mp_state[slot]=1;++rf_scene_mp_attack[3];}
+    return 1;
+}
+/* 12ffd0: fire only while attacking (+0x204 2, 3, 0xb), or moving (1) for
+ * a class with flag 0x8000000 (fire_outside_range); a route fights anyway. */
+static uint32_t scene_mp_moving_holds_fire(uint32_t slot,uint32_t class_flags)
+{
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used || scene_mp_routing[slot])return 0;
+    if(scene_mp_state[slot]==1 && !(class_flags&0x8000000u)){++rf_scene_mp_attack[4];return 1;}
+    return 0;
+}
 /* Per update, after frame-zero setup. */
 static int scene_mp_tick(uint32_t frame)
 {

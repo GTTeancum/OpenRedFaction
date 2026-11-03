@@ -516,6 +516,18 @@ Done (now from the PS2 code):
   Ported (scene_mp_route_tick); 12ae50's earlier gates are not mapped. The
   class melee switch at its top (class +0x90) does not apply to miner1 (no
   melee weapon in entity.tbl).
+- Attack sub-state +0x204 (12ffd0, multiplayer path), ported for bots not
+  on a route (scene_mp_attack_move, scene_mp_moving_holds_fire): 0 none,
+  1 moving to the target (136bb0 route to its position), 2 attacking, 3
+  attacking in melee (134100), 0xb special (not reached by bots). In
+  range (12fa00) a moving bot stops (1373a0) and attacks; out of range
+  with +0x180 expired it moves; 12fa00 uses 1.5x the range in state 2;
+  12b310 zeroes +0x180 on sight in state 3. Bots fire in states 2, 3, 0xb,
+  or 1 with class flag 0x8000000 (fire_outside_range); a route (1373c0)
+  fights anyway. Replaces the port's PC chase rule for multiplayer bots.
+  The 12e8e0 / 12ec20 state handlers and the +0x184 / +0x44c timers run in
+  single player only (2ac530 clear). Left out: 12fa00's flat distance for
+  state 3 with AI mode 162fc0(1) (that mode is not set for bots).
 - Sight sweep (1953e0): a sphere of max(target +0x78, own +0x78) + 0.1
   swept through the static world and every mover, with the external mask
   translated as 499190 (0x27 -> 0x460, 0x21 -> 0x400; scene_mp_sight_sweep).
@@ -670,7 +682,8 @@ Still open (PS2 behaviour traced or located, not ported):
    axis) is undone first, so the clamps bound the total lean (measuring
    from the already-turned frame let the bone keep turning). Seen on XEMU
    (bot-pilot match, harness hold): a bot 6 m away leaning 0.157 rad,
-   bodies normal. Further trace: 1fbba0 only moves a point through a frame change
+   bodies normal; and a bot about 5 m away leaning 0.201 rad while running,
+   the torso tilted back over its legs as it aims up. Further trace: 1fbba0 only moves a point through a frame change
    (v - pivot, by M, by 1f7530(0,0), by M transposed, + pivot); the angle's
    direction is set before it (1f86f0). The two spine bones (+0x1028,
    +0x102c) are the first two skeleton bones whose names contain "spine"

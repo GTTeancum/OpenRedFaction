@@ -13784,7 +13784,9 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(scene_tactical_route_owned(owner)){
                 /* Local destination remains owned until completion/expiry. */
             }else if(scene_stand_ground_combat(stream,i))scene_stand_ground_stop_route(owner);
-            else if(frame>=owner->combat_navigation_due) {
+            else if(scene_mp_attack_move(i,owner,target_position,melee)){
+                /* PS2 12ffd0 attack movement (scene_mp.inc). */
+            }else if(frame>=owner->combat_navigation_due) {
                 float range=owner->script_move.follow==2?(melee?fminf(2.2f,pursue_range):pursue_range*.8f):pursue_range;
                 if(scene_pursuit_delay_use(owner,&selected,intended_handle)){
                     const uint32_t flags=owner->pursuit_delay.sight.flags;
@@ -13881,6 +13883,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 rf_scene_pain_attack_gate[3]=(uint32_t)owner->pain.animation_lock;rf_scene_pain_attack_gate[4]=(uint32_t)now;continue;
             }
         }
+        if(!once && scene_mp_moving_holds_fire(i,campaign_seeds.items[i].class_index<campaign_seeds.class_count?campaign_seeds.classes[campaign_seeds.items[i].class_index].physics.flags:0))continue;
         /* PS2 12a960 -> 12a700(ai, 0): on each fire attempt a multiplayer bot
          * reruns its preferred-weapon choice when rand & 7 == 0. */
         if(!once && rf_scene_mp[0] && i<SCENE_MP_BOTS && rf_scene_mp_roster[i].used && !(scene_mp_next()&7)){
