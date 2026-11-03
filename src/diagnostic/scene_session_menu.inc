@@ -294,9 +294,11 @@ int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
  *    y 40; "Kills:" / "Rank:" (strings 384, 385) at x 240, y 62 / 84; kills
  *    "%d" and rank "%d/%d" (rank, everyone) at x 340.
  *  - "Press %s to continue." (string 386; the PS2 button glyph 0xad, the
- *    Xbox A button here) centred at y 350, alpha prompt * fade.
- * Port notes: text colours (2ac114, 2ac5c8, 2ac10c) are set at run time
- * from data not traced, so white is used; the player's name is "PLAYER" (the
+ *    Xbox A button here) centred at y 350, alpha prompt * 180, drawn
+ *    only until continue is pressed.
+ * Colours (static constructor 2a54e0): "GAME OVER" 2ac114 (0,255,0), the
+ * block 2ac5c8 (220,220,220), the prompt 2ac10c (255,255,0,180).
+ * Port notes: the player's name is "PLAYER" (the
  * port has no multiplayer name); the winner art (winner_trim.tga at
  * 264,123 and winner_win.vbm at 285,113 when ranked first) is not drawn. */
 int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float t,float prompt,float fade)
@@ -306,10 +308,10 @@ int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float t,f
     if(level<0)level=0;if(level>1)level=1;if(fade<0)fade=0;if(prompt<0)prompt=0;if(prompt>1)prompt=1;
     for(i=0;i<16;i++)if(rf_scene_mp_roster[i].used){++total;if(rf_scene_mp_roster[i].kills>(int32_t)rf_scene_mp[2])++rank;}
     alpha=(uint32_t)(level*150.0f*fade);
-    if(alpha){status=combat_hud_centered(sink,context,213,"GAME OVER",(alpha<<24)|0xffffffu);if(status)return status;}
+    if(alpha){status=combat_hud_centered(sink,context,213,"GAME OVER",(alpha<<24)|0x00ff00u);if(status)return status;}
     alpha=(uint32_t)(level*255.0f*fade);
     if(alpha){
-        uint32_t c=(alpha<<24)|0xffffffu;
+        uint32_t c=(alpha<<24)|0xdcdcdcu; /* 2ac5c8: the PS2 menu text colour (rf/ps2_menu.h) */
         x=320.0f-(float)strlen(name)*12*.5f;if(x>240)x=240;
         status=combat_hud_text(sink,context,x,40,name,c);if(status)return status;
         status=combat_hud_text(sink,context,240,62,"Kills:",c);if(status)return status;
@@ -317,7 +319,24 @@ int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float t,f
         snprintf(line,sizeof(line),"%d",(int)rf_scene_mp[2]);status=combat_hud_text(sink,context,340,62,line,c);if(status)return status;
         snprintf(line,sizeof(line),"%u/%u",rank,total);status=combat_hud_text(sink,context,340,84,line,c);if(status)return status;
     }
-    alpha=(uint32_t)(prompt*255.0f*fade);
-    if(alpha){status=combat_hud_centered(sink,context,350,"Press A to continue.",(alpha<<24)|0xffffffu);if(status)return status;}
+    alpha=fade<1.0f?0:(uint32_t)(prompt*180.0f); /* gone once continue is pressed */
+    if(alpha){status=combat_hud_centered(sink,context,350,"Press A to continue.",(alpha<<24)|0xffff00u);if(status)return status;}
     return RF_OK;
+}
+/* PS2 1ddc00 while the human is dead in multiplayer: t = seconds since
+ * death (+0x64440), clamped to 1; the screen darkens to black alpha 192 * t,
+ * and "Press Fire (%s) to respawn." (PS2 strings.tbl 3, %s the fire
+ * button's name; 292560 holds the PS2 pad glyphs) is centred at y 350
+ * in 2ac10c (255,255,0) with alpha 180 * clamp((t - 0.7) / 0.3). Hidden
+ * once the match is over and while the respawn fade runs. */
+int rf_scene_draw_mp_respawn(rf_scene_particle_sink sink,void *context,const char *fire)
+{
+    char line[96];float t,level;uint32_t alpha;int status;
+    if(!sink || !rf_scene_mp[0] || rf_scene_mp[6] || rf_scene_mp_fade_alpha() || !rf_scene_player_life[2])return RF_OK;
+    t=(float)(rf_scene_profile_stage[0]-rf_scene_player_life[3])/60.0f;if(t<0)t=0;if(t>1)t=1;
+    alpha=(uint32_t)(t*192.0f);
+    if(alpha){status=combat_hud_rect(sink,context,0,0,640,480,alpha<<24);if(status)return status;}
+    level=(t-.7f)/.3f;if(level<=0)return RF_OK;if(level>1)level=1;
+    snprintf(line,sizeof(line),"Press Fire (%s) to respawn.",fire?fire:"");
+    return combat_hud_centered(sink,context,350,line,((uint32_t)(level*180.0f)<<24)|0xffff00u);
 }

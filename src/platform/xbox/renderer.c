@@ -6,6 +6,7 @@
 #include "rf/menu_assets.h"
 #include "renderer.h"
 #include "ps2_frontend.h"
+#include "input.h"
 #include "rf/model_bounds.h"
 #include "rf/scene_preview.h"
 #include "rf/finite.h"
@@ -1337,7 +1338,7 @@ void rf_xbox_mp_results_open(void)
     while(pb_busy()) {}
     pause_backdrop_capture_level(256u);
 }
-void rf_xbox_mp_results_close(void){pause_backdrop_release();}
+void rf_xbox_mp_results_close(void){pause_backdrop_release();rf_xbox_ps2_mp_hud_close();}
 static int mp_results_frame(rf_scene_particle_sink sink,void *context,const void *args)
 {
     const float *v=args;return rf_scene_draw_mp_results(sink,context,v[0],v[1],v[2]);
@@ -1982,8 +1983,16 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             renderer_draw_mark(5,&draw_profile_previous,profiling);
             hud_widen_active=1; /* Gameplay HUD only; menus keep 4:3 art. */
             status=rf_scene_draw_player_flash(scene_hud_present,NULL);
-            if(!status)status=rf_scene_draw_combat_hud(scene_hud_present,NULL);
+            {rf_xbox_ps2_mp_hud h;h.name="PLAYER";
+             if(!rf_scene_mp[0])rf_xbox_ps2_mp_hud_close();
+             rf_scene_mp_ps2_hud=rf_scene_mp[0] && !rf_xbox_ps2_mp_hud_open();
+             if(!status)status=rf_scene_draw_combat_hud(scene_hud_present,NULL);
+             if(!status && rf_scene_mp_ps2_hud && rf_scene_mp_hud_values(&h.health,&h.armor,&h.kills,&h.rank,&h.total,&h.seconds_left)){
+                 uint32_t anchor=rf_scene_hud_anchor;rf_scene_hud_anchor=1; /* left edge, as the port's HUD panels */
+                 status=rf_xbox_ps2_draw_mp_hud(scene_hud_present,NULL,&h);rf_scene_hud_anchor=anchor;
+             }}
             if(!status)status=rf_scene_draw_player_blackout(scene_hud_present,NULL);
+            if(!status)status=rf_scene_draw_mp_respawn(scene_hud_present,NULL,rf_xbox_input_binding_short_label(RF_XBOX_BIND_FIRE));
             if(!status)status=rf_scene_draw_endgame(scene_hud_present,NULL);
             renderer_draw_mark(6,&draw_profile_previous,profiling);
             hud_widen_active=0;hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}

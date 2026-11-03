@@ -790,6 +790,14 @@ int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float sec
 /* Advances the queued end-of-match announcer line; nonzero while an
  * announcer line still plays (the PS2 continue prompt waits for it). */
 uint32_t rf_scene_mp_results_audio(void);
+/* Set by the platform while it draws the PS2 multiplayer HUD block (which
+ * replaces the single-player health display). */
+extern uint32_t rf_scene_mp_ps2_hud;
+/* PS2 1691a0 values: 0 outside multiplayer. seconds UINT32_MAX without a
+ * time limit. */
+uint32_t rf_scene_mp_hud_values(int32_t *health,int32_t *armor,int32_t *kills,uint32_t *rank,uint32_t *total,uint32_t *seconds);
+/* PS2 multiplayer respawn prompt and darkening while the player is dead. */
+int rf_scene_draw_mp_respawn(rf_scene_particle_sink sink,void *context,const char *fire);
 typedef struct scene_mp_bot scene_mp_bot;
 /* PS2 bot roster (docs/MP-BOTS-PS2.md): used, human kills, deaths, streak,
  * longest streak, dead, respawn pending, kills. */

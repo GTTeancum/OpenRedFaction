@@ -597,6 +597,17 @@ uint32_t rf_scene_mp_results_audio(void)
     for(k=0;k<11;k++)if(scene_mp_line_playing(k))return 1;
     return 0;
 }
+uint32_t rf_scene_mp_ps2_hud;
+uint32_t rf_scene_mp_hud_values(int32_t *health,int32_t *armor,int32_t *kills,uint32_t *rank,uint32_t *total,uint32_t *seconds)
+{
+    uint32_t i;
+    if(!rf_scene_mp[0] || rf_scene_mp[6] || campaign_player_damage.state.effects.health<=0)return 0;
+    *health=(int32_t)campaign_player_damage.state.effects.health;*armor=(int32_t)campaign_player_damage.state.effects.armor;
+    *kills=(int32_t)rf_scene_mp[2];*rank=1;*total=1;
+    for(i=0;i<SCENE_MP_BOTS;i++)if(rf_scene_mp_roster[i].used){++*total;if(rf_scene_mp_roster[i].kills>(int32_t)rf_scene_mp[2])++*rank;}
+    *seconds=rf_scene_mp_time_limit?rf_scene_mp[5]:UINT32_MAX;
+    return 1;
+}
 /* 1ddbb0: the leader's score, the human player's kills or any bot's. */
 static int32_t scene_mp_leader_score(void)
 {

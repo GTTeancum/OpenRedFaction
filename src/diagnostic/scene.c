@@ -19231,7 +19231,8 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
         }else strcpy(label,"AIM AT TARGET");
         status=combat_hud_centered(sink,context,278,label,lock->locked?0xff60ff80:0xffffc060);if(status)return status;
     }
-    if(rf_scene_player_life[2] || rf_scene_enemy_combat[6]) {
+    /* Multiplayer draws the PS2 respawn prompt instead (rf_scene_draw_mp_respawn). */
+    if(!rf_scene_mp[0] && (rf_scene_player_life[2] || rf_scene_enemy_combat[6])) {
         const char *prompt;
 #ifdef RF_IMAGE_XBOX_NATIVE
         char mapped_prompt[80];

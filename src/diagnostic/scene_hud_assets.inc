@@ -109,7 +109,7 @@ static int scene_hud_original_draw(rf_scene_particle_sink sink,void *context,uin
             status=scene_hud_text_box(a,sink,context,RF_HUD_FONT_SMALL,text,(float)xy[2][0],(float)xy[2][1],0,0,full);if(status)return status;
             rf_hud_vehicle_diagnostic[2]=sprite;
         }
-    }else {
+    }else if(!(rf_scene_mp[0] && rf_scene_mp_ps2_hud)){ /* multiplayer: PS2 1691a0 block instead */
     /* Original439fbb then43a009: health first, suit second. Transparent
      * source borders overlap, so preserve this order with alpha modulation. */
     status=scene_hud_sprite_at(a,sink,context,RF_HUD_HEALTH_0+scene_hud_bucket(health*.1f),p[0]);if(status)return status;

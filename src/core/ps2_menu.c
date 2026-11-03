@@ -17,6 +17,7 @@
 typedef struct ps2_rect {uint16_t x,y,w,h;} ps2_rect;
 typedef struct ps2_font {
     uint32_t first,count,height,sharp; /* sharp: 2x glyph strip, drawn at half size */
+    uint32_t start,coverage; /* glyph table offset; coverage: VFNT v0 0-14 alpha, no palette */
     ps2_rect strip;rf_vpp_entry strip_entry;
     ps2_rect glyphs[256];
     int32_t advance[256];
@@ -37,13 +38,25 @@ static const char *const picture_names[RF_PS2_PICTURE_COUNT]={
     "options_blackcorner.tga","options_blacktop.tga","options_stripscorner.tga",
     "options_stripstop.tga","slider_control.tga","slider_rail.tga",
     "redfaction_title.tga","loadingstrips.tga","ls_cardempty.tga","ls_cardsel.tga",
-    "multi_letterstrips.tga"
+    "multi_letterstrips.tga",
+    "multi_hud_health_ammo.tga","multi_hud_time.tga","winner_trim.tga"
 };
-static const char *const font_names[RF_PS2_FONT_COUNT]={"standard.vf","title.vf"};
+static const char *const font_names[RF_PS2_FONT_COUNT]={"standard.vf","title.vf","smallfont.vf"};
 /* Double-resolution copies made by the pack tool for 720p (*_2x.tga strip
  * plus *_2x.fnt metrics); preferred when present. */
 static const char *const sharp_names[RF_PS2_FONT_COUNT][2]={
-    {"standard_2x.fnt","standard_2x.tga"},{"title_2x.fnt","title_2x.tga"}};
+    {"standard_2x.fnt","standard_2x.tga"},{"title_2x.fnt","title_2x.tga"},{"smallfont_2x.fnt","smallfont_2x.tga"}};
+/* Pictures and fonts a set loads (see rf_ps2_menu_open). */
+static uint32_t set_picture(uint32_t flags,uint32_t i)
+{
+    if(flags&RF_PS2_MENU_MP_HUD)return i>=RF_PS2_FRONTEND_PICTURES;
+    return i<((flags&RF_PS2_MENU_FRONTEND)?RF_PS2_FRONTEND_PICTURES:RF_PS2_INGAME_PICTURES);
+}
+static uint32_t set_font(uint32_t flags,uint32_t i)
+{
+    if(flags&RF_PS2_MENU_MP_HUD)return i!=RF_PS2_FONT_TITLE;
+    return i==RF_PS2_FONT_STANDARD || (i==RF_PS2_FONT_TITLE && (flags&RF_PS2_MENU_FRONTEND));
+}
 
 static uint32_t u16(const unsigned char *p){return (uint32_t)p[0]|(uint32_t)p[1]<<8;}
 static uint32_t u32(const unsigned char *p){return u16(p)|u16(p+2)<<16;}
@@ -85,12 +98,18 @@ static int font_read(rf_ps2_menu *m,uint32_t slot,unsigned char **data,uint32_t 
     if(e.size<36 || e.size>PS2_FONT_LIMIT)return RF_FORMAT;
     b=malloc(e.size);if(!b)return RF_RANGE;*data=b;*bytes=e.size;
     status=rf_vpp_read(&m->archive,&e,0,b,e.size);if(status)return status;
-    if(memcmp(b,"VFNT",4) || u32(b+4)!=1 || u32(b+8)!=0xfffffff0u || u32(b+28))return RF_FORMAT;
-    f->count=u32(b+12);f->first=u32(b+16);f->height=u32(b+24);pixels=u32(b+32);
+    if(memcmp(b,"VFNT",4))return RF_FORMAT;
+    if(u32(b+4)==0){ /* smallfont.vf: version 0 header, as menu_assets.c */
+        f->start=40;f->coverage=1;f->count=u32(b+8);f->first=u32(b+12);f->height=u32(b+20);pixels=u32(b+36);
+        if(u32(b+24) || u32(b+28) || u32(b+32)!=(uint64_t)f->count*16)return RF_FORMAT;
+    }else if(u32(b+4)==1){
+        if(u32(b+8)!=0xfffffff0u || u32(b+28))return RF_FORMAT;
+        f->start=36;f->coverage=0;f->count=u32(b+12);f->first=u32(b+16);f->height=u32(b+24);pixels=u32(b+32);
+    }else return RF_FORMAT;
     if(!f->count || f->count>256 || f->first>255 || !f->height || f->height>64 ||
-       36ull+f->count*16ull+pixels+1024ull!=e.size)return RF_FORMAT;
+       (uint64_t)f->start+f->count*16ull+pixels+(f->coverage?0:1024ull)!=e.size)return RF_FORMAT;
     for(i=0;i<f->count;i++){
-        const unsigned char *g=b+36+i*16;uint32_t width=u32(g+4),offset=u32(g+8);
+        const unsigned char *g=b+f->start+i*16;uint32_t width=u32(g+4),offset=u32(g+8);
         if(width>256 || u32(g)>256 || (uint64_t)offset+(uint64_t)width*f->height>pixels)return RF_FORMAT;
         f->advance[i]=(int32_t)u32(g);f->glyphs[i].w=(uint16_t)width;f->glyphs[i].h=(uint16_t)f->height;
     }
@@ -118,14 +137,16 @@ static int font_read_sharp(rf_ps2_menu *m,uint32_t slot)
 }
 static void font_draw(rf_ps2_menu *m,uint32_t slot,const unsigned char *b,uint32_t bytes)
 {
-    const ps2_font *f=m->fonts+slot;const unsigned char *pixels=b+36+f->count*16,*palette=b+bytes-1024;
+    const ps2_font *f=m->fonts+slot;const unsigned char *pixels=b+f->start+f->count*16,*palette=b+bytes-1024;
     uint32_t j,k;
     for(j=0;j<f->count;j++){
-        const ps2_rect *r=f->glyphs+j;uint32_t offset=u32(b+36+j*16+8);
+        const ps2_rect *r=f->glyphs+j;uint32_t offset=u32(b+f->start+j*16+8);
         for(k=0;k<(uint32_t)r->w*r->h;k++){
             unsigned char *dst=rf_image_pixel(&m->canvas,r->x+k%r->w,r->y+k/r->w);
-            const unsigned char *c=palette+csm1(pixels[offset+k])*4;
-            dst[0]=c[0];dst[1]=c[1];dst[2]=c[2];dst[3]=c[3];
+            if(f->coverage){uint32_t v=pixels[offset+k];if(v>14)v=14;
+                dst[0]=dst[1]=dst[2]=255;dst[3]=(unsigned char)(v*255/14);continue;}
+            {const unsigned char *c=palette+csm1(pixels[offset+k])*4;
+            dst[0]=c[0];dst[1]=c[1];dst[2]=c[2];dst[3]=c[3];}
         }
     }
 }
@@ -173,15 +194,16 @@ int rf_ps2_menu_open(rf_ps2_menu **out,const char *path,uint32_t flags,uint32_t 
     m=calloc(1,sizeof(*m));if(!m)return RF_RANGE;
     status=rf_vpp_open_checked(&m->archive,path);if(status){free(m);return status;}
     m->archive_open=1;
-    count=(flags&RF_PS2_MENU_FRONTEND)?RF_PS2_PICTURE_COUNT:RF_PS2_INGAME_PICTURES;
+    count=RF_PS2_PICTURE_COUNT;
     for(i=0;i<count;i++){
+        if(!set_picture(flags,i))continue;
         status=rf_vpp_find(&m->archive,picture_names[i],entries+i);if(status)goto done;
         status=tga_size(&m->archive,entries+i,sizes[i],sizes[i]+1);if(status)goto done;
         status=place(&shelf,m->pictures+i,sizes[i][0],sizes[i][1]);if(status)goto done;
     }
     for(i=0;i<RF_PS2_FONT_COUNT;i++){
         /* In game the title font is left out (memory); titles use standard. */
-        if(!(flags&RF_PS2_MENU_FRONTEND) && i!=RF_PS2_FONT_STANDARD)continue;
+        if(!set_font(flags,i))continue;
         status=font_read_sharp(m,i);
         if(!status){
             ps2_font *f=m->fonts+i;
@@ -204,6 +226,7 @@ int rf_ps2_menu_open(rf_ps2_menu **out,const char *path,uint32_t flags,uint32_t 
     status=allocate_image(&m->canvas,PS2_CANVAS_WIDTH,height);if(status)goto done;
     for(i=0;i<count;i++){
         const ps2_rect *r=m->pictures+i;
+        if(!set_picture(flags,i))continue;
         status=rf_image_tga_into(&m->canvas,r->x,r->y,r->w,r->h,&m->archive,entries+i);if(status)goto done;
         m->loaded[i]=1;
     }

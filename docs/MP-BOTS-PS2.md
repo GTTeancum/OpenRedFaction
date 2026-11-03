@@ -502,6 +502,55 @@ Done (now from the PS2 code):
   replays continue 1 s after the prompt is full. The section 7 notes
   attributing the HUD text block (1691a0: health/armour, name, kills,
   rank) to the end screen were wrong: 1691a0 is the in-match HUD.
+- Ported: the dead prompt (1ddc00) and the in-match HUD block (1691a0, in
+  place of the single-player health display, 169980 else-branch): icon
+  multi_hud_health_ammo.tga at (17,21), health (at least 1) and armour
+  centred on x 34 at y 22/43 in smallfont.vf, then the name at (17,97),
+  "Kills:" (384) at (17,116) with the count at (88,116), "Rank:" (385) at
+  (17,135) with "%d/%d" at (88,135), standard font, colour (220,220,220);
+  plus the bottom-left clock with a time limit. These load as a small
+  separate picture set for the match. smallfont.vf is a version 0 VFNT
+  (40-byte header, 0..14 coverage, no palette), read as the PC reader in
+  menu_assets.c does. Checked on XEMU (dm02, 4 bots).
+- Colours, from the static constructor 2a54e0 (205ce0 r,g,b,a; the menu
+  colours come from 2a7b00): 2ac10c (255,255,0,180) for the continue and
+  respawn prompts (alpha 180 * level), 2ac114 (0,255,0,105) for "GAME
+  OVER" (alpha replaced by level*150*fade), the HUD health/armour numbers
+  and the clock. These globals sit in small data ($gp 0x2b36f0). The
+  continue prompt is drawn only until continue is pressed (1dc1a0 skips
+  the prompt branch once 2ac540 is set). Ported.
+- After the end screen (traced, not ported): 163b30(0xc) leaves the game;
+  state 0xc's entry (1b2b20) goes to state 0x1a when 2ac530 (set at match
+  start, 1dbf20) is on, else the main menu (2). State 0x1a is the MP STATS
+  screen:
+  - Rows (239700): every human (2ac2b0[], name +0x144, stats at +0x2c),
+    then every used bot (1edcdd0, stride 0x54, name [0x14]); per row a
+    0x34 record at aa5070: name[0x20], longest spree +0x20, accuracy +0x24
+    (hits / shots, clamped to 1, 0 without shots), kills +0x28, player
+    kills +0x2c, deaths +0x30. Sorted by kills, high first (239220:
+    exchange when a later row has more).
+  - Human counters (+0x2c): kills +0 (1a6af0, also streak +0x10, longest
+    +0xc = max), suicide kills-1 (1a6b40), deaths +8 and streak 0 (1a6b60),
+    hits +0x14 (1ca3c0: the round struck an entity that is not the
+    shooter), shots +0x18 (1ccef0: one per round created). Bots: the same
+    in the roster record, hits [6] (+0x18) and shots [7] (+0x1c).
+  - Draw (2399a0), fading in with the front-end fade (1e22e0): "MP STATS"
+    (66) at (287,58), colour 2ac5d0, title font; headers in 2ac5c8 at
+    y 147: "Player" (67) x 44, "Kills" (68) x 268, "Deaths" (69) x 330,
+    "Longest" / "Killing Spree" (415/416) at (418,130) / (403,147),
+    "Accuracy" (71) x 522 (one human; two humans shift these and add
+    "Player"/"Kills" 417/418). Rows from y 174, 18 apart, standard font:
+    name at x 44, kills centred 281, deaths 354, longest 446, accuracy
+    "%5.1f %%" centred 558; the first row in 2ac5cc (selected colour), the
+    rest 2ac5c8; with more than two rows, every other row on a black bar
+    (34, y-1, 581x17) at alpha 32*level. "Elapsed time: %s:%s:%s" (419,
+    h:mm:ss of 80d80c) centred at y 320. Choices (white): "%s Continue"
+    (72, cross 0xad) at (135,372), "%s Replay Level" (73, circle 0xb0) at
+    (355,372), "%s Return to Main Menu" (74, square 0xae) at (190,397).
+  - Input (239570): cross -> MP OPTIONS (state 0x15, 1ec530, the
+    multiplayer setup); circle -> replay the level (2ac534 = 1, state 4);
+    square -> main menu (239560; with two humans a "PLAYER 2" settings
+    lost confirmation first).
 
 Still open (PS2 behaviour traced or located, not ported):
 1. Upper-body aim (151110 -> 150c30, traced): while 14f210 holds (target
@@ -518,5 +567,4 @@ Still open (PS2 behaviour traced or located, not ported):
 2. Player: character choice from the menu; the respawn loadout (1a2e90/
    1a2f40 give the 12mm handgun with 8f4930, which reads as weapon record 1
    +0x240, the remote charge detonator's max ammo in the PS2 table order,
-   so the field or index is not yet understood); the "Press Fire to
-   respawn" prompt (strings.tbl 3; draw site not found yet).
+   so the field or index is not yet understood).

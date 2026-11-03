@@ -509,3 +509,50 @@ int rf_xbox_ps2_draw_buttons(rf_scene_particle_sink sink,void *context,uint32_t 
     if(flags&RF_SCENE_OPTIONS_DISCONNECTED)return disconnected(sink,context);
     return RF_OK;
 }
+
+/* Multiplayer HUD (PS2 1691a0 in place of the single-player health display,
+ * and the clock of 1dc1a0), in the PS2's 640x448 coordinates. A separate
+ * small picture set stays loaded for the match. */
+static rf_ps2_menu *ps2_hud;static int ps2_hud_failed;
+int rf_xbox_ps2_mp_hud_open(void)
+{
+    if(ps2_hud)return RF_OK;
+    if(ps2_hud_failed)return ps2_hud_failed; /* tried once this match */
+    if(!rf_xbox_ps2_available())return ps2_hud_failed=RF_NOT_FOUND;
+    ps2_hud_failed=rf_ps2_menu_open(&ps2_hud,"D:\\ps2menu.vpp",RF_PS2_MENU_MP_HUD,1024u*1024u);
+    return ps2_hud_failed;
+}
+void rf_xbox_ps2_mp_hud_close(void){if(ps2_hud){rf_ps2_menu_close(ps2_hud);ps2_hud=NULL;}ps2_hud_failed=0;}
+int rf_xbox_ps2_draw_mp_hud(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_mp_hud *h)
+{
+    rf_ps2_menu *menu=ps2;char line[32];int status=RF_OK;uint32_t w;
+    if(!ps2_hud || !h)return RF_OK;
+    ps2=ps2_hud; /* the helpers draw from the current set */
+    /* 1691a0: icon at (17,21); health (at least 1) and armour centred on x 34
+     * at y 22 / 43 in the small font, colour 2ac114. */
+    status=picture(sink,context,RF_PS2_MULTI_HUD_HEALTH,17,21,0xffffffffu,0);
+    if(!status){snprintf(line,sizeof(line),"%d",h->health<2?1:h->health);w=width_of(RF_PS2_FONT_SMALL,line);
+        status=text(sink,context,RF_PS2_FONT_SMALL,34-(int32_t)(w>>1),22,line,RF_PS2_COLOR_MP_HUD);}
+    if(!status){snprintf(line,sizeof(line),"%d",h->armor);w=width_of(RF_PS2_FONT_SMALL,line);
+        status=text(sink,context,RF_PS2_FONT_SMALL,34-(int32_t)(w>>1),43,line,RF_PS2_COLOR_MP_HUD);}
+    /* Name, "Kills:" (384) and kills, "Rank:" (385) and rank/total in the
+     * standard font, colour (220,220,220). */
+    if(!status)status=text(sink,context,RF_PS2_FONT_STANDARD,17,97,h->name,RF_PS2_COLOR_TEXT);
+    if(!status)status=text(sink,context,RF_PS2_FONT_STANDARD,17,116,str(384),RF_PS2_COLOR_TEXT);
+    if(!status){snprintf(line,sizeof(line),"%d",h->kills);status=text(sink,context,RF_PS2_FONT_STANDARD,88,116,line,RF_PS2_COLOR_TEXT);}
+    if(!status){snprintf(line,sizeof(line),"%u/%u",h->rank,h->total);status=text(sink,context,RF_PS2_FONT_STANDARD,88,135,line,RF_PS2_COLOR_TEXT);}
+    if(!status)status=text(sink,context,RF_PS2_FONT_STANDARD,17,135,str(385),RF_PS2_COLOR_TEXT);
+    /* 1dc1a0 clock with a time limit: frame at (17,400) alpha 0x78, colon dots
+     * (43,408) and (43,413), seconds "%02d" at (47,402), minutes right-aligned
+     * at x 41, small font, colour 2ac114. */
+    if(!status && h->seconds_left!=UINT32_MAX){
+        uint32_t minutes=h->seconds_left/60,seconds=h->seconds_left%60;
+        status=picture(sink,context,RF_PS2_MULTI_HUD_TIME,17,400,0x78ffffffu,0);
+        if(!status)status=rect(sink,context,43,408,2,2,RF_PS2_COLOR_MP_HUD);
+        if(!status)status=rect(sink,context,43,413,2,2,RF_PS2_COLOR_MP_HUD);
+        if(!status){snprintf(line,sizeof(line),"%02u",seconds);status=text(sink,context,RF_PS2_FONT_SMALL,47,402,line,RF_PS2_COLOR_MP_HUD);}
+        if(!status){snprintf(line,sizeof(line),"%02u",minutes);w=width_of(RF_PS2_FONT_SMALL,line);
+            status=text(sink,context,RF_PS2_FONT_SMALL,41-(int32_t)w,402,line,RF_PS2_COLOR_MP_HUD);}
+    }
+    ps2=menu;return status;
+}

@@ -56,4 +56,12 @@ int rf_xbox_ps2_draw_audio(rf_scene_particle_sink sink,void *context,uint32_t se
     uint32_t master,uint32_t effects,uint32_t music);
 int rf_xbox_ps2_draw_buttons(rf_scene_particle_sink sink,void *context,uint32_t selection,uint32_t flags,
     const char *const *actions,const char *const *controls);
+/* Multiplayer HUD block (PS2 1691a0 and the 1dc1a0 clock). seconds_left
+ * UINT32_MAX hides the clock. */
+typedef struct rf_xbox_ps2_mp_hud {
+    int32_t health,armor,kills;uint32_t rank,total,seconds_left;const char *name;
+} rf_xbox_ps2_mp_hud;
+int rf_xbox_ps2_mp_hud_open(void);
+void rf_xbox_ps2_mp_hud_close(void);
+int rf_xbox_ps2_draw_mp_hud(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_mp_hud *h);
 #endif

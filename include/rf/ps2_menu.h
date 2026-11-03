@@ -23,19 +23,29 @@ enum rf_ps2_menu_picture {
     /* Front end only (not loaded by the in-game set). */
     RF_PS2_TITLE,RF_PS2_LOADINGSTRIPS,RF_PS2_LS_CARDEMPTY,RF_PS2_LS_CARDSEL,
     RF_PS2_MULTI_LETTERSTRIPS,
+    /* Multiplayer HUD set only (RF_PS2_MENU_MP_HUD). */
+    RF_PS2_MULTI_HUD_HEALTH,RF_PS2_MULTI_HUD_TIME,RF_PS2_WINNER_TRIM,
     RF_PS2_PICTURE_COUNT
 };
 #define RF_PS2_INGAME_PICTURES (RF_PS2_SLIDER_RAIL+1u)
-enum rf_ps2_menu_font {RF_PS2_FONT_STANDARD,RF_PS2_FONT_TITLE,RF_PS2_FONT_COUNT};
+#define RF_PS2_FRONTEND_PICTURES (RF_PS2_MULTI_LETTERSTRIPS+1u)
+enum rf_ps2_menu_font {RF_PS2_FONT_STANDARD,RF_PS2_FONT_TITLE,RF_PS2_FONT_SMALL,RF_PS2_FONT_COUNT};
 /* Menu colours from the PS2 static initialisers 2a7b00/2a7c24 (RGBA bytes):
  * text 2ac5c8, selected 2ac5cc, disabled 2ac640, highlight 2ac5c0. */
 #define RF_PS2_COLOR_TEXT 0xffdcdcdcu
 #define RF_PS2_COLOR_SELECTED 0xffffff9eu
 #define RF_PS2_COLOR_DISABLED 0x6ea4a4a4u
 #define RF_PS2_COLOR_HIGHLIGHT 0xffeaea53u
-enum {RF_PS2_MENU_FRONTEND=1u,RF_PS2_MENU_BACKDROP=2u};
+/* Multiplayer colours, set by the static constructor at 2a54e0 (205ce0
+ * r,g,b,a): 2ac10c prompts (yellow, alpha 180), 2ac114 HUD numbers, clock
+ * and "GAME OVER" (green, alpha 105). */
+#define RF_PS2_COLOR_MP_PROMPT 0xb4ffff00u
+#define RF_PS2_COLOR_MP_HUD 0x6900ff00u
+enum {RF_PS2_MENU_FRONTEND=1u,RF_PS2_MENU_BACKDROP=2u,RF_PS2_MENU_MP_HUD=4u};
 /* flags: 0 loads the in-game set (buttons, PAUSED, popup); FRONTEND adds every
- * front-end picture; BACKDROP also keeps the backdrop frames resident.
+ * front-end picture; BACKDROP also keeps the backdrop frames resident;
+ * MP_HUD alone loads the multiplayer HUD pictures with the standard and small
+ * fonts (kept for a whole match).
  * Requires *out NULL; failure leaves it NULL. */
 int rf_ps2_menu_open(rf_ps2_menu **out,const char *path,uint32_t flags,uint32_t budget);
 void rf_ps2_menu_close(rf_ps2_menu *menu);
