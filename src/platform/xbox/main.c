@@ -856,18 +856,20 @@ static rf_scene_mp_stats_row player_mp_stats_rows[17];static uint32_t player_mp_
 enum {PLAYER_MP_STATS_MENU,PLAYER_MP_STATS_OPTIONS,PLAYER_MP_STATS_REPLAY};
 static int player_mp_stats(uint32_t *choice)
 {
-    uint32_t drawn=0;int status;
+    uint32_t drawn=0,start=GetTickCount(),level=0;int status;
     *choice=PLAYER_MP_STATS_MENU;
     for(;;){
         rf_scene_input input;uint32_t pressed;
         rf_xbox_menu_audio_poll();
+        /* 239950: fade in over 0.7 s; the screen redraws while it runs. */
+        if(level<255){uint32_t t=GetTickCount()-start;level=t>=700u?255u:t*255u/700u;drawn=0;}
         status=rf_xbox_input_poll(NULL,0,&input);
         if(status && status!=RF_NOT_FOUND)return status;
         if(!drawn || rf_xbox_menu_redraw_due()){
-            status=rf_xbox_ps2_mp_stats_frame(player_mp_stats_rows,player_mp_stats_count,player_mp_stats_elapsed);if(status)return status;drawn=1;
+            status=rf_xbox_ps2_mp_stats_frame(player_mp_stats_rows,player_mp_stats_count,player_mp_stats_elapsed,level);if(status)return status;drawn=1;
         }
         if(status || !rf_xbox_input_connected() || rf_xbox_input_connection_lost()){Sleep(10);continue;}
-        pressed=rf_xbox_input_menu_pressed();
+        pressed=level<255?0:rf_xbox_input_menu_pressed(); /* 2399a0: input once the fade-in ends */
         /* 239570: cross -> MP OPTIONS (0x15), circle -> replay (state 4),
          * square -> main menu (239560); one human, so no PLAYER 2 notice. */
         if(pressed&(RF_XBOX_MENU_ACCEPT|RF_XBOX_MENU_CANCEL|RF_XBOX_MENU_ALTERNATE)){
@@ -926,7 +928,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                 /* Sample values for the layout only. */
                 rf_scene_mp_stats_row rows[16];uint32_t k;memset(rows,0,sizeof(rows));
                 for(k=0;k<=arg;k++){strcpy(rows[k].name,k?"Bot":"PLAYER");rows[k].kills=(int32_t)(12-k*2);rows[k].deaths=(int32_t)(k+2);rows[k].longest=4-(k&3);rows[k].accuracy=k?.215f*k:.453f;}
-                status=rf_xbox_ps2_mp_stats_frame(rows,arg+1,754);
+                status=rf_xbox_ps2_mp_stats_frame(rows,arg+1,754,255);
             }else if(kind==7)status=rf_xbox_session_menu_draw(RF_SCENE_SESSION_LOAD,arg?RF_SCENE_SESSION_CONFIRM:0);
             else if(kind==8)status=rf_xbox_audio_options_draw(RF_SCENE_AUDIO_EFFECTS,0,80,70,60);
             else status=rf_xbox_button_mapping_draw(2,0,actions,controls);

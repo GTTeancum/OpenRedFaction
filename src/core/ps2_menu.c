@@ -18,6 +18,9 @@ typedef struct ps2_rect {uint16_t x,y,w,h;} ps2_rect;
 typedef struct ps2_font {
     uint32_t first,count,height,sharp; /* sharp: 2x glyph strip, drawn at half size */
     uint32_t start,coverage; /* glyph table offset; coverage: VFNT v0 0-14 alpha, no palette */
+    /* Kerning (210350): pairs of glyph indices and a signed advance change;
+     * each glyph's first pair (glyph +12, -1 none). */
+    uint32_t kern_count;uint8_t kern[256][3];int16_t kern_first[256];
     ps2_rect strip;rf_vpp_entry strip_entry;
     ps2_rect glyphs[256];
     int32_t advance[256];
@@ -104,10 +107,11 @@ static int font_read(rf_ps2_menu *m,uint32_t slot,unsigned char **data,uint32_t 
         f->start=40;f->coverage=1;f->count=u32(b+8);f->first=u32(b+12);f->height=u32(b+20);pixels=u32(b+36);
         if(u32(b+24) || u32(b+28) || u32(b+32)!=(uint64_t)f->count*16)return RF_FORMAT;
     }else if(u32(b+4)==1){
-        /* +28: kerning pairs (char, next, offset; 3 bytes each) before the
-         * glyph table; message.vf has three (LL, UL, UP), not applied. */
+        /* +28: kerning pairs (glyph, next glyph, offset; 3 bytes each) before
+         * the glyph table; message.vf has three ("ll", "ul", "up", +1). */
         if(u32(b+8)!=0xfffffff0u || u32(b+28)>256)return RF_FORMAT;
         f->start=36+u32(b+28)*3;f->coverage=0;f->count=u32(b+12);f->first=u32(b+16);f->height=u32(b+24);pixels=u32(b+32);
+        f->kern_count=u32(b+28);memcpy(f->kern,b+36,f->kern_count*3);
     }else return RF_FORMAT;
     if(!f->count || f->count>256 || f->first>255 || !f->height || f->height>64 ||
        (uint64_t)f->start+f->count*16ull+pixels+(f->coverage?0:1024ull)!=e.size)return RF_FORMAT;
@@ -115,6 +119,7 @@ static int font_read(rf_ps2_menu *m,uint32_t slot,unsigned char **data,uint32_t 
         const unsigned char *g=b+f->start+i*16;uint32_t width=u32(g+4),offset=u32(g+8);
         if(width>256 || u32(g)>256 || (uint64_t)offset+(uint64_t)width*f->height>pixels)return RF_FORMAT;
         f->advance[i]=(int32_t)u32(g);f->glyphs[i].w=(uint16_t)width;f->glyphs[i].h=(uint16_t)f->height;
+        f->kern_first[i]=(int16_t)u16(g+12);
     }
     return RF_OK;
 }
@@ -297,6 +302,19 @@ int rf_ps2_menu_glyph(const rf_ps2_menu *m,uint32_t font,uint32_t code,rf_hud_gl
     if(f->sharp){out->sprite.width/=2;out->sprite.height/=2;}
     return RF_OK;
 }
+/* 210350: from the glyph's first pair, scan pairs of this glyph while the
+ * next index is smaller; a match adds its offset to the advance. */
+int32_t rf_ps2_menu_kern(const rf_ps2_menu *m,uint32_t font,uint32_t code,uint32_t next)
+{
+    const ps2_font *f;int32_t k;uint32_t a,b;
+    if(!m || font>=RF_PS2_FONT_COUNT)return 0;
+    f=m->fonts+font;if(!f->count || f->sharp || !f->kern_count)return 0;
+    if(next==10 || code<f->first || next<f->first || code-f->first>=f->count || next-f->first>=f->count)return 0;
+    a=code-f->first;b=next-f->first;k=f->kern_first[a];
+    if(k<0 || (uint32_t)k>=f->kern_count)return 0;
+    while((uint32_t)k<f->kern_count && f->kern[k][0]==a && f->kern[k][1]<b)++k;
+    return (uint32_t)k<f->kern_count && f->kern[k][0]==a && f->kern[k][1]==b?(int8_t)f->kern[k][2]:0;
+}
 int rf_ps2_menu_text_width(const rf_ps2_menu *m,uint32_t font,const char *text,uint32_t *out)
 {
     uint32_t width=0,maximum=0,i;rf_hud_glyph g;int status;
@@ -304,7 +322,7 @@ int rf_ps2_menu_text_width(const rf_ps2_menu *m,uint32_t font,const char *text,u
     for(i=0;text[i];i++){
         if(text[i]=='\n'){if(width>maximum)maximum=width;width=0;continue;}
         status=rf_ps2_menu_glyph(m,font,(unsigned char)text[i],&g);if(status)return status;
-        width+=(uint32_t)g.advance;
+        width+=(uint32_t)(g.advance+rf_ps2_menu_kern(m,font,(unsigned char)text[i],(unsigned char)text[i+1]));
     }
     *out=width>maximum?width:maximum;return RF_OK;
 }

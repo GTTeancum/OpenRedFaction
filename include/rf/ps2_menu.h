@@ -56,6 +56,8 @@ int rf_ps2_menu_picture(const rf_ps2_menu *menu,uint32_t id,rf_hud_sprite *out);
 int rf_ps2_menu_feature(rf_ps2_menu *menu,const char *name,rf_hud_sprite *out);
 int rf_ps2_menu_glyph(const rf_ps2_menu *menu,uint32_t font,uint32_t code,rf_hud_glyph *out);
 int rf_ps2_menu_text_width(const rf_ps2_menu *menu,uint32_t font,const char *text,uint32_t *out);
+/* Advance change for code followed by next (font kerning pairs), else 0. */
+int32_t rf_ps2_menu_kern(const rf_ps2_menu *menu,uint32_t font,uint32_t code,uint32_t next);
 uint32_t rf_ps2_menu_font_height(const rf_ps2_menu *menu,uint32_t font);
 /* PS2 strings.tbl entry (English); "" when absent. */
 const char *rf_ps2_menu_string(const rf_ps2_menu *menu,uint32_t id);

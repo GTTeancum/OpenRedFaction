@@ -1303,10 +1303,10 @@ static int ps2_buttons_cb(rf_scene_particle_sink sink,void *context,const void *
 static int ps2_multi_cb(rf_scene_particle_sink sink,void *context,const void *p)
 {const ps2_args *x=p;return rf_xbox_ps2_draw_multi(sink,context,x->multi);}
 static int ps2_mp_stats_cb(rf_scene_particle_sink sink,void *context,const void *p)
-{const ps2_args *x=p;return rf_xbox_ps2_draw_mp_stats(sink,context,x->stats,x->a[0],x->a[1]);}
-int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_mp_stats(sink,context,x->stats,x->a[0],x->a[1],x->a[2]);}
+int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed,uint32_t level)
 {
-    ps2_args x={.a={count,elapsed}};x.stats=rows;
+    ps2_args x={.a={count,elapsed,level>255?255:level}};x.stats=rows;
     if(!rf_xbox_ps2_active())return RF_RANGE;
     return ps2_frame(ps2_mp_stats_cb,&x);
 }

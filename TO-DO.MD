@@ -48,9 +48,7 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | 10 | Doctor-uniform pickup handler |
 | 12 | AI alternate-fire spread field (no consumer: do PS2 bots alt-fire? untraced) |
 | 13 | Shared random-number sequence across systems |
-| 15 | MP STATS fade-in (1e22e0) |
-| 16 | message.vf kerning pairs |
-| 17 | Player's profile name instead of "PLAYER" |
+| 17 | Player name: port the PS2 name-entry screen (Player 1 Options, multi_letterstrips) and players.cfg profile; no default name exists |
 | 18 | Draw the chosen character's model and skin |
 | 19 | See a dropped item fading on screen |
 | 20 | See a bot's lean clearly on screen |

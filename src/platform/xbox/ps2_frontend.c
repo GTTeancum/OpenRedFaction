@@ -180,7 +180,7 @@ static int text(rf_scene_particle_sink sink,void *context,uint32_t font,int32_t 
             rf_hud_glyph g;
             status=rf_ps2_menu_glyph(ps2,font,(unsigned char)buffer[i],&g);if(status)return status;
             if(g.sprite.width){status=quad(sink,context,&g.sprite,cx,y,(float)g.sprite.width,(float)g.sprite.height,argb,0);if(status)return status;}
-            cx+=(float)g.advance;
+            cx+=(float)(g.advance+rf_ps2_menu_kern(ps2,font,(unsigned char)buffer[i],(unsigned char)buffer[i+1]));
         }
         y+=height;line=end?end+1:NULL;
     }
@@ -524,10 +524,14 @@ int rf_xbox_ps2_draw_buttons(rf_scene_particle_sink sink,void *context,uint32_t 
  * (419; hours, minutes, seconds, each "0%1d" under 10 else "%2d") centred
  * at y 320, and the choices 72/73/74 at (135,372), (355,372), (190,397)
  * with the PS2 cross/circle/square glyphs (0xad/0xb0/0xae), here the Xbox
- * A/B/X buttons. Port notes: no fade-in (1e22e0); message.vf kerning is
- * not applied. */
+ * A/B/X buttons. Fade-in (239950 -> 1e2230(700)): level 0 -> 1 over 0.7 s;
+ * the title row and rows take alpha * level, the bars 32 * level, the
+ * white lines level * 255, then black over all at 255 - level*255; no
+ * input until it ends. message.vf kerns "ll", "ul" and "up" (+1). */
 static void mp_stats_field(char *out,size_t size,uint32_t v){snprintf(out,size,v<10?"0%1u":"%2u",v);}
-int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed)
+/* Colour with its alpha scaled by the fade level (0-255). */
+static uint32_t mp_stats_fade(uint32_t argb,uint32_t level){return (((argb>>24)*level/255u)<<24)|(argb&0xffffffu);}
+int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed,uint32_t level)
 {
     char line[96],h[8],m[8],s[8];uint32_t i;int status;
     if(!ps2 || !sink || (!rows && count))return RF_RANGE;
@@ -535,10 +539,10 @@ int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf
     status=backdrop(sink,context,0x606060u);if(status)return status;
     status=options_frame(sink,context,str(66));if(status)return status;
     {static const struct {uint16_t id,x,y;} heads[]={{67,44,147},{71,522,147},{68,268,147},{69,330,147},{415,418,130},{416,403,147}};
-     for(i=0;i<6;i++){status=text(sink,context,RF_PS2_FONT_MESSAGE,heads[i].x,heads[i].y,str(heads[i].id),RF_PS2_COLOR_TEXT);if(status)return status;}}
+     for(i=0;i<6;i++){status=text(sink,context,RF_PS2_FONT_MESSAGE,heads[i].x,heads[i].y,str(heads[i].id),mp_stats_fade(RF_PS2_COLOR_TEXT,level));if(status)return status;}}
     for(i=0;i<count;i++){
-        float y=174.0f+18.0f*i;uint32_t c=i?RF_PS2_COLOR_TEXT:RF_PS2_COLOR_SELECTED,tenths;
-        if(count>2 && !(i&1)){status=rect(sink,context,34,y-1,581,17,0x20000000u);if(status)return status;}
+        float y=174.0f+18.0f*i;uint32_t c=mp_stats_fade(i?RF_PS2_COLOR_TEXT:RF_PS2_COLOR_SELECTED,level),tenths;
+        if(count>2 && !(i&1)){status=rect(sink,context,34,y-1,581,17,(32u*level/255u)<<24);if(status)return status;}
         status=text(sink,context,RF_PS2_FONT_STANDARD,44,y,rows[i].name,c);if(status)return status;
         snprintf(line,sizeof(line),"%d",(int)rows[i].kills);
         status=text(sink,context,RF_PS2_FONT_STANDARD,281-(int32_t)(width_of(RF_PS2_FONT_STANDARD,line)>>1),y,line,c);if(status)return status;
@@ -552,10 +556,13 @@ int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf
     }
     mp_stats_field(h,sizeof(h),elapsed/3600);mp_stats_field(m,sizeof(m),elapsed/60%60);mp_stats_field(s,sizeof(s),elapsed%60);
     snprintf(line,sizeof(line),str(419),h,m,s);
-    status=text(sink,context,RF_PS2_FONT_STANDARD,CENTER,320,line,0xffffffffu);if(status)return status;
-    snprintf(line,sizeof(line),str(72),"A");status=text(sink,context,RF_PS2_FONT_STANDARD,135,372,line,0xffffffffu);if(status)return status;
-    snprintf(line,sizeof(line),str(73),"B");status=text(sink,context,RF_PS2_FONT_STANDARD,355,372,line,0xffffffffu);if(status)return status;
-    snprintf(line,sizeof(line),str(74),"X");return text(sink,context,RF_PS2_FONT_STANDARD,190,397,line,0xffffffffu);
+    status=text(sink,context,RF_PS2_FONT_STANDARD,CENTER,320,line,(level<<24)|0xffffffu);if(status)return status;
+    snprintf(line,sizeof(line),str(72),"A");status=text(sink,context,RF_PS2_FONT_STANDARD,135,372,line,(level<<24)|0xffffffu);if(status)return status;
+    snprintf(line,sizeof(line),str(73),"B");status=text(sink,context,RF_PS2_FONT_STANDARD,355,372,line,(level<<24)|0xffffffu);if(status)return status;
+    snprintf(line,sizeof(line),str(74),"X");status=text(sink,context,RF_PS2_FONT_STANDARD,190,397,line,(level<<24)|0xffffffu);if(status)return status;
+    /* 2399a0 while fading in (acbd8): black over everything at 255 - level. */
+    if(level<255)status=rect(sink,context,0,0,640,448,(255u-level)<<24);
+    return status;
 }
 /* Multiplayer HUD (PS2 1691a0 in place of the single-player health display,
  * and the clock of 1dc1a0), in the PS2's 640x448 coordinates. A separate
