@@ -36,8 +36,9 @@
  * items up yet, so a weapon route never changes the bot's weapon; the ammo
  * seek 12f810 (below a third of the clip's ammo, 1 in 64) is left out because
  * port bots do not count ammo; the attack-update weapon seek and 1-in-64 roam
- * are held off (SCENE_MP_WEAPON_SEEK) until the PS2 firing on a route is
- * traced; bots with no target and no route roam at once
+ * are held off (SCENE_MP_WEAPON_SEEK) until bots face and fire at their
+ * target while walking a route (1373c0: target choice each path step,
+ * 138e60 turn to the target); bots with no target and no route roam at once
  * (the PS2 idle mode is not ported); the hurt-bot health route of the
  * MP branch of 1339e0 is not wired. */
 uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit;
@@ -148,6 +149,21 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     rf_scene_mp[0]=1;rf_scene_mp[1]=count;rf_scene_mp[5]=rf_scene_mp_time_limit;
     return RF_OK;
 }
+/* Target scan cadence. Single player: one look every 30 frames, phased per
+ * actor. Multiplayer: 12b580 re-runs the target choice every 28e9b0[skill] =
+ * 600, 450, 300, 200 ms (36, 27, 18, 12 frames; skill = session difficulty). */
+static uint32_t scene_mp_scan_due(uint32_t frame,uint32_t slot,uint32_t phase)
+{
+    static const uint32_t period[4]={36,27,18,12};uint32_t p;
+    if(!rf_scene_mp[0])return (frame%30+phase)%30==slot%30;
+    p=period[rf_scene_session_get_difficulty()&3];
+    return (frame+phase)%p==slot%p;
+}
+/* First shot after a new target. Single player keeps the port's half-second
+ * wait; multiplayer fires on the first attack frame (12ffd0 step 8 runs
+ * 12ae50 the same frame; 12a960 needs only the target within 0.9 of the
+ * facing; the port keeps campaign_enemy_aim_aligned's 30-degree cone). */
+static uint32_t scene_mp_first_shot(uint32_t frame){return rf_scene_mp[0]?frame:frame+30;}
 /* Corpse removal (campaign_remove_object): 2748f0 respawns the bot. */
 static void scene_mp_bot_removed(uint32_t slot)
 {if(rf_scene_mp[0] && slot<SCENE_MP_BOTS && rf_scene_mp_roster[slot].used)rf_scene_mp_roster[slot].respawn_pending=1;}

@@ -5763,7 +5763,9 @@ static int campaign_live_corpses_tick(float elapsed,int32_t now)
                 &campaign_live_corpse_count,&campaign_live_corpse_object_count,0,
                 &campaign_live_corpse_delete_backend);
             if(status){++rf_scene_live_corpses[7];return status;}
-            status=scene_corpse_source_retire(model,uid);
+            /* Multiplayer has no saves, and a bot's corpse sits on a spare model
+             * owner while the bot already lives again in its slot (scene_mp.inc). */
+            status=rf_scene_mp[0]?RF_OK:scene_corpse_source_retire(model,uid);
             if(status){++rf_scene_live_corpses[7];return status;}
             ++rf_scene_live_corpses[5];
         }
@@ -13613,7 +13615,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(campaign_npc_ai_suppressed(owner))continue; /*408ac0 ordinary selection only. */
             /* Practical first pass: stagger sight checks, 20-unit range and 120-degree cone.
              * Authored affiliation 0 is unfriendly; neutral/friendly actors need provocation. */
-            if((frame%30+campaign_enemy_sight_phase_offset)%30!=i%30)continue;
+            if(!scene_mp_scan_due(frame,i,campaign_enemy_sight_phase_offset))continue;
             ++rf_scene_enemy_awareness[0];
             if(owner->damage.effects.affiliation!=0){++rf_scene_enemy_awareness[5];continue;}
             if(distance>20*20 || distance<.0001f){++rf_scene_enemy_awareness[3];continue;}
@@ -13627,7 +13629,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             if(!campaign_script_movement_owns(owner))scene_patrol_combat_begin(owner,0);
             scene_noise_cancel(owner);
             owner->combat_target=campaign_player_object.handle;
-            owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;scene_blind_sync(owner,frame);
+            owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=scene_mp_first_shot(frame);scene_blind_sync(owner,frame);
             if(rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11]) {
                 ++rf_scene_attack_recovery[1];rf_scene_attack_recovery[3]=frame;
             }

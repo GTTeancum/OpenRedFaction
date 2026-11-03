@@ -125,7 +125,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
        owner->script_shoot.active||!campaign_enemy_opposed_live(owner)||
        (!rf_scene_mp[0]&&owner->damage.effects.affiliation!=0&&owner->damage.effects.affiliation!=2)||
        owner->view.weapons[0]<0||
-       (frame%30+campaign_enemy_sight_phase_offset)%30!=slot%30)return RF_OK;
+       !scene_mp_scan_due(frame,slot,campaign_enemy_sight_phase_offset))return RF_OK;
     /* Candidate-specific motion is checked below. Passing moving1 here only
      * permits Motion11's search; Catatonic and active Waypoints remain vetoes. */
     if(!campaign_enemy_mode_admits(owner,1,0))return RF_OK;
@@ -190,7 +190,7 @@ static int campaign_enemy_opposed_acquire(scene_stream *stream,uint32_t slot,
     if(!campaign_script_movement_owns(owner)){scene_patrol_combat_begin(owner,0);campaign_pursuit_stop(owner);owner->script_move.active=0;}
     scene_noise_cancel(owner);
     owner->combat_scripted=2;owner->combat_target=target->registration.handle;owner->combat_alert=1;
-    owner->combat_navigation_due=owner->combat_burst_remaining=0;owner->combat_due=frame+30;scene_blind_sync(owner,frame);
+    owner->combat_navigation_due=owner->combat_burst_remaining=0;owner->combat_due=scene_mp_first_shot(frame);scene_blind_sync(owner,frame);
     ++rf_scene_enemy_opposed[2];++rf_scene_enemy_combat[1];
     ++rf_scene_enemy_opposed[owner->damage.effects.affiliation==2?12:13];
     rf_scene_enemy_opposed[6]=(uint32_t)campaign_seeds.records.items[slot].record.uid;

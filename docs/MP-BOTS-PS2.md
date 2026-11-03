@@ -328,12 +328,21 @@ Differs from the PS2 or missing:
    corpse slot) and the bot's slot is restored and registered again, rather
    than a new entity being created. Respawned bots keep their authored
    affiliation (PS2: 3).
-3. Combat timing: port bots need about a second of alert before the first
-   shot; PS2 bots fire on the first attack frame. Because of this the
-   per-frame route rules (attack-update steps 2, 3, 5, 6, 7 and the hit
-   reaction's `health` route) are held off (`SCENE_MP_WEAPON_SEEK` 0): with
-   them, port bots stopped shooting (dm01 tests: 359 bot shots without, 0
-   and 21 with).
+3. Combat timing: ported. Multiplayer bots look for targets every 600, 450,
+   300 or 200 ms by skill (12b580 / 28e9b0) and fire on the first frame they
+   face the target (no half-second wait; scene_mp_first_shot). The PS2 facing
+   test in 12a960 (12ac60: dot of the bot's facing +0x71c and the unit
+   direction to the target below 0.9 refuses the shot) is close to the
+   port's 30-degree horizontal cone, which is kept.
+   The per-frame route rules (attack-update steps 2, 3, 5, 6, 7 and the hit
+   reaction's `health` route) stay held off (`SCENE_MP_WEAPON_SEEK` 0): with
+   the timing ported they still pull bots off fights (dm01, 4 bots, 150 s:
+   207 bot shots and 13 bot kills without, 38 and 2 with). The missing piece
+   is fighting on a route: the PS2 path step 1373c0 re-runs the target
+   choice (12b580) each step in multiplayer and stops following when it
+   changes target, and while the bot has a target (+0x6f4 bit 8, +0x480) it
+   turns to face it (138e60 with the target's position) as it walks, so the
+   ordinary fire check passes on the route. Port routes do neither.
 4. Items: port bots do not pick items up; items do not respawn or spin;
    dropped-item cap not applied.
 5. Damage: bot damage is not scaled by skill; multiplayer weapon damage
