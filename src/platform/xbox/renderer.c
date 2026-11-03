@@ -675,7 +675,7 @@ uint32_t rf_xbox_menu_resources[8]; /* opens,status,active,resident,peak,page,pr
  * About 2 MB while paused; 16-bit frame buffers or no memory keep black. */
 #define PAUSE_BACKDROP_LEVEL 100u /* of 256: darkened to about 40% */
 static rf_image pause_backdrop;static float pause_backdrop_u,pause_backdrop_v;
-static void pause_backdrop_capture(void)
+static void pause_backdrop_capture_level(uint32_t level)
 {
     const unsigned char *front;uint32_t pitch,step,w,h,x,y;
     if(pause_backdrop.rgba || XVideoGetMode().bpp!=32)return;
@@ -692,11 +692,12 @@ static void pause_backdrop_capture(void)
             const unsigned char *q=p+pitch;
             b=(b+p[4]+q[0]+q[4])/4;g=(g+p[5]+q[1]+q[5])/4;r=(r+p[6]+q[2]+q[6])/4;
         }
-        d[0]=(unsigned char)(r*PAUSE_BACKDROP_LEVEL>>8);d[1]=(unsigned char)(g*PAUSE_BACKDROP_LEVEL>>8);
-        d[2]=(unsigned char)(b*PAUSE_BACKDROP_LEVEL>>8);d[3]=255;
+        d[0]=(unsigned char)(r*level>>8);d[1]=(unsigned char)(g*level>>8);
+        d[2]=(unsigned char)(b*level>>8);d[3]=255;
     }
     pause_backdrop_u=(float)w/1024.0f;pause_backdrop_v=(float)h/512.0f;
 }
+static void pause_backdrop_capture(void){pause_backdrop_capture_level(PAUSE_BACKDROP_LEVEL);}
 static void pause_backdrop_release(void)
 {
     rf_image_close(&pause_backdrop);memset(&pause_backdrop,0,sizeof(pause_backdrop));
@@ -1328,14 +1329,41 @@ int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags)
     stream_start_valid=0;
     return RF_OK;
 }
-int rf_xbox_mp_results_draw(void)
+/* PS2 end screen (1dc1a0) over the last game picture, kept at full
+ * brightness (the PS2 draws the end screen over the running game). */
+void rf_xbox_mp_results_open(void)
 {
-    int status;
-    {int opened=device_open();if(opened)return opened;}
+    if(device_open())return;
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();
-    screen_fill(0xff101018);
-    hud_batch_begin();status=rf_scene_draw_mp_results(scene_hud_present,NULL);hud_batch_end();
+    pause_backdrop_capture_level(256u);
+}
+void rf_xbox_mp_results_close(void){pause_backdrop_release();}
+static int mp_results_frame(rf_scene_particle_sink sink,void *context,const void *args)
+{
+    const float *v=args;return rf_scene_draw_mp_results(sink,context,v[0],v[1],v[2]);
+}
+int rf_xbox_mp_results_draw(float seconds,float prompt,float fade)
+{
+    float args[3]={seconds,prompt,fade};int status;
+    {int opened=device_open();if(opened)return opened;}
+    if(hud_batch_active || particle_batch_active || hud_commands.p)return RF_RANGE;
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();screen_fill(0xff000000);
+    hud_batch_begin();
+    if(pause_backdrop.rgba){
+        /* The whole game picture (widescreen included), not the menus' 4:3. */
+        rf_particle_draw_vertex v[4];uint32_t i,widen=hud_widen_active;
+        memset(v,0,sizeof(v));
+        for(i=0;i<4;i++){
+            uint32_t right=i==1||i==2,bottom=i>=2;
+            v[i].screen[0]=right?640.0f:0.0f;v[i].screen[1]=bottom?480.0f:0.0f;v[i].reciprocal_w=1;
+            v[i].argb=0xffffffffu;v[i].uv[0]=right?pause_backdrop_u:0;v[i].uv[1]=bottom?pause_backdrop_v:0;
+        }
+        hud_widen_active=1;status=scene_hud_present(NULL,v,4,&pause_backdrop,RF_PARTICLE_NORMAL_MODE&~(31u<<20));
+        hud_widen_active=widen;
+        if(status){hud_batch_end();return status;}
+    }
+    status=mp_results_frame(scene_hud_present,NULL,args);hud_batch_end();
     if(status)return status;
     show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;return RF_OK;

@@ -551,6 +551,8 @@ static uint32_t scene_mp_line_playing(uint32_t n)
 {
     uint32_t source;
     if(scene_mp_line_voice[n]<0 || rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,scene_mp_line_voice[n],&source))return 0;
+    /* The device clock decides on the Xbox (its mixer copy is not drained). */
+    if(campaign_audio_events.playing)return campaign_audio_events.playing(campaign_audio_events_context,source);
     return campaign_audio_mixer.voices[source&0xffff].active;
 }
 static void scene_mp_line_stop(uint32_t n)
@@ -580,6 +582,20 @@ static void scene_mp_announce(uint32_t n,uint32_t stop,uint32_t wait)
     if(stop)for(k=0;k<11;k++)scene_mp_line_stop(k);
     else if(wait)for(k=0;k<11;k++)if(scene_mp_line_playing(k))return;
     scene_mp_line_start(n);scene_mp_line_played[n]=1;
+}
+/* End screen (1dc1a0): play the queued winner line once line 4 ends, and
+ * report whether a line still plays; the continue prompt (2ac560) is held
+ * at zero meanwhile. */
+uint32_t rf_scene_mp_results_audio(void)
+{
+    uint32_t k;
+    if(!rf_scene_mp[0])return 0;
+    if(scene_mp_winner_line>=0 && scene_mp_line_played[4] && !scene_mp_line_playing(4)){
+        scene_mp_line_start((uint32_t)scene_mp_winner_line);scene_mp_winner_line=-1;
+    }
+    if(scene_mp_winner_line>=0)return 1;
+    for(k=0;k<11;k++)if(scene_mp_line_playing(k))return 1;
+    return 0;
 }
 /* 1ddbb0: the leader's score, the human player's kills or any bot's. */
 static int32_t scene_mp_leader_score(void)

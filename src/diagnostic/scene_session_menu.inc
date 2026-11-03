@@ -285,22 +285,39 @@ int rf_scene_draw_button_mapping(rf_scene_particle_sink sink,void *context,
         (flags&RF_SCENE_OPTIONS_PAUSED)?"B BACK   START RESUME":"B OR START BACK",0xffb8c0d0);
 }
 
-/* Multiplayer match results (scene_mp.inc): the player and every bot sorted
- * by kills, as the PS2 ranks them (1dba..: kill counts sorted descending). */
-int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context)
+/* PS2 one-player end screen (1dc1a0, 2ab9e8 == 1), over the last game
+ * picture: seconds since the match ended, continue prompt level (0..1,
+ * 2ac560) and the closing fade (1 until continue is pressed).
+ *  - "GAME OVER" (PS2 strings.tbl 8) centred at y 213, alpha
+ *    clamp((t - 0.7) / 0.3) * 150 * fade.
+ *  - The player's block at the same level: name at x min(320 - w/2, 240),
+ *    y 40; "Kills:" / "Rank:" (strings 384, 385) at x 240, y 62 / 84; kills
+ *    "%d" and rank "%d/%d" (rank, everyone) at x 340.
+ *  - "Press %s to continue." (string 386; the PS2 button glyph 0xad, the
+ *    Xbox A button here) centred at y 350, alpha prompt * fade.
+ * Port notes: text colours (2ac114, 2ac5c8, 2ac10c) are set at run time
+ * from data not traced, so white is used; the player's name is "PLAYER" (the
+ * port has no multiplayer name); the winner art (winner_trim.tga at
+ * 264,123 and winner_win.vbm at 285,113 when ranked first) is not drawn. */
+int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float t,float prompt,float fade)
 {
-    char line[64];uint32_t order[17],n=0,i,j;int32_t kills[17];int status;
+    char line[64];uint32_t i,rank=1,total=1,alpha;float level=(t-.7f)/.3f,x;int status;const char *name="PLAYER";
     if(!sink || particle_draw_stream)return RF_RANGE;
-    order[n]=UINT32_MAX;kills[n++]=(int32_t)rf_scene_mp[2];
-    for(i=0;i<16;i++)if(rf_scene_mp_roster[i].used){order[n]=i;kills[n++]=rf_scene_mp_roster[i].kills;}
-    for(i=0;i<n;i++)for(j=i+1;j<n;j++)if(kills[j]>kills[i]){
-        int32_t k=kills[i];uint32_t o=order[i];kills[i]=kills[j];order[i]=order[j];kills[j]=k;order[j]=o;}
-    status=combat_hud_centered(sink,context,70,"MP STATS",0xffeeeeee);if(status)return status;
-    status=combat_hud_centered(sink,context,110,"PLAYER     KILLS   DEATHS",0xffb8c0d0);if(status)return status;
-    for(i=0;i<n;i++){
-        uint32_t deaths=order[i]==UINT32_MAX?rf_scene_mp[3]:rf_scene_mp_roster[order[i]].deaths;
-        snprintf(line,sizeof(line),"%-10s %5d %8u",order[i]==UINT32_MAX?"YOU":rf_scene_mp_bot_name(order[i]),kills[i],deaths);
-        status=combat_hud_centered(sink,context,140+i*28,line,order[i]==UINT32_MAX?0xffffff9e:0xffdcdcdc);if(status)return status;
+    if(level<0)level=0;if(level>1)level=1;if(fade<0)fade=0;if(prompt<0)prompt=0;if(prompt>1)prompt=1;
+    for(i=0;i<16;i++)if(rf_scene_mp_roster[i].used){++total;if(rf_scene_mp_roster[i].kills>(int32_t)rf_scene_mp[2])++rank;}
+    alpha=(uint32_t)(level*150.0f*fade);
+    if(alpha){status=combat_hud_centered(sink,context,213,"GAME OVER",(alpha<<24)|0xffffffu);if(status)return status;}
+    alpha=(uint32_t)(level*255.0f*fade);
+    if(alpha){
+        uint32_t c=(alpha<<24)|0xffffffu;
+        x=320.0f-(float)strlen(name)*12*.5f;if(x>240)x=240;
+        status=combat_hud_text(sink,context,x,40,name,c);if(status)return status;
+        status=combat_hud_text(sink,context,240,62,"Kills:",c);if(status)return status;
+        status=combat_hud_text(sink,context,240,84,"Rank:",c);if(status)return status;
+        snprintf(line,sizeof(line),"%d",(int)rf_scene_mp[2]);status=combat_hud_text(sink,context,340,62,line,c);if(status)return status;
+        snprintf(line,sizeof(line),"%u/%u",rank,total);status=combat_hud_text(sink,context,340,84,line,c);if(status)return status;
     }
-    return combat_hud_centered(sink,context,400,"RETURNING TO MAIN MENU",0xffb8c0d0);
+    alpha=(uint32_t)(prompt*255.0f*fade);
+    if(alpha){status=combat_hud_centered(sink,context,350,"Press A to continue.",(alpha<<24)|0xffffffu);if(status)return status;}
+    return RF_OK;
 }

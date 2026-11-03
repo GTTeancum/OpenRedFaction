@@ -487,6 +487,22 @@ Done (now from the PS2 code):
   primary definitions and supply table (scene_mp_weapon_damage,
   scene_mp_weapon_supply). Port note: AI alt spread has no port field.
 
+- End screen (1dc1a0, one player): over the game picture (captured at
+  full brightness, full width), "GAME OVER" (PS2 strings.tbl 8) centred at
+  y 213 with alpha clamp((t - 0.7)/0.3) * 150; the player block at the same
+  level (name at x min(320 - w/2, 240) y 40, "Kills:" / "Rank:" (384, 385)
+  at x 240 y 62/84, kills and "rank/total" at x 340); "Press %s to
+  continue." (386; Xbox A for the PS2 glyph 0xad) at y 350, rising over
+  0.5 s once no announcer line plays (2ac560); continue when full, then a
+  1 s fade out and the session ends. Port notes: text colours (2ac114,
+  2ac5c8, 2ac10c) are set at run time from untraced data, so white is
+  used; the name is "PLAYER"; the winner art (winner_trim.tga 264,123,
+  winner_win.vbm 285,113 when ranked first) is not drawn; the tester build
+  returns to the main menu, the PS2 to its multiplayer menu (163b30 0xc);
+  replays continue 1 s after the prompt is full. The section 7 notes
+  attributing the HUD text block (1691a0: health/armour, name, kills,
+  rank) to the end screen were wrong: 1691a0 is the in-match HUD.
+
 Still open (PS2 behaviour traced or located, not ported):
 1. Upper-body aim (151110 -> 150c30, traced): while 14f210 holds (target
    present, at least 1.0 higher or lower, weapon not the riot shield, and
@@ -504,4 +520,3 @@ Still open (PS2 behaviour traced or located, not ported):
    +0x240, the remote charge detonator's max ammo in the PS2 table order,
    so the field or index is not yet understood); the "Press Fire to
    respawn" prompt (strings.tbl 3; draw site not found yet).
-3. End screen in the PS2 layout (rank/total, winner art, continue fade).

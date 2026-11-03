@@ -786,7 +786,10 @@ uint32_t rf_scene_mp_match_over(void);
 /* PS2 weapon damage lines (name, damage, multi, alt, alt multi; tab separated)
  * for multiplayer, or NULL; set before the level opens. */
 extern const char *rf_scene_ps2_damage_text;
-int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context);
+int rf_scene_draw_mp_results(rf_scene_particle_sink sink,void *context,float seconds,float prompt,float fade);
+/* Advances the queued end-of-match announcer line; nonzero while an
+ * announcer line still plays (the PS2 continue prompt waits for it). */
+uint32_t rf_scene_mp_results_audio(void);
 typedef struct scene_mp_bot scene_mp_bot;
 /* PS2 bot roster (docs/MP-BOTS-PS2.md): used, human kills, deaths, streak,
  * longest streak, dead, respawn pending, kills. */

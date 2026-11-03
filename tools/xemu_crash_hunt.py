@@ -160,6 +160,7 @@ def main():
                         help='32/16 write color_depth into openrf.ini (auto: game default)')
     parser.add_argument('--shot-range', type=int, default=99999, help='with --shot-on-actor: largest aim distance in cm')
     parser.add_argument('--shot-after', type=int, default=300, help='with --shot-on-actor: earliest replay input for a capture')
+    parser.add_argument('--shot-delay', type=float, default=0, help='seconds to wait after a capture triggers')
     parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
     parser.add_argument('--shot-on-actor', action='store_true',
                         help='with --screenshots: capture once the aim input lines up on a visible character (needs --aim)')
@@ -725,6 +726,7 @@ dvd_path = '{iso.as_posix()}'
                     if args.shot_on_corpse:actor=(sample.get('rf_scene_live_corpses') or [0]*4)[3] # corpse vertices drawn this frame
                     if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
                         last_shot_input=consumed
+                        if args.shot_delay:time.sleep(args.shot_delay) # let a menu or end screen fade in
                         try:
                             if args.target=='hardware':
                                 name=f'shot_{shots_taken:02d}.png'

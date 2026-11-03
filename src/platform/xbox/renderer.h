@@ -9,7 +9,10 @@ void rf_xbox_frame_skipped(void);
  * rerender or advance the world; safe before the first gameplay presentation. */
 int rf_xbox_session_menu_draw(uint32_t selection,uint32_t flags);
 /* Multiplayer match results screen (rf_scene_mp). */
-int rf_xbox_mp_results_draw(void);
+/* PS2 multiplayer end screen over the last game picture (1dc1a0). */
+void rf_xbox_mp_results_open(void);
+void rf_xbox_mp_results_close(void);
+int rf_xbox_mp_results_draw(float seconds,float prompt,float fade);
 int rf_xbox_message_history_draw(uint32_t index,uint32_t page,uint32_t flags,uint32_t *pages);
 /* One menu-root lifetime: cold frontend or suspended Options. The explicit
  * owner loads optical original/mod art only; close after the last fenced draw

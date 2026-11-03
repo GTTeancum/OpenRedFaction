@@ -1052,6 +1052,35 @@ static int player_session_ended_draw(void)
 }
 /* Session actions reuse the ordinary save/load and fresh-section owners. No
  * gameplay tick occurs while this menu owns the input-provider call. */
+/* Multiplayer: the kill or time limit ended the match (see the end-screen
+ * notes at the call). */
+static int player_mp_end(void *context,uint32_t frame,rf_scene_input *input)
+{
+    uint32_t start=GetTickCount(),pressed_at=0,full_at=0,now;float prompt=0,last=0,t,fade=1;int shown;
+    rf_xbox_mp_results_open();
+    for(;;){
+        /* The game loop no longer runs: service its audio here so the
+         * announcer lines play out (the prompt waits for them). */
+        if(rf_xbox_audio_events.poll)rf_xbox_audio_events.poll(NULL);
+        now=GetTickCount();t=(float)(now-start)/1000.0f;
+        if(rf_scene_mp_results_audio())prompt=0;
+        else{prompt+=(t-last)/.5f;if(prompt>1)prompt=1;}
+        last=t;
+        if(pressed_at){fade=1.0f-(float)(now-pressed_at)/1000.0f;if(fade<=0)break;}
+        shown=rf_xbox_mp_results_draw(t,prompt,fade);if(shown){rf_xbox_mp_results_close();return shown;}
+        Sleep(10);
+        if(!player_replay){
+            shown=rf_xbox_input_poll(context,frame,input);
+            if(shown){rf_xbox_mp_results_close();return shown;}
+        }
+        if(prompt<1)full_at=0;else if(!full_at)full_at=now?now:1;
+        /* Replays have no controller: continue 1 s after the prompt is full. */
+        if(!pressed_at && prompt>=1 && (player_replay?now-full_at>=1000u:!!(rf_xbox_input_menu_pressed()&RF_XBOX_MENU_ACCEPT)))pressed_at=now?now:1;
+    }
+    rf_xbox_mp_results_close();
+    shown=player_session_ended_draw();
+    return shown?shown:RF_NOT_FOUND;
+}
 static int player_pause_menu_body(void *context,uint32_t frame,rf_scene_input *input);
 /* PS2 menus: the paused screen owns the small in-game picture set (buttons,
  * PAUSED, popup, options frame) for its whole lifetime; Options reuses it. */
@@ -1236,6 +1265,7 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         int status=rf_scene_fire_level_exit(campaign_exit_uid,(int32_t)((uint64_t)frame*1000/60));
         campaign_forced_exit_uid=campaign_exit_uid;campaign_exit_uid=0;if(status)return status;
     }
+    if(player_replay && rf_scene_mp_match_over())return player_mp_end(context,frame,input);
     if(player_replay) {
         if(player_pacing) {
             pacing_update();pacing_sleep();
@@ -1267,15 +1297,14 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         }
         /* Only open-ended live play waits for a controller. Bounded native
          * input diagnostics retain their existing headless/no-pad behavior. */
-        /* Multiplayer: the kill or time limit ended the match. Show the
-         * results for 5 s, then end the session (main menu in the tester). */
-        if(rf_scene_mp_match_over()){
-            int shown=rf_xbox_mp_results_draw();
-            if(shown)return shown;
-            Sleep(5000);
-            shown=player_session_ended_draw();
-            return shown?shown:RF_NOT_FOUND;
-        }
+        /* Multiplayer: the kill or time limit ended the match. PS2 1dc1a0
+         * end screen: its text fades in from 0.7 s; the continue prompt
+         * (2ac560) rises over 0.5 s once no announcer line plays and
+         * accepts the continue button when full; the screen then fades
+         * out over 1 s and the session ends (main menu in the tester; the
+         * PS2 returns to its multiplayer menu, 163b30 0xc). Replays with no
+         * controller continue as soon as the prompt is full. */
+        if(rf_scene_mp_match_over())return player_mp_end(context,frame,input);
 #ifdef RF_PS2_MENU_PREVIEW
         /* Capture aid: play 4 s before the missing-controller pause. */
         if(frame<240)return RF_OK;
