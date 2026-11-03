@@ -32,3 +32,32 @@ Updated November 2. Open items only, one line each. Finished work and the full w
 ## Not started
 
 - Multiplayer split screen (after single-player).
+
+## Multiplayer: open PS2 items
+
+Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
+
+| # | Item |
+|---|---|
+| 1 | Attack step 3: movement sub-state terms (1.5x range, flat distance, timer reset) |
+| 2 | Attack step 3: swept-sphere sight test (port uses a ray) |
+| 3 | Attack step 3: faster sight check for weapons with flag +0x248 bit 8 |
+| 4 | Upper-body lean: six unmapped switch-off conditions |
+| 5 | Target choice: hidden/stealth player and AI mode 0xb clauses |
+| 6 | Step-away: second route node and fallback candidates |
+| 7 | Weapon choice: unforced 1-in-8 switch while fighting (12a960) |
+| 8 | Route fighting: stop in melee range (12ae50 returns 1) |
+| 9 | Movement: exact-zero speed test for "not moving" |
+| 10 | Doctor-uniform pickup handler |
+| 11 | Pickup sound slots 1 and 0x40 checked against the PS2 sound table |
+| 12 | AI alternate-fire spread field |
+| 13 | Shared random-number sequence across systems |
+| 14 | Game-clock cap per update (PS2 0.25 s) |
+| 15 | MP STATS fade-in (1e22e0) |
+| 16 | message.vf kerning pairs |
+| 17 | Player's profile name instead of "PLAYER" |
+| 18 | Draw the chosen character's model and skin |
+| 19 | See a dropped item fading on screen |
+| 20 | See a bot's lean clearly on screen |
+| 21 | Split-screen two-player (largely untraced) |
+| 22 | Trace entity +0x66c/+0x670 |
