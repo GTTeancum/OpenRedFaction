@@ -510,6 +510,50 @@ int rf_xbox_ps2_draw_buttons(rf_scene_particle_sink sink,void *context,uint32_t 
     return RF_OK;
 }
 
+/* MP STATS (2399a0, one human): options frame titled "MP STATS" (66);
+ * headers in message.vf, colour 2ac5c8, at y 147: "Player" (67) x 44,
+ * "Kills" (68) x 268, "Deaths" (69) x 330, "Longest" / "Killing Spree"
+ * (415/416) at (418,130) / (403,147), "Accuracy" (71) x 522. Rows from
+ * y 174, 18 apart, standard font: the first in 2ac5cc, the rest 2ac5c8;
+ * name x 44, kills centred 281, deaths 354, longest 446, accuracy
+ * "%5.1f %%" centred 558; with more than two rows every other row sits on
+ * a black bar (34, y-1, 581x17) alpha 32. White: "Elapsed time: %s:%s:%s"
+ * (419; hours, minutes, seconds, each "0%1d" under 10 else "%2d") centred
+ * at y 320, and the choices 72/73/74 at (135,372), (355,372), (190,397)
+ * with the PS2 cross/circle/square glyphs (0xad/0xb0/0xae), here the Xbox
+ * A/B/X buttons. Port notes: no fade-in (1e22e0); message.vf kerning is
+ * not applied. */
+static void mp_stats_field(char *out,size_t size,uint32_t v){snprintf(out,size,v<10?"0%1u":"%2u",v);}
+int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed)
+{
+    char line[96],h[8],m[8],s[8];uint32_t i;int status;
+    if(!ps2 || !sink || (!rows && count))return RF_RANGE;
+    drawn();
+    status=backdrop(sink,context,0x606060u);if(status)return status;
+    status=options_frame(sink,context,str(66));if(status)return status;
+    {static const struct {uint16_t id,x,y;} heads[]={{67,44,147},{71,522,147},{68,268,147},{69,330,147},{415,418,130},{416,403,147}};
+     for(i=0;i<6;i++){status=text(sink,context,RF_PS2_FONT_MESSAGE,heads[i].x,heads[i].y,str(heads[i].id),RF_PS2_COLOR_TEXT);if(status)return status;}}
+    for(i=0;i<count;i++){
+        float y=174.0f+18.0f*i;uint32_t c=i?RF_PS2_COLOR_TEXT:RF_PS2_COLOR_SELECTED,tenths;
+        if(count>2 && !(i&1)){status=rect(sink,context,34,y-1,581,17,0x20000000u);if(status)return status;}
+        status=text(sink,context,RF_PS2_FONT_STANDARD,44,y,rows[i].name,c);if(status)return status;
+        snprintf(line,sizeof(line),"%d",(int)rows[i].kills);
+        status=text(sink,context,RF_PS2_FONT_STANDARD,281-(int32_t)(width_of(RF_PS2_FONT_STANDARD,line)>>1),y,line,c);if(status)return status;
+        snprintf(line,sizeof(line),"%d",(int)rows[i].deaths);
+        status=text(sink,context,RF_PS2_FONT_STANDARD,354-(int32_t)(width_of(RF_PS2_FONT_STANDARD,line)>>1),y,line,c);if(status)return status;
+        snprintf(line,sizeof(line),"%u",rows[i].longest);
+        status=text(sink,context,RF_PS2_FONT_STANDARD,446-(int32_t)(width_of(RF_PS2_FONT_STANDARD,line)>>1),y,line,c);if(status)return status;
+        /* "%5.1f %%" without float printf: width 5, one decimal. */
+        tenths=(uint32_t)(rows[i].accuracy*1000.0f+.5f);snprintf(line,sizeof(line),"%3u.%u %%",tenths/10,tenths%10);
+        status=text(sink,context,RF_PS2_FONT_STANDARD,558-(int32_t)(width_of(RF_PS2_FONT_STANDARD,line)>>1),y,line,c);if(status)return status;
+    }
+    mp_stats_field(h,sizeof(h),elapsed/3600);mp_stats_field(m,sizeof(m),elapsed/60%60);mp_stats_field(s,sizeof(s),elapsed%60);
+    snprintf(line,sizeof(line),str(419),h,m,s);
+    status=text(sink,context,RF_PS2_FONT_STANDARD,CENTER,320,line,0xffffffffu);if(status)return status;
+    snprintf(line,sizeof(line),str(72),"A");status=text(sink,context,RF_PS2_FONT_STANDARD,135,372,line,0xffffffffu);if(status)return status;
+    snprintf(line,sizeof(line),str(73),"B");status=text(sink,context,RF_PS2_FONT_STANDARD,355,372,line,0xffffffffu);if(status)return status;
+    snprintf(line,sizeof(line),str(74),"X");return text(sink,context,RF_PS2_FONT_STANDARD,190,397,line,0xffffffffu);
+}
 /* Multiplayer HUD (PS2 1691a0 in place of the single-player health display,
  * and the clock of 1dc1a0), in the PS2's 640x448 coordinates. A separate
  * small picture set stays loaded for the match. */

@@ -53,6 +53,7 @@ const char *rf_scene_mp_bot_name(uint32_t slot){return slot<SCENE_MP_BOTS?scene_
 static struct {float position[3];uint8_t flags[3];} scene_mp_spawn[SCENE_MP_SPAWNS];
 static uint32_t scene_mp_spawn_count,scene_mp_random=1,scene_mp_player_dead;
 static float scene_mp_clock;
+uint32_t rf_scene_mp_player_stats[3];float rf_scene_mp_elapsed;static uint32_t scene_mp_player_streak; /* MP STATS (see scene_mp_round_count) */
 /* Respawn fade (1ddd90): 0 none, 1 to white, 2 back; seconds in phase. */
 static uint32_t scene_mp_fade_phase;static float scene_mp_fade_clock;
 static campaign_npc_body *scene_mp_snapshot;static rf_entity_pose scene_mp_pose[SCENE_MP_BOTS];
@@ -120,6 +121,7 @@ static int scene_mp_bot_seeds(const rf_level *level,rf_vpp *tables)
     uint32_t count,k,j,classes=0,miner=UINT32_MAX;int status;rf_entity_seed_class *rebuilt;
     memset(rf_scene_mp,0,sizeof(rf_scene_mp));memset(rf_scene_mp_roster,0,sizeof(rf_scene_mp_roster));
     memset(rf_scene_mp_bot_deaths,0,sizeof(rf_scene_mp_bot_deaths));memset(rf_scene_mp_corpse_trace,0,sizeof(rf_scene_mp_corpse_trace));scene_mp_clock=0;scene_mp_player_dead=0;
+    memset(rf_scene_mp_player_stats,0,sizeof(rf_scene_mp_player_stats));scene_mp_player_streak=0;rf_scene_mp_elapsed=0;
     rf_scene_mp_seed_trace[0]=1;
     status=scene_mp_spawns_read(level);rf_scene_mp_seed_trace[1]=(uint32_t)status;if(status)return status;
     rf_scene_mp_seed_trace[0]=2;
@@ -254,17 +256,57 @@ static int scene_mp_bot_respawn(uint32_t slot)
     rf_scene_mp_seed_trace[1]=0x600+slot;
     return RF_OK;
 }
+/* MP STATS counters (2399a0). Human (+0x2c record): kills +0 and streak
+ * +0x10 / longest +0xc (1a6af0), deaths +8 clearing the streak (1a6b60),
+ * hits +0x14, shots +0x18; bots the same in the roster ([6] hits, [7]
+ * shots). A shot is one round created (1ccef0); a hit is a round striking
+ * an entity that is not its shooter (1ca3c0). */
+static void scene_mp_round_count(uint32_t source,uint32_t hit)
+{
+    uint32_t i;
+    if(!rf_scene_mp[0] || rf_scene_mp[6])return;
+    if(source==campaign_player_object.handle){++rf_scene_mp_player_stats[hit?1:2];return;}
+    for(i=0;i<campaign_npc_body_count && i<SCENE_MP_BOTS;i++)
+        if(rf_scene_mp_roster[i].used && campaign_npc_bodies[i].registration.handle==source){
+            if(hit)++rf_scene_mp_roster[i].hits;else ++rf_scene_mp_roster[i].shots;return;
+        }
+}
+static float scene_mp_accuracy(uint32_t hits,uint32_t shots)
+{float a;if(!shots)return 0;a=(float)hits/(float)shots;return a>1?1:a;}
+uint32_t rf_scene_mp_stats(rf_scene_mp_stats_row *rows,uint32_t capacity)
+{
+    uint32_t n=0,i,j;
+    if(!rows || !capacity || !rf_scene_mp[0])return 0;
+    memset(rows,0,capacity*sizeof(*rows));
+    strcpy(rows[0].name,"PLAYER"); /* the port has no multiplayer name */
+    rows[0].kills=(int32_t)rf_scene_mp[2];rows[0].deaths=(int32_t)rf_scene_mp[3];rows[0].longest=rf_scene_mp_player_stats[0];
+    rows[0].accuracy=scene_mp_accuracy(rf_scene_mp_player_stats[1],rf_scene_mp_player_stats[2]);n=1;
+    for(i=0;i<SCENE_MP_BOTS && n<capacity;i++)if(rf_scene_mp_roster[i].used){
+        const scene_mp_bot *b=rf_scene_mp_roster+i;
+        strncpy(rows[n].name,rf_scene_mp_bot_name(i),31);
+        rows[n].kills=b->kills;rows[n].deaths=(int32_t)b->deaths;rows[n].longest=b->longest;
+        rows[n].accuracy=scene_mp_accuracy(b->hits,b->shots);++n;
+    }
+    /* 239220: row i swaps with any later row that has more kills. */
+    for(i=0;i<n;i++)for(j=i;j<n;j++)if(rows[j].kills>rows[i].kills){rf_scene_mp_stats_row t=rows[i];rows[i]=rows[j];rows[j]=t;}
+    return n;
+}
 /* 274c50 for one death: victim slot (UINT32_MAX = player), its credit. */
 static void scene_mp_score(uint32_t victim,uint32_t victim_handle,uint32_t killer)
 {
     uint32_t i;
     if(victim<SCENE_MP_BOTS){++rf_scene_mp_roster[victim].deaths;rf_scene_mp_roster[victim].streak=0;++rf_scene_mp_bot_deaths[0];}
+    else scene_mp_player_streak=0;
     if(killer==victim_handle){
         if(victim<SCENE_MP_BOTS){--rf_scene_mp_roster[victim].kills;++rf_scene_mp_bot_deaths[2];}
         else if(rf_scene_mp[2])--rf_scene_mp[2];
         return;
     }
-    if(killer==campaign_player_object.handle){++rf_scene_mp[2];return;}
+    if(killer==campaign_player_object.handle){
+        ++rf_scene_mp[2];++scene_mp_player_streak;
+        if(scene_mp_player_streak>rf_scene_mp_player_stats[0])rf_scene_mp_player_stats[0]=scene_mp_player_streak;
+        return;
+    }
     for(i=0;i<campaign_npc_body_count && i<SCENE_MP_BOTS;i++)
         if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==killer){
             scene_mp_bot *b=rf_scene_mp_roster+i;
@@ -628,6 +670,7 @@ static int scene_mp_tick(uint32_t frame)
     uint32_t i,count;int status;
     ++scene_mp_boot_updates;
     if(!rf_scene_mp[0])return RF_OK;
+    rf_scene_mp_elapsed+=scene_step_seconds; /* 160f40: 80d80c += frame time */
     count=campaign_npc_body_count<SCENE_MP_BOTS?campaign_npc_body_count:SCENE_MP_BOTS;
     if(!frame){
         free(scene_mp_snapshot);scene_mp_snapshot=calloc(count?count:1,sizeof(*scene_mp_snapshot));

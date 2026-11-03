@@ -29,7 +29,7 @@ enum rf_ps2_menu_picture {
 };
 #define RF_PS2_INGAME_PICTURES (RF_PS2_SLIDER_RAIL+1u)
 #define RF_PS2_FRONTEND_PICTURES (RF_PS2_MULTI_LETTERSTRIPS+1u)
-enum rf_ps2_menu_font {RF_PS2_FONT_STANDARD,RF_PS2_FONT_TITLE,RF_PS2_FONT_SMALL,RF_PS2_FONT_COUNT};
+enum rf_ps2_menu_font {RF_PS2_FONT_STANDARD,RF_PS2_FONT_TITLE,RF_PS2_FONT_SMALL,RF_PS2_FONT_MESSAGE,RF_PS2_FONT_COUNT};
 /* Menu colours from the PS2 static initialisers 2a7b00/2a7c24 (RGBA bytes):
  * text 2ac5c8, selected 2ac5cc, disabled 2ac640, highlight 2ac5c0. */
 #define RF_PS2_COLOR_TEXT 0xffdcdcdcu

@@ -41,11 +41,12 @@ static const char *const picture_names[RF_PS2_PICTURE_COUNT]={
     "multi_letterstrips.tga",
     "multi_hud_health_ammo.tga","multi_hud_time.tga","winner_trim.tga"
 };
-static const char *const font_names[RF_PS2_FONT_COUNT]={"standard.vf","title.vf","smallfont.vf"};
+static const char *const font_names[RF_PS2_FONT_COUNT]={"standard.vf","title.vf","smallfont.vf","message.vf"};
 /* Double-resolution copies made by the pack tool for 720p (*_2x.tga strip
  * plus *_2x.fnt metrics); preferred when present. */
 static const char *const sharp_names[RF_PS2_FONT_COUNT][2]={
-    {"standard_2x.fnt","standard_2x.tga"},{"title_2x.fnt","title_2x.tga"},{"smallfont_2x.fnt","smallfont_2x.tga"}};
+    {"standard_2x.fnt","standard_2x.tga"},{"title_2x.fnt","title_2x.tga"},{"smallfont_2x.fnt","smallfont_2x.tga"},
+    {"message_2x.fnt","message_2x.tga"}};
 /* Pictures and fonts a set loads (see rf_ps2_menu_open). */
 static uint32_t set_picture(uint32_t flags,uint32_t i)
 {
@@ -54,8 +55,8 @@ static uint32_t set_picture(uint32_t flags,uint32_t i)
 }
 static uint32_t set_font(uint32_t flags,uint32_t i)
 {
-    if(flags&RF_PS2_MENU_MP_HUD)return i!=RF_PS2_FONT_TITLE;
-    return i==RF_PS2_FONT_STANDARD || (i==RF_PS2_FONT_TITLE && (flags&RF_PS2_MENU_FRONTEND));
+    if(flags&RF_PS2_MENU_MP_HUD)return i==RF_PS2_FONT_STANDARD || i==RF_PS2_FONT_SMALL;
+    return i==RF_PS2_FONT_STANDARD || ((i==RF_PS2_FONT_TITLE || i==RF_PS2_FONT_MESSAGE) && (flags&RF_PS2_MENU_FRONTEND));
 }
 
 static uint32_t u16(const unsigned char *p){return (uint32_t)p[0]|(uint32_t)p[1]<<8;}
@@ -103,8 +104,10 @@ static int font_read(rf_ps2_menu *m,uint32_t slot,unsigned char **data,uint32_t 
         f->start=40;f->coverage=1;f->count=u32(b+8);f->first=u32(b+12);f->height=u32(b+20);pixels=u32(b+36);
         if(u32(b+24) || u32(b+28) || u32(b+32)!=(uint64_t)f->count*16)return RF_FORMAT;
     }else if(u32(b+4)==1){
-        if(u32(b+8)!=0xfffffff0u || u32(b+28))return RF_FORMAT;
-        f->start=36;f->coverage=0;f->count=u32(b+12);f->first=u32(b+16);f->height=u32(b+24);pixels=u32(b+32);
+        /* +28: kerning pairs (char, next, offset; 3 bytes each) before the
+         * glyph table; message.vf has three (LL, UL, UP), not applied. */
+        if(u32(b+8)!=0xfffffff0u || u32(b+28)>256)return RF_FORMAT;
+        f->start=36+u32(b+28)*3;f->coverage=0;f->count=u32(b+12);f->first=u32(b+16);f->height=u32(b+24);pixels=u32(b+32);
     }else return RF_FORMAT;
     if(!f->count || f->count>256 || f->first>255 || !f->height || f->height>64 ||
        (uint64_t)f->start+f->count*16ull+pixels+(f->coverage?0:1024ull)!=e.size)return RF_FORMAT;

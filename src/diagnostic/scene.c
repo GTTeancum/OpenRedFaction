@@ -13428,7 +13428,7 @@ static int scene_npc_round_step(scene_stream *stream,uint32_t frame,scene_npc_ro
                 memcpy(bullet_point,pistol_contact.body.point,12);
             else for(j=0;j<3;j++)bullet_point[j]=impact_start[j]+spread_ray[j]*body_fraction;
             bullet_material=victim?(int32_t)victim->collision_material:(int32_t)campaign_player_material;
-            ++rf_scene_enemy_spread[2];
+            ++rf_scene_enemy_spread[2];scene_mp_round_count(r->source,1);
         {int32_t kind=definition?definition->damage_kind:0;
          /* Unsupported weapon classes retain the provisional fallback. */
          if(!definition)++rf_scene_enemy_damage_kinds[9];
@@ -14008,7 +14008,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
             for(j=0;j<3;j++)ray[j]=delta[j]*(range/sqrtf(distance));
             for(pellet=0;pellet<definition->projectiles;pellet++){
                 scene_npc_round round={0};scene_npc_round_result result;uint32_t round_done;float spread[3];
-                ++rf_scene_enemy_spread[0];
+                ++rf_scene_enemy_spread[0];scene_mp_round_count(owner->registration.handle,0);
                 status=rf_weapon_spread_ray(ray,definition->ai_spread_degrees,&campaign_enemy_spread_random,spread);
                 rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return scene_enemy_failure(status,__LINE__,frame,i);
                 if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
@@ -14090,7 +14090,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
                 round.slot=i;round.source=owner->registration.handle;round.weapon=weapon;round.definition=definition;
                 round.damage=shot_damage;round.intended=intended_handle;round.piercing=1;round.actor=actor_shot;
                 if(rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,round.origin,muzzle_basis))memcpy(round.origin,actor_eye,12);
-                actor_penetrated=1;
+                actor_penetrated=1;scene_mp_round_count(owner->registration.handle,0);
                 if(scene_npc_round_launch(&round,spread_ray)==RF_OK)goto enemy_shot_done;
                 memcpy(round.path,spread_ray,12);
                 status=scene_sniper_penetration_begin(actor_shot.enabled,actor_shot.power,round.origin,round.path,&round.penetration);if(status)return scene_enemy_failure(status,__LINE__,frame,i);
@@ -14106,7 +14106,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
              round.damage=shot_damage;round.penetrates_world=selected.penetrates_world;round.intended=intended_handle;round.pistol=pistol_shot;
              if(pistol_shot.active)memcpy(origin,pistol_shot.start,12);
              else if(rf_scene_npc_muzzle(owner->registration.handle,weapon,0,(int32_t)intended_handle,origin,muzzle_basis))memcpy(origin,owner->eye_position,12);
-             memcpy(round.origin,origin,12);
+             memcpy(round.origin,origin,12);scene_mp_round_count(owner->registration.handle,0);
              if(scene_npc_round_launch(&round,spread_ray)==RF_OK)goto enemy_shot_done;
              /* No table speed/lifetime or pool full: the round resolves at once. */
              status=scene_npc_round_step(stream,frame,&round,origin,spread_ray,1,player_eye,&result,&round_done);if(status)return status;
@@ -17714,7 +17714,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                 campaign_npc_body *owner;if(index>=campaign_npc_body_count)return RF_RANGE;owner=campaign_npc_bodies+index;
                 /* Original4c59f0 dispatches direct before radial damage. Body-hit
                  * location multiplier1 is provisional until model location RE. */
-                memcpy(&bits,&seconds,4);++rf_scene_rocket_contacts[3];
+                memcpy(&bits,&seconds,4);++rf_scene_rocket_contacts[3];scene_mp_round_count(campaign_player_object.handle,1);
                 rf_scene_rocket_contacts[5]=campaign_seeds.records.items[index].record.uid;
                 status=rf_scene_npc_damage(owner->registration.handle,&request,1,bits,&effects,&applied);
                 if(!status)status=feedback.status;rf_scene_rocket_contacts[6]=(uint32_t)status;if(status)return status;
@@ -18078,6 +18078,7 @@ static int scene_player_round_step(scene_stream *stream,uint32_t frame,scene_pla
             if(accepted)return RF_OK;
         }
         if(!body_contact.matched || body_contact.fraction>nearest)return RF_OK;
+        scene_mp_round_count(campaign_player_object.handle,1);
         if(!scene_npc_body_contact_live(&body_ray,&body_contact))return RF_OK;
         if(body_shot.slot!=2){uint32_t consumed;status=scene_nano_weapon_contact(owner,body_shot.weapon,request.amount,body_contact.point,&consumed);
          if(status)return scene_player_failure_return(status,__LINE__,frame);if(consumed){combat_hit_frame=frame;return RF_OK;}}
@@ -18547,6 +18548,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
             status=scene_civilian_hear_player_shot(stream,position,hearing.radius,frame,accepted_source,accepted_epoch);if(status)return scene_player_failure_return(status,__LINE__,frame);
         }
     }
+    if((accepted_slot==4 || accepted_slot==6 || accepted_slot==7) && fire)scene_mp_round_count(campaign_player_object.handle,0);
     if(accepted_slot==4)return RF_OK; /* Rockets never take the hitscan path. */
     if(accepted_slot==6 || accepted_slot==7)return scene_precision_fire(stream,frame,position,orientation[2],accepted_slot==7);
     if(body_shot.alternate && body_shot.slot==1)++rf_scene_rifle_alt[0];
@@ -18556,6 +18558,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     for(uint32_t pellet=0;pellet<body_shot.pellets;pellet++) {
     scene_player_round round={0};uint32_t done;
     if(!scene_player_body_source_live(&body_shot))return RF_OK;
+    scene_mp_round_count(campaign_player_object.handle,0);
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*(body_shot.slot==2?2.6f:100.0f);
     if(body_shot.slot==3) {
         float spread[3];++rf_scene_shotgun[1];

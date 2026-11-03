@@ -185,6 +185,7 @@ static int scene_precision_step(scene_stream *stream,uint32_t frame,scene_precis
             if(!rail)return RF_OK;continue;
         }
         for(uint32_t j=0;j<3;j++)point[j]=actor_position[j]+actor_delta[j]*hits[i].query_fraction;
+        scene_mp_round_count(campaign_player_object.handle,1);
         {uint32_t consumed;status=scene_nano_weapon_contact(owner,rail?r->nano_weapon:weapon,request.amount,point,&consumed);
          if(status)return status;if(consumed){combat_hit_frame=frame;return RF_OK;}}
         if(!rail){

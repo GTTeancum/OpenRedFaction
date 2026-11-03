@@ -1285,7 +1285,7 @@ static int ps2_frame(ps2_draw_fn draw,const void *args)
 }
 typedef struct ps2_args {
     uint32_t a[8];int session_status,load_status;const char *const *actions,*const *controls;
-    const rf_xbox_ps2_multi *multi;
+    const rf_xbox_ps2_multi *multi;const rf_scene_mp_stats_row *stats;
 } ps2_args;
 static int ps2_frontend_cb(rf_scene_particle_sink sink,void *context,const void *p)
 {
@@ -1302,6 +1302,14 @@ static int ps2_buttons_cb(rf_scene_particle_sink sink,void *context,const void *
 {const ps2_args *x=p;return rf_xbox_ps2_draw_buttons(sink,context,x->a[0],x->a[1],x->actions,x->controls);}
 static int ps2_multi_cb(rf_scene_particle_sink sink,void *context,const void *p)
 {const ps2_args *x=p;return rf_xbox_ps2_draw_multi(sink,context,x->multi);}
+static int ps2_mp_stats_cb(rf_scene_particle_sink sink,void *context,const void *p)
+{const ps2_args *x=p;return rf_xbox_ps2_draw_mp_stats(sink,context,x->stats,x->a[0],x->a[1]);}
+int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed)
+{
+    ps2_args x={.a={count,elapsed}};x.stats=rows;
+    if(!rf_xbox_ps2_active())return RF_RANGE;
+    return ps2_frame(ps2_mp_stats_cb,&x);
+}
 int rf_xbox_ps2_multi_frame(const rf_xbox_ps2_multi *state)
 {
     ps2_args x={.a={0}};x.multi=state;

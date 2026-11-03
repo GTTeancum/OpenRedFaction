@@ -81,7 +81,8 @@ static int scene_ai_missile_launch_inner(campaign_npc_body *owner,const float ta
      * shared Rocket sample. Tankbot presentation remains outside this slice. */
     if(definition==&campaign_rocket)scene_projectile_flight_audio_start(SCENE_FLIGHT_AUDIO_NPC_ROCKET,i,shot.flight.position);
     else if(definition==&campaign_drone_missile)scene_drone_missile_audio_accepted(i,shot.flight.position);
-    ++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];rf_scene_ai_rocket_timing[0]=combat_frame;return RF_OK;
+    ++rf_scene_ai_rockets[0];++rf_scene_ai_rockets[3];rf_scene_ai_rocket_timing[0]=combat_frame;
+    scene_mp_round_count(shot.source,0);return RF_OK;
 }
 static int scene_ai_missile_launch(campaign_npc_body *owner,const float target[3],
     int32_t weapon,const rf_weapon_explosive_definition *definition,float damage)
@@ -165,6 +166,7 @@ static int scene_ai_rocket_tick_inner(scene_stream *stream,uint32_t frame)
                 combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
                 rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
                 rf_damage_request request={shot->damage,shot->source,3,0,UINT32_MAX,0};memcpy(&bits,&seconds,4);
+                scene_mp_round_count(shot->source,1);
                 if(tag==SCENE_AI_PROJECTILE_PLAYER){
                     target=campaign_player_object.handle;
                     if(current_player_difficulty){

@@ -25,6 +25,11 @@ typedef struct rf_xbox_ps2_multi {
     uint32_t step,selection,values[RF_XBOX_PS2_MP_ROWS],loading;
 } rf_xbox_ps2_multi;
 uint32_t rf_xbox_ps2_multi_count(uint32_t row);
+/* PS2 MP STATS screen after a match (2399a0): rows from rf_scene_mp_stats,
+ * the level time in seconds. Choices: A Continue (multiplayer setup), B
+ * Replay Level, X Return to Main Menu (239570). */
+int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed);
+int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed);
 /* Draw the multiplayer setup as one picture (renderer.c). */
 int rf_xbox_ps2_multi_frame(const rf_xbox_ps2_multi *state);
 /* Environment level file (levelsm.vpp) for a setup value. */

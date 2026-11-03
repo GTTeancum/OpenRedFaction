@@ -519,7 +519,7 @@ Done (now from the PS2 code):
   and the clock. These globals sit in small data ($gp 0x2b36f0). The
   continue prompt is drawn only until continue is pressed (1dc1a0 skips
   the prompt branch once 2ac540 is set). Ported.
-- After the end screen (traced, not ported): 163b30(0xc) leaves the game;
+- After the end screen (ported): 163b30(0xc) leaves the game;
   state 0xc's entry (1b2b20) goes to state 0x1a when 2ac530 (set at match
   start, 1dbf20) is on, else the main menu (2). State 0x1a is the MP STATS
   screen:
@@ -551,6 +551,18 @@ Done (now from the PS2 code):
     multiplayer setup); circle -> replay the level (2ac534 = 1, state 4);
     square -> main menu (239560; with two humans a "PLAYER 2" settings
     lost confirmation first).
+  - Port: rows are taken when the end screen closes (rf_scene_mp_stats) and
+    the screen opens with the front end (tester builds; replays end the
+    session). Xbox A / B / X stand for cross / circle / square. Shots are
+    counted where the port creates a round (player pellets, rockets,
+    sniper/rail; bot rounds and rockets), hits where a round strikes the
+    player or a bot (hitscan, sniper/rail actors, rocket direct hits). Not
+    counted: flamethrower streams and the piercing (handheld penetration)
+    path. The setup values persist between matches; Continue opens MP
+    OPTIONS with them, Replay Level restarts the same arena and rules.
+    message.vf (headers) is loaded with its three kerning pairs unapplied.
+    Layout checked with the preview build (sample rows); the live screen
+    needs a tester session.
 
 Still open (PS2 behaviour traced or located, not ported):
 1. Upper-body aim (151110 -> 150c30, traced): while 14f210 holds (target

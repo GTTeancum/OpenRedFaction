@@ -801,7 +801,14 @@ int rf_scene_draw_mp_respawn(rf_scene_particle_sink sink,void *context,const cha
 typedef struct scene_mp_bot scene_mp_bot;
 /* PS2 bot roster (docs/MP-BOTS-PS2.md): used, human kills, deaths, streak,
  * longest streak, dead, respawn pending, kills. */
-struct scene_mp_bot {uint32_t used,human_kills,deaths,streak,longest,dead,respawn_pending;int32_t kills;};
+struct scene_mp_bot {uint32_t used,human_kills,deaths,streak,longest,dead,respawn_pending;int32_t kills;uint32_t hits,shots;};
+/* The human's MP STATS counters (PS2 entity +0x2c record): longest spree,
+ * hits, shots; and the level time in seconds (80d80c). */
+extern uint32_t rf_scene_mp_player_stats[3];extern float rf_scene_mp_elapsed;
+/* PS2 MP STATS rows (239700): the human, then every used bot, sorted by
+ * kills (239220). Returns the row count. */
+typedef struct rf_scene_mp_stats_row {char name[32];int32_t kills,deaths;uint32_t longest;float accuracy;} rf_scene_mp_stats_row;
+uint32_t rf_scene_mp_stats(rf_scene_mp_stats_row *rows,uint32_t capacity);
 extern scene_mp_bot rf_scene_mp_roster[16];
 const char *rf_scene_mp_bot_name(uint32_t slot);
 /* Current text language as shown in Options ("ENGLISH", "DEUTSCH", "FRANCAIS"). */
