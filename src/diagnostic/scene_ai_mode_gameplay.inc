@@ -12,8 +12,9 @@ static uint32_t campaign_enemy_mode_admits(const campaign_npc_body *owner,
     uint32_t target_moving,uint32_t gunshot)
 {
     int32_t action=owner->ai_mode.action_280;
+    /* Multiplayer path steps re-run the target choice (PS2 1373c0 -> 12b580). */
     if(action==4 && owner->script_move.active && !owner->combat_scripted &&
-       owner->script_move.origin!=SCENE_MOVE_ORIGIN_ACTOR_DEFAULT)return 0;
+       owner->script_move.origin!=SCENE_MOVE_ORIGIN_ACTOR_DEFAULT && !rf_scene_mp[0])return 0;
     if(action==14)return 0; /* Dedicated medic scheduler, including idle speech/clip ownership. */
     if(action==1)return 0; /* Catatonic remains inert even when shot/noise alerts it. */
     if(action==11 && !owner->combat_alert && !owner->combat_scripted)

@@ -334,15 +334,22 @@ Differs from the PS2 or missing:
    test in 12a960 (12ac60: dot of the bot's facing +0x71c and the unit
    direction to the target below 0.9 refuses the shot) is close to the
    port's 30-degree horizontal cone, which is kept.
-   The per-frame route rules (attack-update steps 2, 3, 5, 6, 7 and the hit
-   reaction's `health` route) stay held off (`SCENE_MP_WEAPON_SEEK` 0): with
-   the timing ported they still pull bots off fights (dm01, 4 bots, 150 s:
-   207 bot shots and 13 bot kills without, 38 and 2 with). The missing piece
-   is fighting on a route: the PS2 path step 1373c0 re-runs the target
-   choice (12b580) each step in multiplayer and stops following when it
-   changes target, and while the bot has a target (+0x6f4 bit 8, +0x480) it
-   turns to face it (138e60 with the target's position) as it walks, so the
-   ordinary fire check passes on the route. Port routes do neither.
+   Fighting on a route: ported. The PS2 path step 1373c0 in multiplayer
+   runs 12b580 each step: the target choice on its skill timer (setting
+   +0x484 bit 8 when the target is seen; entity +0x6f4 is the same word) and
+   then 12ae50, the ordinary fire, on the current target; it stops following
+   only when 12ae50 returns 1 (melee range). While the bot has a target
+   (+0x6f4 bit 8, entity +0x480 = AI +0x210) it faces it as it walks (138e60
+   with the target's position), so the fire check passes. Port: a weapon
+   or roam route keeps the bot's target (scene_mp_route), multiplayer bots
+   may acquire targets on a route (campaign_enemy_mode_admits), and the
+   route steering faces the target (scene_mp_route_aim, as tactical routes
+   do). Attack-update steps 6 and 7 (weapon seek, 1-in-64 roam) are now on
+   (`SCENE_MP_WEAPON_SEEK` 1). dm01, 4 bots, 150 s: 434 bot shots and 25 bot
+   kills with 22 weapon and 39 roam routes (207 and 13 with the seeks off;
+   38 and 2 with them on before route fighting). Still missing: steps 2 and
+   3 (the 1-in-64 move away from the target, the 1-in-4 `health` reaction)
+   and the hit reaction's `health` route; the melee-range stop.
 4. Items: port bots do not pick items up; items do not respawn or spin;
    dropped-item cap not applied.
 5. Damage: bot damage is not scaled by skill; multiplayer weapon damage

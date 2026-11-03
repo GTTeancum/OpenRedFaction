@@ -23,7 +23,10 @@
  *  - Routes (12e2a0): a bot walks one of the arena's named waypoint lists
  *    (PS2 section 0x10000, carried in by main.c) whose name starts with a
  *    prefix, picked at random among up to 32, one way, in waypoint mode 4;
- *    while it runs (+484 bit 0x800000) it takes no new target (12eed0).
+ *    while it runs (+484 bit 0x800000) mode 4 takes no new target (12eed0),
+ *    but in multiplayer each path step (1373c0) re-runs the target choice and
+ *    fire (12b580 -> 12ae50) and faces a sighted target, so bots fight on
+ *    the way.
  *    From the attack update (12ffd0, every frame outside mode 7): weapon
  *    seek 12f750 (1 in 4; then always when the bot's weapon is not in its
  *    preference row 28e760, else 1 in rank+2) and roam 12f8e0 (1 in 64,
@@ -35,10 +38,7 @@
  * 3 (the port AI has no multiplayer affiliation rules yet); bots do not pick
  * items up yet, so a weapon route never changes the bot's weapon; the ammo
  * seek 12f810 (below a third of the clip's ammo, 1 in 64) is left out because
- * port bots do not count ammo; the attack-update weapon seek and 1-in-64 roam
- * are held off (SCENE_MP_WEAPON_SEEK) until bots face and fire at their
- * target while walking a route (1373c0: target choice each path step,
- * 138e60 turn to the target); bots with no target and no route roam at once
+ * port bots do not count ammo; bots with no target and no route roam at once
  * (the PS2 idle mode is not ported); the hurt-bot health route of the
  * MP branch of 1339e0 is not wired. */
 uint32_t rf_scene_mp_bots,rf_scene_mp_kill_limit,rf_scene_mp_time_limit;
@@ -324,7 +324,7 @@ static const uint8_t scene_mp_preference_rows[SCENE_MP_BOTS][8]={
     {4,6,5,3,2,0,1,7},{6,5,4,3,2,0,1,7},{6,5,4,3,2,0,1,7},{6,0,5,4,3,2,1,7},
     {5,6,4,3,2,0,1,7},{5,6,0,4,3,2,1,7},{5,6,0,4,3,2,1,7},{5,6,0,4,3,2,1,7}};
 static int32_t scene_mp_weapon_ids[8];
-#define SCENE_MP_WEAPON_SEEK 0 /* attack-update seeks; see scene_mp_route_tick */
+#define SCENE_MP_WEAPON_SEEK 1 /* attack-update seeks (12f750, 12f8e0); 0 holds them off */
 /* Bot on a route (1 seek, +484 0x800000; 2 idle walk), bot had a target last update. */
 static uint8_t scene_mp_routing[SCENE_MP_BOTS],scene_mp_had_target[SCENE_MP_BOTS];
 /* Routes started: weapon, roam, target-lost roam, finished; announcements, last route status. */
@@ -344,7 +344,7 @@ static int32_t scene_mp_weapon_rank(uint32_t slot,int32_t weapon)
 static int scene_mp_route(uint32_t slot,const char *prefix,uint32_t idle)
 {
     campaign_npc_body *npc=campaign_npc_bodies+slot;rf_level_waypoint_path found[32];
-    uint32_t count,lists,cursor=4,i,n=0,length,nodes,plen=(uint32_t)strlen(prefix);int status;
+    uint32_t count,lists,cursor=4,i,n=0,length,nodes,plen=(uint32_t)strlen(prefix),alert,target,scripted;int status;
     const unsigned char *w=campaign_waypoints;
     if(!w || campaign_waypoint_bytes<4)return RF_NOT_FOUND;
     lists=(uint32_t)w[0]|(uint32_t)w[1]<<8|(uint32_t)w[2]<<16|(uint32_t)w[3]<<24;
@@ -359,13 +359,35 @@ static int scene_mp_route(uint32_t slot,const char *prefix,uint32_t idle)
     }
     if(!n)return RF_NOT_FOUND;
     i=scene_mp_next()%n;
+    /* The mode change drops combat; a seek keeps the bot's target (+0x210 is
+     * untouched by 12e210/136900) so it fights on the way (1373c0). */
+    alert=npc->combat_alert;target=npc->combat_target;scripted=npc->combat_scripted;
     npc->script_move.event=0;npc->script_move.origin=idle?SCENE_MOVE_ORIGIN_ACTOR_DEFAULT:SCENE_MOVE_ORIGIN_EVENT;
     npc->script_move.path=found[i];npc->script_move.path_index=0;
     npc->script_move.path_mode=0;npc->script_move.path_reverse=0;
     status=campaign_ai_mode_apply(npc,4,scene_patrol_now(rf_scene_profile_stage[0]));
     rf_scene_mp_routes[5]=(uint32_t)status;
     if(status){npc->script_move.path.indices=NULL;npc->script_move.path.count=0;return status==RF_NOT_FOUND?RF_RANGE:status;}
+    if(!idle && alert && target){
+        npc->combat_alert=alert;npc->combat_target=target;npc->combat_scripted=scripted;
+        scene_blind_sync(npc,rf_scene_profile_stage[0]);
+    }
     scene_mp_routing[slot]=(uint8_t)(idle?2:1);return RF_OK;
+}
+/* 1373c0 in multiplayer: a bot on a seek route that has a live target turns
+ * to face it as it walks (138e60 with the target's position; displacement
+ * stays on the route), so the ordinary fire check (12b580 -> 12ae50) passes
+ * on the way. Returns the target position, or NULL to steer along the route. */
+static const float *scene_mp_route_aim(const campaign_npc_body *npc)
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies),j;
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || scene_mp_routing[slot]!=1 || !npc->combat_alert || !npc->combat_target)return NULL;
+    if(npc->combat_target==campaign_player_object.handle)
+        return campaign_player_damage.state.effects.health>0?scene_actor_body.state.position:NULL;
+    for(j=0;j<campaign_npc_body_count;j++)
+        if(campaign_npc_bodies[j].registration.view && campaign_npc_bodies[j].registration.handle==npc->combat_target &&
+           campaign_npc_bodies[j].damage.effects.health>0)return campaign_npc_bodies[j].body.state.position;
+    return NULL;
 }
 /* 12ffd0 tail for one live bot: 12f750 weapon seek, 12f8e0 roam. */
 static int scene_mp_route_tick(uint32_t slot)
@@ -380,11 +402,9 @@ static int scene_mp_route_tick(uint32_t slot)
     }
     if(npc->combat_scripted==1 || campaign_player_damage.state.effects.health<=0){scene_mp_had_target[slot]=(uint8_t)target;return RF_OK;}
     if(target){
-        /* Held off (with the 1-in-64 roam below): alone, the per-frame
-         * 12f750/12f8e0 rates pull bots off every fight (dm01 matches: 0 and
-         * 21 bot shots against 359 without them); the PS2 behaviour that
-         * keeps them shooting (fire on the route, item pickup) is not traced
-         * yet. */
+        /* These per-frame rates only work with fighting on the route
+         * (scene_mp_route keeps the target, scene_mp_route_aim faces it):
+         * without it dm01 bots fired 38 shots in 150 s, with it 434. */
         if(SCENE_MP_WEAPON_SEEK && !(scene_mp_next()%4)){
             rank=scene_mp_weapon_rank(slot,npc->view.weapons[0]);
             if(rank==-2 || (rank>=0 && !(scene_mp_next()%(uint32_t)(rank+2)))){

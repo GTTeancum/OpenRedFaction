@@ -21314,7 +21314,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                  * Explicit Look and standalone combat aim remain untouched. */
                 status=campaign_npc_eye_update(i);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
                 memcpy(steering_target,target,12);steering_target[1]=o->eye_position[1];movement_aim=steering_target;
-            }
+            }else if(scene_mp_route_aim(o))movement_aim=scene_mp_route_aim(o); /* Multiplayer bot fighting on a route (1373c0). */
             status=rf_scene_npc_steer(o->registration.handle,movement_aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
         }
         status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
