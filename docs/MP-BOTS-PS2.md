@@ -497,8 +497,16 @@ Done (now from the PS2 code):
 - Announcer at match end: checked on XEMU (dm02, 60 s limit): the time
   lines start at 60/30/10 s, then the match-over line 4 starts and is seen
   playing on the device, then the winner line 5 (rf_scene_mp_line_trace).
-- Dropped-item fade drawing: deferred; the drops are submitted into the
-  opaque world mesh, which has no per-object alpha (renderer work).
+- Dropped-item fade drawing: ported. The fading drop (16d080, alpha +0x284
+  1 -> 0 over 1 s) is emitted with the renderer's faded vertex-lit tag
+  (RF_PREVIEW_FADE_TAG | alpha), skipping the opaque retained-draw cache.
+  Drawn up to 22 times per XEMU match (rf_scene_mp_fade_draw); a fading
+  drop in clear view has not been captured yet.
+- Accuracy: the flamethrower's primary fire (14fbb0 flame stream) returns
+  before the round path, so it never counts shots or hits on the PS2 (the
+  port matches). Piercing rounds count a hit per body struck (1ca3c0 per
+  impact): added on the player's handheld penetration path and the bots'
+  actor penetration path.
 - Multiplayer weapon values (1c6e10, run at match start): every weapon
   takes the second value of $Max Ammo (+0x240), $AI Attack Range (+0x4f4),
   $Clip Size (+0x80), $Spread Degrees, $Alt Spread Degrees, $AI Spread
@@ -599,8 +607,12 @@ Still open (PS2 behaviour traced or located, not ported):
    (the only direction under which the bot aims at its target). Not mapped:
    the movement-state 0xd/0xf, AI-mode, carried-object, hidden,
    scripted-animation and vehicle-seat tests. Bots render normally in XEMU
-   captures (dm01, dm02); a bot leaning at a height difference has not been
-   captured yet. Further trace: 1fbba0 only moves a point through a frame change
+   captures (dm01, dm02). The angle is measured in the animated frame:
+   the turn applied last update (weight * angle about the bone's right
+   axis) is undone first, so the clamps bound the total lean (measuring
+   from the already-turned frame let the bone keep turning). Seen on XEMU
+   (bot-pilot match, harness hold): a bot 6 m away leaning 0.157 rad,
+   bodies normal. Further trace: 1fbba0 only moves a point through a frame change
    (v - pivot, by M, by 1f7530(0,0), by M transposed, + pivot); the angle's
    direction is set before it (1f86f0). The two spine bones (+0x1028,
    +0x102c) are the first two skeleton bones whose names contain "spine"
