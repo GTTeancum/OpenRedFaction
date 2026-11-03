@@ -18093,7 +18093,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_mp_bot_pickups(stream);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    status=scene_mp_bot_pickups(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
@@ -22342,6 +22342,7 @@ static int scene_pickups_draw(scene_stream *stream)
         if(scene_view_sphere_outside(stream,stream->pickups.items[i].position,2.0f)){++rf_scene_view_culled[2];continue;}
         if((!kind&&!model)||(kind&&!stream->pickup_resources))return RF_NOT_FOUND;
         c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
+        (void)scene_mp_item_basis(stream,i,pose.basis); /* Multiplayer spin (16c5e0). */
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
     }
     c.resource=NULL;

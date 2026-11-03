@@ -555,7 +555,7 @@ int rf_item_definition_read(const void *text,uint32_t bytes,const char *name,rf_
             }
         } else if(same(t,"$Flags:")) {
             bit=32;if(mask&bit)return RF_FORMAT;if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
-            while(1){if(token(&l,t,&q))return RF_FORMAT;if(!q && !strcmp(t,")"))break;if(!q)return RF_FORMAT;if(same(t,"no_pickup"))v.flags|=1;}
+            while(1){if(token(&l,t,&q))return RF_FORMAT;if(!q && !strcmp(t,")"))break;if(!q)return RF_FORMAT;if(same(t,"no_pickup"))v.flags|=1;else if(same(t,"spins_in_multi"))v.flags|=2;}
         }
         mask|=bit;
     }

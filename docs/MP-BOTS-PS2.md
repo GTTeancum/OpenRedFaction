@@ -171,8 +171,9 @@ roster +0x18 (bot) or player stats +0x14 (human).
   pickups blocked by geometry; runs the item's handler (class +0x38, default
   16e0e0). A non-human picker runs 16cb00: a bot in AI mode 7 or 4 whose
   life and armour are both above 95% returns to fighting (133d80).
-- Respawn: item +0x27c (authored respawn time, ms): negative = removed; zero
-  = stays taken; positive = hidden (189ff0) and shown again when the timer
+- Respawn: item +0x27c (ms; the level loader 178220 stores -1 for an authored
+  0 and seconds * 1000 otherwise): negative = removed when taken; positive
+  = hidden (189ff0) and shown again when the timer
   +0x280 expires (16ce10 checks every 100 ms, sound 1).
 - Spin: in multiplayer, items whose class has flag 2 rotate 0.75*pi rad/s
   (16c5e0).
@@ -357,8 +358,14 @@ Differs from the PS2 or missing:
    switch; 527 bot shots and 34 bot kills (434 and 25 before). Port touch
    test is the player's 2-unit radius; remote charges and the riot shield are
    left to the player; the unforced 1-in-8 weapon choice inside 12a960 and
-   pickup sounds are not ported. Items do not respawn or spin; dropped-item
-   cap not applied.
+   pickup sounds are not ported. Items respawn and spin in multiplayer
+   (scene_mp_pickups.inc): the authored seconds (178220 turns 0 into -1, else
+   seconds * 1000 ms) hide a taken item until the timer runs out; items
+   with items.tbl `spins_in_multi` (flag bit 2) turn 0.75 * pi rad/s about
+   the vertical. dm01, 150 s: 80 items reappeared, 46 spinning at the end,
+   75 bot weapon/ammo pickups and 12 bot weapon switches; two captures half
+   a second apart show a spinning item turned. Reappear sound and the
+   dropped-item cap are not ported.
 5. Damage: bot damage is not scaled by skill; multiplayer weapon damage
    values are not used.
 6. Player: no character choice (always the single-player Parker), the run
