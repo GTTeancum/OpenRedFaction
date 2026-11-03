@@ -11996,6 +11996,10 @@ static int campaign_ammo_reset(void)
     status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_pistol_id,-1);if(status)return status;
     /* First-pass starting supply; mission-specific grants remain separate. */
     campaign_player_inventory.reserve[d->ammo_type]=d->capacity;
+    /* Multiplayer respawn (1dd930 -> 1a2e90/1a2f40): the 12mm handgun only,
+     * reserve min(its max ammo +0x240, the same) = its multiplayer max ammo,
+     * the clip full (+0x80), then equipped; nothing else carries over. */
+    if(rf_scene_mp[0]){campaign_ammo_publish();return RF_OK;}
     if(had_rifle){d=campaign_weapon_supply.definitions+campaign_rifle_id;status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_rifle_id,-1);if(status)return status;campaign_player_inventory.reserve[d->ammo_type]=d->capacity;}
     if(had_shotgun){d=campaign_weapon_supply.definitions+campaign_shotgun_id;status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_shotgun_id,-1);if(status)return status;campaign_player_inventory.reserve[d->ammo_type]=d->capacity;}
     if(had_riot){d=campaign_weapon_supply.definitions+campaign_riot_id;status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_riot_id,-1);if(status)return status;campaign_player_inventory.reserve[d->ammo_type]=d->capacity;}

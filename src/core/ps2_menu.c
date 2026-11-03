@@ -39,7 +39,7 @@ static const char *const picture_names[RF_PS2_PICTURE_COUNT]={
     "options_stripstop.tga","slider_control.tga","slider_rail.tga",
     "redfaction_title.tga","loadingstrips.tga","ls_cardempty.tga","ls_cardsel.tga",
     "multi_letterstrips.tga",
-    "multi_hud_health_ammo.tga","multi_hud_time.tga","winner_trim.tga"
+    "multi_hud_health_ammo.tga","multi_hud_time.tga","winner_trim.tga","winner_win.tga"
 };
 static const char *const font_names[RF_PS2_FONT_COUNT]={"standard.vf","title.vf","smallfont.vf","message.vf"};
 /* Double-resolution copies made by the pack tool for 720p (*_2x.tga strip

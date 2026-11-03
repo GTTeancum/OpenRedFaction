@@ -496,8 +496,7 @@ Done (now from the PS2 code):
   0.5 s once no announcer line plays (2ac560); continue when full, then a
   1 s fade out and the session ends. Port notes: text colours (2ac114,
   2ac5c8, 2ac10c) are set at run time from untraced data, so white is
-  used; the name is "PLAYER"; the winner art (winner_trim.tga 264,123,
-  winner_win.vbm 285,113 when ranked first) is not drawn; the tester build
+  used; the name is "PLAYER"; the winner art: see section 12; the tester build
   returns to the main menu, the PS2 to its multiplayer menu (163b30 0xc);
   replays continue 1 s after the prompt is full. The section 7 notes
   attributing the HUD text block (1691a0: health/armour, name, kills,
@@ -576,7 +575,20 @@ Still open (PS2 behaviour traced or located, not ported):
    override the port's rf_model_override_pose applies. Not ported: the
    rotation sign convention of 1fbba0 is not established and the result
    cannot yet be checked on screen.
-2. Player: character choice from the menu; the respawn loadout (1a2e90/
-   1a2f40 give the 12mm handgun with 8f4930, which reads as weapon record 1
-   +0x240, the remote charge detonator's max ammo in the PS2 table order,
-   so the field or index is not yet understood).
+2. Player: character choice from the menu.
+3. End-screen winner animation rate: winner_win.vbm has 15 frames (64x64,
+   own palette each); the frame is chosen inside the bitmap draw
+   (2061a0 -> 214ba0), not yet traced, so the port shows frame 0.
+
+Ported since:
+- Respawn loadout (1dd930 -> 1a31a8..1a31d4): 1a2e90(entity, handgun
+  2ac464, max ammo of the handgun record 8f41c0 + w*0x530 + 0x240) gives
+  the 12mm handgun, reserve min(requested, its +0x240) = its multiplayer
+  max ammo, clip +0x80; 1a2f40 equips it. Nothing else is kept. (The
+  earlier "8f4930 = record 1" reading was the decompiler dropping the
+  R5900 three-operand mult.)
+- Winner art when ranked first (1dc1a0, one player): winner_trim.tga at
+  (264,123) in mode 0x10c41 (blend field 2: additive, the port's glow
+  mode) and winner_win.vbm at (285,113); faded with the end-screen block.
+  The in-match HUD stays drawn under the end screen as on the PS2 (169980
+  is gated only by the player's +0x125 setup flag).

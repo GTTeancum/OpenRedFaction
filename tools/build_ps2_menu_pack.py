@@ -312,6 +312,10 @@ def main():
         data = archive[sheet]
         for e in ps2_peg.entries(data):
             name = e['name'].lower()
+            if name == 'winner_win.vbm':
+                # End-screen winner animation (15 frames, 2399a0/1dc1a0):
+                # the first frame only for now.
+                name = 'winner_win.tga'
             if not name.endswith('.tga') or name in seen:
                 continue
             seen.add(name)

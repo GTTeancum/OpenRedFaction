@@ -1349,7 +1349,11 @@ void rf_xbox_mp_results_open(void)
 void rf_xbox_mp_results_close(void){pause_backdrop_release();rf_xbox_ps2_mp_hud_close();}
 static int mp_results_frame(rf_scene_particle_sink sink,void *context,const void *args)
 {
-    const float *v=args;return rf_scene_draw_mp_results(sink,context,v[0],v[1],v[2]);
+    const float *v=args;float level=(v[0]-.7f)/.3f;int status=rf_scene_draw_mp_results(sink,context,v[0],v[1],v[2]);
+    if(level<0)level=0;if(level>1)level=1;
+    if(!status && rf_scene_mp_rank()==1)
+        status=rf_xbox_ps2_draw_mp_winner(sink,context,(uint32_t)(level*255.0f*(v[2]<0?0:v[2])));
+    return status;
 }
 int rf_xbox_mp_results_draw(float seconds,float prompt,float fade)
 {

@@ -567,6 +567,25 @@ int rf_xbox_ps2_mp_hud_open(void)
     return ps2_hud_failed;
 }
 void rf_xbox_ps2_mp_hud_close(void){if(ps2_hud){rf_ps2_menu_close(ps2_hud);ps2_hud=NULL;}ps2_hud_failed=0;}
+int rf_xbox_ps2_draw_mp_winner(rf_scene_particle_sink sink,void *context,uint32_t alpha)
+{
+    rf_ps2_menu *menu=ps2;int status;
+    if(!ps2_hud || !alpha)return RF_OK;
+    ps2=ps2_hud;
+    /* The trim's mode 0x10c41 has blend field (bits 15-19) 2, additive, as
+     * the glow mode. Port note: the 15-frame animation's rate is not
+     * traced, so frame 0. */
+    {rf_hud_sprite s;status=rf_ps2_menu_picture(ps2,RF_PS2_WINNER_TRIM,&s);
+     if(!status){
+        rf_particle_draw_vertex v[4];uint32_t i;memset(v,0,sizeof(v));
+        for(i=0;i<4;i++){uint32_t right=i==1||i==2,bottom=i>=2;
+            v[i].screen[0]=264.0f+(right?(float)s.width:0);v[i].screen[1]=(123.0f+(bottom?(float)s.height:0))*Y_SCALE;
+            v[i].reciprocal_w=1;v[i].argb=(alpha<<24)|0xffffffu;v[i].uv[0]=s.uv[right?2:0];v[i].uv[1]=s.uv[bottom?3:1];}
+        status=sink(context,v,4,s.image,RF_PARTICLE_GLOW_MODE&~(31u<<20));
+     }else if(status==RF_NOT_FOUND)status=RF_OK;}
+    if(!status)status=picture(sink,context,RF_PS2_WINNER_WIN,285,113,(alpha<<24)|0xffffffu,0);
+    ps2=menu;return status;
+}
 int rf_xbox_ps2_draw_mp_hud(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_mp_hud *h)
 {
     rf_ps2_menu *menu=ps2;char line[32];int status=RF_OK;uint32_t w;

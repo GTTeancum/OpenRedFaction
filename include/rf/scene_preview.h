@@ -809,6 +809,8 @@ extern uint32_t rf_scene_mp_player_stats[3];extern float rf_scene_mp_elapsed;
  * kills (239220). Returns the row count. */
 typedef struct rf_scene_mp_stats_row {char name[32];int32_t kills,deaths;uint32_t longest;float accuracy;} rf_scene_mp_stats_row;
 uint32_t rf_scene_mp_stats(rf_scene_mp_stats_row *rows,uint32_t capacity);
+/* The human's rank now (1ddb60), 0 outside multiplayer. */
+uint32_t rf_scene_mp_rank(void);
 extern scene_mp_bot rf_scene_mp_roster[16];
 const char *rf_scene_mp_bot_name(uint32_t slot);
 /* Current text language as shown in Options ("ENGLISH", "DEUTSCH", "FRANCAIS"). */

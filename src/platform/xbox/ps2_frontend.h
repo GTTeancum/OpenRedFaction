@@ -29,6 +29,9 @@ uint32_t rf_xbox_ps2_multi_count(uint32_t row);
  * the level time in seconds. Choices: A Continue (multiplayer setup), B
  * Replay Level, X Return to Main Menu (239570). */
 int rf_xbox_ps2_draw_mp_stats(rf_scene_particle_sink sink,void *context,const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed);
+/* End-screen winner art when ranked first (1dc1a0): winner_trim at
+ * (264,123), winner_win at (285,113), drawn from the match HUD set. */
+int rf_xbox_ps2_draw_mp_winner(rf_scene_particle_sink sink,void *context,uint32_t alpha);
 int rf_xbox_ps2_mp_stats_frame(const rf_scene_mp_stats_row *rows,uint32_t count,uint32_t elapsed);
 /* Draw the multiplayer setup as one picture (renderer.c). */
 int rf_xbox_ps2_multi_frame(const rf_xbox_ps2_multi *state);

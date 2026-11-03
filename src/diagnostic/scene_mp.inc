@@ -664,6 +664,7 @@ static uint32_t scene_mp_player_rank(void)
     for(i=0;i<SCENE_MP_BOTS;i++)if(rf_scene_mp_roster[i].used && rf_scene_mp_roster[i].kills>(int32_t)rf_scene_mp[2])++rank;
     return rank;
 }
+uint32_t rf_scene_mp_rank(void){return rf_scene_mp[0]?scene_mp_player_rank():0;}
 /* Per update, after frame-zero setup. */
 static int scene_mp_tick(uint32_t frame)
 {
