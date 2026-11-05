@@ -40,3 +40,20 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | # | Item |
 |---|---|
 | 21 | Split-screen two-player (largely untraced; set aside) |
+| 24 | Bots stop partway along a planned route and never move again, on every arena (see bot sweep below) |
+| 25 | Bots whose route has no reachable path retry forever instead of dropping the route (Waterlogged, Warlords) |
+| 26 | Find whether the PS2 has a no-progress give-up for routes; port it if so |
+| 27 | Arenas use PC map geometry with PS2 bot routes; check the PS2 maps for differences (or load the PS2 maps) |
+
+### Bot sweep, November 3 (console, 5-minute matches, 4 bots, details in `docs/MP-BOTS-PS2.md`)
+
+| Arena | Bot time spent stuck | Longest spell with no bot firing |
+|---|---|---|
+| The Lobby (dm01) | about 30% | under a minute |
+| Installation XJ5 (dm02) | about 80% | last 3 minutes |
+| Waste Disposal Plant (dm03) | about 65% | last 1.5 minutes (all four bots on one spot) |
+| The Badlands (dm04) | about 50% | last 2 minutes |
+| Hangar 18 (dm05) | about 35% | under a minute |
+| Waterlogged (dm06) | about 90% (mostly no path found) | from 40 s in to the end |
+| Mine Warfare (dm07) | about 45% | over a minute |
+| Warlords (ctf02) | about 30% | over a minute |

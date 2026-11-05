@@ -47,6 +47,7 @@ uint32_t rf_scene_mp_corpse_trace[4]; /* kept, last refusal, respawns, corpses f
 #define SCENE_MP_SPAWNS 32u
 #define SCENE_MP_BOTS 16u
 scene_mp_bot rf_scene_mp_roster[SCENE_MP_BOTS];
+uint32_t rf_scene_mp_bot_debug[4][12]; /* harness, see scene_mp_tick */
 static const char *const scene_mp_names[SCENE_MP_BOTS]={"Myles","Willis","Tyler","Abraham","Lance","Jared",
     "Benedict","Butch","Logan","Bryce","Tristan","Connor","Mason","Lucas","Sergio","Adrian"};
 const char *rf_scene_mp_bot_name(uint32_t slot){return slot<SCENE_MP_BOTS?scene_mp_names[slot]:"";}
@@ -455,6 +456,30 @@ static int32_t scene_mp_locomotion_state(const campaign_npc_body *npc,uint32_t m
  * speed +0x7e4 to 8.0 (2ab7bc) instead of the class speed. */
 static void scene_mp_bot_speed(campaign_npc_body *npc)
 {if(npc->movement.mode==1)npc->movement.speed=8.0f;}
+/* 137aa0 path node reached, for a multiplayer bot: within 0.3 of the node
+ * (horizontal squared distance2), or 136140 with the bot's navigation
+ * radius and height (+0x6e4/+0x6e8) classifying the bot fully inside the
+ * node's radius and height band (0; rf_entity_navigation_single is the
+ * same test). Port note: 137aa0's larger thresholds (2.0 for 15a210, 3.0
+ * for 15a270/15a1b0, 1.3 for class flag 0x40 with radius over 2.5) are not
+ * mapped. The port's own arrival (0.25) still applies. */
+static uint32_t scene_mp_node_reached(const campaign_npc_body *npc,rf_entity_navigation_candidate *node,float distance2)
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies),inside=2;
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used || !node)return 0;
+    if(distance2<.09f)return 1;
+    if(rf_entity_navigation_single(npc->body.state.position,npc->navigation_radius,npc->death_item_extent_7c4,0,node,&inside))return 0;
+    return inside==0;
+}
+/* The current waypoint node of the bot's route, once its planned path is used up. */
+static uint32_t scene_mp_waypoint_reached(const campaign_npc_body *npc,float distance)
+{
+    uint32_t node;
+    if(npc->navigation.retained.count || npc->script_move.path_index>=npc->script_move.path.count)return 0;
+    node=rf_level_waypoint_node(&npc->script_move.path,npc->script_move.path_index);
+    if(node>=campaign_navigation.count)return 0;
+    return scene_mp_node_reached(npc,&campaign_navigation.nodes[node].candidate,distance*distance);
+}
 /* 1373c0 faces the target only while +0x484 bit 8 is set: 12b580 sets it on
  * a target scan that sees the target (+0x1ec), and in multiplayer 137aa0
  * flips it one time in two at each node reached. Port: the scan sight comes
@@ -954,6 +979,21 @@ static int scene_mp_tick(uint32_t frame)
             status=scene_mp_route_tick(i);if(status)return status;
             scene_mp_aim_tick(i);
         }
+        /* Harness: per-bot state (routing, sub-state, out, movement active /
+         * origin / path index / path count / follow, alert / scripted, life,
+         * weapon, position x/z, walk target x/z, retained count / index, position
+         * y, walk target y). */
+        if(i<4){uint32_t *d=rf_scene_mp_bot_debug[i];int32_t life=(int32_t)npc->damage.effects.health;
+         d[0]=scene_mp_routing[i]|(uint32_t)scene_mp_state[i]<<8|(uint32_t)scene_mp_out[i]<<16|(uint32_t)b->dead<<24;
+         d[1]=npc->script_move.active|(uint32_t)npc->script_move.origin<<8|(npc->script_move.path_index&255)<<16|(npc->script_move.path.count&255)<<24;
+         d[2]=npc->script_move.follow|(npc->combat_alert?1u:0u)<<8|(uint32_t)npc->combat_scripted<<16;
+         d[3]=(uint32_t)life;d[4]=(uint32_t)npc->view.weapons[0];
+         memcpy(d+5,&npc->body.state.position[0],4);memcpy(d+6,&npc->body.state.position[2],4);
+         {const float *t=npc->script_move.route_index<npc->navigation.retained.count && npc->navigation.retained.nodes[npc->script_move.route_index]?
+             npc->navigation.retained.nodes[npc->script_move.route_index]->position:npc->script_move.target;
+          memcpy(d+7,&t[0],4);memcpy(d+8,&t[2],4);memcpy(d+11,&t[1],4);}
+         memcpy(d+10,&npc->body.state.position[1],4);
+         d[9]=npc->navigation.retained.count|npc->script_move.route_index<<8|npc->script_move.retry<<16;}
     }
     if(!scene_mp_player_dead && campaign_player_damage.state.effects.health<=0){
         scene_mp_player_dead=1;

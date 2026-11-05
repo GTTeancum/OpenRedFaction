@@ -21307,7 +21307,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             float x=point[0]-o->body.state.position[0],z=point[2]-o->body.state.position[2];
             float distance2=x*x+z*z;
             if(xyz_pursuit){float y=point[1]-o->body.state.position[1];distance2+=y*y;}
-            if(distance2>=.0625f){target=point;break;}
+            if(distance2>=.0625f && !scene_mp_node_reached(o,o->navigation.retained.nodes[o->script_move.route_index],distance2)){target=point;break;}
             ++o->script_move.route_index;++rf_scene_script_routes[3];
         }
         if(o->navigation.retained.count && o->script_move.route_index>=o->navigation.retained.count) {
@@ -21325,7 +21325,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
          * both displacement and arrival; no guessed eye-offset conversion. */
         if(xyz_pursuit){delta[1]=target[1]-o->body.state.position[1];distance+=delta[1]*delta[1];}
         distance=sqrtf(distance);
-        if(distance<.25f && o->script_move.path.count && !o->script_move.follow) {
+        if((distance<.25f || scene_mp_waypoint_reached(o,distance)) && o->script_move.path.count && !o->script_move.follow) {
             uint32_t next=o->script_move.path_index,dwell=0;
             if(scene_patrol_dwell_owner(o)){
                 /*407b12 applies shared direction before One way exhaustion;

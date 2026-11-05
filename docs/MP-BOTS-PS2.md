@@ -576,6 +576,24 @@ Done (now from the PS2 code):
 - Sight rays (12b310 -> 1953e0): mask 0x27, 0x21 with no_fire_through,
   passed to the port's ray (same engine flag encoding); 1953e0's sphere
   radius (max of both radii + 0.1) is not applied.
+- Route node reached (137aa0 -> 136140), ported for multiplayer bots
+  (scene_mp_node_reached): within 0.3 of the node, or the bot (radius and
+  height +0x6e4/+0x6e8) fully inside the node's radius and height band;
+  137aa0's larger state-dependent thresholds are not mapped. On The
+  Badlands (XEMU, same seed) it cut the stuck samples from 153 to 39 and
+  raised bot shots from 304 to 794.
+- Bot sweep, 2026-11-03 (console, all 8 arenas, 5 minutes, 4 bots; harness
+  array rf_scene_mp_bot_debug): no crash and no AI failure anywhere, bots
+  died and respawned throughout. Two faults:
+  1. A bot with a planned path (four-node window) stops partway and never
+     moves again; most such stops are toward a node 1-4 m higher (stairs,
+     ramps, ledges). The nodes carry no flags (every PS2 node's flag bytes
+     are 0), so this is the port's movement, not a PS2 jump node.
+  2. A bot whose route has no reachable path (planner finds none) retries
+     every second forever (Waterlogged: all four bots for most of the
+     match). 136900 refuses such a route on the PS2 (fewer than 2 plan
+     nodes), so it should not start.
+  The test pilot follows a bot, so it stalls with it; that is not a fault.
 - Upper-body lean switch-offs not mapped, none possible for multiplayer
   bots: movement states 0xd/0xf (set while attached to a host object,
   159ec0: vehicle or turret), AI modes 1/5 (15a310), carried object
