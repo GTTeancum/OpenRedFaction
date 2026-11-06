@@ -39,7 +39,7 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 
 | # | Item |
 |---|---|
-| 21 | Split-screen two-player (largely untraced; set aside) |
+| 21 | Split-screen two-player (PS2 top/bottom, never more than two; pillarbox 4:3 in widescreen): design and stages in `docs/SPLIT-SCREEN-2P.md` |
 | 24 | Waste Disposal Plant bots stuck about 7-10%: PS2 route link node 12 to 14 climbs a 4 m wall at the end of a trench. The PS2 map has the same wall (geometry checked), so it cannot be walked uphill on either; bots give up after 1 s and later try it again |
 | 26 | Find whether the PS2 has a no-progress give-up for routes; if so, replace the port's one-second give-up with it |
 | 30 | PS2 route-start selection (113570: standing node from 138500, else 113380 nearest node with a clear sweep) is written but parked in `local/mp-sweep/ps2-route-start.patch`; its first form left Waterlogged bots stuck 25% of the time, the full form is untested |
