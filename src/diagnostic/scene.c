@@ -20680,15 +20680,12 @@ static int campaign_model_query_fixture(uint32_t frame)
 }
 uint32_t rf_scene_script_routes[8]; /* attempts, found, misses, waypoint advances, last count, last index, status, centerline fallback successes */
 uint32_t rf_scene_script_route_detail[8],rf_scene_script_obstacle[8];
-typedef struct campaign_route_visibility {const rf_collision_solid_view *solid;float radius;uint32_t climb_limited;} campaign_route_visibility;
+typedef struct campaign_route_visibility {const rf_collision_solid_view *solid;float radius;} campaign_route_visibility;
 static int campaign_route_visible(void *context,const float start[3],const float end[3],float radius,uint32_t *blocked)
 {
     float delta[3];uint32_t i;rf_collision_sweep_room_hit hit;
     for(i=0;i<3;i++)delta[i]=end[i]-start[i];
     campaign_route_visibility *view=context;(void)radius;
-    /* Multiplayer bots (port practice): a node over 2 above the body is not
-     * an endpoint, so a bot under a walkway does not walk at a node on it. */
-    if(view->climb_limited && end[1]-start[1]>2.0f){*blocked=1;return RF_OK;}
     /* Use this actor clearance for the scene fallback; the shared original
      * selector retains its historical callback argument. Body sweeps still own movement. */
     return rf_collision_solid_preferred(view->solid,NULL,0x45,start,delta,view->radius,1,&hit,blocked);
@@ -20762,7 +20759,10 @@ static int campaign_script_route_leased(scene_stream *stream,campaign_npc_body *
     }
     q.height=high-low;
     if(owner->navigation_radius>0)q.radius=owner->navigation_radius;
-    campaign_route_visibility visibility={&solid,q.radius,scene_mp_climb_limited(owner)};
+    campaign_route_visibility visibility={&solid,q.radius};
+    /* Multiplayer bots (port practice): no endpoint node more than 2 above
+     * the point, so a bot under a walkway is not placed on it. */
+    float max_rise=scene_mp_climb_limited(owner)?2.0f:FLT_MAX;
     memset(rf_scene_script_route_detail,0,sizeof(rf_scene_script_route_detail));memcpy(rf_scene_script_route_detail,&q.radius,4);memcpy(rf_scene_script_route_detail+1,&q.height,4);
     for(i=0;i<campaign_navigation.count;i++){rf_entity_navigation_candidate *c=campaign_navigation.references[i].candidate;if(rf_entity_navigation_candidate_allowed(q.radius,q.height,0,c->radius,c->height,c->word_040))++rf_scene_script_route_detail[2];}
     solid.rooms=stream->collision->views;solid.room_count=stream->collision->room_count;
@@ -20775,10 +20775,10 @@ static int campaign_script_route_leased(scene_stream *stream,campaign_npc_body *
      * clearance fails. Movement still sweeps the unchanged full collision body. */
     for(i=0;i<(owner->navigation_radius>0?1u:2u);i++) {
         if(i){q.radius=0;visibility.radius=0;}
-        status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
-            start.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&begin);if(status)return status;
-        status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
-            goal.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&end);if(status)return status;
+        status=rf_entity_navigation_select_limited(campaign_navigation.references,campaign_navigation.count,
+            start.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,max_rise,&begin);if(status)return status;
+        status=rf_entity_navigation_select_limited(campaign_navigation.references,campaign_navigation.count,
+            goal.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,max_rise,&end);if(status)return status;
         rf_scene_script_route_detail[3]=begin.first;rf_scene_script_route_detail[4]=end.first;rf_scene_script_route_detail[5]=begin.contained;rf_scene_script_route_detail[6]=end.contained;
         if(begin.first==UINT32_MAX || end.first==UINT32_MAX)continue;
         q.first_start=begin.first;q.second_start=begin.second;q.first_end=end.first;q.second_end=end.second;q.search_mode=1;q.solid=&solid;

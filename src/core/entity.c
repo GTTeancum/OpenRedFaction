@@ -1888,6 +1888,14 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
     rf_entity_navigation_selection *selection)
 {
+    return rf_entity_navigation_select_limited(references,count,position,radius,height,mode,allow_far,
+        visibility,context,FLT_MAX,selection);
+}
+int rf_entity_navigation_select_limited(rf_entity_navigation_reference *references,uint32_t count,
+    const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
+    int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
+    float max_rise,rf_entity_navigation_selection *selection)
+{
     uint32_t i,j,k,result,best,blocked;float score,minimum=FLT_MAX;int status;
     if(!position || !selection || !visibility || (count && !references) || count>0x7fffffffu)return RF_RANGE;
     if(!isfinite(radius) || !isfinite(height))return RF_FORMAT;
@@ -1900,6 +1908,7 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     for(i=0;i<count;++i) {
         rf_entity_navigation_candidate *c=references[i].candidate;
         c->rejected_035=!rf_entity_navigation_candidate_allowed(radius,height,mode,c->radius,c->height,c->word_040);
+        if(max_rise<FLT_MAX && c->position[1]-position[1]>max_rise)c->rejected_035=1;
     }
     for(i=0;i<count;++i) {
         rf_entity_navigation_candidate *c=references[i].candidate;if(c->rejected_035==1)continue;

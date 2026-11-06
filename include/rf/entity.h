@@ -1386,6 +1386,13 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
     rf_entity_navigation_selection *selection);
+/* Port extension (not original): as rf_entity_navigation_select, also
+ * rejecting every candidate whose centre is more than max_rise above
+ * position (FLT_MAX: none), for containment, pairs and the far fallback. */
+int rf_entity_navigation_select_limited(rf_entity_navigation_reference *references,uint32_t count,
+    const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
+    int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
+    float max_rise,rf_entity_navigation_selection *selection);
 
 /*4ce4b0 with concrete4ce530 eligibility: eligible nodes copy position to
  * query_point, with Y-height/2+actor_height in mode low byte exactly1.

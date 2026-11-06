@@ -607,8 +607,17 @@ Done (now from the PS2 code):
   endpoint selection for a multiplayer bot ignores nodes more than 2 above
   it (campaign_route_visible); Waste Disposal Plant fell to 7%. What is left
   there is map data: PS2 dm03 nav node 12 (-214.8,-38,-79.9) links to node
-  14 (-227,-35,-80), a 3 m climb that the PS2 map makes walkable but the PC
-  map blocks with a 4 m ledge, and bots on the PC map end at its foot.
+  14 (-227,-35,-80) across a trench (floor -40, x -225..-217) that ends in
+  a 4 m wall under node 14. PS2 m_ps203 has the same geometry there (49 of
+  49 PS2 vertices in the area match PC dm03; about 80% of all vertices match
+  map-wide), no push region is near (they sit in the sludge channel, x -199
+  to -207), and PS2 bots do not jump on routes (they jump only when hit and
+  marked to step away, 131ac0 -> 1581f0). So the link cannot be climbed on
+  either version. (6) Endpoint selection now rejects nodes more than 2 above
+  the point in all three tests (contained, pair, far fallback;
+  rf_entity_navigation_select_limited), replacing (5), which had tested the
+  far-fallback callback's arguments the wrong way round. Waste Disposal
+  Plant 7-10% stuck, Installation XJ5 3%, Hangar 18 1%.
 - Upper-body lean switch-offs not mapped, none possible for multiplayer
   bots: movement states 0xd/0xf (set while attached to a host object,
   159ec0: vehicle or turret), AI modes 1/5 (15a310), carried object
