@@ -161,21 +161,26 @@ static void scene_npc_rounds_player_eye(const float eye[3]){memcpy(scene_npc_rou
  * bookkeeping when a round lands. */
 static int scene_npc_rounds_tick(scene_stream *stream,uint32_t frame)
 {
-    uint32_t i,k,active=0,done;int status;
+    uint32_t i,k,active=0,done;int status;const float *eye=scene_npc_round_player_eye;
     if(!scene_npc_round_player_eye_valid)return RF_OK;
+    /* Two-player (stage 3b): a round aimed at the second human flies in that
+     * human's pass, with it live; every other round in the first's. */
+    if(!scene_follow_primary)eye=rf_scene_gameplay_eye;
     for(i=0;i<SCENE_NPC_ROUND_CAPACITY;i++) {
         scene_npc_round *r=scene_npc_rounds+i;scene_npc_round_result result;float position[3],delta[3],remaining,step,limit,left=0;
         if(!r->active)continue;
-        remaining=1-r->flown_fraction;
+        if(scene_player2_live && (r->intended==scene_human_handle[1])==!!scene_follow_primary)continue;
+        remaining=1-r->flown_fraction;if(!scene_follow_primary)++rf_scene_mp_human2[10];
         for(k=0;k<3;k++){position[k]=r->origin[k]+r->path[k]*r->flown_fraction;delta[k]=r->path[k]*remaining;left+=delta[k]*delta[k];}
         step=r->speed*scene_step_seconds;left=sqrtf(left);limit=left>step?step/left:1;
-        status=scene_npc_round_step(stream,frame,r,position,delta,limit,scene_npc_round_player_eye,&result,&done);if(status)return status;
+        status=scene_npc_round_step(stream,frame,r,position,delta,limit,eye,&result,&done);if(status)return status;
         if(done || limit>=1) {
             r->active=0;++rf_scene_tracers[4];
             if(result.amount>0) {
                 float player_amount=result.player_amount;
                 ++rf_scene_enemy_combat[3];++rf_scene_tracers[7];
                 if(!r->pistol.active && !r->piercing && !r->shotgun && result.victim_slot==UINT32_MAX && !result.vehicle_applied)player_amount=result.amount;
+                if(player_amount>0 && !scene_follow_primary)++rf_scene_mp_human2[11];
                 if(player_amount>0)campaign_combat_event(frame,1,r->source,player_amount,campaign_player_damage.state.effects.health);
                 if(result.vehicle_applied) {
                     /* The instant shot's vehicle hit event, raised when the round lands. */
@@ -188,7 +193,8 @@ static int scene_npc_rounds_tick(scene_stream *stream,uint32_t frame)
         }
         r->flown_fraction+=remaining*limit;r->age+=scene_step_seconds;++active;
     }
-    rf_scene_tracers[6]=active;return RF_OK;
+    if(scene_follow_primary)rf_scene_tracers[6]=active;
+    return RF_OK;
 }
 /* Draw: Tracer01.VFX at each flying tracer round, effect time looping from launch. */
 static int scene_tracers_draw(scene_stream *stream)

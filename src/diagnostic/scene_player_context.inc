@@ -47,6 +47,7 @@
     X(campaign_teleport_ready) \
     X(campaign_undercover_export_sidecar) \
     X(campaign_undercover_import_sidecar) \
+    X(combat_frame) \
     X(combat_hit_frame) \
     X(combat_trigger) \
     X(dev_refill_held) \
@@ -187,6 +188,9 @@
     X(scene_grenade_throw) \
     X(scene_ground_piece_support) \
     X(scene_inspection_eye) \
+    X(scene_mp_fade_clock) \
+    X(scene_mp_fade_phase) \
+    X(scene_mp_fire_held) \
     X(scene_mp_player_class_flags) \
     X(scene_mp_player_dead) \
     X(scene_mp_player_streak) \

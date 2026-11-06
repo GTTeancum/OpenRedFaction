@@ -169,9 +169,15 @@ static int scene_mp_choose_target(scene_stream *stream,uint32_t slot,uint32_t fr
     campaign_npc_body *self=campaign_npc_bodies+slot;uint32_t i,k,best_handle=0,human_chosen=0,seen=0;float best=25.0f;int status;
     uint32_t self_aff=self->damage.effects.affiliation&3;
     ++rf_scene_mp_targets[0];
-    for(i=0;i<=campaign_npc_body_count;i++){
-        const float *pos,*eye;uint32_t handle,aff,human=i==campaign_npc_body_count,hostile,blocked=0,a;float weight=1,d=0,dir[3],dot=0,len=0,from[3],delta[3];
-        if(human){
+    /* Two-player: both humans are candidates (the second after the first). */
+    for(i=0;i<=campaign_npc_body_count+1;i++){
+        const float *pos,*eye;uint32_t handle,aff,human=i>=campaign_npc_body_count,hostile,blocked=0,a;float weight=1,d=0,dir[3],dot=0,len=0,from[3],delta[3];
+        if(i==campaign_npc_body_count+1){
+            scene_human_ref other;
+            if(!scene_player2_live || !scene_human_get(rf_scene_player_context[0]&1u?0:1,&other) || other.health<=0)continue;
+            pos=other.position;eye=other.eye;handle=other.handle;
+            aff=other.affiliation;weight=scale[rf_scene_session_get_difficulty()&3];
+        }else if(human){
             if(!campaign_player_object.view || campaign_player_damage.state.effects.health<=0)continue;
             pos=scene_actor_body.state.position;eye=player_eye;handle=campaign_player_object.handle;
             aff=campaign_player_damage.state.effects.affiliation&3;weight=scale[rf_scene_session_get_difficulty()&3];
@@ -200,7 +206,7 @@ static int scene_mp_choose_target(scene_stream *stream,uint32_t slot,uint32_t fr
     if(!best_handle || (self->combat_alert && self->combat_target==best_handle))return RF_OK;
     scene_pursuit_token_invalidate_owner(self);
     if(!campaign_script_movement_owns(self)){scene_patrol_combat_begin(self,0);campaign_pursuit_stop(self);}
-    self->combat_scripted=best_handle==campaign_player_object.handle?0:2;self->combat_target=best_handle;self->combat_alert=1;
+    self->combat_scripted=human_chosen?0:2;self->combat_target=best_handle;self->combat_alert=1;
     self->combat_navigation_due=self->combat_burst_remaining=0;self->combat_due=scene_mp_first_shot(frame);scene_blind_sync(self,frame);
     ++rf_scene_mp_targets[1];
     return RF_OK;

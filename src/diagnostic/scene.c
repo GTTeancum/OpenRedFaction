@@ -12039,6 +12039,7 @@ int rf_scene_session_restart(void)
     printf("SESSION_RESTART %s %u\n",campaign_current_level,combat_frame);
     return RF_OK;
 }
+#include "scene_split_humans.inc"
 #include "scene_mp.inc"
 static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 {
@@ -13521,7 +13522,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
     /* Impact timing is independent of the next fire deadline, acquisition,
      * pain lock and all per-owner suppression early-outs. Invalid owners are
      * cancelled by the service even while the movement fixture is quiet. */
-    {int status=scene_ai_drone_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
+    if(scene_follow_primary){int status=scene_ai_drone_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
      if(status)return scene_enemy_failure(status,__LINE__,frame,i);
      status=scene_ai_tankbot_secondary_service(frame);if(SCENE_PURSUIT_RUNTIME_ENABLED&&tick_epoch!=scene_robot_death_epoch)return scene_enemy_failure(RF_NOT_FOUND,__LINE__,frame,i);
      if(status)return scene_enemy_failure(status,__LINE__,frame,i);
@@ -13536,7 +13537,10 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
     /* Explicit movement fixture: quiet authored pool, no enemy combat. */
     if(rf_scene_swim_test_enabled)return RF_OK;
     uint32_t tactical_chosen=UINT32_MAX;
-    if(SCENE_PURSUIT_RUNTIME_ENABLED){
+    /* Stage 3b: the second human's pass runs only the bots fighting it. */
+    if(!scene_follow_primary && !rf_scene_mp_human2[4])return RF_OK;
+    if(!scene_follow_primary){}
+    else if(SCENE_PURSUIT_RUNTIME_ENABLED){
         rf_scene_death_selection_context sound_context={0};int status,boundary;
         sound_context.random=&combat_sound_random;
         status=scene_pursuit_work_dispatch(stream,frame,pursuit_now,seconds,
@@ -13557,8 +13561,11 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     memset(rf_scene_combat_population,0,sizeof(rf_scene_combat_population));
     rf_scene_combat_population[0]=campaign_npc_body_count;
+    if(scene_follow_primary)scene_human2_targets_take();
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(scene_human2_pass_skip(i))continue; /* stage 3b: its target human's pass runs it */
+        if(!scene_follow_primary)++rf_scene_mp_human2[8];
         if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==
            (rf_scene_crash_aim==3?rf_scene_crash_aim_uid:rf_scene_crash_aim_trace[1])) {
             uint32_t state[12]={(uint32_t)campaign_seeds.records.items[i].record.uid,frame,
@@ -14003,7 +14010,7 @@ static int campaign_enemy_tick_body(scene_stream *stream,uint32_t frame,const fl
         }
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
-        ++rf_scene_enemy_combat[2];
+        ++rf_scene_enemy_combat[2];if(!scene_follow_primary)++rf_scene_mp_human2[9];
         if(point_target && !once)++rf_scene_script_shoot_at[3];
         if(rf_scene_combat_trace)printf("ENEMY_SHOT_TRACE %u %u\n",frame,campaign_seeds.records.items[i].record.uid);
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
@@ -14182,8 +14189,8 @@ enemy_shot_done:
                 } else campaign_combat_event(frame,2,owner->registration.handle,amount,vehicle_health);
             }}
     }
-    memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
-    rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
+    if(scene_follow_primary){memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
+    rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;}
     return RF_OK;
 }
 /* Register before paid services. The literal-zero runtime gate retains the
@@ -18214,6 +18221,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(scene_follow_primary){status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    else scene_mp_human_tick(); /* stage 3b: the second human's death and score */
     if(scene_follow_primary){status=scene_mp_bot_pickups(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
@@ -18310,7 +18318,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(!frame)scene_fusion_projectile_reset();
     {uint64_t enemy_epoch=scene_robot_death_epoch;
     if(scene_follow_primary){scene_npc_loop_audio_begin();}
-    status=(!scene_follow_primary || rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
+    status=((!scene_follow_primary && !scene_player2_live) || rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
     if(enemy_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
@@ -19710,7 +19718,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(scene_follow_primary){status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}}
     status=scene_player_rounds_tick(stream,frame);if(status)return status;
     scene_player_tracers_tick();if(scene_follow_primary)scene_rail_trail_tick();
-    if(scene_follow_primary){status=scene_npc_rounds_tick(stream,frame);if(status)return status;}
+    if(scene_follow_primary || scene_player2_live){status=scene_npc_rounds_tick(stream,frame);if(status)return status;}
     if(scene_follow_primary){status=scene_precision_rounds_tick(stream,frame);if(status)return status;}
     if(scene_follow_primary){status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}}
     if(scene_follow_primary){status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}}
@@ -23375,7 +23383,8 @@ static void scene_player_select(uint32_t slot);static void scene_player_clone(vo
  * parked in scene_player_context.inc and made live for its animation pass, its
  * pre-pass and its physics step. [0] live, [1] passes, [2..4] its position,
  * [5..7] its view presentation step, status and frame (stage 4). */
-uint32_t rf_scene_split_test,rf_scene_split[8];
+uint32_t rf_scene_split_test,rf_scene_split[10],rf_scene_split_failure[4];
+static uint32_t scene_player_rehandle(uint32_t from,uint32_t to);
 static const rf_preview_mesh scene_player2_mesh={0};
 static void scene_player2_input(uint32_t frame)
 {
@@ -23390,7 +23399,19 @@ static void scene_player2_input(uint32_t frame)
 static void scene_player2_create(void)
 {
     rf_physics_sphere *spheres;
+    scene_human_handle[0]=campaign_player_object.handle;
     scene_player_clone();scene_player_select(1);
+    /* Stage 3b: its own entity handle; the registry slot names the player
+     * globals, which hold whichever human is live (rf_entity_view_register
+     * refuses a second registration of one view). */
+    {uint32_t handle=0;
+     if(campaign_player_object.view && !rf_object_registry_insert(&campaign_registry,&campaign_player_object,&handle)){
+        campaign_player_object.handle=handle;campaign_player_view.handle=(int32_t)handle;
+        campaign_entities.slots[handle&0xffffu]=&campaign_player_view;scene_human_handle[1]=handle;
+        /* The copy's own records (weapon runtimes, charge, shields) name
+         * the first human as their owner: they now name the second. */
+        rf_scene_split[8]=scene_player_rehandle(scene_human_handle[0],handle);
+     }}
     spheres=malloc(scene_actor_body.spheres.count*sizeof(*spheres));
     if(spheres){memcpy(spheres,scene_actor_body.spheres.items,scene_actor_body.spheres.count*sizeof(*spheres));scene_actor_body.spheres.items=spheres;}
     if(rf_scene_mp[0]){
@@ -23401,7 +23422,8 @@ static void scene_player2_create(void)
     scene_player_select(0);scene_player2_live=spheres!=NULL;rf_scene_split[0]=scene_player2_live;
 }
 static void scene_player2_record(void)
-{memcpy(rf_scene_split+2,scene_actor_body.state.position,12);++rf_scene_split[1];}
+{memcpy(rf_scene_split+2,scene_actor_body.state.position,12);++rf_scene_split[1];
+ rf_scene_mp_human2[5]=(uint32_t)(int32_t)campaign_player_damage.state.effects.health;}
 static uint32_t scene_follow_primary;
 static int scene_player2_select(void *context,uint32_t frame,uint32_t enter)
 {
@@ -23411,6 +23433,7 @@ static int scene_player2_select(void *context,uint32_t frame,uint32_t enter)
         if(!scene_player2_live)return 0;
         scene_player_select(1);scene_follow_primary=0;scene_player2_input(frame);return 1;
     }
+    memcpy(rf_scene_split_failure,rf_scene_player_failure,sizeof(rf_scene_split_failure)); /* the second human's, before it is parked */
     scene_follow_primary=1;scene_player_select(0);return 0;
 }
 uint32_t rf_scene_player_swap_test;
@@ -25545,3 +25568,31 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
 
 #include "scene_pursuit_runtime_assembly.inc"
 #include "scene_player_context.inc"
+/* Stage 3b: the live player's own handle stored in its per-player state
+ * (aligned words) is replaced; returns the number of words changed. */
+static uint32_t scene_player_rehandle(uint32_t from,uint32_t to)
+{
+    uint32_t i,j,n=0;
+    if(!from || from==to)return 0;
+    for(i=0;i<sizeof(scene_player_regions)/sizeof(scene_player_regions[0]);i++){
+        uint8_t *at=(uint8_t *)scene_player_regions[i].address;
+        if(scene_player_regions[i].address==(void *)&campaign_player_object)continue; /* set by registration */
+        for(j=(uint32_t)((4u-((uintptr_t)at&3u))&3u);j+4<=scene_player_regions[i].bytes;j+=4){
+            uint32_t v;memcpy(&v,at+j,4);
+            if(v==from){memcpy(at+j,&to,4);++n;}
+        }
+    }
+    return n;
+}
+/* Stage 3b: the parked copy of a per-player global (the other human's value);
+ * anything outside the per-player table is returned unchanged. */
+static void *scene_player_other(void *global)
+{
+    uint8_t *store=scene_player_store,*g=(uint8_t *)global;uint32_t i;
+    for(i=0;i<sizeof(scene_player_regions)/sizeof(scene_player_regions[0]);i++){
+        uint8_t *at=(uint8_t *)scene_player_regions[i].address;
+        if(g>=at && g<at+scene_player_regions[i].bytes)return store+(g-at);
+        store+=scene_player_regions[i].bytes;
+    }
+    return global;
+}

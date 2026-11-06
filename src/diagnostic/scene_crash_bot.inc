@@ -76,7 +76,9 @@ static void scene_crash_bot_input(uint32_t frame,rf_scene_input *input)
     if(!frame){memset(rf_scene_crash_bot_trace,0,sizeof(rf_scene_crash_bot_trace));scene_crash_bot_slot=UINT32_MAX;return;}
     memset(input,0,sizeof(*input));
     /* Fire respawns; a fresh bot to follow after it. */
-    if(campaign_player_damage.state.effects.health<=0){input->fire=frame&1;scene_crash_bot_slot=UINT32_MAX;return;}
+    /* Dead: tap fire to respawn (a toggle, not the frame parity: a paced
+     * tick may advance two frames every time). */
+    if(campaign_player_damage.state.effects.health<=0){static uint32_t tap;(void)frame;input->fire=tap^=1u;scene_crash_bot_slot=UINT32_MAX;return;}
     if(scene_crash_bot_slot!=UINT32_MAX && !scene_crash_bot_live(scene_crash_bot_slot)){++rf_scene_crash_bot_trace[3];scene_crash_bot_slot=UINT32_MAX;}
     if(scene_crash_bot_watch(input))return;
     if(scene_crash_bot_slot==UINT32_MAX){scene_crash_bot_pick(frame);if(scene_crash_bot_slot==UINT32_MAX)return;}

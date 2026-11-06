@@ -1,6 +1,7 @@
 # Two-player split screen (PS2) — design
 
-Status: stages 1-2 done, stage 3a done, stage 4 views done (2026-11-06). Two players only
+Status: stages 1-2 done, stage 3a done, stage 4 views done, stage 3b bots and
+scoring done (2026-11-06). Two players only
 (the PS2 limit); the engine's quarter-screen layouts are never used.
 
 ## PS2 behaviour (traced)
@@ -173,3 +174,34 @@ doubles).
 - Not yet: the HUD is still one full-screen layout drawn in each half (the
   PS2 per-player layout is stage 5); the two-player cost needs a look on
   hardware.
+
+## Stage 3b: the world sees the second human
+
+- The second human gets its own entity handle at creation. The registry
+  slot names the player globals, which hold whichever human is live, so
+  "is this the player" checks stay true only for the live human. Words in
+  the copied per-player state equal to the first human's handle (7 of them:
+  weapon runtimes, charge state and the like) are rewritten to the second's.
+- `src/diagnostic/scene_split_humans.inc` reads either human, live or parked,
+  by index or handle (`scene_player_other` finds a global's parked copy).
+- Bots: target choice weighs both humans (12b580's candidate list); route
+  aim, aim pose, sight checks and the attack update find either human.
+  Bots fighting the second human run their update in that human's pass with
+  it live (the set is taken once per frame in the first pass, so each bot
+  updates once a frame); their flying rounds also fly in that pass.
+- Scoring: the second human's kills, deaths and streaks are kept in
+  `rf_scene_mp_human2`; the kill limit counts them. Each human's death is
+  scored in its own pass, and the respawn fade is per human.
+- Fixed on the way: the combat routine's once-per-frame guard was shared,
+  so the second human's combat never ran (stage 3a's "fire bursts" did
+  nothing); the respawn fade and fire-held state were shared. The test
+  pilot tapped fire to respawn only on odd frames, which two-player pacing
+  never reached (the bots then stood still with no live target).
+- Checked in XEMU (dm05, 4 bots, 3,600 frames): bots fought the second
+  human on 937 frames, shot at it 35 times and hurt it 17 times; it died and
+  respawned; the first human died and respawned 4 times; the match ran to
+  the end. One player unchanged (bot match, testbed 32 shots, 2 switches).
+- Not yet: a round aimed at one human cannot hit the other; the second
+  human's model is not drawn in the first's view (and the reverse); the
+  bodies do not collide with each other; pickups for the second human;
+  controller 2 (stage 3c); HUD per player (stage 5).

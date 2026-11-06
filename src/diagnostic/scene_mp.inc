@@ -326,14 +326,23 @@ uint32_t rf_scene_mp_stats(rf_scene_mp_stats_row *rows,uint32_t capacity)
 static void scene_mp_score(uint32_t victim,uint32_t victim_handle,uint32_t killer)
 {
     uint32_t i;
+    /* Two-player: the second human keeps its own score (rf_scene_mp_human2). */
+    uint32_t second=scene_player2_live && victim_handle==scene_human_handle[1];
     if(victim<SCENE_MP_BOTS){++rf_scene_mp_roster[victim].deaths;rf_scene_mp_roster[victim].streak=0;++rf_scene_mp_bot_deaths[0];}
+    else if(second){++rf_scene_mp_human2[1];rf_scene_mp_human2[2]=0;}
     else scene_mp_player_streak=0;
     if(killer==victim_handle){
         if(victim<SCENE_MP_BOTS){--rf_scene_mp_roster[victim].kills;++rf_scene_mp_bot_deaths[2];}
+        else if(second){if(rf_scene_mp_human2[0])--rf_scene_mp_human2[0];}
         else if(rf_scene_mp[2])--rf_scene_mp[2];
         return;
     }
-    if(killer==campaign_player_object.handle){
+    if(scene_player2_live && killer==scene_human_handle[1]){
+        ++rf_scene_mp_human2[0];++rf_scene_mp_human2[2];
+        if(rf_scene_mp_human2[2]>rf_scene_mp_human2[3])rf_scene_mp_human2[3]=rf_scene_mp_human2[2];
+        return;
+    }
+    if(killer==(scene_player2_live?scene_human_handle[0]:campaign_player_object.handle)){
         ++rf_scene_mp[2];++scene_mp_player_streak;
         if(scene_mp_player_streak>rf_scene_mp_player_stats[0])rf_scene_mp_player_stats[0]=scene_mp_player_streak;
         return;
@@ -429,8 +438,8 @@ static const float *scene_mp_route_aim(const campaign_npc_body *npc)
     uint32_t slot=(uint32_t)(npc-campaign_npc_bodies),j;
     if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || scene_mp_routing[slot]!=1 || !npc->combat_alert || !npc->combat_target)return NULL;
     if(!scene_mp_face_target[slot] && !scene_mp_step_query)return NULL;
-    if(npc->combat_target==campaign_player_object.handle)
-        return campaign_player_damage.state.effects.health>0?scene_actor_body.state.position:NULL;
+    {scene_human_ref human;
+     if(scene_human_find(npc->combat_target,&human))return human.health>0?human.position:NULL;}
     for(j=0;j<campaign_npc_body_count;j++)
         if(campaign_npc_bodies[j].registration.view && campaign_npc_bodies[j].registration.handle==npc->combat_target &&
            campaign_npc_bodies[j].damage.effects.health>0)return campaign_npc_bodies[j].body.state.position;
@@ -565,10 +574,11 @@ static int scene_mp_aim_target(const campaign_npc_body *npc,float position[3])
 {
     uint32_t j;
     if(!npc->combat_target)return 0;
-    if(npc->combat_target==campaign_player_object.handle){
-        if(campaign_player_damage.state.effects.health<=0)return 0;
-        memcpy(position,scene_actor_body.state.position,12);return 1;
-    }
+    {scene_human_ref human;
+     if(scene_human_find(npc->combat_target,&human)){
+        if(human.health<=0)return 0;
+        memcpy(position,human.position,12);return 1;
+     }}
     for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view && campaign_npc_bodies[j].registration.handle==npc->combat_target){
         if(campaign_npc_bodies[j].damage.effects.health<=0)return 0;
         memcpy(position,campaign_npc_bodies[j].body.state.position,12);return 1;
@@ -769,7 +779,9 @@ static int scene_mp_route_tick(uint32_t slot)
         if(walking)return RF_OK;
         scene_mp_routing[slot]=0;++rf_scene_mp_routes[3];
     }
-    if(npc->combat_scripted==1 || campaign_player_damage.state.effects.health<=0){scene_mp_had_target[slot]=(uint8_t)target;return RF_OK;}
+    {scene_human_ref human;uint32_t human_dead=scene_human_find(npc->combat_target,&human)?human.health<=0:
+         campaign_player_damage.state.effects.health<=0;
+     if(npc->combat_scripted==1 || human_dead){scene_mp_had_target[slot]=(uint8_t)target;return RF_OK;}}
     if(target){
         /* 131ac0 (a marked step-away) and attack-update step 2 (12f5f0,
          * rand & 0x3f == 0) come first; a started step-away ends the update. */
@@ -797,7 +809,8 @@ static int scene_mp_route_tick(uint32_t slot)
             scene_mp_routing[slot]=1;scene_mp_step_query=1;tp=scene_mp_route_aim(npc);scene_mp_step_query=0;scene_mp_routing[slot]=0;
             if(tp){
                 const float *teye=NULL;uint32_t flags=0,j,was=scene_mp_sight[slot][0] || scene_mp_sight[slot][1];float tradius=0;
-                if(npc->combat_target==campaign_player_object.handle){teye=rf_scene_gameplay_eye;flags=scene_mp_player_class_flags;tradius=campaign_player_geometry.model_radius;}
+                scene_human_ref human;
+                if(scene_human_find(npc->combat_target,&human)){teye=human.eye;flags=human.class_flags;tradius=human.radius;}
                 else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.handle==npc->combat_target){
                     uint32_t c=campaign_seeds.items[j].class_index;teye=campaign_npc_bodies[j].eye_position;tradius=campaign_npc_bodies[j].model_radius_78;
                     if(c<campaign_seeds.class_count)flags=campaign_seeds.classes[c].physics.flags;break;}
@@ -986,6 +999,17 @@ static uint32_t scene_mp_moving_holds_fire(uint32_t slot,uint32_t class_flags)
     return 0;
 }
 /* Per update, after frame-zero setup. */
+/* The live human's death is scored once (each human's pass runs this). */
+static void scene_mp_human_tick(void)
+{
+    if(!rf_scene_mp[0] || rf_scene_mp[6])return;
+    if(!scene_mp_player_dead && campaign_player_damage.state.effects.health<=0){
+        scene_mp_player_dead=1;
+        scene_mp_score(UINT32_MAX,campaign_player_object.handle,campaign_player_damage.state.responsible_handle);
+    }else if(campaign_player_damage.state.effects.health>0)scene_mp_player_dead=0;
+    /* The respawn fade back (1ddd90) is each human's own. */
+    if(scene_mp_fade_phase==2){scene_mp_fade_clock+=scene_step_seconds;if(scene_mp_fade_clock>=.5f)scene_mp_fade_phase=0;}
+}
 static int scene_mp_tick(uint32_t frame)
 {
     uint32_t i,count;int status;
@@ -1058,12 +1082,8 @@ static int scene_mp_tick(uint32_t frame)
          memcpy(d+10,&npc->body.state.position[1],4);
          d[9]=npc->navigation.retained.count|npc->script_move.route_index<<8|npc->script_move.retry<<16;}
     }
-    if(!scene_mp_player_dead && campaign_player_damage.state.effects.health<=0){
-        scene_mp_player_dead=1;
-        scene_mp_score(UINT32_MAX,campaign_player_object.handle,campaign_player_damage.state.responsible_handle);
-    }else if(campaign_player_damage.state.effects.health>0)scene_mp_player_dead=0;
+    scene_mp_human_tick();
     rf_scene_mp[3]=rf_scene_player_life[0];rf_scene_mp[7]=rf_scene_player_life[1];
-    if(scene_mp_fade_phase==2){scene_mp_fade_clock+=scene_step_seconds;if(scene_mp_fade_clock>=.5f)scene_mp_fade_phase=0;}
     /* 156980: in multiplayer the human's run mode maximum is 8.0 too. */
     if(rf_scene_actor_movement_settings.mode==1)rf_scene_actor_movement_settings.speed=8.0f;
     /* 1dc0e0: time, then the kill limit for the player and every bot. */
@@ -1089,7 +1109,7 @@ static int scene_mp_tick(uint32_t frame)
             else if(leader==(int32_t)rf_scene_mp_kill_limit-1)scene_mp_announce(9,0,0);
             scene_mp_announced=(uint32_t)leader;
         }
-        if(rf_scene_mp[2]>=rf_scene_mp_kill_limit)rf_scene_mp[6]=1;
+        if(rf_scene_mp[2]>=rf_scene_mp_kill_limit || (scene_player2_live && rf_scene_mp_human2[0]>=rf_scene_mp_kill_limit))rf_scene_mp[6]=1;
         for(i=0;i<count;i++)if(rf_scene_mp_roster[i].used && rf_scene_mp_roster[i].kills>=(int32_t)rf_scene_mp_kill_limit)rf_scene_mp[6]=1;
     }
     if(rf_scene_mp[6]){
