@@ -1,6 +1,6 @@
 # Two-player split screen (PS2) — design
 
-Status: stage 1 done 2026-11-05 (per-player state table and exchange). Two players only
+Status: stage 1 done, stage 2 in progress (2026-11-05). Two players only
 (the PS2 limit); the engine's quarter-screen layouts are never used.
 
 ## PS2 behaviour (traced)
@@ -93,3 +93,19 @@ doubles).
   behave as without it (testbed: same 32 shots and 2 weapon switches). A
   byte-by-byte exchange was slow enough to disturb timing; the exchange
   copies in 4 KiB chunks.
+
+## Stage 2 progress
+
+- `scene_player_prepass` (room refresh, ground check and material,
+  movement command) and `scene_player_physics(..., primary, ...)` (forces,
+  support, movement, landing, footsteps, liquid and outside damage) are
+  extracted from scene_frame and called once; the movers, vehicles, NPC
+  support and mover commit inside the physics step run only when `primary`
+  is set. Developer testbed and a bot match unchanged.
+- Found while mapping: the frame loop is driven by the player's animation
+  (`animation_run` in src/diagnostic/animation.c), which holds the player's
+  model, skeleton, motion state and animation controller as locals and calls
+  the camera/combat callback (`actor_follow_view`, which also runs the
+  player's weapon fire) and then scene_frame. Player 2 therefore needs a
+  second animation driver (own model, skeleton, motions, controller), added
+  beside the single-player one rather than restructuring it.

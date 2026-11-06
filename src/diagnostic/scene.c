@@ -23164,6 +23164,177 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
 uint32_t rf_scene_frame_late_failure[3];
 static int scene_frame_late_failure(int status,uint32_t line,uint32_t frame)
 {if(!rf_scene_frame_late_failure[0]){rf_scene_frame_late_failure[0]=line;rf_scene_frame_late_failure[1]=(uint32_t)status;rf_scene_frame_late_failure[2]=frame;}return status;}
+/* Two-player stage 2: the live player's pre-pass (room, ground, movement
+ * command), called once per human with that player swapped in. */
+static int scene_player_prepass(scene_stream *stream,uint32_t frame,const rf_preview_mesh *actor)
+{
+        uint32_t hash=2166136261u;
+        int status,blocked=rf_scene_actor_stance_blocked;
+        if(frame==47 && !player_poll) {status=actor_clearance_check(stream->collision);if(status)return status;}
+        memcpy(rf_scene_actor_movement_frames[frame%64],&rf_scene_actor_movement_settings,12);
+        rf_scene_actor_stance_frames[frame%64][0]=rf_scene_actor_stance_request;
+        rf_scene_actor_stance_frames[frame%64][1]=rf_scene_actor_stance_flags;
+        rf_scene_actor_stance_frames[frame%64][2]=scene_diagnostic_hash(2166136261u,scene_actor_body.spheres.items,
+            scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items));
+        rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
+        status=actor_room_refresh(stream->collision,frame);if(status)return status;
+        status=campaign_death_clearance_fixture(stream->collision,frame);if(status)return status;
+        status=campaign_death_animation_fixture(stream->collision,frame,stream->particles.state?&stream->particles.state->random:NULL);if(status)return status;
+        status=scene_moving_support_stimulus(frame);if(status)return status;
+        status=actor_ground_check(stream->collision,frame);if(status)return status;
+        {
+            const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
+            if(ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f) {
+                if(campaign_spawn)rf_scene_actor_ground_material=rf_scene_actor_ground_contacts[frame%64].contact.material;
+                else {
+                    rf_geometry_face face;
+                    status=rf_geometry_get_face(stream->geometry,ground->hit.face,&face);if(status)return status;
+                    if(face.texture>=stream->geometry->textures)return RF_FORMAT;
+                    rf_scene_actor_ground_material=stream->surface_indices[face.texture];
+                }
+                rf_scene_actor_run_traction=rf_scene_actor_surface_values[rf_scene_actor_ground_material].traction;
+            }
+            rf_scene_actor_surface_frames[frame%64][0]=rf_scene_actor_ground_material;
+            memcpy(rf_scene_actor_surface_frames[frame%64]+1,&rf_scene_actor_run_traction,4);
+        }
+        actor_command(frame,rf_scene_actor_input_frames[frame%64]);
+        rf_scene_actor_ring_frames[frame%64]=frame;
+        hash=scene_diagnostic_hash(hash,actor->vertices,actor->bytes);
+        rf_scene_actor_render_frames[frame%64][0]=actor->count;rf_scene_actor_render_frames[frame%64][1]=hash;
+        memcpy(rf_scene_actor_render_frames[frame%64]+2,scene_actor_body.state.position,12);
+        if(rf_scene_actor_live_enabled) {
+            uint32_t *d=rf_scene_actor_live_summary;
+            if(!frame) {memset(d,0,32);d[0]=0x52464c56;d[2]=d[3]=2166136261u;}
+            d[1]=frame+1;
+            d[2]=scene_diagnostic_hash(d[2],actor->vertices,actor->bytes);
+            d[3]=scene_diagnostic_hash(d[3],&scene_actor_body.state,sizeof(scene_actor_body.state));
+            d[4]=rf_scene_actor_landing[1];d[5]=rf_scene_actor_landing[3];d[6]=rf_scene_actor_landing[7];d[7]=1;
+        }
+    return RF_OK;
+}
+/* Two-player stage 2: the live player's physics step. World updates in it
+ * (movers, vehicles, NPC support, mover commit) run only for the primary
+ * player; a secondary human runs the player parts with its state live. */
+static int scene_player_physics(scene_stream *stream,uint32_t frame,int32_t particle_now,uint32_t primary,uint32_t *step_clock_out)
+{
+    int status;uint32_t step_clock=*step_clock_out,physics_clock=step_clock;
+    rf_physics_body_state next=scene_actor_body.state;
+    const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
+    int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+    actor_ground_record post_ground;rf_geometry_body_hit post_contact;scene_piece_support post_support;
+    const scene_piece_support *piece_support=scene_ground_piece_support+(frame%64);
+    const rf_geometry_body_hit *contact=rf_scene_actor_ground_contacts+(frame%64);uint32_t route=RF_PLAYER_SUPPORT_QUERY;
+    int moved=0;uint32_t axis,landed=0;float landing_velocity[3];
+    if(campaign_spawn) {
+        uint32_t occupied=scene_driller_active(stream);
+        /* Keep the existing on-foot force/controller/actor ordering.
+         * Vehicle possession only replaces the local player's physics;
+         * the world and unseated NPC support still advance once. */
+        if(!occupied){
+            status=campaign_force_tick(&next,&stream->particles,particle_now);
+            rf_scene_force_ticks[11]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(primary)if(rf_scene_world_controller_steps[0]&&rf_scene_world_controller_steps[5]==frame)
+            if(primary)++rf_scene_world_controller_steps[6];
+        if(primary)++rf_scene_world_controller_steps[0];rf_scene_world_controller_steps[5]=frame;
+        if(primary)++rf_scene_world_controller_steps[occupied?3:4];
+        physics_profile_mark(0,&physics_clock);
+        if(primary){
+            status=campaign_controller_tick(particle_now,&stream->particles,next.position);
+            rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(primary)++rf_scene_world_controller_steps[1];
+        physics_profile_mark(1,&physics_clock);
+        if(primary){
+            status=scene_secondary_vehicle_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(!occupied){
+            status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+            status=scene_passive_vehicle_player_push(stream,&next);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(primary){
+            status=scene_passive_vehicle_npc_push_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(!occupied){
+            status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        physics_profile_mark(2,&physics_clock);
+        if(primary){
+            status=campaign_npc_refresh_support_fixture(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(primary){
+            status=campaign_npc_refresh_support_tick();if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(!occupied){
+            physics_profile_mark(3,&physics_clock);
+            status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+            scene_player_impact_frame_begin(frame,0);
+            status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        physics_profile_mark(4,&physics_clock);
+        if(primary){
+            status=campaign_controller_commit();
+            rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
+        }
+        if(primary)++rf_scene_world_controller_steps[2];
+        physics_profile_mark(7,&physics_clock); /* row7: mover controller commit */
+        if(!occupied){
+            moved=memcmp(next.position,scene_actor_body.state.position,12)!=0;
+            {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
+                0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
+            if(route==RF_PLAYER_SUPPORT_QUERY) {
+                status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+            }
+        }
+    } else if(!campaign_spawn && frame)for(axis=0;axis<3;++axis) {
+        float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
+        if(previous!=next.position[axis])moved=1;
+    }
+    if(scene_driller_active(stream))route=UINT32_MAX;
+    if(route==RF_PLAYER_SUPPORT_FALL) {
+        next.flags|=1;rf_scene_actor_landing[1]=3;
+        campaign_player_passive_support_release(&next,frame);
+    } else if(route==RF_PLAYER_SUPPORT_QUERY) {
+        if(rf_scene_actor_landing[1]==3 && walkable) {
+            memcpy(landing_velocity,next.velocity,12);
+            status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+            rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;landed=1;
+            ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
+        } else if(rf_scene_actor_landing[1]==1 && (campaign_spawn || moved)) {
+            if(walkable) {
+                status=actor_support_commit(&next,ground,contact,0,piece_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+                ++rf_scene_actor_landing[6];
+            } else {
+                next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
+                campaign_player_passive_support_release(&next,frame);
+            }
+        }
+    }
+    if(campaign_spawn) {
+        /* 4aa6d0 consumes this after support; its optional first-person
+         * motion request remains part of the unfinished weapon lifecycle. */
+        rf_scene_actor_stance_flags&=~2u;
+    } else {
+        status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+    }
+    status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return scene_frame_late_failure(status,__LINE__,frame);
+    memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
+    memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
+    scene_actor_body.state=next;
+    if(campaign_spawn && landed)scene_player_landing_audio_commit(frame,landing_velocity,
+        &scene_actor_body.state,(int32_t)contact->contact.material);
+    if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
+    if(campaign_spawn)scene_player_footsteps_tick(stream,frame,(uint32_t)walkable,
+        walkable?(int32_t)contact->contact.material:-1);
+    if(primary)scene_moving_support_record(frame);
+    physics_profile_mark(5,&physics_clock);
+    if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
+    if(campaign_spawn){status=scene_player_outside_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
+    if(campaign_spawn)scene_player_outside_audio_tick(stream,frame);
+    physics_profile_mark(6,&physics_clock);
+    *step_clock_out=step_clock;(void)step_clock;return RF_OK;
+}
 /* scene_player_context.inc (end of file). */
 static void scene_player_exchange(void);static void scene_player_test_mark(void);
 uint32_t rf_scene_player_swap_test;
@@ -23224,50 +23395,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         actor->vertices[i].material=stream->base+slot;
     }
     if(!rf_scene_actor_eye_enabled)memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
-    if(stream->collision) {
-        uint32_t hash=2166136261u;
-        int status,blocked=rf_scene_actor_stance_blocked;
-        if(frame==47 && !player_poll) {status=actor_clearance_check(stream->collision);if(status)return status;}
-        memcpy(rf_scene_actor_movement_frames[frame%64],&rf_scene_actor_movement_settings,12);
-        rf_scene_actor_stance_frames[frame%64][0]=rf_scene_actor_stance_request;
-        rf_scene_actor_stance_frames[frame%64][1]=rf_scene_actor_stance_flags;
-        rf_scene_actor_stance_frames[frame%64][2]=scene_diagnostic_hash(2166136261u,scene_actor_body.spheres.items,
-            scene_actor_body.spheres.count*sizeof(*scene_actor_body.spheres.items));
-        rf_scene_actor_stance_frames[frame%64][3]=(uint32_t)blocked;
-        status=actor_room_refresh(stream->collision,frame);if(status)return status;
-        status=campaign_death_clearance_fixture(stream->collision,frame);if(status)return status;
-        status=campaign_death_animation_fixture(stream->collision,frame,stream->particles.state?&stream->particles.state->random:NULL);if(status)return status;
-        status=scene_moving_support_stimulus(frame);if(status)return status;
-        status=actor_ground_check(stream->collision,frame);if(status)return status;
-        {
-            const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
-            if(ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f) {
-                if(campaign_spawn)rf_scene_actor_ground_material=rf_scene_actor_ground_contacts[frame%64].contact.material;
-                else {
-                    rf_geometry_face face;
-                    status=rf_geometry_get_face(stream->geometry,ground->hit.face,&face);if(status)return status;
-                    if(face.texture>=stream->geometry->textures)return RF_FORMAT;
-                    rf_scene_actor_ground_material=stream->surface_indices[face.texture];
-                }
-                rf_scene_actor_run_traction=rf_scene_actor_surface_values[rf_scene_actor_ground_material].traction;
-            }
-            rf_scene_actor_surface_frames[frame%64][0]=rf_scene_actor_ground_material;
-            memcpy(rf_scene_actor_surface_frames[frame%64]+1,&rf_scene_actor_run_traction,4);
-        }
-        actor_command(frame,rf_scene_actor_input_frames[frame%64]);
-        rf_scene_actor_ring_frames[frame%64]=frame;
-        hash=scene_diagnostic_hash(hash,actor->vertices,actor->bytes);
-        rf_scene_actor_render_frames[frame%64][0]=actor->count;rf_scene_actor_render_frames[frame%64][1]=hash;
-        memcpy(rf_scene_actor_render_frames[frame%64]+2,scene_actor_body.state.position,12);
-        if(rf_scene_actor_live_enabled) {
-            uint32_t *d=rf_scene_actor_live_summary;
-            if(!frame) {memset(d,0,32);d[0]=0x52464c56;d[2]=d[3]=2166136261u;}
-            d[1]=frame+1;
-            d[2]=scene_diagnostic_hash(d[2],actor->vertices,actor->bytes);
-            d[3]=scene_diagnostic_hash(d[3],&scene_actor_body.state,sizeof(scene_actor_body.state));
-            d[4]=rf_scene_actor_landing[1];d[5]=rf_scene_actor_landing[3];d[6]=rf_scene_actor_landing[7];d[7]=1;
-        }
-    }
+    if(stream->collision) {int status=scene_player_prepass(stream,frame,actor);if(status)return status;}
     stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
@@ -23379,13 +23507,6 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             uint64_t particle_elapsed=((uint64_t)frame+1)*1000/60;
             int32_t particle_now=(int32_t)(particle_elapsed?((particle_elapsed-1)%RF_TIMER_PERIOD)+1:0);
-            rf_physics_body_state next=scene_actor_body.state;
-            const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
-            int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
-            actor_ground_record post_ground;rf_geometry_body_hit post_contact;scene_piece_support post_support;
-            const scene_piece_support *piece_support=scene_ground_piece_support+(frame%64);
-            const rf_geometry_body_hit *contact=rf_scene_actor_ground_contacts+(frame%64);uint32_t route=RF_PLAYER_SUPPORT_QUERY;
-            int moved=0;uint32_t axis,landed=0;float landing_velocity[3];
             campaign_passive_vehicle_motion_active=0;campaign_passive_vehicle_motion_frame=frame;
             /* The final puzzle is terminal on either outcome. Keep presenting
              * the level, but do not advance its physics, events, NPCs or
@@ -23399,103 +23520,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     particle_now,scene_rocket_trail_lookup,stream,&stream->particle_first);if(status)return scene_frame_late_failure(status,__LINE__,frame);
             }
             step_profile_mark(0,&step_clock); if(!frame)rf_scene_frame0_ms[8]=profile_clock?profile_clock():0;
-            {} uint32_t physics_clock=step_clock; /* physics split rows */
-            if(campaign_spawn) {
-                uint32_t occupied=scene_driller_active(stream);
-                /* Keep the existing on-foot force/controller/actor ordering.
-                 * Vehicle possession only replaces the local player's physics;
-                 * the world and unseated NPC support still advance once. */
-                if(!occupied){
-                    status=campaign_force_tick(&next,&stream->particles,particle_now);
-                    rf_scene_force_ticks[11]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                }
-                if(rf_scene_world_controller_steps[0]&&rf_scene_world_controller_steps[5]==frame)
-                    ++rf_scene_world_controller_steps[6];
-                ++rf_scene_world_controller_steps[0];rf_scene_world_controller_steps[5]=frame;
-                ++rf_scene_world_controller_steps[occupied?3:4];
-                physics_profile_mark(0,&physics_clock);
-                status=campaign_controller_tick(particle_now,&stream->particles,next.position);
-                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                ++rf_scene_world_controller_steps[1];
-                physics_profile_mark(1,&physics_clock);
-                status=scene_secondary_vehicle_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                if(!occupied){
-                    status=scene_passive_vehicle_roof_stimulus(stream,&next,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                    status=scene_passive_vehicle_player_push(stream,&next);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                }
-                status=scene_passive_vehicle_npc_push_tick(stream,frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                if(!occupied){
-                    status=scene_passive_vehicle_player_rising_support(stream,&next);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                }
-                physics_profile_mark(2,&physics_clock);
-                status=campaign_npc_refresh_support_fixture(frame);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                status=campaign_npc_refresh_support_tick();if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                if(!occupied){
-                    physics_profile_mark(3,&physics_clock);
-                    status=campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                    scene_player_impact_frame_begin(frame,0);
-                    status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                }
-                physics_profile_mark(4,&physics_clock);
-                status=campaign_controller_commit();
-                rf_scene_live_motion[7]=rf_scene_world_controller_steps[7]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                ++rf_scene_world_controller_steps[2];
-                physics_profile_mark(7,&physics_clock); /* row7: mover controller commit */
-                if(!occupied){
-                    moved=memcmp(next.position,scene_actor_body.state.position,12)!=0;
-                    {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
-                        0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
-                    if(route==RF_PLAYER_SUPPORT_QUERY) {
-                        status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                        ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
-                    }
-                }
-            } else if(!campaign_spawn && frame)for(axis=0;axis<3;++axis) {
-                float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
-                if(previous!=next.position[axis])moved=1;
-            }
-            if(scene_driller_active(stream))route=UINT32_MAX;
-            if(route==RF_PLAYER_SUPPORT_FALL) {
-                next.flags|=1;rf_scene_actor_landing[1]=3;
-                campaign_player_passive_support_release(&next,frame);
-            } else if(route==RF_PLAYER_SUPPORT_QUERY) {
-                if(rf_scene_actor_landing[1]==3 && walkable) {
-                    memcpy(landing_velocity,next.velocity,12);
-                    status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                    rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;landed=1;
-                    ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
-                } else if(rf_scene_actor_landing[1]==1 && (campaign_spawn || moved)) {
-                    if(walkable) {
-                        status=actor_support_commit(&next,ground,contact,0,piece_support);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-                        ++rf_scene_actor_landing[6];
-                    } else {
-                        next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
-                        campaign_player_passive_support_release(&next,frame);
-                    }
-                }
-            }
-            if(campaign_spawn) {
-                /* 4aa6d0 consumes this after support; its optional first-person
-                 * motion request remains part of the unfinished weapon lifecycle. */
-                rf_scene_actor_stance_flags&=~2u;
-            } else {
-                status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-            }
-            status=rf_group_pose_set_position(&rf_scene_actor_pose,next.position);if(status)return scene_frame_late_failure(status,__LINE__,frame);
-            memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
-            memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
-            scene_actor_body.state=next;
-            if(campaign_spawn && landed)scene_player_landing_audio_commit(frame,landing_velocity,
-                &scene_actor_body.state,(int32_t)contact->contact.material);
-            if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
-            if(campaign_spawn)scene_player_footsteps_tick(stream,frame,(uint32_t)walkable,
-                walkable?(int32_t)contact->contact.material:-1);
-            scene_moving_support_record(frame);
-            physics_profile_mark(5,&physics_clock);
-            if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
-            if(campaign_spawn){status=scene_player_outside_damage_tick(stream,frame,particle_now);if(status)return scene_frame_late_failure(status,__LINE__,frame);}
-            if(campaign_spawn)scene_player_outside_audio_tick(stream,frame);
-            physics_profile_mark(6,&physics_clock);
+            status=scene_player_physics(stream,frame,particle_now,1,&step_clock);if(status)return status;
             step_profile_mark(1,&step_clock); if(!frame)rf_scene_frame0_ms[9]=profile_clock?profile_clock():0;
             /* 433260 dispatches authored light timers after physics, before events.
              * Owned replay timing; complete original frame gates/RNG order remain. */
