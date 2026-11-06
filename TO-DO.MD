@@ -40,7 +40,7 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | # | Item |
 |---|---|
 | 21 | Split-screen two-player (largely untraced; set aside) |
-| 24 | Remaining route stalls: Waste Disposal Plant bots still stuck about 14% of the time (bots below the walkway walking at nodes above it) |
+| 24 | Waste Disposal Plant bots still stuck about 7%: two PS2 route links don't fit the PC map (node 12 to 14 climbs 3 m where the PC map has a 4 m ledge; a link from node 12 runs through a PC wall). Needs the PS2 map or a route-data decision |
 | 26 | Find whether the PS2 has a no-progress give-up for routes; if so, replace the port's one-second give-up with it |
 | 28 | Rare game error in the bot animation update (seen twice on The Lobby, once on The Badlands); cause being recorded |
 | 29 | XEMU closed 30 s into one Waterlogged run (a re-run was clean) |
@@ -52,7 +52,7 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 |---|---|---|
 | The Lobby | about 30% | 0% |
 | Installation XJ5 | about 80% | 4% |
-| Waste Disposal Plant | about 65% | 14% |
+| Waste Disposal Plant | about 65% | 7% |
 | The Badlands | about 50% | 3% |
 | Hangar 18 | about 35% | 3% |
 | Waterlogged | about 90% | 1% (bots still often pick routes with no path, so fewer fights) |

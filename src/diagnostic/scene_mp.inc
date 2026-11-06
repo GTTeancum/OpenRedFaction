@@ -517,6 +517,10 @@ static uint32_t scene_mp_wall_stuck(const campaign_npc_body *npc)
 }
 static void scene_mp_moved(const campaign_npc_body *npc)
 {uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);if(slot<SCENE_MP_BOTS)scene_mp_blocked_run[slot]=0;}
+/* Route endpoints for a multiplayer bot ignore nodes over 2 above it
+ * (scene.c campaign_route_visible). */
+static uint32_t scene_mp_climb_limited(const campaign_npc_body *npc)
+{uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);return rf_scene_mp[0] && slot<SCENE_MP_BOTS && rf_scene_mp_roster[slot].used;}
 /* Harness: blocked movement frames and the last blocking normal's Y, per bot. */
 static void scene_mp_blocked(const campaign_npc_body *npc,const float normal[3])
 {

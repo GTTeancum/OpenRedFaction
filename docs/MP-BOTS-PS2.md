@@ -603,7 +603,12 @@ Done (now from the PS2 code):
   against the player facing along their route, failing the aim check);
   (4) a route blocked for 60 movement frames in a row is dropped. Stuck
   time on the XEMU sweep fell from 30-90% to 0-4% (14% on Waste Disposal
-  Plant, where bots below the walkway walk at nodes on it).
+  Plant, where bots below the walkway walk at nodes on it). (5) Route
+  endpoint selection for a multiplayer bot ignores nodes more than 2 above
+  it (campaign_route_visible); Waste Disposal Plant fell to 7%. What is left
+  there is map data: PS2 dm03 nav node 12 (-214.8,-38,-79.9) links to node
+  14 (-227,-35,-80), a 3 m climb that the PS2 map makes walkable but the PC
+  map blocks with a 4 m ledge, and bots on the PC map end at its foot.
 - Upper-body lean switch-offs not mapped, none possible for multiplayer
   bots: movement states 0xd/0xf (set while attached to a host object,
   159ec0: vehicle or turret), AI modes 1/5 (15a310), carried object
