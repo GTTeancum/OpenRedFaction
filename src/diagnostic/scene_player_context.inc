@@ -7,13 +7,17 @@
 #define SCENE_PLAYER_STATE(X) \
     X(actor_look) \
     X(campaign_actor_controller) \
+    X(campaign_blackout_deadline) \
     X(campaign_camera_effect) \
     X(campaign_climb) \
     X(campaign_crouched) \
-    X(campaign_fusion) \
+    X(campaign_equipped_slot) \
+    X(campaign_explicit_unarmed) \
     X(campaign_inventory_ready) \
     X(campaign_jump_held) \
     X(campaign_jump_strength) \
+    X(campaign_last_alt) \
+    X(campaign_machine_mode) \
     X(campaign_pickup_notice_frame) \
     X(campaign_player_contact) \
     X(campaign_player_contact_flags) \
@@ -34,18 +38,23 @@
     X(campaign_player_squash_group) \
     X(campaign_player_support_epoch) \
     X(campaign_player_view) \
-    X(campaign_remote) \
     X(campaign_startup_inventory) \
     X(campaign_startup_inventory_replay) \
+    X(campaign_support_handle) \
+    X(campaign_support_velocity) \
     X(campaign_teleport_destination) \
     X(campaign_teleport_pending) \
     X(campaign_teleport_ready) \
     X(campaign_undercover_export_sidecar) \
     X(campaign_undercover_import_sidecar) \
+    X(combat_hit_frame) \
+    X(combat_trigger) \
+    X(dev_refill_held) \
     X(life_restart_held) \
     X(life_start) \
     X(life_use) \
     X(life_valid) \
+    X(pistol_fire_ticks) \
     X(pistol_reload_ticks) \
     X(player_input) \
     X(rf_scene_actor_animation_timing) \
@@ -98,10 +107,13 @@
     X(rf_scene_actor_surface_frames) \
     X(rf_scene_actor_sweep_records) \
     X(rf_scene_actor_tick_stats) \
+    X(rf_scene_combat) \
+    X(rf_scene_continuous_charge) \
     X(rf_scene_gameplay_eye) \
     X(rf_scene_hud_anchor) \
     X(rf_scene_item_pickup_gate) \
     X(rf_scene_item_pickup_state) \
+    X(rf_scene_machine_mode) \
     X(rf_scene_mp_player_class) \
     X(rf_scene_mp_player_model) \
     X(rf_scene_mp_player_name) \
@@ -147,6 +159,8 @@
     X(rf_scene_player_weapon) \
     X(rf_scene_player_weapon_view) \
     X(rf_scene_rail_scope) \
+    X(rf_scene_remote_hand) \
+    X(rf_scene_rocket_lock) \
     X(rf_scene_scanner) \
     X(rf_scene_scope_projection) \
     X(rf_scene_use_reach) \
@@ -156,12 +170,21 @@
     X(rf_scene_weapon_hands) \
     X(rf_scene_weapon_muzzle) \
     X(rf_scene_weapon_selection) \
+    X(scene_actor_body) \
+    X(scene_continuous_charge) \
+    X(scene_continuous_charge_runtime) \
+    X(scene_fire_basis) \
     X(scene_flame_active) \
     X(scene_flame_cadence) \
+    X(scene_flame_canister_cooldown) \
+    X(scene_flame_canister_held) \
+    X(scene_flame_canister_pending) \
     X(scene_flame_input) \
     X(scene_flame_stream_frame) \
     X(scene_flame_stream_type) \
     X(scene_fusion_input) \
+    X(scene_grenade_empty_selection) \
+    X(scene_grenade_throw) \
     X(scene_ground_piece_support) \
     X(scene_inspection_eye) \
     X(scene_mp_player_class_flags) \
@@ -177,6 +200,8 @@
     X(scene_player_landing_audio) \
     X(scene_player_muzzle_eye) \
     X(scene_player_muzzle_slot) \
+    X(scene_player_riot_alternate_owner) \
+    X(scene_player_riot_owner) \
     X(scene_player_rocket_checkpoint_service_depth) \
     X(scene_player_rounds) \
     X(scene_player_shield_bash_state) \
@@ -205,6 +230,7 @@
     X(scene_walk_origin) \
     X(scene_walk_runs) \
     X(scene_walk_ticks) \
+    X(scene_weapon_camera_profiles) \
     X(weapon_cycle_held)
 #define SCENE_PLAYER_SIZE(name) +sizeof(name)
 enum {SCENE_PLAYER_STORE_BYTES=0 SCENE_PLAYER_STATE(SCENE_PLAYER_SIZE)};

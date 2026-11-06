@@ -181,6 +181,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     uint32_t frame_count=sink && placement && placement->frame_count?placement->frame_count:64;
+    /* Second human (placement->secondary_select): its own playback, controller,
+     * resources and pose on the shared model and motion files. */
+    struct animation_second {
+        rf_motion_playback_state state;rf_motion_controller controller;rf_motion_playback_resource resources[23];
+        float matrices[256][12];uint16_t generations[256];rf_animation_model_view published;
+        const rf_motion_file *resident_handles[23];uint32_t ready;
+    } *second=NULL;
     memset(rf_animation_render_memory,0,sizeof(rf_animation_render_memory));
     memset(rf_animation_diagnostic_work,0,sizeof(rf_animation_diagnostic_work));
     memset(rf_animation_motion_residency,0,sizeof(rf_animation_motion_residency));
@@ -516,6 +523,37 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             status=rf_model_local_view(&view,position,orientation,&render_view);if(status)goto done;
             clip_projection=placement->clip_projection;clip_planes=placement->planes;
         }
+        if(placement && placement->secondary_select && placement->campaign_player && authored && frame) {
+            int entered=placement->secondary_select(placement->secondary_context,frame,1);
+            if(entered<0){status=entered;goto done;}
+            if(entered>0) {
+                const rf_motion_file *const *second_handles=handles;float zero[3]={0,0,0};int left;
+                if(!second){second=calloc(1,sizeof(*second));if(!second){status=RF_IO;placement->secondary_select(placement->secondary_context,frame,0);goto done;}}
+                if(!second->ready) {
+                    /* Start from the primary's current playback, as the second
+                     * human is created from a copy of the first. */
+                    second->state=state;second->controller=controller;memcpy(second->resources,resources,sizeof(resources));
+                    second->ready=1;
+                }
+                status=RF_OK;
+                if(placement->player_stance)status=placement->player_stance(placement->stance_context,frame,&second->controller,motions);
+                if(!status && placement->movement_select)status=placement->movement_select(placement->stance_context,frame,&second->controller,motions);
+                if(!status)status=rf_motion_apply_controller(&second->controller,motions,frame_seconds,&second->state,second->resources,resource_count);
+                if(!status)status=rf_motion_update(&second->state,second->resources,resource_count,frame_seconds);
+                if(!status && player_motion_cache)second_handles=animation_motion_bind(player_motion_cache,handles,resource_count,&second->state,second->resident_handles);
+                if(!status)status=rf_model_evaluate_playback(bones,count,&second->state,second_handles,second->resources,resource_count,zero,second->matrices,second->generations,256);
+                if(!status) {
+                    rf_model_projection second_view=placement->world_view;
+                    second->published=published;second->published.matrices=(const float (*)[12])second->matrices;second->published.playback=&second->state;
+                    if(placement->published_model)*placement->published_model=&second->published;
+                    if(placement->prepare_view)status=placement->prepare_view(placement->view_context,frame,&second->controller,&second_view);
+                    if(placement->published_model)*placement->published_model=&published;
+                }
+                left=placement->secondary_select(placement->secondary_context,frame,0);
+                if(!status)status=left;
+                if(status)goto done;
+            }
+        }
         rf_animation_progress[1]=6;
         /* Collision ownership uses body spheres and the published bone pose,
          * not these discarded per-vertex positions. Retain this diagnostic in
@@ -561,6 +599,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
 done:
     rf_animation_progress[2]=(uint32_t)status;
     if(placement && placement->published_model)*placement->published_model=NULL;
+    free(second);
     animation_motion_close(player_motion_cache);
     free(motion_cache);
     free(workspace);

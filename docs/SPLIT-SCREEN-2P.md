@@ -1,6 +1,6 @@
 # Two-player split screen (PS2) — design
 
-Status: stage 1 done, stage 2 in progress (2026-11-05). Two players only
+Status: stages 1-2 done, stage 3a done (2026-11-06). Two players only
 (the PS2 limit); the engine's quarter-screen layouts are never used.
 
 ## PS2 behaviour (traced)
@@ -118,3 +118,32 @@ doubles).
   movers, terrain into stream->mesh) is `scene_follow_build_view`, callable
   for any camera (stage 4). Testbed and bot match unchanged; the view draws
   correctly.
+
+## Stage 3a: a second human that moves
+
+- Animation driver: `secondary_select` on the placement; after the primary's
+  prepare_view each frame the driver runs the second human's stance,
+  movement, playback, pose and prepare_view with its own playback state,
+  controller and resource table on the shared model (src/diagnostic/animation.c).
+- Scene: `split-test.flag` (`--split-test`) creates the second human at the
+  first frame from a copy of the first (own copy of the collision spheres,
+  placed on a multiplayer player point), with fixed test input (walk and
+  turn, bursts of fire). Its pre-pass and physics step run after the
+  primary's with its state live. `rf_scene_split` reports it.
+- The per-player table grew to 227 values: `tools/split2p/used_by.py`
+  lists globals the player's routines use that the table lacks; it found the
+  collision body, support state, equipped slot, trigger and weapon-runtime
+  state the name rules had missed.
+- World work inside the player's combat routine (bot combat AI, AI weapons,
+  world grenades and rockets, burning, drops, turrets, vehicles, rubble,
+  the multiplayer match update and bot pickups) now runs for the primary
+  human only, as in the follow view.
+- Checked: one player unchanged (testbed same shots and switches); with the
+  second human the match clock runs at the normal rate and the second human
+  moves on its own (65 positions in two minutes).
+- Not yet: the second human has no view (stage 4); grenades and rockets
+  share one routine with the world's grenade/rocket flight, so the second
+  human cannot throw or launch them yet; bots, hits and pickups of others
+  do not see the second human, which still carries the first's entity
+  handle (stage 3b); input is the test pattern (stage 3c); its sphere copy
+  is not freed at the end of a match.

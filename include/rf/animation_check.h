@@ -73,6 +73,14 @@ typedef struct rf_animation_placement {
     uint32_t *initial_animation; /* Seed phase/generation, first controller and active slot (12 words). */
     uint32_t *physics_diagnostic; /* Eight words; optional integrated fixture. */
     const uint32_t *diagnostic_checksums; /* NULL/enabled preserves full diagnostics; zero omits hashes and hash-only pose/vertex probes. Borrowed for this call. */
+    /* Two-player split screen: called with enter 1 after the primary player's
+     * prepare_view each frame; a positive return makes the second human live
+     * (the owner exchanges player state), and the driver runs that human's
+     * stance, movement, playback, pose and prepare_view with its own playback
+     * state, controller and resources on the shared model, then calls enter 0.
+     * NULL or zero: one player. Campaign players with authored states only. */
+    int (*secondary_select)(void *context,uint32_t frame,uint32_t enter);
+    void *secondary_context;
 } rf_animation_placement;
 /* Placed streams honor frame_count (zero defaults to 64) without restarting
  * controller, playback or cache state. Fixed authored fixture requests repeat

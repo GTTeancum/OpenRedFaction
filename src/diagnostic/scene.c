@@ -233,6 +233,9 @@ static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
+/* Two-player split screen: 0 while a secondary human's combat and view run
+ * (defined with the follow view); world updates are guarded by it. */
+static uint32_t scene_follow_primary;
 /* A failed retirement cannot be overwritten by a subsequent New Game. */
 static int scene_session_retire_status;
 static uint32_t scene_session_end_requested;
@@ -18206,8 +18209,8 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     if(!frame && !campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_dev_start_slot && scene_weapon_available(rf_scene_dev_start_slot-1))
         campaign_select_primary(rf_scene_dev_start_slot-1);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6 || rf_scene_dev_npc_enabled==12) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
-    status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_mp_bot_pickups(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(scene_follow_primary){status=scene_mp_tick(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_mp_bot_pickups(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(on_foot && rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
@@ -18231,19 +18234,19 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         if(refill)player_input.reload=0; /* Do not start a normal reload with the chord. */
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
-    scene_vehicle_equipment_tick(stream,frame,on_foot);
+    if(scene_follow_primary){scene_vehicle_equipment_tick(stream,frame,on_foot);}
     scene_player_holster_input(stream,frame,on_foot);
     /* Update animated child positions before projectile or firearm contacts. */
-    for(uint32_t i=0;i<scene_turret_generated_count;i++){
+    for(uint32_t i=0;scene_follow_primary && i<scene_turret_generated_count;i++){
         int status=scene_turret_generated_publish(scene_turret_generated[i].head_handle);
         if(status&&status!=RF_NOT_FOUND)return scene_player_failure_return(status,__LINE__,frame);
     }
 
     if(on_foot){status=scene_terrain_input(stream,position,orientation);if(status)return scene_player_failure_return(status,__LINE__,frame);}
-    status=scene_rockets_tick(stream,frame);rf_scene_rockets[7]=(uint32_t)status;if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(scene_follow_primary){status=scene_rockets_tick(stream,frame);rf_scene_rockets[7]=(uint32_t)status;if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(on_foot){
-        status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return scene_player_failure_return(status,__LINE__,frame);
-        status=scene_death_items_tick(stream,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
+        if(scene_follow_primary){status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return scene_player_failure_return(status,__LINE__,frame);}
+        if(scene_follow_primary){status=scene_death_items_tick(stream,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
         status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status){printf("PICKUP_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}
         if(player_input.cycle_weapon && player_input.cycle_weapon!=weapon_cycle_held &&
            campaign_player_damage.state.effects.health>0) {
@@ -18280,40 +18283,40 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
     rf_scene_weapon_selection[3]=campaign_player_inventory.owned[campaign_rifle_id];rf_scene_weapon_selection[4]=campaign_player_inventory.loaded[campaign_rifle_id];
     rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
     if(!frame){scene_ai_grenade_reset();scene_ai_rocket_reset();}
-    status=scene_ai_rocket_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_ai_grenade_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_burning_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    scene_script_ignite_sample(frame);
-    status=scene_burning_visual_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_npc_rubble_support_stimulus(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(scene_follow_primary){status=scene_ai_rocket_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_ai_grenade_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_burning_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){scene_script_ignite_sample(frame);}
+    if(scene_follow_primary){status=scene_burning_visual_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_npc_rubble_support_stimulus(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(on_foot){status=scene_player_shield_bash_input(stream,frame,position,orientation[2]);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(on_foot && campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
-    status=scene_ai_laser_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_ai_tribeam_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_ai_cane_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    scene_cane_visual_tick(stream,frame);
-    status=scene_ai_spit_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    scene_spit_visual_tick(stream,frame);
-    status=scene_ai_sonar_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=scene_sonar_visual_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    status=campaign_vehicle_attack_fixture(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(scene_follow_primary){status=scene_ai_laser_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_ai_tribeam_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_ai_cane_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){scene_cane_visual_tick(stream,frame);}
+    if(scene_follow_primary){status=scene_ai_spit_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){scene_spit_visual_tick(stream,frame);}
+    if(scene_follow_primary){status=scene_ai_sonar_tick(stream,frame,position);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=scene_sonar_visual_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){status=campaign_vehicle_attack_fixture(frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     /* Reset before any NPC can accept a frame-zero Fusion shot. The player
      * input owner still resets at its original service below. */
     if(!frame)scene_fusion_projectile_reset();
     {uint64_t enemy_epoch=scene_robot_death_epoch;
-    scene_npc_loop_audio_begin();
-    status=(rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
+    if(scene_follow_primary){scene_npc_loop_audio_begin();}
+    status=(!scene_follow_primary || rf_scene_dev_npc_enabled==1 || rf_scene_dev_npc_enabled==10 || rf_scene_dev_npc_enabled==11 || ((rf_scene_dev_npc_enabled==2 ||
         rf_scene_dev_npc_enabled==8 || rf_scene_dev_npc_enabled==9) && frame<600))?
         RF_OK:campaign_enemy_tick(stream,frame,position);
     if(enemy_epoch!=scene_robot_death_epoch)return RF_NOT_FOUND;
     }
-    scene_npc_loop_audio_end();
+    if(scene_follow_primary){scene_npc_loop_audio_end();}
     rf_scene_enemy_combat[7]=(uint32_t)status;if(status){scene_npc_loop_audio_close();return scene_player_failure_return(status,__LINE__,frame);}
-    scene_npc_opposed_probe();
-    status=scene_turret_scene_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
-    campaign_vehicle_attack_live_probe();
-    status=scene_npc_rubble_record(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);
+    if(scene_follow_primary){scene_npc_opposed_probe();}
+    if(scene_follow_primary){status=scene_turret_scene_tick(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary){campaign_vehicle_attack_live_probe();}
+    if(scene_follow_primary){status=scene_npc_rubble_record(stream,frame);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(on_foot && campaign_equipped_slot==14 && !campaign_explicit_unarmed &&
        campaign_extra_ids[1]>=0 && campaign_extra_ids[1]<64 &&
        campaign_player_inventory.owned[campaign_extra_ids[1]]) {
@@ -18345,11 +18348,11 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
         player_input.alt_fire && !player_input.fire,position);
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
-    if(scene_fusion_resources){status=scene_fusion_gameplay_tick(stream,frame,position,orientation[2],empty_request);if(status)return scene_player_failure_return(status,__LINE__,frame);}
+    if(scene_follow_primary && scene_fusion_resources){status=scene_fusion_gameplay_tick(stream,frame,position,orientation[2],empty_request);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     if(scene_grenade_resources){
-        status=scene_grenades_tick(stream,frame,position,orientation[2],
+        if(scene_follow_primary){status=scene_grenades_tick(stream,frame,position,orientation[2],
             on_foot && campaign_equipped_slot==5 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_grenade_id] && campaign_player_damage.state.effects.health>0,
-            (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u),&grenade_released);if(status)return scene_player_failure_return(status,__LINE__,frame);
+            (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u),&grenade_released);if(status)return scene_player_failure_return(status,__LINE__,frame);}
     }
     if(!frame)scene_remote_checkpoint_frame0();
     if(scene_remote_resources){
@@ -18360,10 +18363,10 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return scene_player_failure_return(status,__LINE__,frame);
     }
     if(scene_flame_resources){
-        status=scene_flame_canister_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],
+        if(scene_follow_primary){status=scene_flame_canister_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],
             on_foot && campaign_equipped_slot==10 && !campaign_explicit_unarmed,
             campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || !!rf_scene_combat[6],
-            !!player_input.alt_fire && !player_input.fire);if(status)return scene_player_failure_return(status,__LINE__,frame);
+            !!player_input.alt_fire && !player_input.fire);if(status)return scene_player_failure_return(status,__LINE__,frame);}
         status=scene_flame_input_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],.10f,
             on_foot && campaign_equipped_slot==10 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_flame_id],
             campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || scene_flame_canister_busy(),!!player_input.fire,
@@ -18373,7 +18376,7 @@ static int campaign_combat_input_tick(scene_stream *stream,uint32_t frame,const 
          for(k=0;k<3;k++){muzzle[k]=position[k]+orientation[2][k]*.4f+orientation[0][k]*.18f-orientation[1][k]*.2f;delta[k]=orientation[2][k]*length;}
          if(scene_flame_active){status=scene_rocket_sweep(stream,muzzle,delta,.01f,4u,&contact,&liquid,&matched);if(status){printf("FLAME_SWEEP_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}
              if(matched)length*=contact.hit.fraction;}
-         status=scene_flame_visual_tick(stream,frame,0,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}}
+         if(scene_follow_primary){status=scene_flame_visual_tick(stream,frame,0,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return scene_player_failure_return(status,__LINE__,frame);}}}
     }
     {uint32_t changed=0;status=scene_remote_selection_after_world(stream,frame,on_foot,&changed);
      if(status)return scene_player_failure_return(status,__LINE__,frame);if(changed)return RF_OK;}
@@ -19508,7 +19511,7 @@ static uint32_t scene_npc_jeep_seat_save_dead_contact(
 /* Two-player stage 2: 0 while actor_follow_view runs for a secondary human;
  * world updates in it (vehicles, turrets, NPC rounds, ambient audio, the
  * listener, fixtures and saves) run only for the primary player. */
-static uint32_t scene_follow_primary=1;
+static uint32_t scene_follow_primary=1; /* declared earlier for the select callback */
 /* Two-player stage 2: build the world draw list for one camera (visibility,
  * static world, movers, terrain) into stream->mesh, then the scope screens.
  * Returns the squeezed view basis used for drawing. */
@@ -19847,6 +19850,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(scene_inspection_enabled) {
         memcpy(position,scene_inspection_eye,12);memcpy(orientation,scene_inspection_basis,36);
     }
+    if(!scene_follow_primary)return RF_OK; /* stage 4 draws the second human's view */
     float view_basis[3][3];
     status=scene_follow_build_view(stream,frame,position,orientation,render_world,terrain_cuts,&world_clock,view_basis);if(status)return status;
     memcpy(view->camera,position,12);memcpy(view->rotation,view_basis,36);
@@ -23352,6 +23356,51 @@ static int scene_player_physics(scene_stream *stream,uint32_t frame,int32_t part
 }
 /* scene_player_context.inc (end of file). */
 static void scene_player_exchange(void);static void scene_player_test_mark(void);
+static void scene_player_select(uint32_t slot);static void scene_player_clone(void);
+/* Two-player stage 3a (docs/SPLIT-SCREEN-2P.md). rf_scene_split_test (test
+ * flag split-test.flag) creates the second human from the first at frame 1 on
+ * a multiplayer player point and drives it with fixed test input; its state is
+ * parked in scene_player_context.inc and made live for its animation pass, its
+ * pre-pass and its physics step. [0] live, [1] passes, [2..4] its position. */
+uint32_t rf_scene_split_test,rf_scene_split[8];
+static uint32_t scene_player2_live;
+static const rf_preview_mesh scene_player2_mesh={0};
+static void scene_player2_input(uint32_t frame)
+{
+    /* Test input: walk forward and turn slowly, firing in bursts. */
+    rf_scene_input value={0};uint32_t *r=rf_scene_player_input_frames[frame%64];
+    value.move[2]=1;value.look[1]=.15f;value.fire=(frame/60)%3==0;
+    scene_player_holster_sample(value.holster);scene_use_sample(value.use);
+    if(campaign_spawn)(void)campaign_life_input(frame,&value);
+    scene_use_filtered(value.use);
+    player_input=value;r[0]=frame;memcpy(r+1,&value,24);
+}
+static void scene_player2_create(void)
+{
+    rf_physics_sphere *spheres;
+    scene_player_clone();scene_player_select(1);
+    spheres=malloc(scene_actor_body.spheres.count*sizeof(*spheres));
+    if(spheres){memcpy(spheres,scene_actor_body.spheres.items,scene_actor_body.spheres.count*sizeof(*spheres));scene_actor_body.spheres.items=spheres;}
+    if(rf_scene_mp[0]){
+        memcpy(scene_actor_body.state.position,scene_mp_pick(0),12);memcpy(scene_actor_body.state.next_position,scene_actor_body.state.position,12);
+        memset(scene_actor_body.state.velocity,0,12);
+        (void)rf_group_pose_set_position(&rf_scene_actor_pose,scene_actor_body.state.position);
+    }
+    scene_player_select(0);scene_player2_live=spheres!=NULL;rf_scene_split[0]=scene_player2_live;
+}
+static void scene_player2_record(void)
+{memcpy(rf_scene_split+2,scene_actor_body.state.position,12);++rf_scene_split[1];}
+static uint32_t scene_follow_primary;
+static int scene_player2_select(void *context,uint32_t frame,uint32_t enter)
+{
+    (void)context;
+    if(enter){
+        if(!scene_player2_live && rf_scene_split_test && !rf_scene_split[0])scene_player2_create();
+        if(!scene_player2_live)return 0;
+        scene_player_select(1);scene_follow_primary=0;scene_player2_input(frame);return 1;
+    }
+    scene_follow_primary=1;scene_player_select(0);return 0;
+}
 uint32_t rf_scene_player_swap_test;
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
@@ -23411,6 +23460,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     }
     if(!rf_scene_actor_eye_enabled)memcpy(stream->mesh->vertices+stream->world,actor->vertices,actor->bytes);
     if(stream->collision) {int status=scene_player_prepass(stream,frame,actor);if(status)return status;}
+    if(stream->collision && scene_player2_live) {
+        int status;scene_player_select(1);status=scene_player_prepass(stream,frame,&scene_player2_mesh);scene_player_select(0);if(status)return status;
+    }
     stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
@@ -23536,6 +23588,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             }
             step_profile_mark(0,&step_clock); if(!frame)rf_scene_frame0_ms[8]=profile_clock?profile_clock():0;
             status=scene_player_physics(stream,frame,particle_now,1,&step_clock);if(status)return status;
+            if(scene_player2_live){
+                scene_player_select(1);status=scene_player_physics(stream,frame,particle_now,0,&step_clock);scene_player2_record();scene_player_select(0);if(status)return status;
+            }
             step_profile_mark(1,&step_clock); if(!frame)rf_scene_frame0_ms[9]=profile_clock?profile_clock():0;
             /* 433260 dispatches authored light timers after physics, before events.
              * Owned replay timing; complete original frame gates/RNG order remain. */
@@ -24992,6 +25047,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_particles_summary[1]=stream->particles.materials.count;
             rf_scene_particles_summary[2]=stream->particles.resident_bytes;
             placement.prepare_view=actor_follow_view;placement.view_context=stream;
+            if(rf_scene_split_test){placement.secondary_select=scene_player2_select;placement.secondary_context=stream;}
         }
         stream->capacity=(uint32_t)capacity;stream->sink=sink;stream->context=context;stream->collision=collision;
         scene_late_load_mark(60,materials);
