@@ -23164,8 +23164,14 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
 uint32_t rf_scene_frame_late_failure[3];
 static int scene_frame_late_failure(int status,uint32_t line,uint32_t frame)
 {if(!rf_scene_frame_late_failure[0]){rf_scene_frame_late_failure[0]=line;rf_scene_frame_late_failure[1]=(uint32_t)status;rf_scene_frame_late_failure[2]=frame;}return status;}
+/* scene_player_context.inc (end of file). */
+static void scene_player_exchange(void);static void scene_player_test_mark(void);
+uint32_t rf_scene_player_swap_test;
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
+    /* Two-player stage 1 self-test: park the live player and restore it
+     * twice; any table error changes single-player behaviour. */
+    if(rf_scene_player_swap_test){scene_player_exchange();scene_player_exchange();scene_player_exchange();scene_player_exchange();scene_player_test_mark();}
     scene_stream *stream=context;uint32_t i,slot;
     if(campaign_endgame.credits)return scene_credits_frame(stream,frame);
     profile_mark(4);
@@ -25383,3 +25389,4 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
 }
 
 #include "scene_pursuit_runtime_assembly.inc"
+#include "scene_player_context.inc"

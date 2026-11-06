@@ -165,6 +165,7 @@ def main():
     parser.add_argument('--shot-on-corpse', action='store_true', help='capture when a corpse is drawn (after --shot-after)')
     parser.add_argument('--mp-character', help='multiplayer: the human entity class and skin, e.g. guard1/c (ps2_multi.tbl)')
     parser.add_argument('--bot-pilot', action='store_true', help='multiplayer: drive the player like a bot (waypoint routes, fights through --aim)')
+    parser.add_argument('--player-swap-test', action='store_true', help='two-player stage 1: exchange the per-player state out and back each frame')
     parser.add_argument('--shot-on-fade', action='store_true', help='multiplayer: capture while a fading dropped item is drawn (after --shot-after)')
     parser.add_argument('--shot-on-lean', action='store_true', help='multiplayer: capture when the aimed-at bot leans its upper body (after --shot-after)')
     parser.add_argument('--shot-on-actor', action='store_true',
@@ -286,7 +287,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag', 'player-swap-test.flag'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -517,6 +518,8 @@ def main():
             (disc / 'crash-aim.flag').write_bytes(b'')
         if args.bot_pilot:
             (disc / 'crash-bot.flag').write_bytes(b'')
+        if args.player_swap_test:
+            (disc / 'player-swap-test.flag').write_bytes(b'')
         if args.shot_on_fade or args.shot_on_lean:
             # Game-side hold: 1 = a fading drop drawn, 2 = a visible bot leaning.
             (disc / 'crash-hold.flag').write_bytes(bytes([1 if args.shot_on_fade else 2]))
@@ -662,6 +665,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_respawn_sound']=3
           counts['rf_scene_mp_player_model']=3
           counts['rf_scene_mp_attack']=5
+          counts['rf_scene_player_context']=4
           counts['rf_scene_mp_bot_debug']=56
           counts['rf_scene_mp_step_ups']=2
           counts['rf_scene_mp_unplanned']=1

@@ -32,6 +32,9 @@ extern uint32_t rf_scene_firearms_enabled;
 /* Diagnostic campaign combat start: zero disabled, otherwise primary slot+1. */
 extern uint32_t rf_scene_crash_loadout;
 extern uint32_t rf_scene_crash_aim;extern uint32_t rf_scene_crash_bot; /* test-only bot pilot (scene_crash_bot.inc) */
+/* Test-only (player-swap-test.flag): exchange the per-player state out and
+ * back each frame (two-player stage 1 self-test, scene_player_context.inc). */
+extern uint32_t rf_scene_player_swap_test;
 /* Test-only capture hold: enabled by the harness (1 fading drop, 2 bot
  * lean); the event sets hold 1, the platform keeps the frame (hold 2). */
 extern uint32_t rf_scene_crash_hold,rf_scene_crash_hold_enabled;

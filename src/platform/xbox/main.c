@@ -1952,6 +1952,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         FILE *aim_file=tester_profile?NULL:fopen("D:\\crash-aim.flag","rb");
         rf_scene_crash_aim=aim_file!=NULL;if(aim_file)fclose(aim_file);
         {FILE *bot_file=tester_profile?NULL:fopen("D:\\crash-bot.flag","rb");rf_scene_crash_bot=bot_file!=NULL;if(bot_file)fclose(bot_file);}
+        {FILE *swap_file=tester_profile?NULL:fopen("D:\\player-swap-test.flag","rb");rf_scene_player_swap_test=swap_file!=NULL;if(swap_file)fclose(swap_file);}
         {FILE *hold_file=tester_profile?NULL:fopen("D:\\crash-hold.flag","rb");unsigned char mode=0;rf_scene_crash_hold=0;rf_scene_crash_hold_enabled=0;
          if(hold_file){if(fread(&mode,1,1,hold_file)==1)rf_scene_crash_hold_enabled=mode;fclose(hold_file);}}
         FILE *point_file=tester_profile?NULL:fopen("D:\\crash-aim-point.bin","rb");
