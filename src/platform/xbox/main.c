@@ -79,7 +79,12 @@ uint32_t rf_xbox_video[4];
  * buffer than 640x480 while several campaign levels leave 3-6 MiB free, so it
  * stays off on stock 64 MiB. NXDK leaves flicker filter 5, a strong vertical
  * blur; progressive output needs none, interlaced output keeps a light one. */
-static void video_mode_open(void)
+/* Two-player split screen always runs at 640x480 (docs/SPLIT-SCREEN-2P.md):
+ * each frame builds and draws the world twice. */
+uint32_t rf_xbox_video_two_player[4]; /* harness: requests, changes, last status, last height */
+static void video_mode_open_for(uint32_t two_player);
+static void video_mode_open(void){video_mode_open_for(0);}
+static void video_mode_open_for(uint32_t two_player)
 {
     DWORD encoder=XVideoGetEncoderSettings();uint32_t hdtv=(encoder&VIDEO_ADAPTER_MASK)==AV_PACK_HDTV;
     uint32_t progressive=hdtv && (encoder&VIDEO_MODE_480P)!=0,flicker;
@@ -89,13 +94,22 @@ static void video_mode_open(void)
     /* 720p is always 32-bit: asked for 16-bit, the kernel's AvSetDisplayMode programs
      * 640x480 display timing (console registers, October 25) and the output scrambles. */
     int bpp720=32,bpp480=xbox_settings.color_depth==16?16:32;
-    if(!(xbox_settings.resolution!=480 && hdtv && (encoder&VIDEO_MODE_720P) && XVideoSetMode(1280,720,bpp720,REFRESH_DEFAULT)))
+    if(rf_xbox_video_two_player[0]){
+        /* Between levels: the renderer reopens its device in the new mode. */
+        int status;uint32_t wide=!two_player && xbox_settings.resolution!=480 && hdtv && (encoder&VIDEO_MODE_720P);
+        status=rf_xbox_video_mode_change(wide?1280:640,wide?720:480,wide?bpp720:bpp480);
+        if(status<0 && wide)status=rf_xbox_video_mode_change(640,480,bpp480);
+        if(status>0)++rf_xbox_video_two_player[1];
+        rf_xbox_video_two_player[2]=(uint32_t)status;
+    }
+    else if(!(xbox_settings.resolution!=480 && hdtv && (encoder&VIDEO_MODE_720P) && XVideoSetMode(1280,720,bpp720,REFRESH_DEFAULT)))
         XVideoSetMode(640,480,bpp480,REFRESH_DEFAULT);
     if(XVideoGetMode().height==720)progressive=1;
     flicker=xbox_settings.flicker_filter<=5?xbox_settings.flicker_filter:progressive?0u:2u;
     XVideoSetFlickerFilter((int)flicker);XVideoSetSoftenFilter(FALSE);
     rf_xbox_video[0]=encoder;rf_xbox_video[1]=(uint32_t)XVideoGetMode().width;rf_xbox_video[2]=(uint32_t)XVideoGetMode().height;
     rf_xbox_video[3]=progressive|(hdtv<<1)|(((encoder&VIDEO_MODE_720P)!=0)<<2)|(((encoder&VIDEO_MODE_480P)!=0)<<3)|(flicker<<8);
+    rf_xbox_video_two_player[3]=(uint32_t)XVideoGetMode().height;
 }
 /* Offline DXT texture pack beside the XBE (built from the user's own
  * installed archives by tools/dds_pack.c). Absent or disabled in openrf.ini:
@@ -1960,6 +1974,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         {FILE *bot_file=tester_profile?NULL:fopen("D:\\crash-bot.flag","rb");rf_scene_crash_bot=bot_file!=NULL;if(bot_file)fclose(bot_file);}
         {FILE *swap_file=tester_profile?NULL:fopen("D:\\player-swap-test.flag","rb");rf_scene_player_swap_test=swap_file!=NULL;if(swap_file)fclose(swap_file);}
         {FILE *split_file=tester_profile?NULL:fopen("D:\\split-test.flag","rb");rf_scene_split_test=split_file!=NULL;if(split_file)fclose(split_file);}
+        /* A two-player match runs at 480; a one-player level returns to the
+         * player's setting. Only changes when the mode differs. */
+        ++rf_xbox_video_two_player[0];video_mode_open_for(rf_scene_split_test);
         {FILE *hold_file=tester_profile?NULL:fopen("D:\\crash-hold.flag","rb");unsigned char mode=0;rf_scene_crash_hold=0;rf_scene_crash_hold_enabled=0;
          if(hold_file){if(fread(&mode,1,1,hold_file)==1)rf_scene_crash_hold_enabled=mode;fclose(hold_file);}}
         FILE *point_file=tester_profile?NULL:fopen("D:\\crash-aim-point.bin","rb");

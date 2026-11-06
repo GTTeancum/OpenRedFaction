@@ -669,7 +669,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_player_model']=3
           counts['rf_scene_mp_attack']=5
           counts['rf_scene_player_context']=4
-          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4
+          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4
           counts['rf_scene_mp_bot_debug']=56
           counts['rf_scene_mp_step_ups']=2
           counts['rf_scene_mp_unplanned']=1
@@ -683,7 +683,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_player_life']=8
           counts['rf_scene_pistol_rules']=7
           counts['rf_scene_ps2_damage_text']=1
-          counts['rf_xbox_pacing']=8
+          counts['rf_xbox_pacing']=8;counts['rf_xbox_gpu_wait']=11
           counts['rf_xbox_pacing_discarded_ms']=1
           counts['rf_scene_begin_frame_failure']=3
           counts['rf_animation_progress']=3

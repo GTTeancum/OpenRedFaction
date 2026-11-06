@@ -1250,6 +1250,15 @@ void rf_xbox_scene_stream_close(void)
     stream_gpu=NULL;stream_textures=NULL;stream_materials=NULL;stream_lightmaps=NULL;
     stream_mode=0;stream_capacity=stream_fallback=0;
 }
+int rf_xbox_video_mode_change(int width,int height,int bpp)
+{
+    VIDEO_MODE vm=XVideoGetMode();
+    if(vm.width==width && vm.height==height && vm.bpp==bpp)return 0;
+    if(stream_gpu)return RF_RANGE;
+    if(stream_device_ready){while(pb_busy()) {}gpu_free_collect(1);pb_kill();device_lost();}
+    if(!XVideoSetMode(width,height,bpp,REFRESH_DEFAULT))return RF_IO;
+    screen_mode_setup();return 1;
+}
 int rf_xbox_frontend_exit_status(void)
 {
     uint32_t i,begin;

@@ -75,6 +75,10 @@ extern uint32_t rf_particle_pixel_diagnostic[20];
 extern uint32_t rf_particle_texture_diagnostic[1544];
 /* Drain GPU work and drop cached borrowed texture pointers before level owners close. */
 void rf_xbox_scene_stream_close(void);
+/* Changes the video mode between levels (level buffers closed): the GPU
+ * device is closed and reopens in the new mode at the next frame. Returns 0
+ * when already in that mode, 1 when changed, an error when refused. */
+int rf_xbox_video_mode_change(int width,int height,int bpp);
 /* Reject live world/model/HUD owners, then wait at most1000 ms for the existing
  * process-owned pbkit device to idle. RF_IO on timeout; release nothing and
  * do not attempt another GPU-based presentation on that failure path. */
