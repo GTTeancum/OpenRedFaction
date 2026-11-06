@@ -166,6 +166,7 @@ def main():
     parser.add_argument('--mp-character', help='multiplayer: the human entity class and skin, e.g. guard1/c (ps2_multi.tbl)')
     parser.add_argument('--bot-pilot', action='store_true', help='multiplayer: drive the player like a bot (waypoint routes, fights through --aim)')
     parser.add_argument('--player-swap-test', action='store_true', help='two-player stage 1: exchange the per-player state out and back each frame')
+    parser.add_argument('--frontend-shot', type=float, metavar='SECONDS', help='boot to the front end (no level) and capture it after SECONDS (xemu)')
     parser.add_argument('--split-test', action='store_true', help='two-player stage 3a: a second human with fixed test input')
     parser.add_argument('--shot-on-fade', action='store_true', help='multiplayer: capture while a fading dropped item is drawn (after --shot-after)')
     parser.add_argument('--shot-on-lean', action='store_true', help='multiplayer: capture when the aimed-at bot leans its upper body (after --shot-after)')
@@ -288,7 +289,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag', 'player-swap-test.flag', 'split-test.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag', 'player-swap-test.flag', 'split-test.flag', 'tester-profile.flag'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -578,6 +579,11 @@ def main():
             time.sleep(5)
         else:
           iso = ROOT / 'build/xbox/redfaction-crash.iso'
+          if args.frontend_shot:
+              # No level: the game boots to its front end and waits for input.
+              for name in ('campaign-spawn.flag','campaign-level.bin','player-control.flag','scene-preview.flag','player-replay.bin'):
+                  (disc/name).unlink(missing_ok=True)
+              (disc/'tester-profile.flag').write_bytes(b'RFTEST1\n') # the tester boot opens the front end
           iso.unlink(missing_ok=True)
           with (run / 'pack.log').open('wb') as log:
               subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
@@ -669,7 +675,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_player_model']=3
           counts['rf_scene_mp_attack']=5
           counts['rf_scene_player_context']=4
-          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4
+          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1
           counts['rf_scene_mp_bot_debug']=56
           counts['rf_scene_mp_step_ups']=2
           counts['rf_scene_mp_unplanned']=1
@@ -766,7 +772,8 @@ dvd_path = '{iso.as_posix()}'
                     if args.shot_on_corpse:actor=(sample.get('rf_scene_live_corpses') or [0]*4)[3] # corpse vertices drawn this frame
                     if args.shot_on_dead:actor=(sample.get('rf_scene_player_life') or [0]*3)[2] # player dead
                     if args.shot_on_fade or args.shot_on_lean:actor=int((sample.get('rf_scene_crash_hold') or [0])[0]==2) # the game holds the event frame
-                    if (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse or args.shot_on_dead or args.shot_on_lean or args.shot_on_fade else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
+                    if args.frontend_shot:actor=int(sample['elapsed_seconds']>=args.frontend_shot)
+                    if (actor>0) if args.frontend_shot else (actor>0 and consumed>=args.shot_after and consumed>=last_shot_input+60) if args.shot_on_actor or args.shot_on_corpse or args.shot_on_dead or args.shot_on_lean or args.shot_on_fade else (ir>0 and consumed>=last_shot_input+120) if args.shot_on_ir else consumed>=args.frames*(shots_taken+1)//(args.screenshots+1):
                         last_shot_input=consumed
                         if args.shot_delay:time.sleep(args.shot_delay) # let a menu or end screen fade in
                         try:
@@ -787,6 +794,7 @@ dvd_path = '{iso.as_posix()}'
                                 w,h=screen[0] or 640,screen[1] or 480;bpp=16 if len(screen)>3 and (screen[3]>>8)==16 else 32
                                 raw=run/f'shot_{shots_taken:02d}.raw';phys=hazard[2]&0x03FFFFFF
                                 diag=sample.get('rf_diagnostic') or []
+                                if args.frontend_shot:phys=(sample.get('rf_xbox_menu_buffer') or [phys])[0]&0x03FFFFFF # menus report no scanout
                                 if not phys and len(diag)>35:phys=diag[32]&0x03FFFFFF # last drawn back buffer
                                 # XEMU stops responding after a pmemsave of this size (with or
                                 # without stop/cont), so an XEMU capture ends the run: the

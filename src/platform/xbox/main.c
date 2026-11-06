@@ -800,7 +800,10 @@ static int player_frontend_present(uint32_t flags,int session_status,
     return status;
 }
 /* PS2 Multiplayer (Xbox PS2 menus): Choose Mode, then the setup screen.
- * Player vs. Player needs split screen and stays disabled. *start is set
+ * Two-player split screen is shelved (docs/SPLIT-SCREEN-2P.md: about 8 fps
+ * against a 30 fps bar): the main menu entry reads BOT MATCH and goes
+ * straight to Player vs. Bots, skipping Choose Mode. Set to 1 to restore
+ * Choose Mode (Player vs. Player itself is still not wired). *start is set
  * when START GAME is accepted; otherwise the caller returns to the main menu. */
 /* PLAYER NAME (state 0x17, 26b870 for one human): d-pad up/down wraps 6
  * rows, left/right wraps 13 columns skipping repeats of the same key;
@@ -861,6 +864,7 @@ static void player_ps2_options_enter(rf_xbox_ps2_multi *m,uint32_t *saved_skill)
  * ENVIRONMENT (0x16, 26a970) and MP OPTIONS (0x15, 1ebeb0), each fading
  * in over 120 ms (1e2230(0x78)) with no input until it ends. Triangle
  * (Y) steps back a screen. */
+#define PLAYER_MP_CHOOSE_MODE 0
 static int player_ps2_multi(uint32_t *start,uint32_t options)
 {
     rf_xbox_ps2_multi m;uint32_t drawn=0,fade=GetTickCount(),saved_skill=0;int status;
@@ -875,6 +879,13 @@ static int player_ps2_multi(uint32_t *start,uint32_t options)
     else{m.step=RF_XBOX_PS2_MP_MODE;m.selection=1;}
     *start=0;
 #define PLAYER_MP_STEP(next) do{m.step=(next);m.level=0;fade=GetTickCount();drawn=0;}while(0)
+    if(!PLAYER_MP_CHOOSE_MODE && m.step==RF_XBOX_PS2_MP_MODE){
+        /* 1e3d10's Player vs. Bots path: PLAYER NAME first; back returns to the main menu. */
+        uint32_t named;
+        status=player_ps2_name(&named);if(status)return status;
+        if(!named)return RF_OK;
+        PLAYER_MP_STEP(RF_XBOX_PS2_MP_CHARACTER_STEP);
+    }
     for(;;){
         rf_scene_input input;uint32_t pressed;
         rf_xbox_menu_audio_poll();
@@ -914,6 +925,7 @@ static int player_ps2_multi(uint32_t *start,uint32_t options)
                     uint32_t named;
                     status=player_ps2_name(&named);if(status)return status;
                     if(named)PLAYER_MP_STEP(RF_XBOX_PS2_MP_CHARACTER_STEP);
+                    else if(!PLAYER_MP_CHOOSE_MODE)return RF_OK;
                     else{m.step=RF_XBOX_PS2_MP_MODE;m.selection=1;m.level=255;}
                     drawn=0;
                 }

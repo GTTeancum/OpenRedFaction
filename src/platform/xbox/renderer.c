@@ -209,6 +209,7 @@ static uint32_t double_buffered;
 /* Frame starts that waited (double-buffer flip, then scanout ownership),
  * frame starts, VBlank passes that kept an unshown frame queued. */
 uint32_t rf_xbox_flip_waits[4];
+uint32_t rf_xbox_menu_buffer; /* last colour buffer targeted (physical address) */
 /* Never clear or draw into the surface being scanned out (Perfect-Dark-X
  * issue 3: black bands and 1-2 frame flicker). With two buffers the next back
  * buffer stays on screen until the queued flip lands; with three pbkit can
@@ -227,6 +228,8 @@ static void target_back_buffer(void)
     }
     ++rf_xbox_flip_waits[1];rf_xbox_flip_waits[3]=pb_deferred_swaps();
     pb_target_back_buffer();
+    /* Menus: the buffer drawn now is the one shown once they idle (native capture). */
+    rf_xbox_menu_buffer=(uint32_t)pb_back_buffer()&0x03ffffffu;
 }
 static int device_open(void)
 {

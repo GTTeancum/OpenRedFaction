@@ -1,8 +1,14 @@
 # Two-player split screen (PS2) — design
 
-Status: stages 1-2 done, stage 3a done, stage 4 views done, stage 3b bots and
-scoring done (2026-11-06). Two players only
-(the PS2 limit); the engine's quarter-screen layouts are never used.
+Status: shelved (2026-11-06). Stages 1, 2, 3a, 3b and 4 are in the code;
+two-player ran at about 8 pictures per second in XEMU (one player about 27),
+well under the 30 fps bar for publishing. The code stays in but nothing a
+player can reach starts it: only the test flag `split-test.flag` (never read
+by the tester profile). The main menu's MULTIPLAYER entry reads BOT MATCH and
+opens Player vs. Bots directly (`PLAYER_MP_CHOOSE_MODE` in main.c restores the
+Choose Mode popup). Two-player matches switch the display to 480 (no gain:
+the cost is preparing the world twice, not pixels). Two players only (the
+PS2 limit); the engine's quarter-screen layouts are never used.
 
 ## PS2 behaviour (traced)
 
@@ -205,3 +211,12 @@ doubles).
   human's model is not drawn in the first's view (and the reverse); the
   bodies do not collide with each other; pickups for the second human;
   controller 2 (stage 3c); HUD per player (stage 5).
+
+## Speed (why it is shelved)
+
+- XEMU, dm05, 4 bots: one player at 720p shows about 27 pictures per second;
+  two players about 8, at 720p and at 480 alike. Game work per shown picture
+  is more than three times one player's (two world builds and two draws).
+- Not measured on the console (its debug connection timed out that day).
+- To come back: make the second view cheaper (shared visibility and world
+  list, fewer per-view passes) before more two-player features.
