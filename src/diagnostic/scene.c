@@ -236,6 +236,10 @@ static rf_scene_input player_input;
 /* Two-player split screen: 0 while a secondary human's combat and view run
  * (defined with the follow view); world updates are guarded by it. */
 static uint32_t scene_follow_primary;
+/* Two-player split screen, stages 3a-4 (defined with the second human). */
+static uint32_t scene_player2_live;uint32_t rf_scene_split_view;
+static float scene_player2_eye[3],scene_player2_basis[3][3];static uint32_t scene_player2_eye_ready;
+static const rf_scene_world_geometry *scene_split_render_world;static uint32_t scene_split_terrain_cuts;
 /* A failed retirement cannot be overwritten by a subsequent New Game. */
 static int scene_session_retire_status;
 static uint32_t scene_session_end_requested;
@@ -19524,7 +19528,8 @@ static int scene_follow_build_view(scene_stream *stream,uint32_t frame,float pos
      * wider view and the renderer stretches it back. Gameplay keeps the
      * orthonormal orientation above. Squeeze 1 is the original exact path. */
     memcpy(view_basis,orientation,36);
-    {uint32_t k;for(k=0;k<3;k++)view_basis[0][k]*=rf_scene_view_squeeze;}
+    {uint32_t k;float squeeze=rf_scene_split_view?1.0f:rf_scene_view_squeeze;
+     for(k=0;k<3;k++){view_basis[0][k]*=squeeze;if(rf_scene_split_view)view_basis[1][k]*=2.0f;}}
     world_profile_mark(2,&world_clock);
     if(stream->visibility.storage) {
         rf_collision_room_location room;rf_visibility_camera camera={0};
@@ -19534,7 +19539,8 @@ static int scene_follow_build_view(scene_stream *stream,uint32_t frame,float pos
         uint32_t i,cached=0,hash=2166136261u,*record=rf_scene_visibility_frames[frame%64];
         /* Same squeeze through the original viewport terms (547150): factor
          * 1/s widens the horizontal view; pixel aspect s keeps the vertical. */
-        parameters.viewport.fov=1.0f/rf_scene_view_squeeze;parameters.viewport.pixel_aspect=rf_scene_view_squeeze;
+        if(rf_scene_split_view){parameters.viewport.fov=1;parameters.viewport.pixel_aspect=1;} /* the full 4:3 frustum covers the half view */
+        else{parameters.viewport.fov=1.0f/rf_scene_view_squeeze;parameters.viewport.pixel_aspect=rf_scene_view_squeeze;}
         memcpy(parameters.origin,position,12);memcpy(parameters.basis,orientation,36);
         status=rf_visibility_camera_setup(&parameters,&camera);if(status){rf_scene_profile_stage[1]=104;return status;}
         stream->particle_camera=camera;stream->particle_frame=frame;
@@ -19669,6 +19675,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     const rf_scene_world_geometry *render_world;
     uint32_t *r=rf_scene_actor_follow_frames[frame%64],terrain_cuts=0;int status;
     uint32_t world_clock=0;profile_mark(1);
+    rf_scene_split_view=scene_player2_live?1u:0u; /* stage 4: the primary draws the top half */
     if(scene_follow_primary){scene_turret_audio_begin_frame(frame); /* Also precede early turret callbacks without an input hook. */}
     if(campaign_endgame.credits)return RF_OK; /* Modal has no world/camera/weapon step. */
     if(scene_follow_primary && !frame && rf_scene_player_checkpoint_enabled){
@@ -19850,7 +19857,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(scene_inspection_enabled) {
         memcpy(position,scene_inspection_eye,12);memcpy(orientation,scene_inspection_basis,36);
     }
-    if(!scene_follow_primary)return RF_OK; /* stage 4 draws the second human's view */
+    if(!scene_follow_primary){
+        /* Stage 4: the second human's view is built at its presentation. */
+        memcpy(scene_player2_eye,position,12);memcpy(scene_player2_basis,orientation,36);scene_player2_eye_ready=1;
+        return RF_OK;
+    }
+    scene_split_render_world=render_world;scene_split_terrain_cuts=terrain_cuts;
     float view_basis[3][3];
     status=scene_follow_build_view(stream,frame,position,orientation,render_world,terrain_cuts,&world_clock,view_basis);if(status)return status;
     memcpy(view->camera,position,12);memcpy(view->rotation,view_basis,36);
@@ -23361,9 +23373,9 @@ static void scene_player_select(uint32_t slot);static void scene_player_clone(vo
  * flag split-test.flag) creates the second human from the first at frame 1 on
  * a multiplayer player point and drives it with fixed test input; its state is
  * parked in scene_player_context.inc and made live for its animation pass, its
- * pre-pass and its physics step. [0] live, [1] passes, [2..4] its position. */
+ * pre-pass and its physics step. [0] live, [1] passes, [2..4] its position,
+ * [5..7] its view presentation step, status and frame (stage 4). */
 uint32_t rf_scene_split_test,rf_scene_split[8];
-static uint32_t scene_player2_live;
 static const rf_preview_mesh scene_player2_mesh={0};
 static void scene_player2_input(uint32_t frame)
 {
@@ -23402,6 +23414,125 @@ static int scene_player2_select(void *context,uint32_t frame,uint32_t enter)
     scene_follow_primary=1;scene_player_select(0);return 0;
 }
 uint32_t rf_scene_player_swap_test;
+/* Two-player stage 4: draw preparation for the live human's view (models,
+ * clutter, weapons, pickups, projectiles, effects, first-person weapon).
+ * A secondary view skips draws that age or advance state when submitted
+ * (debris, ripples). */
+static int scene_frame_draws(scene_stream *stream,uint32_t frame,uint32_t *presentation_clock,uint32_t primary)
+{
+    int status;uint32_t i;(void)i;
+    status=scene_npc_draw(stream,frame);presentation_mark(0,presentation_clock);if(status){rf_scene_profile_stage[1]=201;return status;}
+    status=scene_turrets_draw(stream,frame);if(status)return status;
+    status=scene_clutter_draw(stream,frame);presentation_mark(1,presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
+    status=scene_medic_syringe_draw(stream);if(status)return status;
+    status=scene_weapon_draw(stream,frame);presentation_mark(2,presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
+    status=scene_pickups_draw(stream);presentation_mark(3,presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
+    status=scene_passive_vehicle_draw(stream);if(status)return status;
+    memset(rf_scene_active_vehicle_draw,0,sizeof(rf_scene_active_vehicle_draw));
+    rf_scene_active_vehicle_draw[0]=frame;
+    rf_scene_active_vehicle_draw[3]=stream->driller_runtime&&!scene_driller_visible(stream);
+    if(stream->driller && scene_driller_visible(stream) && (!scene_driller_active(stream) || (rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat)))){uint32_t submissions,vertices;
+        status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
+        if(status)return status;
+        rf_scene_active_vehicle_draw[1]=submissions;rf_scene_active_vehicle_draw[2]=vertices;
+    }
+    if(stream->jeep_gun && scene_driller_visible(stream) && !scene_jeep_gunner_view_active(stream)){uint32_t submissions,vertices;
+        status=scene_driller_draw(stream,stream->jeep_gun->model,stream->jeep_gun_pose+9,stream->jeep_gun_pose,
+            stream->jeep_gun_base,stream->jeep_gun_textures,&submissions,&vertices);if(status)return status;
+    }
+    if(stream->driller_bits && scene_driller_visible(stream)){uint32_t bit,submissions,vertices;
+        for(bit=0;bit<2;bit++){float pose[12];
+            status=scene_driller_bit_animation_pose(stream->driller_bits,&stream->driller->tags,
+                stream->driller_position,stream->driller_basis,bit,stream->driller_weapon.phase,pose);if(status)return status;
+            status=scene_driller_draw(stream,&stream->driller_bits->model,pose+9,pose,
+                stream->driller_bit_base,stream->driller_bit_textures,&submissions,&vertices);if(status)return status;
+        }
+    }
+    status=scene_grenades_draw(stream);if(status)return status;
+    if(stream->apc_mortar)for(i=0;i<SCENE_APC_SECONDARY_CAPACITY;i++){
+        const rf_weapon_flight *flight=&stream->apc_secondary.rounds[i].flight;uint32_t submissions,vertices;
+        if(!flight->active)continue;
+        status=scene_apc_secondary_visual_draw(stream->apc_mortar,stream,flight->position,flight->velocity,
+            stream->apc_mortar_base,stream->apc_mortar_textures,&submissions,&vertices);if(status)return status;
+    }
+    status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
+    status=scene_tracers_draw(stream);if(status)return status;
+    status=scene_submarine_weapon_draw(stream);if(status)return status;
+    status=scene_fighter_weapon_draw(stream);if(status)return status;
+    status=scene_vehicle_attack_draw(stream);if(status)return status;
+    status=scene_vehicle_ai_draw(stream);if(status)return status;
+    status=scene_remote_draw(stream);if(status)return status;
+    status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
+    status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
+    if(primary){status=scene_debris_draw(stream,1);if(status){rf_scene_profile_stage[1]=208;return status;}}
+    status=scene_detached_draw(stream);if(status){rf_scene_profile_stage[1]=209;return status;}
+    if(primary){status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=209;return status;}}
+    /* Follow view regenerates world geometry each frame; only the current
+     * world prefix is magnified, before viewmodel vertices are appended. */
+    if(rf_scene_scope_projection!=1)for(i=0;i<stream->mesh->count;i++){
+        rf_preview_vertex *v=stream->mesh->vertices+i;
+        v->position[0]=320+(v->position[0]-320)*rf_scene_scope_projection;
+        v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
+    }
+    status=scene_jeep_gunner_view_draw(stream,frame);if(status){rf_scene_profile_stage[1]=205;return status;}
+    presentation_mark(7,presentation_clock); /* row7: vehicle/projectile/debris draws */
+    status=scene_driller_active(stream) || campaign_cutscene_runtime.active?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
+    if(scene_driller_active(stream) && !(rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat))){uint32_t faces;const unsigned char lighting[3]={200,200,200};
+        int32_t hud_ammo[2];float hud_fraction;uint32_t hud_capacity[2]={0,0};
+        scene_vehicle_hud_values(stream,&hud_fraction,hud_ammo);
+        if(rf_scene_vehicle_enabled==2){hud_capacity[0]=stream->apc_primary.definition.capacity;hud_capacity[1]=stream->apc_secondary.definition.capacity;}
+        else if(rf_scene_vehicle_enabled==4)hud_capacity[0]=stream->submarine_weapon.definition.capacity;
+        else if(rf_scene_vehicle_enabled==5){hud_capacity[0]=stream->fighter_weapon.primary.capacity;hud_capacity[1]=stream->fighter_weapon.rocket.capacity;}
+        scene_vehicle_cockpit_hud_state(&stream->driller_cockpit->hud,stream->driller_cockpit->materials,
+            stream->driller_runtime->damage.damage.state.effects.health,
+            stream->driller_damage_prototype.state.effects.class_health,hud_ammo,hud_capacity);
+        status=scene_driller_cockpit_draw(stream->driller_cockpit,stream->driller_runtime->driver_seconds,stream->rocket_camera.player_position,
+            scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
+        if(status){rf_scene_profile_stage[1]=211;return status;}
+    }
+    status=scene_undercover_draw(stream);if(status){
+        uint32_t failure[8]={1,(uint32_t)status,frame,stream->mesh->count,stream->mesh->bytes,
+            stream->world,stream->capacity,stream->materials->count};
+        memcpy(rf_scene_presentation_failure,failure,sizeof(failure));
+        rf_scene_profile_stage[1]=206;return status;
+    }
+    return RF_OK;
+}
+/* Two-player stage 4: the second human's view into the bottom half (the
+ * primary presented the top half). Its state is live while its camera builds
+ * the world list and its draws are prepared, then the renderer finishes the
+ * frame. */
+static int scene_follow_build_view(scene_stream *stream,uint32_t frame,float position[3],float orientation[3][3],
+    const rf_scene_world_geometry *render_world,uint32_t terrain_cuts,uint32_t *world_clock_out,float view_basis[3][3]);
+static int scene_player2_present(scene_stream *stream,uint32_t frame,uint32_t *presentation_clock)
+{
+    float position[3],orientation[3][3],view_basis[3][3];uint32_t clock=0,axis;int status;
+    if(!scene_player2_live || !scene_player2_eye_ready){rf_scene_split_view=0;return RF_OK;}
+    int (*query)(void)=rf_scene_present_query;
+    scene_player_select(1);scene_follow_primary=0;rf_scene_split_view=2;
+    rf_scene_present_query=NULL; /* the top view decided this frame is presented */
+    memcpy(position,scene_player2_eye,12);memcpy(orientation,scene_player2_basis,36);
+    status=scene_follow_build_view(stream,frame,position,orientation,scene_split_render_world,scene_split_terrain_cuts,&clock,view_basis);
+    rf_scene_split[5]=1;rf_scene_split[6]=(uint32_t)status;rf_scene_split[7]=frame;
+    if(!status){
+        stream->world=stream->mesh->count;
+        memcpy(stream->npc_view.camera,position,12);memcpy(stream->npc_view.rotation,view_basis,36);
+        for(axis=3;axis<6;++axis)stream->npc_view.rotation[axis]*=4.0f/3.0f;
+        memcpy(stream->rocket_camera.player_position,position,12);memcpy(stream->rocket_camera.player_orientation,view_basis,36);
+        status=scene_frame_draws(stream,frame,presentation_clock,0);
+        rf_scene_split[5]=2;rf_scene_split[6]=(uint32_t)status;
+    }
+    if(!status){
+        if(stream->glare_snapshot)stream->glare_snapshot->valid=0;
+        particle_draw_stream=stream;
+        status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
+        rf_scene_split[5]=3;rf_scene_split[6]=(uint32_t)status;
+        particle_draw_stream=NULL;
+        if(stream->glare_snapshot)stream->glare_snapshot->valid=0;
+    }
+    rf_scene_present_query=query;rf_scene_split_view=1;scene_follow_primary=1;scene_player_select(0);
+    return status;
+}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     /* Two-player stage 1 self-test: park the live player and restore it
@@ -23466,7 +23597,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
-        int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5); if(!frame)rf_scene_frame0_ms[6]=profile_clock?profile_clock():0;scene_frame0_presenting=!frame;
+        int status;uint32_t presentation_clock=0,step_clock=0,split_presented;profile_mark(5); if(!frame)rf_scene_frame0_ms[6]=profile_clock?profile_clock():0;scene_frame0_presenting=!frame;
         if(profile_clock && profile_active)presentation_clock=profile_clock();
         status=scene_npc_seats_tick(frame,(int32_t)((uint64_t)frame*1000/60%RF_TIMER_PERIOD));if(status)return status;
         scene_monitor_begin(stream,frame);
@@ -23476,81 +23607,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             status=scene_debris_draw(stream,0);if(status){rf_scene_profile_stage[1]=208;return status;}
             ++rf_scene_draw_skips;
         } else {
-        status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status){rf_scene_profile_stage[1]=201;return status;}
-        status=scene_turrets_draw(stream,frame);if(status)return status;
-        status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
-        status=scene_medic_syringe_draw(stream);if(status)return status;
-        status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
-        status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
-        status=scene_passive_vehicle_draw(stream);if(status)return status;
-        memset(rf_scene_active_vehicle_draw,0,sizeof(rf_scene_active_vehicle_draw));
-        rf_scene_active_vehicle_draw[0]=frame;
-        rf_scene_active_vehicle_draw[3]=stream->driller_runtime&&!scene_driller_visible(stream);
-        if(stream->driller && scene_driller_visible(stream) && (!scene_driller_active(stream) || (rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat)))){uint32_t submissions,vertices;
-            status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
-            if(status)return status;
-            rf_scene_active_vehicle_draw[1]=submissions;rf_scene_active_vehicle_draw[2]=vertices;
-        }
-        if(stream->jeep_gun && scene_driller_visible(stream) && !scene_jeep_gunner_view_active(stream)){uint32_t submissions,vertices;
-            status=scene_driller_draw(stream,stream->jeep_gun->model,stream->jeep_gun_pose+9,stream->jeep_gun_pose,
-                stream->jeep_gun_base,stream->jeep_gun_textures,&submissions,&vertices);if(status)return status;
-        }
-        if(stream->driller_bits && scene_driller_visible(stream)){uint32_t bit,submissions,vertices;
-            for(bit=0;bit<2;bit++){float pose[12];
-                status=scene_driller_bit_animation_pose(stream->driller_bits,&stream->driller->tags,
-                    stream->driller_position,stream->driller_basis,bit,stream->driller_weapon.phase,pose);if(status)return status;
-                status=scene_driller_draw(stream,&stream->driller_bits->model,pose+9,pose,
-                    stream->driller_bit_base,stream->driller_bit_textures,&submissions,&vertices);if(status)return status;
-            }
-        }
-        status=scene_grenades_draw(stream);if(status)return status;
-        if(stream->apc_mortar)for(i=0;i<SCENE_APC_SECONDARY_CAPACITY;i++){
-            const rf_weapon_flight *flight=&stream->apc_secondary.rounds[i].flight;uint32_t submissions,vertices;
-            if(!flight->active)continue;
-            status=scene_apc_secondary_visual_draw(stream->apc_mortar,stream,flight->position,flight->velocity,
-                stream->apc_mortar_base,stream->apc_mortar_textures,&submissions,&vertices);if(status)return status;
-        }
-        status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
-        status=scene_tracers_draw(stream);if(status)return status;
-        status=scene_submarine_weapon_draw(stream);if(status)return status;
-        status=scene_fighter_weapon_draw(stream);if(status)return status;
-        status=scene_vehicle_attack_draw(stream);if(status)return status;
-        status=scene_vehicle_ai_draw(stream);if(status)return status;
-        status=scene_remote_draw(stream);if(status)return status;
-        status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
-        status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
-        status=scene_debris_draw(stream,1);if(status){rf_scene_profile_stage[1]=208;return status;}
-        status=scene_detached_draw(stream);if(status){rf_scene_profile_stage[1]=209;return status;}
-        status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=209;return status;}
-        /* Follow view regenerates world geometry each frame; only the current
-         * world prefix is magnified, before viewmodel vertices are appended. */
-        if(rf_scene_scope_projection!=1)for(i=0;i<stream->mesh->count;i++){
-            rf_preview_vertex *v=stream->mesh->vertices+i;
-            v->position[0]=320+(v->position[0]-320)*rf_scene_scope_projection;
-            v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
-        }
-        status=scene_jeep_gunner_view_draw(stream,frame);if(status){rf_scene_profile_stage[1]=205;return status;}
-        presentation_mark(7,&presentation_clock); /* row7: vehicle/projectile/debris draws */
-        status=scene_driller_active(stream) || campaign_cutscene_runtime.active?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
-        if(scene_driller_active(stream) && !(rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat))){uint32_t faces;const unsigned char lighting[3]={200,200,200};
-            int32_t hud_ammo[2];float hud_fraction;uint32_t hud_capacity[2]={0,0};
-            scene_vehicle_hud_values(stream,&hud_fraction,hud_ammo);
-            if(rf_scene_vehicle_enabled==2){hud_capacity[0]=stream->apc_primary.definition.capacity;hud_capacity[1]=stream->apc_secondary.definition.capacity;}
-            else if(rf_scene_vehicle_enabled==4)hud_capacity[0]=stream->submarine_weapon.definition.capacity;
-            else if(rf_scene_vehicle_enabled==5){hud_capacity[0]=stream->fighter_weapon.primary.capacity;hud_capacity[1]=stream->fighter_weapon.rocket.capacity;}
-            scene_vehicle_cockpit_hud_state(&stream->driller_cockpit->hud,stream->driller_cockpit->materials,
-                stream->driller_runtime->damage.damage.state.effects.health,
-                stream->driller_damage_prototype.state.effects.class_health,hud_ammo,hud_capacity);
-            status=scene_driller_cockpit_draw(stream->driller_cockpit,stream->driller_runtime->driver_seconds,stream->rocket_camera.player_position,
-                scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
-            if(status){rf_scene_profile_stage[1]=211;return status;}
-        }
-        status=scene_undercover_draw(stream);if(status){
-            uint32_t failure[8]={1,(uint32_t)status,frame,stream->mesh->count,stream->mesh->bytes,
-                stream->world,stream->capacity,stream->materials->count};
-            memcpy(rf_scene_presentation_failure,failure,sizeof(failure));
-            rf_scene_profile_stage[1]=206;return status;
-        }
+        status=scene_frame_draws(stream,frame,&presentation_clock,1);if(status)return status;
         }
         /* Only these synchronous presentation callbacks share owner views.
          * No physics/events/retirement can intervene; never retain validity
@@ -23560,6 +23617,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 #ifndef RF_IMAGE_XBOX_NATIVE
         rf_scene_update_monitor_images(NULL);
 #endif
+        split_presented=!rf_scene_present_query || rf_scene_present_query(); /* decided until the sink */
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;
         if(stream->glare_snapshot)stream->glare_snapshot->valid=0;presentation_mark(5,&presentation_clock);if(status){
@@ -23568,6 +23626,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(rf_scene_presentation_failure,failure,sizeof(failure));
             rf_scene_profile_stage[1]=206;return status;
         }
+        if(rf_scene_split_view && split_presented){status=scene_player2_present(stream,frame,&presentation_clock);if(status)return status;}
         if(campaign_spawn)campaign_player_export_capture();
         presentation_mark(6,&presentation_clock);profile_mark(6); if(!frame)rf_scene_frame0_ms[7]=profile_clock?profile_clock():0;scene_frame0_presenting=0;
         if(profile_clock && profile_active)step_clock=profile_clock();

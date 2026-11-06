@@ -163,7 +163,30 @@ static void screen_constants(void)
     for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,(screen_width-1)<<16);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,(screen_height-1)<<16);}
     pb_end(p);
 }
-static void hud_constants(void){screen_c95(hud_scale,hud_scale,hud_offset_x);}
+/* Two-player split screen (docs/SPLIT-SCREEN-2P.md): the scene presents one
+ * view per human; 1 draws into the top half, 2 into the bottom half, as the
+ * PS2 (1a5ba0 cases 2/3). Widescreen keeps the pair inside a centred 4:3
+ * area (pillarbox), which also halves no more pixels than needed. The first
+ * pass starts and clears the frame without flipping; the second continues the
+ * same frame and flips. */
+extern uint32_t rf_scene_split_view;
+static void split_area(uint32_t view,float *x,float *y,float *w,float *h)
+{
+    *w=screen_wide?960.0f:(float)screen_width;*x=screen_wide?160.0f:0.0f;
+    *h=(float)screen_height*.5f;*y=view==2?*h:0.0f;
+}
+static void split_constants(uint32_t view,uint32_t hud)
+{
+    float x,y,w,h;uint32_t *p,c,right,bottom;
+    split_area(view,&x,&y,&w,&h);(void)hud;
+    p=pb_begin();
+    p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96+95);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,w/640.0f,h/480.0f,x,y);
+    right=(uint32_t)(x+w)-1;bottom=(uint32_t)(y+h)-1;
+    for(c=0;c<8;c++){p=pb_push1(p,NV097_SET_WINDOW_CLIP_HORIZONTAL+4*c,(right<<16)|(uint32_t)x);p=pb_push1(p,NV097_SET_WINDOW_CLIP_VERTICAL+4*c,(bottom<<16)|(uint32_t)y);}
+    pb_end(p);
+}
+static void hud_constants(void){if(rf_scene_split_view)split_constants(rf_scene_split_view,1);else screen_c95(hud_scale,hud_scale,hud_offset_x);}
 /* Widescreen HUD: a quad spanning the whole 640-wide virtual screen (flash,
  * blackout, fades) is widened to cover the full 16:9 frame. */
 static const rf_particle_draw_vertex *hud_widen(const rf_particle_draw_vertex *vertices,uint32_t count,rf_particle_draw_vertex *scratch)
@@ -1677,7 +1700,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(stream_materials!=materials || stream_mode!=model ||
            (model==4 && stream_lightmaps!=lightmaps))return RF_RANGE;
         gpu=stream_gpu;textures=stream_textures;
-        overlap_frame=ring_head && !(rf_xbox_render_sync&2);
+        overlap_frame=ring_head && !(rf_xbox_render_sync&2) && !(model==4 && rf_scene_split_view);
         if(!overlap_frame)GPU_WAIT(3,while(pb_busy()) {});
         else {
             /* Alternate halves of the streamed vertex store so the CPU fills
@@ -1789,7 +1812,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         /* Allow one frame start per observed VBlank. Slow simulation may
          * already have crossed it; do not force an additional refresh delay.
          * pb_finished retains its full-queue check and all GPU waits remain. */
-        uint32_t split_t0=GetTickCount();
+        uint32_t split_t0=GetTickCount(),split_view=streaming && model==4?rf_scene_split_view:0;
+        if(split_view!=2){
         {uint32_t vblank=pb_get_vbl_counter();
          if(!streaming || !stream_start_valid || vblank==stream_start_vblank) {
             /* A prior skipped wait may leave a signalled event. Consume it
@@ -1799,11 +1823,15 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             if(streaming)++rf_renderer_vblank[0];
          } else ++rf_renderer_vblank[1];
          if(streaming){stream_start_vblank=vblank;stream_start_valid=1;rf_renderer_vblank[2]=vblank;}}
+        }
         {uint32_t now=GetTickCount();rf_renderer_frame_split[0]+=now-split_t0;split_t0=now;}
+        /* The bottom split view also rewinds the pushbuffer: the top view's
+         * commands were submitted by pb_end and the GPU is idle (no overlap
+         * while split), and two views in one pass overflow pbkit's buffer. */
         if(!overlap_frame || !ring_head)pb_reset();
         else {uint32_t *ensure=pb_begin();pb_end(ensure);} /* ring space for pbkit's own setup */
         target_back_buffer();screen_constants();
-        uint32_t lowres=streaming && lowres_choose();
+        uint32_t lowres=streaming && !split_view && lowres_choose();
         if(lowres)lowres_target();
         if(rf_xbox_experiment&2){uint32_t c;p=pb_begin();
             /* Quarter-area fill experiment: every window clip to 320x240. */
@@ -1812,8 +1840,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         {uint32_t shown=*(volatile uint32_t *)0xFD600800u&0x03ffffffu;
          ++rf_xbox_scanout_hazard[0];rf_xbox_scanout_hazard[2]=shown;
          if(shown==((uint32_t)pb_back_buffer()&0x03ffffffu))++rf_xbox_scanout_hazard[1];}
-        if(lowres){pb_erase_depth_stencil_buffer(0,0,(int)lowres_width,(int)lowres_height);pb_fill(0,0,(int)lowres_width,(int)lowres_height,0xff101018);}
-        else {screen_erase_depth();screen_fill(0xff101018);}
+        if(split_view==2){}
+        else if(lowres){pb_erase_depth_stencil_buffer(0,0,(int)lowres_width,(int)lowres_height);pb_fill(0,0,(int)lowres_width,(int)lowres_height,0xff101018);}
+        else {screen_erase_depth();screen_fill(split_view?0xff000000:0xff101018);}
+        if(split_view)split_constants(split_view,0);
         /* The clear and draws share one ordered pushbuffer. Preserve GPU idle
          * before drawing without spinning the CPU: it can submit following
          * commands while clear completes. No CPU framebuffer access, resource
@@ -2001,7 +2031,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         if(streaming) {int status;hud_batch_begin();
             rf_xbox_lowres[7]=GetTickCount()-hud_t0;frame_gpu_wait+=rf_xbox_lowres[7];
             renderer_draw_mark(5,&draw_profile_previous,profiling);
-            hud_widen_active=1; /* Gameplay HUD only; menus keep 4:3 art. */
+            hud_widen_active=!split_view; /* Gameplay HUD only; menus keep 4:3 art. */
             status=rf_scene_draw_player_flash(scene_hud_present,NULL);
             {rf_xbox_ps2_mp_hud h;h.name=rf_scene_mp_player_name; /* +0x144 */
              if(!rf_scene_mp[0])rf_xbox_ps2_mp_hud_close();
@@ -2018,6 +2048,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             hud_widen_active=0;hud_batch_end();renderer_draw_mark(7,&draw_profile_previous,profiling);if(status)return status;}
         lowres_backlog=frame_gpu_wait;}
         renderer_mark(5,&profile_previous,profiling);
+        if(split_view==1){overlap_frame=0;continue;} /* the bottom view finishes and flips this frame */
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
         capture[4] = mesh->count; capture[5] = streaming?capture[5]+1:frame+1;

@@ -1,6 +1,6 @@
 # Two-player split screen (PS2) — design
 
-Status: stages 1-2 done, stage 3a done (2026-11-06). Two players only
+Status: stages 1-2 done, stage 3a done, stage 4 views done (2026-11-06). Two players only
 (the PS2 limit); the engine's quarter-screen layouts are never used.
 
 ## PS2 behaviour (traced)
@@ -147,3 +147,29 @@ doubles).
   do not see the second human, which still carries the first's entity
   handle (stage 3b); input is the test pattern (stage 3c); its sphere copy
   is not freed at the end of a match.
+
+## Stage 4: two views
+
+- Each frame the primary human's view draws into the top half, then the
+  second human's view (its camera kept from its follow view, its state live)
+  is built and drawn into the bottom half of the same picture, as the PS2
+  (1a5ba0 cases 2/3). `rf_scene_split_view` tells the renderer which half:
+  the top pass waits for VBlank and clears the picture to black, the bottom
+  pass continues it and flips. Widescreen keeps both halves inside the
+  centred 4:3 area (960 of 1280 pixels, black side bars).
+- Cameras squeeze vertically by two and drop the widescreen squeeze while
+  split; visibility uses the plain 4:3 frustum.
+- The scene's draw preparation is one routine run once per view; the second
+  view skips draws that age state when submitted (debris, ripples). The
+  frame hand-off accepts the second view without counting a new frame, and
+  the presentation decision of the top view holds for the bottom.
+- The renderer rewinds the command buffer before the bottom view (the top
+  view's commands are already submitted and the GPU idle).
+- Checked in XEMU: both views on screen (top player dead with its respawn
+  prompt, bottom player armed and moving); a 3,600-frame match with two
+  humans ran to the end; one player unchanged (testbed 32 shots, 2
+  switches; bot match normal). Speed in XEMU: one player about 29 fps, two
+  players about 22 fps (game work per picture 16 ms against 44 ms).
+- Not yet: the HUD is still one full-screen layout drawn in each half (the
+  PS2 per-player layout is stage 5); the two-player cost needs a look on
+  hardware.

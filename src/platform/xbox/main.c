@@ -1928,6 +1928,12 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     (void)context;
+    /* Two-player split screen: the bottom view finishes the frame the top view
+     * started; the frame was already counted and its presentation decided. */
+    if(rf_scene_split_view==2){
+        int status=actor_follow_preview?rf_xbox_scene_stream_frame_sized(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44],RF_SCENE_FOLLOW_GPU_CAPACITY):rf_xbox_scene_stream_frame(mesh,materials,&resident_lightmaps,world,&rf_diagnostic[32],&rf_diagnostic[44]);
+        if(status)FRAME_FAIL(status);return RF_OK;
+    }
     if(frame<scene_simulation_frames)return RF_FORMAT; /* Updates may cover two 60ths. */
     if(!frame){rf_vpp_io_stage(9);rf_xbox_reload_ms[11]=GetTickCount();} /* load finished: first world frame */
     campaign_total_frames+=frame?frame+1-scene_simulation_frames:1;scene_simulation_frames=frame+1;
