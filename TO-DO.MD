@@ -40,10 +40,24 @@ Listed November 3; each is one line, details in `docs/MP-BOTS-PS2.md`.
 | # | Item |
 |---|---|
 | 21 | Split-screen two-player (largely untraced; set aside) |
-| 24 | Bots stop partway along a planned route and never move again, on every arena (see bot sweep below) |
-| 25 | Bots whose route has no reachable path retry forever instead of dropping the route (Waterlogged, Warlords) |
-| 26 | Find whether the PS2 has a no-progress give-up for routes; port it if so |
+| 24 | Remaining route stalls: Waste Disposal Plant bots still stuck about 14% of the time (bots below the walkway walking at nodes above it) |
+| 26 | Find whether the PS2 has a no-progress give-up for routes; if so, replace the port's one-second give-up with it |
+| 28 | Rare game error in the bot animation update (seen twice on The Lobby, once on The Badlands); cause being recorded |
+| 29 | XEMU closed 30 s into one Waterlogged run (not yet repeated) |
 | 27 | Arenas use PC map geometry with PS2 bot routes; check the PS2 maps for differences (or load the PS2 maps) |
+
+### Bot sweep after the movement fixes, November 5 (XEMU, same matches)
+
+| Arena | Bot time stuck before | After |
+|---|---|---|
+| The Lobby | about 30% | 0% |
+| Installation XJ5 | about 80% | 4% |
+| Waste Disposal Plant | about 65% | 14% |
+| The Badlands | about 50% | 3% |
+| Hangar 18 | about 35% | 3% |
+| Waterlogged | about 90% | 0% (run cut short) |
+| Mine Warfare | about 45% | 3% |
+| Warlords | about 30% | 4% |
 
 ### Bot sweep, November 3 (console, 5-minute matches, 4 bots, details in `docs/MP-BOTS-PS2.md`)
 

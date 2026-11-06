@@ -21299,6 +21299,9 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             uint32_t found;status=campaign_script_route(stream,o,&found);rf_scene_script_routes[6]=(uint32_t)status;if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
             if(!found){
                 if(scene_noise_active(o)){scene_noise_cancel(o);status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;}
+                if(scene_mp_route_unplanned(o)){
+                    o->script_move.active=0;status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
+                }
                 o->script_move.retry=60;
             }
         }
@@ -21440,6 +21443,20 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
                 }
             }
         }
+        /* Multiplayer bots (port): when ground or an edge below the body's
+         * centre still blocks after the slope and slide attempts, retry the
+         * step raised by the body's navigation radius, so the body climbs it
+         * as the original sphere physics rolls a body over such contacts;
+         * the ground service lowers it again. */
+        {float lift;
+         if(!xyz_pursuit && blocked && hit.contact.normal[1]>0 && scene_mp_step_lift(o,&lift)) {
+            proposal=o->body.state;
+            for(j=0;j<3;j++)proposal.next_position[j]=proposal.position[j]+delta[j]*(step/distance);
+            proposal.next_position[1]+=lift;
+            status=rf_physics_body_prepare_sweep(&proposal);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+            status=scene_npc_live_body_sweep(stream->collision,o,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);
+            scene_mp_step_lifted(o,blocked);
+         }}
         /* Drone full3D NPC-first contact whose nearest hit is the player body.
          * Original actor step49ffd2..4a007c advances to the hit fraction less
          * the0.05 separation margin (rf_physics_contact_advance); 49d7e0's
@@ -21462,10 +21479,16 @@ static int campaign_script_step(scene_stream *stream,float elapsed,uint32_t fram
             if(!advanced.scalar_144)++rf_scene_drone_player_response[3];
             blocked=0;
         }
+        if(!blocked)scene_mp_moved(o);
         /* First-playable failure policy: after both slope and wall-slide
          * attempts fail, end6 rather than retaining an unbounded blocked owner. */
         if(blocked){
             if(scene_tactical_route_owned(o)){status=scene_tactical_finish(o,scene_patrol_now(frame));if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);}
+            scene_mp_blocked(o,hit.contact.normal);
+            if(scene_mp_body_blocked(o,hit.contact.object_id) || scene_mp_wall_stuck(o)){
+                o->script_move.active=0;o->navigation.retained.count=0;
+                status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;
+            }
             scene_noise_cancel(o);rf_scene_script_obstacle[0]=hit.solid;rf_scene_script_obstacle[1]=hit.room;rf_scene_script_obstacle[2]=hit.face;memcpy(rf_scene_script_obstacle+3,hit.contact.normal,12);memcpy(rf_scene_script_obstacle+6,&hit.contact.fraction,4);rf_scene_script_obstacle[7]=hit.contact.object_id;++rf_scene_script_movement[3];status=campaign_script_locomotion(i,0);if(status)return scene_frame_late_failure(status,__LINE__,UINT32_MAX);continue;}
         {
             float steering_target[3];const float *movement_aim=target;
@@ -21532,33 +21555,36 @@ static int scene_view_sphere_outside(const scene_stream *s,const float position[
 #define SCENE_ACTOR_CULL_RADIUS 10.0f
 uint32_t rf_scene_npc_pose_lod[2]; /* advances done, advances deferred */
 #endif
+uint32_t rf_scene_playback_mismatch[6]; /* pose index, mapping skeleton, pose skeleton, class, weapon, MP dead/respawn */
+uint32_t rf_scene_playback_fail[2]; /* first failing line in campaign_npc_playback_tick, status */
+static int scene_playback_fail(int status,uint32_t line){if(!rf_scene_playback_fail[0]){rf_scene_playback_fail[0]=line;rf_scene_playback_fail[1]=(uint32_t)status;}return status;}
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_t frame)
 {
     static uint32_t tracked_uid=UINT32_MAX,tracked_body_hash,tracked_published_hash,tracked_playback_hash,tracked_pose_hash;
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
     uint32_t timing[8]={0},clock=profile_clock && profile_active?profile_clock():0;
-    if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
+    if(campaign_npc_body_count!=campaign_poses.count)return scene_playback_fail(RF_RANGE,__LINE__);
     rf_entity_pose_batch_reset(&campaign_pose_batch);
     /* Cheap retained clocks are independent of temporary combat ownership.
      * One deterministic slot per ordinary simulation tick may demand new
      * crouch resources; no new persistent fairness owner is introduced. */
     for(i=0;i<campaign_npc_body_count;i++){
         status=scene_crouch_receipt_service(&campaign_npc_bodies[i].crouch,
-            scene_patrol_now(frame));if(status)return status;
+            scene_patrol_now(frame));if(status)return scene_playback_fail(status,__LINE__);
     }
     if(campaign_npc_body_count){
         status=scene_crouch_runtime_admit(scene_tick_serial%campaign_npc_body_count,
-            scene_patrol_now(frame));if(status)return status;
+            scene_patrol_now(frame));if(status)return scene_playback_fail(status,__LINE__);
     }
     if(campaign_npc_body_count){
         status=scene_crouch_runtime_attention(stream,scene_tick_serial%campaign_npc_body_count,frame);
-        if(status)return status;
+        if(status)return scene_playback_fail(status,__LINE__);
         status=scene_crouch_runtime_motion(stream,scene_tick_serial%campaign_npc_body_count,frame);
-        if(status)return status;
+        if(status)return scene_playback_fail(status,__LINE__);
     }
     /* Original snapshot list completes before any model/controller update. */
     for(i=0;i<campaign_npc_body_count;++i) {
-        rf_entity_pose *pose;status=campaign_actor_pose(i,&pose);if(status)return status;
+        rf_entity_pose *pose;status=campaign_actor_pose(i,&pose);if(status)return scene_playback_fail(status,__LINE__);
         if(!pose){campaign_npc_bodies[i].medic.clip_owned=0;continue;}
         campaign_npc_body *owner=campaign_npc_bodies+i;
         rf_entity_position_snapshot(&owner->object_flags,owner->previous,owner->published);
@@ -21569,31 +21595,36 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose;const rf_entity_motion_mapping *map;
         rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
-        status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)continue;
+        status=campaign_actor_pose(i,&pose);if(status)return scene_playback_fail(status,__LINE__);if(!pose)continue;
         class_index=campaign_seeds.items[i].class_index;
-        if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+        if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return scene_playback_fail(RF_RANGE,__LINE__);
         map=&campaign_npc_bodies[i].selection.mapping;model=campaign_playback_resources.models+pose->skeleton;
-        if(map->skeleton!=pose->skeleton)return RF_FORMAT;
+        if(map->skeleton!=pose->skeleton){
+            rf_scene_playback_mismatch[0]=i;rf_scene_playback_mismatch[1]=map->skeleton;rf_scene_playback_mismatch[2]=pose->skeleton;
+            rf_scene_playback_mismatch[3]=class_index;rf_scene_playback_mismatch[4]=(uint32_t)campaign_npc_bodies[i].view.weapons[0];
+            rf_scene_playback_mismatch[5]=rf_scene_mp[0] && i<SCENE_MP_BOTS?(uint32_t)rf_scene_mp_roster[i].dead|(uint32_t)rf_scene_mp_roster[i].respawn_pending<<8:UINT32_MAX;
+            return scene_playback_fail(RF_FORMAT,__LINE__);
+        }
         if(campaign_npc_bodies[i].script_animation.active) {
             campaign_npc_body *owner=campaign_npc_bodies+i;float remaining;
             ++rf_scene_script_animation[7];
             if(!owner->script_animation.loop && !owner->script_animation.freeze) {
-                status=rf_motion_remaining(&pose->playback,model->resources,model->count,owner->script_animation.motion,&remaining);if(status)return status;
+                status=rf_motion_remaining(&pose->playback,model->resources,model->count,owner->script_animation.motion,&remaining);if(status)return scene_playback_fail(status,__LINE__);
                 if(remaining<=0 && !(owner->alarm.present&&owner->alarm.phase==3)){owner->script_animation.active=0;++rf_scene_script_animation[8];}
             }
         }
         if(!(campaign_npc_bodies[i].view.flags_810&1u) &&
            !(campaign_npc_bodies[i].script_animation.active && (campaign_npc_bodies[i].script_animation.loop || campaign_npc_bodies[i].script_animation.freeze))) {
-            status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
+            status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return scene_playback_fail(status,__LINE__);
         }
         npc_playback_elapsed(timing,1,&clock);
-        status=campaign_npc_pose_residency(i);if(status)return status;
+        status=campaign_npc_pose_residency(i);if(status)return scene_playback_fail(status,__LINE__);
         npc_playback_elapsed(timing,2,&clock);
         {
             rf_entity_animation_gate gate={0};uint32_t room,alarm_completed=0;int advance;
             const rf_entity_seed_class *cls=campaign_seeds.classes+class_index;
             const rf_visibility_view *camera=&stream->particle_camera.view;
-            if(!stream->visibility.storage)return RF_RANGE;
+            if(!stream->visibility.storage)return scene_playback_fail(RF_RANGE,__LINE__);
             room=campaign_model_owners[i].room;gate.model_present=1;gate.model_kind=cls->model_kind;
             gate.descriptor_present=room<stream->visibility.state.count;
             if(gate.descriptor_present)gate.descriptor_flag=stream->visibility.state.rooms[room].visible;
@@ -21603,14 +21634,14 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             gate.action_520=campaign_npc_bodies[i].view.action_520;gate.flags=0;gate.predicate=0;
             gate.lod_distance_count=(int32_t)cls->lod.count;
             status=rf_model_lod_metric(0x66,campaign_model_owners[i].position,
-                camera->origin,camera->scale[2],camera->scale[0],&gate.distance);if(status)return status;
+                camera->origin,camera->scale[2],camera->scale[0],&gate.distance);if(status)return scene_playback_fail(status,__LINE__);
             advance=rf_entity_animation_should_advance(&gate);
             ++rf_scene_npc_gate[0];++rf_scene_npc_gate[advance?1:2];
             g=(g^(uint32_t)advance)*16777619u;
             npc_playback_elapsed(timing,3,&clock);
-            status=scene_alarm_runner_clip_clock(campaign_npc_bodies+i,pose,model,elapsed,!advance,&alarm_completed);if(status)return status;
+            status=scene_alarm_runner_clip_clock(campaign_npc_bodies+i,pose,model,elapsed,!advance,&alarm_completed);if(status)return scene_playback_fail(status,__LINE__);
             if(!advance||pose->playback.completion.frozen){
-                status=scene_medic_clip_culled(campaign_npc_bodies+i,pose,model,elapsed);if(status)return status;
+                status=scene_medic_clip_culled(campaign_npc_bodies+i,pose,model,elapsed);if(status)return scene_playback_fail(status,__LINE__);
             }
             float step=elapsed;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -21634,9 +21665,9 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
                 status=rf_entity_pose_advance_shared(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,step,displacement,rf_scene_pose_sharing_disabled?NULL:&campaign_pose_batch);
                 /* Advancement may remove slots before later pose evaluation fails. */
                 {int retired=scene_npc_speech_reconcile(i);
-                 if(status)return status;if(retired)return retired;}
+                 if(status)return scene_playback_fail(status,__LINE__);if(retired)return retired;}
                 npc_playback_elapsed(timing,4,&clock);
-                status=campaign_model_collision_refresh(i);if(status)return status;
+                status=campaign_model_collision_refresh(i);if(status)return scene_playback_fail(status,__LINE__);
                 npc_playback_elapsed(timing,5,&clock);
             }
             if(alarm_completed)campaign_npc_bodies[i].alarm.started=2;
@@ -21648,9 +21679,9 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
             }
             rf_scene_combat_death[6]=pose->playback.completion.frozen;rf_scene_combat_death[7]=pose->playback.generation;
         }
-        status=scene_npc_speech_reconcile(i);if(status)return status;
-        status=scene_medic_clip_reconcile(campaign_npc_bodies+i,i);if(status)return status;
-        status=campaign_npc_eye_update(i);if(status)return status;
+        status=scene_npc_speech_reconcile(i);if(status)return scene_playback_fail(status,__LINE__);
+        status=scene_medic_clip_reconcile(campaign_npc_bodies+i,i);if(status)return scene_playback_fail(status,__LINE__);
+        status=campaign_npc_eye_update(i);if(status)return scene_playback_fail(status,__LINE__);
         scene_npc_walk_in_place_sample(i,pose);
         if(rf_scene_crash_aim && (uint32_t)campaign_seeds.records.items[i].record.uid==
            (rf_scene_crash_aim==3?rf_scene_crash_aim_uid:rf_scene_crash_aim_trace[1])) {
@@ -21702,18 +21733,18 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed,uint32_
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
         ++rf_scene_npc_eyes[0];rf_scene_npc_eyes[3]=npc_hash_bytes(rf_scene_npc_eyes[3],campaign_npc_bodies[i].eye_position,12);
     }
-    status=campaign_npc_crouch_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_stand_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_fall_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_route_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_look_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_drive_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_unholster_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
-    status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return status;
+    status=campaign_npc_crouch_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_stand_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_fall_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_route_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_look_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_drive_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_unholster_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
+    status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return scene_playback_fail(status,__LINE__);
     npc_playback_elapsed(timing,7,&clock);
     if(profile_clock && profile_active)for(i=0;i<8;++i) {
         uint32_t *row=rf_scene_npc_playback_profile[i];uint64_t total=((uint64_t)row[2]<<32)+row[1]+timing[i];

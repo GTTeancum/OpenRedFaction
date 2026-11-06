@@ -594,6 +594,16 @@ Done (now from the PS2 code):
      match). 136900 refuses such a route on the PS2 (fewer than 2 plan
      nodes), so it should not start.
   The test pilot follows a bot, so it stalls with it; that is not a fault.
+- Movement fixes, 2026-11-05 (multiplayer bots only; port practice except
+  the first): (1) a route whose path cannot be planned is dropped (12e210
+  -> 136900 refuses it on the PS2); (2) a step still blocked by ground or
+  an edge below the body's centre is retried raised by the body's
+  navigation radius; (3) a route blocked by the player's or another bot's
+  body is dropped, so the attack update turns and fires (bots had stood
+  against the player facing along their route, failing the aim check);
+  (4) a route blocked for 60 movement frames in a row is dropped. Stuck
+  time on the XEMU sweep fell from 30-90% to 0-4% (14% on Waste Disposal
+  Plant, where bots below the walkway walk at nodes on it).
 - Upper-body lean switch-offs not mapped, none possible for multiplayer
   bots: movement states 0xd/0xf (set while attached to a host object,
   159ec0: vehicle or turret), AI modes 1/5 (15a310), carried object

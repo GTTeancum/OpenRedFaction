@@ -47,7 +47,7 @@ uint32_t rf_scene_mp_corpse_trace[4]; /* kept, last refusal, respawns, corpses f
 #define SCENE_MP_SPAWNS 32u
 #define SCENE_MP_BOTS 16u
 scene_mp_bot rf_scene_mp_roster[SCENE_MP_BOTS];
-uint32_t rf_scene_mp_bot_debug[4][12]; /* harness, see scene_mp_tick */
+uint32_t rf_scene_mp_bot_debug[4][14]; /* harness, see scene_mp_tick */
 static const char *const scene_mp_names[SCENE_MP_BOTS]={"Myles","Willis","Tyler","Abraham","Lance","Jared",
     "Benedict","Butch","Logan","Bryce","Tristan","Connor","Mason","Lucas","Sergio","Adrian"};
 const char *rf_scene_mp_bot_name(uint32_t slot){return slot<SCENE_MP_BOTS?scene_mp_names[slot]:"";}
@@ -470,6 +470,65 @@ static uint32_t scene_mp_node_reached(const campaign_npc_body *npc,rf_entity_nav
     if(distance2<.09f)return 1;
     if(rf_entity_navigation_single(npc->body.state.position,npc->navigation_radius,npc->death_item_extent_7c4,0,node,&inside))return 0;
     return inside==0;
+}
+/* 12e210 -> 136900: a route whose plan to the list's current node fails
+ * (fewer than 2 plan nodes) is not started; the bot stays in its mode.
+ * The port plans lazily in movement, so a multiplayer bot whose route
+ * finds no path drops the route there instead of retrying it. */
+uint32_t rf_scene_mp_unplanned; /* harness: routes dropped for no path */
+/* Movement step-up lift for a multiplayer bot (scene.c script movement):
+ * the body's navigation radius (0.5 when unset). Port practice, not a
+ * traced PS2 rule: the PS2 moves bodies with its sphere physics. */
+uint32_t rf_scene_mp_step_ups[2]; /* harness: lifted retries, still blocked */
+static uint32_t scene_mp_step_lift(const campaign_npc_body *npc,float *lift)
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used)return 0;
+    *lift=npc->navigation_radius>0?npc->navigation_radius:.5f;return 1;
+}
+static void scene_mp_step_lifted(const campaign_npc_body *npc,uint32_t blocked)
+{(void)npc;++rf_scene_mp_step_ups[0];if(blocked)++rf_scene_mp_step_ups[1];}
+/* A multiplayer bot walking a route that is blocked by a character's body
+ * (the player or another bot) ends the route, so the attack update faces
+ * and fights from there (port practice: the PS2's sphere physics slides
+ * bodies past each other, and 1373c0 stops following when the bot fires). */
+uint32_t rf_scene_mp_body_blocks; /* harness */
+static uint32_t scene_mp_body_blocked(const campaign_npc_body *npc,uint32_t object)
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies),j;
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used || scene_mp_routing[slot]!=1 || !object)return 0;
+    if(object!=campaign_player_object.handle){
+        for(j=0;j<campaign_npc_body_count;j++)if(j!=slot && campaign_npc_bodies[j].registration.handle==object)break;
+        if(j==campaign_npc_body_count)return 0;
+    }
+    ++rf_scene_mp_body_blocks;return 1;
+}
+/* A multiplayer bot on a route blocked for 60 movement frames in a row
+ * (one second) drops the route (port practice; no PS2 no-progress rule is
+ * traced): typically a bot below a ledge walking at a node above it. */
+static uint16_t scene_mp_blocked_run[SCENE_MP_BOTS];
+uint32_t rf_scene_mp_wall_drops; /* harness */
+static uint32_t scene_mp_wall_stuck(const campaign_npc_body *npc)
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used || scene_mp_routing[slot]!=1)return 0;
+    if(++scene_mp_blocked_run[slot]<60)return 0;
+    scene_mp_blocked_run[slot]=0;++rf_scene_mp_wall_drops;return 1;
+}
+static void scene_mp_moved(const campaign_npc_body *npc)
+{uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);if(slot<SCENE_MP_BOTS)scene_mp_blocked_run[slot]=0;}
+/* Harness: blocked movement frames and the last blocking normal's Y, per bot. */
+static void scene_mp_blocked(const campaign_npc_body *npc,const float normal[3])
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);
+    if(!rf_scene_mp[0] || slot>=4)return;
+    ++rf_scene_mp_bot_debug[slot][12];memcpy(&rf_scene_mp_bot_debug[slot][13],&normal[1],4);
+}
+static uint32_t scene_mp_route_unplanned(const campaign_npc_body *npc)
+{
+    uint32_t slot=(uint32_t)(npc-campaign_npc_bodies);
+    if(!rf_scene_mp[0] || slot>=SCENE_MP_BOTS || !rf_scene_mp_roster[slot].used || scene_mp_routing[slot]!=1)return 0;
+    ++rf_scene_mp_unplanned;return 1;
 }
 /* The current waypoint node of the bot's route, once its planned path is used up. */
 static uint32_t scene_mp_waypoint_reached(const campaign_npc_body *npc,float distance)
