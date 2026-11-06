@@ -1172,7 +1172,19 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                         status=player_options_menu(NULL,0,0,&resume);if(status)break;
                         rf_xbox_ps2_main_enter();drawn=UINT32_MAX;
                     }else if(selection==RF_XBOX_PS2_EXTRAS){page=RF_XBOX_PS2_PAGE_EXTRAS;selection=2;drawn=UINT32_MAX;}
-                    /* TRAINING: the PS2 training levels exist only in PS2 formats. */
+                    else if(selection==RF_XBOX_PS2_TRAINING){
+                        /* TRAINING: the PS2's own training levels (training_ps2_01/02)
+                         * exist only in PS2 formats, so the PC's are played: train01
+                         * from levels1.vpp, whose Load_Level events go on to train02
+                         * and then to L1S1, as on the PC. No bots, no match rules. */
+                        memset(player_mp_selection,0,sizeof(player_mp_selection));
+                        strcpy(player_mp_selection,"levels1.vpp");strcpy(player_mp_selection+64,"train01.rfl");
+                        rf_scene_mp_bots=rf_scene_mp_kill_limit=rf_scene_mp_time_limit=0;
+                        status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,page,selection,difficulty,
+                            RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
+                        if(!status){++rf_xbox_frontend_diagnostic[1];rf_xbox_frontend_diagnostic[0]=2;}
+                        break;
+                    }
                 }else if(page==RF_XBOX_PS2_PAGE_EXTRAS){
                     /* Credits and the trailer are not available; QUIT asks first. */
                     if(selection==2){page=RF_SCENE_FRONTEND_EXIT;selection=0;drawn=UINT32_MAX;}

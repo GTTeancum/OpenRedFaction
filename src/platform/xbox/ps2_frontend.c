@@ -362,7 +362,7 @@ int rf_xbox_ps2_draw_frontend(rf_scene_particle_sink sink,void *context,uint32_t
     uint32_t page,uint32_t selection,uint32_t difficulty,uint32_t load_outcome,int load_status)
 {
     static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,BOT_MATCH_LABEL,21,48,43,44};
-    static const uint32_t enabled[RF_XBOX_PS2_SLOTS]={1,1,1,0,1,1};
+    static const uint32_t enabled[RF_XBOX_PS2_SLOTS]={1,1,1,1,1,1}; /* TRAINING: the PC training levels */
     uint8_t offsets[RF_XBOX_PS2_SLOTS][2];uint32_t i,title_alpha;int status;
     (void)load_status;
     if(!ps2 || !sink)return RF_RANGE;
@@ -416,7 +416,7 @@ static int draw_mp_options(rf_scene_particle_sink sink,void *context,const rf_xb
 int rf_xbox_ps2_draw_multi(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m)
 {
     static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,BOT_MATCH_LABEL,21,48,43,44};
-    static const uint32_t enabled[RF_XBOX_PS2_SLOTS]={1,1,1,0,1,1};
+    static const uint32_t enabled[RF_XBOX_PS2_SLOTS]={1,1,1,1,1,1}; /* TRAINING: the PC training levels */
     uint8_t offsets[RF_XBOX_PS2_SLOTS][2];uint32_t i;int status;
     if(!ps2 || !sink || !m)return RF_RANGE;
     drawn();
