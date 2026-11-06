@@ -19505,199 +19505,22 @@ static uint32_t scene_npc_jeep_seat_save_dead_contact(
 #include "scene_secondary_vehicle_restore.inc"
 #include "scene_world_projection_cache.inc"
 #include "scene_use_dispatch.inc"
-static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
+/* Two-player stage 2: 0 while actor_follow_view runs for a secondary human;
+ * world updates in it (vehicles, turrets, NPC rounds, ambient audio, the
+ * listener, fixtures and saves) run only for the primary player. */
+static uint32_t scene_follow_primary=1;
+/* Two-player stage 2: build the world draw list for one camera (visibility,
+ * static world, movers, terrain) into stream->mesh, then the scope screens.
+ * Returns the squeezed view basis used for drawing. */
+static int scene_follow_build_view(scene_stream *stream,uint32_t frame,float position[3],float orientation[3][3],
+    const rf_scene_world_geometry *render_world,uint32_t terrain_cuts,uint32_t *world_clock_out,float view_basis[3][3])
 {
-    scene_stream *stream=context;float position[3],orientation[3][3];
-    float gameplay_eye[3],gameplay_basis[3][3];
-    const rf_scene_world_geometry *render_world;
-    uint32_t *r=rf_scene_actor_follow_frames[frame%64],terrain_cuts=0;int status;
-    uint32_t world_clock=0;profile_mark(1);
-    scene_turret_audio_begin_frame(frame); /* Also precede early turret callbacks without an input hook. */
-    if(campaign_endgame.credits)return RF_OK; /* Modal has no world/camera/weapon step. */
-    if(!frame && rf_scene_player_checkpoint_enabled){
-        if(!stream->player_checkpoint_level)return RF_RANGE;
-        stream->player_checkpoint_started=1;
-        status=scene_checkpoint_begin(stream,stream->player_checkpoint_level);
-        rf_scene_player_checkpoint_state[3]=(uint32_t)status;if(status)return status;
-    }
-    /* Animation creates the actual body/eye before this callback, but skips
-     * player_stance at frame0. Retain its real controller for scene initialization. */
-    if(campaign_spawn && !frame) {
-        if(!controller)return RF_RANGE;
-        stream->initial_swim_controller=*controller;stream->initial_swim_controller_ready=1;
-    }
-    scene_medic_flight_player_motion(controller);
-    if(profile_clock && profile_active)world_clock=profile_clock();
-    if(stream->vehicle_checkpoint_pending){
-        status=scene_driller_runtime_open(stream);if(status)return status;
-        status=scene_vehicle_checkpoint_publish(stream);if(status){printf("VEHICLE_CHECKPOINT_FAIL publish %d\n",status);return status;}
-        stream->vehicle_checkpoint_pending=0;
-        printf("VEHICLE_CHECKPOINT_LOAD %.9g %u\n",(double)stream->vehicle_checkpoint.health,stream->vehicle_checkpoint.accepted_drill_cuts);
-    }
-    {uint32_t prestep_clock=world_clock;
-    status=scene_use_prepare(stream,frame,controller);scene_use_publish(frame);if(status)return status;
-    prestep_profile_mark(0,&prestep_clock);
-    status=scene_driller_runtime_tick(stream,frame);if(status)return status;
-    status=scene_apc_aim_tick(stream,frame);if(status)return status;
-    status=scene_jeep_gun_tick(stream);if(status)return status;
-    prestep_profile_mark(1,&prestep_clock);
-    scene_vehicle_loop_audio_begin();
-    scene_vehicle_ai_player_sync(stream,0);
-    status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
-    status=scene_player_rounds_tick(stream,frame);if(status)return status;
-    scene_player_tracers_tick();scene_rail_trail_tick();
-    status=scene_npc_rounds_tick(stream,frame);if(status)return status;
-    status=scene_precision_rounds_tick(stream,frame);if(status)return status;
-    status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
-    status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
-    scene_vehicle_attack_player_sync(stream,0);
-    status=scene_fighter_weapon_tick(stream,frame);if(status)return status;
-    prestep_profile_mark(2,&prestep_clock);
-    scene_vehicle_attack_player_sync(stream,1);
-    scene_vehicle_ai_player_sync(stream,1);
-    {uint32_t t0=profile_clock&&profile_active?profile_clock():0;
-    status=scene_vehicle_attack_tick(stream,frame);if(status)return status;
-    if(profile_clock&&profile_active){uint32_t t1=profile_clock();rf_scene_vehicle_ai_profile[0]+=t1-t0;t0=t1;}
-    status=scene_vehicle_ai_tick(stream,frame);if(status)return status;
-    if(profile_clock&&profile_active){rf_scene_vehicle_ai_profile[1]+=profile_clock()-t0;++rf_scene_vehicle_ai_profile[7];}}
-    scene_vehicle_loop_audio_end();
-    prestep_profile_mark(3,&prestep_clock);
-    status=scene_turret_player_tick(stream,frame);if(status)return status;
-    status=scene_turret_heap_tick(stream,frame);if(status)return status;
-    scene_player_outside_audio_reconcile(stream);
-    scene_ai_spit_player_eye_invalidate();scene_ai_cane_player_eye_invalidate();
-    prestep_profile_mark(4,&prestep_clock);
-    if(!scene_turret_player_active()&&!scene_driller_active(stream)&&scene_use_pose_frame==frame){
-        memcpy(position,scene_use_eye,12);memcpy(orientation,scene_use_basis,36);status=RF_OK;
-    }else status=scene_turret_player_active()?scene_turret_player_camera(position,orientation):
-        scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);
-    if(status){rf_scene_profile_stage[1]=101;return status;}
-    if(!scene_turret_player_active() && !scene_driller_active(stream)){scene_ai_spit_player_eye_publish(frame,position);scene_ai_cane_player_eye_publish(frame,position);}
-    if(campaign_spawn){float body_eye[3];
-        if(!scene_turret_player_body_eye(body_eye))memcpy(body_eye,position,12);
-        scene_medic_player_eye_publish(frame,body_eye);
-    }
-    if(stream->apc_aim_active){memcpy(position,stream->apc_aim_eye,12);memcpy(orientation,stream->apc_aim_basis,36);}
-    if(campaign_cutscene_runtime.active){
-        memcpy(position,campaign_cutscene_runtime.position,12);
-        memcpy(orientation,campaign_cutscene_runtime.orientation,36);
-    }
-    /* Rendering follows the committed owner, never diagnostic counters: reload
-     * can publish geometry before the next edit refreshes those counters. */
-    if(stream->terrain) {
-        rf_geomod_terrain_view terrain;
-        status=stream->terrain_publication?scene_terrain_publication_view(stream,&terrain):
-            rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
-        terrain_cuts=terrain.cuts;
-    }else if((stream->campaign_geomod && stream->campaign_geomod->active) ||
-             (stream->campaign_wall && stream->campaign_wall->active))terrain_cuts=1;
-    prestep_profile_mark(5,&prestep_clock);
-    render_world=terrain_cuts?&stream->terrain_render:actor_follow_world;
-    stream->monitor_world=render_world;
-    /* Original41b0f8..41b183 takes the actor pose;40d88c..40d8bf copies it
-     * to the separate camera before40db70 changes camera orientation. Keep
-     * this pre-effect pose local, after all existing camera/cutscene choices.
-     * Ordinary on-foot combat below uses it; render/listener and staged or
-     * mounted paths retain their existing camera and effect ordering. */
-    memcpy(gameplay_eye,position,sizeof(gameplay_eye));
-    memcpy(gameplay_basis,orientation,sizeof(gameplay_basis));
-    if(campaign_spawn && stream->particles.state) {
-        uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
-        int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
-        status=rf_camera_effect_apply_random(&campaign_camera_effect,now,&stream->particles.state->random,(float *)orientation,&active);
-        if(status){rf_scene_profile_stage[1]=102;return status;}
-    }
-    prestep_profile_mark(6,&prestep_clock);}
-    world_profile_mark(0,&world_clock);
-    if(campaign_spawn) {
-        campaign_audio_listener(position,orientation[0]);
-        scene_weapon_loop_audio_tick(frame);
-        scene_npc_loop_audio_retirement_tick(frame);
-        scene_turret_audio_retirement_tick(frame);
-        scene_player_water_audio_tick(stream,frame,position);
-        campaign_message_audio_refresh();
-        /* Original480ef7 follows listener refresh. Use the owned replay clock;
-         * rendering the same frame again must not add a simulation tick. */
-        if(campaign_ambient_frame!=frame) {
-            uint64_t elapsed=(uint64_t)frame*1000/60;
-            int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
-            campaign_ambient_process();
-            status=campaign_ambient_schedule(now,0);if(status){rf_scene_profile_stage[1]=103;return status;}
-            campaign_ambient_frame=frame;
-        }
-    }
-    world_profile_mark(1,&world_clock);
-    if(campaign_spawn){
-        float shot_eye[3],shot_basis[3][3];uint32_t staged=0;
-        status=campaign_vehicle_shot_stage(stream,frame,(const float (*)[3])orientation,
-            shot_eye,shot_basis,&staged);
-        if(status){rf_scene_profile_stage[1]=108;return status;}
-        status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
-        if(status){rf_scene_profile_stage[1]=108;return status;}
-        status=scene_turret_fixture(stream,frame);if(status)return status;
-        status=scene_turret_generated_fixture(stream,frame);if(status)return status;
-        status=scene_turret_generated_remove_fixture(frame);if(status)return status;
-        status=scene_turret_generated_attack_fixture(frame);if(status)return status;
-        status=scene_burning_save_fixture(frame);if(status)return status;
-        status=scene_special_save_stage(frame);if(status)return status;
-        status=scene_item_effect_stage(stream,frame);if(status)return status;
-        scene_weapon_empty_request empty_request={0,UINT32_MAX,-1,0};uint32_t empty_changed;
-        uint32_t ordinary=!staged && !scene_driller_active(stream) && !scene_turret_player_active() &&
-            !stream->apc_aim_active && !campaign_cutscene_runtime.active;
-        const float *combat_eye=staged?shot_eye:ordinary?gameplay_eye:position;
-        const float (*combat_basis)[3]=staged?(const float (*)[3])shot_basis:
-            ordinary?(const float (*)[3])gameplay_basis:(const float (*)[3])orientation;
-        status=campaign_combat_tick(stream,frame,combat_eye,combat_basis,&empty_request);
-        rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return scene_player_failure_return(status,__LINE__,frame);}
-        status=scene_weapon_empty_after_combat(stream,frame,combat_eye,&empty_request,&empty_changed);
-        rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return scene_player_failure_return(status,__LINE__,frame);}
-        if(!empty_changed){
-            status=scene_machine_empty_after_combat(stream,frame,combat_eye,&empty_request,&empty_changed);
-            rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return scene_player_failure_return(status,__LINE__,frame);}
-        }
-        /* Depletion/Remote follow-up can select after the scope input tick.
-         * Retire the outgoing owner before drawing, without another input edge. */
-        scene_scope_owner_reconcile(stream);
-        if(!scene_player_rocket_lock_owner(stream))scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);
-        /* Captured outgoing identity survives either successful selection.
-         * Start once after combat, with no second camera apply/RNG step here;
-         * the next camera pass (normally next tick) first samples this. */
-        if(ordinary)scene_weapon_camera_after_combat(stream,frame,&empty_request);
-        scene_burning_save_probe(frame);
-        if(staged==2 || rf_scene_nano_test_mode>=1){status=scene_nano_shot_result(frame);if(status)return status;}
-        if(staged==1){
-            scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
-            for(uint32_t index=0;index<campaign_passive_vehicle_count;index++)
-                if(campaign_passive_vehicles[index].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+index;break;}
-            if(!owner)return RF_NOT_FOUND;
-            memcpy(rf_scene_vehicle_shot_probe+8,&owner->damage.state.effects.health,4);
-            memcpy(rf_scene_vehicle_shot_probe+9,&owner->damage.state.effects.armor,4);
-            rf_scene_vehicle_shot_probe[10]=(uint32_t)campaign_player_inventory.loaded[weapon];
-        }
-    }
-    if(campaign_cutscene_runtime.active){
-        /* Combat updates the weapon scope each tick. Override its projection
-         * after that update so authored FOV applies only to cinematic world
-         * geometry/particles, not the screen-space subtitle. */
-        rf_scene_scope_projection=campaign_cutscene_runtime.fov==90.0f?1.0f:
-            1.0f/tanf(campaign_cutscene_runtime.fov*0.008726646259971648f);
-    }
-    if(rf_scene_follow_npc_uid){status=campaign_inspect_camera(stream,position,orientation);if(status)return status;}
-    if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
-        memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
-        if(rf_scene_particle_view_back) {
-            const float inspection_basis[3][3]={{1,0,0},{0,.7071067811865475f,.7071067811865475f},{0,-.7071067811865475f,.7071067811865475f}};
-            position[1]+=4;position[2]-=4;memcpy(orientation,inspection_basis,sizeof(inspection_basis));
-        }
-    }
-    if(scene_inspection_enabled) {
-        memcpy(position,scene_inspection_eye,12);memcpy(orientation,scene_inspection_basis,36);
-    }
+    int status;uint32_t world_clock=*world_clock_out;
     /* Widescreen (port-owned): drawing uses a copy whose right axis is scaled
      * by rf_scene_view_squeeze, so the fixed 640-wide projection covers the
      * wider view and the renderer stretches it back. Gameplay keeps the
      * orthonormal orientation above. Squeeze 1 is the original exact path. */
-    float view_basis[3][3];memcpy(view_basis,orientation,36);
+    memcpy(view_basis,orientation,36);
     {uint32_t k;for(k=0;k<3;k++)view_basis[0][k]*=rf_scene_view_squeeze;}
     world_profile_mark(2,&world_clock);
     if(stream->visibility.storage) {
@@ -19834,6 +19657,198 @@ world_build_done:
         /* Rail Driver scanner picture (4adc60), from the same eye. */
         status=scene_rail_scope_update(stream,position,(const float (*)[3])orientation);if(status)return status;
     }
+    *world_clock_out=world_clock;return RF_OK;
+}
+static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
+{
+    scene_stream *stream=context;float position[3],orientation[3][3];
+    float gameplay_eye[3],gameplay_basis[3][3];
+    const rf_scene_world_geometry *render_world;
+    uint32_t *r=rf_scene_actor_follow_frames[frame%64],terrain_cuts=0;int status;
+    uint32_t world_clock=0;profile_mark(1);
+    if(scene_follow_primary){scene_turret_audio_begin_frame(frame); /* Also precede early turret callbacks without an input hook. */}
+    if(campaign_endgame.credits)return RF_OK; /* Modal has no world/camera/weapon step. */
+    if(scene_follow_primary && !frame && rf_scene_player_checkpoint_enabled){
+        if(!stream->player_checkpoint_level)return RF_RANGE;
+        stream->player_checkpoint_started=1;
+        status=scene_checkpoint_begin(stream,stream->player_checkpoint_level);
+        rf_scene_player_checkpoint_state[3]=(uint32_t)status;if(status)return status;
+    }
+    /* Animation creates the actual body/eye before this callback, but skips
+     * player_stance at frame0. Retain its real controller for scene initialization. */
+    if(campaign_spawn && !frame) {
+        if(!controller)return RF_RANGE;
+        stream->initial_swim_controller=*controller;stream->initial_swim_controller_ready=1;
+    }
+    scene_medic_flight_player_motion(controller);
+    if(profile_clock && profile_active)world_clock=profile_clock();
+    if(scene_follow_primary && stream->vehicle_checkpoint_pending){
+        status=scene_driller_runtime_open(stream);if(status)return status;
+        status=scene_vehicle_checkpoint_publish(stream);if(status){printf("VEHICLE_CHECKPOINT_FAIL publish %d\n",status);return status;}
+        stream->vehicle_checkpoint_pending=0;
+        printf("VEHICLE_CHECKPOINT_LOAD %.9g %u\n",(double)stream->vehicle_checkpoint.health,stream->vehicle_checkpoint.accepted_drill_cuts);
+    }
+    {uint32_t prestep_clock=world_clock;
+    status=scene_use_prepare(stream,frame,controller);scene_use_publish(frame);if(status)return status;
+    prestep_profile_mark(0,&prestep_clock);
+    if(scene_follow_primary){status=scene_driller_runtime_tick(stream,frame);if(status)return status;}
+    if(scene_follow_primary){status=scene_apc_aim_tick(stream,frame);if(status)return status;}
+    if(scene_follow_primary){status=scene_jeep_gun_tick(stream);if(status)return status;}
+    prestep_profile_mark(1,&prestep_clock);
+    if(scene_follow_primary){scene_vehicle_loop_audio_begin();}
+    if(scene_follow_primary){scene_vehicle_ai_player_sync(stream,0);}
+    if(scene_follow_primary){status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}}
+    status=scene_player_rounds_tick(stream,frame);if(status)return status;
+    scene_player_tracers_tick();if(scene_follow_primary)scene_rail_trail_tick();
+    if(scene_follow_primary){status=scene_npc_rounds_tick(stream,frame);if(status)return status;}
+    if(scene_follow_primary){status=scene_precision_rounds_tick(stream,frame);if(status)return status;}
+    if(scene_follow_primary){status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}}
+    if(scene_follow_primary){status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}}
+    if(scene_follow_primary){scene_vehicle_attack_player_sync(stream,0);}
+    if(scene_follow_primary){status=scene_fighter_weapon_tick(stream,frame);if(status)return status;}
+    prestep_profile_mark(2,&prestep_clock);
+    if(scene_follow_primary){scene_vehicle_attack_player_sync(stream,1);}
+    if(scene_follow_primary){scene_vehicle_ai_player_sync(stream,1);}
+    {uint32_t t0=profile_clock&&profile_active?profile_clock():0;
+    if(scene_follow_primary){status=scene_vehicle_attack_tick(stream,frame);if(status)return status;}
+    if(profile_clock&&profile_active){uint32_t t1=profile_clock();rf_scene_vehicle_ai_profile[0]+=t1-t0;t0=t1;}
+    if(scene_follow_primary){status=scene_vehicle_ai_tick(stream,frame);if(status)return status;}
+    if(profile_clock&&profile_active){rf_scene_vehicle_ai_profile[1]+=profile_clock()-t0;++rf_scene_vehicle_ai_profile[7];}}
+    if(scene_follow_primary){scene_vehicle_loop_audio_end();}
+    prestep_profile_mark(3,&prestep_clock);
+    if(scene_follow_primary){status=scene_turret_player_tick(stream,frame);if(status)return status;}
+    if(scene_follow_primary){status=scene_turret_heap_tick(stream,frame);if(status)return status;}
+    scene_player_outside_audio_reconcile(stream);
+    if(scene_follow_primary){scene_ai_spit_player_eye_invalidate();scene_ai_cane_player_eye_invalidate();}
+    prestep_profile_mark(4,&prestep_clock);
+    if(!scene_turret_player_active()&&!scene_driller_active(stream)&&scene_use_pose_frame==frame){
+        memcpy(position,scene_use_eye,12);memcpy(orientation,scene_use_basis,36);status=RF_OK;
+    }else status=scene_turret_player_active()?scene_turret_player_camera(position,orientation):
+        scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);
+    if(status){rf_scene_profile_stage[1]=101;return status;}
+    if(scene_follow_primary && !scene_turret_player_active() && !scene_driller_active(stream)){scene_ai_spit_player_eye_publish(frame,position);scene_ai_cane_player_eye_publish(frame,position);}
+    if(campaign_spawn){float body_eye[3];
+        if(!scene_turret_player_body_eye(body_eye))memcpy(body_eye,position,12);
+        scene_medic_player_eye_publish(frame,body_eye);
+    }
+    if(stream->apc_aim_active){memcpy(position,stream->apc_aim_eye,12);memcpy(orientation,stream->apc_aim_basis,36);}
+    if(campaign_cutscene_runtime.active){
+        memcpy(position,campaign_cutscene_runtime.position,12);
+        memcpy(orientation,campaign_cutscene_runtime.orientation,36);
+    }
+    /* Rendering follows the committed owner, never diagnostic counters: reload
+     * can publish geometry before the next edit refreshes those counters. */
+    if(stream->terrain) {
+        rf_geomod_terrain_view terrain;
+        status=stream->terrain_publication?scene_terrain_publication_view(stream,&terrain):
+            rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
+        terrain_cuts=terrain.cuts;
+    }else if((stream->campaign_geomod && stream->campaign_geomod->active) ||
+             (stream->campaign_wall && stream->campaign_wall->active))terrain_cuts=1;
+    prestep_profile_mark(5,&prestep_clock);
+    render_world=terrain_cuts?&stream->terrain_render:actor_follow_world;
+    stream->monitor_world=render_world;
+    /* Original41b0f8..41b183 takes the actor pose;40d88c..40d8bf copies it
+     * to the separate camera before40db70 changes camera orientation. Keep
+     * this pre-effect pose local, after all existing camera/cutscene choices.
+     * Ordinary on-foot combat below uses it; render/listener and staged or
+     * mounted paths retain their existing camera and effect ordering. */
+    memcpy(gameplay_eye,position,sizeof(gameplay_eye));
+    memcpy(gameplay_basis,orientation,sizeof(gameplay_basis));
+    if(campaign_spawn && stream->particles.state) {
+        uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
+        int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+        status=rf_camera_effect_apply_random(&campaign_camera_effect,now,&stream->particles.state->random,(float *)orientation,&active);
+        if(status){rf_scene_profile_stage[1]=102;return status;}
+    }
+    prestep_profile_mark(6,&prestep_clock);}
+    world_profile_mark(0,&world_clock);
+    if(campaign_spawn) {
+        if(scene_follow_primary)campaign_audio_listener(position,orientation[0]);
+        scene_weapon_loop_audio_tick(frame);
+        if(scene_follow_primary){scene_npc_loop_audio_retirement_tick(frame);}
+        if(scene_follow_primary){scene_turret_audio_retirement_tick(frame);}
+        scene_player_water_audio_tick(stream,frame,position);
+        if(scene_follow_primary){campaign_message_audio_refresh();}
+        /* Original480ef7 follows listener refresh. Use the owned replay clock;
+         * rendering the same frame again must not add a simulation tick. */
+        if(scene_follow_primary && campaign_ambient_frame!=frame) {
+            uint64_t elapsed=(uint64_t)frame*1000/60;
+            int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+            campaign_ambient_process();
+            status=campaign_ambient_schedule(now,0);if(status){rf_scene_profile_stage[1]=103;return status;}
+            campaign_ambient_frame=frame;
+        }
+    }
+    world_profile_mark(1,&world_clock);
+    if(campaign_spawn){
+        float shot_eye[3],shot_basis[3][3];uint32_t staged=0;
+        status=campaign_vehicle_shot_stage(stream,frame,(const float (*)[3])orientation,
+            shot_eye,shot_basis,&staged);
+        if(status){rf_scene_profile_stage[1]=108;return status;}
+        status=scene_nano_shot_stage(stream,frame,(const float (*)[3])orientation,shot_eye,shot_basis,&staged);
+        if(status){rf_scene_profile_stage[1]=108;return status;}
+        if(scene_follow_primary){status=scene_turret_fixture(stream,frame);if(status)return status;}
+        if(scene_follow_primary){status=scene_turret_generated_fixture(stream,frame);if(status)return status;}
+        if(scene_follow_primary){status=scene_turret_generated_remove_fixture(frame);if(status)return status;}
+        if(scene_follow_primary){status=scene_turret_generated_attack_fixture(frame);if(status)return status;}
+        if(scene_follow_primary){status=scene_burning_save_fixture(frame);if(status)return status;}
+        if(scene_follow_primary){status=scene_special_save_stage(frame);if(status)return status;}
+        if(scene_follow_primary){status=scene_item_effect_stage(stream,frame);if(status)return status;}
+        scene_weapon_empty_request empty_request={0,UINT32_MAX,-1,0};uint32_t empty_changed;
+        uint32_t ordinary=!staged && !scene_driller_active(stream) && !scene_turret_player_active() &&
+            !stream->apc_aim_active && !campaign_cutscene_runtime.active;
+        const float *combat_eye=staged?shot_eye:ordinary?gameplay_eye:position;
+        const float (*combat_basis)[3]=staged?(const float (*)[3])shot_basis:
+            ordinary?(const float (*)[3])gameplay_basis:(const float (*)[3])orientation;
+        status=campaign_combat_tick(stream,frame,combat_eye,combat_basis,&empty_request);
+        rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return scene_player_failure_return(status,__LINE__,frame);}
+        status=scene_weapon_empty_after_combat(stream,frame,combat_eye,&empty_request,&empty_changed);
+        rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return scene_player_failure_return(status,__LINE__,frame);}
+        if(!empty_changed){
+            status=scene_machine_empty_after_combat(stream,frame,combat_eye,&empty_request,&empty_changed);
+            rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return scene_player_failure_return(status,__LINE__,frame);}
+        }
+        /* Depletion/Remote follow-up can select after the scope input tick.
+         * Retire the outgoing owner before drawing, without another input edge. */
+        scene_scope_owner_reconcile(stream);
+        if(!scene_player_rocket_lock_owner(stream))scene_player_rocket_lock_cancel(stream,!!player_input.alt_fire);
+        /* Captured outgoing identity survives either successful selection.
+         * Start once after combat, with no second camera apply/RNG step here;
+         * the next camera pass (normally next tick) first samples this. */
+        if(ordinary)scene_weapon_camera_after_combat(stream,frame,&empty_request);
+        scene_burning_save_probe(frame);
+        if(staged==2 || rf_scene_nano_test_mode>=1){status=scene_nano_shot_result(frame);if(status)return status;}
+        if(staged==1){
+            scene_passive_vehicle *owner=NULL;int32_t weapon=campaign_slot_weapon(6);
+            for(uint32_t index=0;index<campaign_passive_vehicle_count;index++)
+                if(campaign_passive_vehicles[index].uid==rf_scene_vehicle_shot_uid){owner=campaign_passive_vehicles+index;break;}
+            if(!owner)return RF_NOT_FOUND;
+            memcpy(rf_scene_vehicle_shot_probe+8,&owner->damage.state.effects.health,4);
+            memcpy(rf_scene_vehicle_shot_probe+9,&owner->damage.state.effects.armor,4);
+            rf_scene_vehicle_shot_probe[10]=(uint32_t)campaign_player_inventory.loaded[weapon];
+        }
+    }
+    if(campaign_cutscene_runtime.active){
+        /* Combat updates the weapon scope each tick. Override its projection
+         * after that update so authored FOV applies only to cinematic world
+         * geometry/particles, not the screen-space subtitle. */
+        rf_scene_scope_projection=campaign_cutscene_runtime.fov==90.0f?1.0f:
+            1.0f/tanf(campaign_cutscene_runtime.fov*0.008726646259971648f);
+    }
+    if(rf_scene_follow_npc_uid){status=campaign_inspect_camera(stream,position,orientation);if(status)return status;}
+    if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
+        memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
+        if(rf_scene_particle_view_back) {
+            const float inspection_basis[3][3]={{1,0,0},{0,.7071067811865475f,.7071067811865475f},{0,-.7071067811865475f,.7071067811865475f}};
+            position[1]+=4;position[2]-=4;memcpy(orientation,inspection_basis,sizeof(inspection_basis));
+        }
+    }
+    if(scene_inspection_enabled) {
+        memcpy(position,scene_inspection_eye,12);memcpy(orientation,scene_inspection_basis,36);
+    }
+    float view_basis[3][3];
+    status=scene_follow_build_view(stream,frame,position,orientation,render_world,terrain_cuts,&world_clock,view_basis);if(status)return status;
     memcpy(view->camera,position,12);memcpy(view->rotation,view_basis,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
     stream->npc_view=*view;

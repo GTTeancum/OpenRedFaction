@@ -109,3 +109,12 @@ doubles).
   player's weapon fire) and then scene_frame. Player 2 therefore needs a
   second animation driver (own model, skeleton, motions, controller), added
   beside the single-player one rather than restructuring it.
+- actor_follow_view: `scene_follow_primary` (default 1) guards its world
+  updates (vehicles, turrets, NPC and precision rounds, ambient audio and the
+  listener, message audio, NPC eye publication for spit/cane AI, test
+  fixtures, checkpoints and saves; 37 statements). The player's use action,
+  rounds, tracers, camera, camera effect, combat, empty-weapon handling and
+  scope still run for any human. The view build (visibility, static world,
+  movers, terrain into stream->mesh) is `scene_follow_build_view`, callable
+  for any camera (stage 4). Testbed and bot match unchanged; the view draws
+  correctly.
