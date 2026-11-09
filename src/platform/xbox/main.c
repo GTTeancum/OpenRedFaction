@@ -1331,7 +1331,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                         rf_xbox_frontend_menu[0]=RF_SCENE_FRONTEND_OPTIONS;rf_xbox_frontend_trace[7]=8;
                         status=player_options_menu(NULL,0,0,&resume);if(status)break;
                         rf_xbox_ps2_main_enter();drawn=UINT32_MAX;
-                    }else if(selection==RF_XBOX_PS2_EXTRAS){page=RF_XBOX_PS2_PAGE_EXTRAS;selection=2;drawn=UINT32_MAX;}
+                    }else if(selection==RF_XBOX_PS2_EXTRAS){page=RF_SCENE_FRONTEND_EXIT;selection=0;drawn=UINT32_MAX;} /* EXIT GAME: the quit question */
                     else if(selection==RF_XBOX_PS2_TRAINING){
                         /* TRAINING: the PS2's own training levels (training_ps2_01/02)
                          * exist only in PS2 formats, so the PC's are played: train01

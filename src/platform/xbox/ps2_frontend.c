@@ -32,6 +32,9 @@
 /* Port label in place of MULTIPLAYER (string 47): with two-player split
  * screen shelved (docs/SPLIT-SCREEN-2P.md), the entry is Player vs. Bots. */
 #define BOT_MATCH_LABEL 0xfffeu
+/* Port label in place of EXTRAS (string 44): its items (credits, trailer)
+ * are out of scope, so the slot leaves the game (with the quit question). */
+#define EXIT_GAME_LABEL 0xfffdu
 
 static rf_ps2_menu *ps2;
 static uint32_t ps2_refs,ps2_frontend,ps2_checked,ps2_present;
@@ -44,7 +47,7 @@ static const struct {int16_t x,y;uint8_t mirror;int8_t dir;uint8_t next[4];} slo
     {0,362,2,-1,{2,4,0,0}},{160,362,2,0,{3,5,1,1}},{417,362,3,1,{4,0,2,2}}};
 /* 28f5e0 front end: string id, text x, text y. */
 static const struct {uint16_t id;uint8_t x,y;} main_text[RF_XBOX_PS2_SLOTS]={
-    {42,20,25},{BOT_MATCH_LABEL,0,25},{21,58,25},{48,29,46},{43,116,46},{44,97,46}};
+    {42,20,25},{BOT_MATCH_LABEL,0,25},{21,58,25},{48,29,46},{43,116,46},{EXIT_GAME_LABEL,0,46}};
 /* 28f630 in game: SAVE GAME, -, LOAD GAME, OPTIONS, -, QUIT. The empty
  * slots carry the port's MESSAGES and restart (centred, port layout). */
 static const struct {uint16_t id;uint8_t x,y;uint8_t item;} pause_text[RF_XBOX_PS2_SLOTS]={
@@ -270,7 +273,7 @@ static int slot_frame(rf_scene_particle_sink sink,void *context,uint32_t selecti
         x=slots[i].x+(top?-off:off)*slots[i].dir;y=slots[i].y+(top?-off:off);
         status=quad(sink,context,&s,x,y,(float)s.width,(float)s.height,0xffffffffu,slots[i].mirror);if(status)return status;
         {
-            const char *label=ids[i]==RESTART_LABEL?"RESTART":ids[i]==BOT_MATCH_LABEL?"BOT MATCH":str(ids[i]);int32_t tx=offsets[i][0];
+            const char *label=ids[i]==RESTART_LABEL?"RESTART":ids[i]==BOT_MATCH_LABEL?"BOT MATCH":ids[i]==EXIT_GAME_LABEL?"EXIT GAME":str(ids[i]);int32_t tx=offsets[i][0];
             if(!tx)tx=(int32_t)((s.width-width_of(RF_PS2_FONT_STANDARD,label))/2);
             status=text(sink,context,RF_PS2_FONT_STANDARD,(int32_t)x+tx,y+offsets[i][1],label,
                 enabled && !enabled[i]?RF_PS2_COLOR_DISABLED:on?RF_PS2_COLOR_SELECTED:RF_PS2_COLOR_TEXT);
@@ -361,7 +364,7 @@ static void drawn(void){last_draw=GetTickCount();}
 int rf_xbox_ps2_draw_frontend(rf_scene_particle_sink sink,void *context,uint32_t flags,int session_status,
     uint32_t page,uint32_t selection,uint32_t difficulty,uint32_t load_outcome,int load_status)
 {
-    static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,BOT_MATCH_LABEL,21,48,43,44};
+    static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,BOT_MATCH_LABEL,21,48,43,EXIT_GAME_LABEL};
     static const uint32_t enabled[RF_XBOX_PS2_SLOTS]={1,1,1,1,1,1}; /* TRAINING: the PC training levels */
     uint8_t offsets[RF_XBOX_PS2_SLOTS][2];uint32_t i,title_alpha;int status;
     (void)load_status;
@@ -415,7 +418,7 @@ static int draw_mp_environment(rf_scene_particle_sink sink,void *context,const r
 static int draw_mp_options(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m);
 int rf_xbox_ps2_draw_multi(rf_scene_particle_sink sink,void *context,const rf_xbox_ps2_multi *m)
 {
-    static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,BOT_MATCH_LABEL,21,48,43,44};
+    static const uint16_t ids[RF_XBOX_PS2_SLOTS]={42,BOT_MATCH_LABEL,21,48,43,EXIT_GAME_LABEL};
     static const uint32_t enabled[RF_XBOX_PS2_SLOTS]={1,1,1,1,1,1}; /* TRAINING: the PC training levels */
     uint8_t offsets[RF_XBOX_PS2_SLOTS][2];uint32_t i;int status;
     if(!ps2 || !sink || !m)return RF_RANGE;
