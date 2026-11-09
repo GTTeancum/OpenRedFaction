@@ -87,7 +87,8 @@ def main():
         guest = run_guest(folder, 'run', hdd, frames, 180, snapshot=True,
                           extra_symbols={'rf_scene_defuse': 17,
                                          'rf_scene_endgame': 6,
-                                         'rf_scene_event_ticks': 12},
+                                         'rf_scene_event_ticks': 12,
+                                         'rf_xbox_movie_diagnostic': 12},
                           allow_guest_error=True, allow_player_dead=args.timeout)
         report['guest'] = guest
         puzzle = guest['extra']['rf_scene_defuse']

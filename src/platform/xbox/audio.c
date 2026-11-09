@@ -28,6 +28,17 @@ static struct {
     uint32_t created,revision,next_buffer,started,failed;
 } music;
 volatile uint32_t rf_xbox_music_diagnostic[12];
+/* PS2 movie sound: its own streamed voice and blocks (see the movie functions). */
+static int16_t movie_pcm[2][MUSIC_FRAMES*2] __attribute__((aligned(4096)));
+static struct {
+    nxAudioVoice voice;nxAudioBuffer buffers[2];
+    uint32_t created,started,playing,next_buffer,restarts;
+    /* Position: frames in each block in queue order, blocks queued and
+     * finished (the DPC counts finished), frames of finished blocks, and the
+     * tick the current block began. */
+    uint32_t sizes[4],queued,processed,played,block_tick;
+    volatile uint32_t completions;
+} movie;
 extern void *g_hw_ac97_buffer;
 uint32_t rf_xbox_audio_diagnostic[12],rf_xbox_audio_close_phase;
 /* Main-thread time in sound calls, in 1024-cycle units (~1.4 us): play,
@@ -166,12 +177,15 @@ void rf_xbox_audio_close(void)
     rf_xbox_audio_close_phase=1;
     for(i=0;i<VOICES;i++)if(slots[i].created)nxAudioVoiceStop(&slots[i].voice);
     if(music.created)nxAudioVoiceStop(&music.voice);
+    if(movie.created)nxAudioVoiceStop(&movie.voice);
     for(i=0;i<VOICES;i++)if(slots[i].created && !stopped(&slots[i].voice,1000)){drained=0;break;}
     if(music.created && !stopped(&music.voice,1000))drained=0;
+    if(movie.created && !stopped(&movie.voice,1000))drained=0;
     rf_xbox_audio_close_phase=2;
     if(drained) {
         for(i=0;i<VOICES;i++)if(slots[i].created)nxAudioVoiceDestroy(&slots[i].voice);
         if(music.created)nxAudioVoiceDestroy(&music.voice);
+        if(movie.created)nxAudioVoiceDestroy(&movie.voice);
         nxAudioShutdown();
     } else {
         /* Stop hardware before releasing PCM on a failed idle notification. */
@@ -184,8 +198,12 @@ void rf_xbox_audio_close(void)
             const nxAudioBuffer *b=music.voice.buffers_hardware[j];
             if(b)MmLockUnlockBufferPages((PVOID)b->buffer,b->size_bytes,TRUE);
         }
+        if(movie.created)for(j=0;j<2;j++) {
+            const nxAudioBuffer *b=movie.voice.buffers_hardware[j];
+            if(b)MmLockUnlockBufferPages((PVOID)b->buffer,b->size_bytes,TRUE);
+        }
     }
-    memset(slots,0,sizeof(slots));memset(&music,0,sizeof(music));initialized=0;
+    memset(slots,0,sizeof(slots));memset(&music,0,sizeof(music));memset(&movie,0,sizeof(movie));initialized=0;
     audio_gain_pending=0; /* Preferences remain retained for the next session. */
     audio_paused=paused_slots=paused_music=0;rf_xbox_audio_pause_diagnostic[0]=0;
     rf_xbox_music_diagnostic[0]=0;rf_xbox_music_diagnostic[9]=0;
@@ -197,7 +215,7 @@ int rf_xbox_audio_idle_status(void)
     uint32_t i;
     if(rf_xbox_audio_diagnostic[11] ||
        (rf_xbox_audio_close_phase && rf_xbox_audio_close_phase!=4))return RF_IO;
-    if(initialized || music.created || audio_paused || paused_slots || paused_music)return RF_RANGE;
+    if(initialized || music.created || movie.created || audio_paused || paused_slots || paused_music)return RF_RANGE;
     for(i=0;i<VOICES;i++)if(slots[i].created)return RF_RANGE;
     return RF_OK;
 }
@@ -324,50 +342,98 @@ fail:
      * Never recycle a descriptor while the hardware may still read it. */
     (void)music_release();music.failed=1;return status;
 }
-static uint32_t movie_playing,movie_restarts;
+/* PS2 movie sound (docs/FMV-PLAN.md): its own streamed voice and two PCM
+ * blocks, so a movie can play while menu or session voices are paused. */
+static void movie_completed(nxAudioVoice *voice,void *context)
+{(void)voice;(void)context;++movie.completions;}
+static uint32_t movie_borrowed(uint32_t *next_busy)
+{
+    uint32_t i,count=0;const nxAudioBuffer *next=movie.buffers+movie.next_buffer;
+    KIRQL irql=KeRaiseIrqlToDpcLevel();
+    *next_busy=0;
+    for(i=0;i<2;i++)if(movie.voice.buffers_hardware[i]){++count;if(movie.voice.buffers_hardware[i]==next)*next_busy=1;}
+    KfLowerIrql(irql);return count;
+}
+static int movie_release(void)
+{
+    if(!movie.created)return RF_OK;
+    if(!nxAudioVoiceStop(&movie.voice) || !stopped(&movie.voice,1000))return RF_IO;
+    nxAudioVoiceDestroy(&movie.voice);movie.created=movie.started=0;
+    return RF_OK;
+}
+static int movie_create(void)
+{
+    nxAudioFormat format={0};
+    format.sample_rate=48000;format.channels=2;format.bytes_per_sample=2;
+    format.codec=NX_AUDIO_CODEC_PCM;format.type=NX_VOICE_TYPE_2D_STREAM;
+    if(!nxAudioVoiceCreate(&movie.voice,&format))return RF_IO;
+    movie.created=1;movie.next_buffer=0;
+    {float level=(float)(audio_options.master_percent*audio_options.music_percent)/10000.f;
+     if(!nxAudioVoiceSetChannelGain(&movie.voice,level,level,0,0,0,0))return RF_IO;}
+    nxAudioBufferSetCallback(&movie.voice,movie_completed,NULL);
+    return RF_OK;
+}
 int rf_xbox_movie_audio_feed(rf_xbox_movie_fill fill,void *context)
 {
     uint32_t busy,attempt;int status;
     if(!initialized || !fill)return RF_RANGE;
-    if(!music.created){status=music_create();if(status)goto fail;music.next_buffer=0;}
+    if(!movie.created){status=movie_create();if(status)return status;}
     for(attempt=0;attempt<2;attempt++){
-        int16_t *pcm=music_pcm[music.next_buffer];uint32_t frames;
-        if(music_borrowed(&busy)==2 || busy)break;
+        int16_t *pcm=movie_pcm[movie.next_buffer];uint32_t frames;KIRQL irql;
+        if(movie_borrowed(&busy)==2 || busy)break;
         frames=fill(context,pcm,MUSIC_FRAMES);if(!frames)break;
         if(frames>MUSIC_FRAMES)frames=MUSIC_FRAMES;
-        if(!nxAudioBufferInitialize(music.buffers+music.next_buffer,pcm,frames*4)){status=RF_IO;goto fail;}
-        if(music.started && !music_borrowed(&busy))++movie_restarts; /* queue ran dry */
-        status=music_queue(music.buffers+music.next_buffer);if(status)goto fail;
-        ++rf_xbox_music_diagnostic[2];rf_xbox_music_diagnostic[6]+=frames;music.next_buffer^=1;
+        if(!nxAudioBufferInitialize(movie.buffers+movie.next_buffer,pcm,frames*4))return RF_IO;
+        if(movie.started && !movie_borrowed(&busy)){
+            /* The queue ran dry (the sound fell behind): restart the voice so
+             * the hardware's next list and this FIFO agree, as for music. */
+            ++movie.restarts;status=movie_release();if(status)return status;
+            status=movie_create();if(status)return status;
+        }
+        irql=KeRaiseIrqlToDpcLevel();
+        status=nxAudioBufferQueue(&movie.voice,movie.buffers+movie.next_buffer)?RF_OK:RF_IO;
+        KfLowerIrql(irql);if(status)return status;
+        movie.sizes[movie.queued%4]=frames;++movie.queued;
+        movie.next_buffer^=1;
     }
-    /* music_queue recreates a drained voice stopped; restart it in place. */
-    if(movie_playing && !music.started && music_borrowed(&busy)){
-        if(!nxAudioVoiceStart(&music.voice)){status=RF_IO;goto fail;}
-        music.started=1;++rf_xbox_music_diagnostic[1];
+    if(movie.playing && !movie.started && movie_borrowed(&busy)){
+        if(!nxAudioVoiceStart(&movie.voice))return RF_IO;
+        movie.started=1;movie.block_tick=GetTickCount();
     }
-    rf_xbox_music_diagnostic[9]=music_borrowed(&busy);
     return RF_OK;
-fail:
-    ++rf_xbox_music_diagnostic[5];rf_xbox_music_diagnostic[11]=(uint32_t)status;return status;
+}
+uint32_t rf_xbox_movie_audio_position(void)
+{
+    uint32_t now=GetTickCount(),completions=movie.completions,into;
+    if(!movie.playing)return 0;
+    /* A restart re-creates the voice; its finished blocks keep counting. */
+    while(movie.processed<completions && movie.processed<movie.queued){
+        movie.played+=movie.sizes[movie.processed%4];++movie.processed;movie.block_tick=now;
+    }
+    if(movie.processed>=movie.queued || !movie.started)return movie.played;
+    into=(now-movie.block_tick)*48u;
+    if(into>movie.sizes[movie.processed%4])into=movie.sizes[movie.processed%4];
+    return movie.played+into;
 }
 int rf_xbox_movie_audio_start(void)
 {
     uint32_t busy;
-    if(!initialized || !music.created)return RF_RANGE;
-    movie_playing=1;
-    if(!music.started && music_borrowed(&busy)){
-        if(!nxAudioVoiceStart(&music.voice))return RF_IO;
-        music.started=1;++rf_xbox_music_diagnostic[1];
+    if(!initialized || !movie.created)return RF_RANGE;
+    movie.playing=1;
+    if(!movie.started && movie_borrowed(&busy)){
+        if(!nxAudioVoiceStart(&movie.voice))return RF_IO;
+        movie.started=1;movie.block_tick=GetTickCount();
     }
     return RF_OK;
 }
-uint32_t rf_xbox_movie_audio_queued(void){uint32_t busy;return initialized && music.created?music_borrowed(&busy):0;}
-uint32_t rf_xbox_movie_audio_restarts(void){return movie_restarts;}
+uint32_t rf_xbox_movie_audio_queued(void){uint32_t busy;return initialized && movie.created?movie_borrowed(&busy):0;}
+uint32_t rf_xbox_movie_audio_restarts(void){return movie.restarts;}
 int rf_xbox_movie_audio_stop(void)
 {
-    movie_playing=0;movie_restarts=0;
-    return initialized?music_release():RF_OK;
+    int status=initialized?movie_release():RF_OK;
+    movie.playing=0;movie.restarts=0;movie.queued=movie.processed=movie.played=movie.completions=0;return status;
 }
+uint32_t rf_xbox_audio_ready(void){return initialized!=0;}
 static int32_t allocation_status(void *context,uint32_t slot,uint32_t *bits)
 {(void)context;*bits=nxAudioVoiceGetState(&slots[slot].voice)==NX_STOPPED?0u:1u;return 0;}
 static void allocation_release(void *context,uint32_t index)

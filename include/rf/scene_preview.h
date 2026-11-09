@@ -38,6 +38,10 @@ extern uint32_t rf_scene_player_swap_test;
 /* Test-only (split-test.flag): a second human with fixed input (stage 3a). */
 extern uint32_t rf_scene_split_test;
 extern uint32_t rf_scene_split_view; /* two-player: 0 one view, 1 top, 2 bottom */
+/* A movie the platform plays before the next frame (docs/FMV-PLAN.md):
+ * 0 none, 1 the ending (the call_credits endgame, PS2 1eecd0 -> case 0xc).
+ * The platform clears it. */
+extern uint32_t rf_scene_movie_request;
 /* Test-only capture hold: enabled by the harness (1 fading drop, 2 bot
  * lean); the event sets hold 1, the platform keeps the frame (hold 2). */
 extern uint32_t rf_scene_crash_hold,rf_scene_crash_hold_enabled;

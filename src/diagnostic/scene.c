@@ -263,6 +263,7 @@ static int campaign_defuse_failure_damage(uint32_t);
 static char campaign_current_level[64];
 uint32_t rf_scene_restart_pending(void){return campaign_endgame.restart_requested;}
 uint32_t rf_scene_endgame[6]; /* requests,terminal,credits,last UID,phase,remaining ms */
+uint32_t rf_scene_movie_request;
 uint32_t rf_scene_endgame_text[4]; /* found,missing,UTF-8 bytes,FNV-1a */
 uint32_t rf_scene_endgame_clear[4]; /* resolved,missing,last handle,last previous flags */
 static uint32_t campaign_spawn;
@@ -11467,6 +11468,9 @@ static int scene_endgame_request(const char *tables_path,const char *name,uint32
     strncpy(campaign_endgame.reason,name,sizeof(campaign_endgame.reason)-1);
     campaign_endgame.uid=uid;
     campaign_endgame.credits=!strcmp(name,"call_credits");
+    /* PS2 1eecd0: call_credits goes to state 0xc, which plays ending.pss
+     * (27d7a0) and then the credits (state 0x1b). */
+    if(campaign_endgame.credits)rf_scene_movie_request=1;
     if(campaign_endgame.credits)scene_credits_begin(tables_path);
     if(!campaign_endgame.credits){
         status=campaign_endgame_description_load(tables_path,name,campaign_endgame.description);

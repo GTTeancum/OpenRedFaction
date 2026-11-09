@@ -1,10 +1,10 @@
 # Pre-rendered movies (FMV) — plan
 
-Status (2026-11-09): THQ logo plays at start-up on Xbox with its sound.
+Status (2026-11-09): all four movies play at their PS2 moments, with sound.
 Decoder `src/core/mpeg2_intra.c`, reader `src/core/pss.c`, Xbox player
 `player_movie` in `src/platform/xbox/main.c`, drawing
 `rf_xbox_movie_buffer`/`rf_xbox_movie_present` in `renderer.c`. Not yet:
-the intro/ending/trailer moments, the real installer step, a console run.
+the real installer step, a console run, colour conversion on the GPU.
 
 ## Which movies
 
@@ -109,3 +109,20 @@ port's TRAINING already starts.
   about 1 ms). Heard: not checked (no audio capture); evidence is the
   hardware finishing every queued block. Next saving if the console
   drops pictures: colour conversion on the GPU.
+- Moments (2026-11-09): intro after New Game's difficulty (before the first
+  level loads); ending when the call_credits endgame starts (scene request,
+  played before the next frame, session voices and input paused, frame
+  clock reset as after the pause menu), then the credits; trailer from
+  Extras > TRAILER over the paused menu. Movies have their own streamed
+  voice. Pictures are timed from the sound actually played (finished
+  blocks plus the time into the current one): XEMU's sound runs about 0.5%
+  fast against its tick clock, which drained the queue 45 times over the
+  intro when pictures used the tick clock; with the sound clock it never
+  ran dry.
+- XEMU results (another XEMU was running on the host, so timings vary
+  run to run): intro via the menu path, all 3,247 pictures, then L1S1
+  loaded, 485 dropped (decode 17.7 ms, conversion 8.0 ms a picture);
+  trailer via Extras, 46 of the first 582 dropped, screenshot in the 4:3
+  area; ending via tools/xemu_defuse_campaign.py in L20S3 at stock 64 MiB,
+  2,121 shown and 303 dropped in 80.8 s, credits followed. The ending was
+  not looked at (same path as the others).

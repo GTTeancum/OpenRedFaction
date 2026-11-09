@@ -1088,8 +1088,12 @@ static int player_movie(const char *path,uint32_t mode)
     m=calloc(1,sizeof(*m));decoder=malloc(sizeof(*decoder));
     if(!m || !decoder || rf_mpeg2_intra_open(decoder,720,576)){free(m);free(decoder);rf_pss_close(pss);rf_xbox_movie_diagnostic[0]=(uint32_t)RF_RANGE;return RF_RANGE;}
     m->pss=pss;
-    if(rf_xbox_input_idle_status()==RF_OK && !rf_xbox_input_open())input_owned=1;
-    if(rf_xbox_audio_idle_status()==RF_OK && !rf_xbox_audio_open())audio_owned=1;
+    /* Open the input and audio owners when nobody holds them (start-up);
+     * otherwise use the open ones: the caller has paused their voices. */
+    if(rf_xbox_input_idle_status()==RF_OK){if(!rf_xbox_input_open())input_owned=1;}
+    else input_owned=2;
+    if(rf_xbox_audio_idle_status()==RF_OK){if(!rf_xbox_audio_open())audio_owned=1;}
+    else if(rf_xbox_audio_ready())audio_owned=2;
     for(;;){
         uint32_t shown=0,t,slot;
         status=player_movie_read_ahead(m);if(status)break;
@@ -1110,11 +1114,14 @@ static int player_movie(const char *path,uint32_t mode)
         if(audio_owned){status=rf_xbox_movie_audio_feed(player_movie_fill,m);if(status)break;}
         else {static int16_t discard[4096*2];while(rf_pss_audio_read(pss,discard,4096)) {}}
         {
-            uint32_t due=start+index*1000u/30u;++index;
-            if((int32_t)(GetTickCount()-due)>33){++rf_xbox_movie_diagnostic[3];continue;}
+            /* Picture n is due when the sound reaches n/30 s (1600 frames a
+             * picture); without sound, by the tick clock. */
+            uint32_t due=start+index*1000u/30u,sound=index*1600u;++index;
+            if(audio_owned?rf_xbox_movie_audio_position()>sound+1600u:(int32_t)(GetTickCount()-due)>33){++rf_xbox_movie_diagnostic[3];continue;}
             status=player_movie_picture(decoder,m->units[slot].data,m->units[slot].bytes,&shown);if(status)break;
             if(!shown){--index;continue;}
-            while((int32_t)(GetTickCount()-due)<0){
+            while(audio_owned && !(m->eof && !rf_pss_audio_available(pss) && !rf_xbox_movie_audio_queued())?
+                  rf_xbox_movie_audio_position()<sound:(int32_t)(GetTickCount()-due)<0){ /* sound over: tick clock */
                 if(audio_owned){status=rf_xbox_movie_audio_feed(player_movie_fill,m);if(status)break;}
                 Sleep(1);
             }
@@ -1124,7 +1131,7 @@ static int player_movie(const char *path,uint32_t mode)
         }
         rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
         if(audio_owned)rf_xbox_movie_diagnostic[9]=rf_xbox_movie_audio_restarts();
-        if(input_owned && !(mode&6u) && index>60){
+        if(input_owned && !(mode&2u) && index>60){
             rf_scene_input input;
             if(rf_xbox_input_poll(NULL,0,&input)==RF_OK &&
                ((rf_xbox_input_menu_pressed()&(RF_XBOX_MENU_ACCEPT|RF_XBOX_MENU_CANCEL|RF_XBOX_MENU_BACK)) || rf_xbox_input_pause_pressed())){skipped=1;break;}
@@ -1141,12 +1148,27 @@ static int player_movie(const char *path,uint32_t mode)
     if(status==RF_NOT_FOUND)status=RF_OK;
     rf_xbox_movie_diagnostic[0]=(uint32_t)status;if(ready)rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
     rf_xbox_movie_close();
-    if(audio_owned){rf_xbox_movie_diagnostic[9]=rf_xbox_movie_audio_restarts();(void)rf_xbox_movie_audio_stop();rf_xbox_audio_close();}
-    if(input_owned)rf_xbox_input_close();
+    if(audio_owned){rf_xbox_movie_diagnostic[9]=rf_xbox_movie_audio_restarts();(void)rf_xbox_movie_audio_stop();if(audio_owned==1)rf_xbox_audio_close();}
+    if(input_owned==1)rf_xbox_input_close();
     for(i=0;i<MOVIE_AHEAD;i++)free(m->units[i].data);
     free(m);rf_mpeg2_intra_close(decoder);free(decoder);rf_pss_close(pss);
     return status;
 }
+/* A movie over open menus or a session: their voices and input pause for
+ * it, and the session's clock restarts after it as after the pause menu. */
+static int player_movie_over(const char *path,uint32_t mode)
+{
+    int status,resumed;
+    rf_xbox_input_set_paused(1);
+    status=rf_xbox_audio_ready()?rf_xbox_audio_set_paused(1):RF_OK;
+    if(!status)status=player_movie(path,mode);
+    resumed=rf_xbox_audio_ready()?rf_xbox_audio_set_paused(0):RF_OK;
+    rf_xbox_input_set_paused(0);
+    rf_player_frame_clock.last_ms=rf_player_frame_clock.last_present_ms=GetTickCount();
+    rf_player_frame_clock.credit=rf_player_frame_clock.skipped=0;
+    return status?status:resumed;
+}
+static uint32_t player_intro_pending;
 static int player_frontend(uint32_t ended,int session_status,char saved_level[64],uint32_t *dashboard_exit)
 {
     rf_scene_input input;uint32_t drawn=UINT32_MAX,i,page=RF_SCENE_FRONTEND_MAIN,selection=0;
@@ -1317,7 +1339,9 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                         break;
                     }
                 }else if(page==RF_XBOX_PS2_PAGE_EXTRAS){
-                    /* Credits and the trailer are not available; QUIT asks first. */
+                    /* Credits are not available; TRAILER plays sumtrail.pss
+                     * (1e3c20, mode 5) over the menu; QUIT asks first. */
+                    if(selection==1){status=player_movie_over("D:\\movies\\sumtrail.pss",5);if(status)break;drawn=UINT32_MAX;}
                     if(selection==2){page=RF_SCENE_FRONTEND_EXIT;selection=0;drawn=UINT32_MAX;}
                 }else if(page==RF_SCENE_FRONTEND_MAIN){
                     /* Difficulty is an Xbox-only adapted page: commit its
@@ -1377,6 +1401,7 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                 }else if(selection==4){page=RF_SCENE_FRONTEND_MAIN;selection=0;drawn=UINT32_MAX;if(ps2)rf_xbox_ps2_main_enter();}
                 else {
                     status=rf_scene_session_set_difficulty(selection);if(status)break;
+                    player_intro_pending=1; /* 1ecc80: New Game plays intro.pss */
                     difficulty=selection;rf_xbox_frontend_menu[2]=difficulty;
                     status=player_frontend_present(RF_SCENE_FRONTEND_LOADING,RF_OK,page,selection,difficulty,
                         RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
@@ -2097,6 +2122,10 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     (void)context;
+    if(rf_scene_movie_request==1){
+        /* The ending before the credits roll (PS2 case 0xc -> 0x1b). */
+        rf_scene_movie_request=0;(void)player_movie_over("D:\\movies\\ending.pss",4);
+    }
     /* Two-player split screen: the bottom view finishes the frame the top view
      * started; the frame was already counted and its presentation decided. */
     if(rf_scene_split_view==2){
@@ -3077,6 +3106,8 @@ int main(void)
                     rf_scene_session_get_difficulty(),RF_SCENE_FRONTEND_LOAD_READY,RF_OK);
                 debugPrint("Dashboard exit stopped: %d\n",result);break;
             }
+            /* 1ecc80/27d4c0: the intro before a New Game's first level. */
+            if(player_intro_pending){player_intro_pending=0;(void)player_movie("D:\\movies\\intro.pss",4);}
             player_session_counters_reset();
             result=player_campaign_run(saved_level);
             rf_scene_set_input(NULL,NULL,0);player_input_close();
