@@ -1,6 +1,6 @@
 # Pre-rendered movies (FMV) — plan
 
-Status: planned (2026-11-09), playback timing and stream format traced; nothing implemented. In-level story scenes are
+Status: planned (2026-11-09), playback timing, stream format and decoder choice settled; nothing implemented. In-level story scenes are
 engine-driven on both platforms and are not part of this.
 
 ## Which movies
@@ -60,11 +60,22 @@ port's TRAINING already starts.
    81 s, Summoner trailer 61 s.
 3. Installer: copy the four PSS files from the user's PS2 disc onto the Xbox
    disc unchanged (PS2 format kept; no re-encoding).
-4. Xbox player: MPEG-2 video decode on the CPU (733 MHz is enough for
-   640x448 at 30 fps, as Xbox media players did DVD), frames uploaded to a
-   texture and drawn full screen (4:3 inside 16:9 at 720p), audio through
-   the existing stream path. The decoder must be licence-compatible with
-   the project (candidates: libmpeg2, GPL-2; FFmpeg's MPEG-2 decoder, LGPL);
-   record provenance and keep its notice.
+4. Xbox player. Decoder chosen (2026-11-09): a new intra-only MPEG-2
+   decoder written from the standard (ISO/IEC 13818-2), no third-party code.
+   Reason: every picture in all four movies is an I picture (THQ logo 568,
+   intro 3,247, ending 2,424, trailer 1,829; the PS2 IPU decodes intra
+   only), all frame pictures (structure 3), progressive, frame DCT only,
+   intra DC precision 8 bits, linear quantiser scale, intra VLC table B.15,
+   zig-zag scan, no concealment vectors. So no motion compensation, field
+   handling or B/P picture code is needed: the decoder is start codes,
+   sequence/extension/picture/slice headers, macroblock and block VLCs,
+   inverse quantisation with mismatch control, an 8x8 IDCT and 4:2:0
+   output. The project has no licence chosen yet; libmpeg2 (GPL-2) would
+   decide it, and FFmpeg (LGPL) is large and awkward to relink inside an
+   XBE. Cost: about 6,700 8x8 inverse transforms per frame (1,120
+   macroblocks x 6 blocks), about 200,000 a second; the P3's SSE can help.
+   Colour conversion can run on the GPU (Y, U, V as three textures). Frames
+   are drawn full screen (4:3 inside 16:9 at 720p); audio through the
+   existing stream path.
 5. Hook the movies to the traced moments; skip with A/Start; memory stays
    within stock 64 MiB (stream from disc, two frame buffers).
