@@ -2,8 +2,26 @@
 #include "input.h"
 #include <SDL.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
+#include <windows.h>
 static SDL_GameController *controller;
+/* Harness-only menu script (D:\menu-script.bin, written by
+ * tools/xemu_crash_hunt.py --menu-script; never on a player disc): up to 32
+ * pairs {milliseconds to wait, RF_XBOX_MENU_* bits, bit 31 = Start}. While
+ * steps remain it stands in for a controller: one menu press per step, so
+ * the user-facing menu path can be driven in XEMU without host input. */
+static uint32_t menu_script[32][2],menu_script_count,menu_script_next,menu_script_due,menu_script_read;
+uint32_t rf_xbox_menu_script[4]; /* steps, steps done, last bits, active */
+static void menu_script_load(void)
+{
+    FILE *f;uint32_t n=0;
+    if(menu_script_read)return;
+    menu_script_read=1;f=fopen("D:\\menu-script.bin","rb");if(!f)return;
+    while(n<32 && fread(menu_script[n],4,2,f)==2)++n;
+    fclose(f);menu_script_count=n;rf_xbox_menu_script[0]=n;rf_xbox_menu_script[3]=n!=0;
+}
+static uint32_t menu_script_active(void){return menu_script_next<menu_script_count;}
 static int initialized;
 /* This owner deliberately outlives controller/session open and close. */
 static rf_xbox_input_options input_options={
@@ -108,7 +126,7 @@ void rf_xbox_input_set_options(const rf_xbox_input_options *options)
     input_options=next;
 }
 uint32_t rf_xbox_input_pause_pressed(void){return pause_edge;}
-uint32_t rf_xbox_input_connected(void){return controller!=NULL;}
+uint32_t rf_xbox_input_connected(void){return controller!=NULL || menu_script_active();}
 uint32_t rf_xbox_input_connection_lost(void){return disconnect_edge;}
 uint32_t rf_xbox_input_alt_sample_suppressed(void){return initialized&&!alt_sample_valid;}
 uint32_t rf_xbox_input_menu_pressed(void){return menu_edge;}
@@ -128,6 +146,7 @@ int rf_xbox_input_open(void)
     pause_mode=pause_edge=start_held=release_controls=menu_held=menu_edge=0;
     disconnect_edge=exit_rearm=alt_sample_valid=chord_controls=0;
     if(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER)) {rf_player_input_diagnostic[1]=2;return RF_IO;}
+    menu_script_load();
     initialized=1;rf_player_input_diagnostic[1]=1;return RF_OK;
 }
 void rf_xbox_input_close(void)
@@ -151,6 +170,17 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     if(!initialized || !input)return RF_RANGE;
     pause_edge=menu_edge=disconnect_edge=0;
     memset(input,0,sizeof(*input));
+    if(menu_script_active()){
+        uint32_t now=GetTickCount(),bits;
+        if(!menu_script_due)menu_script_due=(now+menu_script[0][0])|1u;
+        if((int32_t)(now-menu_script_due)>=0){
+            bits=menu_script[menu_script_next][1];menu_edge=bits&0xffu;pause_edge=bits>>31;
+            rf_xbox_menu_script[2]=bits;rf_xbox_menu_script[1]=++menu_script_next;
+            if(menu_script_active())menu_script_due=(now+menu_script[menu_script_next][0])|1u;
+            else rf_xbox_menu_script[3]=0;
+        }
+        return RF_OK;
+    }
     /* Bundled NXDK SDL_PollEvent pumps joysticks on EVERY call, including
      * each event discarded by a drain loop. One explicit pump obtains the
      * current controller state and hotplug changes without repolling USB

@@ -2673,6 +2673,9 @@ static int player_campaign_run(const char *saved_level)
             result = cold_load?rf_level_campaign_open(&level,&archive,"D:\\",saved_level):
                 selected && staged_climb?RF_FORMAT:
                 rf_level_open(&level, &archive, selected?selection+64:staged_climb?"L1S2.rfl":"L1S1.rfl");
+            /* The first level opened also counts as a destination (harness). */
+            if(result==RF_OK){const char *first=cold_load?saved_level:selected?selection+64:staged_climb?"L1S2.rfl":"L1S1.rfl";
+             strncpy(rf_xbox_transition_target,first,sizeof(rf_xbox_transition_target)-1);}
             player_mp_level=selected && !strcmp(selection,"levelsm.vpp");
             if(result==RF_OK && player_mp_level)player_mp_paths(&level,selection+64);
             if(result==RF_OK && staged_climb) {

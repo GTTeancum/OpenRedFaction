@@ -166,6 +166,7 @@ def main():
     parser.add_argument('--mp-character', help='multiplayer: the human entity class and skin, e.g. guard1/c (ps2_multi.tbl)')
     parser.add_argument('--bot-pilot', action='store_true', help='multiplayer: drive the player like a bot (waypoint routes, fights through --aim)')
     parser.add_argument('--player-swap-test', action='store_true', help='two-player stage 1: exchange the per-player state out and back each frame')
+    parser.add_argument('--menu-script', help='with --frontend-shot: menu presses as ms:key,... (keys up down left right accept cancel alternate back start), e.g. 8000:down,1500:accept')
     parser.add_argument('--frontend-shot', type=float, metavar='SECONDS', help='boot to the front end (no level) and capture it after SECONDS (xemu)')
     parser.add_argument('--split-test', action='store_true', help='two-player stage 3a: a second human with fixed test input')
     parser.add_argument('--shot-on-fade', action='store_true', help='multiplayer: capture while a fading dropped item is drawn (after --shot-after)')
@@ -289,7 +290,7 @@ def main():
         result['xbe_sha256'] = hashlib.sha256((disc / 'default.xbe').read_bytes()).hexdigest()
         result['map_sha256'] = hashlib.sha256((ROOT / 'build/xbox/main.map').read_bytes()).hexdigest()
         # This folder is exclusively owned by this harness; no other staging is touched.
-        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag', 'player-swap-test.flag', 'split-test.flag', 'tester-profile.flag'):
+        for name in ('campaign-actor.bin', 'campaign-level.bin', 'campaign-spawn.flag', 'player-replay.bin', 'dev-room.flag', 'firearms-test.flag', 'crash-loadout.bin', 'crash-aim.flag', 'crash-aim-point.bin', 'crash-aim-actor.bin', 'crash-scenario.flag', 'crash-ram-log.flag', 'crash-start.vpp', 'scene-fixture.vpp', 'crash-paced.flag', 'audio-output.flag', 'crash-experiment.bin', 'render-overlap.bin', 'campaign-quick-actions.bin', 'renderer-world-indices-off.flag', 'authored-source.bin', 'vehicle-test.flag', 'dev-npc.flag', 'crash-run-nonce.bin', 'openrf.ini', 'dev-slot.bin', 'tracer-hold.flag', 'mp-match.bin', 'crash-bot.flag', 'crash-hold.flag', 'player-swap-test.flag', 'split-test.flag', 'tester-profile.flag', 'menu-script.bin'):
             (disc / name).unlink(missing_ok=True)
         ini = []
         if args.frame_rate: ini += ['frame_rate = %s' % args.frame_rate, 'fallback = 30_smooth']
@@ -584,6 +585,10 @@ def main():
               for name in ('campaign-spawn.flag','campaign-level.bin','player-control.flag','scene-preview.flag','player-replay.bin'):
                   (disc/name).unlink(missing_ok=True)
               (disc/'tester-profile.flag').write_bytes(b'RFTEST1\n') # the tester boot opens the front end
+              if args.menu_script:
+                  keys={'up':1,'down':2,'accept':4,'cancel':8,'left':16,'right':32,'alternate':64,'back':128,'start':0x80000000}
+                  steps=[(int(t),keys[k]) for t,k in (x.split(':') for x in args.menu_script.split(','))]+[(2000,0)] # stays connected while the last press is read
+                  (disc/'menu-script.bin').write_bytes(b''.join(struct.pack('<2I',t,k) for t,k in steps))
           iso.unlink(missing_ok=True)
           with (run / 'pack.log').open('wb') as log:
               subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=run,env=runtime_env,check=True,stdout=log,stderr=subprocess.STDOUT)
@@ -675,7 +680,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_player_model']=3
           counts['rf_scene_mp_attack']=5
           counts['rf_scene_player_context']=4
-          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1;counts['rf_hud_control_text_diagnostic']=8
+          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1;counts['rf_hud_control_text_diagnostic']=8;counts['rf_xbox_menu_script']=4;counts['rf_xbox_transition_target']=16
           counts['rf_scene_mp_bot_debug']=56
           counts['rf_scene_mp_step_ups']=2
           counts['rf_scene_mp_unplanned']=1
