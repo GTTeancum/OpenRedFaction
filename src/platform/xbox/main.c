@@ -1346,9 +1346,8 @@ static int player_frontend(uint32_t ended,int session_status,char saved_level[64
                         break;
                     }
                 }else if(page==RF_XBOX_PS2_PAGE_EXTRAS){
-                    /* Credits are not available; TRAILER plays sumtrail.pss
-                     * (1e3c20, mode 5) over the menu; QUIT asks first. */
-                    if(selection==1){status=player_movie_over("D:\\movies\\sumtrail.pss",5);if(status)break;drawn=UINT32_MAX;}
+                    /* Credits and the trailer (an advert for another game,
+                     * out of scope) are not available; QUIT asks first. */
                     if(selection==2){page=RF_SCENE_FRONTEND_EXIT;selection=0;drawn=UINT32_MAX;}
                 }else if(page==RF_SCENE_FRONTEND_MAIN){
                     /* Difficulty is an Xbox-only adapted page: commit its

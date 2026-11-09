@@ -598,7 +598,7 @@ def main():
                   (disc/name).unlink(missing_ok=True)
               (disc/'tester-profile.flag').write_bytes(b'RFTEST1\n') # the tester boot opens the front end
               if args.menu_script:
-                  keys={'up':1,'down':2,'accept':4,'cancel':8,'left':16,'right':32,'alternate':64,'back':128,'start':0x80000000}
+                  keys={'none':0,'up':1,'down':2,'accept':4,'cancel':8,'left':16,'right':32,'alternate':64,'back':128,'start':0x80000000}
                   steps=[(int(t),keys[k]) for t,k in (x.split(':') for x in args.menu_script.split(','))]+[(2000,0)] # stays connected while the last press is read
                   (disc/'menu-script.bin').write_bytes(b''.join(struct.pack('<2I',t,k) for t,k in steps))
           iso.unlink(missing_ok=True)

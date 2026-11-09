@@ -1,11 +1,12 @@
 """Copy the movies both releases share from the user's PS2 disc image
-(docs/FMV-PLAN.md): THQLOGO, INTRO, ENDING and SUMTRAIL .PSS, unchanged, into
+(docs/FMV-PLAN.md): THQLOGO, INTRO and ENDING .PSS, unchanged, into
 an output folder as lower-case names (the Xbox disc's movies folder). The
-PS2-only trailers are not copied. Nothing is converted.
+trailers (PS2-only, or adverts for other games) are not copied. Nothing is
+converted.
   python tools/extract_ps2_movies.py <ps2 iso> <output folder>"""
 import os, struct, sys
 
-MOVIES = ('THQLOGO.PSS', 'INTRO.PSS', 'ENDING.PSS', 'SUMTRAIL.PSS')
+MOVIES = ('THQLOGO.PSS', 'INTRO.PSS', 'ENDING.PSS')
 
 def records(iso):
     """Yield (name, extent, size) for every file of the ISO 9660 tree."""

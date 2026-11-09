@@ -400,7 +400,7 @@ int rf_xbox_ps2_draw_frontend(rf_scene_particle_sink sink,void *context,uint32_t
         return popup(sink,context,str(21),items,3,selection,NULL,note);
     }
     if(page==RF_XBOX_PS2_PAGE_EXTRAS){
-        const char *items[3]={str(49),str(45),str(46)};static const uint32_t extras[3]={0,1,1}; /* TRAILER plays sumtrail.pss */
+        const char *items[3]={str(49),str(45),str(46)};static const uint32_t extras[3]={0,0,1};
         return popup(sink,context,str(44),items,3,selection,extras,NULL);
     }
     if(page==RF_SCENE_FRONTEND_EXIT){
