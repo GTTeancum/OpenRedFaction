@@ -79,6 +79,14 @@ void rf_xbox_scene_stream_close(void);
  * device is closed and reopens in the new mode at the next frame. Returns 0
  * when already in that mode, 1 when changed, an error when refused. */
 int rf_xbox_video_mode_change(int width,int height,int bpp);
+/* PS2 movies (docs/FMV-PLAN.md). The buffer is one linear 32-bit B,G,R,A
+ * picture of width x height in contiguous write-combined memory (row pitch
+ * returned), kept until close; present draws it over the 4:3 screen area
+ * (black bars at 16:9) and shows the frame. Close before any other screen
+ * owner (menus, scene) draws. */
+uint8_t *rf_xbox_movie_buffer(uint32_t width,uint32_t height,uint32_t *pitch);
+int rf_xbox_movie_present(void);
+void rf_xbox_movie_close(void);
 /* Reject live world/model/HUD owners, then wait at most1000 ms for the existing
  * process-owned pbkit device to idle. RF_IO on timeout; release nothing and
  * do not attempt another GPU-based presentation on that failure path. */

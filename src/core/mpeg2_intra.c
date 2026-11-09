@@ -302,3 +302,29 @@ int rf_mpeg2_intra_decode(rf_mpeg2_intra *d,const uint8_t *unit,uint32_t bytes,u
     if(picture && !refused && slices){++d->pictures;*decoded=1;}
     return RF_OK;
 }
+
+/* BT.601 studio range in 16-bit fixed point: Y' 1.164, R' 1.596 V, G' -0.392 U
+ * -0.813 V, B' 2.017 U. Tables built on first use. */
+static int32_t yuv_y[256],yuv_rv[256],yuv_gu[256],yuv_gv[256],yuv_bu[256];static int yuv_ready;
+static uint8_t clamp8(int32_t v){v>>=16;return (uint8_t)(v<0?0:v>255?255:v);}
+void rf_mpeg2_intra_to_bgra(const rf_mpeg2_intra *d,uint8_t *pixels,uint32_t pitch)
+{
+    uint32_t x,y;
+    if(!d || !pixels || !d->planes[0])return;
+    if(!yuv_ready){
+        int32_t i;
+        for(i=0;i<256;i++){
+            yuv_y[i]=(i-16)*76309+32768;yuv_rv[i]=(i-128)*104597;yuv_gu[i]=(i-128)*-25675;
+            yuv_gv[i]=(i-128)*-53279;yuv_bu[i]=(i-128)*132201;
+        }
+        yuv_ready=1;
+    }
+    for(y=0;y<d->height;y++){
+        const uint8_t *py=d->planes[0]+y*d->stride[0],*pu=d->planes[1]+(y>>1)*d->stride[1],*pv=d->planes[2]+(y>>1)*d->stride[2];
+        uint32_t *out=(uint32_t *)(pixels+y*pitch);
+        for(x=0;x<d->width;x++){
+            int32_t l=yuv_y[py[x]],u=pu[x>>1],v=pv[x>>1];
+            out[x]=0xff000000u|(uint32_t)clamp8(l+yuv_rv[v])<<16|(uint32_t)clamp8(l+yuv_gu[u]+yuv_gv[v])<<8|clamp8(l+yuv_bu[u]);
+        }
+    }
+}

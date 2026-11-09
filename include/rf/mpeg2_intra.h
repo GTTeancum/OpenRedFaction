@@ -30,4 +30,8 @@ void rf_mpeg2_intra_close(rf_mpeg2_intra *decoder);
 /* Decodes one access unit. *decoded is 1 when a picture was decoded into the
  * planes (0 for a unit holding only headers or a refused picture type). */
 int rf_mpeg2_intra_decode(rf_mpeg2_intra *decoder,const uint8_t *unit,uint32_t bytes,uint32_t *decoded);
+/* Converts the decoded picture to 32-bit B,G,R,A pixels (alpha 255), ITU-R
+ * BT.601 studio range, into rows of pitch bytes.
+ * Writes each row once front to back, so write-combined memory is fine. */
+void rf_mpeg2_intra_to_bgra(const rf_mpeg2_intra *decoder,uint8_t *pixels,uint32_t pitch);
 #endif

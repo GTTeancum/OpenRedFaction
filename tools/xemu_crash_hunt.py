@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import socket
 import struct
 import subprocess
@@ -268,6 +269,17 @@ def main():
         dest = disc / 'ps2menu.vpp'
         if ps2.exists() and (not dest.exists() or not dest.samefile(ps2)):
             dest.unlink(missing_ok=True); dest.hardlink_to(ps2)
+        # Shared PS2 movies (tools/extract_ps2_movies.py), linked like the pack.
+        movies = ROOT / 'build/data/movies'
+        iso = ROOT / 'Red Faction (USA) (v2.00).iso'
+        if iso.exists() and not (movies / 'thqlogo.pss').exists():
+            subprocess.run([sys.executable, '-I', str(ROOT / 'tools/extract_ps2_movies.py'), str(iso), str(movies)], check=True)
+        if movies.is_dir():
+            (disc / 'movies').mkdir(exist_ok=True)
+            for movie in movies.glob('*.pss'):
+                dest = disc / 'movies' / movie.name
+                if not dest.exists() or not dest.samefile(movie):
+                    dest.unlink(missing_ok=True); dest.hardlink_to(movie)
         run = confined_path(ROOT, run)
         run.mkdir(parents=True)
         runtime_env = child_environment(ROOT, run)
@@ -680,7 +692,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_player_model']=3
           counts['rf_scene_mp_attack']=5
           counts['rf_scene_player_context']=4
-          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1;counts['rf_hud_control_text_diagnostic']=8;counts['rf_xbox_menu_script']=4;counts['rf_xbox_transition_target']=16
+          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1;counts['rf_hud_control_text_diagnostic']=8;counts['rf_xbox_menu_script']=4;counts['rf_xbox_movie_diagnostic']=8;counts['rf_xbox_transition_target']=16
           counts['rf_scene_mp_bot_debug']=56
           counts['rf_scene_mp_step_ups']=2
           counts['rf_scene_mp_unplanned']=1

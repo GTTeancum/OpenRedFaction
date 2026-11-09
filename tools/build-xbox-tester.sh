@@ -26,6 +26,13 @@ mkdir -p "$disc"
 # starts, forced events, frame limits or developer-room flags from a harness.
 shopt -s nullglob dotglob
 for path in "$disc"/*; do
+    if [[ "${path##*/}" == movies && -d "$path" && ! -L "$path" ]]; then
+        for movie in "$path"/*; do
+            case "${movie##*/}" in thqlogo.pss|intro.pss|ending.pss|sumtrail.pss) [[ -f "$movie" && ! -L "$movie" ]] && continue ;; esac
+            echo "Refusing unexpected tester package file: $movie" >&2; exit 1
+        done
+        continue
+    fi
     if [[ ! -f "$path" || -L "$path" ]]; then
         echo "Unexpected tester package entry: $path" >&2
         exit 1
@@ -91,6 +98,18 @@ if [[ -f "$ps2_iso" && ( ! -f "$ps2_pack" || "$ps2_iso" -nt "$ps2_pack" || "$roo
     "$ps2_python" -I "$root/tools/build_ps2_menu_pack.py" "$ps2_iso" "$ps2_pack"
 fi
 if [[ -f "$ps2_pack" ]]; then borrow_asset "$ps2_pack" ps2menu.vpp; fi
+# Movies both releases share (THQ logo, intro, ending, Summoner trailer),
+# copied unchanged from the same PS2 disc image by tools/extract_ps2_movies.py.
+ps2_movies="$root/build/data/movies"
+if [[ -f "$ps2_iso" ]]; then
+    "${ps2_python:-python}" -I "$root/tools/extract_ps2_movies.py" "$ps2_iso" "$ps2_movies"
+fi
+if [[ -d "$ps2_movies" ]]; then
+    mkdir -p "$disc/movies"
+    for movie in thqlogo intro ending sumtrail; do
+        if [[ -f "$ps2_movies/$movie.pss" ]]; then borrow_asset "$ps2_movies/$movie.pss" "movies/$movie.pss"; fi
+    done
+fi
 # Optional full-size DXT texture pack generated from the same archives.
 if [[ -f "$root/build/data/rfdds.vpp" ]]; then borrow_asset "$root/build/data/rfdds.vpp" rfdds.vpp; fi
 # Recreate the owned marker instead of writing through a possible hardlink.

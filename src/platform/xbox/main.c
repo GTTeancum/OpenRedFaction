@@ -24,6 +24,8 @@
 #include "input.h"
 #include "settings_storage.h"
 #include "rf/settings_ini.h"
+#include "rf/mpeg2_intra.h"
+#include "rf/pss.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1015,6 +1017,58 @@ static int player_mp_stats(uint32_t *choice)
         }
         Sleep(10);
     }
+}
+/* PS2 movies (docs/FMV-PLAN.md): 204a90 plays data\movies\<name>.pss at 30
+ * pictures a second; with mode bit 1 clear (and bit 2 clear) a button press
+ * stops it after the first 60 pictures. Every picture is an I picture, so a
+ * picture more than a frame late is skipped without decoding and the movie
+ * keeps time. An absent file plays nothing. The sound is not played yet.
+ * Harness: status, pictures shown, pictures decoded, late pictures skipped,
+ * decode ms, colour conversion ms, present ms, elapsed ms. */
+uint32_t rf_xbox_movie_diagnostic[8];
+static int player_movie(const char *path,uint32_t mode)
+{
+    rf_pss *pss=NULL;rf_mpeg2_intra *decoder;const uint8_t *unit;uint32_t bytes,shown=0,index=0,start,input_owned=0;
+    int status=rf_pss_open(&pss,path);static int16_t discard[4096*2];
+    memset(rf_xbox_movie_diagnostic,0,sizeof(rf_xbox_movie_diagnostic));
+    if(status==RF_NOT_FOUND)return RF_OK;
+    if(status){rf_xbox_movie_diagnostic[0]=(uint32_t)status;return status;}
+    decoder=malloc(sizeof(*decoder));
+    if(!decoder || rf_mpeg2_intra_open(decoder,720,576)){free(decoder);rf_pss_close(pss);rf_xbox_movie_diagnostic[0]=(uint32_t)RF_RANGE;return RF_RANGE;}
+    if(rf_xbox_input_idle_status()==RF_OK && !rf_xbox_input_open())input_owned=1;
+    start=GetTickCount();
+    while(!(status=rf_pss_next_unit(pss,&unit,&bytes))){
+        uint32_t due=start+index*1000u/30u,decoded=0,t0,t1,t2,pitch;uint8_t *pixels;
+        while(rf_pss_audio_read(pss,discard,4096)) {} /* sound not played yet */
+        if(bytes<4 || unit[0] || unit[1] || unit[2]!=1)continue;
+        ++index;
+        if((int32_t)(GetTickCount()-due)>33){++rf_xbox_movie_diagnostic[3];continue;}
+        t0=GetTickCount();
+        status=rf_mpeg2_intra_decode(decoder,unit,bytes,&decoded);if(status)break;
+        t1=GetTickCount();rf_xbox_movie_diagnostic[4]+=t1-t0;
+        if(!decoded){--index;continue;}
+        ++rf_xbox_movie_diagnostic[2];
+        pixels=rf_xbox_movie_buffer(decoder->width,decoder->height,&pitch);
+        if(!pixels){status=RF_RANGE;break;}
+        rf_mpeg2_intra_to_bgra(decoder,pixels,pitch);
+        t2=GetTickCount();rf_xbox_movie_diagnostic[5]+=t2-t1;
+        while((int32_t)(GetTickCount()-due)<0)Sleep(1);
+        t2=GetTickCount();
+        status=rf_xbox_movie_present();if(status)break;
+        rf_xbox_movie_diagnostic[6]+=GetTickCount()-t2;rf_xbox_movie_diagnostic[1]=++shown;
+        rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
+        if(input_owned && !(mode&6u) && index>60){
+            rf_scene_input input;
+            if(rf_xbox_input_poll(NULL,0,&input)==RF_OK &&
+               ((rf_xbox_input_menu_pressed()&(RF_XBOX_MENU_ACCEPT|RF_XBOX_MENU_CANCEL|RF_XBOX_MENU_BACK)) || rf_xbox_input_pause_pressed()))break;
+        }
+    }
+    if(status==RF_NOT_FOUND)status=RF_OK;
+    rf_xbox_movie_diagnostic[0]=(uint32_t)status;rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
+    rf_xbox_movie_close();
+    if(input_owned)rf_xbox_input_close();
+    rf_mpeg2_intra_close(decoder);free(decoder);rf_pss_close(pss);
+    return status;
 }
 static int player_frontend(uint32_t ended,int session_status,char saved_level[64],uint32_t *dashboard_exit)
 {
@@ -2924,6 +2978,9 @@ int main(void)
         /* Read once per normal tester boot, before any controller/session opens.
          * Diagnostic/replay launches do not acquire settings storage. */
         player_options_restore();
+        /* 1b1000 stage 1: the THQ logo at start-up, before the menus. A
+         * movie failure is reported but never keeps the game from starting. */
+        (void)player_movie("D:\\movies\\thqlogo.pss",0);
         for(;;){
             char saved_level[64]={0};uint32_t dashboard_exit=0;
             /* A failed load/teardown stays visibly failed. Never relabel it as

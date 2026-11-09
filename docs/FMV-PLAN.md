@@ -1,7 +1,10 @@
 # Pre-rendered movies (FMV) — plan
 
-Status: planned (2026-11-09), playback timing, stream format and decoder choice settled; nothing implemented. In-level story scenes are
-engine-driven on both platforms and are not part of this.
+Status (2026-11-09): THQ logo plays at start-up on Xbox, picture only.
+Decoder `src/core/mpeg2_intra.c`, reader `src/core/pss.c`, Xbox player
+`player_movie` in `src/platform/xbox/main.c`, drawing
+`rf_xbox_movie_buffer`/`rf_xbox_movie_present` in `renderer.c`. Not yet:
+sound, the intro/ending/trailer moments, the real installer step.
 
 ## Which movies
 
@@ -79,3 +82,20 @@ port's TRAINING already starts.
    existing stream path.
 5. Hook the movies to the traced moments; skip with A/Start; memory stays
    within stock 64 MiB (stream from disc, two frame buffers).
+
+## Results
+
+- PC (`tools/check_pss_decode.py`, against FFmpeg): THQ logo 568 and intro
+  3,247 pictures decode with no errors; worst PSNR 64.8 dB (IDCT rounding).
+  Audio length matches the pictures to 0.05 s; FFmpeg cannot read the
+  audio substream, so the samples are checked for a smooth waveform.
+- XEMU, THQ logo at start-up (720p): 563 of 568 pictures shown, 5 skipped
+  while starting, 18.9 s (its real length). Per picture: decode 11.3 ms,
+  colour conversion 6.2 ms, present 8.6 ms (includes the VBlank wait).
+  Screenshot: the logo fills the centred 4:3 area, edges within a pixel of
+  the PC frame scaled 1.5 x 1.61. Console not yet measured.
+- Discs: `tools/extract_ps2_movies.py` copies the four PSS files from the
+  PS2 image to `build/data/movies`; the crash harness and
+  `tools/build-xbox-tester.sh` link them into `movies\` on the disc.
+- Skip (A, B, Y or Start after 60 pictures) is written but untested: XEMU
+  has no controller.

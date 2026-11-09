@@ -1650,6 +1650,101 @@ static void lowres_composite(const uint32_t *program,uint32_t words,const gpu_te
     p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
     pb_end(p);
 }
+/* PS2 movie pictures: a linear A8R8G8B8 texture stretched over the 640x480
+ * virtual screen (the PS2's 640x448 picture filled its 4:3 screen), drawn
+ * the way the reduced-resolution picture is composited. */
+static unsigned char *movie_color;static rf_preview_vertex *movie_quad;static uint32_t *movie_white;
+static uint32_t movie_width,movie_height,movie_pitch;
+void rf_xbox_movie_close(void)
+{
+    if(movie_color || movie_quad || movie_white){while(pb_busy()) {}}
+    if(movie_color)MmFreeContiguousMemory(movie_color);
+    if(movie_quad)MmFreeContiguousMemory(movie_quad);
+    if(movie_white)MmFreeContiguousMemory(movie_white);
+    movie_color=NULL;movie_quad=NULL;movie_white=NULL;movie_width=movie_height=movie_pitch=0;
+}
+uint8_t *rf_xbox_movie_buffer(uint32_t width,uint32_t height,uint32_t *pitch)
+{
+    if(!width || !height || width>1024 || height>1024 || !pitch)return NULL;
+    if(movie_color && (width!=movie_width || height!=movie_height))rf_xbox_movie_close();
+    if(!movie_color){
+        static const float corner[6][2]={{0,0},{640,0},{640,480},{0,0},{640,480},{0,480}};
+        uint32_t i;
+        movie_pitch=(width*4+63)&~63u;
+        movie_color=MmAllocateContiguousMemoryEx(movie_pitch*height,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        movie_quad=MmAllocateContiguousMemoryEx(6*sizeof(rf_preview_vertex),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        movie_white=MmAllocateContiguousMemoryEx(4,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        if(!movie_color || !movie_quad || !movie_white){rf_xbox_movie_close();return NULL;}
+        *movie_white=0xffffffffu;
+        for(i=0;i<6;i++){rf_preview_vertex v={0};
+            v.position[0]=corner[i][0];v.position[1]=corner[i][1];
+            v.color[0]=v.color[1]=v.color[2]=.5f; /* fragment doubles base x colour x white */
+            v.texture[0]=corner[i][0]/640.f*(float)width;v.texture[1]=corner[i][1]/480.f*(float)height;v.texture[2]=1;
+            v.lightmap_texture[2]=1;movie_quad[i]=v;}
+        memset(movie_color,0,movie_pitch*height);
+        __asm__ volatile("sfence" ::: "memory");
+        movie_width=width;movie_height=height;
+    }
+    *pitch=movie_pitch;return movie_color;
+}
+int rf_xbox_movie_present(void)
+{
+    static const uint32_t program[]={
+#include "preview_vertex.inl"
+    };
+    uint32_t *p,i;
+    if(!movie_color)return RF_RANGE;
+    {int opened=device_open();if(opened)return opened;}
+    __asm__ volatile("sfence" ::: "memory");
+    while(pb_busy()) {}
+    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();
+    screen_erase_depth();screen_fill(0xff000000);
+    hud_constants(); /* 640x480 virtual screen, centred 4:3 at 16:9 */
+    vertex_program(program,sizeof(program)/4);
+    p=pb_begin();
+#include "preview_fragment.inl"
+    p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0); /* c1 opacity */
+    p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,0);
+    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)(uintptr_t)movie_color&0x03ffffff);
+    p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
+        field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
+        field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY,2)|
+        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8)|
+        field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS,1));
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL1,movie_pitch<<16);
+    p=pb_push1(p,NV097_SET_TEXTURE_IMAGE_RECT,(movie_width<<16)|movie_height);
+    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00030303);
+    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);
+    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)(uintptr_t)movie_white&0x03ffffff);
+    p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
+        field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
+        field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY,2)|
+        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8R8G8B8)|
+        field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS,1));
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
+    for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+    pb_end(p);p=pb_begin();
+    for(i=0;i<4;i++) {
+        uint32_t attribute=i==0?0:i==1?3:i==2?9:10;
+        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute*4,
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)|
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,3)|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,sizeof(rf_preview_vertex)));
+        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)(uintptr_t)movie_quad+(i==3?40:i*12))&0x03ffffff);
+    }
+    p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);
+    p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,5)|field(NV097_DRAW_ARRAYS_START_INDEX,0));
+    p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);
+    p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+    pb_end(p);
+    show_front_screen();while(pb_finished()) {}
+    stream_start_valid=0;
+    return RF_OK;
+}
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
     uint32_t *p, i, frame;
