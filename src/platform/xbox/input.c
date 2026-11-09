@@ -1,5 +1,6 @@
 /* Xbox platform input policy; not recovered Red Faction input mapping. */
 #include "input.h"
+#include "igr.h"
 #include <SDL.h>
 #include <math.h>
 #include <stdio.h>
@@ -8,7 +9,8 @@
 static SDL_GameController *controller;
 /* Harness-only menu script (D:\menu-script.bin, written by
  * tools/xemu_crash_hunt.py --menu-script; never on a player disc): up to 32
- * pairs {milliseconds to wait, RF_XBOX_MENU_* bits, bit 31 = Start}. While
+ * pairs {milliseconds to wait, RF_XBOX_MENU_* bits, bit 31 = Start, bit 30 =
+ * the in-game reset combination}. While
  * steps remain it stands in for a controller: one menu press per step, so
  * the user-facing menu path can be driven in XEMU without host input. */
 static uint32_t menu_script[32][2],menu_script_count,menu_script_next,menu_script_due,menu_script_read;
@@ -28,7 +30,7 @@ static rf_xbox_input_options input_options={
     RF_XBOX_LOOK_SENSITIVITY_DEFAULT,0,RF_XBOX_STICK_DEADZONE_DEFAULT,RF_XBOX_STICK_LAYOUT_STANDARD,0,RF_TEXT_ENGLISH,
     RF_XBOX_VOLUME_DEFAULT,RF_XBOX_VOLUME_DEFAULT,RF_XBOX_VOLUME_DEFAULT
 };
-static uint32_t pause_mode,pause_edge,start_held,release_controls,menu_held,menu_edge;
+static uint32_t pause_mode,pause_edge,start_held,release_controls,menu_held,menu_edge,igr_latched;
 static uint32_t disconnect_edge,exit_rearm,alt_sample_valid,binding_rearm,chord_controls,binding_alt_rearm;
 static uint32_t bindings[RF_XBOX_BIND_COUNT]={0,1,2,3,4,5,6,7,8,9};
 enum {CONTROL_RIGHT=1u<<10,CONTROL_LEFT=1u<<11,CONTROL_UP=1u<<12,CONTROL_DOWN=1u<<13};
@@ -175,6 +177,7 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
         if(!menu_script_due)menu_script_due=(now+menu_script[0][0])|1u;
         if((int32_t)(now-menu_script_due)>=0){
             bits=menu_script[menu_script_next][1];menu_edge=bits&0xffu;pause_edge=bits>>31;
+            if(bits&(1u<<30))rf_xbox_igr_reset();
             rf_xbox_menu_script[2]=bits;rf_xbox_menu_script[1]=++menu_script_next;
             if(menu_script_active())menu_script_due=(now+menu_script[menu_script_next][0])|1u;
             else rf_xbox_menu_script[3]=0;
@@ -206,6 +209,14 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     rf_player_input_diagnostic[2]=frame+1;
     rf_player_input_diagnostic[3]=controller!=NULL;
     if(!controller){input_rumble_cancel();start_held=menu_held=0;rf_scene_save_button(0);rf_scene_load_button(0);return RF_OK;}
+    /* In-game reset: LT + RT + Back + Black held together, read from the
+     * controller's fixed physical layout (axes 2/5, buttons 6/5) so no button
+     * map changes it; once per hold (Perfect Dark X port/src/input.c). */
+    {SDL_Joystick *joy=SDL_GameControllerGetJoystick(controller);
+     uint32_t igr=joy && SDL_JoystickGetAxis(joy,2)>30*256 && SDL_JoystickGetAxis(joy,5)>30*256 &&
+         SDL_JoystickGetButton(joy,6) && SDL_JoystickGetButton(joy,5);
+     if(!igr)igr_latched=0;
+     else if(!igr_latched){igr_latched=1;input_rumble_cancel();rf_xbox_igr_reset();}}
     start=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)!=0;
     back=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK)!=0;
     /* Observe even an exit-chord return. This getter reads SDL's current

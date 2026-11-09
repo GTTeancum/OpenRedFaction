@@ -22,6 +22,7 @@
 #include "ps2_frontend.h"
 #include "file_io.h"
 #include "input.h"
+#include "igr.h"
 #include "settings_storage.h"
 #include "rf/settings_ini.h"
 #include "rf/mpeg2_intra.h"
@@ -2760,10 +2761,9 @@ static int player_dashboard_exit(uint32_t *present_error)
     *present_error=0;
     status=rf_xbox_frontend_exit_status();if(status)return status;
     *present_error=1;
-    /* Installed NXDK hal/xbox.c maps NULL to LDT_LAUNCH_DASHBOARD. No custom
-     * path, direct firmware fallback or automatic retry is authorized here.
-     * Its void API can return on allocation failure; return is never success. */
-    XLaunchXBE(NULL);
+    /* EXIT GAME is an in-game reset (igr.c): dashboard launch page, then a
+     * quick reboot; it does not return. */
+    rf_xbox_igr_reset();
     return RF_IO;
 }
 /* One level/session transaction. Diagnostic profiles retain their existing

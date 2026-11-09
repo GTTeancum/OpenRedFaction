@@ -478,3 +478,15 @@ texture density. MPL-2.0 reference, kept under ignored local/alpine-reference.
 No implementation was copied. Original RF.exe emulation remains the primary
 basis for reconstructed fill and blend behavior. See docs/GEOMOD.md for limits.
 Source: https://github.com/GooberRF/alpinefaction/blob/8348aebf40d597211f3a43be5eb025bd6a023310/game_patch/misc/g_solid.cpp
+
+## In-game reset
+
+`src/platform/xbox/igr.c` and the LT + RT + Back + Black check in
+`src/platform/xbox/input.c` follow the author's Perfect Dark X port,
+[GTTeancum/Perfect-Dark-X](https://github.com/GTTeancum/Perfect-Dark-X)
+`port/src/input.c` (`inputXboxReturnToDashboard`, `inputXboxIgrMask`) at
+commit `86566c0`, MIT licence (copyright 2022 Ryan Dwyer and contributors):
+a dashboard launch page committed with `wbinvd` before
+`HalReturnToFirmware(HalQuickRebootRoutine)`, a full reboot when the page
+cannot be allocated, and the combination read from the controller's fixed
+physical layout. Rewritten for this code base, not copied verbatim.
