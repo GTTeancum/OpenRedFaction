@@ -1,0 +1,11 @@
+/* PS2 movie pictures (docs/FMV-PLAN.md): Y from TEXUNIT0 (Y8, full size),
+ * U and V from TEXUNIT1 (A8Y8, half size: U in the colour, V in alpha),
+ * converted to RGB with ITU-R BT.601 studio-range coefficients. The sums
+ * are kept at half size and doubled at the end: combiner values stay in
+ * the -1..1 range the register combiners hold. */
+float4 main(float4 luma : TEXCOORD0, float4 chroma : TEXCOORD1, uniform sampler2D y : TEXUNIT0, uniform sampler2D uv : TEXUNIT1) : COLOR {
+    float3 l = tex2Dproj(y, luma).rgb;
+    float4 c = tex2Dproj(uv, chroma);
+    float3 half_rgb = l * 0.582 - 0.0365 + (c.b - 0.5) * float3(0.0, -0.196, 1.0) + (c.a - 0.5) * float3(0.798, -0.4065, 0.0);
+    return float4(half_rgb * 2.0, 1.0);
+}

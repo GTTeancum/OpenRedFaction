@@ -1650,42 +1650,46 @@ static void lowres_composite(const uint32_t *program,uint32_t words,const gpu_te
     p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
     pb_end(p);
 }
-/* PS2 movie pictures: a linear A8R8G8B8 texture stretched over the 640x480
- * virtual screen (the PS2's 640x448 picture filled its 4:3 screen), drawn
- * the way the reduced-resolution picture is composited. */
-static unsigned char *movie_color;static rf_preview_vertex *movie_quad;static uint32_t *movie_white;
-static uint32_t movie_width,movie_height,movie_pitch;
+/* PS2 movie pictures: Y (LU_IMAGE_Y8) and U/V pairs (LU_IMAGE_A8Y8: U as the
+ * colour, V as alpha) stretched over the 640x480 virtual screen (the PS2's
+ * 640x448 picture filled its 4:3 screen); movie_fragment converts BT.601
+ * YCbCr to RGB as it draws. Drawn the way the reduced-resolution picture is
+ * composited, with the chroma texture on stage 1 instead of white. */
+static unsigned char *movie_luma,*movie_chroma;static rf_preview_vertex *movie_quad;
+static uint32_t movie_width,movie_height,movie_luma_pitch,movie_chroma_pitch;
 void rf_xbox_movie_close(void)
 {
-    if(movie_color || movie_quad || movie_white){while(pb_busy()) {}}
-    if(movie_color)MmFreeContiguousMemory(movie_color);
+    if(movie_luma || movie_chroma || movie_quad){while(pb_busy()) {}}
+    if(movie_luma)MmFreeContiguousMemory(movie_luma);
+    if(movie_chroma)MmFreeContiguousMemory(movie_chroma);
     if(movie_quad)MmFreeContiguousMemory(movie_quad);
-    if(movie_white)MmFreeContiguousMemory(movie_white);
-    movie_color=NULL;movie_quad=NULL;movie_white=NULL;movie_width=movie_height=movie_pitch=0;
+    movie_luma=movie_chroma=NULL;movie_quad=NULL;movie_width=movie_height=movie_luma_pitch=movie_chroma_pitch=0;
 }
-uint8_t *rf_xbox_movie_buffer(uint32_t width,uint32_t height,uint32_t *pitch)
+int rf_xbox_movie_planes(uint32_t width,uint32_t height,uint8_t **luma,uint32_t *luma_pitch,
+    uint8_t **chroma,uint32_t *chroma_pitch)
 {
-    if(!width || !height || width>1024 || height>1024 || !pitch)return NULL;
-    if(movie_color && (width!=movie_width || height!=movie_height))rf_xbox_movie_close();
-    if(!movie_color){
+    if(!width || !height || width>1024 || height>1024 || (width|height)&1 || !luma || !luma_pitch || !chroma || !chroma_pitch)return RF_RANGE;
+    if(movie_luma && (width!=movie_width || height!=movie_height))rf_xbox_movie_close();
+    if(!movie_luma){
         static const float corner[6][2]={{0,0},{640,0},{640,480},{0,0},{640,480},{0,480}};
         uint32_t i;
-        movie_pitch=(width*4+63)&~63u;
-        movie_color=MmAllocateContiguousMemoryEx(movie_pitch*height,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        movie_luma_pitch=(width+63)&~63u;movie_chroma_pitch=(width+63)&~63u; /* width/2 pairs of two bytes */
+        movie_luma=MmAllocateContiguousMemoryEx(movie_luma_pitch*height,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        movie_chroma=MmAllocateContiguousMemoryEx(movie_chroma_pitch*(height/2),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
         movie_quad=MmAllocateContiguousMemoryEx(6*sizeof(rf_preview_vertex),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
-        movie_white=MmAllocateContiguousMemoryEx(4,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
-        if(!movie_color || !movie_quad || !movie_white){rf_xbox_movie_close();return NULL;}
-        *movie_white=0xffffffffu;
+        if(!movie_luma || !movie_chroma || !movie_quad){rf_xbox_movie_close();return RF_RANGE;}
         for(i=0;i<6;i++){rf_preview_vertex v={0};
             v.position[0]=corner[i][0];v.position[1]=corner[i][1];
-            v.color[0]=v.color[1]=v.color[2]=.5f; /* fragment doubles base x colour x white */
+            v.color[0]=v.color[1]=v.color[2]=1;
             v.texture[0]=corner[i][0]/640.f*(float)width;v.texture[1]=corner[i][1]/480.f*(float)height;v.texture[2]=1;
-            v.lightmap_texture[2]=1;movie_quad[i]=v;}
-        memset(movie_color,0,movie_pitch*height);
+            v.lightmap_texture[0]=v.texture[0]*.5f;v.lightmap_texture[1]=v.texture[1]*.5f;v.lightmap_texture[2]=1;
+            movie_quad[i]=v;}
+        memset(movie_luma,16,movie_luma_pitch*height);memset(movie_chroma,128,movie_chroma_pitch*(height/2)); /* black */
         __asm__ volatile("sfence" ::: "memory");
         movie_width=width;movie_height=height;
     }
-    *pitch=movie_pitch;return movie_color;
+    *luma=movie_luma;*luma_pitch=movie_luma_pitch;*chroma=movie_chroma;*chroma_pitch=movie_chroma_pitch;
+    return RF_OK;
 }
 int rf_xbox_movie_present(void)
 {
@@ -1693,7 +1697,7 @@ int rf_xbox_movie_present(void)
 #include "preview_vertex.inl"
     };
     uint32_t *p,i;
-    if(!movie_color)return RF_RANGE;
+    if(!movie_luma)return RF_RANGE;
     {int opened=device_open();if(opened)return opened;}
     __asm__ volatile("sfence" ::: "memory");
     while(pb_busy()) {}
@@ -1702,31 +1706,34 @@ int rf_xbox_movie_present(void)
     hud_constants(); /* 640x480 virtual screen, centred 4:3 at 16:9 */
     vertex_program(program,sizeof(program)/4);
     p=pb_begin();
-#include "preview_fragment.inl"
+#include "movie_fragment.inl"
     p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
     p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);
     p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0); /* c1 opacity */
     p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);p=pb_push1(p,NV097_SET_ALPHA_TEST_ENABLE,0);
     p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,0);
-    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)(uintptr_t)movie_color&0x03ffffff);
+    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)(uintptr_t)movie_luma&0x03ffffff);
     p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
         field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY,2)|
-        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8)|
+        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_Y8)|
         field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS,1));
     p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
-    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL1,movie_pitch<<16);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL1,movie_luma_pitch<<16);
     p=pb_push1(p,NV097_SET_TEXTURE_IMAGE_RECT,(movie_width<<16)|movie_height);
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00030303);
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,RF_TEXTURE_FILTER_LINEAR);
-    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)(uintptr_t)movie_white&0x03ffffff);
+    p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)(uintptr_t)movie_chroma&0x03ffffff);
     p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,field(NV097_SET_TEXTURE_FORMAT_CONTEXT_DMA,1)|
         field(NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE,NV097_SET_TEXTURE_FORMAT_BORDER_SOURCE_COLOR)|
         field(NV097_SET_TEXTURE_FORMAT_DIMENSIONALITY,2)|
-        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8R8G8B8)|
+        field(NV097_SET_TEXTURE_FORMAT_COLOR,NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8)|
         field(NV097_SET_TEXTURE_FORMAT_MIPMAP_LEVELS,1));
     p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL1+0x40,movie_chroma_pitch<<16);
+    p=pb_push1(p,NV097_SET_TEXTURE_IMAGE_RECT+0x40,((movie_width/2)<<16)|(movie_height/2));
     p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
+    p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,RF_TEXTURE_FILTER_LINEAR);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
     pb_end(p);p=pb_begin();
     for(i=0;i<4;i++) {
@@ -1740,6 +1747,8 @@ int rf_xbox_movie_present(void)
     p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,5)|field(NV097_DRAW_ARRAYS_START_INDEX,0));
     p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);
     p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+    /* Later draws set their own combiners; leave stage 1 off as found. */
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,0);
     pb_end(p);
     show_front_screen();while(pb_finished()) {}
     stream_start_valid=0;

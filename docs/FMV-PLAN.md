@@ -4,7 +4,7 @@ Status (2026-11-09): all four movies play at their PS2 moments, with sound.
 Decoder `src/core/mpeg2_intra.c`, reader `src/core/pss.c`, Xbox player
 `player_movie` in `src/platform/xbox/main.c`, drawing
 `rf_xbox_movie_buffer`/`rf_xbox_movie_present` in `renderer.c`. Not yet:
-the real installer step, a console run, colour conversion on the GPU.
+the real installer step, a console run.
 
 ## Which movies
 
@@ -126,3 +126,14 @@ port's TRAINING already starts.
   area; ending via tools/xemu_defuse_campaign.py in L20S3 at stock 64 MiB,
   2,121 shown and 303 dropped in 80.8 s, credits followed. The ending was
   not looked at (same path as the others).
+- GPU colour conversion (2026-11-09): the decoded Y plane and interleaved
+  U/V pairs are copied row by row into two linear textures (LU_IMAGE_Y8,
+  LU_IMAGE_A8Y8) and `movie_fragment.ps.cg` converts BT.601 studio range to
+  RGB in three combiner stages (sums kept at half and doubled to stay in
+  the combiners' range). Copy cost about 2.7 ms a picture against 8 ms for
+  the CPU conversion it replaces. Intro screenshot against the FFmpeg frame:
+  mean difference 2.5/1.6/3.0 levels (R/G/B) after rescaling; a faint red
+  edge at the picture's left is in the PS2 video itself (FFmpeg shows it).
+  XEMU drops: intro 3 of 3,247 (was 485), trailer 35 of 1,829 (was about
+  8%), ending 0 of 2,424 in L20S3 (was 303). Decode still varies 12-18 ms
+  a picture between runs with another XEMU on the host.

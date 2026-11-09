@@ -79,12 +79,14 @@ void rf_xbox_scene_stream_close(void);
  * device is closed and reopens in the new mode at the next frame. Returns 0
  * when already in that mode, 1 when changed, an error when refused. */
 int rf_xbox_video_mode_change(int width,int height,int bpp);
-/* PS2 movies (docs/FMV-PLAN.md). The buffer is one linear 32-bit B,G,R,A
- * picture of width x height in contiguous write-combined memory (row pitch
- * returned), kept until close; present draws it over the 4:3 screen area
- * (black bars at 16:9) and shows the frame. Close before any other screen
- * owner (menus, scene) draws. */
-uint8_t *rf_xbox_movie_buffer(uint32_t width,uint32_t height,uint32_t *pitch);
+/* PS2 movies (docs/FMV-PLAN.md). The picture is two linear textures in
+ * contiguous write-combined memory, kept until close: Y (one byte a pixel,
+ * width x height) and chroma (U then V byte pairs, width/2 x height/2).
+ * Write each row front to back. present draws them over the 4:3 screen area
+ * (black bars at 16:9), the GPU converting to RGB, and shows the frame.
+ * Close before any other screen owner (menus, scene) draws. */
+int rf_xbox_movie_planes(uint32_t width,uint32_t height,uint8_t **luma,uint32_t *luma_pitch,
+    uint8_t **chroma,uint32_t *chroma_pitch);
 int rf_xbox_movie_present(void);
 void rf_xbox_movie_close(void);
 /* Reject live world/model/HUD owners, then wait at most1000 ms for the existing

@@ -1067,14 +1067,21 @@ static int player_movie_read_ahead(player_movie_state *m)
 }
 static int player_movie_picture(rf_mpeg2_intra *decoder,const uint8_t *unit,uint32_t bytes,uint32_t *shown_out)
 {
-    uint32_t decoded=0,t0=GetTickCount(),t1,pitch;uint8_t *pixels;
+    uint32_t decoded=0,t0=GetTickCount(),t1,luma_pitch,chroma_pitch,x,y,w,h;uint8_t *luma,*chroma;
     int status=rf_mpeg2_intra_decode(decoder,unit,bytes,&decoded);if(status)return status;
     t1=GetTickCount();rf_xbox_movie_diagnostic[4]+=t1-t0;
     if(!decoded){*shown_out=0;return RF_OK;}
     ++rf_xbox_movie_diagnostic[2];
-    pixels=rf_xbox_movie_buffer(decoder->width,decoder->height,&pitch);
-    if(!pixels)return RF_RANGE;
-    rf_mpeg2_intra_to_bgra(decoder,pixels,pitch);
+    w=decoder->width&~1u;h=decoder->height&~1u;
+    status=rf_xbox_movie_planes(w,h,&luma,&luma_pitch,&chroma,&chroma_pitch);if(status)return status;
+    /* Copy into the GPU's textures front to back (write-combined memory);
+     * the GPU converts to RGB as it draws (movie_fragment). */
+    for(y=0;y<h;y++)memcpy(luma+y*luma_pitch,decoder->planes[0]+y*decoder->stride[0],w);
+    for(y=0;y<h/2;y++){
+        const uint8_t *u=decoder->planes[1]+y*decoder->stride[1],*v=decoder->planes[2]+y*decoder->stride[2];
+        uint32_t *out=(uint32_t *)(chroma+y*chroma_pitch);
+        for(x=0;x+1<w/2;x+=2)out[x/2]=(uint32_t)u[x]|(uint32_t)v[x]<<8|(uint32_t)u[x+1]<<16|(uint32_t)v[x+1]<<24;
+    }
     rf_xbox_movie_diagnostic[5]+=GetTickCount()-t1;*shown_out=1;
     return RF_OK;
 }
