@@ -1,10 +1,10 @@
 # Pre-rendered movies (FMV) — plan
 
-Status (2026-11-09): THQ logo plays at start-up on Xbox, picture only.
+Status (2026-11-09): THQ logo plays at start-up on Xbox with its sound.
 Decoder `src/core/mpeg2_intra.c`, reader `src/core/pss.c`, Xbox player
 `player_movie` in `src/platform/xbox/main.c`, drawing
 `rf_xbox_movie_buffer`/`rf_xbox_movie_present` in `renderer.c`. Not yet:
-sound, the intro/ending/trailer moments, the real installer step.
+the intro/ending/trailer moments, the real installer step, a console run.
 
 ## Which movies
 
@@ -99,3 +99,13 @@ port's TRAINING already starts.
   `tools/build-xbox-tester.sh` link them into `movies\` on the disc.
 - Skip (A, B, Y or Start after 60 pictures) is written but untested: XEMU
   has no controller.
+- Sound and timing (XEMU, THQ logo): the player reads up to 16 pictures
+  ahead so two full 4096-frame blocks of sound stay queued; the first
+  picture and the sound start on the same tick. All 907,264 sound frames
+  (18.9 s) played with the queue never running dry; no pictures dropped
+  at the start; 549 of 568 shown, 19 dropped in one busy stretch late in
+  the logo (decode about 15 ms and conversion 7 ms a picture with the
+  sound running). The double VBlank wait per picture is gone (present now
+  about 1 ms). Heard: not checked (no audio capture); evidence is the
+  hardware finishing every queued block. Next saving if the console
+  drops pictures: colour conversion on the GPU.

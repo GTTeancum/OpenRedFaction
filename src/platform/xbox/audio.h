@@ -55,4 +55,18 @@ extern uint32_t rf_xbox_audio_close_phase;
  * current queued buffers, track revision, last error. Completion is native
  * consumption evidence, not proof that host speakers are audible. */
 extern volatile uint32_t rf_xbox_music_diagnostic[12];
+/* PS2 movie sound (docs/FMV-PLAN.md): the streamed music voice fed from the
+ * caller's 48 kHz stereo 16-bit PCM instead of a music track, at the music
+ * level. Only between rf_xbox_audio_open and close with no music playing.
+ * feed queues up to two blocks of up to 4096 frames from fill (fewer frames
+ * make a shorter block; none queues nothing) and starts the voice once
+ * start has been called. stop retires the voice. The block counter counts
+ * blocks the hardware has finished; restarts counts recoveries after the
+ * queue ran dry (the sound fell behind). */
+typedef uint32_t (*rf_xbox_movie_fill)(void *context,int16_t *stereo,uint32_t frames);
+int rf_xbox_movie_audio_feed(rf_xbox_movie_fill fill,void *context);
+int rf_xbox_movie_audio_start(void);
+uint32_t rf_xbox_movie_audio_queued(void);
+uint32_t rf_xbox_movie_audio_restarts(void);
+int rf_xbox_movie_audio_stop(void);
 #endif

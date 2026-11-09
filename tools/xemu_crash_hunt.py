@@ -692,7 +692,7 @@ dvd_path = '{iso.as_posix()}'
           counts['rf_scene_mp_player_model']=3
           counts['rf_scene_mp_attack']=5
           counts['rf_scene_player_context']=4
-          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1;counts['rf_hud_control_text_diagnostic']=8;counts['rf_xbox_menu_script']=4;counts['rf_xbox_movie_diagnostic']=8;counts['rf_xbox_transition_target']=16
+          counts['rf_scene_split']=10;counts['rf_scene_mp_human2']=12;counts['rf_scene_split_failure']=4;counts['rf_xbox_video_two_player']=4;counts['rf_xbox_menu_buffer']=1;counts['rf_hud_control_text_diagnostic']=8;counts['rf_xbox_menu_script']=4;counts['rf_xbox_movie_diagnostic']=12;counts['rf_xbox_music_diagnostic']=12;counts['rf_xbox_transition_target']=16
           counts['rf_scene_mp_bot_debug']=56
           counts['rf_scene_mp_step_ups']=2
           counts['rf_scene_mp_unplanned']=1

@@ -1697,7 +1697,7 @@ int rf_xbox_movie_present(void)
     {int opened=device_open();if(opened)return opened;}
     __asm__ volatile("sfence" ::: "memory");
     while(pb_busy()) {}
-    pb_wait_for_vbl();pb_reset();target_back_buffer();screen_constants();
+    pb_reset(); /* the caller paces pictures; the flip itself waits for VBlank */target_back_buffer();screen_constants();
     screen_erase_depth();screen_fill(0xff000000);
     hud_constants(); /* 640x480 virtual screen, centred 4:3 at 16:9 */
     vertex_program(program,sizeof(program)/4);

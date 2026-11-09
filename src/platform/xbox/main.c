@@ -1019,55 +1019,132 @@ static int player_mp_stats(uint32_t *choice)
     }
 }
 /* PS2 movies (docs/FMV-PLAN.md): 204a90 plays data\movies\<name>.pss at 30
- * pictures a second; with mode bit 1 clear (and bit 2 clear) a button press
- * stops it after the first 60 pictures. Every picture is an I picture, so a
- * picture more than a frame late is skipped without decoding and the movie
- * keeps time. An absent file plays nothing. The sound is not played yet.
+ * pictures a second; with mode bits 1 and 2 clear a button press stops it
+ * after the first 60 pictures. The file is read up to MOVIE_AHEAD pictures
+ * ahead of the screen so that two full blocks of sound (about 0.17 s) stay
+ * queued. The first picture is shown and the sound started on the same tick;
+ * that tick is the movie clock. Every picture is an I picture, so one more
+ * than a frame late is skipped without decoding and the pictures keep time
+ * with the sound. An absent file plays nothing. The sound plays at the music
+ * level through the streamed music voice when the audio backend is free
+ * (always at start-up).
  * Harness: status, pictures shown, pictures decoded, late pictures skipped,
- * decode ms, colour conversion ms, present ms, elapsed ms. */
-uint32_t rf_xbox_movie_diagnostic[8];
+ * decode ms, colour conversion ms, present ms, elapsed ms, audio frames
+ * queued, times the sound ran dry, audio frames buffered at the start,
+ * pictures read ahead at most. */
+uint32_t rf_xbox_movie_diagnostic[12];
+#define MOVIE_AHEAD 16u
+#define MOVIE_BLOCK 4096u
+typedef struct player_movie_state {
+    rf_pss *pss;uint32_t eof,head,count;
+    struct {uint8_t *data;uint32_t bytes,capacity;} units[MOVIE_AHEAD];
+} player_movie_state;
+/* Sound for the voice: whole blocks only until the file has been read out. */
+static uint32_t player_movie_fill(void *context,int16_t *stereo,uint32_t frames)
+{
+    player_movie_state *m=context;uint32_t n;
+    if(!m->eof && rf_pss_audio_available(m->pss)<MOVIE_BLOCK)return 0;
+    n=rf_pss_audio_read(m->pss,stereo,frames);rf_xbox_movie_diagnostic[8]+=n;return n;
+}
+/* Reads pictures ahead until two blocks of sound are buffered (always at
+ * least one picture waiting), the queue is full or the file ends. */
+static int player_movie_read_ahead(player_movie_state *m)
+{
+    while(!m->eof && m->count<MOVIE_AHEAD && (!m->count || rf_pss_audio_available(m->pss)<2*MOVIE_BLOCK)){
+        const uint8_t *unit;uint32_t bytes,slot;int status=rf_pss_next_unit(m->pss,&unit,&bytes);
+        if(status==RF_NOT_FOUND){m->eof=1;break;}
+        if(status)return status;
+        if(bytes<4 || unit[0] || unit[1] || unit[2]!=1)continue;
+        slot=(m->head+m->count)%MOVIE_AHEAD;
+        if(m->units[slot].capacity<bytes){
+            uint8_t *grown=realloc(m->units[slot].data,bytes);if(!grown)return RF_RANGE;
+            m->units[slot].data=grown;m->units[slot].capacity=bytes;
+        }
+        memcpy(m->units[slot].data,unit,bytes);m->units[slot].bytes=bytes;++m->count;
+        if(m->count>rf_xbox_movie_diagnostic[11])rf_xbox_movie_diagnostic[11]=m->count;
+    }
+    return RF_OK;
+}
+static int player_movie_picture(rf_mpeg2_intra *decoder,const uint8_t *unit,uint32_t bytes,uint32_t *shown_out)
+{
+    uint32_t decoded=0,t0=GetTickCount(),t1,pitch;uint8_t *pixels;
+    int status=rf_mpeg2_intra_decode(decoder,unit,bytes,&decoded);if(status)return status;
+    t1=GetTickCount();rf_xbox_movie_diagnostic[4]+=t1-t0;
+    if(!decoded){*shown_out=0;return RF_OK;}
+    ++rf_xbox_movie_diagnostic[2];
+    pixels=rf_xbox_movie_buffer(decoder->width,decoder->height,&pitch);
+    if(!pixels)return RF_RANGE;
+    rf_mpeg2_intra_to_bgra(decoder,pixels,pitch);
+    rf_xbox_movie_diagnostic[5]+=GetTickCount()-t1;*shown_out=1;
+    return RF_OK;
+}
 static int player_movie(const char *path,uint32_t mode)
 {
-    rf_pss *pss=NULL;rf_mpeg2_intra *decoder;const uint8_t *unit;uint32_t bytes,shown=0,index=0,start,input_owned=0;
-    int status=rf_pss_open(&pss,path);static int16_t discard[4096*2];
+    player_movie_state *m;rf_mpeg2_intra *decoder;uint32_t index=0,start=0,input_owned=0,audio_owned=0,ready=0,skipped=0,i;
+    rf_pss *pss=NULL;int status=rf_pss_open(&pss,path);
     memset(rf_xbox_movie_diagnostic,0,sizeof(rf_xbox_movie_diagnostic));
     if(status==RF_NOT_FOUND)return RF_OK;
     if(status){rf_xbox_movie_diagnostic[0]=(uint32_t)status;return status;}
-    decoder=malloc(sizeof(*decoder));
-    if(!decoder || rf_mpeg2_intra_open(decoder,720,576)){free(decoder);rf_pss_close(pss);rf_xbox_movie_diagnostic[0]=(uint32_t)RF_RANGE;return RF_RANGE;}
+    m=calloc(1,sizeof(*m));decoder=malloc(sizeof(*decoder));
+    if(!m || !decoder || rf_mpeg2_intra_open(decoder,720,576)){free(m);free(decoder);rf_pss_close(pss);rf_xbox_movie_diagnostic[0]=(uint32_t)RF_RANGE;return RF_RANGE;}
+    m->pss=pss;
     if(rf_xbox_input_idle_status()==RF_OK && !rf_xbox_input_open())input_owned=1;
-    start=GetTickCount();
-    while(!(status=rf_pss_next_unit(pss,&unit,&bytes))){
-        uint32_t due=start+index*1000u/30u,decoded=0,t0,t1,t2,pitch;uint8_t *pixels;
-        while(rf_pss_audio_read(pss,discard,4096)) {} /* sound not played yet */
-        if(bytes<4 || unit[0] || unit[1] || unit[2]!=1)continue;
-        ++index;
-        if((int32_t)(GetTickCount()-due)>33){++rf_xbox_movie_diagnostic[3];continue;}
-        t0=GetTickCount();
-        status=rf_mpeg2_intra_decode(decoder,unit,bytes,&decoded);if(status)break;
-        t1=GetTickCount();rf_xbox_movie_diagnostic[4]+=t1-t0;
-        if(!decoded){--index;continue;}
-        ++rf_xbox_movie_diagnostic[2];
-        pixels=rf_xbox_movie_buffer(decoder->width,decoder->height,&pitch);
-        if(!pixels){status=RF_RANGE;break;}
-        rf_mpeg2_intra_to_bgra(decoder,pixels,pitch);
-        t2=GetTickCount();rf_xbox_movie_diagnostic[5]+=t2-t1;
-        while((int32_t)(GetTickCount()-due)<0)Sleep(1);
-        t2=GetTickCount();
-        status=rf_xbox_movie_present();if(status)break;
-        rf_xbox_movie_diagnostic[6]+=GetTickCount()-t2;rf_xbox_movie_diagnostic[1]=++shown;
+    if(rf_xbox_audio_idle_status()==RF_OK && !rf_xbox_audio_open())audio_owned=1;
+    for(;;){
+        uint32_t shown=0,t,slot;
+        status=player_movie_read_ahead(m);if(status)break;
+        if(!m->count){status=RF_NOT_FOUND;break;}
+        slot=m->head;m->head=(m->head+1)%MOVIE_AHEAD;--m->count;
+        if(!ready){
+            /* First picture: decode it, queue the sound read ahead with it,
+             * then show it and start the sound together. */
+            status=player_movie_picture(decoder,m->units[slot].data,m->units[slot].bytes,&shown);if(status)break;
+            if(!shown)continue;
+            rf_xbox_movie_diagnostic[10]=rf_pss_audio_available(pss);
+            if(audio_owned){status=rf_xbox_movie_audio_feed(player_movie_fill,m);if(status)break;}
+            t=GetTickCount();status=rf_xbox_movie_present();if(status)break;
+            if(audio_owned){status=rf_xbox_movie_audio_start();if(status)break;}
+            start=GetTickCount();rf_xbox_movie_diagnostic[6]+=start-t;
+            ready=1;index=1;rf_xbox_movie_diagnostic[1]=1;continue;
+        }
+        if(audio_owned){status=rf_xbox_movie_audio_feed(player_movie_fill,m);if(status)break;}
+        else {static int16_t discard[4096*2];while(rf_pss_audio_read(pss,discard,4096)) {}}
+        {
+            uint32_t due=start+index*1000u/30u;++index;
+            if((int32_t)(GetTickCount()-due)>33){++rf_xbox_movie_diagnostic[3];continue;}
+            status=player_movie_picture(decoder,m->units[slot].data,m->units[slot].bytes,&shown);if(status)break;
+            if(!shown){--index;continue;}
+            while((int32_t)(GetTickCount()-due)<0){
+                if(audio_owned){status=rf_xbox_movie_audio_feed(player_movie_fill,m);if(status)break;}
+                Sleep(1);
+            }
+            if(status)break;
+            t=GetTickCount();status=rf_xbox_movie_present();if(status)break;
+            rf_xbox_movie_diagnostic[6]+=GetTickCount()-t;++rf_xbox_movie_diagnostic[1];
+        }
         rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
+        if(audio_owned)rf_xbox_movie_diagnostic[9]=rf_xbox_movie_audio_restarts();
         if(input_owned && !(mode&6u) && index>60){
             rf_scene_input input;
             if(rf_xbox_input_poll(NULL,0,&input)==RF_OK &&
-               ((rf_xbox_input_menu_pressed()&(RF_XBOX_MENU_ACCEPT|RF_XBOX_MENU_CANCEL|RF_XBOX_MENU_BACK)) || rf_xbox_input_pause_pressed()))break;
+               ((rf_xbox_input_menu_pressed()&(RF_XBOX_MENU_ACCEPT|RF_XBOX_MENU_CANCEL|RF_XBOX_MENU_BACK)) || rf_xbox_input_pause_pressed())){skipped=1;break;}
+        }
+    }
+    if(status==RF_NOT_FOUND && !skipped){
+        /* The end: let the queued sound finish, at most half a second. */
+        uint32_t limit=GetTickCount()+500u;
+        while(audio_owned && rf_xbox_movie_audio_queued() && (int32_t)(GetTickCount()-limit)<0){
+            if(rf_xbox_movie_audio_feed(player_movie_fill,m))break;
+            Sleep(5);
         }
     }
     if(status==RF_NOT_FOUND)status=RF_OK;
-    rf_xbox_movie_diagnostic[0]=(uint32_t)status;rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
+    rf_xbox_movie_diagnostic[0]=(uint32_t)status;if(ready)rf_xbox_movie_diagnostic[7]=GetTickCount()-start;
     rf_xbox_movie_close();
+    if(audio_owned){rf_xbox_movie_diagnostic[9]=rf_xbox_movie_audio_restarts();(void)rf_xbox_movie_audio_stop();rf_xbox_audio_close();}
     if(input_owned)rf_xbox_input_close();
-    rf_mpeg2_intra_close(decoder);free(decoder);rf_pss_close(pss);
+    for(i=0;i<MOVIE_AHEAD;i++)free(m->units[i].data);
+    free(m);rf_mpeg2_intra_close(decoder);free(decoder);rf_pss_close(pss);
     return status;
 }
 static int player_frontend(uint32_t ended,int session_status,char saved_level[64],uint32_t *dashboard_exit)

@@ -324,6 +324,50 @@ fail:
      * Never recycle a descriptor while the hardware may still read it. */
     (void)music_release();music.failed=1;return status;
 }
+static uint32_t movie_playing,movie_restarts;
+int rf_xbox_movie_audio_feed(rf_xbox_movie_fill fill,void *context)
+{
+    uint32_t busy,attempt;int status;
+    if(!initialized || !fill)return RF_RANGE;
+    if(!music.created){status=music_create();if(status)goto fail;music.next_buffer=0;}
+    for(attempt=0;attempt<2;attempt++){
+        int16_t *pcm=music_pcm[music.next_buffer];uint32_t frames;
+        if(music_borrowed(&busy)==2 || busy)break;
+        frames=fill(context,pcm,MUSIC_FRAMES);if(!frames)break;
+        if(frames>MUSIC_FRAMES)frames=MUSIC_FRAMES;
+        if(!nxAudioBufferInitialize(music.buffers+music.next_buffer,pcm,frames*4)){status=RF_IO;goto fail;}
+        if(music.started && !music_borrowed(&busy))++movie_restarts; /* queue ran dry */
+        status=music_queue(music.buffers+music.next_buffer);if(status)goto fail;
+        ++rf_xbox_music_diagnostic[2];rf_xbox_music_diagnostic[6]+=frames;music.next_buffer^=1;
+    }
+    /* music_queue recreates a drained voice stopped; restart it in place. */
+    if(movie_playing && !music.started && music_borrowed(&busy)){
+        if(!nxAudioVoiceStart(&music.voice)){status=RF_IO;goto fail;}
+        music.started=1;++rf_xbox_music_diagnostic[1];
+    }
+    rf_xbox_music_diagnostic[9]=music_borrowed(&busy);
+    return RF_OK;
+fail:
+    ++rf_xbox_music_diagnostic[5];rf_xbox_music_diagnostic[11]=(uint32_t)status;return status;
+}
+int rf_xbox_movie_audio_start(void)
+{
+    uint32_t busy;
+    if(!initialized || !music.created)return RF_RANGE;
+    movie_playing=1;
+    if(!music.started && music_borrowed(&busy)){
+        if(!nxAudioVoiceStart(&music.voice))return RF_IO;
+        music.started=1;++rf_xbox_music_diagnostic[1];
+    }
+    return RF_OK;
+}
+uint32_t rf_xbox_movie_audio_queued(void){uint32_t busy;return initialized && music.created?music_borrowed(&busy):0;}
+uint32_t rf_xbox_movie_audio_restarts(void){return movie_restarts;}
+int rf_xbox_movie_audio_stop(void)
+{
+    movie_playing=0;movie_restarts=0;
+    return initialized?music_release():RF_OK;
+}
 static int32_t allocation_status(void *context,uint32_t slot,uint32_t *bits)
 {(void)context;*bits=nxAudioVoiceGetState(&slots[slot].voice)==NX_STOPPED?0u:1u;return 0;}
 static void allocation_release(void *context,uint32_t index)
