@@ -1,6 +1,6 @@
 # Pre-rendered movies (FMV) — plan
 
-Status: planned (2026-11-09), playback timing traced; nothing implemented. In-level story scenes are
+Status: planned (2026-11-09), playback timing and stream format traced; nothing implemented. In-level story scenes are
 engine-driven on both platforms and are not part of this.
 
 ## Which movies
@@ -47,8 +47,17 @@ port's TRAINING already starts.
 ## Steps
 
 1. Done: when each movie plays (above).
-2. Identify the PSS audio stream (PS2 ADPCM or PCM in private stream 1,
-   channels, rate) and how it interleaves with the video.
+2. Done: the streams (read from the ISO, 2026-11-09). Each PSS is an
+   MPEG-2 program stream with one video stream (`0xE0`, 640x448, 30 fps,
+   about 8 Mbit/s for the intro: DVD-class) and audio in private stream 1
+   (`0xBD`, substream `0xFF`, then three bytes before the payload). The
+   audio starts with a Sony `SShd` header (24 bytes: format 1, 48000 Hz,
+   2 channels, interleave 0x200, no loop) then `SSbd` and its byte count:
+   uncompressed 16-bit little-endian PCM (checked: little-endian samples are
+   smooth, big-endian are noise), channels in alternating 512-byte blocks.
+   No audio decoder is needed; 48 kHz is the Xbox's native rate.
+   Lengths from the audio sizes: THQ logo about 19 s, intro 109 s, ending
+   81 s, Summoner trailer 61 s.
 3. Installer: copy the four PSS files from the user's PS2 disc onto the Xbox
    disc unchanged (PS2 format kept; no re-encoding).
 4. Xbox player: MPEG-2 video decode on the CPU (733 MHz is enough for
